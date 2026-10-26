@@ -946,6 +946,7 @@ impl Transfer<'_> {
                     state.debt[debt] = MOVED;
                 }
                 InstructionKind::ByteBufferReserve { buffer: desc, .. }
+                | InstructionKind::ByteBufferTruncate { buffer: desc, .. }
                 | InstructionKind::ByteBufferPush { buffer: desc, .. }
                 | InstructionKind::ByteBufferBorrow {
                     buffer: desc,

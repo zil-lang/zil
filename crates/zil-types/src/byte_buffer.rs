@@ -13,6 +13,7 @@ pub(super) fn primitive(expression: &CoreExpr) -> Option<&str> {
         name.as_str(),
         "bytes_new"
             | "bytes_reserve"
+            | "bytes_truncate"
             | "bytes_push"
             | "bytes_len"
             | "bytes_capacity"
@@ -25,7 +26,7 @@ pub(super) fn primitive(expression: &CoreExpr) -> Option<&str> {
 pub(super) fn result_type(name: &str) -> Option<Type> {
     Some(match name {
         "bytes_new" => Type::Managed(Box::new(Type::ByteBuffer)),
-        "bytes_reserve" | "bytes_push" => Type::Bool,
+        "bytes_reserve" | "bytes_truncate" | "bytes_push" => Type::Bool,
         "bytes_len" | "bytes_capacity" => Type::I64,
         "bytes_view" | "bytes_view_mut" => Type::Address {
             mutable: name == "bytes_view_mut",
@@ -43,7 +44,7 @@ pub(super) fn parameters(name: &str) -> Vec<Type> {
     }
     let mut result = vec![Type::Desc(Box::new(Type::ByteBuffer))];
     match name {
-        "bytes_reserve" => result.push(Type::I64),
+        "bytes_reserve" | "bytes_truncate" => result.push(Type::I64),
         "bytes_push" => result.push(Type::U8),
         _ => {}
     }
@@ -112,7 +113,7 @@ impl Builder<'_, '_> {
     ) -> R<(ValueId, Type)> {
         let arity = match name {
             "bytes_new" => 0,
-            "bytes_reserve" | "bytes_push" => 2,
+            "bytes_reserve" | "bytes_truncate" | "bytes_push" => 2,
             _ => 1,
         };
         if arguments.len() != arity {
@@ -136,6 +137,11 @@ impl Builder<'_, '_> {
                     let (capacity, actual) = self.expr(&arguments[1], Some(&Type::I64))?;
                     self.same(&actual, &Type::I64, arguments[1].span)?;
                     InstructionKind::ByteBufferReserve { buffer, capacity }
+                }
+                "bytes_truncate" => {
+                    let (length, actual) = self.expr(&arguments[1], Some(&Type::I64))?;
+                    self.same(&actual, &Type::I64, arguments[1].span)?;
+                    InstructionKind::ByteBufferTruncate { buffer, length }
                 }
                 "bytes_push" => {
                     let (value, actual) = self.expr(&arguments[1], Some(&Type::U8))?;

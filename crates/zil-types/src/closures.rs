@@ -1909,7 +1909,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         let value = self.expr_expected(argument, Some(ty), depth + 1)?;
                         value.bind(&mut self.graph, ty, argument.span)?;
                         if index == 0
-                            && matches!(name, "bytes_reserve" | "bytes_push" | "bytes_view_mut")
+                            && matches!(
+                                name,
+                                "bytes_reserve"
+                                    | "bytes_truncate"
+                                    | "bytes_push"
+                                    | "bytes_view_mut"
+                            )
                         {
                             self.mark_resource_write(value, argument.span)?;
                         }
