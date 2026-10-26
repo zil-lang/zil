@@ -4,6 +4,9 @@ on:
     branches: ['research/136-compiled-effects', 'impl/137-byte-truncate']
 permissions:
   contents: write
+concurrency:
+  group: zil-task-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   verify:
     runs-on: ubuntu-24.04
@@ -12,7 +15,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
-      - name: Apply only the reviewed transport scope to this task branch
+      - name: Apply a hash-checked delta only to this task branch
         shell: bash
         run: |
           set -euo pipefail
@@ -31,9 +34,9 @@ jobs:
                   name=line.split('\t',2)[2]
                   if name.startswith('/') or '..' in pathlib.PurePosixPath(name).parts: raise SystemExit('Unsafe path')
                   if not (name.startswith(('crates/','changes/','docs/research/','docs/IMPL137')) or name in ('_zil_design.md','spec/interfaces.json')): raise SystemExit('Outside task write scope: '+name)
-                  before=subprocess.run(['git','rev-parse',m['base']+':'+name],capture_output=True)
-                  now=subprocess.run(['git','rev-parse','HEAD:'+name],capture_output=True)
-                  if (before.returncode,before.stdout)!=(now.returncode,now.stdout): raise SystemExit('Concurrent change: '+name)
+                  before=subprocess.run(['git','rev-parse','--verify',m['base']+':'+name],capture_output=True)
+                  now=subprocess.run(['git','rev-parse','--verify','HEAD:'+name],capture_output=True)
+                  if before.returncode != now.returncode or (before.returncode == 0 and before.stdout != now.stdout): raise SystemExit('Concurrent change: '+name)
               subprocess.run(['git','apply','--check','--index','-'],input=patch,check=True)
               subprocess.run(['git','apply','--index','-'],input=patch,check=True)
               subprocess.run(['git','rm','--',str(path)],check=True)
