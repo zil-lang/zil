@@ -19,8 +19,9 @@ jobs:
           set -euo pipefail
           cat .source-import/chunk-*.b64 | tr -d '\r\n' | base64 --decode > "$RUNNER_TEMP/zil-source.tar.gz"
           echo "3d17a910434a51ad63b930f3c0f5d7bd3e252c2dbd408102fa1f74d1b26fc598  $RUNNER_TEMP/zil-source.tar.gz" | sha256sum --check
-          tar -tzf "$RUNNER_TEMP/zil-source.tar.gz" | grep -q '^Cargo.toml$'
-          tar -tzf "$RUNNER_TEMP/zil-source.tar.gz" | grep -q '^crates/zil-types/src/resource_effects.rs$'
+          tar -tzf "$RUNNER_TEMP/zil-source.tar.gz" > "$RUNNER_TEMP/files.list"
+          grep -qx 'Cargo.toml' "$RUNNER_TEMP/files.list"
+          grep -qx 'crates/zil-types/src/resource_effects.rs' "$RUNNER_TEMP/files.list"
           tar -xzf "$RUNNER_TEMP/zil-source.tar.gz" -C .
           rm -rf .source-import
           git config user.name "github-actions[bot]"
