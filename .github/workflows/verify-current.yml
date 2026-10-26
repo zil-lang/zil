@@ -1,0 +1,72 @@
+name: Verify current ZIL
+on:
+  push:
+    branches: ['impl/135-main-verification', 'research/136-compiled-effects', 'impl/137-byte-truncate']
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: zil-current-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  workspace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_TARGET_DIR: ${{ runner.temp }}/target
+      ZIL_CLANG: clang
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Record exact identity and compact repository recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/receipts"
+          git rev-parse HEAD > "$RUNNER_TEMP/receipts/commit.txt"
+          git ls-tree -r -l HEAD > "$RUNNER_TEMP/receipts/tracked-tree.txt"
+          git bundle create "$RUNNER_TEMP/receipts/repository.bundle" HEAD --branches --remotes
+          sha256sum "$RUNNER_TEMP/receipts/repository.bundle" > "$RUNNER_TEMP/receipts/bundle.sha256"
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          rustc -vV > "$RUNNER_TEMP/receipts/toolchain.txt"
+          clang --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
+      - name: Formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all -- --check 2>&1 | tee "$RUNNER_TEMP/receipts/fmt.log"
+      - name: Current workspace tests, not the formal product gates
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --workspace 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
+      - name: Current workspace Clippy
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo clippy --locked --workspace --all-targets -- -D warnings 2>&1 | tee "$RUNNER_TEMP/receipts/clippy.log"
+      - name: New tracked files must not contain generated artifacts
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f tools/check-repo-hygiene.py; then
+            python3 tools/check-repo-hygiene.py --base 5630786389351c156eab76cbc7090595a47e91e4 --head HEAD
+            python3 tools/test-repo-hygiene.py
+          else
+            echo 'Repository hygiene checker not installed yet; no hygiene Pass claimed.'
+          fi
+      - name: Archive logs and recovery, never commit build outputs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: zil-current-${{ github.sha }}
+          path: ${{ runner.temp }}/receipts/
+          retention-days: 14
+          if-no-files-found: error
