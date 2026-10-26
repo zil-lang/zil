@@ -32,6 +32,7 @@ fn byte_buffer_name(name: &str) -> bool {
         "ByteBuffer"
             | "bytes_new"
             | "bytes_reserve"
+            | "bytes_truncate"
             | "bytes_push"
             | "bytes_len"
             | "bytes_capacity"

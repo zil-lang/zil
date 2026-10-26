@@ -178,6 +178,20 @@ done:
 failed:
   ret i1 false
 }
+define internal i1 @zil.bytes.truncate(ptr %head, i64 %requested) {
+entry:
+  %len.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 1
+  %len = load i64, ptr %len.field, align 8
+  %nonnegative = icmp sge i64 %requested, 0
+  %within = icmp ule i64 %requested, %len
+  %valid = and i1 %nonnegative, %within
+  br i1 %valid, label %publish, label %failed
+publish:
+  store i64 %requested, ptr %len.field, align 8
+  ret i1 true
+failed:
+  ret i1 false
+}
 define internal i1 @zil.bytes.push(ptr %head, i8 %byte) {
 entry:
   %len.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 1
@@ -225,6 +239,14 @@ impl FunctionEmitter<'_> {
                     value(output),
                     value(buffer),
                     value(capacity)
+                ));
+            }
+            InstructionKind::ByteBufferTruncate { buffer, length } => {
+                self.line(format!(
+                    "  {} = call i1 @zil.bytes.truncate(ptr {}, i64 {})",
+                    value(output),
+                    value(buffer),
+                    value(length)
                 ));
             }
             InstructionKind::ByteBufferPush {

@@ -372,14 +372,15 @@ fn compare_transfers(core: &CoreModule, label: &str) -> usize {
     let empty = Writes::new();
     let mut compared = 0;
     for input in &list {
+        let mut work = usize::MAX;
         let (_, dependencies) =
-            scan_once::<Tracked>(input, None, &empty, &mut usize::MAX, &enough()).unwrap();
+            scan_once::<Tracked>(input, None, &empty, &mut work, &enough()).unwrap();
         for summaries in all_summary_values(core) {
+            let mut work = usize::MAX;
             let (actual, observed) =
-                scan_once::<Tracked>(input, None, &summaries, &mut usize::MAX, &enough()).unwrap();
+                scan_once::<Tracked>(input, None, &summaries, &mut work, &enough()).unwrap();
             let (expected, _) =
-                scan_once::<Untracked>(input, None, &summaries, &mut usize::MAX, &enough())
-                    .unwrap();
+                scan_once::<Untracked>(input, None, &summaries, &mut work, &enough()).unwrap();
             assert_eq!(actual, expected, "{label}");
             assert_eq!(
                 dependencies, observed,
@@ -389,8 +390,7 @@ fn compare_transfers(core: &CoreModule, label: &str) -> usize {
                 let mut changed = summaries.clone();
                 changed.insert(FunctionId(callee as u32), Origins::from([0, 1]));
                 let (next, _) =
-                    scan_once::<Untracked>(input, None, &changed, &mut usize::MAX, &enough())
-                        .unwrap();
+                    scan_once::<Untracked>(input, None, &changed, &mut work, &enough()).unwrap();
                 if next != actual {
                     assert!(
                         dependencies.contains(&FunctionId(callee as u32)),

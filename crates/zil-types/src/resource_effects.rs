@@ -560,7 +560,13 @@ impl<T: Tracking> Scan<'_, '_, T> {
                     for (index, argument) in arguments.iter().enumerate() {
                         let origins = self.expr(argument, depth + 1)?;
                         if index == 0
-                            && matches!(name, "bytes_reserve" | "bytes_push" | "bytes_view_mut")
+                            && matches!(
+                                name,
+                                "bytes_reserve"
+                                    | "bytes_truncate"
+                                    | "bytes_push"
+                                    | "bytes_view_mut"
+                            )
                         {
                             self.record(origins, argument.span)?;
                         }

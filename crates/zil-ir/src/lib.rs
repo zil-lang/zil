@@ -735,6 +735,11 @@ pub enum InstructionKind {
         buffer: ValueId,
         value: ValueId,
     },
+    /// Shrink initialized prefix; false without mutation for negative/growing lengths.
+    ByteBufferTruncate {
+        buffer: ValueId,
+        length: ValueId,
+    },
     ByteBufferLen {
         buffer: ValueId,
     },
@@ -1204,7 +1209,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V17\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V18\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1867,6 +1872,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             b.push(65);
             encode_u32(b, buffer.0);
             encode_u32(b, value.0);
+        }
+        InstructionKind::ByteBufferTruncate { buffer, length } => {
+            b.push(69);
+            encode_u32(b, buffer.0);
+            encode_u32(b, length.0);
         }
         InstructionKind::ByteBufferLen { buffer } => {
             b.push(66);

@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 17;
+pub const WIRE_VERSION: u32 = 18;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -1067,6 +1067,11 @@ impl<'a> Writer<'a> {
                 self.u32(buffer.0)?;
                 self.u32(value.0)?;
             }
+            InstructionKind::ByteBufferTruncate { buffer, length } => {
+                self.u8(69)?;
+                self.u32(buffer.0)?;
+                self.u32(length.0)?;
+            }
             InstructionKind::ByteBufferLen { buffer } => {
                 self.u8(66)?;
                 self.u32(buffer.0)?;
@@ -1910,6 +1915,10 @@ impl<'a> Reader<'a> {
             },
             67 => InstructionKind::ByteBufferCapacity {
                 buffer: ValueId(self.u32()?),
+            },
+            69 => InstructionKind::ByteBufferTruncate {
+                buffer: ValueId(self.u32()?),
+                length: ValueId(self.u32()?),
             },
             68 => InstructionKind::ByteBufferBorrow {
                 buffer: ValueId(self.u32()?),
