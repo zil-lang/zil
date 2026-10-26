@@ -1,0 +1,32 @@
+name: Recovery Rust 1.99.1
+on:
+  push:
+    branches: [tooling/recovery-rust-1991]
+    paths: [.github/workflows/recovery-rust-1991.yml]
+permissions:
+  contents: read
+jobs:
+  toolchain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Install exact official toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          root="$(rustup run 1.99.1 rustc --print sysroot)"
+          mkdir -p "$RUNNER_TEMP/toolchain"
+          rustup run 1.99.1 rustc -vV > "$RUNNER_TEMP/toolchain/IDENTITY.txt"
+          rustup run 1.99.1 cargo -vV >> "$RUNNER_TEMP/toolchain/IDENTITY.txt"
+          tar -C "$root" -czf "$RUNNER_TEMP/toolchain/rust-1.99.1-x86_64-linux.tar.gz" .
+          cd "$RUNNER_TEMP/toolchain"
+          sha256sum rust-1.99.1-x86_64-linux.tar.gz > SHA256SUMS
+      - name: Preserve recovery artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: zil-recovery-rust-1.99.1
+          path: ${{ runner.temp }}/toolchain/*
+          compression-level: 0
+          retention-days: 3
+          if-no-files-found: error
