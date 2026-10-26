@@ -68,7 +68,7 @@ fn solve(inputs: Vec<Input<'_>>, tables: Option<&Tables>, limits: &Limits) -> R<
     // Keep the existing allocation-free scheduling path for small consumers.
     // This threshold is a performance choice, not a semantic boundary.
     if inputs.len() >= 16 {
-        return solve_worklist(&inputs, tables, limits);
+        return compiled::solve(&inputs, tables, limits).map(|(writes, _)| writes);
     }
     solve_sweeps(&inputs, tables, limits)
 }
@@ -133,6 +133,7 @@ fn solve_sweeps(inputs: &[Input<'_>], tables: Option<&Tables>, limits: &Limits) 
 // Function dependencies, unlike parameter-fact edges, share a single edge
 // across all the callee's parameter positions. The existing source transfer is
 // reused verbatim. Verify still reconstructs its own effects independently.
+#[cfg(test)]
 #[inline(never)]
 fn solve_worklist(inputs: &[Input<'_>], tables: Option<&Tables>, limits: &Limits) -> R<Writes> {
     let mut work = limits.max_analysis_steps;
@@ -225,7 +226,7 @@ fn scan_once<T: Tracking>(
     summaries: &Writes,
     work: &mut usize,
     limits: &Limits,
-) -> R<(Origins, BTreeSet<FunctionId>)> {
+) -> R<(Origins, T::Dependencies)> {
     let mut scan = Scan::<T> {
         input,
         tables,
@@ -263,24 +264,33 @@ fn scan_once<T: Tracking>(
 // The legacy small-input path retains its original Scan layout: collecting
 // dependencies uses a type-level policy rather than an always-present set.
 trait Tracking: Default {
+    type Dependencies;
     const ENABLED: bool;
-    fn observe(&mut self, callee: FunctionId);
-    fn finish(self) -> BTreeSet<FunctionId>;
+    fn observation_cost(origins: &Origins) -> usize {
+        let _ = origins;
+        1
+    }
+    fn observe(&mut self, callee: FunctionId, parameter: usize, origins: &Origins);
+    fn finish(self) -> Self::Dependencies;
 }
 #[derive(Default)]
 struct Untracked;
 impl Tracking for Untracked {
+    type Dependencies = BTreeSet<FunctionId>;
     const ENABLED: bool = false;
-    fn observe(&mut self, _: FunctionId) {}
+    fn observe(&mut self, _: FunctionId, _: usize, _: &Origins) {}
     fn finish(self) -> BTreeSet<FunctionId> {
         BTreeSet::new()
     }
 }
+#[cfg(test)]
 #[derive(Default)]
 struct Tracked(BTreeSet<FunctionId>);
+#[cfg(test)]
 impl Tracking for Tracked {
+    type Dependencies = BTreeSet<FunctionId>;
     const ENABLED: bool = true;
-    fn observe(&mut self, callee: FunctionId) {
+    fn observe(&mut self, callee: FunctionId, _: usize, _: &Origins) {
         self.0.insert(callee);
     }
     fn finish(self) -> BTreeSet<FunctionId> {
@@ -593,8 +603,8 @@ impl<T: Tracking> Scan<'_, '_, T> {
                         && let Some((id, parameters)) = &info
                         && parameters.get(index) == Some(&true)
                     {
-                        self.spend(1, argument.span)?;
-                        self.callees.observe(*id);
+                        self.spend(T::observation_cost(&origins), argument.span)?;
+                        self.callees.observe(*id, index, &origins);
                     }
                     let writes = match &info {
                         Some((id, parameters)) => {
@@ -679,3 +689,6 @@ impl<T: Tracking> Scan<'_, '_, T> {
 #[cfg(test)]
 #[path = "resource_effects_worklist_tests.rs"]
 mod worklist_tests;
+
+#[path = "resource_effects_compiled.rs"]
+mod compiled;

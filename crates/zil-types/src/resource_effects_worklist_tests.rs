@@ -38,7 +38,7 @@ fn call(callee: CoreExpr, swap: bool) -> CoreStatement {
         },
     })))
 }
-fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
+pub(super) fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
     CoreModule {
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
@@ -90,7 +90,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
         unsupported: vec![],
     }
 }
-fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
+pub(super) fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
     core.functions
         .iter()
         .enumerate()
@@ -113,7 +113,10 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
         })
         .collect()
 }
-fn inputs<'a>(core: &'a CoreModule, table: &'a BTreeMap<String, Signature>) -> Vec<Input<'a>> {
+pub(super) fn inputs<'a>(
+    core: &'a CoreModule,
+    table: &'a BTreeMap<String, Signature>,
+) -> Vec<Input<'a>> {
     core.functions
         .iter()
         .map(|function| Input {
@@ -123,7 +126,7 @@ fn inputs<'a>(core: &'a CoreModule, table: &'a BTreeMap<String, Signature>) -> V
         })
         .collect()
 }
-fn enough() -> Limits {
+pub(super) fn enough() -> Limits {
     Limits {
         max_analysis_steps: usize::MAX,
         ..Limits::default()
@@ -149,7 +152,7 @@ fn exhaustive_three_node_graphs_and_seeds_match_sweeps() {
     }
 }
 
-fn chain(n: usize, reverse: bool) -> CoreModule {
+pub(super) fn chain(n: usize, reverse: bool) -> CoreModule {
     let edges = (0..n)
         .map(|i| {
             if reverse {
@@ -175,7 +178,7 @@ fn chain(n: usize, reverse: bool) -> CoreModule {
         }));
     core
 }
-fn minimum(mut run: impl FnMut(usize) -> R<Writes>) -> usize {
+pub(super) fn minimum(mut run: impl FnMut(usize) -> R<Writes>) -> usize {
     let (mut lo, mut hi) = (0, 100_000_000);
     assert!(run(hi).is_ok());
     while lo < hi {
@@ -372,15 +375,30 @@ fn compare_transfers(core: &CoreModule, label: &str) -> usize {
     let empty = Writes::new();
     let mut compared = 0;
     for input in &list {
+        let mut work = usize::MAX;
         let (_, dependencies) =
-            scan_once::<Tracked>(input, None, &empty, &mut usize::MAX, &enough()).unwrap();
+            scan_once::<Tracked>(input, None, &empty, &mut work, &enough()).unwrap();
+        let mut relation_work = usize::MAX;
+        let (seeds, projections) =
+            scan_once::<compiled::Projected>(input, None, &empty, &mut relation_work, &enough())
+                .unwrap();
         for summaries in all_summary_values(core) {
+            let mut work = usize::MAX;
             let (actual, observed) =
-                scan_once::<Tracked>(input, None, &summaries, &mut usize::MAX, &enough()).unwrap();
+                scan_once::<Tracked>(input, None, &summaries, &mut work, &enough()).unwrap();
             let (expected, _) =
-                scan_once::<Untracked>(input, None, &summaries, &mut usize::MAX, &enough())
-                    .unwrap();
+                scan_once::<Untracked>(input, None, &summaries, &mut work, &enough()).unwrap();
             assert_eq!(actual, expected, "{label}");
+            let mut interpreted = seeds.clone();
+            for &(callee, parameter, origin) in &projections {
+                if summaries
+                    .get(&callee)
+                    .is_some_and(|row| row.contains(&parameter))
+                {
+                    interpreted.insert(origin);
+                }
+            }
+            assert_eq!(actual, interpreted, "compiled relation differs: {label}");
             assert_eq!(
                 dependencies, observed,
                 "dependency changed with summary: {label}"
@@ -389,8 +407,7 @@ fn compare_transfers(core: &CoreModule, label: &str) -> usize {
                 let mut changed = summaries.clone();
                 changed.insert(FunctionId(callee as u32), Origins::from([0, 1]));
                 let (next, _) =
-                    scan_once::<Untracked>(input, None, &changed, &mut usize::MAX, &enough())
-                        .unwrap();
+                    scan_once::<Untracked>(input, None, &changed, &mut work, &enough()).unwrap();
                 if next != actual {
                     assert!(
                         dependencies.contains(&FunctionId(callee as u32)),
@@ -405,6 +422,11 @@ fn compare_transfers(core: &CoreModule, label: &str) -> usize {
         solve_worklist(&list, None, &enough()).unwrap(),
         solve_sweeps(&list, None, &enough()).unwrap(),
         "{label}"
+    );
+    assert_eq!(
+        compiled::solve(&list, None, &enough()).unwrap().0,
+        solve_sweeps(&list, None, &enough()).unwrap(),
+        "compiled fixed point: {label}"
     );
     compared
 }
