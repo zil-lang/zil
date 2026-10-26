@@ -6,7 +6,9 @@ pub(super) fn signature(name: &str, span: Span) -> Option<(Vec<TypeRef>, TypeRef
     let buffer = || named("ByteBuffer", span);
     let (parameters, result) = match name {
         "bytes_new" => (vec![], buffer()),
-        "bytes_reserve" => (vec![buffer(), named("i64", span)], named("bool", span)),
+        "bytes_reserve" | "bytes_truncate" => {
+            (vec![buffer(), named("i64", span)], named("bool", span))
+        }
         "bytes_push" => (vec![buffer(), named("u8", span)], named("bool", span)),
         "bytes_len" | "bytes_capacity" => (vec![buffer()], named("i64", span)),
         "bytes_view" | "bytes_view_mut" => (

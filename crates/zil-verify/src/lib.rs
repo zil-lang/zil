@@ -977,6 +977,7 @@ fn check_instruction(
     let expected = match &instruction.kind {
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferReserve { .. }
+        | InstructionKind::ByteBufferTruncate { .. }
         | InstructionKind::ByteBufferPush { .. }
         | InstructionKind::ByteBufferLen { .. }
         | InstructionKind::ByteBufferCapacity { .. }
@@ -2029,6 +2030,9 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::WriteCapture { value, .. } => ([Some(*value), None], &[]),
         InstructionKind::ByteBufferReserve { buffer, capacity } => {
             ([Some(*buffer), Some(*capacity)], &[])
+        }
+        InstructionKind::ByteBufferTruncate { buffer, length } => {
+            ([Some(*buffer), Some(*length)], &[])
         }
         InstructionKind::ByteBufferPush { buffer, value } => ([Some(*buffer), Some(*value)], &[]),
         InstructionKind::ByteBufferLen { buffer }

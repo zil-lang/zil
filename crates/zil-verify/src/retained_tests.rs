@@ -325,8 +325,8 @@ fn current_wire_accepts_current_version_and_rejects_other_versions_and_every_tru
     let bytes =
         zil_ir::wire::encode_module_candidate(&m, &resource_tests::plan(&m), &Limits::default())
             .unwrap();
-    // spec/interfaces.json independently fixes the current raw wire protocol at 17.
-    assert_eq!(&bytes[8..12], &17u32.to_le_bytes());
+    // spec/interfaces.json independently fixes the current raw wire protocol at 18.
+    assert_eq!(&bytes[8..12], &18u32.to_le_bytes());
     verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
     let current = zil_ir::wire::WIRE_VERSION;
     for version in (0..current).chain([current + 1, u32::MAX]) {

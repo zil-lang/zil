@@ -607,7 +607,7 @@ impl Collector<'_> {
             }
             CoreExprKind::Call { callee, .. }
                 if self.query
-                    && matches!(&callee.kind, CoreExprKind::Name(name) if matches!(name.as_str(), "c_callback" | "bytes_new" | "bytes_reserve" | "bytes_push" | "bytes_len" | "bytes_capacity" | "bytes_view" | "bytes_view_mut")) =>
+                    && matches!(&callee.kind, CoreExprKind::Name(name) if matches!(name.as_str(), "c_callback" | "bytes_new" | "bytes_reserve" | "bytes_truncate" | "bytes_push" | "bytes_len" | "bytes_capacity" | "bytes_view" | "bytes_view_mut")) =>
             {
                 return Err(vec![Diagnostic::error(
                     Phase::Ct,

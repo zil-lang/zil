@@ -68,6 +68,9 @@ pub(super) fn check_instruction(
         InstructionKind::ByteBufferReserve { buffer, capacity } => {
             (*buffer, Some((*capacity, Type::I64)))
         }
+        InstructionKind::ByteBufferTruncate { buffer, length } => {
+            (*buffer, Some((*length, Type::I64)))
+        }
         InstructionKind::ByteBufferPush { buffer, value } => (*buffer, Some((*value, Type::U8))),
         InstructionKind::ByteBufferLen { buffer }
         | InstructionKind::ByteBufferCapacity { buffer }
@@ -87,9 +90,9 @@ pub(super) fn check_instruction(
         ));
     }
     Ok(Some(match instruction.kind {
-        InstructionKind::ByteBufferReserve { .. } | InstructionKind::ByteBufferPush { .. } => {
-            Type::Bool
-        }
+        InstructionKind::ByteBufferReserve { .. }
+        | InstructionKind::ByteBufferTruncate { .. }
+        | InstructionKind::ByteBufferPush { .. } => Type::Bool,
         InstructionKind::ByteBufferLen { .. } | InstructionKind::ByteBufferCapacity { .. } => {
             Type::I64
         }
@@ -108,6 +111,7 @@ pub(super) fn check_instruction(
 pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
     match *kind {
         InstructionKind::ByteBufferReserve { buffer, .. }
+        | InstructionKind::ByteBufferTruncate { buffer, .. }
         | InstructionKind::ByteBufferPush { buffer, .. } => Some((buffer, true)),
         InstructionKind::ByteBufferBorrow { buffer, mutable } => Some((buffer, mutable)),
         InstructionKind::ByteBufferLen { buffer }

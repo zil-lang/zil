@@ -550,6 +550,7 @@ impl FunctionEmitter<'_> {
         match &instruction.kind {
             InstructionKind::ByteBufferNew
             | InstructionKind::ByteBufferReserve { .. }
+            | InstructionKind::ByteBufferTruncate { .. }
             | InstructionKind::ByteBufferPush { .. }
             | InstructionKind::ByteBufferLen { .. }
             | InstructionKind::ByteBufferCapacity { .. }

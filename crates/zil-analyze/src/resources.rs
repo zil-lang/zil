@@ -269,6 +269,9 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
         InstructionKind::ByteBufferReserve { buffer, capacity } => {
             (Some(*buffer), Some(*capacity), &[])
         }
+        InstructionKind::ByteBufferTruncate { buffer, length } => {
+            (Some(*buffer), Some(*length), &[])
+        }
         InstructionKind::ByteBufferPush { buffer, value } => (Some(*buffer), Some(*value), &[]),
         InstructionKind::WriteDesc { desc, value, .. } => (Some(*desc), Some(*value), &[]),
         InstructionKind::Unary { operand, .. } => (Some(*operand), None, &[]),
@@ -1267,6 +1270,7 @@ impl Flow<'_> {
                 }
                 InstructionKind::WriteDesc { desc, .. }
                 | InstructionKind::ByteBufferReserve { buffer: desc, .. }
+                | InstructionKind::ByteBufferTruncate { buffer: desc, .. }
                 | InstructionKind::ByteBufferPush { buffer: desc, .. }
                 | InstructionKind::ByteBufferBorrow {
                     buffer: desc,
