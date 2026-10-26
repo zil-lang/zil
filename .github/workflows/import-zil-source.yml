@@ -1,0 +1,33 @@
+name: Import ZIL source snapshot
+on:
+  push:
+    branches: [import/source-20261026]
+    paths: [.github/workflows/import-zil-source.yml]
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: true
+      - name: Restore exact verified source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .source-import/chunk-*.b64 | tr -d '\r\n' | base64 --decode > "$RUNNER_TEMP/zil-source.tar.gz"
+          echo "3d17a910434a51ad63b930f3c0f5d7bd3e252c2dbd408102fa1f74d1b26fc598  $RUNNER_TEMP/zil-source.tar.gz" | sha256sum --check
+          tar -tzf "$RUNNER_TEMP/zil-source.tar.gz" | grep -q '^Cargo.toml$'
+          tar -tzf "$RUNNER_TEMP/zil-source.tar.gz" | grep -q '^crates/zil-types/src/resource_effects.rs$'
+          tar -xzf "$RUNNER_TEMP/zil-source.tar.gz" -C .
+          rm -rf .source-import
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          test -f Cargo.toml
+          test -f AGENTS.md
+          echo "tracked files: $(git ls-files | wc -l)"
+          git commit -m "Import ZIL compiler and language source from verified 8b78cc28 snapshot"
+          git push origin HEAD:import/source-20261026
