@@ -1,0 +1,384 @@
+{
+  "format": "zil136-exploratory-cost/1",
+  "disposition": "Inconclusive/NotEligible",
+  "reason": "No reliable general end-to-end improvement; regressions/noisy intervals retained. No production merge.",
+  "tested_local": "7f7fc784935e67882985c938c22b3a3ba4a931d0",
+  "tested_remote": "9c1644be786b33abf3549378714865be27606bb0",
+  "base": "1d7216f0c72f055a4e484f786a1a75a11f1cd12f",
+  "observations": 1716,
+  "native_executions": 396,
+  "preflight_extra_observations": 52,
+  "preflight_equal_phase_files": 216,
+  "status": "Pass",
+  "plan_sha256": "d92d09675f9a0471b64ac16b455744dd55ca2815e234878b8e4b4dca8fec8d04",
+  "raw_sha256": "29a92f8497aa026d168eb1fd06c97fe5c96d4b16f15523847e4c8f70e0f1c3d4",
+  "script_sha256": "ae399b4d0f8f46e5cd0a8d6c72c35aab1764606efab70493169c3d499affa0d8",
+  "binaries": {
+    "A": {
+      "binary": "/mnt/data/zil-work/target-repo/release/zil",
+      "sha256": "249df7aac577fe38feb68537c210e7135e3e55ee05b04068fe884eed5e9f3380",
+      "commit": "1d7216f0c72f055a4e484f786a1a75a11f1cd12f",
+      "built_commit": "1d7216f0c72f055a4e484f786a1a75a11f1cd12f",
+      "tree": "2ee4f9326dd61ca37f982a5922e4eb4c7ab70ddc",
+      "production_tree": {
+        "crates": "52803494c9c0d25fc3323030a98dfad0d51f0d86",
+        "spec": "567cf5cefd548b171c2de2182d9921da8f7a76ff",
+        "policy": "4d39c221a4756bda2fb7d17cabac5836fde2f3ba"
+      },
+      "dirty": ""
+    },
+    "B": {
+      "binary": "/mnt/data/zil-work/target-graph/release/zil",
+      "sha256": "a586e3f958ea3a50035e14e95d8e48bdab143a07c5293981ea7cb7f82a237eef",
+      "commit": "ac048aeb6214c8af6f7cf8b45bf6fcac60fe606c",
+      "built_commit": "7f7fc784935e67882985c938c22b3a3ba4a931d0",
+      "tree": "7731a62f93d103932208bd49ad7b77cf1e3da535",
+      "production_tree": {
+        "crates": "8b89589b0850e9dbc8a2336da5437e0f76adcae5",
+        "spec": "567cf5cefd548b171c2de2182d9921da8f7a76ff",
+        "policy": "4d39c221a4756bda2fb7d17cabac5836fde2f3ba"
+      },
+      "dirty": ""
+    }
+  },
+  "cells": [
+    {
+      "case": "tiny",
+      "stage": "types",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 4.375664,
+      "B_median_ms": 4.313432,
+      "paired_ratio_median": 0.8852200313999843,
+      "bootstrap95_ratio": [
+        0.7892078503471395,
+        1.0405188575013578
+      ]
+    },
+    {
+      "case": "tiny",
+      "stage": "verify",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 4.5810325,
+      "B_median_ms": 4.226568,
+      "paired_ratio_median": 0.939790333154312,
+      "bootstrap95_ratio": [
+        0.8053922058468628,
+        1.10456004702881
+      ]
+    },
+    {
+      "case": "below-threshold",
+      "stage": "types",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 7.9359335,
+      "B_median_ms": 8.2942335,
+      "paired_ratio_median": 0.9940016343881671,
+      "bootstrap95_ratio": [
+        0.7934040405922285,
+        1.0306179858864062
+      ]
+    },
+    {
+      "case": "below-threshold",
+      "stage": "verify",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 11.5212115,
+      "B_median_ms": 9.823918,
+      "paired_ratio_median": 0.8703500587734203,
+      "bootstrap95_ratio": [
+        0.8183921667566801,
+        1.0027912418472096
+      ]
+    },
+    {
+      "case": "chain16-caller-first",
+      "stage": "types",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 9.0583525,
+      "B_median_ms": 7.877216,
+      "paired_ratio_median": 0.9142553892248381,
+      "bootstrap95_ratio": [
+        0.7557796359065079,
+        0.9820281959133319
+      ]
+    },
+    {
+      "case": "chain16-caller-first",
+      "stage": "verify",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 9.551926,
+      "B_median_ms": 9.5269225,
+      "paired_ratio_median": 0.8815622670357226,
+      "bootstrap95_ratio": [
+        0.7829921935026257,
+        1.0292850626526264
+      ]
+    },
+    {
+      "case": "chain64-caller-first",
+      "stage": "types",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 19.4435795,
+      "B_median_ms": 16.7672045,
+      "paired_ratio_median": 0.839038749489561,
+      "bootstrap95_ratio": [
+        0.8069624882539778,
+        0.926910981985444
+      ]
+    },
+    {
+      "case": "chain64-caller-first",
+      "stage": "verify",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 20.702403,
+      "B_median_ms": 21.7007945,
+      "paired_ratio_median": 1.1136489976490567,
+      "bootstrap95_ratio": [
+        1.007387275625441,
+        1.2596127282041727
+      ]
+    },
+    {
+      "case": "chain64-callee-first",
+      "stage": "types",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 17.9103465,
+      "B_median_ms": 17.9404335,
+      "paired_ratio_median": 1.0196311766509518,
+      "bootstrap95_ratio": [
+        0.8002004112357571,
+        1.116284089429827
+      ]
+    },
+    {
+      "case": "chain64-callee-first",
+      "stage": "verify",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 23.734865,
+      "B_median_ms": 23.1712275,
+      "paired_ratio_median": 0.9401342513548037,
+      "bootstrap95_ratio": [
+        0.8695858880806909,
+        0.9996009463075586
+      ]
+    },
+    {
+      "case": "chain24-wide8",
+      "stage": "types",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 19.5238465,
+      "B_median_ms": 18.188645,
+      "paired_ratio_median": 1.0082776002831886,
+      "bootstrap95_ratio": [
+        0.8801924213704585,
+        1.1059243201266165
+      ]
+    },
+    {
+      "case": "chain24-wide8",
+      "stage": "verify",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 21.1566285,
+      "B_median_ms": 24.5979325,
+      "paired_ratio_median": 1.0646454607866018,
+      "bootstrap95_ratio": [
+        0.8620189109099656,
+        1.1875898916527887
+      ]
+    },
+    {
+      "case": "cycle16-width4",
+      "stage": "types",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 14.1628795,
+      "B_median_ms": 17.799497,
+      "paired_ratio_median": 1.1075650159222983,
+      "bootstrap95_ratio": [
+        0.9227653418204109,
+        1.3185162346033796
+      ]
+    },
+    {
+      "case": "cycle16-width4",
+      "stage": "verify",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 20.737016,
+      "B_median_ms": 20.235611,
+      "paired_ratio_median": 1.0002222504766092,
+      "bootstrap95_ratio": [
+        0.8557251181741676,
+        1.1425099340610465
+      ]
+    },
+    {
+      "case": "cycle16-width8",
+      "stage": "types",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 23.542768,
+      "B_median_ms": 22.4066155,
+      "paired_ratio_median": 0.9199278355345685,
+      "bootstrap95_ratio": [
+        0.8497556591685288,
+        1.0354798863372647
+      ]
+    },
+    {
+      "case": "cycle16-width8",
+      "stage": "verify",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 33.2714365,
+      "B_median_ms": 35.2585265,
+      "paired_ratio_median": 1.1219755365398207,
+      "bootstrap95_ratio": [
+        0.9925792914222719,
+        1.7637015324381233
+      ]
+    },
+    {
+      "case": "cycle16-width16",
+      "stage": "types",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 30.4145965,
+      "B_median_ms": 27.147483,
+      "paired_ratio_median": 0.8952755303026777,
+      "bootstrap95_ratio": [
+        0.8544498614452845,
+        1.0507949973350228
+      ]
+    },
+    {
+      "case": "cycle16-width16",
+      "stage": "verify",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 69.30609,
+      "B_median_ms": 76.9769195,
+      "paired_ratio_median": 1.0170009534819546,
+      "bootstrap95_ratio": [
+        0.8780968676721033,
+        1.275111159315021
+      ]
+    },
+    {
+      "case": "cycle32-width8",
+      "stage": "types",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 30.5648885,
+      "B_median_ms": 32.7831275,
+      "paired_ratio_median": 1.1167931837484648,
+      "bootstrap95_ratio": [
+        0.8266709571460094,
+        1.8875383421909082
+      ]
+    },
+    {
+      "case": "cycle32-width8",
+      "stage": "verify",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 54.140834,
+      "B_median_ms": 53.234962,
+      "paired_ratio_median": 1.0145218051709557,
+      "bootstrap95_ratio": [
+        0.8440551872998787,
+        1.0442233993092618
+      ]
+    },
+    {
+      "case": "tiny",
+      "stage": "O0",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 94.4846975,
+      "B_median_ms": 92.1760505,
+      "paired_ratio_median": 1.0977945045475566,
+      "bootstrap95_ratio": [
+        0.7824468124198921,
+        1.2839774620442752
+      ]
+    },
+    {
+      "case": "tiny",
+      "stage": "O2",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 97.6504425,
+      "B_median_ms": 97.7628175,
+      "paired_ratio_median": 1.1154912761260931,
+      "bootstrap95_ratio": [
+        1.02164249846115,
+        1.2570215735675407
+      ]
+    },
+    {
+      "case": "chain24-wide8",
+      "stage": "O0",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 140.575034,
+      "B_median_ms": 131.1795825,
+      "paired_ratio_median": 1.0183158761827755,
+      "bootstrap95_ratio": [
+        0.9186060905826523,
+        1.304601180436832
+      ]
+    },
+    {
+      "case": "chain24-wide8",
+      "stage": "O2",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 202.878472,
+      "B_median_ms": 179.3435595,
+      "paired_ratio_median": 0.9334760545797516,
+      "bootstrap95_ratio": [
+        0.7980109656891975,
+        0.9879555250490775
+      ]
+    },
+    {
+      "case": "cycle16-width8",
+      "stage": "O0",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 154.405921,
+      "B_median_ms": 154.940986,
+      "paired_ratio_median": 1.0766385933453586,
+      "bootstrap95_ratio": [
+        0.923121491440763,
+        1.230012928332767
+      ]
+    },
+    {
+      "case": "cycle16-width8",
+      "stage": "O2",
+      "blocks": 16,
+      "errors": [],
+      "A_median_ms": 313.067344,
+      "B_median_ms": 251.302204,
+      "paired_ratio_median": 0.893652686674477,
+      "bootstrap95_ratio": [
+        0.7764188955565534,
+        0.9464067684190878
+      ]
+    }
+  ]
+}
