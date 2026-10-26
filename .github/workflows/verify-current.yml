@@ -15,7 +15,6 @@ jobs:
     timeout-minutes: 30
     env:
       CARGO_BUILD_JOBS: '2'
-      CARGO_TARGET_DIR: ${{ runner.temp }}/target
       ZIL_CLANG: clang
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -26,6 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/receipts"
           git rev-parse HEAD > "$RUNNER_TEMP/receipts/commit.txt"
           git ls-tree -r -l HEAD > "$RUNNER_TEMP/receipts/tracked-tree.txt"
