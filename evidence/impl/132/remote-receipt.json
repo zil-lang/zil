@@ -1,0 +1,30 @@
+{
+  "format": "zil-132-remote-receipt/1",
+  "status": "Pass",
+  "scope": "Ordinary ZIL library native tests; not a rebuild of the latest draft24 compiler",
+  "local_source_commit": "16d4b08d5b78c05d4b45dd1b6b5d42371ff5eede",
+  "recovered_main_source": "ea782c91007cf356bf99f3c51d55482c38e134ee",
+  "compiler_source": "ff0ddb7e59b2b0577c35b92e74b895c86f20b218",
+  "compiler_binary_sha256": "ad02205065054a57e4fe25fb81f2b317675f1edcd6cbcce1f9666094025fa048",
+  "compiler_origin": "draft24 evidence/impl/123/raw-confirmation.tar.gz member forward002/bin/BASE-plain",
+  "native_toolchain": "Clang 17.0.0, Linux x86_64",
+  "case_count": 1708,
+  "native_executions": 6832,
+  "modes": ["O0", "O2", "probe-O0", "probe-O2"],
+  "allocator_fault_executions": 8,
+  "allocator_live_at_exit": 0,
+  "negative": {"phase": "verify", "status": "SafeReject", "code": "E-BORROW-CONFLICT", "executable_created": false},
+  "sha256": {
+    "examples/mainline/owned_text/utf8.zil": "347f3a7788e8c0e42f450b351f7c1478a4afdc1f9cbf108c9230e7a1502ad5f7",
+    "examples/mainline/owned_text/edit.zil": "d4dbc16c74fec121a9579eca4a9fb71fb93b9db8641680f85c7523eb9da3e5fc",
+    "examples/mainline/owned_text/main.zil": "ec1b61b4ef6e97247adcbf82e5847ed013c3bbff0f00a6b74fe001343311b997",
+    "tools/research/132/native_test.py": "e6a880cc3d2a87fc6211b1ab9d7f695854e105c719b795fab0d31fbd196f907a",
+    "tools/research/132/allocator_probe.c": "864eae136ff3c5c2dcb79ac8569211b73bea8dda778fb2f3339b3142dfb8bbc9"
+  },
+  "runtime_rust_comparison": "NotMeasured",
+  "latest_workspace": "NotRun",
+  "formal_gates": "NotRun",
+  "independent_review": "NotRun",
+  "product": "NotRun",
+  "language_goal": "NotSatisfied"
+}
