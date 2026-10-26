@@ -1,0 +1,61 @@
+name: Main source verification
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: zil-main-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  workspace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_TARGET_DIR: ${{ runner.temp }}/target
+      ZIL_TEST_REPORT_DIR: ${{ runner.temp }}/native-evidence
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Record exact checkout and restorable source history
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/receipts"
+          git rev-parse HEAD > "$RUNNER_TEMP/receipts/commit.txt"
+          git ls-tree -r HEAD > "$RUNNER_TEMP/receipts/source-tree.txt"
+          git bundle create "$RUNNER_TEMP/receipts/repository.bundle" HEAD --branches --remotes
+          git bundle verify "$RUNNER_TEMP/receipts/repository.bundle" 2>&1 | tee "$RUNNER_TEMP/receipts/bundle-verify.log"
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          rustc -vV > "$RUNNER_TEMP/receipts/toolchain.txt"
+          clang --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
+      - name: Formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all -- --check 2>&1 | tee "$RUNNER_TEMP/receipts/fmt.log"
+      - name: Complete workspace tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --workspace 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
+      - name: All-target Clippy
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo clippy --locked --workspace --all-targets -- -D warnings 2>&1 | tee "$RUNNER_TEMP/receipts/clippy.log"
+      - name: Small recovery artifact, never target caches
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: zil-main-${{ github.run_id }}
+          path: ${{ runner.temp }}/receipts/
+          retention-days: 30
+          if-no-files-found: error

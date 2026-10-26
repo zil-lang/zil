@@ -1,0 +1,23 @@
+# 当前 GitHub 接续入口（2026-10-26，136/137）
+
+GitHub的实际main是当前开发基准；每次接续重新读远端ref，不能把本文记录的提交当永远最新。旧GITHUB-SYNC.md中的draft24恢复说明只作历史来源，不代表当前实现状态。
+
+## 已进入主干
+
+137由PR3合入：852854f7ccd124ef7c95b8f0d85516b7ca24f581。远端受测源码20de6d9734393bf70db58bec0d4f7c1ac0e7beb4，与本地963f9dcc生产对象一致。bytes_truncate纵切、schema/wire18、规范和接口变更，以及原worklist测试Clippy修复均已进入main；跨模块默认字段没有回退。
+
+本地与Actions40326379096各1264项workspace通过，fmt/Clippy通过。独立Codex代码审核于2026-10-26T13:13:17Z完成，绑定20de6d97、未发现重大问题。其结果不等于全语言安全证明或新测试执行。正式35门、产品/Rust四目标最终验收仍未运行，B0 Doing不变。
+
+## 未进入主干
+
+136：research/136-compiled-effects，PR4。实际生产受测9c1644be786b33abf3549378714865be27606bb0，后续54d9b0f1aeb24d16d826bba4bbe849d4ae46466b只追加完整成本脚本/结果。真实源码参数事实图与当前worklist等价验证完成；本地与CI各1263通过。固定1716编译进程/396原生执行成功，但完整成本Inconclusive/NotEligible，禁止将个别较快点值记作生产优化获批。现有工作量节省不是时间倍数。
+
+旧research/131-effect-retraction=66644baae15ce4d481363038c34747256522b020，impl/132-owned-text=0ba64a223494860d513d7d7522e1d1b942af6069，PR1/2仍未合入。旧报告中“main为空”是历史描述。不得直接把旧分支基线/成绩替换成当前主干成绩。
+
+## 可恢复事实
+
+Actions artifact12650489762（136）SHA256 57da96589702ccc25a8ee2f62abc70ec174850468a476af8b11313bdfed3e748；artifact12652295020（137）SHA256 ce59a4b05d4f9d85e0846e13c18a042a3f09348b3f207225ed5ff9832fedf8c7。大体积阶段IR、二进制、全部原生测试原件保存在artifact和旁置交付证据，不入Git。
+
+任务工作流可能先应用hash校验的窄补丁后测试，事件head不是实际受测提交；读取artifact receipts/commit.txt和source-tree.txt，不能仅看workflow绿色。生产对象和测试对象已在本地逐一核对。新增主干CI不修改Git，直接测试checkout HEAD并保存小型bundle与命令日志。
+
+旧完整施工Git历史仍单独归档，当前源码仓只有真实导入后的历史，不能将旧缺失审计对象的handoff失败改成Pass。常规开发用当前GitHub；一任务一worktree，阶段提交同步，研究不满足准入留分支，语言通过验证与独审后合入。
