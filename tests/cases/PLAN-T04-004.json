@@ -1,0 +1,6 @@
+{
+  "steps": [
+    { "kind": "cargo-test", "package": "zil-ide", "min_passed": 3 },
+    { "kind": "command", "command": ["{python}", "tests/incremental/diagnostic-parity.py"], "result_json": true }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "evidence_level": "CompilerBoundary/RawCandidateBoundary",
+  "scope": "Actual downstream private-construction/read-only/unchecked-conversion rejection and raw disk-cache re-verification, with a successful verified read-only control. No ZIL source/native conformance is claimed.",
+  "steps": [
+    {
+      "kind": "command",
+      "command": ["{python}", "tests/verify/check-boundary.py", "isolation"],
+      "result_json": true,
+      "timeout": 180
+    }
+  ]
+}

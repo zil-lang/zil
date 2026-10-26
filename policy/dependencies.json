@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "description": "Allowed direct internal dependencies. Nonexistent crates need not be created; actual unknown internal crates and hidden external path dependencies fail closed. All dependency kinds are checked.",
+  "crates": {
+    "zil-base": [],
+    "zil-syntax": [
+      "zil-base"
+    ],
+    "zil-ir": [
+      "zil-base"
+    ],
+    "zil-expand": [
+      "zil-base",
+      "zil-syntax",
+      "zil-ir"
+    ],
+    "zil-types": [
+      "zil-base",
+      "zil-syntax",
+      "zil-ir"
+    ],
+    "zil-analyze": [
+      "zil-base",
+      "zil-ir"
+    ],
+    "zil-verify": [
+      "zil-base",
+      "zil-ir"
+    ],
+    "zil-ct": [
+      "zil-base",
+      "zil-ir",
+      "zil-verify"
+    ],
+    "zil-lower": [
+      "zil-base",
+      "zil-ir",
+      "zil-verify"
+    ],
+    "zil-backend-c": [
+      "zil-base",
+      "zil-ir",
+      "zil-verify"
+    ],
+    "zil-backend-llvm": [
+      "zil-base",
+      "zil-ir",
+      "zil-verify"
+    ],
+    "zil-backend-cranelift": [
+      "zil-base",
+      "zil-ir",
+      "zil-verify"
+    ],
+    "zil-backend-wasm": [
+      "zil-base",
+      "zil-ir",
+      "zil-verify"
+    ],
+    "zil-db": [
+      "zil-base"
+    ],
+    "zil-runtime": [],
+    "zil-driver": [
+      "zil-base",
+      "zil-syntax",
+      "zil-ir",
+      "zil-expand",
+      "zil-types",
+      "zil-analyze",
+      "zil-verify",
+      "zil-ct",
+      "zil-lower",
+      "zil-db",
+      "zil-backend-c",
+      "zil-backend-llvm",
+      "zil-backend-cranelift",
+      "zil-backend-wasm"
+    ],
+    "zil-cli": [
+      "zil-base",
+      "zil-driver"
+    ],
+    "zil-ide": [
+      "zil-base",
+      "zil-driver"
+    ],
+    "zil-model": [
+      "zil-base"
+    ],
+    "zil-test": [
+      "zil-base",
+      "zil-model"
+    ]
+  },
+  "external_path_allowlist": []
+}

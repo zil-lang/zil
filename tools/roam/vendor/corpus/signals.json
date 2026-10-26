@@ -1,0 +1,11 @@
+{
+  "format": "roam/1",
+  "contract": "zit-values-and-intent/1",
+  "steps": [
+    {"op": "write", "value": 7},
+    {"op": "request"},
+    {"op": "request"},
+    {"op": "complete", "id": 2, "value": 20},
+    {"op": "complete", "id": 1, "value": 10}
+  ]
+}

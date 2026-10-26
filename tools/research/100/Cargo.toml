@@ -1,0 +1,22 @@
+[package]
+name = "zil-adaptive-effects-research"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace]
+
+[dependencies]
+zil-base = { path = "../../../crates/zil-base" }
+zil-driver = { path = "../../../crates/zil-driver" }
+zil-syntax = { path = "../../../crates/zil-syntax" }
+
+[profile.release]
+codegen-units = 1
+debug = false
+incremental = false
+
+[[bin]]
+name = "pipeline100"
+path = "main.rs"

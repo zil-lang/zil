@@ -1,0 +1,49 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/zil-base",
+  "crates/zil-ir",
+  "crates/zil-syntax",
+  "crates/zil-expand",
+  "crates/zil-types",
+  "crates/zil-analyze",
+  "crates/zil-verify",
+  "crates/zil-lower",
+  "crates/zil-backend-llvm",
+  "crates/zil-db",
+  "crates/zil-ct",
+  "crates/zil-driver",
+  "crates/zil-cli",
+  "crates/zil-ide",
+]
+default-members = ["crates/zil-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace.dependencies]
+zil-base = { path = "crates/zil-base" }
+zil-ir = { path = "crates/zil-ir" }
+zil-syntax = { path = "crates/zil-syntax" }
+zil-expand = { path = "crates/zil-expand" }
+zil-types = { path = "crates/zil-types" }
+zil-analyze = { path = "crates/zil-analyze" }
+zil-verify = { path = "crates/zil-verify" }
+zil-lower = { path = "crates/zil-lower" }
+zil-backend-llvm = { path = "crates/zil-backend-llvm" }
+zil-db = { path = "crates/zil-db" }
+zil-ct = { path = "crates/zil-ct" }
+zil-driver = { path = "crates/zil-driver" }
+zil-cli = { path = "crates/zil-cli" }
+zil-ide = { path = "crates/zil-ide" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+panic = "abort"

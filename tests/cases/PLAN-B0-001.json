@@ -1,0 +1,24 @@
+{
+  "steps": [
+    {
+      "kind": "native",
+      "source": "examples/bootstrap/arithmetic.zil",
+      "exit_code": 42,
+      "required_artifacts": [
+        "syntax",
+        "core",
+        "typed",
+        "candidate",
+        "verified",
+        "lir",
+        "llvm"
+      ]
+    },
+    {
+      "kind": "native",
+      "source": "examples/bootstrap/arithmetic.zil",
+      "entry": "wide",
+      "return_value": 1024
+    }
+  ]
+}

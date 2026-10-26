@@ -1,0 +1,28 @@
+{
+  "source_baseline": "70d3a729a6db6f8355ea99942e6f05207eb8815b",
+  "schema": 9,
+  "methods": ["mono", "cut", "wire", "fused", "fused:owner", "fused:token", "mono:canonical:gc", "cut:canonical:gc", "wire:canonical:gc", "fused:canonical:gc", "mono:owner:gc", "cut:owner:gc", "wire:owner:gc", "fused:owner:gc", "fused:token:gc", "production"],
+  "cases": [
+    {"id":"tiny","path":"tests/perf/impl059/tiny.zil","timing":true,"role":"small scalar overhead"},
+    {"id":"branch","path":"tests/perf/impl059/branch.zil","timing":true,"role":"selected owner and conditional cleanup"},
+    {"id":"correlated","path":"tests/perf/impl059/correlated.zil","timing":true,"role":"shared Bool correlation; production conservative rejection"},
+    {"id":"independent","path":"tests/perf/impl059/independent.zil","timing":true,"role":"the unchanged four independent Bool case"},
+    {"id":"closure","path":"tests/perf/impl059/closure.zil","timing":true,"role":"owned environment and captured token identities"},
+    {"id":"error","path":"tests/perf/impl059/error.zil","timing":true,"role":"error/normal exits and cleanup"},
+    {"id":"loop","path":"tests/perf/impl059/loop.zil","timing":true,"role":"backedge and Bool redefinition"},
+    {"id":"guarded_desc","path":"tests/perf/impl059/guarded_desc.zil","timing":true,"role":"conservative guard-insensitive future use"},
+    {"id":"real_error_cleanup","path":"examples/mainline/error_cleanup/main.zil","timing":true,"role":"actual four-module source with nineteen executable functions"},
+    {"id":"state_limit","path":"tests/perf/impl059/state_limit.zil","timing":false,"methods":["mono:canonical:gc","fused:owner:gc","production"],"role":"bounded state limit; failure remains failure"},
+    {"id":"one_guard","path":"tests/perf/impl063/independent_1.zil","timing":false,"methods":["mono:canonical:gc","mono:owner:gc","fused:owner:gc"],"role":"predeclared scaling probe"},
+    {"id":"two_guards","path":"tests/perf/impl063/independent_2.zil","timing":false,"methods":["mono:canonical:gc","mono:owner:gc","fused:owner:gc"],"role":"predeclared scaling probe"},
+    {"id":"three_guards","path":"tests/perf/impl063/independent_3.zil","timing":false,"methods":["mono:canonical:gc","mono:owner:gc","fused:owner:gc"],"role":"predeclared scaling probe"},
+    {"id":"five_guards","path":"tests/perf/impl063/independent_5.zil","timing":false,"methods":["mono:canonical:gc","mono:owner:gc","fused:owner:gc"],"role":"predeclared scaling probe; limits not raised"},
+    {"id":"six_guards","path":"tests/perf/impl063/independent_6.zil","timing":false,"methods":["mono:canonical:gc","mono:owner:gc","fused:owner:gc"],"role":"predeclared scaling probe; limits not raised"}
+  ],
+  "pipeline": [
+    {"id":"package_ui","files":["examples/mainline/package_ui/main.zil","examples/mainline/package_ui/io.zil","examples/mainline/package_ui/events.zil","examples/mainline/package_ui/window.zil"],"stdin":"q","exit":0},
+    {"id":"error_cleanup","files":["examples/mainline/error_cleanup/main.zil","examples/mainline/error_cleanup/io.zil","examples/mainline/error_cleanup/failure.zil","examples/mainline/error_cleanup/token.zil"],"stdin":"3","exit":7},
+    {"id":"incremental","files":["tests/perf/impl063/incremental/main.zil","tests/perf/impl063/incremental/api.zil"],"stdin":"","exit":7,"private_exit":9}
+  ],
+  "sampling": {"warmups":2,"measured":7,"graph_order":"case-wise cyclic method rotation; fresh process; no cache flush","pipeline_order":"paired baseline/lazy alternating order; fresh process containing cold, unchanged, comment, optional private edit","stages":["verify","build"]}
+}

@@ -1,0 +1,838 @@
+{
+  "schema_version": 1,
+  "status": "ContractToImplement",
+  "scope": "B0 freezes concrete Rust fields and compatibility from these required contracts; a record here is not an implementation. Semantic authority remains _zil_design.md.",
+  "normative_inputs": [
+    "_zil_design.md",
+    "spec/grammar.ebnf",
+    "spec/attributes.json",
+    "validation/product-gates.json",
+    "policy/dependencies.json",
+    "spec/interfaces.json",
+    "spec/diagnostics.json"
+  ],
+  "normative_hash_algorithm": "SHA256 of concatenated sorted path + NUL + SHA256(file bytes) + LF, UTF-8. spec_hash separately hashes _zil_design.md bytes.",
+  "shared_change_owner": "integrator; consumers submit an interface-change request with affected producers/consumers and nearest counterexample; root Cargo, shared schema and registry files are single-writer",
+  "schemas": [
+    {
+      "id": "SourceUnit",
+      "owner": "zil-base / zil-syntax",
+      "fields": [
+        "FileId",
+        "ModuleId",
+        "UTF-8 source bytes",
+        "SpanId/source ranges",
+        "expansion source-map chain",
+        "stable diagnostic code and result category"
+      ],
+      "producer": [
+        "B0",
+        "T01"
+      ],
+      "consumer": [
+        "T01",
+        "T02",
+        "T03",
+        "T04"
+      ],
+      "trust": "Source data is untrusted; spans do not confer semantic facts."
+    },
+    {
+      "id": "CoreModule",
+      "owner": "zil-ir schema; syntax/expand produce",
+      "fields": [
+        "NodeId and scope/hygiene identity",
+        "nominal declarations and explicit receiver shape",
+        "normalized expression/statement tree",
+        "explicit single-evaluation temporaries",
+        "capture expression and move marker",
+        "record/pipe/script expansion provenance"
+      ],
+      "producer": [
+        "T01",
+        "T03"
+      ],
+      "consumer": [
+        "T02"
+      ],
+      "trust": "Unverified syntax only. Sugar/generated code cannot mint Verified or permissions."
+    },
+    {
+      "id": "TypedCFG",
+      "owner": "zil-ir schema; types produce",
+      "fields": [
+        "typed PlaceId/ValueId/BlockId",
+        "Value/Managed/Desc/Address categories",
+        "Copy/Move/Describe/Create/Give modes",
+        "receiver capability and dispatch target",
+        "environment capture field identities and candidate modes",
+        "normal/error/panic/cleanup/resume edges",
+        "callable kind and opaque return identity",
+        "explicit evaluation and cleanup effects"
+      ],
+      "producer": [
+        "T02"
+      ],
+      "consumer": [
+        "T05",
+        "T06",
+        "T08",
+        "T09"
+      ],
+      "trust": "Typed does not mean memory safe; all relevant control edges require checking."
+    },
+    {
+      "id": "CallableShape",
+      "owner": "zil-ir schema; types/analyze produce",
+      "fields": [
+        "noncapturing fn pointer signature or concrete environment identity",
+        "ArgsTuple/result and Fn/FnMut/FnOnce bound",
+        "capture ownership distinct from calling ability",
+        "Hold/Call/Cleanup/Resume contracts",
+        "environment storage policy and dynamic ABI if any",
+        "opaque return nominal identity and single hidden concrete type"
+      ],
+      "producer": [
+        "T02",
+        "T08"
+      ],
+      "consumer": [
+        "T03",
+        "T05",
+        "T06",
+        "T08",
+        "T09"
+      ],
+      "trust": "fn(A)->R has no captured environment. Capturing closures need concrete/Fn-bound/dyn storage. Restricted impl Trait return is ordinary/inherent return-position only, one hidden type per function; no automatic Box or arbitrary trait/dyn return."
+    },
+    {
+      "id": "ExportedInterface",
+      "owner": "types/analyze candidate; verify endorses",
+      "fields": [
+        "schema/rule/target version",
+        "nominal type/layout shape",
+        "source receiver and parameter/result modes",
+        "OriginFlow and BindingRoute",
+        "Hold/Call/Cleanup/Resume and effects",
+        "generic bounds and witness slots",
+        "semantic/ABI/private/source-location/build-input fingerprints"
+      ],
+      "producer": [
+        "T02",
+        "T06",
+        "T08",
+        "T09"
+      ],
+      "consumer": [
+        "T02",
+        "T03",
+        "T04",
+        "T06",
+        "T08",
+        "T09"
+      ],
+      "trust": "Importing a serialized declaration cannot manufacture verified implementation or runtime capability; provenance, version and required checks remain explicit."
+    },
+    {
+      "id": "CandidatePlan",
+      "owner": "analyze",
+      "fields": [
+        "finite origin graph and One/Many",
+        "state/permission/window transitions",
+        "per-edge initialization and responsibility carrier",
+        "ordered prefix and tagged exits",
+        "binding routes and data-correlated selectors",
+        "cleanup plan and proof references",
+        "certificate node/opcode version"
+      ],
+      "producer": [
+        "T06",
+        "T08",
+        "T09"
+      ],
+      "consumer": [
+        "T05"
+      ],
+      "trust": "Every claim is a candidate until independently checked. Unknown operations fail closed."
+    },
+    {
+      "id": "VerifiedModule",
+      "owner": "zil-verify",
+      "fields": [
+        "private wrapper around immutable checked module data",
+        "read-only view with module/rule/target identity",
+        "checked certificate/plan identity",
+        "no public unchecked constructor or Deserialize implementation"
+      ],
+      "producer": [
+        "T05"
+      ],
+      "consumer": [
+        "T03",
+        "T07",
+        "T08",
+        "T09"
+      ],
+      "trust": "Raw serializable schemas stay in zil-ir. The wrapper lives in zil-verify with private fields; only verification functions create it. Expose read-only accessors or sealed traits. zil-verify uses #![forbid(unsafe_code)]; other crates cannot construct it from bytes, IDs or hashes."
+    },
+    {
+      "id": "VerifiedCTIR",
+      "owner": "zil-verify",
+      "fields": [
+        "allowed typed CT operations",
+        "input dependency capability set",
+        "bounded execution budget",
+        "completed-query snapshot IDs",
+        "private verified wrapper"
+      ],
+      "producer": [
+        "T05"
+      ],
+      "consumer": [
+        "T03"
+      ],
+      "trust": "Same private-construction discipline as VerifiedModule. CT output is unverified CoreModule and re-enters normal checks."
+    },
+    {
+      "id": "LIRTarget",
+      "owner": "lower / target schema",
+      "fields": [
+        "TargetProfileId and exact LLVM/toolchain inputs",
+        "actual value/environment/frame layout",
+        "call/error/cleanup/SABI records",
+        "pointer and synchronization attributes with evidence links",
+        "machine blocks and actual control exits"
+      ],
+      "producer": [
+        "T07",
+        "T08",
+        "T09"
+      ],
+      "consumer": [
+        "T07",
+        "T09"
+      ],
+      "trust": "Backend obeys the checked target profile; no default noalias or host Rust reference semantics for Desc. C/LLVM profiles cannot exchange assumptions."
+    },
+    {
+      "id": "QueryResult",
+      "owner": "db/driver",
+      "fields": [
+        "query key and explicit input hashes",
+        "separate semantic/ABI/private/source-position/build fingerprints",
+        "immutable phase snapshot",
+        "Success/SafeReject/Unsupported/ResourceLimit/InfraError/cancelled result",
+        "source/target/rule/version identity"
+      ],
+      "producer": [
+        "T04"
+      ],
+      "consumer": [
+        "T01",
+        "T02",
+        "T03",
+        "T05",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "W1",
+        "W2",
+        "W3"
+      ],
+      "trust": "Cache integrity is not semantic validity; decoding produces candidates that require their declared verification path. native run wraps the ordinary CLI entry and does not enable implicit GC."
+    },
+    {
+      "id": "ExecutionEvidence",
+      "owner": "runner/integrator",
+      "fields": [
+        "task/revision/base and candidate commit",
+        "normative/input/profile/toolchain hashes",
+        "selected/executed/assertion counts",
+        "per-case expected and actual result",
+        "actual command/stdout/stderr/exit code",
+        "phase and machine artifacts with hashes",
+        "evidence level and independently reviewed status"
+      ],
+      "producer": [
+        "B0",
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "W1",
+        "W2",
+        "W3",
+        "W4"
+      ],
+      "consumer": [
+        "W1",
+        "W2",
+        "W3",
+        "W4"
+      ],
+      "trust": "No empty/missing/unsupported/timed-out run can produce Pass. Source, model, synthetic dependency check and machine execution remain distinct evidence levels."
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "schema.v1",
+      "producer": "B0",
+      "consumers": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06",
+        "T07",
+        "T08",
+        "T09"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "runner.v1",
+      "producer": "B0",
+      "consumers": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "W1",
+        "W2",
+        "W3",
+        "W4"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "bootstrap.v1",
+      "producer": "B0",
+      "consumers": [
+        "T04"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "target-profile.v1",
+      "producer": "B0",
+      "consumers": [
+        "T07"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "parsed-core.v1",
+      "producer": "T01",
+      "consumers": [
+        "T03",
+        "W1"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "typed-cfg.v1",
+      "producer": "T02",
+      "consumers": [
+        "T03",
+        "T06",
+        "W1"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "typed-interface.v1",
+      "producer": "T02",
+      "consumers": [
+        "T06"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "ct-generation.v1",
+      "producer": "T03",
+      "consumers": [
+        "W2"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "query-driver.v1",
+      "producer": "T04",
+      "consumers": [
+        "W1",
+        "W3"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "native-run.v1",
+      "producer": "T04",
+      "consumers": [
+        "W2"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "verified-ir.v1",
+      "producer": "T05",
+      "consumers": [
+        "T06",
+        "T07",
+        "W1"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "verified-ctir.v1",
+      "producer": "T05",
+      "consumers": [
+        "T03"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "resource-plan.v1",
+      "producer": "T06",
+      "consumers": [
+        "W1"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "resource-interface.v1",
+      "producer": "T06",
+      "consumers": [
+        "W1"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "resource-lir.v1",
+      "producer": "T07",
+      "consumers": [
+        "W1"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "native-resource.v1",
+      "producer": "T07",
+      "consumers": [
+        "W1"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "higher-order.v1",
+      "producer": "T08",
+      "consumers": [
+        "T09",
+        "W2"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "graph-containers.v1",
+      "producer": "T08",
+      "consumers": [
+        "W2"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "sabi-completion.v1",
+      "producer": "T09",
+      "consumers": [
+        "W3"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "w1-integration.v1",
+      "producer": "W1",
+      "consumers": [
+        "T08",
+        "T09",
+        "W2"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "w2-integration.v1",
+      "producer": "W2",
+      "consumers": [
+        "W4"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "w3-integration.v1",
+      "producer": "W3",
+      "consumers": [
+        "W4"
+      ],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    },
+    {
+      "id": "product-evidence.v1",
+      "producer": "W4",
+      "consumers": [],
+      "handoff_required": [
+        "producer commit",
+        "normative/input hash",
+        "artifact schema version",
+        "actual validation evidence"
+      ],
+      "status": "Planned"
+    }
+  ],
+  "bootstrap_handoff": "B0 owns minimal formal production paths once; after Done, module ownership moves to T01/T02/T04/T05 and later descendants. Skeletons are not completed capabilities.",
+  "implemented_partial_schema": {
+    "compiler_schema_version": 17,
+    "raw_wire_version": 17,
+    "typed_fingerprint_domain": "ZIL-TYPED-MODULE-V17",
+    "scope": "B0 implemented finite Copy aggregates/enums and error unions, public finite templates/aliases, thin callbacks, local Copy/address/Desc/Managed/explicit-move Package Fn/FnMut/FnOnce environments, one-level addresses and interprocedural origins, u8/u16 checked integer values and explicit preserving integer conversions, private scalar and synchronous borrowed-buffer C imports with explicit unsafe regions, finite resource heads with Copy payload and give/create results, complete finite owning Package values with local direct-field transfer, conditional cleanup, refill and replacement, bounded synchronous nonescaping concrete callback helpers, and ordinary factories returning one self-contained concrete Fn/FnMut/FnOnce environment for caller-owned synchronous storage; synchronous error propagation and explicit lexical storage scopes are implemented, not nested/general partial package construction, unwind/cancel or complete schema.v1 handoff; schema15 adds finite x64 static foreign handles, readonly UTF16 literals, environment-free C callbacks, by-address natural-layout records, and Win64 PE construction; implementation evidence is required separately. Schema16 adds bounded borrowed slices of finite Copy elements from fixed arrays or existing slices, ordinary parameter-origin returns, checked ranges/indexing and length on supported x64 LLVM profiles; implementation evidence is required separately. Schema17 declares sealed Managed/Desc ByteBuffer storage, explicit fallible reserve and capacity-bounded append, dynamic-backed borrowed slices and generic place/range composition; real implementation and admission evidence remain separate.",
+    "core_closure_inference": "CoreClosureParameter.ty and Closure.return_type use Option<Type>; unresolved types cannot enter TypedModule",
+    "source_constraint_stage": "infer_source_closures/infer_program_closures collect whole-function constraints after the original Core stop point and before CT evaluation; raw Type/body/metadata traversal is bounded before cloning, and the resulting Core grants no execution authority",
+    "closure_definition": [
+      "id",
+      "function",
+      "captures in field order",
+      "parameters",
+      "result",
+      "kind"
+    ],
+    "typed_function_environment": "None for ordinary functions, foreign declarations and contextual noncapturing fn literals; Some(ClosureId) requires the matching CallClosure/CallClosureShared/CallClosureMut/CallClosureOnce entry. Environment and foreign entries cannot be ordinary FunctionRef targets.",
+    "instructions": [
+      "MakeAggregate / ExtractField / UpdateField / ExtractIndex / UpdateIndex",
+      "MakeVariant / VariantTag / ReadVariant",
+      "FunctionRef / CallIndirect",
+      "MakeClosure / ReadCapture / WriteCapture / CallClosure / CallClosureMut",
+      "BorrowLocal / BorrowLocalMut / ReborrowAddress / ReadAddress / WriteAddress / AddressField / AddressIndex",
+      "TakeLocal / StorageLive / StorageDead",
+      "UnsafeEnter / UnsafeExit / ForeignCall",
+      "MakeManaged / DescribeLocal / ReadDesc / WriteDesc / DropManaged",
+      "DescribeCapture / TakeCapture / CallClosureShared / CallClosureOnce / DropClosure",
+      "ScopeEnter / ScopeExit",
+      "MakeErrorUnion / ErrorTag / ReadErrorUnion",
+      "MakePackage / ReadPackageField / DescribePackageField / DropPackage",
+      "CallClosureBorrowed (address SSA, explicit requested Fn/FnMut mode)",
+      "TakePackageField / DropPackageField / StorePackageField (direct finite local fields)",
+      "BindPackageCapture / EndPackageCapture (unique lexical environment views, no result)",
+      "ConvertInteger (u8/u16/i32/i64, exact integer target, checked value-preserving conversion)",
+      "ForeignFunctionRef { function } (static C ABI target; no environment or ordinary indirect call)",
+      "AddressSlice { address, start: Option<ValueId>, end: Option<ValueId> } / SliceLength { address }"
+    ],
+    "trusted_boundary": "Independent verify reconstructs typing, CFG/dominance, initialization/storage, affine address/environment transfers, closure call kind, shape/bounds and origin/liveness/loan-parent facts. It independently checks scalar and bounded borrowed-buffer foreign declaration shape, exact noescape indices, simultaneous address permissions and balanced lexical unsafe CFG regions. C implementation behavior and the truth of explicit unsafe foreign contracts remain trusted; neither source spans nor a declaration prove them. Analyze and verify do not share their safety solver. LLVM consumes LIR bound to immutable VerifiedModule; no Rust borrow checker, implicit Box/RC or default noalias is used. Finite resource origin, linear SSA/local obligations, description liveness and conditional cleanup are independently reconstructed. Drop hidden entry points cannot be ordinary calls or function references. Explicit scopes independently bind parameter/local storage activation, exact stack/storage joins and ordered exits. The scope checker concerns local storage, while owned SSA block results remain subject to the full-function affine responsibility checker. Error exit labels must accompany an actual constructed error result; ordinary Return may return either tag. All executable non-foreign source-defined functions use scopes; legacy unscoped non-error raw IR retains its independent resource checks without a lexical scope claim. Local resource environments carry affine debts; Analyze and Verify independently reconstruct owned/borrowed capture roots, liveness, transfer, normal cleanup and transitive descriptor write effects. Copy payload snapshots do not inherit write-through descriptor provenance. ReadCapture cannot copy Managed; shared owned calls use the actual local environment. Field and local liveness flags enforce the checked normal and finite synchronous error cleanup at machine level. Package type shape, owned field arity/consumption, exact field Desc roots and whole carrier debt are independently checked. Every Package type or operation requires strict explicit storage scopes, including raw IR. Concrete helper contracts are independently rebuilt; public claims cannot grant a borrow, authorize borrowed-environment teardown or hide captured-address loans. Borrowing the environment position preserves its captured address Hold. Ordinary helper calls compare all carried loan windows and actual shared/exclusive permissions; future-live captured field descriptions prevent whole Package movement. Package locals additionally retain independent direct Managed field debts and an active shell; complete SSA/ABI transfers require every owned field LIVE. Exact field Desc roots block only the invalidated field, while whole operations check all roots. Explicit conditional field cleanup precedes a prepared mutable field Store; raw Store cannot overwrite live debt. Partial local cleanup visits only actually live fields in declaration order. Package environment views are uniquely rebound from raw entry structure by each checker; Shared indirect writes and all normal/error nonconsuming exit shapes are independently checked. Bind/End cannot reset the persistent environment debt.",
+    "compatibility": "Only raw wire/schema version17 is accepted; versions0-16 and unknown future versions reject. Typed fingerprint domain V17. Frozen research093 remains schema16/38b9169fde05fa0c0effc7fdd74296b9a6c20711; previous research identities remain historical. Not complete schema.v1 handoff.",
+    "remaining": [
+      "nested addresses and general disjoint address-field precision; some cyclic static reborrows reject conservatively",
+      "nested resources/packages, user-teardown decompose, general non-Copy Value ownership and partial construction, owning error payloads, general unwind/cancellation cleanup",
+      "general escaping callable parameters, borrowed/Desc opaque results, nested closure environment captures, trait/dynamic opaque callables, factory recursion/forwarding and return-kind adaptation, recursive/looping/forwarding helpers or more than one concrete environment parameter; readonly move-captured mutable addresses still conservatively require FnMut",
+      "generic aliases/methods, general bounds/trait solving and cross-module omitted field defaults",
+      "CT Type/Syntax generation, reflection and external capabilities; CT error-union/enum/function/address execution remains closed",
+      "general retained/returned/raw data pointers, variadic/general foreign contracts, complete IO/string/container standard library",
+      "async, concurrency, frame/SABI and complete public schema handoff"
+    ],
+    "hold_claims": "FunctionPlan.holds densely covers ValueId; roots are sorted unique Local/Capture/Parameter identities. Independent bounded fixed points reconstruct call-result origins, substitute caller roots and check storage/liveness. A separate loan graph reconstructs exclusive authority, reborrow parents and affine SSA/local transfer; Hold metadata alone does not grant permissions.",
+    "shared_capture_scope": "One-level shared/exclusive references to finite Copy values, including parameters and borrowed returns. Projections keep conservative whole-object roots and checked bounds. Default mutable Value capture uses its real address; existing addresses reborrow by use, while move transfers mutable addresses. Local Desc capture observes current resource heads; Managed capture transfers ownership at creation. Explicit move of a complete finite Package creates an owned environment field. Self-contained Copy/Managed/Package environments may escape through the restricted ordinary factory contract; borrowed/Desc/address environment escape, nested addresses and general disjoint-field permissions remain closed.",
+    "core_additions": "Core Enum/Match/IfLet/WhileLet/Ascribed/Unsafe remain unverified syntax. CoreField.public retains field visibility. Project templates normalize to definition-module identities before finite specialization; private field access and source construction are checked while legitimate CT value copies remain possible. Aliases/generics re-enter ordinary checks; raw walks are bounded. Core Try remains unverified syntax and must be traversed by inference, CT source/materialization and raw walkers; ErrorUnion children are visited recursively. IntegerConvert { value, target } is an untrusted Core expression; all traversals charge and visit operand and target. Literal(Constant) carries untrusted static foreign constants; c_callback remains a Core Call until checked. Core Slice { object, start: Option<Box<CoreExpr>>, end: Option<Box<CoreExpr>> } is an unsized range place, with every present child traversed and charged; source Call(Member(len),[]) is recognized only for a slice-address receiver by Types.",
+    "compile_time_program": "Only explicitly serializable Unit/bool/u8/i32/i64 and nested tuple/record/array values enter the bounded CT VM. Calls, recursion, branches, loops and aggregate operations consume cumulative steps and expanded logical-cell budgets. Enum/function-pointer/address execution remains closed. CT values are materialized with fresh NodeIds into unverified Core; empty-array element types are retained through Ascribed and rechecked. ScopeEnter/ScopeExit are verified no-ops whose actual VM visits consume cumulative steps. ErrorUnion and runtime error instructions are not CT executable capabilities. Package values and operations remain non-executable in the CT VM; admission walks still charge their full raw type trees.",
+    "wire_additions": {
+      "type_tags": {
+        "record": 13,
+        "array": 14,
+        "enum": 15,
+        "function_pointer": 9,
+        "managed": 7,
+        "desc": 8,
+        "error_union": 16,
+        "package": 17,
+        "u8": 18,
+        "u16": 19,
+        "foreign_handle": 20,
+        "c_wide_string": 21,
+        "foreign_callback": 22,
+        "slice": 23,
+        "byte_buffer": 24
+      },
+      "typed_operation_tags": {
+        "aggregate_family": "13-17",
+        "enum_family": "18-20",
+        "call_closure_mut": 21,
+        "write_capture": 22,
+        "address_field": 23,
+        "address_index": 24,
+        "function_ref": 25,
+        "call_indirect": 26,
+        "borrow_local_mut": 27,
+        "reborrow_address": 28,
+        "write_address": 29,
+        "take_local": 30,
+        "unsafe_enter": 31,
+        "unsafe_exit": 32,
+        "foreign_call": 33,
+        "make_managed": 34,
+        "describe_local": 35,
+        "read_desc": 36,
+        "write_desc": 37,
+        "drop_managed": 38,
+        "describe_capture": 39,
+        "take_capture": 40,
+        "call_closure_shared": 41,
+        "call_closure_once": 42,
+        "drop_closure": 43,
+        "scope_enter": 44,
+        "scope_exit": 45,
+        "make_error_union": 46,
+        "error_tag": 47,
+        "read_error_union": 48,
+        "make_package": 49,
+        "read_package_field": 50,
+        "describe_package_field": 51,
+        "drop_package": 52,
+        "call_closure_borrowed": 53,
+        "take_package_field": 54,
+        "drop_package_field": 55,
+        "store_package_field": 56,
+        "bind_package_capture": 57,
+        "end_package_capture": 58,
+        "convert_integer": 59,
+        "foreign_function_ref": 60,
+        "address_slice": 61,
+        "slice_length": 62,
+        "byte_buffer_new": 63,
+        "byte_buffer_reserve": 64,
+        "byte_buffer_push": 65,
+        "byte_buffer_len": 66,
+        "byte_buffer_capacity": 67,
+        "byte_buffer_borrow": 68
+      },
+      "terminator_trap_tag": 4,
+      "hold_root_parameter": "incoming source parameter order",
+      "typed_function_foreign": "Optional ABI/symbol, bounded exact noescape vector, static_callbacks bool before ordinary metadata; all fingerprinted and raw-wired.",
+      "resource_table": "name, payload, optional teardown FunctionId; bounded before allocation and included in V13 fingerprint",
+      "typed_function_result_mode": "PassingMode tag before the remaining function metadata; all reader/writer paths retain it",
+      "cleanup_exit_tags": {
+        "fallthrough": 0,
+        "return": 1,
+        "error": 2,
+        "break": 3,
+        "continue": 4
+      },
+      "canonical_error_fields": "is_error bool encoded only as 0 or 1; ScopeExit kind only as a declared cleanup_exit_tags value; both error type children participate in bounded decoding and fingerprinting",
+      "typed_function_callable_contract": "Optional CallableParameterContract before ordinary body metadata; all fields, absence, sorted trace vectors and concrete identity are fingerprinted. Decode charges vector/type lengths before allocation; raw Verify bounds claim shape before fingerprinting.",
+      "typed_function_callable_return_contract": "Optional CallableReturnContract before the existing optional parameter contract. closure/kind plus hold/call/writes/cleanup index vectors are bounded before allocation and included in V13 fingerprint; raw Verify bounds them before hashing. No new operation opcode is needed.",
+      "byte_integer": "Type tag18 and Constant tag4; typed instruction59 ConvertInteger(value,target), scalar CT instruction3; targets are untrusted Type claims.",
+      "foreign_noescape": "Foreign declaration ABI/symbol followed by bounded count and u32 parameter indices, included in typed fingerprint. Scalar imports encode empty list.",
+      "static_foreign_values": "Constant tags5=u16,6=null handle,7=null wide string,8=bounded UTF16 u16 vector including unique trailing NUL; each unit charged before allocation/hash. Foreign metadata appends static_callbacks boolean after noescape indices. All fields fingerprinted.",
+      "borrowed_slice": "Type23 has one recursively bounded element; opcode61 carries source ValueId then canonical optional start/end ValueIds; opcode62 carries source ValueId. All children, endpoint presence and IDs are fingerprinted. Decode does not grant provenance or permission."
+    },
+    "foreign_declaration": "ForeignDeclaration { abi, symbol, noescape_parameters, static_callbacks }. Private C imports accept u8/u16/i32/i64/ForeignHandle/CWideString/ForeignCallback values; result only Unit/u8/u16/i32/i64/ForeignHandle. One Address layer, exact noescape indices. Readonly POD: integers, handle, static wide/callback and recursively nonempty arrays/records. Mutable POD excludes static wide/callback; all declared fields have every bit pattern valid. Natural declaration-order C layout only on supported x64 little-endian Linux and Win64 targets, by-address aggregates only, padding not field data. New static value types/record ABI unsupported elsewhere. Callback-valued parameters require static_callbacks=true; true also admits reentry via earlier registrations. Foreign callbacks must not access current borrowed ZIL storage. No cross-boundary unwind/longjmp/suspend or borrowed-address retention. Existing independent loan and unsafe checks remain; no inferred noalias/nocapture. C contract truth and OS resource validity remain unsafe obligations.",
+    "resource_definition": "TypedModule/LirModule.resources: ordered ResourceDefinition { name, payload: nominal finite Copy Record, teardown: optional FunctionId }. Each teardown has exactly one matching Desc argument and a unit body; backend binds this table to the same immutable VerifiedModule.",
+    "resource_modes": "CoreFunction, TypedFunction and ScalarFunction retain result_mode. Managed results require Create or Give; ordinary resource inputs are Desc, give inputs Managed. Module fingerprint and exported interface signature bind result modes; source CT traversal preserves them.",
+    "resource_machine": "Managed uses inline payload plus a real local live flag; Desc uses a plain pointer without noalias. Store sets the flag, Take clears it, conditional Drop clears it before calling verified teardown. Default checked traps abort the process and do not unwind.",
+    "closure_resource_machine": "Inline environment fields in first-use capture order; Each Managed capture has an appended i1 liveness flag; each Package capture has an appended shell flag followed by one i1 per direct Managed field in declaration order. Capture groups follow declaration order. Owning Shared, Exclusive and Consume entries receive an environment pointer; Copy Shared entries retain by-value ABI. TakeCapture clears field responsibility before transfer; DropClosure clears local activation before conditional field teardown. CallClosureOnce consumes an affine environment and uses fixed entry-block scratch, then cleans its remaining live fields on normal return. No implicit heap/RC/locks or noalias promise.",
+    "closure_resource_scope": "Local concrete environments and one concrete nonescaping ordinary helper parameter. Callback explicit parameters/results remain finite Copy. Ownership does not force FnOnce: owned readonly is Fn, owned mutation (including indirect writes) FnMut, body give from a Managed capture FnOnce; Package field take followed by full restoration on every normal/error exit can remain FnMut, while a missing field/whole package on any ordinary exit requires FnOnce. Desc target mutation may remain Fn but is checked against current target liveness. No unwind or cancellation is inferred from normal Return cleanup.",
+    "error_union": "Type::ErrorUnion { error, result }, both recursively finite Copy. Exact whole-union values pass through; implicit injection requires a unique exact payload type. Equal alternatives reject ambiguous injection; no implicit error conversion. Core Try consumes one operand and propagates only an error with the exact enclosing error type.",
+    "cleanup_scope": "Root ScopeEnter is first in every executable non-foreign source-defined function, including CT functions; parameters activate in the root. Foreign declarations have no executable source body or root scope. StorageLive binds locals to the innermost scope, StorageDead ends activation, and all exits must match innermost scope and end its storage. Joins/backedges require exact stack/storage equality. Return closes all scopes; Error additionally returns an actual true-tag MakeErrorUnion. Break/Continue encode exits but do not independently prove source-label identity. Owned SSA results can cross inner scope exits only while preserving full-function responsibility.",
+    "error_machine": "Inline { i1, E, T } with true for error, false for success and zeroed inactive field. This stores both payloads; it is not a compact max-size union or Rust Result ABI equivalence. ReadErrorUnion checks tag before extraction or Unit erasure and traps on inactive projection. Native E!i32 main returns the success integer, E!Unit main returns 0 on success, and either returns 1 on error without implicit output; checked cleanup occurs in the function CFG before its Return.",
+    "source_error_cleanup": "Earlier evaluated owning arguments and FnOnce callees are stored in temporary local carriers until all arguments succeed; later errors clean remaining actual responsibility. Vacant temporary storage is reserved at lexical entry, Store initializes responsibility, full-expression Drop remains at evaluation boundaries, and StorageDead occurs at scope exit. Failure snapshots do not remove success-path temporaries. Existing Copy-only resource fields establish Managed only after all field expressions succeed; general owning partial initialization is not implemented.",
+    "package_value": "Type::Package { name, fields } is a nominal finite inline non-Copy Value with at least one direct Managed<Record> field and otherwise finite Copy fields. SSA values and ordinary Infer parameter/results are complete. Local shells may hold a subset of Managed debts after direct field transfer/cleanup; full Take requires every field LIVE. Zero-manages, nested packages, closure/Desc/address fields, whole custom Drop, owning errors, default borrowed Package capture and callable explicit Package parameters/results remain closed. Complete explicit-move Package captures and ordinary factory Package inputs are supported by the package_capture contract.",
+    "package_preparation": "Source fields evaluate once in written order, followed by omitted Copy defaults in declaration order. Real owning locals guard each successfully prepared Managed field. Later failure cleans guards in reverse actual initialization order. Successful MakePackage consumes every owned SSA input exactly once and initializes a complete carrier atomically. Partial construction is not exposed; later explicit direct field transfer may leave an active local shell partially populated.",
+    "package_description": "ReadPackageField reads a matching Copy field of an active local shell, including partial shells. DescribePackageField additionally requires its Managed field LIVE. Analyze and Verify independently retain exact (LocalId, field index) roots through aliases, captures and joins. Future-live descriptions block that field Take/Drop/Store; sibling fields remain independent. Whole movement, overwrite, cleanup and storage termination check all field roots. A replaced field cannot retarget an old description to the new instance.",
+    "package_machine": "The complete LLVM value remains the original inline struct and ordinary by-value ABI. Package locals track a whole-shell obligation plus direct Managed field live flags, initialized on complete parameter/Store, cleared on whole Take and storage reset. TakePackageField clears only its field; DropPackageField clears its actual flag before teardown; StorePackageField establishes a fresh field debt only after the checked old debt is absent. DropPackage clears the shell then conditionally cleans remaining live fields in declaration order. Ordinary value ABI stays complete. Captured Package shell/field flags are persistent closure-environment fields and lexical views alias them; partial ordinary Package ABI remains closed. No implicit allocation, Box, RC, lock, global table or noalias promise.",
+    "concrete_helper_core": "CoreFunction.callable_parameter preserves one bounded F:Fn/FnMut/FnOnce template and exact callback parameter index, argument/result types. Types specializes only after the actual ClosureId is known, using a bounded work queue and template/environment cache. Definition-module names and source origins are preserved. This is not function-pointer erasure or caller-side inlining.",
+    "concrete_helper_contract": "TypedFunction.callable_contract is an untrusted CallableParameterContract { parameter, closure, kind, hold, call, writes, cleanup, traces }. Hold indexes captured Address fields; Call indexes captured Address/Desc dependencies. Writes is the conservative capability upper bound of all Desc and mutable Address fields, not a claim of actual mutation. Cleanup is Owned or Borrowed. Sorted unique traces contain 0/1/2 exact requested callback modes and Return/Trap exits. Return includes either Copy E!T tag; no error-tag correlation is exported. Independent Verify reconstructs this relation from an acyclic CFG and checked capture types; caller effects consume only the verified public relation.",
+    "concrete_helper_scope": "One concrete environment parameter: F or &F for Fn, &mut F for FnMut, F for FnOnce. By-value FnMut is Unsupported in this slice because ordinary parameters are immutable. Actual Fn supports requested Fn/FnMut/FnOnce; actual FnMut supports FnMut/FnOnce; actual FnOnce supports only FnOnce. FnOnce traces contain at most one call. Other parameters are finite Copy, complete Package, or Managed give values; extra Desc/Address parameters and non-Copy results are closed. No helper loops, callback forwarding/recursive helper contracts, environment fabrication of the same identity, escape or persistence. Unknown contracts/effects are never treated as empty.",
+    "concrete_helper_machine": "Closure(id) remains the actual inline environment type and Address<Closure(id)> is an actual pointer to its storage. CallClosureBorrowed invokes the original entry: owning/FnMut/FnOnce entries receive ptr; a nonowning read-only Fn retains its existing by-value ABI and only its nonowning environment fields are loaded. No owned environment is copied through LoadAddress. Fn/FnMut adapted to by-value FnOnce are consumed in fixed entry scratch and their remaining owned fields are cleaned exactly once in capture order. Borrowed environments acquire no cleanup debt. Earlier prepared owning callback/arguments remain guarded if a later argument propagates error.",
+    "concrete_helper_interface": "ScalarInterface.callable_contracts is None before Verify and Some verified public concrete-instance contracts afterward. Driver contract fingerprint domain v2 binds the canonical contract bytes. Concrete instance signature hashing binds ClosureId plus actual capture layout, call kind and callback signature; body-only edits need not change signature. LIR must match the exact immutable verified functions/environments/resources. Legacy ordinary non-helper Desc calls retain their earlier effect analysis; this slice does not claim universal separate-compilation contracts.",
+    "retained_callable_core": "CoreFunction.callable_return: Option<CoreCallableReturn { kind, parameters, result }> preserves one return-position impl Fn/FnMut/FnOnce declaration. Core Opaque markers are unresolved claims only. Types resolves factories before consumers and emits one concrete ClosureId per hidden return definition; all reachable returns have that exact type. Current finite slice rejects recursive factories and forwarding another factory result.",
+    "retained_callable_contract": "TypedFunction.callable_return_contract: Option<CallableReturnContract { closure, kind, hold, call, writes, cleanup }>. Return type is concrete Closure(id), result_mode Infer, definition is ordinary nonforeign/nonclosure/nonhelper. Captures are finite Copy snapshots or direct Managed fields; callback explicit parameters/result are finite Copy. Declared kind equals actual kind in this slice. External hold/call/writes are empty; cleanup lists exactly Managed capture indices in field order. Independent Verify checks the claim against the actual definition, creation and return CFG; missing/forged claims grant no authority.",
+    "retained_callable_machine": "Existing inline environment struct (including owned-field live flags) returns by value to caller; MakeClosure/Return transfers responsibility once and caller Store receives it. Calls retain the actual environment position and FnOnce uses fixed scratch with remaining-field cleanup. No implicit allocation, box, RC, lock or registration table. Retaining a self-contained value across synchronous caller iterations is supported; external retained callbacks, cancellation, reentrancy and quiescence are not claimed.",
+    "retained_callable_interface": "ScalarInterface.callable_returns is None before Verify and Some<Vec<FunctionCallableReturn {name,contract}>> afterward. Verified public contract fingerprint domain v3 binds parameter and return contracts; signature binds actual closure layout/kind/parameter/result types. Opaque hides a source type name, not required layout or semantic contract.",
+    "package_field_update": "Source give p.field transfers one Managed field and permits an immutable let binding, as whole affine move does. Field assignment requires var; evaluate the static local target once, fully prepare RHS under real temporary ownership, then explicit conditional DropPackageField and non-failing StorePackageField. RHS preparation failure leaves any unconsumed old field intact; prior RHS side effects are not rolled back. Copy fields Store directly. LIVE|MOVED joins may be conditionally cleaned before refill. A missing/inactive shell, mismatched field, live destination debt, stale description or duplicate SSA use is rejected. Teardown panic retains the existing abort boundary; no recoverable error/unwind/suspend is added.",
+    "package_capture": {
+      "binding": "Each actual Package capture has exactly one same-type non-parameter local view, bound once in the entry root ScopeEnter plus consecutive BindPackageCapture prefix. Entry has no incoming edge. Index/local mapping is one-to-one; no views in non-environment functions. All Package views precede ordinary capture initialization.",
+      "storage": "Bind/End are the only lexical activation/deactivation. Ordinary StorageLive/StorageDead, Package ReadCapture/TakeCapture and whole BorrowLocal(view) are rejected. Bind sets initialized and End clears it without requiring a still-initialized Consume value. End changes no physical debt flags; it forbids future use or live descriptions/aliases and must precede root ScopeExit. No rebind or ordinary reverse-init local cleanup ordering.",
+      "machine": "View data, shell flag and each Managed field flag alias the actual environment. Bind/End need no runtime flag writes or whole-package copying. Final cleanup is capture declaration order then field declaration order, conditional on persistent flags, after a consuming call returns.",
+      "mode": "Shared forbids all direct/transitive writes or debt changes. Exclusive requires shell and every Managed field exactly LIVE on every normal/error Return. Consume may leave partial or moved whole state; caller cleans remaining env flags. Non-Shared whole Take/Drop/Store retains complete-transfer and no-old-debt rules. Trap remains abort.",
+      "inference": "Explicit move only. Budgeted source slot-state flow classifies pure-read Fn, writing with full restoration on all ordinary/error exits FnMut, any partial/whole-moved exit FnOnce. Classification grants no safety facts; independent Analyze/Verify reconstruct actual CFG, scoped views, liveness and resource state.",
+      "boundary": "Only direct Managed plus finite Copy Package shape; no nested owning fields, whole custom Drop, default borrowed captures, Package explicit callable arguments/results or implicit heap/RC. Ordinary self-contained factory inputs may include complete Package."
+    },
+    "byte_integer": {
+      "type_tag": 18,
+      "constant_tag": 4,
+      "typed_conversion_opcode": 59,
+      "ct_conversion_opcode": 3,
+      "representation": "u8 is 0..255, inline i8 with size/alignment1, all bit patterns valid; ordinary parameters/results use ZIL internal ABI. C by-value u8 is outside this slice.",
+      "operations": "checked add/subtract/multiply and 0-x negate; modulo256 explicit wrapping; unsigned comparison/division/remainder and logical right shift. Only u8 shifts are newly admitted: count<8, left shift discards high bits. Other signed shift admission is unchanged. Exact same operand type, no implicit widening.",
+      "conversion": "u8(expr)/i32(expr)/i64(expr): one integer operand, preserve value, runtime trap or CT error when unrepresentable. No bool/address conversion. Typed/CT target and result must exactly agree; target types and operands are independently checked.",
+      "source": "unsuffixed unconstrained literal remains i32. Explicit u8 context or u8 suffix permits0..255; other source suffix rejection remains. Current integer match still requires a catch-all. Conversion names are reserved only as bare value/function bindings; members are ordinary members.",
+      "scope": "finite Copy arrays/aggregates/closures and checked CT; not UTF8 String, dynamic Vec, slices, allocation or unsafe raw-pointer casts."
+    },
+    "static_foreign_constructors": "c_null()/c_wstr_null()/c_wstr(literal) -> Core Literal(new Constant), c_callback(static ordinary symbol) -> ForeignFunctionRef. Callback target defined with no environment, foreign or teardown identity; exact i32/i64/handle arguments and Unit/i32/i64/handle result. No FunctionPointer conversion/CallIndirect. Foreign values closed to CT. c_wstr includes unique trailing NUL and valid UTF16, immutable program-static storage; no borrowed pointer conversion or external production.",
+    "borrowed_slice": {
+      "shape": "Only Address<Slice<finite Copy>> is a value. Bare Slice, nested addresses, slice-containing aggregate/error/callable/FFI/CT values are rejected. Slice is not Copy; shared Address retains existing copy behavior and mutable Address remains affine.",
+      "range": "AddressSlice takes Address<Array<T,N>> or Address<Slice<T>>, returns same-mutability Address<Slice<T>>, preserves whole backing roots/loan authority and does not create a child. Explicit ReborrowAddress creates the child. Present endpoints use integer types; native checks 0<=lo<=hi<=length before address math; omitted endpoints are 0/length. All three possible operands participate in dominance/liveness/budget walks.",
+      "length": "SliceLength accepts only Address<Slice<T>>, produces i64, and requires live readable window authority even though it reads metadata. Source .len() takes no arguments and does not reserve the name globally.",
+      "boundary": "Ordinary function parameters/returns with independently reconstructed parameter origins. No local escape, disjoint interval inference, closure capture or callable/helper slice signatures, stored borrow fields, CT or FFI slice ABI. Schema17 additionally allows explicit ByteBuffer-backed u8 slices through its verified storage primitive. No other allocation/raw-pointer construction/external retention. Only supported little-endian64-bit checked LLVM Linux/Win64 targets.",
+      "machine": "Address<Slice<T>> is {ptr,i64}; other Address remains ptr. No heap or reference count. AddressIndex uses actual slice length and produces Address<T>. Unit/empty Copy elements use existing aggregate-field representation, never LLVM void GEP."
+    },
+    "byte_buffer": {
+      "type": "Type24 ByteBuffer is sealed non-Copy payload; legal only inside Managed/Desc and one exact ResourceDefinition(@builtin:ByteBuffer, ByteBuffer, None). No general MakeManaged/ReadDesc/WriteDesc construction or access.",
+      "source": "ByteBuffer resolves as intrinsic resource; bytes_new, bytes_reserve, bytes_push, bytes_len, bytes_capacity, bytes_view and bytes_view_mut are reserved bare names. Core Call/Named remain untrusted.",
+      "ops": "63 new -> Managed<ByteBuffer>;64 reserve(Desc,i64)->bool;65 push(Desc,u8)->bool;66 len(Desc)->i64;67 capacity(Desc)->i64;68 borrow(Desc,canonical mutable bit)->Address<Slice<u8>>. All operand IDs/types/flags are fingerprinted and independently traversed.",
+      "invariants": "0<=len<=cap<=i64::MAX; initialized prefix only; empty no allocation; reserve failure retains all old state; push never allocates; no observable user callback between preparation/publication; cleanup settles outer live flag before free.",
+      "provenance": "Verify independently bridges actual resource roots, Desc aliases, ordinary call effects, dynamic-backed loans, result origins and cleanup. An address does not own storage. Active windows forbid conflicting reserve/push/give/drop/calls; same address reuse cannot revive prior window.",
+      "boundary": "Ordinary local/Desc/give/create/give factory and parameter-origin borrowed slice returns. Direct manages ByteBuffer Package fields and actual Managed owning captures, including complete owning Package captures and existing opaque factories, are supported by the 099 composition contract. ByteBuffer Desc borrowed capture, environment-origin slice results, ordinary owning aggregates/error payloads, CT/FFI, custom allocator, owning elements, concurrency and async remain closed.",
+      "machine": "Inline {ptr,i64,i64} managed head and pointer Desc; returned slice existing {ptr,i64}; element u8 only. Target allocator ABI and actual native execution reported separately.",
+      "alias_contract": "Verify infers required cross-parameter separation for windows versus writes, instantiates it at real callers and preserves dangerous prefixes. Distinct formal names never imply apart. Any conservative unsupported ordering is recorded separately; give parameters are owned local carriers and cannot source an escaping borrowed result.",
+      "owning_composition": "Package/capture descriptors and windows retain actual carrier roots; conservative whole-shell roots are allowed. Field take/refill/replace and whole carrier transfer/cleanup reject conflicting live windows. Intrinsic byte cleanup settles the outer responsibility flag before freeing payload; all temporary preparation and error exits settle only acquired owners. No new wire tag/opcode/layout."
+    }
+  }
+}

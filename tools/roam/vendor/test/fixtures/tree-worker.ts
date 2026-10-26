@@ -1,0 +1,3 @@
+import{spawn}from'node:child_process';import{existsSync}from'node:fs';import{join}from'node:path';import{serveWorker,serveGenerator}from'../../worker';
+const mode=process.argv[2],root=process.argv[3];async function hang(){spawn(process.execPath,[join(import.meta.dir,'heartbeat.ts'),root],{stdio:'inherit',windowsHide:true});while(!existsSync(join(root,'heartbeat')))await new Promise(r=>setTimeout(r,10));await new Promise<never>(()=>{});}
+if(mode==='generate')await serveGenerator(async()=>{await hang();throw new Error('unreachable');});else await serveWorker(async(trace,before)=>{await before(0);await hang();throw new Error('unreachable');});

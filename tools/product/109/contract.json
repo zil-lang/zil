@@ -1,0 +1,97 @@
+{
+  "admission": "NS only; unchanged product runtime per-cell0.9/geomean0.95 for runtime6,startup6,all12 separately; any failed group NoGo; other arms/factorial estimates descriptive; functional,RSS,tail andELF boundaries separate independentreview",
+  "admission_arm": "NS",
+  "allocation_failure_indices": [
+    0,
+    1,
+    2,
+    7,
+    17
+  ],
+  "arms": [
+    "BASE",
+    "N",
+    "S",
+    "NS",
+    "Rust"
+  ],
+  "binding_file_sha256": "f03350f1875b4fc49928213456ed50f0429216c36b6dabe283f192bc2682a079",
+  "binding_source_commit": "7a219f2d782532324e1ea7401cab68c9eada7c82",
+  "canonical_sequence_sha256": "29f9975e5dbcd88d42d76a2db55b38fae7d3d2619b9357e5af72a64ed975bb3e",
+  "compiler_for_arm": {
+    "BASE": "base",
+    "N": "candidate",
+    "NS": "candidate",
+    "Rust": null,
+    "S": "base"
+  },
+  "cpu": 2,
+  "memory_metric": "small native exec/fork launcher target wait4 peak RSS; Python parent high-water marks excluded",
+  "memory_observations": 300,
+  "memory_order": "same12 cells;5 repetitions; left-rotate BASE,N,S,NS,Rust by repetition modulo5; one observation perarm perposition",
+  "memory_repetitions": 5,
+  "optimization": "O2",
+  "order": "original runtime6 then startup6; two warm rounds base order/reverse; ten Williams sequences each3 in seeded109 shuffle; within-round ordered carryover only",
+  "order_seed": 109,
+  "process_timeout_seconds": 120,
+  "production_baseline": "ab285414c9bf97cdd2a37680c087f31db1623e5c",
+  "production_candidate": "f93443db131f55e6974ffaed3824f6addc36e84c",
+  "profile": "validation/product-gates.json",
+  "reference_identity_sha256": "3f93941e5121987e7de68259696a79bf3346299ba3e7c37670407dc9ba6915ea",
+  "reference_memory_commit": "9f5dd1188bf363c61d08d1840c97ee3f7b3a2218",
+  "reference_source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+  "retained_rounds": 30,
+  "runtime_sizes": [
+    65536,
+    4194304
+  ],
+  "scenario_order": [
+    "stream",
+    "buffer",
+    "retained"
+  ],
+  "schema": "zil-byte-map-binding/109/1",
+  "scope": "finite five-arm ordinary-library/binding experiment;NS sole preregistered admission object;108 NoGo unchanged;full product NotRun",
+  "source_factor_for_arm": {
+    "BASE": "original",
+    "N": "original",
+    "NS": "mapped-buffer-only",
+    "Rust": "original-rust",
+    "S": "mapped-buffer-only"
+  },
+  "source_provenance_sha256": "0bf8386cb8c5da54d6d8ea4473fc5bf8fa6a58685347bf2d009c1c6836e3e8ed",
+  "startup_sizes": [
+    0,
+    1
+  ],
+  "stop_rule": "one complete frozen series; any identity/order/output/exit/deadline failure invalidates and retains all observations; no post-result expansion or winner selection",
+  "time_observations": 1920,
+  "timing": "perf_counter_ns immediately before Popen to completed wait4; files opened before clock; output hash afterward",
+  "trace_sizes": {
+    "buffer": 4194304,
+    "retained": 65536,
+    "stream": 4096
+  },
+  "validation_sizes": [
+    0,
+    1,
+    7,
+    8,
+    9,
+    256,
+    257,
+    4096,
+    65536,
+    4194304
+  ],
+  "warmup_rounds": 2,
+  "williams_base_indices": [
+    0,
+    1,
+    4,
+    2,
+    3
+  ],
+  "williams_repetitions": 3,
+  "williams_sequences": 10
+}

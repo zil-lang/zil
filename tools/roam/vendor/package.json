@@ -1,0 +1,50 @@
+{
+  "name": "@zit/roam",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Portable state exploration, replay, reduction and optional host plugins",
+  "exports": {
+    ".": "./roam.ts",
+    "./search": "./search.ts",
+    "./check": "./check.ts",
+    "./clock": "./clock.ts",
+    "./data": "./data.ts",
+    "./cli": "./cli.ts",
+    "./seed-store": "./seed-store.ts",
+    "./plugins/node": "./plugins/node.ts",
+    "./plugins/browser": "./plugins/browser.ts",
+    "./plugins/pw": "./plugins/pw.ts",
+    "./package.json": "./package.json",
+    "./shrink": "./shrink.ts",
+    "./store": "./store.ts",
+    "./worker": "./worker.ts",
+    "./snapshot": "./snapshot.ts",
+    "./core": "./core.ts"
+  },
+  "files": [
+    "roam.ts",
+    "search.ts",
+    "shrink.ts",
+    "data.ts",
+    "check.ts",
+    "clock.ts",
+    "cli.ts",
+    "seed-store.ts",
+    "plugins",
+    "corpus",
+    "README.md",
+    "core.ts",
+    "store.ts",
+    "worker.ts",
+    "snapshot.ts"
+  ],
+  "peerDependencies": {
+    "@playwright/test": "^1.64.1"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    }
+  }
+}

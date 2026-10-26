@@ -1,0 +1,31 @@
+{
+  "generated_from": "_zil_design.md",
+  "ids": [
+    "ZIL-TARGET",
+    "ZIL-CORE",
+    "ZIL-MODES",
+    "ZIL-ORIGIN",
+    "ZIL-ACCESS",
+    "ZIL-CONTRACT",
+    "ZIL-ROUTE",
+    "ZIL-CLEANUP",
+    "ZIL-PACKAGE",
+    "ZIL-CAPTURE",
+    "ZIL-BYTE-STORAGE",
+    "ZIL-CFG",
+    "ZIL-CONCURRENCY",
+    "ZIL-ASYNC",
+    "ZIL-LOWERING",
+    "ZIL-MODULE",
+    "ZIL-SYNTAX",
+    "ZIL-RECEIVER",
+    "ZIL-RECORD",
+    "ZIL-PIPE",
+    "ZIL-SCRIPT",
+    "ZIL-COMPTIME",
+    "ZIL-ATTRIBUTE",
+    "ZIL-TRAIT",
+    "ZIL-ARCH",
+    "ZIL-ACCEPT"
+  ]
+}

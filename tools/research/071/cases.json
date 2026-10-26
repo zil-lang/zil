@@ -1,0 +1,116 @@
+{
+  "source_baseline": "400a082444275e1d0e2ad78c4910b9b6fc526be5",
+  "schema": 10,
+  "methods": [
+    "dense:fused:owner:gc",
+    "location:fused:owner:gc",
+    "local:fused:owner:gc",
+    "location:direct:owner:gc",
+    "local:direct:owner:gc"
+  ],
+  "cases": [
+    {
+      "id": "tiny",
+      "path": "tests/perf/impl059/tiny.zil",
+      "timing": true,
+      "role": "no ownership compression; fixed overhead control"
+    },
+    {
+      "id": "branch",
+      "path": "tests/perf/impl059/branch.zil",
+      "timing": false,
+      "role": "selected owner and conditional cleanup"
+    },
+    {
+      "id": "correlated",
+      "path": "tests/perf/impl059/correlated.zil",
+      "timing": true,
+      "role": "joint state correlations retained"
+    },
+    {
+      "id": "closure",
+      "path": "tests/perf/impl059/closure.zil",
+      "timing": true,
+      "role": "multiple tokens inside one closure"
+    },
+    {
+      "id": "bundles",
+      "path": "tests/perf/impl071/bundles.zil",
+      "timing": true,
+      "role": "two and six captured resources"
+    },
+    {
+      "id": "error",
+      "path": "tests/perf/impl059/error.zil",
+      "timing": true,
+      "role": "error and normal cleanup"
+    },
+    {
+      "id": "loop",
+      "path": "tests/perf/impl059/loop.zil",
+      "timing": false,
+      "role": "backedge and current-value redefinition"
+    },
+    {
+      "id": "guarded_desc",
+      "path": "tests/perf/impl059/guarded_desc.zil",
+      "timing": false,
+      "role": "conservative future description observation"
+    },
+    {
+      "id": "real_error_cleanup",
+      "path": "examples/mainline/error_cleanup/main.zil",
+      "timing": false,
+      "role": "actual multi-module source; finite query only"
+    },
+    {
+      "id": "one_guard",
+      "path": "tests/perf/impl063/independent_1.zil",
+      "timing": false,
+      "role": "guard scaling family"
+    },
+    {
+      "id": "two_guards",
+      "path": "tests/perf/impl063/independent_2.zil",
+      "timing": false,
+      "role": "guard scaling family"
+    },
+    {
+      "id": "three_guards",
+      "path": "tests/perf/impl063/independent_3.zil",
+      "timing": true,
+      "role": "guard scaling family"
+    },
+    {
+      "id": "four_guards",
+      "path": "tests/perf/impl059/independent.zil",
+      "timing": true,
+      "role": "same four independent guards as063"
+    },
+    {
+      "id": "five_guards",
+      "path": "tests/perf/impl063/independent_5.zil",
+      "timing": false,
+      "role": "censored scaling remains explicit"
+    },
+    {
+      "id": "six_guards",
+      "path": "tests/perf/impl063/independent_6.zil",
+      "timing": false,
+      "role": "censored scaling remains explicit"
+    },
+    {
+      "id": "state_limit",
+      "path": "tests/perf/impl059/state_limit.zil",
+      "timing": false,
+      "role": "budget limit is never a successful query"
+    }
+  ],
+  "sampling": {
+    "warmups": 2,
+    "measured": 7,
+    "order": "case-wise cyclic method rotation, fresh process, no cache flush",
+    "metrics": "complete candidate time; process wall and VmHWM include oracle/frontend; abstract work models differ between engines; local domain preparation and all canonical output included"
+  },
+  "research_baseline": "bf5876bd8b5e9936ad52e8f24adaa673884232dc"
+}

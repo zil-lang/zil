@@ -1,0 +1,10 @@
+{
+  "format": "roam/1",
+  "contract": "portable-counter/1",
+  "initial": 0,
+  "steps": [
+    {"op": "add", "value": 2},
+    {"op": "add", "value": -1},
+    {"op": "check", "expected": 1}
+  ]
+}

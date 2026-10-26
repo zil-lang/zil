@@ -1,0 +1,1077 @@
+{
+  "generated_from": ".task/*.md",
+  "tasks": [
+    {
+      "id": "B0",
+      "milestone": "M0",
+      "title": "正式最小流水线、公共接口与验收入口",
+      "status": "Doing",
+      "task_revision": 4,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": "c9ee2e81de661bb0789ac6a0c6a130d864c4d5a9",
+      "blocked_by": [],
+      "requirements": [
+        "ZIL-TARGET",
+        "ZIL-ARCH",
+        "ZIL-ACCEPT",
+        "ZIL-BYTE-STORAGE"
+      ],
+      "acceptance": [
+        "V18",
+        "V22"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "crates/*/Cargo.toml",
+        "crates/zil-base/**",
+        "crates/zil-ir/**",
+        "crates/zil-syntax/**",
+        "crates/zil-types/**",
+        "crates/zil-analyze/**",
+        "crates/zil-verify/**",
+        "crates/zil-lower/**",
+        "crates/zil-backend-llvm/**",
+        "crates/zil-driver/**",
+        "crates/zil-cli/**",
+        "crates/zil-test/**",
+        "tools/run-cases.py",
+        "tools/toolchain-profile.json",
+        "tests/bootstrap/**",
+        "tests/cases/PLAN-B0-*",
+        "evidence/B0/**"
+      ],
+      "required_artifacts": [],
+      "provided_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "bootstrap.v1",
+        "target-profile.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-B0-001",
+        "PLAN-B0-002",
+        "PLAN-B0-003",
+        "PLAN-B0-004",
+        "PLAN-B0-005"
+      ],
+      "case_ids": [],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task B0 --manifest validation/task-test-plans.json --out-root evidence/B0"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task B0 --manifest conformance/index.json --out-root evidence/B0",
+      "done_when": [
+        "精确工具链与目标 profile 已记录，真实算术源经过全部正式阶段并返回预期结果；类型/语法错误不产生可运行产物。",
+        "Verified wrapper 构造权封装于 zil-verify；解析/反序列化只能产生候选，编译测试证明下游不能直接构造已核值。",
+        "runner 支持两个已登记 manifest，零选择、缺 fixture、未执行和 Unsupported 均非 Pass；提交所有 PLAN-B0 用例的实际结果。",
+        "公共 schema 与产物协议已供 T01/T02/T04/T05 复核，原始阶段产物和产物哈希进入证据。"
+      ],
+      "evidence": [
+        "evidence/B0/20261022T141438Z-245fbe4c/result.json",
+        "evidence/B0/20261022T162636Z-530fb128/result.json",
+        "evidence/round03-protocol-B0.json"
+      ],
+      "assigned_scope": "B0 internal parallel subtask execution authorized by user on 2026-10-22",
+      "implementation_progress": {
+        "scope": "RuntimeCasesPassed_SchemaHandoffIncomplete",
+        "report": "docs/IMPLEMENTATION-STATUS.md",
+        "formal_gate_unchanged": true,
+        "tested_source_commit": "bc8b72ab7eb111627f1f0222e808331b0128c11e",
+        "draft_gate_report": "evidence/validation/20261022T180641Z-cd850e90/result.json",
+        "implementation_slices": [
+          "001",
+          "002",
+          "003",
+          "004",
+          "005",
+          "006",
+          "007",
+          "008",
+          "009",
+          "010",
+          "011",
+          "012"
+        ]
+      }
+    },
+    {
+      "id": "T01",
+      "milestone": "M1",
+      "title": "完整固定语法、无损树与表面归一化",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "B0"
+      ],
+      "requirements": [
+        "ZIL-SYNTAX",
+        "ZIL-ATTRIBUTE",
+        "ZIL-RECEIVER",
+        "ZIL-RECORD",
+        "ZIL-PIPE",
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V08",
+        "V11"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "crates/zil-syntax/**",
+        "crates/zil-expand/**",
+        "tests/syntax/**",
+        "tests/cases/PLAN-T01-*",
+        "evidence/T01/**"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1"
+      ],
+      "provided_artifacts": [
+        "parsed-core.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T01-001",
+        "PLAN-T01-002",
+        "PLAN-T01-003",
+        "PLAN-T01-004",
+        "PLAN-T01-005"
+      ],
+      "case_ids": [
+        "CL28",
+        "RX12",
+        "RX20",
+        "RC11",
+        "RC12",
+        "PP10",
+        "SC02",
+        "SC05"
+      ],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T01 --manifest validation/task-test-plans.json --out-root evidence/T01"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T01 --manifest conformance/index.json --out-root evidence/T01",
+      "done_when": [
+        "conformance 中归 T01 的样本全部经生产 parser；错误位置和来源映射可定位。",
+        "所有表面糖产生声明的 CoreModule 形状，临时节点保持源映射和求值顺序。",
+        "实际闭包/记录/管道样本与期望树比较；不能把 EBNF 引用检查计为生产解析通过。"
+      ],
+      "evidence": [
+        "evidence/T01/20261022T141443Z-6f935e0b/result.json",
+        "evidence/T01/20261022T141446Z-77a882c1/result.json"
+      ],
+      "implementation_progress": {
+        "scope": "FrontendAndNormalizationImplemented_FullGatePending",
+        "report": "docs/IMPLEMENTATION-STATUS.md",
+        "formal_gate_unchanged": true,
+        "tested_source_commit": "cc94f1ebfe0ab7ca08504f98bfde975c9a67bfad"
+      }
+    },
+    {
+      "id": "T02",
+      "milestone": "M1",
+      "title": "名字、类型、接收者、闭包形状与 trait",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "B0"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-TRAIT",
+        "ZIL-RECEIVER",
+        "ZIL-CAPTURE",
+        "ZIL-RECORD",
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V01",
+        "V06",
+        "V10",
+        "V11"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "crates/zil-types/**",
+        "tests/types/**",
+        "tests/cases/PLAN-T02-*",
+        "evidence/T02/**"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1"
+      ],
+      "provided_artifacts": [
+        "typed-cfg.v1",
+        "typed-interface.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T02-001",
+        "PLAN-T02-002",
+        "PLAN-T02-003",
+        "PLAN-T02-004",
+        "PLAN-T02-005"
+      ],
+      "case_ids": [
+        "CL31",
+        "RX01",
+        "RX02",
+        "RX03",
+        "RX04",
+        "RX05",
+        "RX06",
+        "RX07",
+        "RX08",
+        "RX09",
+        "RX10",
+        "RX11",
+        "RX13",
+        "RX14",
+        "RX18",
+        "RX19",
+        "RX21",
+        "RX22",
+        "RX23",
+        "RX25",
+        "RX26",
+        "RX27",
+        "RC05",
+        "RC06",
+        "RC07",
+        "RC08",
+        "RC13",
+        "RC14",
+        "RC15",
+        "PP03",
+        "PP05",
+        "PP08",
+        "PP12",
+        "PP14"
+      ],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T02 --manifest validation/task-test-plans.json --out-root evidence/T02"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T02 --manifest conformance/index.json --out-root evidence/T02",
+      "done_when": [
+        "名字/类别/接收者与 trait 解答均有稳定阶段输出；不依靠安全失败选择另一个目标。",
+        "TypedCFG 显式包含求值、错误、清理与潜在调用边；analyze 无需回读 parser 关键字。",
+        "fn 指针、捕获闭包、调用能力及 opaque 返回的正反例经生产类型器；候选关联等式不得自证。"
+      ],
+      "evidence": [
+        "evidence/T02/20261022T141446Z-041bcee1/result.json"
+      ],
+      "implementation_progress": {
+        "scope": "ScalarTypesAndCFGImplemented_ResourceAndClosureTypingPending",
+        "report": "docs/IMPLEMENTATION-STATUS.md",
+        "formal_gate_unchanged": true,
+        "tested_source_commit": "cc94f1ebfe0ab7ca08504f98bfde975c9a67bfad"
+      }
+    },
+    {
+      "id": "T03",
+      "milestone": "M1",
+      "title": "已核编译期执行、属性和生成调度",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "T01",
+        "T02",
+        "T05"
+      ],
+      "requirements": [
+        "ZIL-COMPTIME",
+        "ZIL-ATTRIBUTE"
+      ],
+      "acceptance": [
+        "V08",
+        "V09"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "crates/zil-ct/**",
+        "crates/zil-expand/**",
+        "tests/comptime/**",
+        "tests/cases/PLAN-T03-*",
+        "evidence/T03/**"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "parsed-core.v1",
+        "typed-cfg.v1",
+        "verified-ctir.v1"
+      ],
+      "provided_artifacts": [
+        "ct-generation.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T03-001",
+        "PLAN-T03-002",
+        "PLAN-T03-003",
+        "PLAN-T03-004"
+      ],
+      "case_ids": [],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T03 --manifest validation/task-test-plans.json --out-root evidence/T03"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T03 --manifest conformance/index.json --out-root evidence/T03",
+      "done_when": [
+        "已核 CTIR 由实际 verifier 产生并执行，输出重新检查。",
+        "配置、重复/冲突属性、配额耗尽和依赖循环分别产生稳定结果。",
+        "实际输入变更进入依赖记录，不声明访问的宿主输入不可读取。"
+      ],
+      "evidence": [],
+      "implementation_progress": {
+        "scope": "ClosedScalarSourceCTImplemented_GenerationPending",
+        "report": "docs/IMPLEMENTATION-STATUS.md",
+        "formal_gate_unchanged": true
+      }
+    },
+    {
+      "id": "T04",
+      "milestone": "M1",
+      "title": "数据库、模块驱动、CLI/IDE与native脚本",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "B0"
+      ],
+      "requirements": [
+        "ZIL-MODULE",
+        "ZIL-ARCH",
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11",
+        "V18",
+        "V20"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "crates/zil-db/**",
+        "crates/zil-driver/**",
+        "crates/zil-cli/**",
+        "crates/zil-ide/**",
+        "tests/incremental/**",
+        "tests/script/**",
+        "tests/cases/PLAN-T04-*",
+        "evidence/T04/**"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "bootstrap.v1"
+      ],
+      "provided_artifacts": [
+        "query-driver.v1",
+        "native-run.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T04-001",
+        "PLAN-T04-002",
+        "PLAN-T04-003",
+        "PLAN-T04-004"
+      ],
+      "case_ids": [
+        "SC01",
+        "SC03",
+        "SC04"
+      ],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T04 --manifest validation/task-test-plans.json --out-root evidence/T04"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T04 --manifest conformance/index.json --out-root evidence/T04",
+      "done_when": [
+        "各指纹实际控制查询重算；私有编辑、公开合同编辑与源位置变动有可见差异。",
+        "缓存损坏、版本不匹配与取消不产生伪已核值或半写成功记录。",
+        "native run 与显式入口代码语义一致；CLI/IDE 对同一输入返回同一语义诊断。"
+      ],
+      "evidence": [
+        "evidence/T04/20261022T141443Z-939f8dfe/result.json",
+        "evidence/T04/20261022T141446Z-620f6221/result.json"
+      ],
+      "implementation_progress": {
+        "scope": "SingleModuleSessionAndCacheImplemented_ModuleContractsPending",
+        "report": "docs/IMPLEMENTATION-STATUS.md",
+        "formal_gate_unchanged": true,
+        "tested_source_commit": "cc94f1ebfe0ab7ca08504f98bfde975c9a67bfad"
+      }
+    },
+    {
+      "id": "T05",
+      "milestone": "M1",
+      "title": "独立核验器与已核访问能力",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "B0"
+      ],
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-ORIGIN",
+        "ZIL-ACCESS",
+        "ZIL-COMPTIME"
+      ],
+      "acceptance": [
+        "V02",
+        "V09",
+        "V12",
+        "V22"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "crates/zil-verify/**",
+        "tests/verify/**",
+        "tests/cases/PLAN-T05-*",
+        "evidence/T05/**"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1"
+      ],
+      "provided_artifacts": [
+        "verified-ir.v1",
+        "verified-ctir.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T05-001",
+        "PLAN-T05-002",
+        "PLAN-T05-003",
+        "PLAN-T05-004"
+      ],
+      "case_ids": [],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T05 --manifest validation/task-test-plans.json --out-root evidence/T05"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T05 --manifest conformance/index.json --out-root evidence/T05",
+      "done_when": [
+        "依赖门与实际 Rust 构建证明未导入 types/analyze 求证实现。",
+        "全部控制边、窗口/责任事实和 CT 允许操作有核验路径；变异夹具能触发具体拒绝。",
+        "Verified 构造权、只读访问和缓存解码路线符合 interfaces.json。"
+      ],
+      "evidence": [
+        "evidence/T05/20261022T141443Z-d55307c9/result.json"
+      ],
+      "implementation_progress": {
+        "scope": "ScalarAndCTVerifierImplemented_ResourceCertificatesPending",
+        "report": "docs/IMPLEMENTATION-STATUS.md",
+        "formal_gate_unchanged": true,
+        "tested_source_commit": "cc94f1ebfe0ab7ca08504f98bfde975c9a67bfad"
+      }
+    },
+    {
+      "id": "T06",
+      "milestone": "M2",
+      "title": "来源、顺序别名、管理路由与准确责任",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "T02",
+        "T05"
+      ],
+      "requirements": [
+        "ZIL-ORIGIN",
+        "ZIL-CONTRACT",
+        "ZIL-ROUTE",
+        "ZIL-CLEANUP",
+        "ZIL-PACKAGE"
+      ],
+      "acceptance": [
+        "V02",
+        "V03",
+        "V04",
+        "V05",
+        "V13"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "crates/zil-analyze/**",
+        "tests/analysis/**",
+        "tests/cases/PLAN-T06-*",
+        "evidence/T06/**"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "typed-cfg.v1",
+        "typed-interface.v1",
+        "verified-ir.v1"
+      ],
+      "provided_artifacts": [
+        "resource-plan.v1",
+        "resource-interface.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T06-001",
+        "PLAN-T06-002",
+        "PLAN-T06-003",
+        "PLAN-T06-004",
+        "PLAN-T06-005"
+      ],
+      "case_ids": [],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T06 --manifest validation/task-test-plans.json --out-root evidence/T06"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T06 --manifest conformance/index.json --out-root evidence/T06",
+      "done_when": [
+        "同源先读后关闭接受，先关闭后读拒绝；不返回前缀与实际 Drop 不遗漏。",
+        "选择返回中 payload/route/authority 一致，跨模块可核验；未知候选使用弱更新。",
+        "真实候选交给 T05 核验；失败清理与包移动没有重复或丢失责任。"
+      ],
+      "evidence": [],
+      "implementation_progress": {
+        "scope": "InitializationAnalysisImplemented_ResourceAnalysisPending",
+        "report": "docs/IMPLEMENTATION-STATUS.md",
+        "formal_gate_unchanged": true
+      }
+    },
+    {
+      "id": "T07",
+      "milestone": "M2",
+      "title": "LLVM主路径、布局和最小内存运行原语",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "T05"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-PACKAGE",
+        "ZIL-CLEANUP"
+      ],
+      "acceptance": [
+        "V05",
+        "V13",
+        "V17"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "crates/zil-lower/**",
+        "crates/zil-backend-llvm/**",
+        "crates/zil-runtime/src/memory/**",
+        "tests/lowering/**",
+        "tests/cases/PLAN-T07-*",
+        "evidence/T07/**"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "target-profile.v1",
+        "verified-ir.v1"
+      ],
+      "provided_artifacts": [
+        "resource-lir.v1",
+        "native-resource.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T07-001",
+        "PLAN-T07-002",
+        "PLAN-T07-003",
+        "PLAN-T07-004"
+      ],
+      "case_ids": [],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T07 --manifest validation/task-test-plans.json --out-root evidence/T07"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T07 --manifest conformance/index.json --out-root evidence/T07",
+      "done_when": [
+        "真实机器产物与已核输入的初始化/布局/清理事件一致。",
+        "责任记录自身释放顺序安全，部分构造与错误边没有二次析构。",
+        "未支持目标能力明确拒绝；属性/ABI变异在实际产物检查中被发现。"
+      ],
+      "evidence": [],
+      "implementation_progress": {
+        "scope": "ScalarLLVMBackendImplemented_ResourceABIPending",
+        "report": "docs/IMPLEMENTATION-STATUS.md",
+        "formal_gate_unchanged": true
+      }
+    },
+    {
+      "id": "T08",
+      "milestone": "M3",
+      "title": "完整CFG、闭包、析构及图容器",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "W1"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-CFG",
+        "ZIL-CLEANUP",
+        "ZIL-ACCESS",
+        "ZIL-RECEIVER",
+        "ZIL-RECORD",
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V06",
+        "V07",
+        "V11",
+        "V12",
+        "V13"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "crates/zil-types/src/capture/**",
+        "crates/zil-types/src/callable/**",
+        "crates/zil-types/src/opaque_return/**",
+        "crates/zil-analyze/**",
+        "crates/zil-verify/src/capture/**",
+        "crates/zil-verify/src/cfg/**",
+        "crates/zil-verify/src/cleanup/**",
+        "crates/zil-lower/src/closure/**",
+        "crates/zil-lower/src/cleanup/**",
+        "std/collections/**",
+        "std/graph/**",
+        "tests/workflows/core/**",
+        "tests/cases/PLAN-T08-*",
+        "evidence/T08/**"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "w1-integration.v1"
+      ],
+      "provided_artifacts": [
+        "higher-order.v1",
+        "graph-containers.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T08-001",
+        "PLAN-T08-002",
+        "PLAN-T08-003",
+        "PLAN-T08-004",
+        "PLAN-T08-005",
+        "PLAN-T08-006"
+      ],
+      "case_ids": [
+        "CL01",
+        "CL02",
+        "CL03",
+        "CL04",
+        "CL05",
+        "CL06",
+        "CL07",
+        "CL08",
+        "CL09",
+        "CL10",
+        "CL11",
+        "CL12",
+        "CL13",
+        "CL14",
+        "CL15",
+        "CL16",
+        "CL17",
+        "CL18",
+        "CL19",
+        "CL20",
+        "CL21",
+        "CL22",
+        "CL23",
+        "CL24",
+        "CL25",
+        "CL26",
+        "CL27",
+        "CL29",
+        "CL30",
+        "RX15",
+        "RX16",
+        "RX17",
+        "RX24",
+        "RX28",
+        "RC01",
+        "RC02",
+        "RC03",
+        "RC04",
+        "RC09",
+        "RC10",
+        "PP01",
+        "PP02",
+        "PP04",
+        "PP06",
+        "PP07",
+        "PP09",
+        "PP11",
+        "PP13"
+      ],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T08 --manifest validation/task-test-plans.json --out-root evidence/T08"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T08 --manifest conformance/index.json --out-root evidence/T08",
+      "done_when": [
+        "归本单 conformance 的正反例由真实源通过类型/分析/独立核验/机器阶段，非只比较环境结构。",
+        "未调用、调用成功、调用失败和移出捕获各条路径准确清理；残留借用/route依赖不能被move消掉。",
+        "闭包保存/替换、图与动态容器在固定外借、存在包、Key各路线有实际样本；n/2n/4n记录工作量。"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "T09",
+      "milestone": "M4",
+      "title": "挂起帧、取消、同步与真实完成根",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "W1",
+        "T08"
+      ],
+      "requirements": [
+        "ZIL-ASYNC",
+        "ZIL-CONCURRENCY",
+        "ZIL-LOWERING"
+      ],
+      "acceptance": [
+        "V14",
+        "V15",
+        "V16",
+        "V17"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "crates/zil-types/src/suspend/**",
+        "crates/zil-analyze/src/suspend/**",
+        "crates/zil-analyze/src/concurrency/**",
+        "crates/zil-verify/src/suspend/**",
+        "crates/zil-verify/src/concurrency/**",
+        "crates/zil-lower/src/frame/**",
+        "crates/zil-runtime/src/task/**",
+        "crates/zil-runtime/src/sync/**",
+        "crates/zil-runtime/src/device/**",
+        "std/task/**",
+        "std/sync/**",
+        "std/io/**",
+        "tests/concurrency/**",
+        "tests/cases/PLAN-T09-*",
+        "evidence/T09/**"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "w1-integration.v1",
+        "higher-order.v1"
+      ],
+      "provided_artifacts": [
+        "sabi-completion.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T09-001",
+        "PLAN-T09-002",
+        "PLAN-T09-003",
+        "PLAN-T09-004",
+        "PLAN-T09-005"
+      ],
+      "case_ids": [],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T09 --manifest validation/task-test-plans.json --out-root evidence/T09"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T09 --manifest conformance/index.json --out-root evidence/T09",
+      "done_when": [
+        "源码挂起形状产生实际帧与SABI，结果责任只转交一次。",
+        "取消、失败、panic和drain均等待真实使用者归还及no-future保证；模型和实际平台证据分开。",
+        "所有新增操作在 types/analyze/verify/lower/runtime 中具有对应消费者；不靠runtime补未经检查的资格。"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "W1",
+      "milestone": "M2",
+      "title": "两模块资源管理源码贯通",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "T01",
+        "T02",
+        "T04",
+        "T05",
+        "T06",
+        "T07"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-ROUTE",
+        "ZIL-PACKAGE",
+        "ZIL-CORE",
+        "ZIL-CLEANUP"
+      ],
+      "acceptance": [
+        "V01",
+        "V03",
+        "V04",
+        "V05",
+        "V13",
+        "V17"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "tests/workflows/w1/**",
+        "examples/w1/**",
+        "tests/cases/PLAN-W1-*",
+        "evidence/W1/**"
+      ],
+      "required_artifacts": [
+        "runner.v1",
+        "parsed-core.v1",
+        "typed-cfg.v1",
+        "query-driver.v1",
+        "verified-ir.v1",
+        "resource-plan.v1",
+        "resource-interface.v1",
+        "resource-lir.v1",
+        "native-resource.v1"
+      ],
+      "provided_artifacts": [
+        "w1-integration.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-W1-001",
+        "PLAN-W1-002",
+        "PLAN-W1-003",
+        "PLAN-W1-004"
+      ],
+      "case_ids": [],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task W1 --manifest validation/task-test-plans.json --out-root evidence/W1"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task W1 --manifest conformance/index.json --out-root evidence/W1",
+      "done_when": [
+        "源码→导出接口→导入实例化→候选→Verified→机器产物全链有绑定同一源码的证据。",
+        "选择返回的真实payload与route对应，包移动与失败路径只清理一次。",
+        "最近反例在相应编译阶段拒绝且没有新可运行产物；完成后才能开放 T08。"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "W2",
+      "milestone": "M3",
+      "title": "语法、闭包和图演进端到端",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "W1",
+        "T03",
+        "T08"
+      ],
+      "requirements": [
+        "ZIL-SYNTAX",
+        "ZIL-TRAIT",
+        "ZIL-COMPTIME",
+        "ZIL-MODULE",
+        "ZIL-CAPTURE",
+        "ZIL-RECEIVER",
+        "ZIL-RECORD",
+        "ZIL-PIPE",
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V06",
+        "V08",
+        "V09",
+        "V10",
+        "V11",
+        "V18",
+        "V21"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "examples/headless/**",
+        "tests/workflows/w2/**",
+        "tests/cases/PLAN-W2-*",
+        "evidence/W2/**"
+      ],
+      "required_artifacts": [
+        "runner.v1",
+        "w1-integration.v1",
+        "ct-generation.v1",
+        "higher-order.v1",
+        "graph-containers.v1",
+        "native-run.v1"
+      ],
+      "provided_artifacts": [
+        "w2-integration.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-W2-001",
+        "PLAN-W2-002",
+        "PLAN-W2-003",
+        "PLAN-W2-004"
+      ],
+      "case_ids": [],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task W2 --manifest validation/task-test-plans.json --out-root evidence/W2"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task W2 --manifest conformance/index.json --out-root evidence/W2",
+      "done_when": [
+        "接收者/捕获/责任/记录/管道/script 的规范行为都有源程序和最近反例，不能以parser接受代替执行。",
+        "匿名闭包以受限opaque结果真实返回；捕获环境和fn指针界线、dyn显式存储经跨模块验证。",
+        "稳定图→共享环→可删身份的完整演进具有实际改动统计，其他语言基线未测不得宣称收益。"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "W3",
+      "milestone": "M4",
+      "title": "真实系统I/O、取消与外部回调贯通",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "T09",
+        "T04"
+      ],
+      "requirements": [
+        "ZIL-ASYNC",
+        "ZIL-CONCURRENCY",
+        "ZIL-LOWERING"
+      ],
+      "acceptance": [
+        "V14",
+        "V15",
+        "V16",
+        "V17",
+        "V22"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "tests/workflows/w3/**",
+        "examples/io/**",
+        "tests/cases/PLAN-W3-*",
+        "evidence/W3/**"
+      ],
+      "required_artifacts": [
+        "runner.v1",
+        "query-driver.v1",
+        "sabi-completion.v1"
+      ],
+      "provided_artifacts": [
+        "w3-integration.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-W3-001",
+        "PLAN-W3-002",
+        "PLAN-W3-003",
+        "PLAN-W3-004"
+      ],
+      "case_ids": [],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task W3 --manifest validation/task-test-plans.json --out-root evidence/W3"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task W3 --manifest conformance/index.json --out-root evidence/W3",
+      "done_when": [
+        "真实OS路径和最小故障路径均经过源语言前端；全部完成根到最后实际用户归还才清理。",
+        "取消与晚通知重复运行无提前回收或重复转交；失败样本不删除。",
+        "每个目标profile的实际覆盖和未支持能力单列，不以平台模型宣称硬件DMA完成。"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "W4",
+      "milestone": "M5",
+      "title": "同语义产品对照与发布验收",
+      "status": "Planned",
+      "task_revision": 3,
+      "spec_hash": "6b31f9cef67ed3b715a842ede27a1b4744bce3253ec3da2061ab0a01885e35e8",
+      "normative_hash": "14cab92a7590e2f6ec4e4c2c724c429efee03d6a7cb37f7208736a7e55e8f532",
+      "base_revision": null,
+      "blocked_by": [
+        "W2",
+        "W3"
+      ],
+      "requirements": [
+        "ZIL-TARGET",
+        "ZIL-ACCEPT",
+        "ZIL-ARCH"
+      ],
+      "acceptance": [
+        "V19",
+        "V20",
+        "V21",
+        "V22"
+      ],
+      "profile": "validation/product-gates.json",
+      "write_set": [
+        "benches/**",
+        "tests/product/**",
+        "tests/cases/PLAN-W4-*",
+        "evidence/W4/**"
+      ],
+      "required_artifacts": [
+        "runner.v1",
+        "w2-integration.v1",
+        "w3-integration.v1"
+      ],
+      "provided_artifacts": [
+        "product-evidence.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-W4-001",
+        "PLAN-W4-002",
+        "PLAN-W4-003",
+        "PLAN-W4-004"
+      ],
+      "case_ids": [],
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task W4 --manifest validation/task-test-plans.json --out-root evidence/W4"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task W4 --manifest conformance/index.json --out-root evidence/W4",
+      "done_when": [
+        "所有必需能力/目标均有实际证据或明确未达项，未达发布门不能报告产品完成。",
+        "性能/维护场景在见到结果前冻结，报告中位数/P95/内存/保留与真实工作量；同语义基线可复现。",
+        "V19–V22 按批准profile逐项裁决，真实缺陷/失败样本和可信边界完整保留。"
+      ],
+      "evidence": []
+    }
+  ]
+}

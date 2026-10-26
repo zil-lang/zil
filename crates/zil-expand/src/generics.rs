@@ -1,0 +1,1751 @@
+//! Bounded, hygienic specialization of ordinary type parameters. Output is AST,
+//! not a type certificate: every instantiated body enters the normal pipeline.
+use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use zil_base::{CompileResult, Diagnostic, Limits, Phase, Span};
+use zil_syntax::ast::*;
+
+type R<T> = Result<T, Diagnostic>;
+type Env = BTreeMap<String, Option<TypeRef>>;
+#[path = "generic_budget.rs"]
+mod budget;
+pub(super) use budget::Budget;
+#[path = "generic_alias.rs"]
+mod aliases;
+#[path = "generic_bytes.rs"]
+mod bytes;
+#[path = "generic_callable.rs"]
+pub(super) mod callable;
+#[path = "generic_enum.rs"]
+mod enums;
+
+pub(super) fn specialize<'a>(
+    module: &'a Module,
+    limits: &Limits,
+) -> CompileResult<Cow<'a, Module>> {
+    let mut names_budget = Budget::new(limits);
+    for item in &module.items {
+        names_budget.node(item.span, 0).map_err(|e| vec![e])?;
+        let declared = match &item.kind {
+            ItemKind::Aggregate(a) => Some(a.name.as_str()),
+            ItemKind::Enum(e) => Some(e.name.as_str()),
+            ItemKind::TypeAlias(a) => Some(a.name.as_str()),
+            ItemKind::Trait(t) => Some(t.name.as_str()),
+            _ => None,
+        };
+        if let Some(name) = declared.filter(|n| super::byte_buffer_name(n)) {
+            return Err(vec![super::primitive_name_error(name, item.span)]);
+        }
+        for param in params(item) {
+            names_budget.node(param.span, 0).map_err(|e| vec![e])?;
+            if super::byte_buffer_name(&param.name) {
+                return Err(vec![super::primitive_name_error(&param.name, param.span)]);
+            }
+        }
+    }
+    if let Some(normalized) = aliases::normalize(module, limits).map_err(|e| vec![e])? {
+        if normalized
+            .module
+            .items
+            .iter()
+            .all(|item| params(item).is_empty())
+        {
+            return Ok(Cow::Owned(normalized.module));
+        }
+        return Engine::new(&normalized.module, limits, &normalized.pattern_types)
+            .and_then(|mut engine| engine.run(&normalized.module))
+            .map(Cow::Owned)
+            .map_err(|error| vec![error]);
+    }
+    if module.items.iter().all(|item| params(item).is_empty()) {
+        return Ok(Cow::Borrowed(module));
+    }
+    Engine::new(module, limits, &BTreeMap::new())
+        .and_then(|mut engine| engine.run(module))
+        .map(Cow::Owned)
+        .map_err(|error| vec![error])
+}
+
+struct Engine<'a> {
+    pattern_types: &'a BTreeMap<String, TypeRef>,
+    templates: BTreeMap<String, &'a Item>,
+    enums: BTreeMap<String, &'a EnumDecl>,
+    nominals: BTreeMap<String, &'a Item>,
+    return_type: Option<TypeRef>,
+    signatures: BTreeMap<String, Cow<'a, Function>>,
+    instances: BTreeMap<(String, Vec<String>), String>,
+    instance_types: BTreeMap<String, TypeRef>,
+    pending: VecDeque<Item>,
+    limits: &'a Limits,
+    budget: Budget<'a>,
+}
+
+fn error(span: Span, text: impl Into<String>) -> Diagnostic {
+    Diagnostic::error(Phase::Expand, "E-GENERIC-ARGUMENT", Some(span), text)
+}
+fn unsupported(span: Span, text: impl Into<String>) -> Diagnostic {
+    Diagnostic::unsupported(Phase::Expand, text, Some(span))
+}
+fn named(name: &str, span: Span) -> TypeRef {
+    TypeRef {
+        kind: TypeKind::Named {
+            path: vec![name.to_owned()],
+            args: vec![],
+        },
+        span,
+    }
+}
+fn params(item: &Item) -> &[GenericParam] {
+    match &item.kind {
+        ItemKind::Function(f) => &f.generics,
+        ItemKind::Aggregate(a) => &a.generics,
+        ItemKind::Enum(e) => &e.generics,
+        _ => &[],
+    }
+}
+fn name(item: &Item) -> Option<&str> {
+    match &item.kind {
+        ItemKind::Function(f) => Some(&f.name),
+        ItemKind::Aggregate(a) => Some(&a.name),
+        ItemKind::Enum(e) => Some(&e.name),
+        _ => None,
+    }
+}
+
+impl<'a> Engine<'a> {
+    fn new(
+        module: &'a Module,
+        limits: &'a Limits,
+        pattern_types: &'a BTreeMap<String, TypeRef>,
+    ) -> R<Self> {
+        let mut engine = Self {
+            pattern_types,
+            templates: BTreeMap::new(),
+            enums: BTreeMap::new(),
+            nominals: BTreeMap::new(),
+            return_type: None,
+            signatures: BTreeMap::new(),
+            instances: BTreeMap::new(),
+            instance_types: BTreeMap::new(),
+            pending: VecDeque::new(),
+            limits,
+            budget: Budget::new(limits),
+        };
+        let mut source_names = BTreeSet::new();
+        for item in &module.items {
+            engine.budget.item(item)?;
+            if let ItemKind::Function(function) = &item.kind
+                && super::primitive_name(&function.name)
+            {
+                return Err(super::primitive_name_error(&function.name, function.span));
+            }
+            if let Some(name) = name(item)
+                && !source_names.insert(name)
+            {
+                return Err(error(
+                    item.span,
+                    format!("duplicate source declaration {name}"),
+                ));
+            }
+            if matches!(item.kind, ItemKind::Enum(_) | ItemKind::Aggregate(_)) {
+                engine
+                    .nominals
+                    .insert(name(item).expect("nominal name").to_owned(), item);
+            }
+            if let ItemKind::Enum(e) = &item.kind {
+                engine.enums.insert(e.name.clone(), e);
+            }
+            if let ItemKind::Function(f) = &item.kind {
+                engine.signatures.insert(f.name.clone(), Cow::Borrowed(f));
+            }
+            if !params(item).is_empty() {
+                let key = name(item).expect("template has a name").to_owned();
+                if engine.templates.insert(key, item).is_some() {
+                    return Err(error(item.span, "duplicate generic declaration"));
+                }
+            }
+        }
+        // Validate the parametric subset even when a template is not instantiated.
+        for item in engine.templates.values() {
+            if !item.attributes.is_empty() {
+                return Err(unsupported(
+                    item.span,
+                    "unexecuted generic declaration attribute",
+                ));
+            }
+            let callable = if let ItemKind::Function(function) = &item.kind {
+                callable::template(function)?
+            } else {
+                None
+            };
+            let mut seen = BTreeSet::new();
+            for parameter in params(item) {
+                if !seen.insert(&parameter.name) {
+                    return Err(error(parameter.span, "duplicate type parameter"));
+                }
+                match &parameter.kind {
+                    GenericParamKind::Type(bounds) if bounds.is_empty() || callable.is_some() => {}
+                    _ => {
+                        return Err(unsupported(
+                            parameter.span,
+                            "generic bound, lifetime or const parameter requires its semantic solver",
+                        ));
+                    }
+                }
+            }
+            if let ItemKind::Function(f) = &item.kind {
+                if f.params.iter().any(|p| !p.attributes.is_empty()) {
+                    return Err(unsupported(
+                        f.span,
+                        "unexecuted generic parameter attribute",
+                    ));
+                }
+                if !f.where_clause.is_empty() || !f.contract.is_empty() {
+                    return Err(unsupported(f.span, "generic where/contract solving"));
+                }
+                validate_parametric(
+                    f,
+                    &engine.nominals,
+                    &engine.enums,
+                    &engine.signatures,
+                    engine.pattern_types,
+                    &mut engine.budget,
+                )?;
+            }
+            if let ItemKind::Enum(e) = &item.kind {
+                enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
+            }
+            if let ItemKind::Aggregate(a) = &item.kind {
+                let variables = a.generics.iter().map(|p| p.name.clone()).collect();
+                for field in &a.fields {
+                    super::foreign::callback_type_tree(
+                        &field.ty,
+                        &variables,
+                        &mut engine.budget,
+                        0,
+                    )?;
+                }
+                if a.fields.iter().any(|field| field.default.is_some()) {
+                    return Err(unsupported(
+                        item.span,
+                        "generic field defaults require symbolic default checking",
+                    ));
+                }
+                if a.fields.iter().any(|field| !field.attributes.is_empty()) {
+                    return Err(unsupported(item.span, "unexecuted generic field attribute"));
+                }
+                if a.kind != AggregateKind::Struct || !a.methods.is_empty() {
+                    return Err(unsupported(
+                        item.span,
+                        "generic resource or methods require capability resolution",
+                    ));
+                }
+            }
+        }
+        Ok(engine)
+    }
+    fn tick(&mut self, span: Span, depth: usize) -> R<()> {
+        self.budget.node(span, depth)
+    }
+    fn run(&mut self, module: &Module) -> R<Module> {
+        let mut result = Module {
+            id: module.id,
+            span: module.span,
+            items: vec![],
+        };
+        for item in &module.items {
+            if params(item).is_empty()
+                || matches!(&item.kind, ItemKind::Function(f) if callable::template(f)?.is_some())
+            {
+                self.budget.item(item)?;
+                self.pending.push_back(item.clone());
+            }
+        }
+        while let Some(mut item) = self.pending.pop_front() {
+            self.item(&mut item)?;
+            result.items.push(item);
+        }
+        Ok(result)
+    }
+    fn instantiate(&mut self, template: &str, arguments: Vec<TypeRef>, span: Span) -> R<String> {
+        let item = self
+            .templates
+            .get(template)
+            .cloned()
+            .ok_or_else(|| error(span, format!("unknown generic declaration {template}")))?;
+        // Canonical source type applications identify an instance, independent
+        // of whether inference or explicit ::<...> reached it first.
+        let arguments = arguments
+            .iter()
+            .map(|ty| self.original_type(ty))
+            .collect::<R<Vec<_>>>()?;
+        let parameters = params(item);
+        if parameters.len() != arguments.len() {
+            return Err(error(
+                span,
+                format!(
+                    "{template} requires {} type arguments, got {}",
+                    parameters.len(),
+                    arguments.len()
+                ),
+            ));
+        }
+        let key = (
+            template.to_owned(),
+            arguments
+                .iter()
+                .map(|ty| type_key(ty, &mut self.budget))
+                .collect::<R<Vec<_>>>()?,
+        );
+        if let Some(existing) = self.instances.get(&key) {
+            return Ok(existing.clone());
+        }
+        if self.instances.len() >= self.limits.max_functions.min(512) {
+            return Err(Diagnostic::limit(
+                Phase::Expand,
+                "generic instance budget exceeded",
+                Some(span),
+            ));
+        }
+        let generated = format!("$generic_{}_{}", template, self.instances.len());
+        self.instances.insert(key, generated.clone());
+        if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
+            self.instance_types.insert(
+                generated.clone(),
+                TypeRef {
+                    span,
+                    kind: TypeKind::Named {
+                        path: vec![template.to_owned()],
+                        args: arguments.iter().cloned().map(GenericArg::Type).collect(),
+                    },
+                },
+            );
+        }
+        let substitution: BTreeMap<_, _> = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(p, ty)| (p.name.clone(), ty))
+            .collect();
+        self.budget.substituted_item(item, &substitution)?;
+        let mut instance = item.clone();
+        substitute_item(&mut instance, &substitution)?;
+        self.budget.item(&instance)?;
+        match &mut instance.kind {
+            ItemKind::Function(f) => {
+                f.generics.clear();
+                f.name.clone_from(&generated);
+                self.signatures
+                    .insert(generated.clone(), Cow::Owned(f.clone()));
+            }
+            ItemKind::Aggregate(a) => {
+                a.generics.clear();
+                a.name.clone_from(&generated);
+            }
+            ItemKind::Enum(e) => {
+                e.generics.clear();
+                e.name.clone_from(&generated);
+            }
+            _ => unreachable!(),
+        }
+        self.pending.push_back(instance);
+        Ok(generated)
+    }
+    fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
+        self.tick(ty.span, depth)?;
+        match &mut ty.kind {
+            TypeKind::Named { path, args } => {
+                let mut values = Vec::new();
+                for arg in args.iter_mut() {
+                    let GenericArg::Type(value) = arg else {
+                        return Err(unsupported(ty.span, "const generic argument"));
+                    };
+                    self.ty(value, depth + 1)?;
+                    values.push(value.clone());
+                }
+                if !values.is_empty() && path.len() == 1 && self.templates.contains_key(&path[0]) {
+                    if !matches!(
+                        self.templates[&path[0]].kind,
+                        ItemKind::Aggregate(_) | ItemKind::Enum(_)
+                    ) {
+                        return Err(error(ty.span, "function template used as a type"));
+                    }
+                    let instance = self.instantiate(&path[0], values, ty.span)?;
+                    *path = vec![instance];
+                    args.clear();
+                }
+            }
+            TypeKind::Reference { inner, .. }
+            | TypeKind::Group(inner)
+            | TypeKind::Optional(inner)
+            | TypeKind::ForLifetime { inner, .. } => self.ty(inner, depth + 1)?,
+            TypeKind::Tuple(items) | TypeKind::Union(items) | TypeKind::Impl(items) => {
+                for item in items {
+                    self.ty(item, depth + 1)?;
+                }
+            }
+            TypeKind::Array { element, .. } => self.ty(element, depth + 1)?,
+            TypeKind::Function { params, result }
+            | TypeKind::ForeignFunction { params, result, .. } => {
+                for p in params {
+                    self.ty(p, depth + 1)?;
+                }
+                self.ty(result, depth + 1)?;
+            }
+            TypeKind::Error { error, result } => {
+                self.ty(error, depth + 1)?;
+                self.ty(result, depth + 1)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn item(&mut self, item: &mut Item) -> R<()> {
+        match &mut item.kind {
+            ItemKind::Function(f) => {
+                for parameter in &mut f.generics {
+                    if let GenericParamKind::Type(bounds) = &mut parameter.kind {
+                        for bound in bounds {
+                            if let TypeKind::Named { path, args } = &mut bound.kind
+                                && path.len() == 1
+                                && matches!(path[0].as_str(), "Fn" | "FnMut" | "FnOnce")
+                            {
+                                // Keep the callable keyword; specialize only its
+                                // argument/result types with the ordinary budget.
+                                self.tick(bound.span, 0)?;
+                                for argument in args {
+                                    let GenericArg::Type(ty) = argument else {
+                                        return Err(unsupported(
+                                            bound.span,
+                                            "const callable argument",
+                                        ));
+                                    };
+                                    self.ty(ty, 1)?;
+                                }
+                            }
+                        }
+                    }
+                }
+                for p in &mut f.params {
+                    self.ty(&mut p.ty, 0)?;
+                }
+                if let Some(t) = &mut f.return_type {
+                    self.ty(t, 0)?;
+                }
+                let mut env: Env = f
+                    .params
+                    .iter()
+                    .map(|p| (p.name.clone(), Some(p.ty.clone())))
+                    .collect();
+                let saved_result = self
+                    .return_type
+                    .replace(f.return_type.clone().unwrap_or_else(|| check::unit(f.span)));
+                match &mut f.body {
+                    FunctionBody::Block(body) => self.block(body, &mut env, 0)?,
+                    FunctionBody::Expression(value) => {
+                        let expected = self.return_type.clone();
+                        self.expr_expected(value, &mut env, expected.as_ref(), 0)?;
+                    }
+                    FunctionBody::Declaration => {}
+                }
+                self.return_type = saved_result;
+            }
+            ItemKind::Aggregate(a) => {
+                for field in &mut a.fields {
+                    self.ty(&mut field.ty, 0)?;
+                    if let Some(value) = &mut field.default {
+                        self.expr(value, &mut Env::new(), 0)?;
+                    }
+                }
+                for item in &mut a.methods {
+                    self.item(item)?;
+                }
+            }
+            ItemKind::Enum(e) => {
+                for variant in &mut e.variants {
+                    match &mut variant.fields {
+                        VariantFields::Tuple(fields) => {
+                            for field in fields {
+                                self.ty(field, 0)?;
+                            }
+                        }
+                        VariantFields::Record(fields) => {
+                            for field in fields {
+                                self.ty(&mut field.ty, 0)?;
+                            }
+                        }
+                        VariantFields::Unit => {}
+                    }
+                }
+            }
+            ItemKind::Impl(i) if i.generics.is_empty() => {
+                self.ty(&mut i.target, 0)?;
+                for item in &mut i.members {
+                    self.item(item)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn block(&mut self, block: &mut Block, env: &mut Env, depth: usize) -> R<()> {
+        self.tick(block.span, depth)?;
+        let mut local = self.clone_env(env)?;
+        for statement in &mut block.statements {
+            self.statement(statement, &mut local, depth + 1)?;
+        }
+        Ok(())
+    }
+    fn condition(&mut self, value: &mut Condition, env: &mut Env, depth: usize) -> R<()> {
+        match value {
+            Condition::Expression(e) => {
+                self.expr(e, env, depth)?;
+            }
+            Condition::Let { pattern, value } => {
+                let ty = self.expr(value, env, depth)?;
+                self.enum_pattern(pattern, ty.as_ref(), env, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+    fn statement(&mut self, s: &mut Stmt, env: &mut Env, depth: usize) -> R<()> {
+        self.tick(s.span, depth)?;
+        match &mut s.kind {
+            StmtKind::Binding {
+                pattern, ty, value, ..
+            } => {
+                if let Some(t) = ty {
+                    self.ty(t, depth + 1)?;
+                }
+                let inferred = self.expr_expected(value, env, ty.as_ref(), depth + 1)?;
+                bind(pattern, ty.clone().or(inferred), env);
+            }
+            StmtKind::Return(Some(e)) => {
+                let expected = self.return_type.clone();
+                self.expr_expected(e, env, expected.as_ref(), depth + 1)?;
+            }
+            StmtKind::Yield(e) | StmtKind::Expression(e) => {
+                self.expr(e, env, depth + 1)?;
+            }
+            StmtKind::Assign { target, value, .. } => {
+                let expected = self.expr(target, env, depth + 1)?;
+                self.expr_expected(value, env, expected.as_ref(), depth + 1)?;
+            }
+            StmtKind::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                let mut success = self.clone_env(env)?;
+                self.condition(condition, &mut success, depth + 1)?;
+                self.block(then_body, &mut success, depth + 1)?;
+                match else_body {
+                    Some(ElseBranch::Block(b)) => self.block(b, env, depth + 1)?,
+                    Some(ElseBranch::If(s)) => self.statement(s, env, depth + 1)?,
+                    None => {}
+                }
+            }
+            StmtKind::While { condition, body } => {
+                let mut success = self.clone_env(env)?;
+                self.condition(condition, &mut success, depth + 1)?;
+                self.block(body, &mut success, depth + 1)?;
+            }
+            StmtKind::For {
+                iterable,
+                body,
+                pattern,
+            } => {
+                let ty = self.expr(iterable, env, depth + 1)?;
+                let mut inner = self.clone_env(env)?;
+                bind(pattern, ty, &mut inner);
+                self.block(body, &mut inner, depth + 1)?;
+            }
+            StmtKind::Loop(b) | StmtKind::Unsafe(b) | StmtKind::Defer(b) => {
+                self.block(b, env, depth + 1)?
+            }
+            StmtKind::With { value, body, .. } => {
+                self.expr(value, env, depth + 1)?;
+                self.block(body, env, depth + 1)?;
+            }
+            StmtKind::Match { value, arms } => {
+                let ty = self.expr(value, env, depth + 1)?;
+                for arm in arms {
+                    let mut inner = self.clone_env(env)?;
+                    self.enum_pattern(&mut arm.pattern, ty.as_ref(), &mut inner, depth + 1)?;
+                    self.arrow(&mut arm.body, &mut inner, depth + 1)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn arrow(&mut self, body: &mut ArrowBody, env: &mut Env, depth: usize) -> R<()> {
+        match body {
+            ArrowBody::Block(b) => self.block(b, env, depth),
+            ArrowBody::Expression(e) => {
+                self.expr(e, env, depth)?;
+                Ok(())
+            }
+        }
+    }
+    fn expr(&mut self, e: &mut Expr, env: &mut Env, depth: usize) -> R<Option<TypeRef>> {
+        self.expr_expected(e, env, None, depth)
+    }
+    fn expr_expected(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        expected: Option<&TypeRef>,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        self.tick(e.span, depth)?;
+        // A surrounding E!T admits either exact payload or the whole union.
+        // It therefore cannot constrain a generic result variable to E!T
+        // before argument inference determines the expression's own type.
+        let expected = expected.filter(|ty| !matches!(ty.kind, TypeKind::Error { .. }));
+        if let Some(ty) = self.enum_expression(e, env, expected, depth)? {
+            return Ok(Some(ty));
+        }
+        let result = match &mut e.kind {
+            ExprKind::Literal(Literal::Integer(text)) => {
+                if let Some(ty) = expected.filter(|ty| check::integer(ty)) {
+                    self.budget.ty(ty)?;
+                    Some(ty.clone())
+                } else {
+                    Some(named(
+                        if text.ends_with("u8") {
+                            "u8"
+                        } else if text.ends_with("u16") {
+                            "u16"
+                        } else if text.ends_with("i64") {
+                            "i64"
+                        } else {
+                            "i32"
+                        },
+                        e.span,
+                    ))
+                }
+            }
+            ExprKind::Literal(Literal::Bool(_)) => Some(named("bool", e.span)),
+            ExprKind::Name(name) => {
+                if let Some(Some(ty)) = env.get(name) {
+                    self.budget.ty(ty)?;
+                    Some(ty.clone())
+                } else {
+                    None
+                }
+            }
+            ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
+                self.expr_expected(inner, env, expected, depth + 1)?
+            }
+            ExprKind::Unary { op, operand } => {
+                let hint = if matches!(op, UnaryOp::Negate | UnaryOp::BitNot) {
+                    expected
+                } else {
+                    None
+                };
+                let ty = self.expr_expected(operand, env, hint, depth + 1)?;
+                match (*op, ty) {
+                    (UnaryOp::Borrow | UnaryOp::BorrowMut, Some(inner)) => Some(TypeRef {
+                        span: e.span,
+                        kind: TypeKind::Reference {
+                            mutable: *op == UnaryOp::BorrowMut,
+                            lifetime: None,
+                            inner: Box::new(inner),
+                        },
+                    }),
+                    (
+                        UnaryOp::Dereference,
+                        Some(TypeRef {
+                            kind: TypeKind::Reference { inner, .. },
+                            ..
+                        }),
+                    ) => Some(*inner),
+                    (_, ty) => ty,
+                }
+            }
+            ExprKind::Binary { op, left, right } => {
+                let hint = expected.filter(|_| {
+                    !matches!(
+                        op,
+                        BinaryOp::Equal
+                            | BinaryOp::NotEqual
+                            | BinaryOp::Less
+                            | BinaryOp::LessEqual
+                            | BinaryOp::Greater
+                            | BinaryOp::GreaterEqual
+                    )
+                });
+                let left_type = self.expr_expected(left, env, hint, depth + 1)?;
+                self.expr_expected(right, env, hint.or(left_type.as_ref()), depth + 1)?;
+                if matches!(
+                    op,
+                    BinaryOp::Equal
+                        | BinaryOp::NotEqual
+                        | BinaryOp::Less
+                        | BinaryOp::LessEqual
+                        | BinaryOp::Greater
+                        | BinaryOp::GreaterEqual
+                        | BinaryOp::And
+                        | BinaryOp::Or
+                ) {
+                    Some(named("bool", e.span))
+                } else {
+                    left_type
+                }
+            }
+            ExprKind::Call { callee, arguments } => {
+                if let Some((parameters, result)) = super::foreign::bare_name(callee)
+                    .and_then(|name| bytes::signature(name, e.span))
+                {
+                    if arguments.len() != parameters.len() || arguments.iter().any(|arg| arg.spread)
+                    {
+                        return Err(error(
+                            e.span,
+                            "byte primitive argument count or shape differs",
+                        ));
+                    }
+                    for (argument, parameter) in arguments.iter_mut().zip(&parameters) {
+                        self.expr_expected(&mut argument.value, env, Some(parameter), depth + 1)?;
+                    }
+                    self.budget.ty(&result)?;
+                    return Ok(Some(result));
+                }
+                if let Some(value) = super::foreign::literal_constructor(callee, arguments, e.span)
+                {
+                    let value = value?;
+                    if let zil_ir::Constant::WideString(units) = &value {
+                        self.budget.wide_units(units, e.span)?;
+                    }
+                    return Ok(Some(named(&value.ty().name(), e.span)));
+                }
+                if super::foreign::bare_name(callee) == Some("c_callback") {
+                    let [argument] = arguments.as_slice() else {
+                        return Err(super::foreign::callback_error(
+                            e.span,
+                            "c_callback requires one static symbol",
+                        ));
+                    };
+                    if argument.spread {
+                        return Err(super::foreign::callback_error(
+                            e.span,
+                            "C callback constructor does not accept spread arguments",
+                        ));
+                    }
+                    let Some(target) = super::foreign::bare_name(&argument.value)
+                        .filter(|name| !env.contains_key(*name))
+                    else {
+                        return Err(super::foreign::callback_error(
+                            e.span,
+                            "c_callback requires one static symbol",
+                        ));
+                    };
+                    let Some(function) = self.signatures.get(target) else {
+                        return Err(super::foreign::callback_error(
+                            e.span,
+                            "unknown callback symbol",
+                        ));
+                    };
+                    for parameter in &function.params {
+                        self.budget.ty(&parameter.ty)?;
+                    }
+                    if let Some(result) = &function.return_type {
+                        self.budget.ty(result)?;
+                    }
+                    return super::foreign::callback_syntax_type(function, e.span).map(Some);
+                }
+                if let Some(name) = super::integer_conversion_name(callee) {
+                    if arguments.len() != 1 || arguments[0].spread {
+                        return Err(super::conversion_error(
+                            e.span,
+                            "integer conversion requires exactly one non-spread argument",
+                        ));
+                    }
+                    self.expr(&mut arguments[0].value, env, depth + 1)?;
+                    return Ok(Some(named(name, e.span)));
+                }
+                let mut hints = self.call_hints(callee, env, expected)?;
+                let mut actual = Vec::new();
+                for (index, arg) in arguments.iter_mut().enumerate() {
+                    let hint = hints
+                        .as_ref()
+                        .map(|h| h.hint(index, &mut self.budget))
+                        .transpose()?
+                        .flatten();
+                    let ty = self.expr_expected(&mut arg.value, env, hint.as_ref(), depth + 1)?;
+                    if let (Some(hints), Some(ty)) = (&mut hints, &ty) {
+                        let ty = self.original_type(ty)?;
+                        hints.constrain(index, &ty, arg.span, &mut self.budget)?;
+                    }
+                    actual.push(ty);
+                }
+                let mut explicit = None;
+                let target = match &mut callee.kind {
+                    ExprKind::TypeApply {
+                        callee: base,
+                        arguments: args,
+                    } => {
+                        let mut types = Vec::new();
+                        for arg in args {
+                            let GenericArg::Type(t) = arg else {
+                                return Err(unsupported(e.span, "const generic argument"));
+                            };
+                            self.ty(t, depth + 1)?;
+                            types.push(t.clone());
+                        }
+                        explicit = Some(types);
+                        match &base.kind {
+                            ExprKind::Name(n) if !env.contains_key(n) => Some(n.clone()),
+                            _ => None,
+                        }
+                    }
+                    ExprKind::Name(n) if !env.contains_key(n) => Some(n.clone()),
+                    _ => None,
+                };
+                if let Some(target) = target {
+                    if let Some(template) = self.templates.get(&target).cloned() {
+                        let ItemKind::Function(function) = &template.kind else {
+                            return Err(error(e.span, "aggregate template is not a callable"));
+                        };
+                        if callable::template(function)?.is_some() {
+                            if explicit.is_some() {
+                                return Err(unsupported(
+                                    e.span,
+                                    "concrete environment arguments are inferred from the supplied closure",
+                                ));
+                            }
+                            if function.params.len() != actual.len() {
+                                return Err(error(e.span, "callable helper arity mismatch"));
+                            }
+                            return self.signature_result(&target);
+                        }
+                        let types = if let Some(types) = explicit {
+                            types
+                        } else {
+                            if function.params.len() != actual.len() {
+                                return Err(error(e.span, "generic call arity mismatch"));
+                            }
+                            let variables =
+                                function.generics.iter().map(|p| p.name.clone()).collect();
+                            let mut found = BTreeMap::new();
+                            if let (Some(result), Some(expected)) =
+                                (&function.return_type, expected)
+                            {
+                                let expected = self.original_type(expected)?;
+                                unify(
+                                    result,
+                                    &expected,
+                                    &variables,
+                                    &mut found,
+                                    e.span,
+                                    &mut self.budget,
+                                )?;
+                            }
+                            for (p, actual) in function.params.iter().zip(actual) {
+                                let actual = actual.ok_or_else(|| {
+                                    error(
+                                        e.span,
+                                        "generic argument cannot be inferred; use explicit ::<...>",
+                                    )
+                                })?;
+                                let actual = self.original_type(&actual)?;
+                                unify_argument(
+                                    &p.ty,
+                                    &actual,
+                                    &variables,
+                                    &mut found,
+                                    e.span,
+                                    &mut self.budget,
+                                )?;
+                            }
+                            function
+                                .generics
+                                .iter()
+                                .map(|p| {
+                                    found.get(&p.name).cloned().ok_or_else(|| {
+                                        error(
+                                            e.span,
+                                            format!(
+                                                "type parameter {} has no unique constraint",
+                                                p.name
+                                            ),
+                                        )
+                                    })
+                                })
+                                .collect::<R<Vec<_>>>()?
+                        };
+                        let instance = self.instantiate(&target, types, e.span)?;
+                        callee.kind = ExprKind::Name(instance.clone());
+                        self.signature_result(&instance)?
+                    } else {
+                        if explicit.is_some() {
+                            return Err(error(
+                                e.span,
+                                "type arguments supplied to a non-generic function",
+                            ));
+                        }
+                        self.signature_result(&target)?
+                    }
+                } else {
+                    self.expr(callee, env, depth + 1)?;
+                    None
+                }
+            }
+            ExprKind::Tuple(values) => {
+                let mut types = Vec::new();
+                let mut known = true;
+                let hints = expected.and_then(|t| match &grouped(t).kind {
+                    TypeKind::Tuple(ts) => Some(ts.as_slice()),
+                    _ => None,
+                });
+                for (index, value) in values.iter_mut().enumerate() {
+                    if let Some(ty) = self.expr_expected(
+                        value,
+                        env,
+                        hints.and_then(|ts| ts.get(index)),
+                        depth + 1,
+                    )? {
+                        types.push(ty);
+                    } else {
+                        known = false;
+                    }
+                }
+                known.then_some(TypeRef {
+                    kind: TypeKind::Tuple(types),
+                    span: e.span,
+                })
+            }
+            ExprKind::Array(values) => {
+                let mut element = expected
+                    .and_then(|ty| match &grouped(ty).kind {
+                        TypeKind::Array { element, .. } => Some(element.as_ref()),
+                        _ => None,
+                    })
+                    .cloned();
+                for value in values.iter_mut() {
+                    let actual = self.expr_expected(value, env, element.as_ref(), depth + 1)?;
+                    if element.is_none() {
+                        element = actual;
+                    }
+                }
+                element
+                    .map(|element| array_type(element, values.len(), e.span))
+                    .transpose()?
+            }
+            ExprKind::Member { object, member } => {
+                let object_type = self.expr(object, env, depth + 1)?;
+                match (object_type.as_ref().map(projection_shape), member) {
+                    (
+                        Some(TypeRef {
+                            kind: TypeKind::Tuple(fields),
+                            ..
+                        }),
+                        MemberName::TupleIndex(i),
+                    ) => fields.get(*i as usize).cloned(),
+                    (Some(ty), MemberName::Name(member)) => self.record_field(ty, member)?,
+                    _ => None,
+                }
+            }
+            ExprKind::Index { object, index } => {
+                let object_type = self.expr(object, env, depth + 1)?;
+                self.expr(index, env, depth + 1)?;
+                match object_type.as_ref().map(projection_shape) {
+                    Some(TypeRef {
+                        kind: TypeKind::Array { element, .. },
+                        ..
+                    }) => {
+                        self.budget.ty(element)?;
+                        Some(*element.clone())
+                    }
+                    _ => None,
+                }
+            }
+            ExprKind::Slice { object, start, end } => {
+                let object_type = self.expr(object, env, depth + 1)?;
+                for value in [start, end].into_iter().flatten() {
+                    self.expr(value, env, depth + 1)?;
+                }
+                match object_type.as_ref().map(projection_shape) {
+                    Some(TypeRef {
+                        kind: TypeKind::Array { element, .. },
+                        ..
+                    }) => {
+                        self.budget.ty(element)?;
+                        Some(TypeRef {
+                            span: e.span,
+                            kind: TypeKind::Array {
+                                element: element.clone(),
+                                length: None,
+                            },
+                        })
+                    }
+                    _ => None,
+                }
+            }
+            ExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                self.expr(condition, env, depth + 1)?;
+                let ty = self.expr_expected(then_value, env, expected, depth + 1)?;
+                self.expr_expected(else_value, env, expected.or(ty.as_ref()), depth + 1)?;
+                ty
+            }
+            ExprKind::Record { ty, base, fields } => {
+                if let Some(t) = ty
+                    && let ExprKind::TypeApply { callee, arguments } = &mut t.kind
+                    && let ExprKind::Name(template) = &callee.kind
+                    && matches!(
+                        self.templates.get(template).map(|x| &x.kind),
+                        Some(ItemKind::Aggregate(_))
+                    )
+                {
+                    let mut types = Vec::new();
+                    for arg in arguments {
+                        let GenericArg::Type(value) = arg else {
+                            return Err(unsupported(e.span, "const generic argument"));
+                        };
+                        self.ty(value, depth + 1)?;
+                        types.push(value.clone());
+                    }
+                    t.kind = ExprKind::Name(self.instantiate(template, types, e.span)?);
+                }
+                let explicit_type = ty.as_ref().and_then(|t| match &t.kind {
+                    ExprKind::Name(n) => Some(named(n, t.span)),
+                    _ => None,
+                });
+                let base_type = if let Some(base) = base {
+                    self.expr_expected(base, env, explicit_type.as_ref(), depth + 1)?
+                } else {
+                    None
+                };
+                let record_type = explicit_type.or(base_type);
+                for field in fields {
+                    if let Some(value) = &mut field.value {
+                        let hint = record_type
+                            .as_ref()
+                            .map(|ty| self.record_field(ty, &field.name))
+                            .transpose()?
+                            .flatten();
+                        self.expr_expected(value, env, hint.as_ref(), depth + 1)?;
+                    }
+                }
+                record_type
+            }
+
+            ExprKind::Closure {
+                params,
+                return_type,
+                body,
+                ..
+            } => {
+                let mut inner = self.clone_env(env)?;
+                for param in params {
+                    if let Some(t) = &mut param.ty {
+                        self.ty(t, depth + 1)?;
+                    }
+                    inner.insert(param.name.clone(), param.ty.clone());
+                }
+                if let Some(t) = return_type {
+                    self.ty(t, depth + 1)?;
+                }
+                let saved = std::mem::replace(&mut self.return_type, return_type.clone());
+                match body {
+                    ArrowBody::Block(b) => self.block(b, &mut inner, depth + 1)?,
+                    ArrowBody::Expression(e) => {
+                        let expected = self.return_type.clone();
+                        self.expr_expected(e, &mut inner, expected.as_ref(), depth + 1)?;
+                    }
+                }
+                self.return_type = saved;
+                None
+            }
+            ExprKind::MetaBlock(block) => {
+                self.block(block, env, depth + 1)?;
+                None
+            }
+            ExprKind::Try(inner) => match self.expr(inner, env, depth + 1)? {
+                Some(TypeRef {
+                    kind: TypeKind::Error { result, .. },
+                    ..
+                }) => Some(*result),
+                _ => None,
+            },
+            ExprKind::Pipeline { input, target } => {
+                self.expr(input, env, depth + 1)?;
+                self.expr(target, env, depth + 1)?;
+                None
+            }
+            _ => None,
+        };
+        Ok(result)
+    }
+    fn signature_result(&mut self, name: &str) -> R<Option<TypeRef>> {
+        if let Some(ty) = self
+            .signatures
+            .get(name)
+            .and_then(|f| f.return_type.as_ref())
+        {
+            self.budget.ty(ty)?;
+            let mut result = ty.clone();
+            self.ty(&mut result, 0)?;
+            Ok(Some(result))
+        } else {
+            Ok(None)
+        }
+    }
+    fn clone_env(&mut self, env: &Env) -> R<Env> {
+        for ty in env.values().flatten() {
+            self.budget.ty(ty)?;
+        }
+        Ok(env.clone())
+    }
+    fn original_type(&mut self, ty: &TypeRef) -> R<TypeRef> {
+        original_type(ty, &self.instance_types, &mut self.budget, 0)
+    }
+}
+
+fn original_type(
+    ty: &TypeRef,
+    instances: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<TypeRef> {
+    budget.node(ty.span, depth)?;
+    budget.ty(ty)?;
+    let kind = match &ty.kind {
+        TypeKind::Named { path, args } => {
+            if path.len() == 1
+                && args.is_empty()
+                && let Some(original) = instances.get(&path[0])
+            {
+                return original_type(original, instances, budget, depth + 1);
+            }
+            TypeKind::Named {
+                path: path.clone(),
+                args: args
+                    .iter()
+                    .map(|arg| match arg {
+                        GenericArg::Type(t) => Ok(GenericArg::Type(original_type(
+                            t,
+                            instances,
+                            budget,
+                            depth + 1,
+                        )?)),
+                        _ => Err(unsupported(ty.span, "const generic argument")),
+                    })
+                    .collect::<R<_>>()?,
+            }
+        }
+        TypeKind::Reference {
+            lifetime,
+            mutable,
+            inner,
+        } => TypeKind::Reference {
+            lifetime: lifetime.clone(),
+            mutable: *mutable,
+            inner: Box::new(original_type(inner, instances, budget, depth + 1)?),
+        },
+        TypeKind::Group(inner) => TypeKind::Group(Box::new(original_type(
+            inner,
+            instances,
+            budget,
+            depth + 1,
+        )?)),
+        TypeKind::Optional(inner) => TypeKind::Optional(Box::new(original_type(
+            inner,
+            instances,
+            budget,
+            depth + 1,
+        )?)),
+        TypeKind::Tuple(ts) => TypeKind::Tuple(
+            ts.iter()
+                .map(|t| original_type(t, instances, budget, depth + 1))
+                .collect::<R<_>>()?,
+        ),
+        TypeKind::Array { element, length } => TypeKind::Array {
+            element: Box::new(original_type(element, instances, budget, depth + 1)?),
+            length: length.clone(),
+        },
+        TypeKind::Error { error, result } => TypeKind::Error {
+            error: Box::new(original_type(error, instances, budget, depth + 1)?),
+            result: Box::new(original_type(result, instances, budget, depth + 1)?),
+        },
+        TypeKind::ForeignFunction {
+            abi,
+            params,
+            result,
+        } => TypeKind::ForeignFunction {
+            abi: abi.clone(),
+            params: params
+                .iter()
+                .map(|t| original_type(t, instances, budget, depth + 1))
+                .collect::<R<_>>()?,
+            result: Box::new(original_type(result, instances, budget, depth + 1)?),
+        },
+        TypeKind::Function { params, result } => TypeKind::Function {
+            params: params
+                .iter()
+                .map(|t| original_type(t, instances, budget, depth + 1))
+                .collect::<R<_>>()?,
+            result: Box::new(original_type(result, instances, budget, depth + 1)?),
+        },
+        _ => ty.kind.clone(),
+    };
+    Ok(TypeRef {
+        span: ty.span,
+        kind,
+    })
+}
+fn array_length(length: &Expr) -> R<u32> {
+    match &length.kind {
+        ExprKind::Literal(Literal::Integer(text)) => {
+            text.replace('_', "").parse::<u32>().map_err(|_| {
+                unsupported(
+                    length.span,
+                    "array length must be a bounded integer constant",
+                )
+            })
+        }
+        _ => Err(unsupported(
+            length.span,
+            "nonliteral array length needs CT type evaluation",
+        )),
+    }
+}
+fn array_type(element: TypeRef, length: usize, span: Span) -> R<TypeRef> {
+    let length = u32::try_from(length)
+        .map_err(|_| error(span, "array literal exceeds static length representation"))?;
+    Ok(TypeRef {
+        span,
+        kind: TypeKind::Array {
+            element: Box::new(element),
+            length: Some(Box::new(Expr {
+                span,
+                kind: ExprKind::Literal(Literal::Integer(length.to_string())),
+            })),
+        },
+    })
+}
+fn grouped(mut ty: &TypeRef) -> &TypeRef {
+    while let TypeKind::Group(t) = &ty.kind {
+        ty = t;
+    }
+    ty
+}
+
+/// Match the one implicit address projection already accepted by Types.
+/// This is only a syntax type hint; it grants neither access nor ownership.
+fn projection_shape(ty: &TypeRef) -> &TypeRef {
+    match &grouped(ty).kind {
+        TypeKind::Reference { inner, .. } => grouped(inner),
+        _ => grouped(ty),
+    }
+}
+
+fn bind(pattern: &Pattern, ty: Option<TypeRef>, env: &mut Env) {
+    match &pattern.kind {
+        PatternKind::Name(n) => {
+            env.insert(n.clone(), ty);
+        }
+        PatternKind::Tuple(patterns) => {
+            let types = match ty {
+                Some(TypeRef {
+                    kind: TypeKind::Tuple(types),
+                    ..
+                }) => types,
+                _ => vec![],
+            };
+            for (i, p) in patterns.iter().enumerate() {
+                bind(p, types.get(i).cloned(), env);
+            }
+        }
+        _ => {}
+    }
+}
+fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
+    budget.ty(ty)?;
+    type_key_bounded(ty)
+}
+fn type_key_bounded(ty: &TypeRef) -> R<String> {
+    Ok(match &ty.kind {
+        TypeKind::Named { path, args } if path.as_slice() == ["void"] && args.is_empty() => {
+            "()".into()
+        }
+        TypeKind::Named { path, args } => {
+            let mut key = format!("N{}:{}", path.join(".").len(), path.join("."));
+            for a in args {
+                let GenericArg::Type(t) = a else {
+                    return Err(unsupported(ty.span, "const generic argument"));
+                };
+                key.push_str(&format!("<{}>", type_key_bounded(t)?));
+            }
+            key
+        }
+        TypeKind::Group(t) => return type_key_bounded(t),
+        TypeKind::Reference {
+            mutable,
+            inner,
+            lifetime: None,
+        } => format!("R{mutable}<{}>", type_key_bounded(inner)?),
+        TypeKind::Tuple(ts) => format!(
+            "({})",
+            ts.iter()
+                .map(type_key_bounded)
+                .collect::<R<Vec<_>>>()?
+                .join(",")
+        ),
+        TypeKind::Array {
+            element,
+            length: Some(length),
+        } => format!("A{}<{}>", array_length(length)?, type_key_bounded(element)?),
+        TypeKind::Array {
+            element,
+            length: None,
+        } => format!("S<{}>", type_key_bounded(element)?),
+        TypeKind::Optional(t) => format!("?{}", type_key_bounded(t)?),
+        TypeKind::Error { error, result } => format!(
+            "E<{}><{}>",
+            type_key_bounded(error)?,
+            type_key_bounded(result)?
+        ),
+        TypeKind::ForeignFunction {
+            abi,
+            params,
+            result,
+        } => format!(
+            "C{}:{}({})->{}",
+            abi.len(),
+            abi,
+            params
+                .iter()
+                .map(type_key_bounded)
+                .collect::<R<Vec<_>>>()?
+                .join(","),
+            type_key_bounded(result)?
+        ),
+        TypeKind::Function { params, result } => format!(
+            "F({})->{}",
+            params
+                .iter()
+                .map(type_key_bounded)
+                .collect::<R<Vec<_>>>()?
+                .join(","),
+            type_key_bounded(result)?
+        ),
+        _ => {
+            return Err(unsupported(
+                ty.span,
+                "this generic type argument needs additional type resolution",
+            ));
+        }
+    })
+}
+fn unify(
+    pattern: &TypeRef,
+    actual: &TypeRef,
+    variables: &BTreeSet<String>,
+    found: &mut BTreeMap<String, TypeRef>,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    budget.ty(pattern)?;
+    budget.ty(actual)?;
+    unify_bounded(pattern, actual, variables, found, span)
+}
+fn unify_argument(
+    pattern: &TypeRef,
+    actual: &TypeRef,
+    variables: &BTreeSet<String>,
+    found: &mut BTreeMap<String, TypeRef>,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    budget.ty(pattern)?;
+    budget.ty(actual)?;
+    let mut pattern = pattern;
+    while let TypeKind::Group(inner) = &pattern.kind {
+        pattern = inner;
+    }
+    let mut actual = actual;
+    while let TypeKind::Group(inner) = &actual.kind {
+        actual = inner;
+    }
+    if let (
+        TypeKind::Reference {
+            mutable: wanted,
+            inner: expected,
+            ..
+        },
+        TypeKind::Reference {
+            mutable: available,
+            inner: actual,
+            ..
+        },
+    ) = (&pattern.kind, &actual.kind)
+    {
+        if *wanted && !available {
+            return Err(error(
+                span,
+                "shared reference cannot grant exclusive access",
+            ));
+        }
+        return unify_bounded(expected, actual, variables, found, span);
+    }
+    unify_bounded(pattern, actual, variables, found, span)
+}
+fn unify_bounded(
+    pattern: &TypeRef,
+    actual: &TypeRef,
+    variables: &BTreeSet<String>,
+    found: &mut BTreeMap<String, TypeRef>,
+    span: Span,
+) -> R<()> {
+    if let TypeKind::Group(t) = &pattern.kind {
+        return unify_bounded(t, actual, variables, found, span);
+    }
+    if let TypeKind::Group(t) = &actual.kind {
+        return unify_bounded(pattern, t, variables, found, span);
+    }
+    if let TypeKind::Named { path, args } = &pattern.kind
+        && path.len() == 1
+        && args.is_empty()
+        && variables.contains(&path[0])
+    {
+        if let Some(prior) = found.get(&path[0]) {
+            if type_key_bounded(prior)? != type_key_bounded(actual)? {
+                return Err(error(span, "conflicting generic argument constraints"));
+            }
+        } else {
+            found.insert(path[0].clone(), actual.clone());
+        }
+        return Ok(());
+    }
+    match (&pattern.kind, &actual.kind) {
+        (
+            TypeKind::Error {
+                error: a,
+                result: x,
+            },
+            TypeKind::Error {
+                error: b,
+                result: y,
+            },
+        ) => {
+            unify_bounded(a, b, variables, found, span)?;
+            unify_bounded(x, y, variables, found, span)
+        }
+        (TypeKind::Named { path: a, args: x }, TypeKind::Named { path: b, args: y })
+            if a == b && x.len() == y.len() =>
+        {
+            for (a, b) in x.iter().zip(y) {
+                let (GenericArg::Type(a), GenericArg::Type(b)) = (a, b) else {
+                    return Err(unsupported(span, "const generic unification"));
+                };
+                unify_bounded(a, b, variables, found, span)?;
+            }
+            Ok(())
+        }
+        (
+            TypeKind::Reference {
+                mutable: a,
+                inner: x,
+                ..
+            },
+            TypeKind::Reference {
+                mutable: b,
+                inner: y,
+                ..
+            },
+        ) if a == b => unify_bounded(x, y, variables, found, span),
+        (TypeKind::Tuple(a), TypeKind::Tuple(b)) if a.len() == b.len() => {
+            for (a, b) in a.iter().zip(b) {
+                unify_bounded(a, b, variables, found, span)?;
+            }
+            Ok(())
+        }
+        (
+            TypeKind::Array {
+                element: a,
+                length: Some(x),
+            },
+            TypeKind::Array {
+                element: b,
+                length: Some(y),
+            },
+        ) if array_length(x)? == array_length(y)? => unify_bounded(a, b, variables, found, span),
+        (
+            TypeKind::Array {
+                element: a,
+                length: None,
+            },
+            TypeKind::Array {
+                element: b,
+                length: None,
+            },
+        ) => unify_bounded(a, b, variables, found, span),
+        _ if type_key_bounded(pattern)? == type_key_bounded(actual)? => Ok(()),
+        _ => Err(error(
+            span,
+            "generic parameter does not match argument type",
+        )),
+    }
+}
+
+// The visitor substitutes only type syntax. Value names are never textual
+// replacements: a parameter called T does not become the name of its type.
+fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -> R<()> {
+    let visitor = Substitution { substitutions };
+    match &mut item.kind {
+        ItemKind::Function(f) => {
+            for p in &mut f.params {
+                visitor.ty(&mut p.ty);
+            }
+            if let Some(t) = &mut f.return_type {
+                visitor.ty(t);
+            }
+            match &mut f.body {
+                FunctionBody::Block(b) => visitor.block(b),
+                FunctionBody::Expression(e) => visitor.expr(e),
+                _ => {}
+            }
+        }
+        ItemKind::Aggregate(a) => {
+            for field in &mut a.fields {
+                visitor.ty(&mut field.ty);
+                if let Some(e) = &mut field.default {
+                    visitor.expr(e);
+                }
+            }
+        }
+        ItemKind::Enum(e) => {
+            for variant in &mut e.variants {
+                match &mut variant.fields {
+                    VariantFields::Tuple(fields) => {
+                        for field in fields {
+                            visitor.ty(field);
+                        }
+                    }
+                    VariantFields::Record(fields) => {
+                        for field in fields {
+                            visitor.ty(&mut field.ty);
+                        }
+                    }
+                    VariantFields::Unit => {}
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+struct Substitution<'a> {
+    substitutions: &'a BTreeMap<String, TypeRef>,
+}
+impl Substitution<'_> {
+    fn ty(&self, ty: &mut TypeRef) {
+        if let TypeKind::Named { path, args } = &ty.kind
+            && path.len() == 1
+            && args.is_empty()
+            && let Some(value) = self.substitutions.get(&path[0])
+        {
+            let span = ty.span;
+            *ty = value.clone();
+            ty.span = span;
+            return;
+        }
+        match &mut ty.kind {
+            TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+                for a in args {
+                    if let GenericArg::Type(t) = a {
+                        self.ty(t);
+                    }
+                }
+            }
+            TypeKind::Reference { inner, .. }
+            | TypeKind::Group(inner)
+            | TypeKind::Optional(inner)
+            | TypeKind::ForLifetime { inner, .. } => self.ty(inner),
+            TypeKind::Tuple(ts) | TypeKind::Union(ts) | TypeKind::Impl(ts) => {
+                for t in ts {
+                    self.ty(t);
+                }
+            }
+            TypeKind::Array { element, length } => {
+                self.ty(element);
+                if let Some(e) = length {
+                    self.expr(e);
+                }
+            }
+            TypeKind::Function { params, result }
+            | TypeKind::ForeignFunction { params, result, .. } => {
+                for t in params {
+                    self.ty(t);
+                }
+                self.ty(result);
+            }
+            TypeKind::Error { error, result } => {
+                self.ty(error);
+                self.ty(result);
+            }
+            _ => {}
+        }
+    }
+    fn condition(&self, c: &mut Condition) {
+        match c {
+            Condition::Expression(e) | Condition::Let { value: e, .. } => self.expr(e),
+        }
+    }
+    fn block(&self, b: &mut Block) {
+        for s in &mut b.statements {
+            self.statement(s);
+        }
+    }
+    fn statement(&self, s: &mut Stmt) {
+        match &mut s.kind {
+            StmtKind::Binding { ty, value, .. } => {
+                if let Some(t) = ty {
+                    self.ty(t);
+                }
+                self.expr(value);
+            }
+            StmtKind::Return(Some(e)) | StmtKind::Expression(e) | StmtKind::Yield(e) => {
+                self.expr(e)
+            }
+            StmtKind::Assign { target, value, .. } => {
+                self.expr(target);
+                self.expr(value);
+            }
+            StmtKind::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                self.condition(condition);
+                self.block(then_body);
+                match else_body {
+                    Some(ElseBranch::Block(b)) => self.block(b),
+                    Some(ElseBranch::If(s)) => self.statement(s),
+                    None => {}
+                }
+            }
+            StmtKind::While { condition, body } => {
+                self.condition(condition);
+                self.block(body);
+            }
+            StmtKind::For { iterable, body, .. } => {
+                self.expr(iterable);
+                self.block(body);
+            }
+            StmtKind::Loop(b) | StmtKind::Unsafe(b) | StmtKind::Defer(b) => self.block(b),
+            StmtKind::With { value, body, .. } => {
+                self.expr(value);
+                self.block(body);
+            }
+            StmtKind::Match { value, arms } => {
+                self.expr(value);
+                for arm in arms {
+                    self.arrow(&mut arm.body);
+                }
+            }
+            _ => {}
+        }
+    }
+    fn arrow(&self, body: &mut ArrowBody) {
+        match body {
+            ArrowBody::Block(b) => self.block(b),
+            ArrowBody::Expression(e) => self.expr(e),
+        }
+    }
+    fn expr(&self, e: &mut Expr) {
+        match &mut e.kind {
+            ExprKind::Group(x)
+            | ExprKind::Try(x)
+            | ExprKind::MetaEval(x)
+            | ExprKind::Unary { operand: x, .. } => self.expr(x),
+            ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
+                for x in xs {
+                    self.expr(x);
+                }
+            }
+            ExprKind::Binary { left, right, .. } => {
+                self.expr(left);
+                self.expr(right);
+            }
+            ExprKind::Pipeline { input, target } => {
+                self.expr(input);
+                self.expr(target);
+            }
+            ExprKind::Member { object, .. } => self.expr(object),
+            ExprKind::TypeApply { callee, arguments } => {
+                self.expr(callee);
+                for a in arguments {
+                    match a {
+                        GenericArg::Type(t) => self.ty(t),
+                        GenericArg::Const(e) => self.expr(e),
+                    }
+                }
+            }
+            ExprKind::Call { callee, arguments } => {
+                self.expr(callee);
+                for a in arguments {
+                    self.expr(&mut a.value);
+                }
+            }
+            ExprKind::Index { object, index } => {
+                self.expr(object);
+                self.expr(index);
+            }
+            ExprKind::Slice { object, start, end } => {
+                self.expr(object);
+                for x in [start, end].into_iter().flatten() {
+                    self.expr(x);
+                }
+            }
+            ExprKind::Record { ty, base, fields } => {
+                if let Some(t) = ty {
+                    self.expr(t);
+                }
+                if let Some(b) = base {
+                    self.expr(b);
+                }
+                for f in fields {
+                    if let Some(v) = &mut f.value {
+                        self.expr(v);
+                    }
+                }
+            }
+            ExprKind::Closure {
+                params,
+                return_type,
+                body,
+                ..
+            } => {
+                for p in params {
+                    if let Some(t) = &mut p.ty {
+                        self.ty(t);
+                    }
+                }
+                if let Some(t) = return_type {
+                    self.ty(t);
+                }
+                self.arrow(body);
+            }
+            ExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                self.expr(condition);
+                self.expr(then_value);
+                self.expr(else_value);
+            }
+            ExprKind::MetaBlock(b) => self.block(b),
+            _ => {}
+        }
+    }
+}
+
+#[path = "generic_check.rs"]
+mod check;
+use check::validate_parametric;

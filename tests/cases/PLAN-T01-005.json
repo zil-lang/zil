@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "scope": "Production attribute syntax validates the exact frozen registry, retained unknown attributes, all attachment targets, repeat/conflict rules, and argument structure. Unknown configuration and unmaterialized CT branches are explicitly deferred; cfg removal, attribute execution, value types, actual trait/lint resolution, and layout are not claimed by parsing.",
+  "steps": [
+    { "kind": "cargo-test", "package": "zil-syntax", "filter": "plan_t01_005_", "min_passed": 11 }
+  ]
+}

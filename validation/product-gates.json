@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "source": "validation/product-gates.json",
+  "purpose": "产品验收预算，不是实测结果或语言安全定理",
+  "provenance": "用户附件 zil-vale-v2.md §11.1、§15.3；与四目标中至少一项突破一起解释",
+  "safety": {
+    "accepted_safe_ub": 0,
+    "incomplete_or_zero_test_is_pass": false
+  },
+  "runtime": {
+    "efficiency_definition": "T_Rust/T_ZIL, same work and resource/error contract",
+    "min_per_case": 0.9,
+    "min_geomean": 0.95,
+    "memory_tail_latency_profile_required": true
+  },
+  "compile": {
+    "max_median_ratio": {
+      "cold_check": 1.0,
+      "cold_debug_build": 1.0,
+      "private_edit": 1.0
+    },
+    "breakthrough_candidate": {
+      "cold_check": 0.8,
+      "private_edit": 0.8
+    },
+    "scaling_probe_max_work_growth": 2.5
+  },
+  "verification": {
+    "max_median_time_fraction_frontend": 0.25,
+    "max_certificate_bytes_ratio_typed_ir": 2.0,
+    "disable_verifier_to_pass": false
+  },
+  "expression": {
+    "evolution_families": [
+      "tree_to_graph",
+      "independent_delete",
+      "layout_change",
+      "parallel",
+      "suspend_cancel",
+      "helper_generic_dyn"
+    ],
+    "breakthrough_candidate_min_improved_families": 3,
+    "metric_must_be_frozen_before_measurement": true
+  },
+  "breakthrough": {
+    "at_least_one_dimension": true,
+    "do_not_require_all_candidates_simultaneously": true,
+    "requires_repeatability_and_no_structural_regression": true
+  },
+  "measurement": {
+    "primary": [
+      "median",
+      "p95",
+      "peak_memory",
+      "retention",
+      "work_counts"
+    ],
+    "minimum_as_primary": false,
+    "exclusive_timing": true,
+    "warm_and_cold_separate": true,
+    "sample_count_in_scenario_manifest": true
+  },
+  "release_prerequisites": [
+    "all required profiles ratified before measurement",
+    "all critical tests actually executed",
+    "all planned capabilities accounted for"
+  ]
+}

@@ -1,0 +1,5 @@
+[
+  {"name":"scalar", "root":"tests/perf/impl068/scalar/main.zil", "stdin":"", "exit":0, "stdout":""},
+  {"name":"helper-ui", "root":"examples/mainline/helper_ui/main.zil", "stdin":"++q", "exit":0, "stdout":"0\n1\n2\n#3\nMSU"},
+  {"name":"many-symbols", "root":"tests/perf/impl068/many_symbols/main.zil", "stdin":"", "exit":0, "stdout":""}
+]

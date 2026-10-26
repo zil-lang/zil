@@ -1,0 +1,450 @@
+[
+  {
+    "name": "scalar",
+    "root": "tests/perf/impl084/scalar/main.zil",
+    "edits": {
+      "private_edit": [
+        {
+          "target": "tests/perf/impl084/scalar/main.zil",
+          "replacement": "tests/perf/impl084/edits/scalar/private_edit/main.zil"
+        }
+      ],
+      "public_edit": [
+        {
+          "target": "tests/perf/impl084/scalar/main.zil",
+          "replacement": "tests/perf/impl084/edits/scalar/public_edit/main.zil"
+        }
+      ]
+    },
+    "modes": [
+      "verify"
+    ],
+    "capacity": 1024,
+    "stdin": "",
+    "expected": {
+      "cold": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "unchanged": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "private_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "public_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      }
+    }
+  },
+  {
+    "name": "modules16",
+    "root": "tests/perf/impl084/modules16/main.zil",
+    "edits": {
+      "private_edit": [
+        {
+          "target": "tests/perf/impl084/modules16/m0.zil",
+          "replacement": "tests/perf/impl084/edits/modules16/private_edit/m0.zil"
+        }
+      ],
+      "public_edit": [
+        {
+          "target": "tests/perf/impl084/modules16/m0.zil",
+          "replacement": "tests/perf/impl084/edits/modules16/public_edit/m0.zil"
+        },
+        {
+          "target": "tests/perf/impl084/modules16/main.zil",
+          "replacement": "tests/perf/impl084/edits/modules16/public_edit/main.zil"
+        }
+      ]
+    },
+    "modes": [
+      "verify"
+    ],
+    "capacity": 1024,
+    "stdin": "",
+    "expected": {
+      "cold": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "unchanged": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "private_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "public_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      }
+    }
+  },
+  {
+    "name": "modules64",
+    "root": "tests/perf/impl084/modules64/main.zil",
+    "edits": {
+      "private_edit": [
+        {
+          "target": "tests/perf/impl084/modules64/m0.zil",
+          "replacement": "tests/perf/impl084/edits/modules64/private_edit/m0.zil"
+        }
+      ],
+      "public_edit": [
+        {
+          "target": "tests/perf/impl084/modules64/m0.zil",
+          "replacement": "tests/perf/impl084/edits/modules64/public_edit/m0.zil"
+        },
+        {
+          "target": "tests/perf/impl084/modules64/main.zil",
+          "replacement": "tests/perf/impl084/edits/modules64/public_edit/main.zil"
+        }
+      ]
+    },
+    "modes": [
+      "verify"
+    ],
+    "capacity": 1024,
+    "stdin": "",
+    "expected": {
+      "cold": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "unchanged": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "private_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "public_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      }
+    }
+  },
+  {
+    "name": "modules64-default-capacity",
+    "root": "tests/perf/impl084/modules64/main.zil",
+    "edits": {
+      "private_edit": [
+        {
+          "target": "tests/perf/impl084/modules64/m0.zil",
+          "replacement": "tests/perf/impl084/edits/modules64-default-capacity/private_edit/m0.zil"
+        }
+      ],
+      "public_edit": [
+        {
+          "target": "tests/perf/impl084/modules64/m0.zil",
+          "replacement": "tests/perf/impl084/edits/modules64-default-capacity/public_edit/m0.zil"
+        },
+        {
+          "target": "tests/perf/impl084/modules64/main.zil",
+          "replacement": "tests/perf/impl084/edits/modules64-default-capacity/public_edit/main.zil"
+        }
+      ]
+    },
+    "modes": [
+      "verify"
+    ],
+    "capacity": 32,
+    "stdin": "",
+    "expected": {
+      "cold": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "unchanged": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "private_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "public_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      }
+    }
+  },
+  {
+    "name": "modules128",
+    "root": "tests/perf/impl084/modules128/main.zil",
+    "edits": {
+      "private_edit": [
+        {
+          "target": "tests/perf/impl084/modules128/m0.zil",
+          "replacement": "tests/perf/impl084/edits/modules128/private_edit/m0.zil"
+        }
+      ],
+      "public_edit": [
+        {
+          "target": "tests/perf/impl084/modules128/m0.zil",
+          "replacement": "tests/perf/impl084/edits/modules128/public_edit/m0.zil"
+        },
+        {
+          "target": "tests/perf/impl084/modules128/main.zil",
+          "replacement": "tests/perf/impl084/edits/modules128/public_edit/main.zil"
+        }
+      ]
+    },
+    "modes": [
+      "verify"
+    ],
+    "capacity": 1024,
+    "stdin": "",
+    "expected": {
+      "cold": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "unchanged": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "private_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "public_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      }
+    }
+  },
+  {
+    "name": "modules512",
+    "root": "tests/perf/impl084/modules512/main.zil",
+    "edits": {
+      "private_edit": [
+        {
+          "target": "tests/perf/impl084/modules512/m0.zil",
+          "replacement": "tests/perf/impl084/edits/modules512/private_edit/m0.zil"
+        }
+      ],
+      "public_edit": [
+        {
+          "target": "tests/perf/impl084/modules512/m0.zil",
+          "replacement": "tests/perf/impl084/edits/modules512/public_edit/m0.zil"
+        },
+        {
+          "target": "tests/perf/impl084/modules512/main.zil",
+          "replacement": "tests/perf/impl084/edits/modules512/public_edit/main.zil"
+        }
+      ]
+    },
+    "modes": [
+      "verify"
+    ],
+    "capacity": 1024,
+    "stdin": "",
+    "expected": {
+      "cold": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "unchanged": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "private_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "public_edit": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      }
+    }
+  },
+  {
+    "name": "owned_component",
+    "root": "examples/mainline/owned_component/main.zil",
+    "edits": {
+      "private_edit": [
+        {
+          "target": "examples/mainline/owned_component/io.zil",
+          "replacement": "tests/perf/impl084/edits/owned_component/private_edit/io.zil"
+        }
+      ],
+      "public_edit": [
+        {
+          "target": "examples/mainline/owned_component/io.zil",
+          "replacement": "tests/perf/impl084/edits/owned_component/public_edit/io.zil"
+        },
+        {
+          "target": "examples/mainline/owned_component/lifecycle.zil",
+          "replacement": "tests/perf/impl084/edits/owned_component/public_edit/lifecycle.zil"
+        },
+        {
+          "target": "examples/mainline/owned_component/main.zil",
+          "replacement": "tests/perf/impl084/edits/owned_component/public_edit/main.zil"
+        }
+      ]
+    },
+    "modes": [
+      "verify",
+      "build"
+    ],
+    "capacity": 1024,
+    "stdin": "++q",
+    "expected": {
+      "cold": {
+        "exit": 0,
+        "stdout": "0\n1\n2\n#3\nMSU",
+        "stderr": ""
+      },
+      "unchanged": {
+        "exit": 0,
+        "stdout": "0\n1\n2\n#3\nMSU",
+        "stderr": ""
+      },
+      "private_edit": {
+        "exit": 0,
+        "stdout": "1\n2\n3\n#4\nMSU",
+        "stderr": ""
+      },
+      "public_edit": {
+        "exit": 0,
+        "stdout": "1\n2\n3\n#4\nMSU",
+        "stderr": ""
+      }
+    }
+  },
+  {
+    "name": "helper_ui",
+    "root": "examples/mainline/helper_ui/main.zil",
+    "edits": {
+      "private_edit": [
+        {
+          "target": "examples/mainline/helper_ui/io.zil",
+          "replacement": "tests/perf/impl084/edits/helper_ui/private_edit/io.zil"
+        }
+      ],
+      "public_edit": [
+        {
+          "target": "examples/mainline/helper_ui/io.zil",
+          "replacement": "tests/perf/impl084/edits/helper_ui/public_edit/io.zil"
+        },
+        {
+          "target": "examples/mainline/helper_ui/lifecycle.zil",
+          "replacement": "tests/perf/impl084/edits/helper_ui/public_edit/lifecycle.zil"
+        },
+        {
+          "target": "examples/mainline/helper_ui/window.zil",
+          "replacement": "tests/perf/impl084/edits/helper_ui/public_edit/window.zil"
+        }
+      ]
+    },
+    "modes": [
+      "verify",
+      "build"
+    ],
+    "capacity": 1024,
+    "stdin": "++q",
+    "expected": {
+      "cold": {
+        "exit": 0,
+        "stdout": "0\n1\n2\n#3\nMSU",
+        "stderr": ""
+      },
+      "unchanged": {
+        "exit": 0,
+        "stdout": "0\n1\n2\n#3\nMSU",
+        "stderr": ""
+      },
+      "private_edit": {
+        "exit": 0,
+        "stdout": "1\n2\n3\n#4\nMSU",
+        "stderr": ""
+      },
+      "public_edit": {
+        "exit": 0,
+        "stdout": "1\n2\n3\n#4\nMSU",
+        "stderr": ""
+      }
+    }
+  },
+  {
+    "name": "byte_arithmetic",
+    "root": "examples/mainline/byte_io/arithmetic.zil",
+    "edits": {
+      "private_edit": [
+        {
+          "target": "examples/mainline/byte_io/arithmetic.zil",
+          "replacement": "tests/perf/impl084/edits/byte_arithmetic/private_edit/arithmetic.zil"
+        }
+      ],
+      "public_edit": [
+        {
+          "target": "examples/mainline/byte_io/arithmetic.zil",
+          "replacement": "tests/perf/impl084/edits/byte_arithmetic/public_edit/arithmetic.zil"
+        },
+        {
+          "target": "examples/mainline/byte_io/io.zil",
+          "replacement": "tests/perf/impl084/edits/byte_arithmetic/public_edit/io.zil"
+        }
+      ]
+    },
+    "modes": [
+      "verify",
+      "build"
+    ],
+    "capacity": 1024,
+    "stdin": "",
+    "expected": {
+      "cold": {
+        "exit": 0,
+        "stdout": "73740310\n",
+        "stderr": ""
+      },
+      "unchanged": {
+        "exit": 0,
+        "stdout": "73740310\n",
+        "stderr": ""
+      },
+      "private_edit": {
+        "exit": 0,
+        "stdout": "73772950\n",
+        "stderr": ""
+      },
+      "public_edit": {
+        "exit": 0,
+        "stdout": "73772950\n",
+        "stderr": ""
+      }
+    }
+  }
+]

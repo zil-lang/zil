@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "scope": "Real ZIL source through production compiler to native, or exact scalar rejection. Not a full-language conformance claim.",
+  "cases": [
+    {
+      "id": "unicode",
+      "source": "examples/scalar/unicode.zil",
+      "kind": "native",
+      "exit_code": 42
+    },
+    {
+      "id": "break-continue",
+      "source": "examples/scalar/break-continue.zil",
+      "kind": "native",
+      "exit_code": 25
+    },
+    {
+      "id": "unit-call",
+      "source": "examples/scalar/unit-call.zil",
+      "kind": "native",
+      "exit_code": 42
+    },
+    {
+      "id": "wide-integer",
+      "source": "examples/scalar/wide-integer.zil",
+      "kind": "native",
+      "entry": "value",
+      "return_value": 4294967338
+    },
+    {
+      "id": "signed-minimum",
+      "source": "examples/scalar/signed-minimum.zil",
+      "kind": "native",
+      "entry": "value",
+      "return_value": -9223372036854775808
+    },
+    {
+      "id": "wrapping",
+      "source": "examples/scalar/wrapping.zil",
+      "kind": "native",
+      "entry": "value",
+      "return_value": -2147483648
+    },
+    {
+      "id": "ct-arithmetic",
+      "source": "examples/scalar/ct-arithmetic.zil",
+      "kind": "native",
+      "exit_code": 42
+    },
+    {
+      "id": "ct-context",
+      "source": "examples/scalar/ct-context.zil",
+      "kind": "native",
+      "entry": "value",
+      "return_value": 2147483648
+    },
+    {
+      "id": "ct-argument",
+      "source": "examples/scalar/ct-argument.zil",
+      "kind": "native",
+      "entry": "value",
+      "return_value": 2147483648
+    },
+    {
+      "id": "ct-wrapping",
+      "source": "examples/scalar/ct-wrapping.zil",
+      "kind": "native",
+      "entry": "value",
+      "return_value": -2147483648
+    },
+    {
+      "id": "ct-compare",
+      "source": "examples/scalar/ct-compare.zil",
+      "kind": "native",
+      "exit_code": 42
+    },
+    {
+      "id": "overflow",
+      "source": "examples/scalar/overflow.zil",
+      "kind": "trap",
+      "signal": 4
+    },
+    {
+      "id": "division-zero",
+      "source": "examples/scalar/division-zero.zil",
+      "kind": "trap",
+      "signal": 4
+    },
+    {
+      "id": "immutable",
+      "source": "examples/scalar/immutable.zil",
+      "kind": "reject",
+      "category": "SafeReject",
+      "phase": "types",
+      "code": "E-IMMUTABLE-ASSIGNMENT"
+    },
+    {
+      "id": "unknown-name",
+      "source": "examples/scalar/unknown-name.zil",
+      "kind": "reject",
+      "category": "SafeReject",
+      "phase": "types",
+      "code": "E-UNKNOWN-NAME"
+    },
+    {
+      "id": "wrong-arity",
+      "source": "examples/scalar/wrong-arity.zil",
+      "kind": "reject",
+      "category": "SafeReject",
+      "phase": "types",
+      "code": "E-CALL-ARITY"
+    },
+    {
+      "id": "ct-overflow",
+      "source": "examples/scalar/ct-overflow.zil",
+      "kind": "reject",
+      "category": "SafeReject",
+      "phase": "ct",
+      "code": "E-CT-ARITHMETIC"
+    },
+    {
+      "id": "ct-zero",
+      "source": "examples/scalar/ct-zero.zil",
+      "kind": "reject",
+      "category": "SafeReject",
+      "phase": "ct",
+      "code": "E-CT-ARITHMETIC"
+    },
+    {
+      "id": "arithmetic",
+      "source": "examples/bootstrap/arithmetic.zil",
+      "kind": "native",
+      "exit_code": 42
+    },
+    {
+      "id": "control",
+      "source": "examples/bootstrap/control.zil",
+      "kind": "native",
+      "exit_code": 48
+    },
+    {
+      "id": "short-circuit",
+      "source": "examples/bootstrap/short-circuit.zil",
+      "kind": "native",
+      "exit_code": 42
+    },
+    {
+      "id": "pipeline",
+      "source": "examples/bootstrap/pipeline.zil",
+      "kind": "native",
+      "exit_code": 42
+    },
+    {
+      "id": "recursion",
+      "source": "examples/bootstrap/recursion.zil",
+      "kind": "native",
+      "exit_code": 55
+    },
+    {
+      "id": "loop-return",
+      "source": "examples/scalar/loop-return.zil",
+      "kind": "native",
+      "exit_code": 42
+    },
+    {
+      "id": "literal-context",
+      "source": "examples/scalar/literal-context.zil",
+      "kind": "native",
+      "exit_code": 42
+    }
+  ]
+}

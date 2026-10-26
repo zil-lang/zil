@@ -1,0 +1,2152 @@
+{
+  "schema_version": 1,
+  "generated_from": [
+    "conformance/closure.json",
+    "conformance/receiver.json",
+    "conformance/record.json",
+    "conformance/pipe.json",
+    "conformance/script.json"
+  ],
+  "execution_state": "NotRun",
+  "cases": [
+    {
+      "id": "CL01",
+      "path": "conformance/cases/closure/CL01-default-copy-last-use.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "Copy Value 默认共享捕获；最后一次闭包使用后恢复外部写入。",
+      "expected": {
+        "entry": "check",
+        "return_value": 709,
+        "capture": "shared_borrow(value)",
+        "release": "after last use of read"
+      },
+      "status": "NotRun",
+      "source_sha256": "0334d8c1813a49e5501ed91359ba9d6b89d00031891457b023d6746bf0c8f45e"
+    },
+    {
+      "id": "CL02",
+      "path": "conformance/cases/closure/CL02-default-copy-write-conflict.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-LOAN-CONFLICT",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "默认只读捕获不能被静默改成 Copy 快照以通过相交写入。",
+      "expected": {
+        "error_line": 4,
+        "reason": "read 的共享捕获在后续调用仍需 value；当前写入冲突。"
+      },
+      "status": "NotRun",
+      "source_sha256": "d728af7ed25e57b9b773bee9cfda6154485a35c5f70e33d47cb19735adcd9e91"
+    },
+    {
+      "id": "CL03",
+      "path": "conformance/cases/closure/CL03-move-copy-snapshot.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "move 显式复制 Copy Value，闭包观察创建时的值。",
+      "expected": {
+        "entry": "check",
+        "return_value": 709,
+        "capture": "copy(value)",
+        "call_kind": "Fn"
+      },
+      "status": "NotRun",
+      "source_sha256": "1dd1d4eee40f15a36de50db905063f1de3ad2b0b1e4fffec66a3624b91f3364f"
+    },
+    {
+      "id": "CL04",
+      "path": "conformance/cases/closure/CL04-body-consumption-infers-move.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "正文消费不可 Copy Value，闭包创建时自动移动该值。",
+      "expected": {
+        "entry": "check",
+        "return_value": 31,
+        "capture": "move(token) at closure creation",
+        "call_kind": "FnOnce",
+        "noncopy_reason": "Token contains an exclusive Address"
+      },
+      "status": "NotRun",
+      "source_sha256": "86350ca5f55d4c35f0a73462049ef4997e39b21df180ef46e75615978d80acdc"
+    },
+    {
+      "id": "CL05",
+      "path": "conformance/cases/closure/CL05-automatic-move-source-unavailable.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-USE-AFTER-MOVE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "自动移动发生在创建时，不能等到闭包调用才令源值失效。",
+      "expected": {
+        "error_line": 14,
+        "reason": "token 已在 consume 环境创建时移动。"
+      },
+      "status": "NotRun",
+      "source_sha256": "3960e2ce796fadfe8e3721399e99aa9e0507bdb4cfa34ace462549e9d04aff1f"
+    },
+    {
+      "id": "CL06",
+      "path": "conformance/cases/closure/CL06-owned-value-can-repeat.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "move 拥有非 Copy Value，但正文只读，不等于只能调用一次。",
+      "expected": {
+        "entry": "check",
+        "return_value": 62,
+        "capture": "move(token)",
+        "call_kind": "Fn",
+        "address_lifetime": "bounded by counter; no escape"
+      },
+      "status": "NotRun",
+      "source_sha256": "1433c6991efc7d7188c06cf9d2fb1334989daf39aee077ec9bbf4f1e3ce16293"
+    },
+    {
+      "id": "CL07",
+      "path": "conformance/cases/closure/CL07-consume-environment-twice.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CLOSURE-ALREADY-CONSUMED",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "移出环境字段的闭包不能再次调用。",
+      "expected": {
+        "error_line": 15,
+        "reason": "第一次调用已消费 consume 环境中的 token。"
+      },
+      "status": "NotRun",
+      "source_sha256": "8214d9e7e5a483f2b87c7b6a52b970c163db87398273bcc1f79a75f808068818"
+    },
+    {
+      "id": "CL08",
+      "path": "conformance/cases/closure/CL08-mutable-capture-var-repeats.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "默认可变捕获使用 FnMut；var 闭包可连续调用，最后使用后外部绑定恢复。",
+      "expected": {
+        "entry": "check",
+        "return_value": 122,
+        "capture": "exclusive_reborrow(count)",
+        "call_kind": "FnMut"
+      },
+      "status": "NotRun",
+      "source_sha256": "067c868b5cb351c536bab7aed914cd321ecdc633e5f2024cd51da2429bf14cfa"
+    },
+    {
+      "id": "CL09",
+      "path": "conformance/cases/closure/CL09-mutable-capture-let-call.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CALL-MUTABLE-BINDING",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "需要独占环境的 FnMut 闭包不能通过 let 绑定调用。",
+      "expected": {
+        "error_line": 7,
+        "reason": "next 的调用需要可写环境绑定；应声明 var next。"
+      },
+      "status": "NotRun",
+      "source_sha256": "2f7a5a611d1d259cb3038f79350e54e8092437f9228d6a5b01277d0bdb7eaf98"
+    },
+    {
+      "id": "CL10",
+      "path": "conformance/cases/closure/CL10-disjoint-value-fields.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "直接 Value 字段精确捕获，允许写不相交字段。",
+      "expected": {
+        "entry": "check",
+        "return_value": 38,
+        "capture": "shared_borrow(pair.left)",
+        "not_captured": [
+          "pair.right"
+        ]
+      },
+      "status": "NotRun",
+      "source_sha256": "4b00b6d232b3e0fef45a6936ed35f255ae803c15bfcf6ce264f753384c2c8459"
+    },
+    {
+      "id": "CL11",
+      "path": "conformance/cases/closure/CL11-same-value-field-conflict.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-LOAN-CONFLICT",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "精确捕获不能放行对同一字段的相交写入。",
+      "expected": {
+        "error_line": 8,
+        "reason": "read 尚需 pair.left 的共享窗口。"
+      },
+      "status": "NotRun",
+      "source_sha256": "1622f329e44d3283db70f124193fd9e179bd8dd255721330c1e6c493ecf01f4f"
+    },
+    {
+      "id": "CL12",
+      "path": "conformance/cases/closure/CL12-desc-write-shared-environment.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS",
+        "ZIL-CONTRACT"
+      ],
+      "acceptance": [
+        "V06",
+        "V03"
+      ],
+      "owner": "T08",
+      "description": "复制 Desc 后写外部目标不改写环境；Fn 仍必须携带实际写入合同。",
+      "expected": {
+        "entry": "check",
+        "input_contract": "node is live, initialized and writable for both sequential calls",
+        "capture": "describe(node)",
+        "call_kind": "Fn",
+        "call_effects": [
+          "write(node.value)"
+        ],
+        "hold_address_window": false
+      },
+      "status": "NotRun",
+      "source_sha256": "bb4746090dbaf5e84a925baa432ff74e59a15b09976a32df292fe6cd37c5a45e"
+    },
+    {
+      "id": "CL13",
+      "path": "conformance/cases/closure/CL13-empty-capture-function-pointer.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "无捕获闭包可转换为同形 fn 函数指针。",
+      "expected": {
+        "entry": "check",
+        "return_value": 42,
+        "representation": "function_pointer_without_environment"
+      },
+      "status": "NotRun",
+      "source_sha256": "6272358151e6641b78ef217ee17e25ed8170eb682d1d6909e14a362f32bf131c"
+    },
+    {
+      "id": "CL14",
+      "path": "conformance/cases/closure/CL14-capturing-function-pointer-rejected.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-CAPTURED-FN-POINTER",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "有捕获闭包不能隐式擦除环境成为 fn 指针。",
+      "expected": {
+        "error_line": 3,
+        "reason": "add 捕获 offset；禁止丢弃环境或自动装箱适配。"
+      },
+      "status": "NotRun",
+      "source_sha256": "265164b7446fb067ed4a08f2fa5e1d0e4e57e1ab8765a9cd59897aa2849e0ab8"
+    },
+    {
+      "id": "CL15",
+      "path": "conformance/cases/closure/CL15-opaque-owned-return.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-TRAIT"
+      ],
+      "acceptance": [
+        "V06",
+        "V10"
+      ],
+      "owner": "T08",
+      "description": "受限返回 opaque 保留唯一具体闭包类型与静态布局。",
+      "expected": {
+        "entry": "check",
+        "return_value": 42,
+        "hidden_type_count": 1,
+        "required_heap_allocations": 0,
+        "capture": "copy(value)",
+        "exported_contracts": [
+          "Hold",
+          "Call",
+          "Cleanup",
+          "Resume"
+        ]
+      },
+      "status": "NotRun",
+      "source_sha256": "554294396c60f1c758df3999cc90470a8b3202cb9e0501ee441e9da321a15156"
+    },
+    {
+      "id": "CL16",
+      "path": "conformance/cases/closure/CL16-opaque-return-local-borrow.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-ESCAPE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ORIGIN"
+      ],
+      "acceptance": [
+        "V06",
+        "V02"
+      ],
+      "owner": "T08",
+      "description": "opaque 返回不能隐藏对函数局部值的默认借用捕获。",
+      "expected": {
+        "error_line": 3,
+        "reason": "返回环境借用 make 的局部 value；opaque 不擦除 Hold。"
+      },
+      "status": "NotRun",
+      "source_sha256": "cc00c57f9d4e9ee13fc1e00e14a72f8072a3100875ac14a74ecaf763b167d4de"
+    },
+    {
+      "id": "CL17",
+      "path": "conformance/cases/closure/CL17-move-address-not-lifetime-extension.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-ESCAPE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "move 捕获地址保留 Address 边界，不读成快照，也不延长所指对象寿命。",
+      "expected": {
+        "error_line": 7,
+        "capture": "copy(address), not copy(counter.value)",
+        "reason": "地址仍借自 make 的局部 counter。"
+      },
+      "status": "NotRun",
+      "source_sha256": "72081c932ecfdccb3050fe4617eec7427f522dbbf4291dd493844466f3e48763"
+    },
+    {
+      "id": "CL18",
+      "path": "conformance/cases/closure/CL18-opaque-distinct-return-types.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-OPAQUE-RETURN-TYPE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-TRAIT"
+      ],
+      "acceptance": [
+        "V06",
+        "V10"
+      ],
+      "owner": "T08",
+      "description": "同一 opaque 返回槽不能自动合并不同闭包表达式的具体类型。",
+      "expected": {
+        "error_line": 7,
+        "reason": "两个 return 对应两个捕获闭包具体类型；禁止隐式 sum/dyn/Box。"
+      },
+      "status": "NotRun",
+      "source_sha256": "054c772a816994ad93d772da8af908c301626acc2b77ebda8967994a59f49a39"
+    },
+    {
+      "id": "CL19",
+      "path": "conformance/cases/closure/CL19-exclusive-address-reborrow-ends.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "对已有 &mut 的默认捕获建立重借；最后使用后恢复父窗口。",
+      "expected": {
+        "entry": "check",
+        "return_value": 25,
+        "capture": "exclusive_reborrow(address referent)",
+        "parent_window": "paused until last next use; restored before address.value += 3",
+        "call_kind": "FnMut"
+      },
+      "status": "NotRun",
+      "source_sha256": "45a0fb56d99a2e47cc0386b2c65a23c42460ea2466a296d838343ff300bb94f5"
+    },
+    {
+      "id": "CL20",
+      "path": "conformance/cases/closure/CL20-exclusive-address-parent-conflict.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-PARENT-WINDOW",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "闭包仍将使用独占重借时，父 &mut 不能执行相交操作。",
+      "expected": {
+        "error_line": 11,
+        "reason": "next 的独占重借尚未结束，父 address 的相交访问暂停。"
+      },
+      "status": "NotRun",
+      "source_sha256": "1fa8f9b82b59ded247c9678e96e637e8ddff01ef7e22bae8a2aaa379cd213e79"
+    },
+    {
+      "id": "CL21",
+      "path": "conformance/cases/closure/CL21-uncalled-owned-environment-cleanup.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ],
+      "acceptance": [
+        "V01",
+        "V06",
+        "V13"
+      ],
+      "owner": "T08",
+      "description": "真实 Managed 转交闭包后即使从未调用，离域仍结算环境责任一次。",
+      "expected": {
+        "entry": "check",
+        "return_value": 0,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "capture": "give(actual carrier file) into environment",
+        "event_counts": {
+          "create": 1,
+          "read": 0,
+          "take": 0,
+          "close": 1
+        },
+        "responsibility_balance": 0
+      },
+      "status": "NotRun",
+      "source_sha256": "225a63840b39ee62d0a5b890f1705d8de92480f02c03af96d8e8154771e2b6aa"
+    },
+    {
+      "id": "CL22",
+      "path": "conformance/cases/closure/CL22-move-desc-does-not-own.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-ESCAPE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES",
+        "ZIL-ORIGIN"
+      ],
+      "acceptance": [
+        "V01",
+        "V06",
+        "V02"
+      ],
+      "owner": "T08",
+      "description": "move 复制 Desc 别名不会取得局部资源的实际清理责任。",
+      "expected": {
+        "error_line": 5,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "capture": "describe(alias)",
+        "reason": "file 的责任未随返回值转交，alias 不可在 file 清理后调用。"
+      },
+      "status": "NotRun",
+      "source_sha256": "76d52e5cf12cc9a3274df5e6d7520fafde5af2c1d84534476f1a15c6258c266d"
+    },
+    {
+      "id": "CL23",
+      "path": "conformance/cases/closure/CL23-body-give-infers-managed-capture.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ],
+      "acceptance": [
+        "V01",
+        "V06",
+        "V13"
+      ],
+      "owner": "T08",
+      "description": "正文 give 明示责任消费，默认闭包在创建时接管真实载体，可从工厂返回。",
+      "expected": {
+        "entry": "check",
+        "return_value": 17,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "capture": "give(actual carrier file) at closure creation",
+        "call_kind": "FnOnce",
+        "event_counts": {
+          "create": 1,
+          "read": 0,
+          "take": 1,
+          "close": 1
+        },
+        "responsibility_balance": 0
+      },
+      "status": "NotRun",
+      "source_sha256": "64872a110ac14532f905362eb57f66a2c802dfd7936d5d153b5e58f0a2092c8e"
+    },
+    {
+      "id": "CL24",
+      "path": "conformance/cases/closure/CL24-give-desc-rejected.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-GIVE-DESCRIPTOR",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "正文 give Desc 不能反向取得它所指资源的真实载体。",
+      "expected": {
+        "error_line": 5,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "reason": "alias 是 Desc，give 要求实际 Managed 载体。"
+      },
+      "status": "NotRun",
+      "source_sha256": "9fd04a79e9267459f36e04963c0efd715b61bf43dfb8ae998914dad8e68728ce"
+    },
+    {
+      "id": "CL25",
+      "path": "conformance/cases/closure/CL25-owned-close-is-not-shared-call.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CLOSURE-CALL-KIND",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-CLEANUP"
+      ],
+      "acceptance": [
+        "V06",
+        "V13"
+      ],
+      "owner": "T08",
+      "description": "关闭环境实际拥有的 Managed 需消费环境，不能通过 Fn 共享环境写 cleanup flag。",
+      "expected": {
+        "error_line": 8,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "inferred_call_kind": "FnOnce",
+        "required_call_kind": "Fn",
+        "reason": "关闭 env.file 将履行其直接持有的清理责任并更新环境记录。"
+      },
+      "status": "NotRun",
+      "source_sha256": "be7a1a409be42c8e0bbd1c4148a3bd51eebc0f1074f003eb89d6d9ccf6195cce"
+    },
+    {
+      "id": "CL26",
+      "path": "conformance/cases/closure/CL26-external-close-second-call-state.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CALL-PROTOCOL-STATE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-CONTRACT",
+        "ZIL-ROUTE"
+      ],
+      "acceptance": [
+        "V06",
+        "V03",
+        "V04"
+      ],
+      "owner": "T08",
+      "description": "外部 Desc 关闭可保持共享环境，但 Live→Done 合同禁止第二次关闭。",
+      "expected": {
+        "error_line": 7,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "call_kind": "Fn",
+        "capture": "Desc alias plus external management route",
+        "reason": "第一次调用令外部资源为 Done，第二次不满足 Live 前提。"
+      },
+      "status": "NotRun",
+      "source_sha256": "7753a68172ed6815ee02bcb6ba8cd13cd93513f39648e1877121aabd30151950"
+    },
+    {
+      "id": "CL27",
+      "path": "conformance/cases/closure/CL27-short-move-tail.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06",
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "裸单参move闭包与尾值沿真实调用得到固定签名。",
+      "expected": {
+        "entry": "check",
+        "return_value": 42
+      },
+      "status": "NotRun",
+      "source_sha256": "c4627065549553cba67db2eba5ba27ce86b3d05d76d9e87c91544d7fece3ddd2"
+    },
+    {
+      "id": "CL28",
+      "path": "conformance/cases/closure/CL28-legacy-callable-tuple.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-CALLABLE-SYNTAX",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06",
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "旧Fn协议元组源面给稳定迁移诊断。",
+      "expected": {
+        "error_line": 1,
+        "replacement": "Fn(i32) -> i32"
+      },
+      "status": "NotRun",
+      "source_sha256": "1e299ac3c0676fc1c525f96b3c39eeb1b2106e6ea6d471cd7f23688ab08ff651"
+    },
+    {
+      "id": "CL29",
+      "path": "conformance/cases/closure/CL29-explicit-result.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06",
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "显式闭包返回注记必须通过类型核验，不得在展开中丢弃。",
+      "expected": {
+        "entry": "check",
+        "return_value": 42
+      },
+      "status": "NotRun",
+      "source_sha256": "02c500e7770b95c7246c604b761f8f5d2bbb24e812c8b7e476d9aac6ffb9f8f7"
+    },
+    {
+      "id": "CL30",
+      "path": "conformance/cases/closure/CL30-tail-if-branches.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06",
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "闭包末尾if两支的值汇合为返回，分支局部作用域保持。",
+      "expected": {
+        "entry": "check",
+        "return_value": 7
+      },
+      "status": "NotRun",
+      "source_sha256": "39d1742a47681185d67f2dab9fe7bbeb0693da6f10eae6053b51cea84c5ab4e9"
+    },
+    {
+      "id": "CL31",
+      "path": "conformance/cases/closure/CL31-unconstrained-signature.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-CLOSURE-INFERENCE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06",
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "参数与结果没有唯一类型约束，不任选一个签名放行。",
+      "expected": {
+        "error_line": 2,
+        "reason": "No annotation, resolved expected signature, body scalar constraint or local call fixes the parameter/result type."
+      },
+      "status": "NotRun",
+      "source_sha256": "3ad0db2d513d54ee7bfc8883d406453bf00260d6ffa50ad6449458b924fa3dfe"
+    },
+    {
+      "id": "RX01",
+      "path": "conformance/cases/receiver/rx01-group-shared-default.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "组默认补入共享地址接收者，隐式成员绑定同一 self。",
+      "expected": {
+        "normalized_signature": "Point.sum(self: &Point) -> i32",
+        "receiver_source": "impl_default",
+        "member_bindings": {
+          ".x": "Point.sum.self.x",
+          ".y": "Point.sum.self.y"
+        }
+      },
+      "status": "NotRun",
+      "source_sha256": "625b5e9a586b5a27410c36fa32290a84025b69d87eb146aad73c1862b5554757"
+    },
+    {
+      "id": "RX02",
+      "path": "conformance/cases/receiver/rx02-explicit-mut-override.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "方法显式独占地址接收者覆盖组默认，可在可写实例上修改字段。",
+      "expected": {
+        "normalized_signature": "Point.shift(self: &mut Point, dx: i32) -> void",
+        "receiver_source": "method_explicit",
+        "writes": [
+          "self.x"
+        ],
+        "exercise_return_if_executed": 4
+      },
+      "status": "NotRun",
+      "source_sha256": "2a9bbbb4d96ed54b6ae6cdc4fdc458f7751d64a8cafac5f0572f38b4a027374d"
+    },
+    {
+      "id": "RX03",
+      "path": "conformance/cases/receiver/rx03-explicit-value-override.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "方法显式按值接收者覆盖组默认，其类别不由正文决定。",
+      "expected": {
+        "normalized_signature": "Point.sum_value(self: Point) -> i32",
+        "receiver_source": "method_explicit",
+        "receiver_mode": "value"
+      },
+      "status": "NotRun",
+      "source_sha256": "330649a7ac1db451fe1c6ac362fd412922c6cffa434412b7af9ea02f4d3a7309"
+    },
+    {
+      "id": "RX04",
+      "path": "conformance/cases/receiver/rx04-plain-impl-static.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "普通 impl 的无 self 函数是静态关联函数。",
+      "expected": {
+        "normalized_signature": "Point.origin() -> Point",
+        "has_receiver": false,
+        "qualified_call": "Point.origin()"
+      },
+      "status": "NotRun",
+      "source_sha256": "332f620553c82fe87fe8e75ed7bcb9da4da81ace67cb50f71e5841763723f019"
+    },
+    {
+      "id": "RX05",
+      "path": "conformance/cases/receiver/rx05-static-implicit-receiver.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-NONE",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "静态关联函数使用隐式成员时拒绝，不因正文自动获得接收者。",
+      "expected": {
+        "reason": "no_lexical_receiver",
+        "offending_expression": ".x",
+        "must_not_infer_instance_method_from_body": true
+      },
+      "status": "NotRun",
+      "source_sha256": "9d078a16ab55edeb8350ef6491b790f328c9fb19f48bf25d1273d39465e9a783"
+    },
+    {
+      "id": "RX06",
+      "path": "conformance/cases/receiver/rx06-unused-default-stays-instance.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "有组默认的方法即使不使用 self 也保持实例签名。",
+      "expected": {
+        "normalized_signature": "Point.constant(self: &Point) -> i32",
+        "has_receiver": true,
+        "body_use_affects_receiver": false
+      },
+      "status": "NotRun",
+      "source_sha256": "ea5cb61e79c470c05e95256236aa7775111a1a43575378b8869afa8576f624c1"
+    },
+    {
+      "id": "RX07",
+      "path": "conformance/cases/receiver/rx07-shared-receiver-write.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-RECEIVER-SHARED-WRITE",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "共享地址接收者不能因省写 self 而获得写权限。",
+      "expected": {
+        "reason": "write_through_shared_address",
+        "offending_expression": ".x = 1",
+        "receiver_type": "&Point"
+      },
+      "status": "NotRun",
+      "source_sha256": "33b1301c0f94bc20a385ad216e2116c9aabd23d272f924f8ff245654bad40cce"
+    },
+    {
+      "id": "RX08",
+      "path": "conformance/cases/receiver/rx08-plain-impl-explicit-receiver.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "没有组默认时仍可显式声明接收者并使用隐式成员。",
+      "expected": {
+        "normalized_signature": "Point.read(self: &Point) -> i32",
+        "receiver_source": "method_explicit",
+        "member_bindings": {
+          ".x": "Point.read.self.x"
+        }
+      },
+      "status": "NotRun",
+      "source_sha256": "87300c748a694309ec691af5cd0728571a89d4e244f00cf2e8e584b1ba48f986"
+    },
+    {
+      "id": "RX09",
+      "path": "conformance/cases/receiver/rx09-trait-inherits-receiver.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T02",
+      "description": "trait 实现省略 receiver 时从既定方法签名补入。",
+      "expected": {
+        "normalized_signature": "Measure.length(self: &Point) -> usize",
+        "receiver_source": "trait_signature",
+        "trait_receiver_mode_preserved": true
+      },
+      "status": "NotRun",
+      "source_sha256": "70d5d9db5e875d670db99a1b8512f72b6f5aafb38b432e8a412974b779ff5d88"
+    },
+    {
+      "id": "RX10",
+      "path": "conformance/cases/receiver/rx10-trait-explicit-match.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T02",
+      "description": "trait 实现可显式重复与接口一致的 receiver。",
+      "expected": {
+        "normalized_signature": "Measure.length(self: &Point) -> usize",
+        "receiver_source": "method_explicit",
+        "trait_signature_matches": true
+      },
+      "status": "NotRun",
+      "source_sha256": "726b634f1d28505a6975fe872eee6fcae5aea376a4471672b415731959f7bfcf"
+    },
+    {
+      "id": "RX11",
+      "path": "conformance/cases/receiver/rx11-trait-receiver-mismatch.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-TRAIT-MISMATCH",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T02",
+      "description": "trait 的共享接收者不得在实现中改成更强的独占接收者。",
+      "expected": {
+        "reason": "trait_receiver_mode_mismatch",
+        "required_receiver": "&Point",
+        "provided_receiver": "&mut Point",
+        "must_not_retry_other_impl": true
+      },
+      "status": "NotRun",
+      "source_sha256": "cf312d347f331294ca7a6d582a2b46f36012b01634a3092fead43dc9f6e948a5"
+    },
+    {
+      "id": "RX12",
+      "path": "conformance/cases/receiver/rx12-trait-group-default.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-TRAIT-RECEIVER-DEFAULT",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T01",
+      "description": "trait impl 禁止附带组默认接收者。",
+      "expected": {
+        "reason": "receiver_default_only_on_inherent_impl",
+        "offending_tokens": "impl Measure for Point(self: &Self)"
+      },
+      "status": "NotRun",
+      "source_sha256": "b8f7576347ffdedf40887e7ca33ed2bcf94889b9e132b669d0c2e11322765156"
+    },
+    {
+      "id": "RX13",
+      "path": "conformance/cases/receiver/rx13-trait-static-stays-static.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T02",
+      "description": "trait 静态函数在实现中不会自动补入 self。",
+      "expected": {
+        "normalized_signature": "Zero.zero() -> i32",
+        "has_receiver": false,
+        "receiver_source": "trait_signature"
+      },
+      "status": "NotRun",
+      "source_sha256": "48dd1f76e3800d8fe01c376cb1244af8f32cefc9d1eed323786f3fe0f8a2a09b"
+    },
+    {
+      "id": "RX14",
+      "path": "conformance/cases/receiver/rx14-trait-static-implicit-member.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-NONE",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T02",
+      "description": "trait 静态函数中使用隐式成员时拒绝。",
+      "expected": {
+        "reason": "no_lexical_receiver",
+        "offending_expression": ".x",
+        "trait_method_is_static": true
+      },
+      "status": "NotRun",
+      "source_sha256": "153f2974b6bcb7c7bd2a6103954393729e3a1f6817b1ab8e2e965c6c3640c4f7"
+    },
+    {
+      "id": "RX15",
+      "path": "conformance/cases/receiver/rx15-arrow-lexical-equivalence.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "箭头闭包中的 .x 与 self.x 产生等价的词法绑定与捕获。",
+      "expected": {
+        "alpha_equivalent_methods": [
+          "Point.implicit",
+          "Point.explicit"
+        ],
+        "equivalence_covers": [
+          "receiver_binding",
+          "capture_places",
+          "origin_flow",
+          "Hold",
+          "Call",
+          "Cleanup",
+          "Resume"
+        ],
+        "receiver_rebound_at_call": false
+      },
+      "status": "NotRun",
+      "source_sha256": "27d08d3357e219732ca05dd01c63318edd58e9e3a79eb1799447c597e2bda8e8"
+    },
+    {
+      "id": "RX16",
+      "path": "conformance/cases/receiver/rx16-nested-arrow-lexical.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "嵌套箭头闭包继续引用同一个词法接收者。",
+      "expected": {
+        "implicit_member_target": "Point.nested.self.x",
+        "receiver_rebound_at_call": false,
+        "all_nested_environment_dependencies_checked": true
+      },
+      "status": "NotRun",
+      "source_sha256": "45bc6c4aa46be9336a352fc19f0ce6f00117c10410925fe82cd64c00a6d00013"
+    },
+    {
+      "id": "RX17",
+      "path": "conformance/cases/receiver/rx17-ordinary-name-not-receiver.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "同名普通局部或参数不改变隐式成员的 receiver 绑定。",
+      "expected": {
+        "member_binding": "Point.add_local.self.x",
+        "bare_x_in_arrow": "arrow_parameter_x",
+        "outer_x": "local_x",
+        "distinct_bindings": true
+      },
+      "status": "NotRun",
+      "source_sha256": "37343136ca10cd6073a95809181c3ae088cc162c6e17cfb2587e9a792436eedb"
+    },
+    {
+      "id": "RX18",
+      "path": "conformance/cases/receiver/rx18-local-self-shadow.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-RESERVED-NAME",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "禁止局部绑定占用保留接收者名字 self。",
+      "expected": {
+        "reason": "reserved_receiver_name",
+        "offending_binding": "let self = 1"
+      },
+      "status": "NotRun",
+      "source_sha256": "0c8afa69428a0bad64bde77ad3386e1194c69eb5e12d076410e152ad14e5a79d"
+    },
+    {
+      "id": "RX19",
+      "path": "conformance/cases/receiver/rx19-arrow-self-shadow.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-RESERVED-NAME",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "禁止箭头闭包参数遮蔽保留接收者名字 self。",
+      "expected": {
+        "reason": "reserved_receiver_name",
+        "offending_binding": "closure_parameter_self"
+      },
+      "status": "NotRun",
+      "source_sha256": "cdf52b990d96aef9c86576ffe384c61fa5a3570de531f466315f1400ad188b78"
+    },
+    {
+      "id": "RX20",
+      "path": "conformance/cases/receiver/rx20-nested-named-function.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-NESTED-NAMED-FN",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "块内普通具名 fn 不属于语法，不能将其隐式改成捕获闭包。",
+      "expected": {
+        "reason": "named_function_not_allowed_as_block_statement",
+        "offending_tokens": "fn inner",
+        "must_not_rewrite_as_closure": true
+      },
+      "status": "NotRun",
+      "source_sha256": "395050500952328dc1427411e490ecd75cc18d293db74be6099ab09b502ef024"
+    },
+    {
+      "id": "RX21",
+      "path": "conformance/cases/receiver/rx21-unbound-method-function.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "Type.method 是仍带 receiver 首参数的无绑定函数值。",
+      "expected": {
+        "expression": "Point.read",
+        "function_type": "fn(&Point) -> i32",
+        "bound_receiver_environment": false
+      },
+      "status": "NotRun",
+      "source_sha256": "ad0228fc8aa838b3b4036dc4a979c506f4854607c450705c2ff64cff3fa01362"
+    },
+    {
+      "id": "RX22",
+      "path": "conformance/cases/receiver/rx22-instance-method-value.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-METHOD-VALUE",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "实例方法成员不能直接作为已绑定回调取值。",
+      "expected": {
+        "reason": "implicit_bound_method_value_not_supported",
+        "offending_expression": "p.read",
+        "suggestion": "() => p.read()"
+      },
+      "status": "NotRun",
+      "source_sha256": "19428f136299a94cb035b7783c46f784ba1d767cd31d1b4a0c5e52dbf73208df"
+    },
+    {
+      "id": "RX23",
+      "path": "conformance/cases/receiver/rx23-implicit-method-value.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-METHOD-VALUE",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "隐式 receiver 的方法成员取值与 obj.method 同样拒绝。",
+      "expected": {
+        "reason": "implicit_bound_method_value_not_supported",
+        "offending_expression": ".read",
+        "suggestion": "() => .read()"
+      },
+      "status": "NotRun",
+      "source_sha256": "0752b6ef3413e180a5e859855a2df4830d9dc691d84144e23584653ce138ca07"
+    },
+    {
+      "id": "RX24",
+      "path": "conformance/cases/receiver/rx24-explicit-callback-lambda.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "显式箭头闭包可构造方法回调，捕获与依赖经过统一检查。",
+      "expected": {
+        "callback_is": "ordinary_closure",
+        "call_target": "Point.read",
+        "receiver_origin": "p",
+        "all_environment_contracts_checked": true
+      },
+      "status": "NotRun",
+      "source_sha256": "bbfb766c19a0581e1b790e1753d75a1f320bbc8166633cf3cfd887fd3e183b4b"
+    },
+    {
+      "id": "RX25",
+      "path": "conformance/cases/receiver/rx25-uppercase-member.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "大写 Center 若确为 receiver 字段，仍可用隐式成员访问。",
+      "expected": {
+        "expression": ".Center",
+        "resolved_member": "Holder.Center",
+        "enum_inference": false
+      },
+      "status": "NotRun",
+      "source_sha256": "9ed6cb8f2cc66eb6d3af75cb59aa22b3f28fa60e521980e5579df4a947a5a1fc"
+    },
+    {
+      "id": "RX26",
+      "path": "conformance/cases/receiver/rx26-no-enum-fallback.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-MEMBER-NOT-FOUND",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "期望枚举类型不能让缺失 receiver 成员 .Center 回退成枚举标签。",
+      "expected": {
+        "reason": "receiver_member_not_found",
+        "receiver_type": "Point",
+        "missing_member": "Center",
+        "must_not_resolve_to": "Alignment.Center"
+      },
+      "status": "NotRun",
+      "source_sha256": "3c4396958eefc5da98e03abc4eca98060e008d6a427f6c053a9bcb9999bf88da"
+    },
+    {
+      "id": "RX27",
+      "path": "conformance/cases/receiver/rx27-callable-field-value.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "真实函数字段可正常取值，不能误判为方法绑定。",
+      "expected": {
+        "expression": ".callback",
+        "resolved_kind": "field",
+        "field_type": "fn(i32) -> i32",
+        "exercise_return_if_executed": 6
+      },
+      "status": "NotRun",
+      "source_sha256": "aa36e00ccb753b34a9357ddfe793951f2643164a45e62c1b602d6d224dda110e"
+    },
+    {
+      "id": "RX28",
+      "path": "conformance/cases/receiver/rx28-move-keeps-address-category.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "move 闭包使用地址接收者时仍保留真实地址依赖，不获得目标责任。",
+      "expected": {
+        "capture": [
+          {
+            "source": "self",
+            "category": "Address",
+            "mode": "by_value",
+            "truncated_at": "address_dereference"
+          }
+        ],
+        "hold": [
+          {
+            "origin": "self",
+            "kind": "address_window",
+            "bounded_by": "input_address_lifetime"
+          }
+        ],
+        "call": {
+          "reads": [
+            "self.x"
+          ],
+          "field_snapshot_at_closure_creation": false
+        },
+        "owns_target_responsibility": false,
+        "extends_target_lifetime": false
+      },
+      "status": "NotRun",
+      "source_sha256": "56b88764b89d149961f91c8fdc054954aa8558db2db23b1eff64b643e12338f4"
+    },
+    {
+      "id": "RC01",
+      "path": "conformance/cases/record/RC01.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "期望名义类型构造",
+      "expected": {
+        "exit_code": 3
+      },
+      "status": "NotRun",
+      "source_sha256": "7eb3d2bf33f52da8f498aed2a236a4644a62a5d6c6e26030d62d180f68f1808d"
+    },
+    {
+      "id": "RC02",
+      "path": "conformance/cases/record/RC02.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "Copy更新保留原记录",
+      "expected": {
+        "exit_code": 14
+      },
+      "status": "NotRun",
+      "source_sha256": "77e05dd5d8c321594b79fa8367dec37393d26c17dd9db460dd4109382ce58b74"
+    },
+    {
+      "id": "RC03",
+      "path": "conformance/cases/record/RC03.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "不可Copy记录整体移出到新记录",
+      "expected": {
+        "base_mode": "Move",
+        "target_transferred_once": true,
+        "hidden_clone": false
+      },
+      "status": "NotRun",
+      "source_sha256": "e44971780b49e5098835ce650983aa1257cdaf7cb5a2c2f0d5a6ef12917ce5db"
+    },
+    {
+      "id": "RC04",
+      "path": "conformance/cases/record/RC04.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-USE-AFTER-MOVE",
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "更新后不得读取已移动的base",
+      "expected": {
+        "reason": "value was moved into update temporary"
+      },
+      "status": "NotRun",
+      "source_sha256": "7627b26dfda58162108d41f9af4414878c1eb55cc207d924f2ee3bfec00853a5"
+    },
+    {
+      "id": "RC05",
+      "path": "conformance/cases/record/RC05.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECORD-SPREAD-CARRIER",
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "package不能用spread隐式拆责任",
+      "expected": {
+        "reason": "spread requires plain struct without whole teardown"
+      },
+      "status": "NotRun",
+      "source_sha256": "c43804755db1a55f90aa1df426148604f06fa2ac71c6557376abbd5b3deb4587"
+    },
+    {
+      "id": "RC06",
+      "path": "conformance/cases/record/RC06.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECORD-DUPLICATE-FIELD",
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "重复字段拒绝",
+      "expected": {
+        "field": "x"
+      },
+      "status": "NotRun",
+      "source_sha256": "082878aafd5182db105337919094c2c45220fbf6dd00bff93b6ed04b6e994d73"
+    },
+    {
+      "id": "RC07",
+      "path": "conformance/cases/record/RC07.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECORD-UNKNOWN-FIELD",
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "未知字段拒绝",
+      "expected": {
+        "field": "z"
+      },
+      "status": "NotRun",
+      "source_sha256": "13a5d4e46c7287d882f6f0c3196e2ea1f314b3502dd5edabc39c61578c735eba"
+    },
+    {
+      "id": "RC08",
+      "path": "conformance/cases/record/RC08.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECORD-NO-CONTEXT",
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "无期望类型不生成匿名结构",
+      "expected": {
+        "reason": "contextual record lacks a unique nominal type"
+      },
+      "status": "NotRun",
+      "source_sha256": "f4964858bdf2111be3e59d061b705247a41181ff891a4c4fec1db55746a89a8a"
+    },
+    {
+      "id": "RC09",
+      "path": "conformance/cases/record/RC09.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "base先于覆盖字段且各求值一次",
+      "expected": {
+        "exit_code": 123,
+        "trace": [
+          1,
+          2,
+          3
+        ]
+      },
+      "status": "NotRun",
+      "source_sha256": "367600a2ccd380ac23c46b76985b6a8f74fd51687f198b9e901b50f461301347"
+    },
+    {
+      "id": "RC10",
+      "path": "conformance/cases/record/RC10.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "箭头体用括号返回记录",
+      "expected": {
+        "exit_code": 2
+      },
+      "status": "NotRun",
+      "source_sha256": "31a15cd16c3d466e33659d298d59865cab0fe6c99d2795ec36e6a60da693f743"
+    },
+    {
+      "id": "RC11",
+      "path": "conformance/cases/record/RC11.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-RECORD-BLOCK",
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "箭头后裸大括号始终是块",
+      "expected": {
+        "reason": "record in arrow body must be parenthesized"
+      },
+      "status": "NotRun",
+      "source_sha256": "1385722f94db2fff435210df65abadfca5f209f7be371b4094e9090bd89d323a"
+    },
+    {
+      "id": "RC12",
+      "path": "conformance/cases/record/RC12.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-SPREAD-POSITION",
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "spread只能在第一项",
+      "expected": {
+        "reason": "spread must precede explicit fields"
+      },
+      "status": "NotRun",
+      "source_sha256": "46ee289ee543cc018d74f1669d8af122ad61c85e9629a5bd53a36717f52bcf62"
+    },
+    {
+      "id": "RC13",
+      "path": "conformance/cases/record/RC13.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECORD-BASE-TYPE",
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "更新不改变名义类型",
+      "expected": {
+        "reason": "nominal source and target differ"
+      },
+      "status": "NotRun",
+      "source_sha256": "b57da198f573f9f66b7213f0877eafe319310f0e5275a8de027a323f5dc81314"
+    },
+    {
+      "id": "RC14",
+      "path": "conformance/cases/record/RC14.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECORD-MISSING-FIELD",
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "缺少必需字段拒绝",
+      "expected": {
+        "field": "y"
+      },
+      "status": "NotRun",
+      "source_sha256": "1c83b0a10f5b3ae8efe55a3577e360b7c8078bf856142d1cf57507b930eb3cd3"
+    },
+    {
+      "id": "RC15",
+      "path": "conformance/cases/record/RC15-point-record.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECORD"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "点记录入口复用期望名义类型，不额外创建匿名记录类型。",
+      "expected": {
+        "entry": "check",
+        "return_value": 42
+      },
+      "status": "NotRun",
+      "source_sha256": "8e63a2b65f97617a6b9c3858599f8d4285019ac726b82d486f36ab04437a01f4"
+    },
+    {
+      "id": "PP01",
+      "path": "conformance/cases/pipe/PP01.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "一元管道左结合",
+      "expected": {
+        "exit_code": 4
+      },
+      "status": "NotRun",
+      "source_sha256": "ca7653dad219f79e1958b86cfdd36e6b5cb5b51fceee85d52152624b72ce5bc6"
+    },
+    {
+      "id": "PP02",
+      "path": "conformance/cases/pipe/PP02.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "左操作数早于右callable表达式",
+      "expected": {
+        "exit_code": 12,
+        "source_evaluations": 1,
+        "target_evaluations": 1
+      },
+      "status": "NotRun",
+      "source_sha256": "29a665e2c70b829cbffee848f40e58c1bd9656ddc949b87bcc6f3b83e1b6c044"
+    },
+    {
+      "id": "PP03",
+      "path": "conformance/cases/pipe/PP03.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-CALL-ARITY",
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "不向已有调用自动插参",
+      "expected": {
+        "reason": "add(2) lacks its second explicit argument"
+      },
+      "status": "NotRun",
+      "source_sha256": "f66d8576a039f9fe785a08cb30cc06207d9e205dccc58976f5304f05366c37ff"
+    },
+    {
+      "id": "PP04",
+      "path": "conformance/cases/pipe/PP04.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "f(a)若真实返回一元函数则可用",
+      "expected": {
+        "exit_code": 4
+      },
+      "status": "NotRun",
+      "source_sha256": "9e4a6c1dfbc553c82050e11f56e3fbee82b0ec049b12d5c0dda7d3cb46670a61"
+    },
+    {
+      "id": "PP05",
+      "path": "conformance/cases/pipe/PP05.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-PIPE-NOT-UNARY",
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "管道不会自动展开tuple",
+      "expected": {
+        "reason": "pipe supplies exactly one argument"
+      },
+      "status": "NotRun",
+      "source_sha256": "8c8748f2aed3c23ec298bb94beba6921abd354505c7181af453bdfd018bd4ee2"
+    },
+    {
+      "id": "PP06",
+      "path": "conformance/cases/pipe/PP06.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "tuple可作为单个实参",
+      "expected": {
+        "exit_code": 5
+      },
+      "status": "NotRun",
+      "source_sha256": "0db2b845c09ebc65d4deca5d32715d184063474936bfda5383fe4c357162ce19"
+    },
+    {
+      "id": "PP07",
+      "path": "conformance/cases/pipe/PP07.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "显式元组展开",
+      "expected": {
+        "exit_code": 5,
+        "spread_evaluations": 1
+      },
+      "status": "NotRun",
+      "source_sha256": "3ebbd63998f71fdbbc35792c60285797394a9dd99e67daaa38d945d71a773238"
+    },
+    {
+      "id": "PP08",
+      "path": "conformance/cases/pipe/PP08.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-SPREAD-NOT-TUPLE",
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "数组不按运行长度展开",
+      "expected": {
+        "reason": "only statically shaped tuples spread"
+      },
+      "status": "NotRun",
+      "source_sha256": "cabd681ae034ad507621fa9741720e4f4f0c2770ac4163d8cc5c8838a2113bad"
+    },
+    {
+      "id": "PP09",
+      "path": "conformance/cases/pipe/PP09.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "括号包裹匿名函数target",
+      "expected": {
+        "exit_code": 7
+      },
+      "status": "NotRun",
+      "source_sha256": "980bfcbebe33c0b606c3c9447ab945a5a469674ae1ba095ac230d9ee303e20b8"
+    },
+    {
+      "id": "PP10",
+      "path": "conformance/cases/pipe/PP10.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-PIPE-LAMBDA",
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "管道右侧裸lambda拒绝",
+      "expected": {
+        "reason": "parenthesize a lambda on pipe RHS"
+      },
+      "status": "NotRun",
+      "source_sha256": "b16c7cac5b08eedb99cbcc092e77e4e11a84b9ea7b71523e501b6a36863d2f35"
+    },
+    {
+      "id": "PP11",
+      "path": "conformance/cases/pipe/PP11.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "加法先于管道",
+      "expected": {
+        "exit_code": 6
+      },
+      "status": "NotRun",
+      "source_sha256": "753ba1acbac78bed08a416594bd71cebb4a8d755fe5e1ab15500ad3fd82d6661"
+    },
+    {
+      "id": "PP12",
+      "path": "conformance/cases/pipe/PP12.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-TYPE-ARGUMENT",
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "管道不隐式传播错误",
+      "expected": {
+        "reason": "error union is not i32"
+      },
+      "status": "NotRun",
+      "source_sha256": "ee81c7dbf203243ef6a3d226702f8425240586b8e2ec7fa16941ac24f6ca0b50"
+    },
+    {
+      "id": "PP13",
+      "path": "conformance/cases/pipe/PP13.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "显式括号问号传播错误",
+      "expected": {
+        "error_exit_propagates": true,
+        "call_count": 1
+      },
+      "status": "NotRun",
+      "source_sha256": "889df262b0f6e2e43f7813c2d9ebf1bcf27e9d7a2c3695c48a7b5d2b9e76f645"
+    },
+    {
+      "id": "PP14",
+      "path": "conformance/cases/pipe/PP14.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-TRY-NOT-ERROR",
+      "requirements": [
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "问号后缀仍绑定parse本身",
+      "expected": {
+        "reason": "function pointer itself is not an error union"
+      },
+      "status": "NotRun",
+      "source_sha256": "17901655e48476aa52470eeb297be64b472815d20ee6a3f7a1e925aef91532a8"
+    },
+    {
+      "id": "SC01",
+      "path": "conformance/cases/script/SC01.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T04",
+      "description": "Native显式main入口",
+      "expected": {
+        "exit_code": 0
+      },
+      "status": "NotRun",
+      "source_sha256": "28904433794788cfefa9cb3148c9b54dff824c38fe1d219bbabdcd1633984589"
+    },
+    {
+      "id": "SC02",
+      "path": "conformance/cases/script/SC02.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-MODULE-STATEMENT",
+      "requirements": [
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "模块顶层不执行let",
+      "expected": {
+        "reason": "module accepts declarations only"
+      },
+      "status": "NotRun",
+      "source_sha256": "6e3731881c5d02be188ecc5c949ffb2d00b649ad76f9fc1451d4a683e88a0e24"
+    },
+    {
+      "id": "SC03",
+      "path": "conformance/cases/script/SC03.zil",
+      "kind": "reject",
+      "phase": "expand",
+      "diagnostic": "E-NAME-DUPLICATE",
+      "requirements": [
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T04",
+      "description": "入口模块不能重复定义main",
+      "expected": {
+        "reason": "duplicate entry declaration"
+      },
+      "status": "NotRun",
+      "source_sha256": "e017073811c596141bded3328267665f5ae6774feffb455235d061838706745e"
+    },
+    {
+      "id": "SC04",
+      "path": "conformance/cases/script/SC04.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-ENTRY-SIGNATURE",
+      "requirements": [
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T04",
+      "description": "main签名须符合驱动入口合同",
+      "expected": {
+        "reason": "entry result must be void/i32 or supported error union"
+      },
+      "status": "NotRun",
+      "source_sha256": "4915bcc2ef44648c15baa1c66f997f5c313ac8bc0e17d40f6d93aae0e059123f"
+    },
+    {
+      "id": "SC05",
+      "path": "conformance/cases/script/SC05.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-MODULE-STATEMENT",
+      "requirements": [
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "顶层普通调用不是隐式初始化器",
+      "expected": {
+        "reason": "module accepts declarations only"
+      },
+      "status": "NotRun",
+      "source_sha256": "914b49e1bbe6a1725a5b349dadd682d63f3b389a2531fdd59a4f40b975ee989e"
+    }
+  ]
+}

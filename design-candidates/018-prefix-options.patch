@@ -1,0 +1,1019 @@
+From 3641ec69b7d6430bbd48b87c1a3124298531d7f6 Mon Sep 17 00:00:00 2001
+From: ZIL implementation agents <zil-agents@local.invalid>
+Date: Fri, 23 Oct 2026 12:51:20 +0900
+Subject: [PATCH] feat(syntax): adopt prefix option types and reserve optional
+ expression forms
+
+---
+ _zil_design.md                             |   8 +-
+ changes/IMPLEMENTATION-0018.md             |  19 ++
+ crates/zil-base/src/lib.rs                 |   2 +-
+ crates/zil-syntax/src/parser/expr.rs       |  22 +-
+ crates/zil-syntax/src/parser/mod.rs        |   6 +-
+ crates/zil-syntax/src/parser/types.rs      |  60 ++--
+ crates/zil-syntax/tests/closure_syntax.rs  |   2 +-
+ crates/zil-syntax/tests/optional_prefix.rs | 361 +++++++++++++++++++++
+ crates/zil-syntax/tests/surface_13.rs      |   6 +-
+ data/normative-inputs.json                 |  10 +-
+ docs/DESIGN-ITERATION.md                   |  19 ++
+ docs/OPTIONAL-REFERENCE-DISCUSSION.md      | 198 ++++++++---
+ spec/diagnostics.json                      |  19 ++
+ spec/grammar.ebnf                          |  23 +-
+ 14 files changed, 653 insertions(+), 102 deletions(-)
+ create mode 100644 changes/IMPLEMENTATION-0018.md
+ create mode 100644 crates/zil-syntax/tests/optional_prefix.rs
+ create mode 100644 docs/DESIGN-ITERATION.md
+
+diff --git a/_zil_design.md b/_zil_design.md
+index 3ebd63b..6ca7c1e 100644
+--- a/_zil_design.md
++++ b/_zil_design.md
+@@ -1,6 +1,6 @@
+ # ZIL 语言与编译器规范
+ 
+-规范标识：ZIL-LANG-1.3。语言规则、编译器架构不变量、永久拒绝边界和产品验收条件以本文件为唯一文字定义源。`spec/grammar.ebnf` 定义文法产生式，`spec/attributes.json` 定义属性注册表，`validation/product-gates.json` 定义量化测试配置；它们是本规范的具名附件，不允许另设同名条件的第二份定义。`spec/diagnostics.json` 登记稳定诊断标识；`spec/interfaces.json` 固定阶段间的数据与可信构造边界；`policy/dependencies.json` 固定编译器依赖边。派工同时锁定正文与全部附件的摘要。
++规范标识：ZIL-LANG-1.4。语言规则、编译器架构不变量、永久拒绝边界和产品验收条件以本文件为唯一文字定义源。`spec/grammar.ebnf` 定义文法产生式，`spec/attributes.json` 定义属性注册表，`validation/product-gates.json` 定义量化测试配置；它们是本规范的具名附件，不允许另设同名条件的第二份定义。`spec/diagnostics.json` 登记稳定诊断标识；`spec/interfaces.json` 固定阶段间的数据与可信构造边界；`policy/dependencies.json` 固定编译器依赖边。派工同时锁定正文与全部附件的摘要。
+ 
+ 本文只描述终态要求。“必须”是实现义务，不是实现完成或证明通过的声明。实施顺序属于 `_zil_goal.md`，单项执行与证据属于 `.task/` 和 `evidence/`，变更理由属于 `changes/`。HTML 是这些源文件生成的阅读视图，不是另一份可编辑规范。
+ 
+@@ -289,7 +289,7 @@ Address 的捕获在首次地址解引用处截断，包括 `move`；例如 `sel
+ 
+ ### 9.4 函数值、返回与擦除
+ 
+-函数类型的 `->` 右侧取得完整返回 Type：`fn(i32) -> E!i32` 返回错误联合，`fn() -> i32?` 返回 Option。对函数指针整体应用 `?`、`!`、`|` 或地址前缀时先用括号，如 `(fn() -> i32)?`；不依类型期望改换箭头结合。
++函数类型的 `->` 右侧取得完整返回 Type：`fn(i32) -> E!i32` 返回错误联合，`fn() -> ?i32` 返回 Option。一元类型前缀作用于函数类型整体：`?fn() -> i32` 是可空函数指针，`&fn() -> i32` 是函数指针的共享借用，二者均不改动返回类型。对函数类型整体再应用二元 `!` 或 `|` 时先用括号；不依类型期望改换箭头结合。
+ 
+ `fn(A, B) -> R` 是无环境函数指针；只允许无捕获且调用/错误/恢复 ABI 兼容的函数或闭包转换。有捕获闭包保持具体环境类型；参数采用 `F: Fn(A, B) -> R` 等泛型或显式借入/拥有 dyn 存储。不能把捕获闭包默默装箱以塞进 fn 指针。Fn 约束不改变参数传递：`f: F` 按 Value 的 Copy/Move 传环境，`f: &F` 共享借入，`f: &mut F` 独占借入；要保留调用者的非 Copy 环境必须使用合法借入接口。
+ 
+@@ -437,7 +437,9 @@ comptime 执行有逻辑配额和显式输入，不从未完成安全查询反
+ 
+ `=` 为语句，不产生值。目标接收者与索引从左到右各求值一次，再计算 RHS，RHS 成功后写入并按规则处理旧值。复合赋值先确定目标并读取原值，再求 RHS、计算和提交；短读不制造两个同时独占窗口。目标预约不能跨未知重入、挂起或相交失效，需要时先将 RHS 显式计算为局部值。
+ 
+-`T?` 是 Option；`E!T` 是错误联合；表达式后缀 `?` 只沿实际错误出口传播。数组类型 `[T; N]`、切片类型 `[T]`、数组值 `[a, b]`、索引 `a[i]`、半开范围 `a[lo..hi]` 各按上下文唯一解析。`&[T]`/`&mut [T]` 是地址窗口。`a ? b : c` 不属于语法，使用 `if` 表达式。`a[]` 非法，完整切片写 `a[..]`；区间端点采用非区间表达式，复杂比较或逻辑端点须用括号。`if/while/for/match/with` 的控制头在顶层遇到 `{` 即开始主体；头部需要结构构造字面量时写成 `(Node { ... })`，不得依赖类型查询判断大括号归属。
++`?T` 是 Option；类型一元前缀按从外到内嵌套：`?&T` 为可选共享借用，`&?T` 为共享借用可空槽位，`?&mut T` 与 `&mut ?T` 同理；`??T` 保留两层可空，不自动拍平。前缀高于二元 `|` 和 `!`：`?E!T` 为 `(?E)!T`，`E!?T` 为错误联合的可空成功值，`?(E!T)` 为整体可空；错误侧类型是否合法仍由类型规则判断。泛型替换在类型树上进行，打印必须保留分组。旧后缀类型 `T?` 不属于当前语法。`E!T` 是错误联合；表达式后缀 `?` 只沿实际错误出口传播，不表示判空或强制解包。数组类型 `[T; N]`、切片类型 `[T]`、数组值 `[a, b]`、索引 `a[i]`、半开范围 `a[lo..hi]` 各按上下文唯一解析。`&[T]`/`&mut [T]` 是地址窗口。`a ? b : c` 不属于语法，使用 `if` 表达式。`a[]` 非法，完整切片写 `a[..]`；区间端点采用非区间表达式，复杂比较或逻辑端点须用括号。`if/while/for/match/with` 的控制头在顶层遇到 `{` 即开始主体；头部需要结构构造字面量时写成 `(Node { ... })`，不得依赖类型查询判断大括号归属。
++
++问号表达式的符号边界独立于类型前缀：`?.member`、`?.[index]`、`?.(args)`统一预留给可空链，`??`预留给惰性默认，`??=`预留给条件赋值语句；当前未实现时必须明确拒绝，不能解析成多个Try或Try之后的字段/调用。直接`?[index]`、`?(args)`不作为另一套可空链写法。同一后缀链中`?`之后直接出现`. / ? / [ / (`，给出`E-PARSE-OPTIONAL-EXPR`；明确错误传播组合使用`(x?).field`、`(x?)[i]`、`(x?)(args)`、`(x?)?`。普通空白和注释不产生第二套解释，逻辑换行仍按既有语句边界处理。这里确定词法/解析边界，未将可空链的完整降级、隐式拍平或判空收窄列为已实现能力；状态矩阵与待验决策见`docs/OPTIONAL-REFERENCE-DISCUSSION.md`。
+ 
+ 闭包的产生式见第9章；参数和调用能力在类型/合同阶段决定，parser 不猜捕获。元组为 `()`、`(x,)`、`(x,y)`，`(x)` 只分组；元组投影写 `.0`、`.1` 等非负十进制整数字面量，不把它识别成浮点小数。
+ 
+diff --git a/changes/IMPLEMENTATION-0018.md b/changes/IMPLEMENTATION-0018.md
+new file mode 100644
+index 0000000..d93640e
+--- /dev/null
++++ b/changes/IMPLEMENTATION-0018.md
+@@ -0,0 +1,19 @@
++# 018：前缀可空类型与终态迭代
++
++用户于2026-10-23先确认旧A结合，随后明确只以终态最佳裁决、无需兼容且允许施工中修改。综合一元构造组合、复杂类型可读性和普通签名长度，当前规范改用唯一的前缀`?T`。不把旧代码规模作为保留后缀的理由，也不同时接受两套拼写。
++
++## 变更与最近反例
++
++`?&T`是可选共享借用，`&?T`是借用可空槽位；可变版本同理。前缀统一高于二元`|`和`!`，所以`?E!T`构成`(?E)!T`，整体可空写`?(E!T)`。这借鉴Zig的一元前缀体系，但没有照抄其整个错误联合优先级。`??T`保留嵌套Option；不能把外层缺失和内层缺失合并。
++
++函数及callable箭头仍吃完整返回Type。`?fn()->T`与`&fn()->T`分别构造可空函数指针与函数指针借用；`fn()->?T`返回可空值。取消旧的函数地址前缀特殊括号限制。函数整体再参与二元联合/错误组合须明确分组。数组、元组、泛型和元类型仍保留各自定界，泛型替换操作AST。
++
++表达式传播`x?`、`&x? = &(x?)`保持原语义。旧后缀类型用`E-PARSE-OPTIONAL-SYNTAX`拒绝，不能由期望类型反向猜读法。解析成功不表示Option运行语义已实现；当前后端支持范围独立记录。
++
++全场景复核还发现旧parser会把`x?.field`和`x??`当作Try组合接受。当前同一后缀链中`?`后接`. / ? / [ / (`统一用`E-PARSE-OPTIONAL-EXPR`拒绝；明确错误传播组合写`(x?).field`、`(x?)?`、`(x?)[i]`、`(x?)(args)`。可空链统一规划为`?.member / ?.[i] / ?.(args)`，不增设`?[i] / ?(args)`别名；`??`与`??=`预留。此片消除误读，不伪装成已经提供短路求值。
++
++## 发布
++
++语言规则标识为ZIL-LANG-1.4。正文、EBNF、parser、诊断和源例同批修改；AST仍为既有Optional/Reference等节点。公共schema版本由016按真实IR变化升级，不能混同语言版本与wire版本。旧运行记录保留原提交和规范身份；当前源码直接修正，不实现旧语法兼容层。
++
++作者限定测试、独立精确审核、no-ff合入和统一验收依现有流程；本记录不是执行成绩。关于Zig作者选择动机没有一手证据，因此只陈述可观察的文法与工程比较。
+diff --git a/crates/zil-base/src/lib.rs b/crates/zil-base/src/lib.rs
+index b68fd57..346b721 100644
+--- a/crates/zil-base/src/lib.rs
++++ b/crates/zil-base/src/lib.rs
+@@ -8,7 +8,7 @@ pub use source_map::*;
+ 
+ use std::fmt;
+ 
+-pub const RULE_VERSION: &str = "ZIL-LANG-1.3";
++pub const RULE_VERSION: &str = "ZIL-LANG-1.4";
+ pub const SCHEMA_VERSION: u32 = 2;
+ 
+ // Keep identities untrusted and trivially constructible. They confer no authority.
+diff --git a/crates/zil-syntax/src/parser/expr.rs b/crates/zil-syntax/src/parser/expr.rs
+index c82caa0..9d43e8b 100644
+--- a/crates/zil-syntax/src/parser/expr.rs
++++ b/crates/zil-syntax/src/parser/expr.rs
+@@ -424,7 +424,27 @@ impl Parser<'_> {
+                         index: first.expect("non-slice index is parsed"),
+                     }
+                 }
+-            } else if self.eat(Symbol::Question) {
++            } else if self.at(Symbol::Question) {
++                let question = self.bump();
++                // These families are reserved for absence handling. Until
++                // their semantics are implemented, do not silently read them
++                // as Try followed by a member, index, call, or another Try.
++                // Grouping keeps the explicit error-propagation composition:
++                // (x?).field, (x?)[i], (x?)(arg), and (x?)?.
++                if matches!(
++                    self.peek().kind,
++                    TokenKind::Symbol(
++                        Symbol::Dot | Symbol::Question | Symbol::LBracket | Symbol::LParen
++                    )
++                ) {
++                    self.diagnostics.push(Diagnostic::error(
++                        Phase::Parse,
++                        "E-PARSE-OPTIONAL-EXPR",
++                        Some(question.span),
++                        "optional chains and coalescing are reserved; group error propagation before a member, index, call, or another `?`",
++                    ));
++                    return Err(());
++                }
+                 ExprKind::Try(Box::new(object))
+             } else if record && self.at(Symbol::LBrace) && value_type_path(&object) {
+                 object = self.record(Some(object))?;
+diff --git a/crates/zil-syntax/src/parser/mod.rs b/crates/zil-syntax/src/parser/mod.rs
+index 9b43e2a..98be65f 100644
+--- a/crates/zil-syntax/src/parser/mod.rs
++++ b/crates/zil-syntax/src/parser/mod.rs
+@@ -383,7 +383,7 @@ mod tests {
+     #[test]
+     fn receivers_records_and_function_types() {
+         ok(
+-            "struct Point { x: i32, y: i32 }\nimpl Point(self: &Self) { fn sum() -> i32 => .x + .y\n fn shift(self: &mut Self, n: i32) { .x += n } }\ntrait Read { fn get(self: &Self) -> i32; }\nimpl Read for Point { fn get() -> i32 => .x }\ntype F = (fn(i32) -> E!i32)?\nfn pair() -> Point => ({x: 1, y: 2})",
++            "struct Point { x: i32, y: i32 }\nimpl Point(self: &Self) { fn sum() -> i32 => .x + .y\n fn shift(self: &mut Self, n: i32) { .x += n } }\ntrait Read { fn get(self: &Self) -> i32; }\nimpl Read for Point { fn get() -> i32 => .x }\ntype F = ?fn(i32) -> E!i32\nfn pair() -> Point => ({x: 1, y: 2})",
+         );
+     }
+     #[test]
+@@ -529,11 +529,11 @@ mod tests {
+     #[test]
+     fn control_heads_slices_and_type_arrows_have_one_parse() {
+         ok(
+-            "fn f(a: [i32], p: Point) { if (Point { x: 1 }).x > 0 { return }\n let b = a[(1 < 2)..]\n let c = a[..]\n let d = a[1 | 2] }\ntype A = fn() -> i32?\ntype B = (fn() -> i32)?\ntype C = &(fn() -> E!i32)",
++            "fn f(a: [i32], p: Point) { if (Point { x: 1 }).x > 0 { return }\n let b = a[(1 < 2)..]\n let c = a[..]\n let d = a[1 | 2] }\ntype A = fn() -> ?i32\ntype B = ?(fn() -> i32)\ntype C = &fn() -> E!i32",
+         );
+         rejected("fn f(a: [i32]) { let x = a[] }", "E-PARSE-EXPRESSION");
+         rejected("fn f(a: [i32]) { let x = a[1 < 2] }", "E-PARSE-EXPECTED");
+-        rejected("type F = &fn() -> i32", "E-PARSE-IDENTIFIER");
++        ok("type F = &fn() -> i32");
+         rejected("fn f() { let mut = 1 }", "E-PARSE-IDENTIFIER");
+         rejected("fn f() { let x = 1 := 2 }", "E-PARSE-TERMINATOR");
+     }
+diff --git a/crates/zil-syntax/src/parser/types.rs b/crates/zil-syntax/src/parser/types.rs
+index ebafea9..31453a8 100644
+--- a/crates/zil-syntax/src/parser/types.rs
++++ b/crates/zil-syntax/src/parser/types.rs
+@@ -2,25 +2,23 @@ use super::*;
+ 
+ impl Parser<'_> {
+     pub(super) fn ty(&mut self) -> P<TypeRef> {
+-        self.nested(|p| p.type_inner())
++        self.nested(|p| {
++            let value = p.type_inner()?;
++            if p.at(Symbol::Question) {
++                return p.fail(
++                    "E-PARSE-OPTIONAL-SYNTAX",
++                    "optional types use prefix `?T`; postfix `?` is only an expression operator",
++                );
++            }
++            Ok(value)
++        })
+     }
+     fn type_inner(&mut self) -> P<TypeRef> {
+         let start = self.peek().span;
+-        if self.eat_word("fn") {
+-            self.expect(Symbol::LParen)?;
+-            let params = self.type_list(Symbol::RParen)?;
+-            self.expect(Symbol::Arrow)?;
+-            self.newlines();
+-            let result = Box::new(self.ty()?);
+-            return Ok(TypeRef {
+-                kind: TypeKind::Function { params, result },
+-                span: self.span_from(start),
+-            });
+-        }
+-        let mut members = vec![self.optional_type()?];
++        let mut members = vec![self.prefix_type()?];
+         while self.eat(Symbol::Bar) {
+             self.newlines();
+-            members.push(self.optional_type()?);
++            members.push(self.prefix_type()?);
+         }
+         let mut value = if members.len() == 1 {
+             members.pop().expect("one type member")
+@@ -43,24 +41,15 @@ impl Parser<'_> {
+         }
+         Ok(value)
+     }
+-    fn optional_type(&mut self) -> P<TypeRef> {
+-        let value = self.type_primary()?;
+-        if self.eat(Symbol::Question) {
+-            let span = value.span.join(self.last);
+-            Ok(TypeRef {
+-                kind: TypeKind::Optional(Box::new(value)),
+-                span,
+-            })
+-        } else {
+-            Ok(value)
+-        }
+-    }
+-    fn type_primary(&mut self) -> P<TypeRef> {
+-        self.nested(|p| p.type_primary_inner())
++    fn prefix_type(&mut self) -> P<TypeRef> {
++        self.nested(|p| p.prefix_type_inner())
+     }
+-    fn type_primary_inner(&mut self) -> P<TypeRef> {
++    fn prefix_type_inner(&mut self) -> P<TypeRef> {
+         let start = self.peek().span;
+-        let kind = if self.eat(Symbol::Amp) {
++        let kind = if self.eat(Symbol::Question) {
++            self.newlines();
++            TypeKind::Optional(Box::new(self.prefix_type()?))
++        } else if self.eat(Symbol::Amp) {
+             self.newlines();
+             let lifetime = if self.peek().kind == TokenKind::Lifetime {
+                 let token = self.bump();
+@@ -69,12 +58,19 @@ impl Parser<'_> {
+                 None
+             };
+             let mutable = self.eat_word("mut");
+-            let inner = Box::new(self.type_primary()?);
++            let inner = Box::new(self.prefix_type()?);
+             TypeKind::Reference {
+                 lifetime,
+                 mutable,
+                 inner,
+             }
++        } else if self.eat_word("fn") {
++            self.expect(Symbol::LParen)?;
++            let params = self.type_list(Symbol::RParen)?;
++            self.expect(Symbol::Arrow)?;
++            self.newlines();
++            let result = Box::new(self.ty()?);
++            TypeKind::Function { params, result }
+         } else if self.eat(Symbol::LParen) {
+             self.scoped(true, |p| {
+                 if p.eat(Symbol::RParen) {
+@@ -119,7 +115,7 @@ impl Parser<'_> {
+                 p.close_angle()?;
+                 Ok(lifetime)
+             })?;
+-            let inner = Box::new(self.type_primary()?);
++            let inner = Box::new(self.prefix_type()?);
+             TypeKind::ForLifetime { lifetime, inner }
+         } else if self.eat(Symbol::Hash) {
+             if self.eat(Symbol::LParen) {
+diff --git a/crates/zil-syntax/tests/closure_syntax.rs b/crates/zil-syntax/tests/closure_syntax.rs
+index d77a634..201cd98 100644
+--- a/crates/zil-syntax/tests/closure_syntax.rs
++++ b/crates/zil-syntax/tests/closure_syntax.rs
+@@ -70,7 +70,7 @@ fn plan_t01_003_move_arrow_and_block_closures_have_distinct_shapes() {
+ #[test]
+ fn plan_t01_003_function_pointer_arrow_takes_complete_return_type() {
+     let module = parsed(
+-        "type First = fn() -> i32?\ntype Second = (fn() -> i32)?\ntype Third = fn(i32) -> E!i32",
++        "type First = fn() -> ?i32\ntype Second = ?(fn() -> i32)\ntype Third = fn(i32) -> E!i32",
+     );
+     let aliases: Vec<_> = module
+         .items
+diff --git a/crates/zil-syntax/tests/optional_prefix.rs b/crates/zil-syntax/tests/optional_prefix.rs
+new file mode 100644
+index 0000000..103ac00
+--- /dev/null
++++ b/crates/zil-syntax/tests/optional_prefix.rs
+@@ -0,0 +1,361 @@
++use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
++use zil_syntax::ast::*;
++
++fn source(text: &str) -> SourceUnit {
++    SourceUnit::new(FileId(18), ModuleId(18), "optional-prefix.zil", text)
++}
++
++fn parsed(text: &str) -> Module {
++    zil_syntax::parse(&source(text)).into_result().unwrap()
++}
++
++fn aliases(module: &Module) -> Vec<&TypeRef> {
++    module
++        .items
++        .iter()
++        .map(|item| {
++            let ItemKind::TypeAlias(alias) = &item.kind else {
++                panic!("alias")
++            };
++            alias.value.as_ref().unwrap()
++        })
++        .collect()
++}
++
++// Independent, deliberately limited AST observer. Expected trees below are
++// written from the language contract, not obtained from the parser/printer.
++fn shape(ty: &TypeRef) -> String {
++    let list = |values: &[TypeRef]| values.iter().map(shape).collect::<Vec<_>>().join(",");
++    let arguments = |args: &[GenericArg]| {
++        args.iter()
++            .map(|arg| match arg {
++                GenericArg::Type(ty) => shape(ty),
++                GenericArg::Const(Expr {
++                    kind: ExprKind::Literal(Literal::Integer(value)),
++                    ..
++                }) => value.clone(),
++                other => panic!("unhandled fixture argument {other:?}"),
++            })
++            .collect::<Vec<_>>()
++            .join(",")
++    };
++    match &ty.kind {
++        TypeKind::Named { path, args } if args.is_empty() => path.join("."),
++        TypeKind::Named { path, args } => format!("{}<{}>", path.join("."), arguments(args)),
++        TypeKind::Dyn { path, args } => format!("dyn:{}<{}>", path.join("."), arguments(args)),
++        TypeKind::Optional(inner) => format!("opt({})", shape(inner)),
++        TypeKind::Reference {
++            lifetime,
++            mutable,
++            inner,
++        } => format!(
++            "{}{}({})",
++            if *mutable { "mut" } else { "ref" },
++            lifetime.as_ref().map_or(String::new(), |x| format!("'{x}")),
++            shape(inner)
++        ),
++        TypeKind::Group(inner) => format!("group({})", shape(inner)),
++        TypeKind::Tuple(elements) => format!("tuple({})", list(elements)),
++        TypeKind::Array { element, length } => match length {
++            Some(value) => {
++                let ExprKind::Literal(Literal::Integer(value)) = &value.kind else {
++                    panic!("fixture array length")
++                };
++                format!("array({}, {value})", shape(element))
++            }
++            None => format!("slice({})", shape(element)),
++        },
++        TypeKind::Function { params, result } => {
++            format!("fn({})->{}", list(params), shape(result))
++        }
++        TypeKind::Error { error, result } => format!("err({},{})", shape(error), shape(result)),
++        TypeKind::Union(members) => format!("union({})", list(members)),
++        TypeKind::ForLifetime { lifetime, inner } => format!("for:{lifetime}({})", shape(inner)),
++        other => panic!("unhandled fixture type {other:?}"),
++    }
++}
++
++#[test]
++fn optional_reference_array_callable_and_error_layers_have_fixed_trees() {
++    for (text, expected) in [
++        ("?T", "opt(T)"),
++        ("?&T", "opt(ref(T))"),
++        ("&?T", "ref(opt(T))"),
++        ("?&mut T", "opt(mut(T))"),
++        ("&mut ?T", "mut(opt(T))"),
++        ("&?&T", "ref(opt(ref(T)))"),
++        ("??T", "opt(opt(T))"),
++        ("?&'a mut T", "opt(mut'a(T))"),
++        ("?& &T", "opt(ref(ref(T)))"),
++        ("?[T; 4]", "opt(array(T, 4))"),
++        ("[?T; 4]", "array(opt(T), 4)"),
++        ("?&[T]", "opt(ref(slice(T)))"),
++        ("&[?T]", "ref(slice(opt(T)))"),
++        ("?(A, B)", "opt(tuple(A,B))"),
++        ("(?A, B)", "tuple(opt(A),B)"),
++        ("?()", "opt(tuple())"),
++        ("?Box<T>", "opt(Box<T>)"),
++        ("Box<?T>", "Box<opt(T)>"),
++        ("Box<??T>", "Box<opt(opt(T))>"),
++        ("E!?T", "err(E,opt(T))"),
++        ("?(E!T)", "opt(group(err(E,T)))"),
++        ("?E!T", "err(opt(E),T)"),
++        ("?A | B", "union(opt(A),B)"),
++        ("?(A | B)", "opt(group(union(A,B)))"),
++        ("A | ?B ! ??T", "err(union(A,opt(B)),opt(opt(T)))"),
++        ("?fn() -> T", "opt(fn()->T)"),
++        ("fn() -> ?T", "fn()->opt(T)"),
++        ("&fn() -> T", "ref(fn()->T)"),
++        ("?fn() -> T | U", "opt(fn()->union(T,U))"),
++        ("(?fn() -> T) | U", "union(group(opt(fn()->T)),U)"),
++        ("E!?fn() -> ?T", "err(E,opt(fn()->opt(T)))"),
++        (
++            "?Fn(A, ?B) -> E!?T",
++            "opt(Fn<tuple(A,opt(B)),err(E,opt(T))>)",
++        ),
++        ("&dyn FnMut(?T) -> R", "ref(dyn:FnMut<tuple(opt(T)),R>)"),
++        ("?for<life a> &'a T", "opt(for:a(ref'a(T)))"),
++    ] {
++        let module = parsed(&format!("type Example = {text}"));
++        assert_eq!(shape(aliases(&module)[0]), expected, "{text}");
++    }
++}
++
++#[test]
++fn suffix_optional_types_are_rejected_in_every_type_entry_context() {
++    for text in [
++        "type Bad = T?",
++        "type Bad = &T?",
++        "type Bad = (&T)?",
++        "type Bad = ?T?",
++        "type Bad = Box<T?>",
++        "type Bad = [T?; 4]",
++        "type Bad = (T?, U)",
++        "type Bad = fn() -> T?",
++        "type Bad = (fn() -> T)?",
++        "struct Bad { value: T? }",
++        "fn bad(value: T?) {}",
++        "fn bad() -> T? {}",
++        "fn bad() { let value: T? = item }",
++        "fn bad() { let f = (value: T?) => value }",
++        "fn bad() { let f = value -> T? => value }",
++        "fn bad<F: Fn() -> T?>(f: F) {}",
++    ] {
++        let input = source(text);
++        let result = zil_syntax::parse(&input);
++        let diagnostic = result
++            .diagnostics
++            .iter()
++            .find(|d| d.code == "E-PARSE-OPTIONAL-SYNTAX")
++            .unwrap_or_else(|| panic!("{text}: {:?}", result.diagnostics));
++        let span = diagnostic.span.unwrap();
++        assert!(span.is_valid_for(&input));
++        assert_eq!(&input.text[span.start..span.end], "?");
++        assert!(zil_syntax::format::format(&input).is_err(), "{text}");
++    }
++}
++
++#[test]
++fn expression_propagation_remains_postfix_and_binds_before_borrow() {
++    let module = parsed(
++        "fn f(x: E!T) { let a = x?; let b = &x?; let c = &mut x?; let d = make::< ?T >()? }",
++    );
++    let ItemKind::Function(function) = &module.items[0].kind else {
++        panic!("function")
++    };
++    let FunctionBody::Block(block) = &function.body else {
++        panic!("block")
++    };
++    let values: Vec<_> = block
++        .statements
++        .iter()
++        .map(|statement| {
++            let StmtKind::Binding { value, .. } = &statement.kind else {
++                panic!("binding")
++            };
++            value
++        })
++        .collect();
++    assert!(matches!(values[0].kind, ExprKind::Try(_)));
++    for (value, expected) in [
++        (values[1], UnaryOp::Borrow),
++        (values[2], UnaryOp::BorrowMut),
++    ] {
++        let ExprKind::Unary { op, operand } = &value.kind else {
++            panic!("borrow")
++        };
++        assert_eq!(*op, expected);
++        assert!(matches!(operand.kind, ExprKind::Try(_)));
++    }
++    let ExprKind::Try(value) = &values[3].kind else {
++        panic!("propagated generic call")
++    };
++    let ExprKind::Call { callee, .. } = &value.kind else {
++        panic!("call")
++    };
++    let ExprKind::TypeApply { arguments, .. } = &callee.kind else {
++        panic!("generic call")
++    };
++    assert!(matches!(
++        &arguments[0],
++        GenericArg::Type(TypeRef {
++            kind: TypeKind::Optional(_),
++            ..
++        })
++    ));
++    let result = zil_syntax::parse(&source("fn bad(x: T) { let y = ?x }"));
++    assert!(
++        result
++            .diagnostics
++            .iter()
++            .any(|d| d.code == "E-PARSE-EXPRESSION")
++    );
++}
++
++#[test]
++fn reserved_absence_operators_never_become_error_propagation_chains() {
++    for body in [
++        "let y = x?.member",
++        "let y = x?.0",
++        "let y = x?.[index()]",
++        "let y = x?.(argument())",
++        "let y = x?.method(argument())",
++        "let y = x?? fallback()",
++        "x ??= fallback()",
++        "let y = x??",
++        "let y = x?[index()]",
++        "let y = x?(argument())",
++        "let y = x? .member",
++        "let y = x? /* same chain */ .member",
++        "let y = x? ?",
++        "let y = x? /* same chain */ ?",
++        "let y = x? [index()]",
++        "let y = x? (argument())",
++        "let y = (x?\n.member)",
++        "let y = (x?\n?)",
++    ] {
++        let input = source(&format!("fn f() {{ {body} }}"));
++        let result = zil_syntax::parse(&input);
++        let diagnostic = result
++            .diagnostics
++            .iter()
++            .find(|d| d.code == "E-PARSE-OPTIONAL-EXPR")
++            .unwrap_or_else(|| panic!("{body}: {:?}", result.diagnostics));
++        let span = diagnostic.span.unwrap();
++        assert!(span.is_valid_for(&input));
++        assert_eq!(&input.text[span.start..span.end], "?");
++        assert_eq!(span.start, input.text.find('?').unwrap());
++        assert!(zil_syntax::format::format(&input).is_err(), "{body}");
++    }
++}
++
++#[test]
++fn grouped_error_propagation_preserves_member_index_call_and_nested_try() {
++    let module = parsed(
++        "fn f() { let a = (x?).field; let b = (x?)?; let c = (x?)[i]; let d = (x?)(arg); let e = call(x?); let f = (x?, y); let g = [x?, y] }",
++    );
++    let ItemKind::Function(function) = &module.items[0].kind else {
++        panic!("function")
++    };
++    let FunctionBody::Block(block) = &function.body else {
++        panic!("block")
++    };
++    let values: Vec<_> = block
++        .statements
++        .iter()
++        .map(|statement| {
++            let StmtKind::Binding { value, .. } = &statement.kind else {
++                panic!("binding")
++            };
++            value
++        })
++        .collect();
++    for value in &values[..4] {
++        let object = match &value.kind {
++            ExprKind::Member { object, .. } | ExprKind::Index { object, .. } => object,
++            ExprKind::Call { callee, .. } => callee,
++            ExprKind::Try(object) => object,
++            other => panic!("unexpected outer operation {other:?}"),
++        };
++        let ExprKind::Group(inner) = &object.kind else {
++            panic!("explicit grouping")
++        };
++        assert!(matches!(inner.kind, ExprKind::Try(_)));
++    }
++    assert!(matches!(values[0].kind, ExprKind::Member { .. }));
++    assert!(matches!(values[1].kind, ExprKind::Try(_)));
++    assert!(matches!(values[2].kind, ExprKind::Index { .. }));
++    assert!(matches!(values[3].kind, ExprKind::Call { .. }));
++    let ExprKind::Call { arguments, .. } = &values[4].kind else {
++        panic!("argument propagation")
++    };
++    assert!(matches!(arguments[0].value.kind, ExprKind::Try(_)));
++    for value in &values[5..] {
++        let (ExprKind::Tuple(elements) | ExprKind::Array(elements)) = &value.kind else {
++            panic!("aggregate element propagation")
++        };
++        assert!(matches!(elements[0].kind, ExprKind::Try(_)));
++    }
++}
++
++#[test]
++fn prefix_types_keep_spans_newline_boundaries_and_formatting() {
++    let input = source(
++        "  type A = ?\r\n &mut ?T\r\n type B = ?fn(?T) -> E!?T\r\nfn f(x: E!T) {\r\n let y = x?\r\n y\r\n}\r\n",
++    );
++    let before = zil_syntax::parse(&input).into_result().unwrap();
++    let ItemKind::TypeAlias(alias) = &before.items[0].kind else {
++        panic!("alias")
++    };
++    let value = alias.value.as_ref().unwrap();
++    assert_eq!(
++        &input.text[value.span.start..value.span.end],
++        "?\r\n &mut ?T"
++    );
++    assert_eq!(shape(value), "opt(mut(opt(T)))");
++    let output = zil_syntax::format::format(&input).unwrap();
++    let after = parsed(&output);
++    for index in 0..2 {
++        let ItemKind::TypeAlias(before) = &before.items[index].kind else {
++            panic!("alias")
++        };
++        let ItemKind::TypeAlias(after) = &after.items[index].kind else {
++            panic!("alias")
++        };
++        assert_eq!(
++            shape(before.value.as_ref().unwrap()),
++            shape(after.value.as_ref().unwrap())
++        );
++    }
++    let ItemKind::Function(function) = &after.items[2].kind else {
++        panic!("function")
++    };
++    let FunctionBody::Block(block) = &function.body else {
++        panic!("block")
++    };
++    assert_eq!(block.statements.len(), 2);
++    assert!(matches!(block.statements[1].kind, StmtKind::Expression(_)));
++    assert_eq!(
++        zil_syntax::format::format(&source(&output)).unwrap(),
++        output
++    );
++}
++
++#[test]
++fn arbitrarily_nested_prefix_input_stays_under_parser_budget() {
++    let input = source(&format!("type Deep = {}T", "?".repeat(600)));
++    let result = zil_syntax::parse_with_limits(
++        &input,
++        &Limits {
++            max_call_depth: 32,
++            ..Limits::default()
++        },
++    );
++    assert!(!result.is_ok());
++    assert!(
++        result
++            .diagnostics
++            .iter()
++            .any(|d| d.category == ResultCategory::ResourceLimit)
++    );
++}
+diff --git a/crates/zil-syntax/tests/surface_13.rs b/crates/zil-syntax/tests/surface_13.rs
+index 2aaa2cb..17dd83b 100644
+--- a/crates/zil-syntax/tests/surface_13.rs
++++ b/crates/zil-syntax/tests/surface_13.rs
+@@ -320,12 +320,12 @@ fn loops_defer_and_named_function_blocks_do_not_gain_tail_returns() {
+ }
+ 
+ #[test]
+-fn explicit_reference_and_option_parentheses_remain_distinct_while_shorthand_is_pending() {
++fn optional_and_reference_prefix_order_preserves_distinct_layers() {
+     let module = parsed(
+-        "type Current = &i32?\ntype OptionalAddress = (&i32)?\ntype AddressOfOption = &(i32?)\ntype MutableOption = &mut (i64?)",
++        "type Current = ?&i32\ntype OptionalAddress = ?(&i32)\ntype AddressOfOption = &(?i32)\ntype MutableOption = &mut (?i64)",
+     );
+     let TypeKind::Optional(inner) = &alias(&module, 0).kind else {
+-        panic!("existing &T? meaning")
++        panic!("optional shared reference")
+     };
+     assert!(matches!(inner.kind, TypeKind::Reference { .. }));
+     let TypeKind::Optional(inner) = &alias(&module, 1).kind else {
+diff --git a/data/normative-inputs.json b/data/normative-inputs.json
+index 7f294c9..c7a2209 100644
+--- a/data/normative-inputs.json
++++ b/data/normative-inputs.json
+@@ -2,13 +2,13 @@
+   "schema_version": 1,
+   "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
+   "files": {
+-    "_zil_design.md": "064cc85ed6bf97d2d2135189bd307609299f55ecbc65c33dc3fbb03c9545a00f",
+-    "spec/grammar.ebnf": "19033416f3c4929c9292358ab70c0440bd3ff29d7dad464bcc3aae4701f26519",
++    "_zil_design.md": "6c95cac19b5a5a2ddfde21659e4ea725a14412ace3d17983c898a8fdc1a7ba48",
++    "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+     "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+-    "spec/diagnostics.json": "12f14f1a640b836d83db93c0c47dbcf4a2d0749ff2ccf963c096d107e1d33aae",
++    "spec/diagnostics.json": "637c6444735aafef932de35b83febda249c69f779362a67fd5bf63d603b5af54",
++    "spec/grammar.ebnf": "87cda3850c5da90f207e38020d7e53c2d9ddfe24c9627705e9d020c596951b24",
+     "spec/interfaces.json": "6488947ef1d430e6b0d9900ccc8c240edda57abdfc3d5206d829f3c9eb147001",
+-    "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+     "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+   },
+-  "normative_hash": "83b78643925732c139b06a5b6ea07ba7378b574bb9573863d9d270fdee7d6330"
++  "normative_hash": "01f6076ce1fabcb119de1747076e86e5cf2a5cfbd52da749b895d6ea3e7a3299"
+ }
+diff --git a/docs/DESIGN-ITERATION.md b/docs/DESIGN-ITERATION.md
+new file mode 100644
+index 0000000..158bda0
+--- /dev/null
++++ b/docs/DESIGN-ITERATION.md
+@@ -0,0 +1,19 @@
++# 设计迭代：以终态为目标
++
++语言仍处施工阶段。以安全、表达、运行成本和编译成本评价方案，不以旧源码兼容为保留机制的理由。能够吸收Rust、Zig及其他实现的成熟方法；每次采用必须说明解决的实际问题和成本，不能因新技术名称就扩大机制。
++
++## 一个修改的完整路径
++
++1. 在`changes/`写短提案：问题、选定规则、最近正反例、受影响阶段和仍不支持的边界。无需为每个实现细节新建设计层。
++2. 集成者更新唯一规范及其具名附件、实际接口版本和工单摘要；作者按固定写集直接修改当前实现。旧方案撤出当前语法，不维持双轨。
++3. 让相同源码经过真实阶段和目标程序；独立oracle/核验与最近反例同时运行。缺实现准确Unsupported，基础设施失败单列。
++4. 未参与本片实现的审核者绑定精确提交复核，集成者合入并执行必要整合门。失败原件保留，不能覆盖为修复后的Pass。
++5. 更新一页当前状态、接续入口和可运行示例。长期探索由`zil qc`缺陷队列继续提供反例；修复流程消费同一case并在回归通过后关闭。
++
++规范、实现、受测提交是不同身份：历史保留只用于复查，不要求新实现接受旧输入。新规则影响并行任务时只迁移受影响者；未相交任务继续施工。先完成一个可执行纵切片，再扩宽能力范围，不为追求一次设计完全部细节阻塞实际闭环。
++
++## 求解器采用原则
++
++优先有限、可计费的数据流和显式状态边界；固定点在预分配节点上增长。类型约束先收集再默认，避免遍历顺序决定接受性。来源传播、活跃性和独立核验分别承担职责，不能用一个启发式结果制造安全权限。引入新求解算法前提供当前反例或可测成本；算法替换保持公开合同与独立复核义务。
++
++长期测试工具是一等开发工具；语言保留字仅在普通工具/库协议确实无法表达所需语义时讨论。持续runner不自动改源码，修复消费者领取缺陷、修改代码、回放和回归，通过后追加关闭记录。发现、修复和证据保存因此能够独立并行。
+diff --git a/docs/OPTIONAL-REFERENCE-DISCUSSION.md b/docs/OPTIONAL-REFERENCE-DISCUSSION.md
+index 762da6e..6a482f8 100644
+--- a/docs/OPTIONAL-REFERENCE-DISCUSSION.md
++++ b/docs/OPTIONAL-REFERENCE-DISCUSSION.md
+@@ -1,68 +1,176 @@
+-# `&T?`：当前规则、候选和建议
++# `?` 符号族：终态比较、当前边界与施工合同
+ 
+-状态：2026-10-23 用户要求继续讨论，尚未冻结新的结合方式。本轮先撤回把 `&T?` 改为 `&(T?)` 的施工指令，保留已有 parser 行为。这个文件提供裁决依据，不覆盖 `_zil_design.md`。
++状态：2026-10-23，018 的设计比较与实现说明。用户在选择 A 后补充了“只考虑终态最佳，不需要兼容旧方案”，又要求把 JS 风格访问、判空、泛型等全场景一起衡量。本文件据此重新比较；语言规范仍以 `_zil_design.md` 与 `spec/grammar.ebnf` 为准，讨论候选不自动成为规范。
+ 
+-## 两种类型不是同一件事
++## 结论与范围
+ 
+-| 含义 | 明确写法 | Rust 对照 | 用途 |
+-|---|---|---|---|
+-| 可能没有借用；存在时借用 T | `(&T)?` | `Option<&T>` | 查找结果、首尾元素、可选回调上下文 |
+-| 必定有借用；被借用的槽位可空 | `&(T?)` | `&Option<T>` | 观察一个可空字段/槽位的状态 |
+-| 可能没有独占借用；存在时改 T | `(&mut T)?` | `Option<&mut T>` | 可失败的就地查找或修改 |
+-| 必定独占借用可空槽位 | `&mut (T?)` | `&mut Option<T>` | 插入、取走、替换或清空槽位 |
++建议采用前缀 `?T`，并把类型构造、错误传播、为空短路分别定义：`?T` 构造 Option，`x?` 传播 `E!T` 的错误，`?.` 预留给为空短路，`??` 预留给惰性默认。前缀可空与 JS 风格的 `?.` 可以共存；不能因为类型里的问号放在前面，就要求值上的访问和传播也前置。
+ 
+-它们在对象身份、存储要求和可执行操作上不同。一个查找 API 返回可选借用，不需要容器里实际存有 `Option<T>`；返回槽位借用则要求真实槽位及相应借入期。不能用隐式转换抹平二者，尤其不能把可选独占借用当成可清空槽位的权限。
++前缀的优势是借用、可空、函数等类型构造的层次直接可见；它不自动提升安全性、优化能力或运行性能。A（后缀可空、借用先结合）同样能有完整且安全的实现。决定差异来自 ZIL 对组合一致性的优先级，而非已经测得的生态使用频率。没有资料证明 Zig 作者选择前缀的特定动机，本文不把工程推断写成作者原意。
+ 
+-## 官方资料支持什么
++018 当前落实类型解析、旧拼写拒绝、表达式保留边界和针对这些事实的测试。Option 的值构造、完整类型检查、短路 CFG、借用/移动分析、后端布局都不能由“parser 接受”推断为已完成。链终点是否吸收已有 Option 层仍列为具体验证决策，不为提前声称终态而擅自冻结。
+ 
+-- Rust 的 `Option::as_ref/as_mut` 明确把借用 Option 转换成 Option 中的借用，证明两种层次必须区分。Rust 用 `Option<...>` 表达层次，没有 `T?` 类型语法，因此 Rust 不能直接裁决 ZIL 的混合前后缀优先级。
+-- Rust slice 的 `first/last/get`、VecDeque 的 `front/back`、映射的 `get/get_mut` 展示了可选借用在容器访问中的用途。这是典型 API 样本，不是全生态使用频率统计。对 ZIL 的“查找返回值与可选输入较常见”的判断是工程推断，不能宣称已量化证明。
+-- Zig 使用前缀构造器，`?*T` 是可空指针，`*?T` 是指向可空值的指针；顺序表达嵌套。其官方可空指针例子与语法可核对，但 Zig 的普通指针不是 ZIL 的安全借用，不能搬用其安全结论。
+-- 共同原则是完整表达类型构造的层次，并保留固定、上下文无关的解析；不存在两套随函数位置、期望类型或“更常用”动态切换的解释。
++## 官方资料能支持哪些事实
+ 
+-## 候选比较
++| 一手资料 | 可核对的事实 | 对 ZIL 的意义 |
++|---|---|---|
++| [Rust Option](https://doc.rust-lang.org/std/option/enum.Option.html) | `as_ref` 把借用 Option 转成 Option 中的借用；`flatten` 明确处理嵌套 Option；`transpose` 交换 Option 与 Result 层 | 类型层次、拍平和错误换层是不同操作 |
++| [Zig 0.16.0](https://ziglang.org/documentation/0.16.0/#Optional-Pointers) 与 [文法](https://ziglang.org/documentation/0.16.0/#Grammar) | 可空类型前缀 `?`；`?*T` 可空指针，`*?T` 指向可空值；可空与错误联合可组合 | 前缀顺序可表达嵌套，但普通指针语义不能替代 ZIL 借用规则 |
++| [ECMAScript Optional Chains](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-optional-chains) | 统一 `?.name`、`?.[key]`、`?.(args)`；空基值跳过链求值；默认运算单独处理 null/undefined | 可学习入口与短路控制流；JS 没有 ZIL 的显式嵌套 Option 类型 |
++| [Swift Optional Chaining](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/optionalchaining/) | 链结果若已可空，不因链再增加一层；支持属性、方法和下标链 | 提供吸收已有层的易用性样本，不能由此直接推出 ZIL 泛型应如何归约 |
++| [Kotlin Null Safety](https://kotlinlang.org/docs/null-safety.html) | 后缀 `T?`、安全调用 `?.`、惰性 Elvis `?:`；安全赋值可跳过 RHS | 类型前后缀与值的访问操作并非只能成套选择 |
++| [Kotlin Smart Cast](https://kotlinlang.org/docs/typecasts.html#smart-cast-prerequisites) | 收窄取决于绑定/属性是否能保持稳定；可变属性不获得任意持续收窄 | 判空事实必须有有效范围，不能跨可失效的写入或调用保留 |
++| [C# `??`/`??=`](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/null-coalescing-operator) | 两者在已有值时不计算 RHS；默认运算右结合 | 惰性与结合性值得单独选择，ZIL 的赋值仍应服从自身语句规则 |
++
++访问日期为 2026-10-23。Swift 官方页面直接读取时可能只有 JavaScript 外壳；本轮核对的是官方域名的已索引正文，特别是 “Linking Multiple Levels of Chaining” 段，不以第三方转述代替依据。
++
++## A 与前缀：全类型比较
++
++下表左列的 A 是被比较的旧方案，不是当前接受的别名。
+ 
+-| 方案 | `&T?` 含义 | 优点 | 代价 |
+-|---|---|---|---|
+-| A，维持当前 | `(&T)?` | 可选借用短；与现行实现兼容；可以统一为“先形成 AddressType，再应用可空后缀” | 与当前表达式 `&x? = &(x?)` 的结合次序不同；需要记住类型/表达式两层文法 |
+-| B，T50 候选 | `&(T?)` | 在这一层让可空后缀先结合；与当前表达式 `&x?` 的顺序一致 | 常见查找结果需 `(&T)?`；改变已存在源码的类型树，迁移必须明确 |
+-| C，强制消歧 | 拒绝短写，要求 A/B 的括号式 | 初期几乎没有读法歧义 | 高频可选借用每次多写括号；与用户希望普通语法简短的方向有代价 |
+-| D，改用前缀可空 | `?&T` / `&?T` | 与 Zig 类似，嵌套顺序直接 | 改动整个已有 `T?` 体系；为局部问题增加全局迁移，暂不推荐 |
++| 含义 | A：后缀，借用先结合 | 前缀候选 |
++|---|---|---|
++| 可空值 | `T?` | `?T` |
++| 可选共享借用 | `&T?`，等价 `(&T)?` | `?&T` |
++| 共享借用可空槽位 | `&(T?)` | `&?T` |
++| 可选独占借用 | `&mut T?` | `?&mut T` |
++| 独占借用可空槽位 | `&mut (T?)` | `&mut ?T` |
++| 可选带借入期的借用 | `&'a T?` | `?&'a T` |
++| 两层可空 | `(T?)?` | `??T` |
++| 可空数组 / 元素可空数组 | `[T; N]?` / `[T?; N]` | `?[T; N]` / `[?T; N]` |
++| 可选切片窗口 / 元素可空窗口 | `&[T]?` / `&[T?]` | `?&[T]` / `&[?T]` |
++| 可空元组 / 可空元组元素 | `(A, B)?` / `(A?, B)` | `?(A, B)` / `(?A, B)` |
++| 可空容器 / 容器中可空元素 | `Box<T>?` / `Box<T?>` | `?Box<T>` / `Box<?T>` |
++| 可空函数值 / 返回可空 | `(fn() -> T)?` / `fn() -> T?` | `?fn() -> T` / `fn() -> ?T` |
++| 可空错误联合 / 成功值可空 | `(E!T)?` / `E!T?` | `?(E!T)` / `E!?T` |
++
++`?&mut T` 与 `&mut ?T` 不可隐式互换。前者只在存在时授予对 T 的独占借用；后者才涉及存储 Option 的实际槽位。丢弃一个可选借用句柄不等于有权清空原来的容器槽位。`?&[T]` 与 `&[?T]` 也分别表示窗口是否存在、窗口内的元素是否存在。
++
++这里采用的优先级是 ZIL 的设计偏好，不是用户调查或性能测量：
++
++| 评估项 | 优先级 | 比较结果 |
++|---|---|---|
++| 借用/可空及多层构造的组合可读性 | 高 | 前缀优：`?&T` 与 `&?T` 都按外到内读，不需记混合前后缀规则 |
++| 日常判空、链访问、默认值与错误处理 | 高 | 两方案可采用相同表达式族；类型问号的位置不决定这里的能力 |
++| 泛型替换与类型打印的稳定性 | 高 | 两者都可正确实现；前缀少一类因借用与后缀混合而产生的打印括号 |
++| 函数/闭包签名、可选回调 | 高 | 前缀优：可空函数与返回可空容易区分，沿用箭头右侧完整 Type |
++| 数组、切片、元组、错误联合 | 中 | 大致相当，前缀对层次读法一致，但不能省掉所有分组 |
++| 对 Swift/Kotlin/C# 风格的熟悉度 | 中 | A 优；前缀需要一次学习与诊断说明 |
++
++按上述优先级，前缀是更合适的终态选择，优势集中于类型组合。若把既有后缀语言的熟悉度放到最高，A 会是合理选择；这不构成安全性优劣。用户已经排除兼容成本，因此本次不为保留旧代码而同时提供 `T?` 和 `?T`。
++
++## 有限类型文法与精确结合
++
++```ebnf
++Type         = ErrorType ;
++ErrorType    = UnionType, ["!", Type] ;
++UnionType    = PrefixType, {"|", PrefixType} ;
++PrefixType   = "?", PrefixType
++             | "&", [LIFEIDENT], ["mut"], PrefixType
++             | "for", "<", "life", IDENT, ">", PrefixType
++             | TypePrimary ;
++FunctionType = "fn", "(", [TypeList], ")", "->", Type ;
++CallableType = CallableName, "(", [TypeList], ")", "->", Type ;
++```
++
++`TypePrimary` 包括上述函数/调用能力类型、名义类型及其泛型参数、数组、元组/分组、dyn 和编译期类型表达式。完整定义见规范，不以该摘要替代它。
++
++| 源码 | 唯一类型树 |
++|---|---|
++| `?&T` / `&?T` | `Optional(Reference(T))` / `Reference(Optional(T))` |
++| `??T` | `Optional(Optional(T))`，不自动拍平 |
++| `?E!T` | `Error(Optional(E), T)`；错误侧是否可用由类型检查决定 |
++| `E!?T` | `Error(E, Optional(T))` |
++| `?(E!T)` | `Optional(Error(E, T))` |
++| `?A | B` / `?(A | B)` | 可空 A 与 B 的联合 / 整体联合可空 |
++| `?fn() -> T` / `fn() -> ?T` | 可空函数值 / 函数返回可空 |
++| `&fn() -> T` | 函数值的共享借用，不作用于返回 T |
++| `?fn() -> T | U` | 可空函数，其返回类型为 `T | U` |
++| `(?fn() -> T) | U` | 可空函数类型与 U 的联合 |
++
++`?` 与 `&` 是一元类型构造器，优先于二元 `|`、`!`。因此 `?E!T` 不越过错误联合符号去包住整体，整体可空必须写 `?(E!T)`；这避免给 `?` 增加“看见错误联合就改变作用域”的特例。`fn`/`Fn`/`FnMut`/`FnOnce` 的箭头仍取得完整右侧 Type，整体参与二元构造时分组。
++
++泛型替换始终作用于 AST，不拼接文本。诊断打印器必须保留函数箭头、联合与错误联合需要的分组；前缀也不是随意删括号的理由。当前格式器是保留 token 的空白正规化器，尚不能把它描述为完整类型 AST 打印器。
++
++## 类型、值操作与词法边界
++
++| 形式 | 责任 | 018 当前状态 |
++|---|---|---|
++| `?T`、`?&T`、`&?T`、`??T` | 构造对应类型层次 | parser 与 AST 已实现；不宣称 Option 运行链路完成 |
++| `x?` | 对 `E!T` 的错误出口传播 | 既有后缀解析保留；不新增 Option 空值传播 |
++| `&x?` | 借用错误传播后的值，即 `&(x?)` | 既有表达式结合保留 |
++| `x?.member`、`x?.[i]`、`x?.(args)` | 统一的为空短路入口 | 为后续功能保留，本轮明确拒绝 |
++| `x ?? fallback`、`place ??= value` | 惰性默认 / 条件赋值 | 为后续功能保留，本轮明确拒绝 |
++| `x?[i]`、`x?(args)` | 另一种短路拼写 | 不设第二套别名；本轮明确拒绝 |
++| `(x?).member`、`(x?)[i]`、`(x?)(args)`、`(x?)?` | 显式组合错误传播与下一操作 | parser 保留；实际适用性仍须类型检查 |
++| `T?` | 旧可空类型写法 | `E-PARSE-OPTIONAL-SYNTAX` 拒绝 |
+ 
+-当前建议 A，但仍为建议：先在当前实现保留 `&T? = (&T)?`，文档/关键公共接口以两种带括号的展开式解释。`&mut T?` 必须同样是 `(&mut T)?`，不额外特殊处理；借用可空槽位始终能写 `&(T?)` / `&mut (T?)`。无论最终选 A 还是 B，都固定 AST、格式化和诊断规则，不能让类型求解替 parser 猜读法。
++018 增加 `E-PARSE-OPTIONAL-EXPR`：同一逻辑后缀链内，传播问号后直接出现 `. / ? / [ / (` 时拒绝，不把它们悄悄解释为 Try 与成员、下标、调用或第二次 Try 的组合。普通空白和注释不能绕过这条规则；逻辑换行继续服从既有语句边界，分组内软换行也不能绕过。
+ 
+-## A 的真实代价：类型与表达式的结合不同
++现有 lexer 的 `??` 是两个 Question token，进入类型位置时自然产生两层 Optional；表达式位置则先拒绝预留族。将来实现 `??` 可以在表达式文法识别相邻 token，也可以引入复合 token 后在明确类型位置拆分，但必须保留 `Box<??T>` 的固定解释，不能查询 T 是类型还是值来决定词法。直接 `&&T` 目前仍是逻辑与 token，嵌套借用写 `& &T` 或 `&(&T)`；本片不顺带改变另一套词法。
+ 
+-当前 `parser/expr.rs` 将表达式 `&x?` 解析成 `&(x?)`，而 `parser/types.rs` 将类型 `&T?` 解析成 `(&T)?`。这不只是外部语言带来的直觉：现行 ZIL 自己就有两种次序。类型 `?` 构造可空类型，表达式 `?` 传播失败，两者职责不同，因此并非语法矛盾，但确实增加阅读和教学成本。B 能消除这一项差异；A 以可选借用的短写便利换取这项成本。这里报告的是 parser 事实，不表示 Address/Option 的完整运行语义已实现。
++## 链访问的运行合同候选
+ 
+-B 若获选，应只调整这一层可空类型的优先级，不能简单让 `&` 吞掉右侧任意 `Type`，连带改变联合、错误类型和函数箭头。A 也不能被概括成“所有尾部 `?` 都包最外层”：例如 `Fn(A)->R?` 的 `?` 仍在返回类型内，必须尊重现有分组与箭头文法。
++以下是后续 Option 工单的候选合同，当前不可运行。采用哪一种类型前后缀都必须解决这些问题。
+ 
+-## 泛型替换和类型打印
++统一采用 `?.name`、`?.[index]`、`?.(args)`。`obj?.method(args)` 检查接收者；`obj.handler?.(args)` 检查可选 callable。ZIL 的显式 self/接收者、Fn 调用能力及捕获传递规则继续生效，不搬入 JS 的动态 this。
+ 
+-两种方案都可以保持泛型可组合性。替换发生在类型树上，不能进行无括号文本拼接：
++基值求值一次；遇到空值时跳过本条连续链中尚未执行的成员获取、下标、实参、展开和调用。已发生的副作用不回滚。链只处理“没有值”，不吞掉错误联合、越界、panic 或借用违规。括号结束连续链的控制范围，括号外的操作按产出的实际类型重新检查。
+ 
+-| 类型代数示意 | 代入 | 必须保留的类型树 |
++例如可选回调为空时，`callback?.(...prepare())` 不应执行 `prepare()`，也不能先移动其参数再发现回调不存在；存在时则严格沿用普通调用的求值、移动和失败清理顺序。FnOnce、共享/独占借入及临时销毁都要在对应 CFG 分支上成立，不能为了实现短路隐式 clone、装箱或延长借入期。
++
++链赋值不随读取入口自动获得许可。候选方案先以 `if let` 解开真实槽位再按普通赋值规则写入；是否增加短路赋值应由实际用途与借用状态用例决定。`??=` 是独立的可空槽位操作，不意味着任意 `a?.b = rhs` 已成为合法 place。
++
++### 链终点的 Option 是否吸收：独立待验决策
++
++以下用 `None`、`Some(v)` 作代数状态记号，不在本片冻结 ZIL 的值构造器拼写。设 `a: ?A`，`A.b: ?B`：
++
++| 输入状态 | 保留终点层：`a?.b` 为 `??B` | 吸收已有层：`a?.b` 为 `?B` |
+ |---|---|---|
+-| `Borrow<U> = &U` | `U = T?` | `Reference(Optional(T))`，可明确打印 `&(T?)` |
+-| `Maybe<U> = U?` | `U = &T` | `Optional(Reference(T))`，可明确打印 `(&T)?` |
++| `a = None` | `None` | `None` |
++| `a = Some(A { b = None })` | `Some(None)` | `None` |
++| `a = Some(A { b = Some(v) })` | `Some(Some(v))` | `Some(v)` |
++
++Swift 文档明确采用“不因链给已可空结果再加一层”的行为；Kotlin/JS 资料描述的是可空/nullish 的访问，不足以直接支持 ZIL 中三种状态的保留规则。把 ZIL 的两种空缺原因合并可以方便日常取值，但这是有信息损失的操作，不能扩展成 `??T = ?T` 的类型等式。
++
++保留方案建议“一条连续链只增加自己的一个外层 Optional，终点已有层保持”；不是每写一次 `?.` 就机械加一层。`a?.b?.c` 显式检查 b 后若 c 为 T，可得 `?T`；只写 `a?.b` 则保留 b 自己的 Option。这适合补丁字段、可选配置、找到了条目但条目内容为空等状态敏感接口，代价是常见取值可能需要明确 flatten 或额外解构。
++
++泛型是必须核对的反例。设 `Box<T>.value: T`，泛型函数从 `?Box<T>` 读取 value，返回 `?T`。保留方案对任何 T 都成立：T 代入 `?U` 后结果自然是 `??U`。如果按“终点已可空就吸收”处理，具体 `?Box<?U>` 的同形表达式会得到 `?U`，而以不透明 T 检查的泛型体可能仍得到 `?T`。要么明确接受这种抽象边界差异，要么新增可在泛型上表达和归约的类型运算；不能在单态化时偷偷改变公开函数签名。
++
++本轮倾向优先保留泛型替换与状态层次，显式 flatten 处理需要合并的场景，但尚不把链终点规则写入已实现规范。冻结前至少对以下同一组真实源码验证：普通字段链、返回可空的回调、泛型 T 与 T=`?U`、补丁的三种状态，以及链后默认值。比较新增解构/flatten 的次数和错误诊断，再决定是否值得为日常链吸收一层。没有完成这些样本前，不声称任一方案已被频率数据证明最佳。
++
++### 错误与可空交错
++
++`E!?T` 表示可能错误，成功后还可能没有 T；`?(E!T)` 表示可能连计算结果都没有，有结果时才分成功或错误。它们不是同一种类型，不应由 `?` 或短路访问偷偷交换层次。
++
++后续链 CFG 可考虑让链内最后的错误传播只在存在分支发生：`a?.read()?` 中若 `read` 返回 `E!T`，空 a 产生无值，存在 a 时调用 read，错误沿当前函数错误出口传播，成功值成为链结果。与之不同，`(a?.read())?` 对已经结束的链结果 `?(E!T)` 使用错误传播；它不能凭隐式 transpose 获得相同行为。
++
++先传播错误再访问可空对象可以明确写 `(load()?)?.field`。若链方法成功值本身又可空，必须与前述终点吸收决策一起测试；不能将连续问号按期望类型猜成 coalesce、两个 Try 或 Try 加 optional chain。上述表达式仍是后续候选，不是本轮 parser 已接受的可空链。
++
++## 默认值、判空与权限
++
++### `??` 与 `??=` 的候选合同
++
++`??` 应只解开一层 Option：左侧 `?T`，右侧延迟计算 T，结果 T。`Some(false)`、`Some(0)`、`Some("")` 都是已有值，不能触发默认。对 `??T`，`Some(None)` 解开后仍是 None，不再次判断最内层，也不隐式 flatten。RHS 发生的错误、移动和清理只属于实际执行的空分支。
++
++建议 `??` 右结合。对 `a: ?T`、`b: ?T`、`c: T`，`a ?? b ?? c` 按 `a ?? (b ?? c)` 才自然满足单层默认合同；不必为了左结合额外引入 Option 提升。结合性是 ZIL 的类型需求选择，C# 也提供右结合的先例，不能因为选了 JS 风格 `?.` 就连默认运算的所有规则一起照搬。
++
++候选优先级：普通后缀、算术和比较高于 `??`，`??` 高于管道 `|>`；未分组的 `??` 与 `&&`/`||` 混写明确拒绝。这样 `a ?? b + c` 为 `a ?? (b + c)`，`a ?? fallback |> render` 为 `(a ?? fallback) |> render`；复杂布尔默认值要求括号，避免把值不存在误读为布尔为假。这些是待实现合同，不改变当前 Pratt 表。
++
++`place ??= rhs` 应继续是赋值语句。先将 place 的接收者和索引从左到右各求值一次，检查槽位；已有值时不计算 RHS，空时计算并填入。RHS 的重入、挂起或相交失效仍受 `_zil_design.md` 的目标预约规则约束，判空不能绕过这些限制。它不是原子并发初始化；也不因为参考 C# 就成为可嵌套的有值赋值表达式。
++
++### 显式判空、收窄与借用
+ 
+-A 的打印器必须为第一行补括号，B 的打印器必须为第二行补括号；括号用于保存 AST，并不影响泛型替换本身的正确性。这是后续泛型/格式化施工合同，未宣称当前标量类型器已完成泛型实现。可变版本同理；把本地 `(&mut T)?` 句柄设为空，只丢弃该句柄，并不授予清空原容器槽位的权限。
++`if let pattern = value` 与 `match` 的既有语法适合作为 Option 的基本消解入口。构造器、空值常量和模式的语义应随 Option 类型/运行实现一次确定；目前接受普通名字 `null` 不表示它已经是内建空值。普通 `if` 仍要求布尔条件，不把 `?Bool`、数值或容器转成真假。
+ 
+-## 最后裁决的权重
++建议先通过明确绑定得到存在分支中的值或借用，再考虑判空后的流分析简写。收窄必须绑定同一稳定的值/SSA 事实；写入、可失效的调用、重入和挂起后不能继续沿用旧判空结论。借用了 `&?T` 并且判定存在，只能取得允许范围内的共享访问，不能升级成 `&mut T`；是否能移动或更改值仍由原有权限决定。
+ 
+-当前仍建议保留 A，依据是可选借用 API 的书写便利和既有规则延续。若优先级是“类型和表达式尽量统一结合”，B 有充分理由，不能靠几个 API 样本否定它。本轮只保留实现与待论状态，不将这个建议追写成用户已批准的最终决定。
++这与 Kotlin 对稳定性的要求方向一致，但 ZIL 必须进一步让借入期、来源和失效事实进入自己的 CFG 与核验流程，不能只模仿表层 smart cast。`?.`、`??`、`if let` 均不制造独占权限。
+ 
+-建议优先看未来 ZIL 的查找、可选上下文、字段替换/清空三类真实 API。若后续要做频率研究，应预先固定仓库版本、入口集合、统计单位和排除规则，同时区分返回值/参数、不可变/可变、示例/生产实现；简单 `rg` 字符串计数会混入注释和重复文档，不足以声称最佳实践。现在无需为这个局部待决问题暂停不涉及 Address/Option 的 C1 标量闭包施工。
++## 018 的验证与交接
+ 
+-## 核对来源
++限定命令：在项目工具链环境中运行 `cargo test --offline --locked -p zil-syntax`。本片新增 7 项测试，包含 34 个手写预期 AST 的类型组合、16 个旧类型拼写反例、18 个表达式预留族反例，以及错误传播的显式分组、格式/源区间/换行和嵌套预算检查；全 crate 56 项通过。精确提交与正式全量门由集成方记录，本片作者不以该限定测试代替独立审核。
+ 
+-访问日期：2026-10-23。Rust 文档显示 1.99.1；Zig 选定 0.16.0 参考页，未以搜索排名代替语义依据。
++类型组合用例覆盖 `?&T`、`&?T`、独占/借入期、多层 Option、数组/切片、元组、泛型、联合、错误联合、fn/Fn/dyn 和高阶借入期。旧 `T?` 在别名、字段、参数、返回、泛型及闭包标注中均明确拒绝。表达式检查防止 `?.` 被误当作 `Member(Try(x), field)`，也防止 `??` 被误当成两次错误传播。
+ 
+-- https://doc.rust-lang.org/reference/types/pointer.html
+-- https://doc.rust-lang.org/std/option/enum.Option.html
+-- https://doc.rust-lang.org/std/primitive.slice.html
+-- https://doc.rust-lang.org/std/collections/struct.HashMap.html
+-- https://doc.rust-lang.org/std/collections/struct.BTreeMap.html
+-- https://doc.rust-lang.org/std/collections/struct.VecDeque.html
+-- https://ziglang.org/documentation/0.16.0/#Optional-Pointers
+-- https://ziglang.org/documentation/0.16.0/#Grammar
++后续 Option 切片应先跑通最小值构造、解构和类型检查，再实现短路 CFG 与后端；同时让 qc 用状态序列与独立 oracle 检查链的跳过、副作用次数、默认的惰性、嵌套状态、错误出口和失败清理。未冻结的链终点规则带着上述反例进入该切片，不能只把语法接受率当作语义已经正确。
+diff --git a/spec/diagnostics.json b/spec/diagnostics.json
+index 0d138ae..473349a 100644
+--- a/spec/diagnostics.json
++++ b/spec/diagnostics.json
+@@ -170,6 +170,25 @@
+         "ZIL-RECEIVER"
+       ]
+     },
++    {
++      "code": "E-PARSE-OPTIONAL-EXPR",
++      "phases": [
++        "parse"
++      ],
++      "requirements": [
++        "ZIL-SYNTAX"
++      ]
++    },
++    {
++      "code": "E-PARSE-OPTIONAL-SYNTAX",
++      "phases": [
++        "parse"
++      ],
++      "requirements": [
++        "ZIL-SYNTAX",
++        "ZIL-CAPTURE"
++      ]
++    },
+     {
+       "code": "E-PARSE-PIPE-LAMBDA",
+       "phases": [
+diff --git a/spec/grammar.ebnf b/spec/grammar.ebnf
+index e576cab..0d7e8c4 100644
+--- a/spec/grammar.ebnf
++++ b/spec/grammar.ebnf
+@@ -1,4 +1,4 @@
+-(* ZIL-LANG-1.3 normative surface. This EBNF fixes productions, not a soundness proof.
++(* ZIL-LANG-1.4 normative surface. This EBNF fixes productions, not a soundness proof.
+    ZIL-SYNTAX fixes lexical NEWLINE, control-head braces and arrow-block priority.
+    IDENT includes contextual words; self binding is checked by ZIL-RECEIVER.
+    A bare identifier or balanced parameter-list followed by => or -> selects Closure, without a type query.
+@@ -38,20 +38,23 @@ BoundClause = Type, ":", Bounds | LIFEIDENT, ":", LIFEIDENT ;
+ Bounds = Type, {"+", Type} ;
+ TypeList = Type, {",", Type}, [","] ;
+ ReturnType = "impl", Bounds | Type ;
+-Type = FunctionType | ErrorType ;
++Type = ErrorType ;
+ FunctionType = "fn", "(", [TypeList], ")", "->", Type ;
+ ErrorType = UnionType, ["!", Type] ;
+-UnionType = OptionalType, {"|", OptionalType} ;
+-OptionalType = TypePrimary, ["?"] ;
++UnionType = PrefixType, {"|", PrefixType} ;
++PrefixType = "?", PrefixType
++           | "&", [LIFEIDENT], ["mut"], PrefixType
++           | "for", "<", "life", IDENT, ">", PrefixType
++           | TypePrimary ;
+ CallableName = "Fn" | "FnMut" | "FnOnce" ;
+ CallableType = CallableName, "(", [TypeList], ")", "->", Type ;
+-(* Reserved callable-family names require CallableType, not Qualified TypeArgs. *)
+-TypePrimary = CallableType | Qualified, [TypeArgs]
+-            | "&", [LIFEIDENT], ["mut"], TypePrimary
++(* Prefix constructors nest outside-in and bind above | and !.
++   Function/callable arrows consume their complete return Type.
++   Type postfix ? is rejected; expression propagation ? remains Postfix. *)
++TypePrimary = FunctionType | CallableType | Qualified, [TypeArgs]
+             | "[", Type, [";", Expr], "]"
+             | TupleType
+             | "dyn", (CallableType | Qualified, [TypeArgs])
+-            | "for", "<", "life", IDENT, ">", TypePrimary
+             | MetaEval | MetaBlock ;
+ TupleType = "(", ")" | "(", Type, ")" | "(", Type, ",", [TypeList], ")" ;
+ TypeArgs = "<", GenericArg, {",", GenericArg}, [","], ">" ;
+@@ -99,6 +102,10 @@ Add = Multiply, {("+" | "-" | "+%" | "-%"), Multiply} ;
+ Multiply = Prefix, {("*" | "/" | "%" | "*%"), Prefix} ;
+ Prefix = ("!" | "-" | "~" | "*" | "give"), Prefix | "&", ["mut"], Prefix | Postfix ;
+ Postfix = Primary, {(".", Member) | ("::", TypeArgs) | ("(", [Arguments], ")") | ("[", SliceIndex, "]") | "?"} ;
++(* A '?' suffix may not be immediately followed in the same postfix chain by
++   '.', '?', '[' or '('. Optional-chain/coalescing forms are reserved and rejected
++   with E-PARSE-OPTIONAL-EXPR until implemented; explicit Try composition uses
++   (x?).field, (x?)?, (x?)[i], or (x?)(args). Logical newlines still terminate. *)
+ Member = IDENT | TUPLEINDEX ;
+ SliceIndex = BitOr, ["..", [BitOr]] | "..", [BitOr] ;
+ Arguments = Argument, {",", Argument}, [","] ;
+-- 
+2.51.1
+

@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "source_section": "ZIL-ATTRIBUTE",
+  "attributes": [
+    {
+      "name": "cfg",
+      "kind": "configuration",
+      "phase": 0,
+      "targets": [
+        "item",
+        "field",
+        "variant",
+        "parameter"
+      ],
+      "repeat": "and",
+      "args": "config-expression",
+      "output": "keep-or-remove"
+    },
+    {
+      "name": "repr",
+      "kind": "layout",
+      "phase": 3,
+      "targets": [
+        "struct",
+        "enum",
+        "package"
+      ],
+      "repeat": "error",
+      "args": "enum(C,transparent)",
+      "output": "layout-constraint"
+    },
+    {
+      "name": "align",
+      "kind": "layout",
+      "phase": 3,
+      "targets": [
+        "struct",
+        "enum",
+        "package",
+        "field"
+      ],
+      "repeat": "error",
+      "args": "positive-power-of-two-const",
+      "output": "layout-constraint"
+    },
+    {
+      "name": "derive",
+      "kind": "generate",
+      "phase": 2,
+      "targets": [
+        "struct",
+        "enum",
+        "package"
+      ],
+      "repeat": "merge-unique-traits",
+      "args": "trait-path-list",
+      "output": "unchecked-items"
+    },
+    {
+      "name": "inline",
+      "kind": "codegen",
+      "phase": 5,
+      "targets": [
+        "fn"
+      ],
+      "repeat": "error",
+      "args": "optional-enum(always,never)",
+      "output": "hint"
+    },
+    {
+      "name": "doc",
+      "kind": "metadata",
+      "phase": 1,
+      "targets": [
+        "item",
+        "field",
+        "variant",
+        "parameter"
+      ],
+      "repeat": "concat",
+      "args": "string",
+      "output": "documentation"
+    },
+    {
+      "name": "allow",
+      "kind": "diagnostic",
+      "phase": 4,
+      "targets": [
+        "item",
+        "field",
+        "variant",
+        "parameter"
+      ],
+      "repeat": "union",
+      "args": "registered-lint-list",
+      "output": "lint-policy"
+    },
+    {
+      "name": "test",
+      "kind": "test",
+      "phase": 4,
+      "targets": [
+        "fn"
+      ],
+      "repeat": "error",
+      "args": "none",
+      "output": "test-entry"
+    }
+  ],
+  "custom": {
+    "must_be_declared": true,
+    "qualified_name": true,
+    "allowed_kinds": [
+      "syntax",
+      "generate",
+      "metadata"
+    ],
+    "cannot_produce_verified_ir": true
+  },
+  "incompatible": "duplicate nonrepeatable attributes fail; no safe capability-granting attribute"
+}

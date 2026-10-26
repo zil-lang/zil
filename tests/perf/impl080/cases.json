@@ -1,0 +1,159 @@
+[
+  {
+    "name": "reverse4",
+    "root": "tests/perf/impl080/reverse4/main.zil",
+    "edit": "tests/perf/impl080/reverse4/main.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "",
+    "stdout": "",
+    "exit": 0
+  },
+  {
+    "name": "reverse64",
+    "root": "tests/perf/impl080/reverse64/main.zil",
+    "edit": "tests/perf/impl080/reverse64/main.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "",
+    "stdout": "",
+    "exit": 0
+  },
+  {
+    "name": "reverse128",
+    "root": "tests/perf/impl080/reverse128/main.zil",
+    "edit": "tests/perf/impl080/reverse128/main.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "",
+    "stdout": "",
+    "exit": 0
+  },
+  {
+    "name": "forward64",
+    "root": "tests/perf/impl080/forward64/main.zil",
+    "edit": "tests/perf/impl080/forward64/main.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "",
+    "stdout": "",
+    "exit": 0
+  },
+  {
+    "name": "star64",
+    "root": "tests/perf/impl080/star64/main.zil",
+    "edit": "tests/perf/impl080/star64/main.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "",
+    "stdout": "",
+    "exit": 0
+  },
+  {
+    "name": "disconnected64",
+    "root": "tests/perf/impl080/disconnected64/main.zil",
+    "edit": "tests/perf/impl080/disconnected64/main.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "",
+    "stdout": "",
+    "exit": 0
+  },
+  {
+    "name": "cycle16",
+    "root": "tests/perf/impl080/cycle16/main.zil",
+    "edit": "tests/perf/impl080/cycle16/main.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "",
+    "stdout": "",
+    "exit": 0
+  },
+  {
+    "name": "no_resource",
+    "root": "tests/perf/impl080/no_resource/main.zil",
+    "edit": "tests/perf/impl080/no_resource/main.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "",
+    "stdout": "",
+    "exit": 0
+  },
+  {
+    "name": "unused_resource",
+    "root": "tests/perf/impl080/unused_resource/main.zil",
+    "edit": "tests/perf/impl080/unused_resource/main.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "",
+    "stdout": "",
+    "exit": 0
+  },
+  {
+    "name": "borrowed_closure",
+    "root": "tests/perf/impl080/borrowed_closure/main.zil",
+    "edit": "tests/perf/impl080/borrowed_closure/main.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "",
+    "stdout": "",
+    "exit": 0
+  },
+  {
+    "name": "owned-main",
+    "root": "examples/mainline/owned_component/main.zil",
+    "edit": "examples/mainline/owned_component/window.zil",
+    "modes": [
+      "verify",
+      "build"
+    ],
+    "stdin": "+r-q",
+    "stdout": "0\n1\nS1\n0\n#4\nMSU",
+    "exit": 0
+  },
+  {
+    "name": "owned-lifecycle",
+    "root": "examples/mainline/owned_component/lifecycle.zil",
+    "edit": "examples/mainline/owned_component/lifecycle.zil",
+    "modes": [
+      "verify",
+      "build"
+    ],
+    "stdin": "7",
+    "stdout": "ABC68DEF71GBCZ",
+    "exit": 0
+  },
+  {
+    "name": "owned-fd",
+    "root": "examples/mainline/owned_component/fd.zil",
+    "edit": "examples/mainline/owned_component/fd.zil",
+    "modes": [
+      "verify",
+      "build"
+    ],
+    "stdin": "",
+    "stdout": "F",
+    "exit": 0
+  },
+  {
+    "name": "public-helper",
+    "root": "examples/mainline/helper_ui/main.zil",
+    "edit": "examples/mainline/helper_ui/helpers.zil",
+    "modes": [
+      "verify"
+    ],
+    "stdin": "++q",
+    "stdout": "0\n1\n2\n#3\nMSU",
+    "exit": 0
+  }
+]

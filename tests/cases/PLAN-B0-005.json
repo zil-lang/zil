@@ -1,0 +1,13 @@
+{
+  "steps": [
+    {
+      "kind": "command",
+      "command": [
+        "{python}",
+        "tests/bootstrap/worktree-isolation.py"
+      ],
+      "result_json": true,
+      "timeout": 240
+    }
+  ]
+}

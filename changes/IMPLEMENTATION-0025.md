@@ -1,0 +1,7 @@
+# 025 跨函数共享借入
+
+依现有来源合同规范开放共享标量引用参数和返回，函数正文推导返回参数来源；共享ABI为原生ptr，无新增堆对象或隐藏所有权。新增未核Hold根Parameter(index)，调用把callee的参数来源替换为本次实参Hold；analyze和verify分别在有限来源集合上求固定点。参数槽本身仍为函数局部，`&parameter`不能冒充入参目标；局部根返回、没有可落地来源的递归结果和伪造候选必须拒绝。共享借入保持最后使用边界。公共schema由集成者统一版本化，旧版兼容不要求。
+
+实现边界：共享引用目标仍限Unit/bool/i32/i64，直接函数/模块调用与递归转传可用；mut、投影借入、嵌套地址、显式contract DSL及地址返回闭包仍后续实现。返回来源按可能执行路径合并，不根据运行时flag臆断来源。仅在Verify成功后发布接口result_origins和contract_fingerprint，Types阶段明确为None；类型签名与来源合同摘要分开。空来源递归是未落地来源而非空借入承诺，拒绝为E-BORROW-ORIGIN；局部/按值形参地址返回拒绝为E-BORROW-ESCAPE。
+
+旧shared_addresses中两个Unsupported样例已迁移到本片实际共享参数正例与局部返回SafeReject反例，未删除语义覆盖。标量非借入返回使用既有Hold快路径，保持原有精确分析工作预算回归。

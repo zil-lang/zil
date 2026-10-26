@@ -1,0 +1,220 @@
+{
+  "arms": {
+    "BASE": "original",
+    "N": "original",
+    "NS": "mapped/buffer plus original stream/retained",
+    "Rust": "original Rust; sealed 104 plain executable identities required",
+    "S": "mapped/buffer plus original stream/retained"
+  },
+  "canonical_sequence": "examples/mainline/byte_buffer/sequence.zil",
+  "files": [
+    {
+      "bytes": 443,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/buffer/rust/buffer.rs",
+      "sha256": "a6ecd02444dad92da6ab7e91dcef48c94fb6abcced3abee00408f3a583078b2b",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/buffer/rust/buffer.rs"
+    },
+    {
+      "bytes": 204,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/buffer/rust/io.rs",
+      "sha256": "d9f709051782997a6e7bc7d907be7ce9ba333fbc2dc5349950b524d75bde184a",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/buffer/rust/io.rs"
+    },
+    {
+      "bytes": 448,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/buffer/rust/main.rs",
+      "sha256": "367500a9607b1f88c808c2034e3f7d85518506a2b7d13f6e2381a0e1ce0b4d21",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/buffer/rust/main.rs"
+    },
+    {
+      "bytes": 69,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/buffer/rust/sequence.rs",
+      "sha256": "5585ff49e8f1170372786d3add481f2c77272c51ea84eec542e1296718b92c63",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/buffer/rust/sequence.rs"
+    },
+    {
+      "bytes": 837,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/buffer/zil/buffer.zil",
+      "sha256": "1061926bafaec7e3935e0478e95cd105a8e2548e5918732e449d2f6c7f53174c",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/buffer/zil/buffer.zil"
+    },
+    {
+      "bytes": 196,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/buffer/zil/io.zil",
+      "sha256": "0b67228f46271c5ce6d7217fc3c6cbc209a86e79c91b6f5a6f4287b9626869a1",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/buffer/zil/io.zil"
+    },
+    {
+      "bytes": 525,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/buffer/zil/main.zil",
+      "sha256": "7db641ee21fa87ef1c53ff498c3f0f82fc40555809a95b1f2b60806e84ea16a4",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/buffer/zil/main.zil"
+    },
+    {
+      "bytes": 229,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/buffer/zil/sequence.zil",
+      "sha256": "44580d3bcfd2b7efcbd024cfab7841a9d98b7e597f1f8440c12a28d5b85a33e2",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/buffer/zil/sequence.zil"
+    },
+    {
+      "bytes": 443,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/retained/rust/buffer.rs",
+      "sha256": "a6ecd02444dad92da6ab7e91dcef48c94fb6abcced3abee00408f3a583078b2b",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/retained/rust/buffer.rs"
+    },
+    {
+      "bytes": 204,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/retained/rust/io.rs",
+      "sha256": "d9f709051782997a6e7bc7d907be7ce9ba333fbc2dc5349950b524d75bde184a",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/retained/rust/io.rs"
+    },
+    {
+      "bytes": 383,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/retained/rust/main.rs",
+      "sha256": "3b79f5a8f88cc379c226ffe48d7937fc5ad5861ff97098279f1ceb8ab8d88595",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/retained/rust/main.rs"
+    },
+    {
+      "bytes": 620,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/retained/rust/state.rs",
+      "sha256": "6eede37e7bfcf132268cb7cb493b61a59af6d4b88ac4002775f8606f647f83bd",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/retained/rust/state.rs"
+    },
+    {
+      "bytes": 837,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/retained/zil/buffer.zil",
+      "sha256": "1061926bafaec7e3935e0478e95cd105a8e2548e5918732e449d2f6c7f53174c",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/retained/zil/buffer.zil"
+    },
+    {
+      "bytes": 196,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/retained/zil/io.zil",
+      "sha256": "0b67228f46271c5ce6d7217fc3c6cbc209a86e79c91b6f5a6f4287b9626869a1",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/retained/zil/io.zil"
+    },
+    {
+      "bytes": 319,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/retained/zil/main.zil",
+      "sha256": "7d9e65b3f1a8ef804033292fbec09169aa8ec940b5a84447a16808e75bbe8abf",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/retained/zil/main.zil"
+    },
+    {
+      "bytes": 629,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/retained/zil/state.zil",
+      "sha256": "00ff37d5ebfb94163b8efc31ceafb9470713876952a267b21558ab776ccaba36",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/retained/zil/state.zil"
+    },
+    {
+      "bytes": 204,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/stream/rust/io.rs",
+      "sha256": "d9f709051782997a6e7bc7d907be7ce9ba333fbc2dc5349950b524d75bde184a",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/stream/rust/io.rs"
+    },
+    {
+      "bytes": 278,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/stream/rust/main.rs",
+      "sha256": "34099ca8d5b1992a943af4b74cede404831e9a6d08bdd918a7edd570cc3c4bc3",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/stream/rust/main.rs"
+    },
+    {
+      "bytes": 59,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/stream/rust/transform.rs",
+      "sha256": "c67d88c8b2ced200151fe5065935beeaed1acf7cb3f9b6830880f3aa9a9297cc",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/stream/rust/transform.rs"
+    },
+    {
+      "bytes": 196,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/stream/zil/io.zil",
+      "sha256": "0b67228f46271c5ce6d7217fc3c6cbc209a86e79c91b6f5a6f4287b9626869a1",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/stream/zil/io.zil"
+    },
+    {
+      "bytes": 235,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/stream/zil/main.zil",
+      "sha256": "6cbc3c5598057bfecdee873abf2edf1a0585dda881cc740c5c795d8cfb3de1d4",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/stream/zil/main.zil"
+    },
+    {
+      "bytes": 115,
+      "factor": "original",
+      "path": "benches/rust-parity/109/original/stream/zil/transform.zil",
+      "sha256": "4aa40d6a0c24605dd70b195ca61e33402f1db4bce71c059a89f08e202152ab28",
+      "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "source_path": "benches/rust-parity/104/stream/zil/transform.zil"
+    },
+    {
+      "bytes": 525,
+      "factor": "original",
+      "path": "benches/rust-parity/109/mapped/buffer/zil/main.zil",
+      "sha256": "7db641ee21fa87ef1c53ff498c3f0f82fc40555809a95b1f2b60806e84ea16a4",
+      "source_path": "benches/rust-parity/109/original/buffer/zil/main.zil"
+    },
+    {
+      "bytes": 837,
+      "factor": "original",
+      "path": "benches/rust-parity/109/mapped/buffer/zil/buffer.zil",
+      "sha256": "1061926bafaec7e3935e0478e95cd105a8e2548e5918732e449d2f6c7f53174c",
+      "source_path": "benches/rust-parity/109/original/buffer/zil/buffer.zil"
+    },
+    {
+      "bytes": 196,
+      "factor": "original",
+      "path": "benches/rust-parity/109/mapped/buffer/zil/io.zil",
+      "sha256": "0b67228f46271c5ce6d7217fc3c6cbc209a86e79c91b6f5a6f4287b9626869a1",
+      "source_path": "benches/rust-parity/109/original/buffer/zil/io.zil"
+    },
+    {
+      "bytes": 830,
+      "factor": "S",
+      "path": "benches/rust-parity/109/mapped/buffer/zil/sequence.zil",
+      "sha256": "29f9975e5dbcd88d42d76a2db55b38fae7d3d2619b9357e5af72a64ed975bb3e",
+      "source_path": "examples/mainline/byte_buffer/sequence.zil"
+    }
+  ],
+  "mapped_file_count": 4,
+  "original_file_count": 22,
+  "original_source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+  "schema": "zil-109-source-provenance/1"
+}

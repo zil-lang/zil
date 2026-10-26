@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "scope": "Production source-to-Core receiver normalization; no aggregate runtime or trait contract checking is claimed.",
+  "steps": [
+    { "kind": "cargo-test", "package": "zil-expand", "filter": "plan_t01_002_", "min_passed": 4 }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "version": "zil-rust-parity/104/memory/1",
+  "reason": "Original direct wait4 peak RSS is contaminated by the Python parent's address space before exec; retain it but do not interpret it as target memory.",
+  "scope": "Same frozen programs, inputs, compiler arguments and three finite scenarios as timing identity freeze-002; memory observations only.",
+  "collector": "A small C executable first execs into its own small address space, then forks and wait4s the actual target. Report the target's maximum individual-process RSS in KiB, not simultaneous process-tree sum.",
+  "repetitions": 5,
+  "order": "Each of the original 15 cells in original order, five pairs; ZIL first on even zero-based repetitions, Rust first on odd repetitions.",
+  "controls": {
+    "parent_padding_bytes": [0, 268435456],
+    "target_touched_bytes": [1048576, 33554432],
+    "repetitions": 3,
+    "max_parent_effect_kib": 8192,
+    "small_target_max_kib": 8192,
+    "large_target_min_kib": 24576
+  },
+  "timing_inference": "None. Wrapper elapsed times and direct wrapper wait4 RSS are retained for audit but excluded from all time comparisons and target-memory summaries.",
+  "stop_rule": "One fixed complete memory series; any failed control or sample invalidates the series; no selection or retries based on observed relative memory.",
+  "product_thresholds": "Unchanged validation/product-gates.json. Five descriptive memory replicates do not establish full product parity."
+}

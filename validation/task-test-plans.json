@@ -1,0 +1,928 @@
+{
+  "schema_version": 1,
+  "kind": "future-task-fixture-requirements",
+  "scope": "Construction test requirements only. No compiler fixtures or execution success are claimed by this file.",
+  "runner_contract": {
+    "command": "python3 tools/run-cases.py --task ID --manifest PATH --out-root evidence/ID",
+    "required_arguments": [
+      "--task",
+      "--manifest",
+      "--out-root"
+    ],
+    "supported_manifests": [
+      "validation/task-test-plans.json",
+      "conformance/index.json"
+    ],
+    "selected_min": 1,
+    "executed_min": 1,
+    "assertions_min": 1,
+    "all_selected_must_execute": true,
+    "zero_selected": "fail",
+    "zero_executed": "fail",
+    "missing_fixture": "fail",
+    "unsupported": "non-pass",
+    "resource_limit": "non-pass",
+    "timeout": "non-pass",
+    "infrastructure_failure": "non-pass",
+    "unknown_status": "fail",
+    "expected_reject": "match registered stage and reason; generic process failure is not acceptance",
+    "output": "Create a fresh RunId directory; write result.json, command/input/source/profile/toolchain hashes, stdout/stderr, exit code, selected/executed/assertion counts and per-case results. Never overwrite evidence.",
+    "observable_contracts": {
+      "process_exit": {
+        "expected_field": "expected.exit_code",
+        "meaning": "Compare the real main process exit status on the selected target; do not use this field for arbitrary typed function results."
+      },
+      "entry_return": {
+        "entry_field": "expected.entry",
+        "expected_field": "expected.return_value",
+        "meaning": "The native test harness calls the named typed function and records its complete typed result. Values above 255 must not be truncated to shell exit status; compile and run the ordinary ZIL function, never substitute constant parsing."
+      },
+      "separation": "The manifest chooses the observable. Never infer process status from return_value or return_value from process status."
+    }
+  },
+  "cases": [
+    {
+      "id": "PLAN-B0-001",
+      "owner": "B0",
+      "title": "正式算术贯通",
+      "kind": "native",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-B0-001.json",
+      "required_observations": [
+        "源码计算、TypedCFG、候选、Verified、LIR 与真实机器退出值一致",
+        "runner区分main进程exit_code与具名entry的完整类型return_value，超过255的返回值由原生harness实际读取而非shell退出码截断"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-B0-002",
+      "owner": "B0",
+      "title": "失败链不生成可运行产物",
+      "kind": "reject",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-B0-002.json",
+      "required_observations": [
+        "语法错误、类型错误、未支持构造分别归类且无新可执行文件"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-B0-003",
+      "owner": "B0",
+      "title": "核验能力不能伪造",
+      "kind": "compile-fail",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-B0-003.json",
+      "required_observations": [
+        "从 syntax/driver/反序列化入口直接构造 Verified wrapper 的 Rust 负例编译失败"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-B0-004",
+      "owner": "B0",
+      "title": "runner 空集与缺失输入",
+      "kind": "runner-fault",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-B0-004.json",
+      "required_observations": [
+        "空筛选、缺 fixture、零执行、无断言和超时均非 Pass"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-B0-005",
+      "owner": "B0",
+      "title": "工作树产物隔离",
+      "kind": "integration",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-B0-005.json",
+      "required_observations": [
+        "两个工作树不同 target/cache/output 同时构建不覆盖产物"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T01-001",
+      "owner": "T01",
+      "title": "无损解析与错误恢复",
+      "kind": "frontend",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-T01-001.json",
+      "required_observations": [
+        "注释/换行/字符串和定界恢复保留 source span，格式化再解析不改绑定"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T01-002",
+      "owner": "T01",
+      "title": "接收者声明与静态歧义",
+      "kind": "frontend",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-T01-002.json",
+      "required_observations": [
+        "显式接收者、组级默认、词法点字段和静态函数产生不同且固定形状"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T01-003",
+      "owner": "T01",
+      "title": "闭包和函数类型解析",
+      "kind": "frontend",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-T01-003.json",
+      "required_observations": [
+        "move/箭头闭包、fn 指针与受限 impl Trait 返回按文法解析"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T01-004",
+      "owner": "T01",
+      "title": "单次求值归一化",
+      "kind": "frontend",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-T01-004.json",
+      "required_observations": [
+        "记录更新与管道的每个输入只出现一次求值节点且顺序固定"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T01-005",
+      "owner": "T01",
+      "title": "属性与阶段入口",
+      "kind": "reject",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-T01-005.json",
+      "required_observations": [
+        "非法 # 位置、未知/重复属性和非法附着产生指定语法诊断"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T02-001",
+      "owner": "T02",
+      "title": "模式与接收者合同",
+      "kind": "typecheck",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T02-001.json",
+      "required_observations": [
+        "值模式、描述模式和显式责任转交区分；receiver override 与 trait 接口一致"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T02-002",
+      "owner": "T02",
+      "title": "函数指针和捕获环境",
+      "kind": "typecheck",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T02-002.json",
+      "required_observations": [
+        "无捕获函数可用 fn 指针，捕获闭包不得隐式丢掉环境转成函数指针"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T02-003",
+      "owner": "T02",
+      "title": "opaque 返回同一隐藏类型",
+      "kind": "reject",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T02-003.json",
+      "required_observations": [
+        "同一隐藏闭包类型返回接受；不同表达式闭包类型混返及 trait/dyn 非法返回拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T02-004",
+      "owner": "T02",
+      "title": "泛型与关联投影",
+      "kind": "typecheck",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T02-004.json",
+      "required_observations": [
+        "常见迭代器组合接受；候选等式自证、无限关联展开和不合法 lending 拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T02-005",
+      "owner": "T02",
+      "title": "源码形状到显式CFG",
+      "kind": "frontend",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T02-005.json",
+      "required_observations": [
+        "错误出口、临时值、receiver 和捕获位置在 TypedCFG 中都有稳定ID"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T03-001",
+      "owner": "T03",
+      "title": "常量类型与impl生成重检",
+      "kind": "integration",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T03-001.json",
+      "required_observations": [
+        "合法生成接受；生成未初始化读取/伪造权限仍被普通检查拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T03-002",
+      "owner": "T03",
+      "title": "阶段与查询环",
+      "kind": "reject",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T03-002.json",
+      "required_observations": [
+        "cfg/derive 顺序固定；生成—求解环和未完成查询访问拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T03-003",
+      "owner": "T03",
+      "title": "显式输入和配额",
+      "kind": "fault",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T03-003.json",
+      "required_observations": [
+        "未声明文件/环境访问拒绝，预算耗尽为 ResourceLimit 且无运行产物"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T03-004",
+      "owner": "T03",
+      "title": "独立核验CTIR",
+      "kind": "fault",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T03-004.json",
+      "required_observations": [
+        "损坏 CT 证书和未核 CTIR 均不能进入执行器"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T04-001",
+      "owner": "T04",
+      "title": "查询指纹与失效闭包",
+      "kind": "incremental",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T04-001.json",
+      "required_observations": [
+        "私有体/公共合同/布局/源位置变化分别命中正确重算集合"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T04-002",
+      "owner": "T04",
+      "title": "损坏缓存与取消",
+      "kind": "fault",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-T04-002.json",
+      "required_observations": [
+        "截断/错版本/取消中断缓存拒绝并可重建，禁止反序列化伪 Verified"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T04-003",
+      "owner": "T04",
+      "title": "native run包装",
+      "kind": "integration",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-T04-003.json",
+      "required_observations": [
+        "脚本与显式入口的求值/错误/清理一致，导入模块无隐式执行副作用"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T04-004",
+      "owner": "T04",
+      "title": "CLI与IDE语义一致",
+      "kind": "integration",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-T04-004.json",
+      "required_observations": [
+        "相同源码与目标的结果类别/错误码一致；IDE不能接受CLI拒绝代码"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T05-001",
+      "owner": "T05",
+      "title": "来源与OneMany证据变异",
+      "kind": "mutation",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T05-001.json",
+      "required_observations": [
+        "错误 singleton 强更新、伪不交和缺来源边均拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T05-002",
+      "owner": "T05",
+      "title": "窗口与责任转移变异",
+      "kind": "mutation",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T05-002.json",
+      "required_observations": [
+        "漏清理边、重复责任、旧窗口复用和坏控制边拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T05-003",
+      "owner": "T05",
+      "title": "CT证据与未知opcode",
+      "kind": "mutation",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-T05-003.json",
+      "required_observations": [
+        "非允许CT操作、缺证书和未知opcode拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T05-004",
+      "owner": "T05",
+      "title": "已核wrapper隔离",
+      "kind": "compile-fail",
+      "status": "Implemented",
+      "required_fixture": "tests/cases/PLAN-T05-004.json",
+      "required_observations": [
+        "外部crate不可直接构造或反序列化为Verified；真实verify入口可返回只读wrapper"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T06-001",
+      "owner": "T06",
+      "title": "顺序同源与反序拒绝",
+      "kind": "analysis",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T06-001.json",
+      "required_observations": [
+        "同源先读后close接受，close后read及再次close拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T06-002",
+      "owner": "T06",
+      "title": "OneMany与循环历史",
+      "kind": "analysis",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T06-002.json",
+      "required_observations": [
+        "精确One可强更新，family singleton/多候选只能弱更新"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T06-003",
+      "owner": "T06",
+      "title": "条件管理路由",
+      "kind": "integration",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T06-003.json",
+      "required_observations": [
+        "返回数据选择器与管理记录同步；缺route/错记录/释放后写flag拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T06-004",
+      "owner": "T06",
+      "title": "包移动和失败清理",
+      "kind": "analysis",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T06-004.json",
+      "required_observations": [
+        "逐字段成功责任准确转交，部分构造失败只清理实际完成字段"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T06-005",
+      "owner": "T06",
+      "title": "不返回前缀和隐藏清理",
+      "kind": "analysis",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T06-005.json",
+      "required_observations": [
+        "递归无返回不抹掉已发生close；旧Cleanup实际依赖进入合同"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T07-001",
+      "owner": "T07",
+      "title": "布局与包移动ABI",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T07-001.json",
+      "required_observations": [
+        "布局/对齐/调用约定与profile一致；包移动不复制实际清理责任"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T07-002",
+      "owner": "T07",
+      "title": "清理顺序和记录寿命",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T07-002.json",
+      "required_observations": [
+        "析构/释放事件准确；free后不写原record，部分构造只清理初始化字段"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T07-003",
+      "owner": "T07",
+      "title": "目标属性保守性",
+      "kind": "codegen",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T07-003.json",
+      "required_observations": [
+        "普通Desc没有无证据noalias/dereferenceable；地址窗口只在合法动态范围使用"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T07-004",
+      "owner": "T07",
+      "title": "profile边界",
+      "kind": "reject",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T07-004.json",
+      "required_observations": [
+        "目标不支持的表示不静默套用另一后端语义"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T08-001",
+      "owner": "T08",
+      "title": "捕获三轴与重复调用",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T08-001.json",
+      "required_observations": [
+        "自动捕获/move、Fn能力、调用状态独立；拥有只读环境可重复调用，消费后重调拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T08-002",
+      "owner": "T08",
+      "title": "环境逃逸与责任",
+      "kind": "reject",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T08-002.json",
+      "required_observations": [
+        "短命借入经move仍不能逃逸；资源转交、未调用析构和失败清理准确"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T08-003",
+      "owner": "T08",
+      "title": "闭包替换与旧Cleanup",
+      "kind": "integration",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T08-003.json",
+      "required_observations": [
+        "新Hold与旧Cleanup同时检查；正在执行的环境不能普通销毁"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T08-004",
+      "owner": "T08",
+      "title": "一般CFG与回边",
+      "kind": "analysis",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T08-004.json",
+      "required_observations": [
+        "循环历史、递归前缀、错误出口保持责任，坏回边/未初始化发布拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T08-005",
+      "owner": "T08",
+      "title": "图与地址失效",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T08-005.json",
+      "required_observations": [
+        "稳定环、独立删除与合法分区可用；realloc/变体/detach后旧地址拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T08-006",
+      "owner": "T08",
+      "title": "有限分析规模",
+      "kind": "scaling",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T08-006.json",
+      "required_observations": [
+        "对同义n/2n/4n负载记录事实/边/证书数，不以缓存命中掩盖工作增长"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T09-001",
+      "owner": "T09",
+      "title": "静态帧与结果转交",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T09-001.json",
+      "required_observations": [
+        "Pending/Ready/错误/取消分别保持初始化与清理；重复取结果拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T09-002",
+      "owner": "T09",
+      "title": "关闭准入竞态",
+      "kind": "concurrency",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T09-002.json",
+      "required_observations": [
+        "进入登记与关闭竞争只有合法线性化结果；不能漏登记后提前回收"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T09-003",
+      "owner": "T09",
+      "title": "晚通知和全部使用者",
+      "kind": "fault",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T09-003.json",
+      "required_observations": [
+        "同步完成/迟到通知/waker与平台持有者都被计入，最后用户退出前不释放"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T09-004",
+      "owner": "T09",
+      "title": "弱内存与迁移",
+      "kind": "concurrency",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T09-004.json",
+      "required_observations": [
+        "发布/获取和线程迁移有目标证据，普通原子/Pin不附赠权限"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-T09-005",
+      "owner": "T09",
+      "title": "异常与drain",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-T09-005.json",
+      "required_observations": [
+        "panic/错误后实际剩余义务可清理，不能把发出cancel当作完成"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W1-001",
+      "owner": "W1",
+      "title": "跨模块同源顺序",
+      "kind": "integration",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W1-001.json",
+      "required_observations": [
+        "被调先读后关接受，相同输入先关后读拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W1-002",
+      "owner": "W1",
+      "title": "条件返回管理入口",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W1-002.json",
+      "required_observations": [
+        "两分支返回正确payload/route，关闭所选实例且保留未选实例责任"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W1-003",
+      "owner": "W1",
+      "title": "完整包跨边界移动",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W1-003.json",
+      "required_observations": [
+        "包返回/参数give不保留旧栈管理记录；先保存的字段描述不会重定向到替换后的新实例"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W1-004",
+      "owner": "W1",
+      "title": "失败路径与损坏接口",
+      "kind": "fault",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W1-004.json",
+      "required_observations": [
+        "构造失败正确清理，缺route/错接口版本/伪Verified被拒绝"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W2-001",
+      "owner": "W2",
+      "title": "最终表面糖等价",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W2-001.json",
+      "required_observations": [
+        "接收者/记录/管道/script与核心写法求值次数、错误和清理一致"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W2-002",
+      "owner": "W2",
+      "title": "返回和保存真实闭包",
+      "kind": "integration",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W2-002.json",
+      "required_observations": [
+        "opaque返回、借入回调、拥有环境、泛型/dyn调用与析构在模块边界正确"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W2-003",
+      "owner": "W2",
+      "title": "生成与手写代码同核",
+      "kind": "integration",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W2-003.json",
+      "required_observations": [
+        "生成类型/impl和手写代码通过同样检查；改变生成输入失效正确"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W2-004",
+      "owner": "W2",
+      "title": "图演进完整成本",
+      "kind": "evolution",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W2-004.json",
+      "required_observations": [
+        "树/共享环/独立删除同场景逐阶段保留正确性并统计全项目改动"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W3-001",
+      "owner": "W3",
+      "title": "真实OS同步与异步完成",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W3-001.json",
+      "required_observations": [
+        "真实系统接口两种完成时序产生相同结果与正确责任状态"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W3-002",
+      "owner": "W3",
+      "title": "取消和迟到回调",
+      "kind": "fault",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W3-002.json",
+      "required_observations": [
+        "取消不提前释放，迟通知无UAF/二次结果消费"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W3-003",
+      "owner": "W3",
+      "title": "异常与排空",
+      "kind": "native",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W3-003.json",
+      "required_observations": [
+        "错误/panic/drain后所有已登记使用者归还且清理一次"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W3-004",
+      "owner": "W3",
+      "title": "证据范围与空测试",
+      "kind": "runner-fault",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W3-004.json",
+      "required_observations": [
+        "未支持目标、零关键事件命中和工具失败不能标Pass"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W4-001",
+      "owner": "W4",
+      "title": "同语义基线和全部成本",
+      "kind": "benchmark",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W4-001.json",
+      "required_observations": [
+        "资源/错误合同一致，构造清理转换与桥接成本不移出计时"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W4-002",
+      "owner": "W4",
+      "title": "编译与分析增长",
+      "kind": "benchmark",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W4-002.json",
+      "required_observations": [
+        "冷check/build、增量、CT/核验/宿主构建分别计时并记录n/2n/4n工作量"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W4-003",
+      "owner": "W4",
+      "title": "全项目演进",
+      "kind": "evolution",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W4-003.json",
+      "required_observations": [
+        "应用、库、适配和可信代码同时统计，完成规定演进族"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    },
+    {
+      "id": "PLAN-W4-004",
+      "owner": "W4",
+      "title": "发布证据拒绝伪通过",
+      "kind": "runner-fault",
+      "status": "NotImplemented",
+      "required_fixture": "tests/cases/PLAN-W4-004.json",
+      "required_observations": [
+        "零测试/错误基线/过期hash/Unsupported/超时/未批准profile均阻止产品通过"
+      ],
+      "minimum_executed": 1,
+      "minimum_assertions": 1,
+      "expected_failure_counts_as_pass_only_when": "The registered oracle observes the expected phase and reason; arbitrary tool/compiler failure is not success."
+    }
+  ]
+}

@@ -1,0 +1,986 @@
+{
+  "schema_version": 1,
+  "purpose": "Explicit stable diagnostic registry enriched by conformance mappings; safety meaning is defined only by normative rule IDs",
+  "entries": [
+    {
+      "code": "E-ADDRESS-PERMISSION",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-ACCESS"
+      ]
+    },
+    {
+      "code": "E-ARRAY-INFER",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-ARRAY-LENGTH",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-BORROW-CONFLICT",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CAPTURE"
+      ]
+    },
+    {
+      "code": "E-BORROW-CYCLE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-BORROW-DEAD",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CAPTURE"
+      ]
+    },
+    {
+      "code": "E-BORROW-ESCAPE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CONTRACT",
+        "ZIL-ORIGIN"
+      ]
+    },
+    {
+      "code": "E-BORROW-ORIGIN",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CONTRACT",
+        "ZIL-ORIGIN"
+      ]
+    },
+    {
+      "code": "E-BORROW-STORAGE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CAPTURE"
+      ]
+    },
+    {
+      "code": "E-CALL-ARITY",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-PIPE"
+      ]
+    },
+    {
+      "code": "E-CALL-MUTABLE-BINDING",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-CALL-PROTOCOL-STATE",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-CONTRACT",
+        "ZIL-ROUTE"
+      ]
+    },
+    {
+      "code": "E-CAPTURE-ESCAPE",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CAPTURE",
+        "ZIL-MODES",
+        "ZIL-ORIGIN"
+      ]
+    },
+    {
+      "code": "E-CAPTURE-LOAN-CONFLICT",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CAPTURE"
+      ]
+    },
+    {
+      "code": "E-CAPTURE-PARENT-WINDOW",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CAPTURE"
+      ]
+    },
+    {
+      "code": "E-CAPTURED-FN-POINTER",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-CLOSURE-ALREADY-CONSUMED",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ]
+    },
+    {
+      "code": "E-CLOSURE-CALL-KIND",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-CLOSURE-INFERENCE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-CLOSURE-MUTABILITY",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE"
+      ]
+    },
+    {
+      "code": "E-CODEGEN-FOREIGN",
+      "phases": [
+        "codegen"
+      ],
+      "requirements": [
+        "ZIL-LOWERING"
+      ]
+    },
+    {
+      "code": "E-CT-ARITHMETIC",
+      "phases": [
+        "ct"
+      ],
+      "requirements": [
+        "ZIL-COMPTIME"
+      ]
+    },
+    {
+      "code": "E-CT-BOUNDS",
+      "phases": [
+        "ct"
+      ],
+      "requirements": [
+        "ZIL-COMPTIME"
+      ]
+    },
+    {
+      "code": "E-CT-TRAP",
+      "phases": [
+        "ct"
+      ],
+      "requirements": [
+        "ZIL-COMPTIME"
+      ]
+    },
+    {
+      "code": "E-DROP-BINDING",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-DROP-CALL",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-DROP-DUPLICATE",
+      "phases": [
+        "expand"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-DROP-SIGNATURE",
+      "phases": [
+        "expand"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-ENTRY-SIGNATURE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-SCRIPT"
+      ]
+    },
+    {
+      "code": "E-ENUM-ARITY",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-ENUM-VARIANT",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-ENUM-VARIANT-DUPLICATE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-ERROR-INFERENCE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG",
+        "ZIL-CLEANUP",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-ERROR-INJECTION",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG",
+        "ZIL-CLEANUP",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-ERROR-INJECTION-AMBIGUOUS",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG",
+        "ZIL-CLEANUP",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-FFI-DECLARATION",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CONTRACT",
+        "ZIL-LOWERING"
+      ]
+    },
+    {
+      "code": "E-FFI-FUNCTION-POINTER",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CONTRACT",
+        "ZIL-LOWERING"
+      ]
+    },
+    {
+      "code": "E-FFI-UNSAFE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CONTRACT"
+      ]
+    },
+    {
+      "code": "E-FIELD-DUPLICATE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-FIELD-MISSING",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-FIELD-PRIVATE",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODULE",
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-FIELD-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-GENERIC-ARGUMENT",
+      "phases": [
+        "expand"
+      ],
+      "requirements": [
+        "ZIL-SYNTAX",
+        "ZIL-TRAIT"
+      ]
+    },
+    {
+      "code": "E-GIVE-DESCRIPTOR",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-CLEANUP",
+        "ZIL-MODES"
+      ]
+    },
+    {
+      "code": "E-GIVE-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-INFINITE-LAYOUT",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-MODES"
+      ]
+    },
+    {
+      "code": "E-INTEGER-CONVERSION",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-INTEGER-CONVERSION-NAME",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-MATCH-ARITY",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-MATCH-BINDING",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-MATCH-NONEXHAUSTIVE",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG"
+      ]
+    },
+    {
+      "code": "E-MATCH-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-MATCH-UNREACHABLE",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG"
+      ]
+    },
+    {
+      "code": "E-NAME-DUPLICATE",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-SCRIPT"
+      ]
+    },
+    {
+      "code": "E-OPAQUE-RETURN-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-TRAIT"
+      ]
+    },
+    {
+      "code": "E-PARSE-CALLABLE-SYNTAX",
+      "phases": [
+        "parse"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-PARSE-MODULE-STATEMENT",
+      "phases": [
+        "parse"
+      ],
+      "requirements": [
+        "ZIL-SCRIPT"
+      ]
+    },
+    {
+      "code": "E-PARSE-NESTED-NAMED-FN",
+      "phases": [
+        "parse"
+      ],
+      "requirements": [
+        "ZIL-RECEIVER"
+      ]
+    },
+    {
+      "code": "E-PARSE-PIPE-LAMBDA",
+      "phases": [
+        "parse"
+      ],
+      "requirements": [
+        "ZIL-PIPE"
+      ]
+    },
+    {
+      "code": "E-PARSE-RECORD-BLOCK",
+      "phases": [
+        "parse"
+      ],
+      "requirements": [
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-PARSE-SPREAD-POSITION",
+      "phases": [
+        "parse"
+      ],
+      "requirements": [
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-PARSE-TRAIT-RECEIVER-DEFAULT",
+      "phases": [
+        "parse"
+      ],
+      "requirements": [
+        "ZIL-RECEIVER"
+      ]
+    },
+    {
+      "code": "E-PIPE-NOT-UNARY",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-PIPE"
+      ]
+    },
+    {
+      "code": "E-RECEIVER-MEMBER-NOT-FOUND",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECEIVER"
+      ]
+    },
+    {
+      "code": "E-RECEIVER-METHOD-VALUE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECEIVER"
+      ]
+    },
+    {
+      "code": "E-RECEIVER-NONE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECEIVER"
+      ]
+    },
+    {
+      "code": "E-RECEIVER-RESERVED-NAME",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECEIVER"
+      ]
+    },
+    {
+      "code": "E-RECEIVER-SHARED-WRITE",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-RECEIVER"
+      ]
+    },
+    {
+      "code": "E-RECEIVER-TRAIT-MISMATCH",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECEIVER"
+      ]
+    },
+    {
+      "code": "E-RECORD-BASE-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-RECORD-DUPLICATE-FIELD",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-RECORD-MISSING-FIELD",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-RECORD-NO-CONTEXT",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-RECORD-SPREAD-CARRIER",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-RECORD-UNKNOWN-FIELD",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-RESOURCE-RESULT-MODE",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-RESOURCE-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-SPREAD-NOT-TUPLE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-PIPE"
+      ]
+    },
+    {
+      "code": "E-TRY-ERROR-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG",
+        "ZIL-CLEANUP",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-TRY-NOT-ERROR",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-PIPE"
+      ]
+    },
+    {
+      "code": "E-TRY-RETURN-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG",
+        "ZIL-CLEANUP",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
+      "code": "E-TYPE-ARGUMENT",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-PIPE"
+      ]
+    },
+    {
+      "code": "E-UNKNOWN-FIELD",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-USE-AFTER-MOVE",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES",
+        "ZIL-RECORD"
+      ]
+    },
+    {
+      "code": "E-VERIFY-ADDRESS",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CAPTURE"
+      ]
+    },
+    {
+      "code": "E-VERIFY-AGGREGATE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-LOWERING"
+      ]
+    },
+    {
+      "code": "E-VERIFY-CLEANUP",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-VERIFY-ENUM",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-LOWERING"
+      ]
+    },
+    {
+      "code": "E-VERIFY-ERROR",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-VERIFY-FOREIGN",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-CONTRACT"
+      ]
+    },
+    {
+      "code": "E-VERIFY-FUNCTION-REF",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-LOWERING"
+      ]
+    },
+    {
+      "code": "E-VERIFY-HOLD",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-CAPTURE"
+      ]
+    },
+    {
+      "code": "E-VERIFY-INDEX",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-LOWERING"
+      ]
+    },
+    {
+      "code": "E-VERIFY-INDIRECT-CALL",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-LOWERING"
+      ]
+    },
+    {
+      "code": "E-VERIFY-MOVE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-MODES"
+      ]
+    },
+    {
+      "code": "E-VERIFY-PACKAGE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD",
+        "ZIL-CLEANUP",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-VERIFY-RESOURCE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-VERIFY-UNSAFE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-WIRE-SCOPE-EXIT",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-CLEANUP"
+      ]
+    }
+  ]
+}

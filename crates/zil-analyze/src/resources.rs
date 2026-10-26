@@ -1,0 +1,1798 @@
+//! Producer-side resource diagnostics. This module does not import verifier
+//! code or produce trusted permission certificates. It uses sparse named cells
+//! and explicit sets of possible lifecycle states, independently of Verify.
+use super::*;
+use std::collections::BTreeMap;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Place {
+    Local(LocalId),
+    PackageField { local: LocalId, index: u32 },
+    Value(ValueId),
+    Capture(u32),
+    CaptureField { capture: u32, index: u32 },
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Source {
+    Head(LocalId),
+    PackageField { local: LocalId, index: u32 },
+    OwnedPackageField { local: LocalId, index: u32 },
+    OwnedField(u32),
+    Argument(u32),
+    BorrowedField(u32),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Life {
+    Vacant,
+    Available,
+    Transferred,
+    Cleaned,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Birth {
+    Created,
+    Incoming,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Fact {
+    life: BTreeSet<Life>,
+    sources: BTreeSet<Source>,
+    birth: BTreeSet<Birth>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct State {
+    cells: BTreeMap<Place, Fact>,
+    later: BTreeSet<(LocalId, LocalId)>,
+}
+#[derive(Clone, Copy)]
+struct Shape {
+    owned: bool,
+    description: bool,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Effect {
+    arguments: BTreeSet<u32>,
+    borrowed_fields: BTreeSet<u32>,
+}
+type Shapes = BTreeMap<Place, Shape>;
+type Live = BTreeSet<Place>;
+
+fn error(message: &str) -> Vec<Diagnostic> {
+    bad(format!("resource closure: {message}"))
+}
+fn exact(fact: &Fact, life: Life) -> bool {
+    fact.life.len() == 1 && fact.life.contains(&life)
+}
+fn fact_cost(fact: &Fact, budget: &mut Budget) -> CompileResult<()> {
+    budget.spend(
+        fact.life
+            .len()
+            .saturating_add(fact.sources.len())
+            .saturating_add(fact.birth.len())
+            .saturating_add(1),
+        "resource fact",
+    )
+}
+fn copied(state: &State, place: Place, budget: &mut Budget) -> CompileResult<Fact> {
+    budget.lookup(state.cells.len(), "resource lookup")?;
+    let fact = state
+        .cells
+        .get(&place)
+        .ok_or_else(|| error("missing typed resource cell"))?;
+    fact_cost(fact, budget)?;
+    Ok(fact.clone())
+}
+fn replace(state: &mut State, place: Place, fact: Fact, budget: &mut Budget) -> CompileResult<()> {
+    budget.lookup(state.cells.len(), "resource update")?;
+    if !state.cells.contains_key(&place) {
+        return Err(error("resource update has no typed cell"));
+    }
+    state.cells.insert(place, fact);
+    Ok(())
+}
+fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
+    budget.spend(
+        state.cells.len().saturating_add(state.later.len()),
+        "resource state clone",
+    )?;
+    for fact in state.cells.values() {
+        fact_cost(fact, budget)?;
+    }
+    Ok(state.clone())
+}
+fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
+    let mut changed = false;
+    for (place, source) in &from.cells {
+        budget.lookup(to.cells.len(), "resource join lookup")?;
+        let target = to
+            .cells
+            .get_mut(place)
+            .ok_or_else(|| error("incompatible resource states"))?;
+        fact_cost(target, budget)?;
+        fact_cost(source, budget)?;
+        let before = (target.life.len(), target.sources.len(), target.birth.len());
+        target.life.extend(&source.life);
+        target.sources.extend(&source.sources);
+        target.birth.extend(&source.birth);
+        changed |= before != (target.life.len(), target.sources.len(), target.birth.len());
+    }
+    budget.spend(
+        to.later.len().saturating_add(from.later.len()),
+        "resource initialization order join",
+    )?;
+    let before = to.later.len();
+    to.later.extend(&from.later);
+    changed |= before != to.later.len();
+    Ok(changed)
+}
+fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<Shape> {
+    Ok(match ty {
+        Type::Managed(_) | Type::Package { .. } => Shape {
+            owned: true,
+            description: false,
+        },
+        Type::Desc(_) => Shape {
+            owned: false,
+            description: true,
+        },
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)) => {
+            let Type::Closure(id) = inner.as_ref() else {
+                unreachable!()
+            };
+            let c = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| error("absent borrowed closure shape"))?;
+            budget.spend(c.captures.len(), "borrowed environment classification")?;
+            Shape {
+                owned: false,
+                description: c.captures.iter().any(|t| matches!(t, Type::Desc(_))),
+            }
+        }
+        Type::Closure(id) => {
+            let c = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| error("absent closure shape"))?;
+            budget.spend(c.captures.len(), "resource environment classification")?;
+            Shape {
+                owned: c.kind == CallableKind::FnOnce
+                    || c.captures
+                        .iter()
+                        .any(|t| matches!(t, Type::Managed(_) | Type::Package { .. })),
+                description: c.captures.iter().any(|t| matches!(t, Type::Desc(_))),
+            }
+        }
+        _ => Shape {
+            owned: false,
+            description: false,
+        },
+    })
+}
+fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> CompileResult<Shapes> {
+    let mut result = BTreeMap::new();
+    for (place, ty) in f.locals.iter().map(|l| (Place::Local(l.id), &l.ty)).chain(
+        f.values
+            .iter()
+            .enumerate()
+            .map(|(i, t)| (Place::Value(ValueId(i as u32)), t)),
+    ) {
+        budget.spend(1, "resource shape")?;
+        let s = shape(ty, module, budget)?;
+        if s.owned || s.description {
+            budget.lookup(result.len(), "resource shape insertion")?;
+            result.insert(place, s);
+        }
+        if let (Place::Local(local), Type::Package { fields, .. }) = (place, ty) {
+            budget.spend(fields.len(), "package field shapes")?;
+            for (index, (_, field)) in fields.iter().enumerate() {
+                if matches!(field, Type::Managed(_)) {
+                    budget.lookup(result.len(), "package field shape insertion")?;
+                    result.insert(
+                        Place::PackageField {
+                            local,
+                            index: index as u32,
+                        },
+                        Shape {
+                            owned: true,
+                            description: false,
+                        },
+                    );
+                }
+            }
+        }
+    }
+    if let Some(id) = f.environment {
+        let c = module
+            .closures
+            .get(id.0 as usize)
+            .ok_or_else(|| error("absent entry environment"))?;
+        for (index, ty) in c.captures.iter().enumerate() {
+            budget.spend(1, "resource capture shape")?;
+            if matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+                budget.lookup(result.len(), "resource capture insertion")?;
+                result.insert(
+                    Place::Capture(index as u32),
+                    Shape {
+                        owned: true,
+                        description: false,
+                    },
+                );
+            }
+            if let Type::Package { fields, .. } = ty {
+                budget.spend(fields.len(), "capture Package field shapes")?;
+                for (field, (_, ty)) in fields.iter().enumerate() {
+                    if matches!(ty, Type::Managed(_)) {
+                        budget.lookup(result.len(), "capture Package field insertion")?;
+                        result.insert(
+                            Place::CaptureField {
+                                capture: index as u32,
+                                index: field as u32,
+                            },
+                            Shape {
+                                owned: true,
+                                description: false,
+                            },
+                        );
+                    }
+                }
+            }
+        }
+    }
+    Ok(result)
+}
+fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
+    let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::Store { value, .. }
+        | InstructionKind::ConvertInteger { value, .. }
+        | InstructionKind::StorePackageField { value, .. }
+        | InstructionKind::WriteCapture { value, .. } => (Some(*value), None, &[]),
+        InstructionKind::Call { arguments, .. }
+        | InstructionKind::ForeignCall { arguments, .. }
+        | InstructionKind::CallClosureMut { arguments, .. }
+        | InstructionKind::CallClosureShared { arguments, .. } => (None, None, arguments),
+        InstructionKind::CallClosure { callee, arguments }
+        | InstructionKind::CallClosureOnce { callee, arguments }
+        | InstructionKind::CallClosureBorrowed {
+            callee, arguments, ..
+        }
+        | InstructionKind::CallIndirect { callee, arguments } => (Some(*callee), None, arguments),
+        InstructionKind::MakeClosure { captures, .. } => (None, None, captures),
+        InstructionKind::MakeManaged { fields }
+        | InstructionKind::MakePackage { fields }
+        | InstructionKind::MakeAggregate { fields }
+        | InstructionKind::MakeVariant { fields, .. } => (None, None, fields),
+        InstructionKind::ReadDesc { desc, .. } => (Some(*desc), None, &[]),
+        InstructionKind::ByteBufferLen { buffer }
+        | InstructionKind::ByteBufferCapacity { buffer }
+        | InstructionKind::ByteBufferBorrow { buffer, .. } => (Some(*buffer), None, &[]),
+        InstructionKind::ByteBufferReserve { buffer, capacity } => {
+            (Some(*buffer), Some(*capacity), &[])
+        }
+        InstructionKind::ByteBufferPush { buffer, value } => (Some(*buffer), Some(*value), &[]),
+        InstructionKind::WriteDesc { desc, value, .. } => (Some(*desc), Some(*value), &[]),
+        InstructionKind::Unary { operand, .. } => (Some(*operand), None, &[]),
+        InstructionKind::Binary { left, right, .. } => (Some(*left), Some(*right), &[]),
+        InstructionKind::ReadAddress { address }
+        | InstructionKind::SliceLength { address }
+        | InstructionKind::ReborrowAddress { address, .. }
+        | InstructionKind::AddressField { address, .. } => (Some(*address), None, &[]),
+        InstructionKind::WriteAddress { address, value } => (Some(*address), Some(*value), &[]),
+        InstructionKind::AddressIndex { address, index } => (Some(*address), Some(*index), &[]),
+        InstructionKind::AddressSlice {
+            address,
+            start,
+            end,
+        } => (Some(*address), *start, end.as_slice()),
+        InstructionKind::ExtractField { aggregate, .. } => (Some(*aggregate), None, &[]),
+        InstructionKind::ExtractIndex { aggregate, index } => (Some(*aggregate), Some(*index), &[]),
+        InstructionKind::UpdateField {
+            aggregate, value, ..
+        } => (Some(*aggregate), Some(*value), &[]),
+        InstructionKind::UpdateIndex {
+            aggregate,
+            index,
+            value,
+        } => (Some(*aggregate), Some(*index), std::slice::from_ref(value)),
+        InstructionKind::MakeErrorUnion { value, .. }
+        | InstructionKind::ErrorTag { value }
+        | InstructionKind::ReadErrorUnion { value, .. }
+        | InstructionKind::VariantTag { value }
+        | InstructionKind::ReadVariant { value, .. } => (Some(*value), None, &[]),
+        InstructionKind::ByteBufferNew
+        | InstructionKind::Constant(_)
+        | InstructionKind::Load(_)
+        | InstructionKind::TakeLocal { .. }
+        | InstructionKind::BorrowLocal { .. }
+        | InstructionKind::BorrowLocalMut { .. }
+        | InstructionKind::DescribeLocal { .. }
+        | InstructionKind::ReadPackageField { .. }
+        | InstructionKind::DescribePackageField { .. }
+        | InstructionKind::TakePackageField { .. }
+        | InstructionKind::DropPackageField { .. }
+        | InstructionKind::DescribeCapture { .. }
+        | InstructionKind::TakeCapture { .. }
+        | InstructionKind::ReadCapture { .. }
+        | InstructionKind::BindPackageCapture { .. }
+        | InstructionKind::EndPackageCapture { .. }
+        | InstructionKind::DropManaged { .. }
+        | InstructionKind::DropPackage { .. }
+        | InstructionKind::DropClosure { .. }
+        | InstructionKind::StorageLive(_)
+        | InstructionKind::StorageDead(_)
+        | InstructionKind::UnsafeEnter { .. }
+        | InstructionKind::UnsafeExit { .. }
+        | InstructionKind::ScopeEnter { .. }
+        | InstructionKind::ScopeExit { .. }
+        | InstructionKind::FunctionRef { .. }
+        | InstructionKind::ForeignFunctionRef { .. }
+        | InstructionKind::Unsupported(_) => (None, None, &[]),
+    };
+    a.into_iter().chain(b).chain(rest.iter().copied())
+}
+fn reverse(
+    live: &mut Live,
+    i: &Instruction,
+    shapes: &Shapes,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.lookup(
+        live.len().saturating_add(shapes.len()),
+        "description liveness instruction",
+    )?;
+    if let Some(v) = i.result {
+        live.remove(&Place::Value(v));
+    }
+    match i.kind {
+        InstructionKind::Store { local, .. }
+        | InstructionKind::StorageLive(local)
+        | InstructionKind::StorageDead(local)
+        | InstructionKind::BindPackageCapture { local, .. }
+        | InstructionKind::EndPackageCapture { local, .. }
+        | InstructionKind::DropClosure { local } => {
+            live.remove(&Place::Local(local));
+        }
+        InstructionKind::Load(local)
+        | InstructionKind::TakeLocal { local }
+        | InstructionKind::CallClosureShared { callee: local, .. }
+        | InstructionKind::CallClosureMut { callee: local, .. }
+            if shapes
+                .get(&Place::Local(local))
+                .is_some_and(|s| s.description) =>
+        {
+            live.insert(Place::Local(local));
+        }
+        _ => {}
+    }
+    for v in uses(&i.kind) {
+        budget.lookup(
+            live.len().saturating_add(shapes.len()),
+            "description operand liveness",
+        )?;
+        if shapes.get(&Place::Value(v)).is_some_and(|s| s.description) {
+            live.insert(Place::Value(v));
+        }
+    }
+    Ok(())
+}
+fn next(block: &BasicBlock) -> Vec<usize> {
+    match block.terminator {
+        Terminator::Jump(b) => vec![b.0 as usize],
+        Terminator::Branch {
+            then_block,
+            else_block,
+            ..
+        } => vec![then_block.0 as usize, else_block.0 as usize],
+        _ => vec![],
+    }
+}
+fn afters(
+    f: &TypedFunction,
+    reachable: &[bool],
+    shapes: &Shapes,
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<Live>>> {
+    budget.product(f.blocks.len(), 2, 1, "resource liveness blocks")?;
+    let mut entry = vec![Live::new(); f.blocks.len()];
+    let mut exit = entry.clone();
+    loop {
+        let mut changed = false;
+        for (b, block) in f.blocks.iter().enumerate().rev() {
+            if !reachable[b] {
+                continue;
+            }
+            let mut live = Live::new();
+            for successor in next(block) {
+                let incoming = entry
+                    .get(successor)
+                    .ok_or_else(|| error("invalid resource CFG edge"))?;
+                budget.spend(
+                    live.len().saturating_add(incoming.len()),
+                    "description liveness union",
+                )?;
+                live.extend(incoming);
+            }
+            budget.spend(live.len(), "description liveness exit clone")?;
+            exit[b] = live.clone();
+            for instruction in block.instructions.iter().rev() {
+                reverse(&mut live, instruction, shapes, budget)?;
+            }
+            budget.spend(
+                live.len().saturating_add(entry[b].len()).saturating_add(1),
+                "description liveness convergence",
+            )?;
+            if live != entry[b] {
+                changed = true;
+                entry[b] = live;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    let mut result = vec![];
+    for (b, block) in f.blocks.iter().enumerate() {
+        budget.spend(block.instructions.len(), "description liveness history")?;
+        let mut rows = vec![Live::new(); block.instructions.len()];
+        let mut live = std::mem::take(&mut exit[b]);
+        for (j, i) in block.instructions.iter().enumerate().rev() {
+            budget.spend(live.len(), "description liveness history clone")?;
+            rows[j] = live.clone();
+            reverse(&mut live, i, shapes, budget)?;
+        }
+        result.push(rows);
+    }
+    Ok(result)
+}
+fn live_sources(state: &State, fact: &Fact, budget: &mut Budget) -> CompileResult<()> {
+    if fact.sources.is_empty() {
+        return Err(error("description has no actual source"));
+    }
+    for source in &fact.sources {
+        budget.spend(1, "description source")?;
+        let place = match source {
+            Source::Head(l) => Some(Place::Local(*l)),
+            Source::PackageField { local, index } | Source::OwnedPackageField { local, index } => {
+                if !exact(
+                    &copied(state, Place::Local(*local), budget)?,
+                    Life::Available,
+                ) {
+                    return Err(error(
+                        "description may refer to a moved or cleaned package shell",
+                    ));
+                }
+                Some(Place::PackageField {
+                    local: *local,
+                    index: *index,
+                })
+            }
+            Source::OwnedField(i) => Some(Place::Capture(*i)),
+            _ => None,
+        };
+        if let Some(place) = place
+            && !exact(&copied(state, place, budget)?, Life::Available)
+        {
+            return Err(error("description may refer to a moved or cleaned head"));
+        }
+    }
+    Ok(())
+}
+fn no_later_use(
+    state: &State,
+    live: &Live,
+    source: Source,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    for place in live {
+        let fact = copied(state, *place, budget)?;
+        budget.spend(fact.sources.len(), "description owner matching")?;
+        if fact.sources.iter().any(|actual| {
+            *actual == source
+                || matches!((source, actual),
+                (Source::Head(owner), Source::PackageField { local, .. } | Source::OwnedPackageField { local, .. }) if owner == *local)
+        }) {
+            return Err(error(
+                "head transition invalidates a description required later",
+            ));
+        }
+    }
+    Ok(())
+}
+fn forget_order(state: &mut State, local: LocalId, budget: &mut Budget) -> CompileResult<()> {
+    budget.spend(state.later.len(), "resource order removal")?;
+    state.later.retain(|(a, b)| *a != local && *b != local);
+    Ok(())
+}
+
+// Only local Package slots can be partial. Every SSA carrier and function ABI
+// value remains complete, so whole movement checks all fields before transfer.
+fn package_transition(
+    f: &TypedFunction,
+    state: &mut State,
+    local: LocalId,
+    life: Life,
+    check: bool,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    let Some(Type::Package { fields, .. }) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
+        return Ok(());
+    };
+    budget.spend(fields.len(), "package field lifecycle")?;
+    for (index, (_, ty)) in fields.iter().enumerate() {
+        if !matches!(ty, Type::Managed(_)) {
+            continue;
+        }
+        let place = Place::PackageField {
+            local,
+            index: index as u32,
+        };
+        let mut fact = copied(state, place, budget)?;
+        match life {
+            Life::Transferred => {
+                if check && !exact(&fact, Life::Available) {
+                    return Err(error(
+                        "whole package move requires every Managed field live",
+                    ));
+                }
+                fact.life = BTreeSet::from([Life::Transferred]);
+            }
+            Life::Available => {
+                if check && fact.life.contains(&Life::Available) {
+                    return Err(error("whole package store overwrites a live field"));
+                }
+                fact.life = BTreeSet::from([Life::Available]);
+                fact.birth = BTreeSet::from([Birth::Incoming]);
+            }
+            Life::Cleaned => {
+                if fact.life.remove(&Life::Available) {
+                    fact.life.insert(Life::Cleaned);
+                }
+            }
+            Life::Vacant => {
+                if check && fact.life.contains(&Life::Available) {
+                    return Err(error("storage boundary discards an owned package field"));
+                }
+                fact = Fact {
+                    life: BTreeSet::from([Life::Vacant]),
+                    ..Fact::default()
+                };
+            }
+        }
+        fact.sources.clear();
+        replace(state, place, fact, budget)?;
+    }
+    Ok(())
+}
+fn record_write(
+    sources: &BTreeSet<Source>,
+    effect: &mut Effect,
+    shared: bool,
+    check: bool,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    for source in sources {
+        budget.lookup(
+            effect
+                .arguments
+                .len()
+                .saturating_add(effect.borrowed_fields.len()),
+            "description write effect",
+        )?;
+        match source {
+            Source::OwnedField(_) | Source::OwnedPackageField { .. } if shared && check => {
+                return Err(error(
+                    "shared owned capture is written through its description",
+                ));
+            }
+            Source::Argument(p) => {
+                effect.arguments.insert(*p);
+            }
+            Source::BorrowedField(p) => {
+                effect.borrowed_fields.insert(*p);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+struct Flow<'a> {
+    module: &'a TypedModule,
+    function: &'a TypedFunction,
+    shapes: &'a Shapes,
+    after: &'a [Vec<Live>],
+    effects: &'a [Effect],
+    views: &'a BTreeMap<LocalId, u32>,
+}
+impl Flow<'_> {
+    fn package_source(
+        &self,
+        local: LocalId,
+        index: u32,
+        budget: &mut Budget,
+    ) -> CompileResult<Source> {
+        if !self.views.is_empty() {
+            budget.lookup(self.views.len(), "Package description capture root")?;
+            if self.views.contains_key(&local) {
+                return Ok(Source::OwnedPackageField { local, index });
+            }
+        }
+        Ok(Source::PackageField { local, index })
+    }
+    fn consume(
+        &self,
+        state: &mut State,
+        value: ValueId,
+        check: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        let place = Place::Value(value);
+        if self.shapes.get(&place).is_some_and(|s| s.owned) {
+            let mut fact = copied(state, place, budget)?;
+            if check && !exact(&fact, Life::Available) {
+                return Err(error("SSA responsibility was already consumed or absent"));
+            }
+            fact.life = BTreeSet::from([Life::Transferred]);
+            replace(state, place, fact, budget)?;
+        }
+        Ok(())
+    }
+    fn run(
+        &self,
+        b: usize,
+        state: &mut State,
+        effect: &mut Effect,
+        check: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        let f = self.function;
+        let callable = f
+            .environment
+            .map(|id| self.module.closures[id.0 as usize].kind);
+        let shared = callable == Some(CallableKind::Fn);
+        for (position, i) in f.blocks[b].instructions.iter().enumerate() {
+            budget.spend(1, "resource instruction")?;
+            if check && shared && !self.views.is_empty() {
+                let changed = match i.kind {
+                    InstructionKind::TakeLocal { local }
+                    | InstructionKind::Store { local, .. }
+                    | InstructionKind::DropPackage { local }
+                    | InstructionKind::TakePackageField { local, .. }
+                    | InstructionKind::DropPackageField { local, .. }
+                    | InstructionKind::StorePackageField { local, .. } => Some(local),
+                    _ => None,
+                };
+                budget.lookup(self.views.len(), "Shared Package view mutation")?;
+                if changed.is_some_and(|local| self.views.contains_key(&local)) {
+                    return Err(error(
+                        "Shared entry cannot change a Package capture payload or responsibility",
+                    ));
+                }
+            }
+            for value in uses(&i.kind) {
+                if f.values.get(value.0 as usize).is_none() {
+                    return Err(error("operand is outside the value table"));
+                }
+                budget.lookup(self.shapes.len(), "resource operand shape")?;
+                if check
+                    && self
+                        .shapes
+                        .get(&Place::Value(value))
+                        .is_some_and(|s| s.description)
+                {
+                    live_sources(state, &copied(state, Place::Value(value), budget)?, budget)?;
+                }
+            }
+            let output = i.result.map(Place::Value);
+            if i.result
+                .is_some_and(|v| f.values.get(v.0 as usize).is_none())
+            {
+                return Err(error("result is outside the value table"));
+            }
+            let out_shape = output.and_then(|p| self.shapes.get(&p));
+            let mut produced: Option<Fact> = None;
+            if check
+                && out_shape.is_some_and(|s| s.owned)
+                && copied(state, output.unwrap(), budget)?
+                    .life
+                    .contains(&Life::Available)
+            {
+                return Err(error(
+                    "loop recreates an SSA carrier with an unpaid responsibility",
+                ));
+            }
+            match &i.kind {
+                InstructionKind::BindPackageCapture { local, index } => {
+                    let whole = copied(state, Place::Capture(*index), budget)?;
+                    if check && !exact(&whole, Life::Available) {
+                        return Err(error(
+                            "Package view binding requires a complete live capture",
+                        ));
+                    }
+                    replace(state, Place::Local(*local), whole, budget)?;
+                    replace(
+                        state,
+                        Place::Capture(*index),
+                        Fact {
+                            life: BTreeSet::from([Life::Vacant]),
+                            ..Fact::default()
+                        },
+                        budget,
+                    )?;
+                    let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty else {
+                        return Err(error("Package view binding type is not a Package"));
+                    };
+                    budget.spend(fields.len(), "Package capture binding fields")?;
+                    for (field, (_, ty)) in fields.iter().enumerate() {
+                        if !matches!(ty, Type::Managed(_)) {
+                            continue;
+                        }
+                        let source = Place::CaptureField {
+                            capture: *index,
+                            index: field as u32,
+                        };
+                        let fact = copied(state, source, budget)?;
+                        if check && !exact(&fact, Life::Available) {
+                            return Err(error("Package capture entry has an absent field"));
+                        }
+                        replace(
+                            state,
+                            Place::PackageField {
+                                local: *local,
+                                index: field as u32,
+                            },
+                            fact,
+                            budget,
+                        )?;
+                        replace(
+                            state,
+                            source,
+                            Fact {
+                                life: BTreeSet::from([Life::Vacant]),
+                                ..Fact::default()
+                            },
+                            budget,
+                        )?;
+                    }
+                }
+                InstructionKind::EndPackageCapture { local, index } => {
+                    let whole = copied(state, Place::Local(*local), budget)?;
+                    if check {
+                        if !exact(
+                            &copied(state, Place::Capture(*index), budget)?,
+                            Life::Vacant,
+                        ) {
+                            return Err(error("Package view ends without an active binding"));
+                        }
+                        no_later_use(
+                            state,
+                            &self.after[b][position],
+                            Source::Head(*local),
+                            budget,
+                        )?;
+                    }
+                    replace(state, Place::Capture(*index), whole, budget)?;
+                    replace(
+                        state,
+                        Place::Local(*local),
+                        Fact {
+                            life: BTreeSet::from([Life::Vacant]),
+                            ..Fact::default()
+                        },
+                        budget,
+                    )?;
+                    let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty else {
+                        return Err(error("Package view end type is not a Package"));
+                    };
+                    budget.spend(fields.len(), "Package capture end fields")?;
+                    for (field, (_, ty)) in fields.iter().enumerate() {
+                        if !matches!(ty, Type::Managed(_)) {
+                            continue;
+                        }
+                        let source = Place::PackageField {
+                            local: *local,
+                            index: field as u32,
+                        };
+                        let fact = copied(state, source, budget)?;
+                        replace(
+                            state,
+                            Place::CaptureField {
+                                capture: *index,
+                                index: field as u32,
+                            },
+                            fact,
+                            budget,
+                        )?;
+                        replace(
+                            state,
+                            source,
+                            Fact {
+                                life: BTreeSet::from([Life::Vacant]),
+                                ..Fact::default()
+                            },
+                            budget,
+                        )?;
+                    }
+                    forget_order(state, *local, budget)?;
+                }
+                InstructionKind::MakeManaged { .. } | InstructionKind::ByteBufferNew => {
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Created]),
+                        sources: BTreeSet::new(),
+                    });
+                }
+                InstructionKind::MakePackage { fields } => {
+                    let Some(Type::Package {
+                        fields: expected, ..
+                    }) = i.result.and_then(|v| f.values.get(v.0 as usize))
+                    else {
+                        return Err(error("MakePackage requires a package result"));
+                    };
+                    budget.spend(expected.len(), "package assembly fields")?;
+                    if fields.len() != expected.len() {
+                        return Err(error("package field arity mismatch"));
+                    }
+                    for (value, (_, ty)) in fields.iter().zip(expected) {
+                        budget.type_work(ty, false, "package assembly type comparison")?;
+                        if f.values.get(value.0 as usize) != Some(ty) {
+                            return Err(error("package field type mismatch"));
+                        }
+                        self.consume(state, *value, check, budget)?;
+                    }
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Incoming]),
+                        sources: BTreeSet::new(),
+                    });
+                }
+                InstructionKind::ReadPackageField { local, index }
+                | InstructionKind::DescribePackageField { local, index }
+                | InstructionKind::TakePackageField { local, index }
+                | InstructionKind::DropPackageField { local, index }
+                | InstructionKind::StorePackageField { local, index, .. } => {
+                    let Some(decl) = f.locals.get(local.0 as usize) else {
+                        return Err(error("package operation requires a declared local"));
+                    };
+                    let Type::Package { fields, .. } = &decl.ty else {
+                        return Err(error("field projection requires a package local"));
+                    };
+                    let Some((_, ty)) = fields.get(*index as usize) else {
+                        return Err(error("package field index outside declaration"));
+                    };
+                    if check
+                        && !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error(
+                            "package field operation requires an active local shell",
+                        ));
+                    }
+                    let result = i.result.and_then(|v| f.values.get(v.0 as usize));
+                    if matches!(i.kind, InstructionKind::ReadPackageField { .. }) {
+                        budget.type_work(ty, true, "package field read type checks")?;
+                        if !ty.is_copy_value() || result != Some(ty) {
+                            return Err(error("package read requires a matching Copy field"));
+                        }
+                    } else if let InstructionKind::StorePackageField { value, .. } = i.kind {
+                        budget.type_work(
+                            ty,
+                            !matches!(ty, Type::Managed(_)),
+                            "package field store type checks",
+                        )?;
+                        if !decl.mutable
+                            || i.result.is_some()
+                            || f.values.get(value.0 as usize) != Some(ty)
+                        {
+                            return Err(error(
+                                "package field store requires a mutable shell and matching value",
+                            ));
+                        }
+                        if matches!(ty, Type::Managed(_)) {
+                            let place = Place::PackageField {
+                                local: *local,
+                                index: *index,
+                            };
+                            if check {
+                                if copied(state, place, budget)?
+                                    .life
+                                    .contains(&Life::Available)
+                                {
+                                    return Err(error(
+                                        "package field store overwrites an unpaid responsibility",
+                                    ));
+                                }
+                                no_later_use(
+                                    state,
+                                    &self.after[b][position],
+                                    self.package_source(*local, *index, budget)?,
+                                    budget,
+                                )?;
+                            }
+                            self.consume(state, value, check, budget)?;
+                            replace(
+                                state,
+                                place,
+                                Fact {
+                                    life: BTreeSet::from([Life::Available]),
+                                    birth: BTreeSet::from([Birth::Incoming]),
+                                    sources: BTreeSet::new(),
+                                },
+                                budget,
+                            )?;
+                        } else if !ty.is_copy_value() {
+                            return Err(error(
+                                "package field store requires Managed or Copy field",
+                            ));
+                        }
+                    } else {
+                        let Type::Managed(payload) = ty else {
+                            return Err(error(
+                                "package ownership operation requires a Managed field",
+                            ));
+                        };
+                        let place = Place::PackageField {
+                            local: *local,
+                            index: *index,
+                        };
+                        let mut fact = copied(state, place, budget)?;
+                        if matches!(i.kind, InstructionKind::DescribePackageField { .. }) {
+                            budget.type_work(
+                                payload,
+                                false,
+                                "package field description type check",
+                            )?;
+                            if !matches!(result, Some(Type::Desc(actual)) if actual == payload) {
+                                return Err(error("package description payload mismatch"));
+                            }
+                            if check && !exact(&fact, Life::Available) {
+                                return Err(error(
+                                    "package description requires that field live on every path",
+                                ));
+                            }
+                            produced = Some(Fact {
+                                sources: BTreeSet::from([
+                                    self.package_source(*local, *index, budget)?
+                                ]),
+                                ..Fact::default()
+                            });
+                        } else {
+                            if check {
+                                no_later_use(
+                                    state,
+                                    &self.after[b][position],
+                                    self.package_source(*local, *index, budget)?,
+                                    budget,
+                                )?;
+                            }
+                            if matches!(i.kind, InstructionKind::TakePackageField { .. }) {
+                                budget.type_work(ty, false, "package field take type check")?;
+                                if result != Some(ty) {
+                                    return Err(error(
+                                        "package field take requires its exact Managed result",
+                                    ));
+                                }
+                                if check && !exact(&fact, Life::Available) {
+                                    return Err(error(
+                                        "package field take requires that field live on every path",
+                                    ));
+                                }
+                                produced = Some(Fact {
+                                    life: BTreeSet::from([Life::Available]),
+                                    birth: BTreeSet::from([Birth::Incoming]),
+                                    sources: BTreeSet::new(),
+                                });
+                                fact.life = BTreeSet::from([Life::Transferred]);
+                            } else {
+                                if i.result.is_some() {
+                                    return Err(error("package field drop has no result"));
+                                }
+                                if fact.life.remove(&Life::Available) {
+                                    fact.life.insert(Life::Cleaned);
+                                }
+                            }
+                            fact.sources.clear();
+                            replace(state, place, fact, budget)?;
+                        }
+                    }
+                }
+                InstructionKind::DescribeLocal { local } => {
+                    if !self.views.is_empty() {
+                        budget.lookup(self.views.len(), "Package view description boundary")?;
+                        if self.views.contains_key(local) {
+                            return Err(error("Package view requires a precise field description"));
+                        }
+                    }
+                    if check
+                        && !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error("description requires a live managed position"));
+                    }
+                    produced = Some(Fact {
+                        sources: BTreeSet::from([Source::Head(*local)]),
+                        ..Fact::default()
+                    });
+                }
+                InstructionKind::DescribeCapture { index } => {
+                    if f.environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        .and_then(|capture| capture.captures.get(*index as usize))
+                        .is_some_and(|ty| matches!(ty, Type::Package { .. }))
+                    {
+                        return Err(error(
+                            "Package capture description requires its precise view field",
+                        ));
+                    }
+                    if check
+                        && !exact(
+                            &copied(state, Place::Capture(*index), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error("description requires a live owned field"));
+                    }
+                    produced = Some(Fact {
+                        sources: BTreeSet::from([Source::OwnedField(*index)]),
+                        ..Fact::default()
+                    });
+                }
+                InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
+                    if out_shape.is_some_and(|s| s.description) =>
+                {
+                    let source = copied(state, Place::Local(*local), budget)?;
+                    produced = Some(Fact {
+                        sources: source.sources,
+                        ..Fact::default()
+                    });
+                }
+                InstructionKind::ReborrowAddress { address, .. }
+                    if out_shape.is_some_and(|s| s.description) =>
+                {
+                    let source = copied(state, Place::Value(*address), budget)?;
+                    produced = Some(Fact {
+                        sources: source.sources,
+                        ..Fact::default()
+                    });
+                }
+                InstructionKind::ReadCapture { index } => {
+                    let c = f
+                        .environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        .ok_or_else(|| error("capture has no environment"))?;
+                    let ty = c
+                        .captures
+                        .get(*index as usize)
+                        .ok_or_else(|| error("capture index is absent"))?;
+                    if matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+                        return Err(error(
+                            "ReadCapture cannot copy an owned Managed or Package field",
+                        ));
+                    }
+                    if matches!(ty, Type::Desc(_)) {
+                        produced = Some(Fact {
+                            sources: BTreeSet::from([Source::BorrowedField(*index)]),
+                            ..Fact::default()
+                        });
+                    }
+                }
+                InstructionKind::TakeCapture { index } => {
+                    if f.environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        .and_then(|capture| capture.captures.get(*index as usize))
+                        .is_some_and(|ty| matches!(ty, Type::Package { .. }))
+                    {
+                        return Err(error("Package capture movement requires its bound view"));
+                    }
+                    if callable != Some(CallableKind::FnOnce) {
+                        return Err(error("TakeCapture requires a consuming entry"));
+                    }
+                    let place = Place::Capture(*index);
+                    let mut fact = copied(state, place, budget)?;
+                    if check {
+                        if !exact(&fact, Life::Available) {
+                            return Err(error("owned field was already given away"));
+                        }
+                        no_later_use(
+                            state,
+                            &self.after[b][position],
+                            Source::OwnedField(*index),
+                            budget,
+                        )?;
+                    }
+                    produced = Some(fact.clone());
+                    fact.life = BTreeSet::from([Life::Transferred]);
+                    replace(state, place, fact, budget)?;
+                }
+                InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                    if let Some(s) = self.shapes.get(&Place::Local(*local)) {
+                        let mut fact = copied(state, Place::Local(*local), budget)?;
+                        if s.owned {
+                            if matches!(i.kind, InstructionKind::Load(_)) {
+                                return Err(error("Load cannot copy an owned carrier"));
+                            }
+                            if check {
+                                if !exact(&fact, Life::Available) {
+                                    return Err(error("move requires a live owned local"));
+                                }
+                                no_later_use(
+                                    state,
+                                    &self.after[b][position],
+                                    Source::Head(*local),
+                                    budget,
+                                )?;
+                            }
+                            package_transition(f, state, *local, Life::Transferred, check, budget)?;
+                            produced = Some(fact.clone());
+                            fact.life = BTreeSet::from([Life::Transferred]);
+                            fact.sources.clear();
+                            replace(state, Place::Local(*local), fact, budget)?;
+                            forget_order(state, *local, budget)?;
+                        } else {
+                            produced = Some(fact);
+                        }
+                    }
+                }
+                InstructionKind::Store { local, value } => {
+                    if let Some(s) = self.shapes.get(&Place::Local(*local)) {
+                        let mut source = copied(state, Place::Value(*value), budget)?;
+                        if s.owned {
+                            if check {
+                                if copied(state, Place::Local(*local), budget)?
+                                    .life
+                                    .contains(&Life::Available)
+                                {
+                                    return Err(error("store overwrites an unpaid resource"));
+                                }
+                                no_later_use(
+                                    state,
+                                    &self.after[b][position],
+                                    Source::Head(*local),
+                                    budget,
+                                )?;
+                            }
+                            self.consume(state, *value, check, budget)?;
+                            forget_order(state, *local, budget)?;
+                            for (place, fact) in &state.cells {
+                                budget.spend(1, "resource successful initialization order")?;
+                                if let Place::Local(other) = place
+                                    && *other != *local
+                                    && fact.life.contains(&Life::Available)
+                                {
+                                    if !self.views.is_empty() {
+                                        budget.lookup(
+                                            self.views.len(),
+                                            "Package view order exclusion",
+                                        )?;
+                                        if self.views.contains_key(local) {
+                                            continue;
+                                        }
+                                        budget.lookup(
+                                            self.views.len(),
+                                            "Package view order exclusion",
+                                        )?;
+                                        if self.views.contains_key(other) {
+                                            continue;
+                                        }
+                                    }
+                                    budget.lookup(state.later.len(), "resource order insertion")?;
+                                    state.later.insert((*other, *local));
+                                }
+                            }
+                            source.life = BTreeSet::from([Life::Available]);
+                            package_transition(f, state, *local, Life::Available, check, budget)?;
+                        }
+                        replace(state, Place::Local(*local), source, budget)?;
+                    }
+                }
+                InstructionKind::DropManaged { local }
+                | InstructionKind::DropPackage { local }
+                | InstructionKind::DropClosure { local } => {
+                    if matches!(i.kind, InstructionKind::DropPackage { .. })
+                        && !matches!(
+                            f.locals.get(local.0 as usize).map(|l| &l.ty),
+                            Some(Type::Package { .. })
+                        )
+                    {
+                        return Err(error("DropPackage requires a package local"));
+                    }
+                    let mut fact = copied(state, Place::Local(*local), budget)?;
+                    if check {
+                        no_later_use(
+                            state,
+                            &self.after[b][position],
+                            Source::Head(*local),
+                            budget,
+                        )?;
+                        if exact(&fact, Life::Cleaned) {
+                            return Err(error("duplicate automatic cleanup"));
+                        }
+                        for (before, later) in &state.later {
+                            budget.spend(1, "resource cleanup order")?;
+                            if *before == *local
+                                && copied(state, Place::Local(*later), budget)?
+                                    .life
+                                    .contains(&Life::Available)
+                            {
+                                return Err(error(
+                                    "cleanup is not reverse successful initialization order",
+                                ));
+                            }
+                        }
+                    }
+                    if fact.life.remove(&Life::Available) {
+                        fact.life.insert(Life::Cleaned);
+                    }
+                    package_transition(f, state, *local, Life::Cleaned, check, budget)?;
+                    fact.sources.clear();
+                    replace(state, Place::Local(*local), fact, budget)?;
+                    forget_order(state, *local, budget)?;
+                }
+                InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
+                    if let Some(s) = self.shapes.get(&Place::Local(*local)) {
+                        if check && s.owned {
+                            if copied(state, Place::Local(*local), budget)?
+                                .life
+                                .contains(&Life::Available)
+                            {
+                                return Err(error("storage boundary discards an owned carrier"));
+                            }
+                            no_later_use(
+                                state,
+                                &self.after[b][position],
+                                Source::Head(*local),
+                                budget,
+                            )?;
+                        }
+                        replace(
+                            state,
+                            Place::Local(*local),
+                            Fact {
+                                life: if s.owned {
+                                    BTreeSet::from([Life::Vacant])
+                                } else {
+                                    BTreeSet::new()
+                                },
+                                ..Fact::default()
+                            },
+                            budget,
+                        )?;
+                        package_transition(f, state, *local, Life::Vacant, check, budget)?;
+                        forget_order(state, *local, budget)?;
+                    }
+                }
+                InstructionKind::WriteDesc { desc, .. }
+                | InstructionKind::ByteBufferReserve { buffer: desc, .. }
+                | InstructionKind::ByteBufferPush { buffer: desc, .. }
+                | InstructionKind::ByteBufferBorrow {
+                    buffer: desc,
+                    mutable: true,
+                } => {
+                    record_write(
+                        &copied(state, Place::Value(*desc), budget)?.sources,
+                        effect,
+                        shared,
+                        check,
+                        budget,
+                    )?;
+                }
+                InstructionKind::MakeClosure { closure, captures } => {
+                    let definition = self
+                        .module
+                        .closures
+                        .get(closure.0 as usize)
+                        .ok_or_else(|| error("missing closure definition"))?;
+                    if definition.captures.len() != captures.len() {
+                        return Err(error("capture arity mismatch"));
+                    }
+                    let mut fact = Fact::default();
+                    for value in captures {
+                        budget.lookup(self.shapes.len(), "captured resource lookup")?;
+                        if self.shapes.contains_key(&Place::Value(*value)) {
+                            let captured = copied(state, Place::Value(*value), budget)?;
+                            budget.spend(
+                                fact.sources.len().saturating_add(captured.sources.len()),
+                                "captured resource sources",
+                            )?;
+                            fact.sources.extend(captured.sources);
+                            self.consume(state, *value, check, budget)?;
+                        }
+                    }
+                    if out_shape.is_some_and(|s| s.owned) {
+                        fact.life.insert(Life::Available);
+                        fact.birth.insert(Birth::Incoming);
+                    }
+                    produced = Some(fact);
+                }
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                } => {
+                    let callee = self
+                        .module
+                        .functions
+                        .get(function.0 as usize)
+                        .ok_or_else(|| error("absent callee"))?;
+                    if let Some(contract) = &callee.callable_contract {
+                        let environment = &self.module.closures[contract.closure.0 as usize];
+                        if contract.traces.iter().any(|t| !t.calls.is_empty())
+                            && contract
+                                .writes
+                                .iter()
+                                .any(|i| matches!(environment.captures[*i as usize], Type::Desc(_)))
+                        {
+                            let value = arguments
+                                .get(contract.parameter as usize)
+                                .ok_or_else(|| error("missing helper environment argument"))?;
+                            record_write(
+                                &copied(state, Place::Value(*value), budget)?.sources,
+                                effect,
+                                shared,
+                                check,
+                                budget,
+                            )?;
+                        }
+                    } else if callee.callable_return_contract.is_none() {
+                        // Callable helpers and self-contained factory callers
+                        // consume only their public envelopes. Factory inputs
+                        // cannot carry an external description or address.
+                        // Concrete helper callers consume only their public
+                        // envelope. Legacy private summaries belong to ordinary
+                        // functions; even looking one up here is unnecessary.
+                        let summary = self
+                            .effects
+                            .get(function.0 as usize)
+                            .ok_or_else(|| error("missing callee effect"))?;
+                        for parameter in &summary.arguments {
+                            budget.spend(1, "callee resource effect substitution")?;
+                            let value = arguments
+                                .get(*parameter as usize)
+                                .ok_or_else(|| error("missing callee argument"))?;
+                            record_write(
+                                &copied(state, Place::Value(*value), budget)?.sources,
+                                effect,
+                                shared,
+                                check,
+                                budget,
+                            )?;
+                        }
+                    }
+                    for value in arguments {
+                        self.consume(state, *value, check, budget)?;
+                    }
+                    if out_shape.is_some_and(|s| s.owned) {
+                        let callee = self
+                            .module
+                            .functions
+                            .get(function.0 as usize)
+                            .ok_or_else(|| error("absent callee"))?;
+                        produced = Some(Fact {
+                            life: BTreeSet::from([Life::Available]),
+                            sources: BTreeSet::new(),
+                            birth: BTreeSet::from([if callee.result_mode == PassingMode::Create {
+                                Birth::Created
+                            } else {
+                                Birth::Incoming
+                            }]),
+                        });
+                    }
+                }
+                InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureOnce { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosure { .. } => {
+                    let (place, ty, expected) = match i.kind {
+                        InstructionKind::CallClosureShared { callee, .. } => (
+                            Place::Local(callee),
+                            &f.locals[callee.0 as usize].ty,
+                            CallableKind::Fn,
+                        ),
+                        InstructionKind::CallClosureMut { callee, .. } => (
+                            Place::Local(callee),
+                            &f.locals[callee.0 as usize].ty,
+                            CallableKind::FnMut,
+                        ),
+                        InstructionKind::CallClosureOnce { callee, .. } => (
+                            Place::Value(callee),
+                            &f.values[callee.0 as usize],
+                            CallableKind::FnOnce,
+                        ),
+                        InstructionKind::CallClosure { callee, .. } => (
+                            Place::Value(callee),
+                            &f.values[callee.0 as usize],
+                            CallableKind::Fn,
+                        ),
+                        InstructionKind::CallClosureBorrowed { callee, kind, .. } => {
+                            let Type::Address { inner, .. } = &f.values[callee.0 as usize] else {
+                                return Err(error("borrowed environment call requires an address"));
+                            };
+                            (Place::Value(callee), inner.as_ref(), kind)
+                        }
+                        _ => unreachable!(),
+                    };
+                    let Type::Closure(id) = ty else {
+                        return Err(error("callee is not an environment"));
+                    };
+                    let definition = &self.module.closures[id.0 as usize];
+                    if !matches!(
+                        (definition.kind, expected),
+                        (
+                            CallableKind::Fn,
+                            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+                        ) | (
+                            CallableKind::FnMut,
+                            CallableKind::FnMut | CallableKind::FnOnce
+                        ) | (CallableKind::FnOnce, CallableKind::FnOnce)
+                    ) {
+                        return Err(error("call mode differs from environment entry"));
+                    }
+                    if let Some(s) = self.shapes.get(&place) {
+                        let fact = copied(state, place, budget)?;
+                        if s.owned && matches!(i.kind, InstructionKind::CallClosure { .. }) {
+                            return Err(error("by-value Fn call copies owned environment"));
+                        }
+                        if check {
+                            if s.owned && !exact(&fact, Life::Available) {
+                                return Err(error("call uses consumed environment"));
+                            }
+                            if s.description {
+                                live_sources(state, &fact, budget)?;
+                            }
+                        }
+                        let summary = self
+                            .effects
+                            .get(definition.function.0 as usize)
+                            .ok_or_else(|| error("absent environment entry"))?;
+                        if !summary.borrowed_fields.is_empty() {
+                            record_write(&fact.sources, effect, shared, check, budget)?;
+                        }
+                    }
+                    if let InstructionKind::CallClosureOnce { callee, .. } = i.kind {
+                        self.consume(state, callee, check, budget)?;
+                    }
+                }
+                _ => {}
+            }
+            if let (Some(place), Some(s)) = (output, out_shape) {
+                let fact = produced
+                    .ok_or_else(|| error("instruction cannot produce the claimed resource kind"))?;
+                if check && s.owned && !exact(&fact, Life::Available) {
+                    return Err(error("result does not carry a live responsibility"));
+                }
+                replace(state, place, fact, budget)?;
+            }
+        }
+        if let Terminator::Return(value) = f.blocks[b].terminator {
+            if let Some(value) = value {
+                if check
+                    && f.result_mode == PassingMode::Create
+                    && copied(state, Place::Value(value), budget)?.birth
+                        != BTreeSet::from([Birth::Created])
+                {
+                    return Err(error("create result forwards an incoming responsibility"));
+                }
+                self.consume(state, value, check, budget)?;
+            }
+            if check {
+                for (place, fact) in &state.cells {
+                    budget.spend(1, "normal return resource conservation")?;
+                    if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
+                        if callable != Some(CallableKind::FnOnce) && !exact(fact, Life::Available) {
+                            return Err(error("repeatable entry fails to restore owned fields"));
+                        }
+                    } else if fact.life.contains(&Life::Available) {
+                        return Err(error("normal return leaves a responsibility unpaid"));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+fn analyze_function(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    effects: &[Effect],
+    check: bool,
+    budget: &mut Budget,
+) -> CompileResult<Effect> {
+    if f.foreign.is_some() {
+        return Ok(Effect::default());
+    }
+    let shapes = shapes(module, f, budget)?;
+    if shapes.is_empty() {
+        return Ok(Effect::default());
+    }
+    let after = afters(f, reachable, &shapes, budget)?;
+    let mut initial = State::default();
+    for (place, s) in &shapes {
+        budget.lookup(initial.cells.len(), "initial resource state")?;
+        let mut fact = Fact::default();
+        if s.owned {
+            fact.life.insert(
+                if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
+                    Life::Available
+                } else {
+                    Life::Vacant
+                },
+            );
+        }
+        if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
+            fact.birth.insert(Birth::Incoming);
+        }
+        initial.cells.insert(*place, fact);
+    }
+    for (index, local) in f.parameters.iter().enumerate() {
+        if let Some(s) = shapes.get(&Place::Local(*local)) {
+            let mut fact = Fact::default();
+            if s.owned {
+                fact.life.insert(Life::Available);
+                fact.birth.insert(Birth::Incoming);
+                for (place, old) in &initial.cells {
+                    budget.spend(1, "incoming resource order")?;
+                    if let Place::Local(older) = place
+                        && old.life.contains(&Life::Available)
+                    {
+                        initial.later.insert((*older, *local));
+                    }
+                }
+            }
+            if s.description {
+                fact.sources.insert(Source::Argument(index as u32));
+            }
+            replace(&mut initial, Place::Local(*local), fact, budget)?;
+            package_transition(f, &mut initial, *local, Life::Available, false, budget)?;
+        }
+    }
+    budget.product(f.blocks.len(), 2, 1, "resource diagnostic CFG")?;
+    let mut input: Vec<Option<State>> = vec![None; f.blocks.len()];
+    input[f.entry.0 as usize] = Some(initial);
+    let mut stack = vec![f.entry.0 as usize];
+    let mut queued = vec![false; f.blocks.len()];
+    queued[f.entry.0 as usize] = true;
+    let mut views = BTreeMap::new();
+    if f.environment.is_some() {
+        for instruction in f.blocks[f.entry.0 as usize].instructions.iter().skip(1) {
+            let InstructionKind::BindPackageCapture { local, index } = instruction.kind else {
+                break;
+            };
+            budget.lookup(views.len(), "Package resource view mapping")?;
+            views.insert(local, index);
+        }
+    }
+    let flow = Flow {
+        module,
+        function: f,
+        shapes: &shapes,
+        after: &after,
+        effects,
+        views: &views,
+    };
+    let mut effect = Effect::default();
+    while let Some(b) = stack.pop() {
+        queued[b] = false;
+        let mut state = clone_state(input[b].as_ref().unwrap(), budget)?;
+        flow.run(b, &mut state, &mut effect, false, budget)?;
+        for successor in next(&f.blocks[b]) {
+            budget.spend(1, "resource diagnostic edge")?;
+            let changed = if let Some(previous) = &mut input[successor] {
+                join(previous, &state, budget)?
+            } else {
+                input[successor] = Some(clone_state(&state, budget)?);
+                true
+            };
+            if changed && !queued[successor] {
+                stack.push(successor);
+                queued[successor] = true;
+            }
+        }
+    }
+    for (b, incoming) in input.into_iter().enumerate() {
+        if let Some(mut state) = incoming {
+            flow.run(b, &mut state, &mut effect, check, budget)?;
+        }
+    }
+    Ok(effect)
+}
+// Summary consumers are an input dependency, not an authority claim. Build
+// them from this phase's actual Call/Closure read sites. The verifier has its
+// own graph and fixed point, and never receives this table.
+fn effect_consumers(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<usize>>> {
+    let count = module.functions.len();
+    // Adjacency headers, initial queue/queued cells and eventual table release.
+    budget.product(count, 5, 1, "resource effect frontier tables")?;
+    let mut consumers = vec![Vec::new(); count];
+    for (caller, (function, (_, reachable))) in module.functions.iter().zip(graphs).enumerate() {
+        for (block, live) in function.blocks.iter().zip(reachable) {
+            budget.spend(1, "resource effect frontier block")?;
+            if !live {
+                continue;
+            }
+            for instruction in &block.instructions {
+                budget.spend(1, "resource effect frontier instruction")?;
+                let callee = match &instruction.kind {
+                    InstructionKind::Call { function, .. } => {
+                        let target = module
+                            .functions
+                            .get(function.0 as usize)
+                            .ok_or_else(|| error("absent callee"))?;
+                        // These calls consume published envelopes, not a
+                        // changing private resource-write summary.
+                        (target.callable_contract.is_none()
+                            && target.callable_return_contract.is_none())
+                        .then_some(function.0 as usize)
+                    }
+                    InstructionKind::CallClosureShared { callee, .. }
+                    | InstructionKind::CallClosureMut { callee, .. } => {
+                        let ty = function
+                            .locals
+                            .get(callee.0 as usize)
+                            .ok_or_else(|| error("absent environment local"))?;
+                        Some(effect_entry(module, &ty.ty)?)
+                    }
+                    InstructionKind::CallClosure { callee, .. }
+                    | InstructionKind::CallClosureOnce { callee, .. }
+                    | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                        let ty = function
+                            .values
+                            .get(callee.0 as usize)
+                            .ok_or_else(|| error("absent environment value"))?;
+                        Some(effect_entry(module, ty)?)
+                    }
+                    _ => None,
+                };
+                if let Some(callee) = callee {
+                    let users = consumers
+                        .get_mut(callee)
+                        .ok_or_else(|| error("absent environment entry"))?;
+                    // Caller IDs increase monotonically across this scan;
+                    // repeated calls in one body need neither sorting nor a set.
+                    if users.last() != Some(&caller) {
+                        budget.spend(2, "resource effect frontier edge")?;
+                        users.push(caller);
+                    }
+                }
+            }
+        }
+    }
+    Ok(consumers)
+}
+
+fn effect_entry(module: &TypedModule, ty: &Type) -> CompileResult<usize> {
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let Type::Closure(id) = ty else {
+        return Err(error("callee is not an environment"));
+    };
+    module
+        .closures
+        .get(id.0 as usize)
+        .map(|definition| definition.function.0 as usize)
+        .ok_or_else(|| error("absent environment entry"))
+}
+
+fn grow_effect(target: &mut Effect, found: Effect, budget: &mut Budget) -> CompileResult<bool> {
+    budget.spend(
+        found
+            .arguments
+            .len()
+            .saturating_add(found.borrowed_fields.len())
+            .saturating_add(target.arguments.len())
+            .saturating_add(target.borrowed_fields.len())
+            .saturating_add(1),
+        "resource effect convergence",
+    )?;
+    let before = (target.arguments.len(), target.borrowed_fields.len());
+    target.arguments.extend(found.arguments);
+    target.borrowed_fields.extend(found.borrowed_fields);
+    Ok(before != (target.arguments.len(), target.borrowed_fields.len()))
+}
+
+fn infer_effects(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
+    budget.spend(module.functions.len(), "resource effect table")?;
+    let mut effects = vec![Effect::default(); module.functions.len()];
+    let consumers = effect_consumers(module, graphs, budget)?;
+    let mut pending: VecDeque<_> = (0..module.functions.len()).collect();
+    let mut queued = vec![true; module.functions.len()];
+    while let Some(index) = pending.pop_front() {
+        budget.spend(1, "resource effect frontier pop")?;
+        queued[index] = false;
+        #[cfg(test)]
+        TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
+        let (_, reachable) = &graphs[index];
+        let found = analyze_function(
+            module,
+            &module.functions[index],
+            reachable,
+            &effects,
+            false,
+            budget,
+        )?;
+        if grow_effect(&mut effects[index], found, budget)? {
+            budget.spend(consumers[index].len(), "resource effect notification")?;
+            for &caller in &consumers[index] {
+                if !queued[caller] {
+                    budget.spend(1, "resource effect frontier push")?;
+                    queued[caller] = true;
+                    pending.push_back(caller);
+                }
+            }
+        }
+    }
+    Ok(effects)
+}
+
+// Kept only as an executable scheduling oracle. It calls the same unchanged
+// per-function transfer with a different, exhaustive iteration strategy.
+#[cfg(test)]
+fn infer_effects_full_scan(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
+    budget.spend(module.functions.len(), "resource effect table")?;
+    let mut effects = vec![Effect::default(); module.functions.len()];
+    loop {
+        let mut changed = false;
+        for (index, (f, (_, reachable))) in module.functions.iter().zip(graphs).enumerate() {
+            TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
+            let found = analyze_function(module, f, reachable, &effects, false, budget)?;
+            changed |= grow_effect(&mut effects[index], found, budget)?;
+        }
+        if !changed {
+            return Ok(effects);
+        }
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_EFFECT_SOLVES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+pub(super) fn check_module(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.spend(module.closures.len(), "resource closure presence")?;
+    if module.resources.is_empty() {
+        let mut owning_entry = false;
+        for closure in &module.closures {
+            budget.spend(closure.captures.len(), "resource capture presence")?;
+            owning_entry |= closure.kind == CallableKind::FnOnce
+                || closure
+                    .captures
+                    .iter()
+                    .any(|ty| matches!(ty, Type::Managed(_) | Type::Package { .. }));
+        }
+        if !owning_entry {
+            return Ok(());
+        }
+    }
+    let effects = infer_effects(module, graphs, budget)?;
+    for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
+        analyze_function(module, f, reachable, &effects, true, budget)?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod frontier_tests;

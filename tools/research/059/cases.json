@@ -1,0 +1,16 @@
+{
+  "source_baseline": "6acda08c72dbd3e387893b4260770f0834dcdbe0",
+  "schema": 8,
+  "cases": [
+    {"id":"tiny","path":"tests/perf/impl059/tiny.zil","role":"small scalar overhead"},
+    {"id":"branch","path":"tests/perf/impl059/branch.zil","role":"selected owner and conditional cleanup"},
+    {"id":"correlated","path":"tests/perf/impl059/correlated.zil","role":"same Bool selects complementary moves; production conservative rejection"},
+    {"id":"independent","path":"tests/perf/impl059/independent.zil","role":"dense joint carrier relation from four independent guards"},
+    {"id":"closure","path":"tests/perf/impl059/closure.zil","role":"all captured identities, repeatable and FnOnce environments"},
+    {"id":"error","path":"tests/perf/impl059/error.zil","role":"error/success return classes and cleanup"},
+    {"id":"loop","path":"tests/perf/impl059/loop.zil","role":"backedge, current Bool redefinition, closure cleanup"},
+    {"id":"guarded_desc","path":"tests/perf/impl059/guarded_desc.zil","role":"documented conservative future-use false positive"},
+    {"id":"real_error_cleanup","path":"examples/mainline/error_cleanup/main.zil","role":"real 4-module production example, 19 executable functions"},
+    {"id":"state_limit","path":"tests/perf/impl059/state_limit.zil","role":"expected bounded-state failure; no success or timing-ratio substitution"}
+  ]
+}

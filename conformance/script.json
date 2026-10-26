@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "scope": "Source-level normative expectations; compiler execution pending",
+  "cases": [
+    {
+      "id": "SC01",
+      "path": "conformance/cases/script/SC01.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T04",
+      "description": "Native显式main入口",
+      "expected": {
+        "exit_code": 0
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "SC02",
+      "path": "conformance/cases/script/SC02.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-MODULE-STATEMENT",
+      "requirements": [
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "模块顶层不执行let",
+      "expected": {
+        "reason": "module accepts declarations only"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "SC03",
+      "path": "conformance/cases/script/SC03.zil",
+      "kind": "reject",
+      "phase": "expand",
+      "diagnostic": "E-NAME-DUPLICATE",
+      "requirements": [
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T04",
+      "description": "入口模块不能重复定义main",
+      "expected": {
+        "reason": "duplicate entry declaration"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "SC04",
+      "path": "conformance/cases/script/SC04.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-ENTRY-SIGNATURE",
+      "requirements": [
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T04",
+      "description": "main签名须符合驱动入口合同",
+      "expected": {
+        "reason": "entry result must be void/i32 or supported error union"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "SC05",
+      "path": "conformance/cases/script/SC05.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-MODULE-STATEMENT",
+      "requirements": [
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "顶层普通调用不是隐式初始化器",
+      "expected": {
+        "reason": "module accepts declarations only"
+      },
+      "status": "NotRun"
+    }
+  ]
+}

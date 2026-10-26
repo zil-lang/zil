@@ -1,0 +1,12 @@
+{
+  "evidence_level": "RawCandidateBoundary",
+  "scope": "Pure scalar CTIR: mandatory raw typed claims, forbidden/unknown operations, byte versions, truncation and quotas. This is not resource-certificate or source/native conformance evidence.",
+  "steps": [
+    {
+      "kind": "command",
+      "command": ["{python}", "tests/verify/check-boundary.py", "ct"],
+      "result_json": true,
+      "timeout": 180
+    }
+  ]
+}

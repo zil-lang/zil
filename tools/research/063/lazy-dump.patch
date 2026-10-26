@@ -1,0 +1,163 @@
+--- a/crates/zil-driver/src/session.rs
++++ b/crates/zil-driver/src/session.rs
+@@ -213,7 +213,7 @@
+             ));
+         };
+         report.phase = Phase::Parse;
+-        artifacts.dump(report, options, "syntax", &format!("{parsed:#?}"))?;
++        artifacts.dump_lazy(report, options, "syntax", |_| format!("{parsed:#?}"))?;
+         if options.stop_after == Stage::Parse {
+             return Ok(());
+         }
+@@ -241,12 +241,12 @@
+         };
+         let core = &expanded.core;
+         report.phase = Phase::Expand;
+-        artifacts.dump(report, options, "core", &format!("{core:#?}"))?;
+-        artifacts.dump(
++        artifacts.dump_lazy(report, options, "core", |_| format!("{core:#?}"))?;
++        artifacts.dump_lazy(
+             report,
+             options,
+             "source-map",
+-            &format!("{:#?}", expanded.source_map),
++            |_| format!("{:#?}", expanded.source_map),
+         )?;
+         if options.stop_after == Stage::Core {
+             return Ok(());
+@@ -275,7 +275,7 @@
+             ));
+         };
+         report.phase = Phase::Ct;
+-        artifacts.dump(report, options, "ct-core", &format!("{ct_core:#?}"))?;
++        artifacts.dump_lazy(report, options, "ct-core", |_| format!("{ct_core:#?}"))?;
+         check_entry_contract(&ct_core)?;
+         let (typed, typed_snapshot) = self.query(
+             query_key(source, options, Phase::Types, true),
+@@ -295,7 +295,7 @@
+             ));
+         };
+         report.phase = Phase::Types;
+-        artifacts.dump(report, options, "typed", &format!("{typed:#?}"))?;
++        artifacts.dump_lazy(report, options, "typed", |_| format!("{typed:#?}"))?;
+         if options.stop_after == Stage::Types {
+             return Ok(());
+         }
+@@ -345,7 +345,7 @@
+             ));
+         };
+         report.phase = Phase::Analyze;
+-        artifacts.dump(report, options, "candidate", &format!("{candidate:#?}"))?;
++        artifacts.dump_lazy(report, options, "candidate", |_| format!("{candidate:#?}"))?;
+         if options.stop_after == Stage::Analyze {
+             return Ok(());
+         }
+@@ -370,18 +370,18 @@
+         report.phase = Phase::Verify;
+         super::contracts::publish(&verified, &mut report.scalar_interfaces)?;
+         if project.is_some() {
+-            artifacts.dump(
++            artifacts.dump_lazy(
+                 report,
+                 options,
+                 "verified-interfaces",
+-                &format!("{:#?}", report.scalar_interfaces),
++                |report| format!("{:#?}", report.scalar_interfaces),
+             )?;
+         }
+-        artifacts.dump(
++        artifacts.dump_lazy(
+             report,
+             options,
+             "verified",
+-            &format!(
++            |_| format!(
+                 "fingerprint={}\n{:#?}",
+                 verified.fingerprint(),
+                 verified.module()
+@@ -397,7 +397,7 @@
+             .check(Phase::Lower)
+             .map_err(|error| vec![error])?;
+         report.phase = Phase::Lower;
+-        artifacts.dump(report, options, "lir", &format!("{lir:#?}"))?;
++        artifacts.dump_lazy(report, options, "lir", |_| format!("{lir:#?}"))?;
+         if options.stop_after == Stage::Lower {
+             return Ok(());
+         }
+--- a/crates/zil-driver/src/project.rs
++++ b/crates/zil-driver/src/project.rs
+@@ -171,7 +171,7 @@
+             dependencies.push(snapshot);
+         }
+         report.phase = Phase::Parse;
+-        artifacts.dump(report, options, "syntax", &format!("{parsed:#?}"))?;
++        artifacts.dump_lazy(report, options, "syntax", |_| format!("{parsed:#?}"))?;
+         if options.stop_after == Stage::Parse {
+             return Ok(());
+         }
+@@ -212,12 +212,12 @@
+             ));
+         };
+         report.phase = Phase::Expand;
+-        artifacts.dump(report, options, "core", &format!("{:#?}", expanded.core))?;
+-        artifacts.dump(
++        artifacts.dump_lazy(report, options, "core", |_| format!("{:#?}", expanded.core))?;
++        artifacts.dump_lazy(
+             report,
+             options,
+             "source-map",
+-            &format!("{:#?}", expanded.maps),
++            |_| format!("{:#?}", expanded.maps),
+         )?;
+         if options.stop_after == Stage::Core {
+             return Ok(());
+@@ -284,7 +284,7 @@
+             ));
+         };
+         report.phase = Phase::Ct;
+-        artifacts.dump(report, options, "ct-core", &format!("{core:#?}"))?;
++        artifacts.dump_lazy(report, options, "ct-core", |_| format!("{core:#?}"))?;
+         check_entry_contract(
+             &core
+                 .modules
+@@ -312,12 +312,12 @@
+         };
+         report.phase = Phase::Types;
+         report.scalar_interfaces = typed.interfaces.clone();
+-        artifacts.dump(report, options, "typed", &format!("{:#?}", typed.module))?;
+-        artifacts.dump(
++        artifacts.dump_lazy(report, options, "typed", |_| format!("{:#?}", typed.module))?;
++        artifacts.dump_lazy(
+             report,
+             options,
+             "interfaces",
+-            &format!("{:#?}", typed.interfaces),
++            |_| format!("{:#?}", typed.interfaces),
+         )?;
+         if options.stop_after == Stage::Types {
+             return Ok(());
+--- a/crates/zil-driver/src/artifacts.rs
++++ b/crates/zil-driver/src/artifacts.rs
+@@ -166,6 +166,22 @@
+         Ok(())
+     }
+ 
++    /// Do not serialize an unrequested stage dump. The underlying publication,
++    /// path validation, cancellation, and output bytes stay on the same path.
++    pub(super) fn dump_lazy(
++        &self,
++        report: &mut CompileReport,
++        options: &CompileOptions,
++        name: &str,
++        contents: impl FnOnce(&CompileReport) -> String,
++    ) -> CompileResult<()> {
++        if self.path(name).is_none() {
++            return self.dump(report, options, name, "");
++        }
++        let contents = contents(report);
++        self.dump(report, options, name, &contents)
++    }
++
+     pub(super) fn dump(
+         &self,
+         report: &mut CompileReport,

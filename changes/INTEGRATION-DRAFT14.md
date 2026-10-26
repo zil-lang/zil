@@ -1,0 +1,19 @@
+# draft14 施工范围
+
+基线 400a082444275e1d0e2ad78c4910b9b6fc526be5，2026-10-24（Asia/Shanghai）。067研究物理数学启发与稀疏精确关系，068研究并优化纵向全编译链成本，069前端/Analyze推进自包含拥有闭包返回与保存，070统一公开合同、独立Verify和机器路径。四线分别在独立工作树施工；公共driver入口由070持有，068按补丁请求集成，避免相交。既有产品门与原始失败保留。
+
+本记录仅派工，不表示新能力或优化已完成。任何接受性、ABI与预算变化先以0067–0070具名提案冻结，当前schema10，未知新接口不自行假设。保存回调的首个纵切片为自包含环境工厂到调用者存储，平台retained登记、异步和注销排空仍是后续合同。
+
+## 已核实的生产集成
+
+068 final `aa144a462880be2ce144b1e7be82ff1bc1458b6c` 经/root非作者复核后合入 `bc2b75e1a94f756ddb88f850ef456c2636b58bd2`。
+069 final `6cbf51cdfb6c100f0bc1e7a6b30914d07b38c136` 经/root/vertical_pipeline审核合入 `caab4b41279fa6a81fcb16998e060a3426c1d958`。
+070 final `3a104996324a575be80f3cf4c4271c4abdf88496` 经同一非作者对完整公共/Verify/机器范围审核合入 `a57edd9b43fb2f5d2402f5c23cd561d5c92b3055`。
+
+schema/wire11、Typed指纹V11和verified公开合同域v3统一发布；normative_hash为e79373ba49702c4fb40c38ceec7e6c3c1fb29ea32912c6452c83b7ca763c72e6，设计正文与产品门字节不变。正式工单和退回018迁移当前摘要；旧关闭切片和研究采样保留原快照。
+
+069静态联调发现raw工厂输入Address/Desc可能绕过空外部envelope，070已在独立Verify补Copy/Managed参数限制与raw/wire反例。070首轮raw夹具及Clippy初始化格式失败均保留。070 native大文件曾误入一次作者提交，后续以完整raw manifest和audit位置收纳；完整Git保留该历史，不改写受测身份。作者新20输入×ZIL/Rust O0/O2=80次行为对照，非作者再覆盖两程序×O0/O2=4次独立观察；两者不相加成新的独立输入规模。
+
+主树正式门尚未运行。本记录不提前发布最终Pass；真实结果只读随后新RunId的final-summary。生产源码如在正式门后变化，需重新取得对应证据。B0 Doing、完整语言NotSatisfied、产品门NotRun保持。
+
+067 corrected final `442d4a7df5bcf0a3a2f029c21641896dd8619970` 经/root/retained_frontend独审合入 `b95f25f8d129de622abdbf18e6e254ec02183267`。真实预算N=545002由原两份日志和独立进程一致确认，原345002是精简摘要抄录错误；研究Rust及所有采样未变。研究交付Pass与生产NoGo分开记录。

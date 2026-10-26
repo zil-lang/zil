@@ -1,0 +1,7 @@
+# 041 共享投影与闭包类型约束一致
+
+038的真实程序显示：函数内出现无关闭包时，前置约束求解错误地拒绝032已支持的共享字段和元素投影。此次只让两套私有推导图接受既有place种类，Member/Index通过SharedAddress持有的inner变量建立同一Copy形状投影。`&*p`仍是一层共享地址；嵌套地址与非place借用保持拒绝。
+
+推导没有地址权限；普通Builder仍形成AddressField/AddressIndex、真实动态边界检查和完整来源，analyze/独立verify仍核每个根的存储与活跃性。共享投影仍保守约束整个对象，不允许不相交字段独立写入。预算沿既有expression/node和Graph::project计费，没有新增公共结构、ABI或wire标签。
+
+最近控制包括无关闭包的前后对照、共享指针字段/元素读取、闭包体创建共享投影、动态index仅调用一次、whole-root活跃写拒绝以及rvalue/nested地址失败。

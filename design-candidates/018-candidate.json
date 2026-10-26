@@ -1,0 +1,13 @@
+{
+  "status": "CandidateOnly",
+  "reason": "User requested retaining question-mark alternatives without selecting a final syntax on 2026-10-23",
+  "base_commit": "0c0de939a6e153e4b546b67a851aec9fff7929c8",
+  "original_production_commit": "3641ec69b7d6430bbd48b87c1a3124298531d7f6",
+  "original_receipt_commit": "bdc9872a388aa2f1c4b1e24f03b56bac6e4cd636",
+  "patch": "018-prefix-options.patch",
+  "patch_sha256": "606cb65f0e0ea9466c167f5bae72f5b95be441b1d8cedefbb8750785a7364138",
+  "limited_syntax_tests": 56,
+  "mainline_language": "ZIL-LANG-1.3",
+  "mainline_precedence": "&T? = (&T)?",
+  "not_merged": true
+}

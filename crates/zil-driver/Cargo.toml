@@ -1,0 +1,22 @@
+[package]
+name = "zil-driver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+zil-base.workspace = true
+zil-syntax.workspace = true
+zil-ir.workspace = true
+zil-expand.workspace = true
+zil-types.workspace = true
+zil-analyze.workspace = true
+zil-verify.workspace = true
+zil-ct.workspace = true
+zil-lower.workspace = true
+zil-db.workspace = true
+zil-backend-llvm.workspace = true

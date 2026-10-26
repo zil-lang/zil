@@ -1,0 +1,634 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "RX01",
+      "path": "conformance/cases/receiver/rx01-group-shared-default.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "组默认补入共享地址接收者，隐式成员绑定同一 self。",
+      "expected": {
+        "normalized_signature": "Point.sum(self: &Point) -> i32",
+        "receiver_source": "impl_default",
+        "member_bindings": {
+          ".x": "Point.sum.self.x",
+          ".y": "Point.sum.self.y"
+        }
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX02",
+      "path": "conformance/cases/receiver/rx02-explicit-mut-override.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "方法显式独占地址接收者覆盖组默认，可在可写实例上修改字段。",
+      "expected": {
+        "normalized_signature": "Point.shift(self: &mut Point, dx: i32) -> void",
+        "receiver_source": "method_explicit",
+        "writes": [
+          "self.x"
+        ],
+        "exercise_return_if_executed": 4
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX03",
+      "path": "conformance/cases/receiver/rx03-explicit-value-override.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "方法显式按值接收者覆盖组默认，其类别不由正文决定。",
+      "expected": {
+        "normalized_signature": "Point.sum_value(self: Point) -> i32",
+        "receiver_source": "method_explicit",
+        "receiver_mode": "value"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX04",
+      "path": "conformance/cases/receiver/rx04-plain-impl-static.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "普通 impl 的无 self 函数是静态关联函数。",
+      "expected": {
+        "normalized_signature": "Point.origin() -> Point",
+        "has_receiver": false,
+        "qualified_call": "Point.origin()"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX05",
+      "path": "conformance/cases/receiver/rx05-static-implicit-receiver.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-NONE",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "静态关联函数使用隐式成员时拒绝，不因正文自动获得接收者。",
+      "expected": {
+        "reason": "no_lexical_receiver",
+        "offending_expression": ".x",
+        "must_not_infer_instance_method_from_body": true
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX06",
+      "path": "conformance/cases/receiver/rx06-unused-default-stays-instance.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "有组默认的方法即使不使用 self 也保持实例签名。",
+      "expected": {
+        "normalized_signature": "Point.constant(self: &Point) -> i32",
+        "has_receiver": true,
+        "body_use_affects_receiver": false
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX07",
+      "path": "conformance/cases/receiver/rx07-shared-receiver-write.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-RECEIVER-SHARED-WRITE",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "共享地址接收者不能因省写 self 而获得写权限。",
+      "expected": {
+        "reason": "write_through_shared_address",
+        "offending_expression": ".x = 1",
+        "receiver_type": "&Point"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX08",
+      "path": "conformance/cases/receiver/rx08-plain-impl-explicit-receiver.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "没有组默认时仍可显式声明接收者并使用隐式成员。",
+      "expected": {
+        "normalized_signature": "Point.read(self: &Point) -> i32",
+        "receiver_source": "method_explicit",
+        "member_bindings": {
+          ".x": "Point.read.self.x"
+        }
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX09",
+      "path": "conformance/cases/receiver/rx09-trait-inherits-receiver.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T02",
+      "description": "trait 实现省略 receiver 时从既定方法签名补入。",
+      "expected": {
+        "normalized_signature": "Measure.length(self: &Point) -> usize",
+        "receiver_source": "trait_signature",
+        "trait_receiver_mode_preserved": true
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX10",
+      "path": "conformance/cases/receiver/rx10-trait-explicit-match.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T02",
+      "description": "trait 实现可显式重复与接口一致的 receiver。",
+      "expected": {
+        "normalized_signature": "Measure.length(self: &Point) -> usize",
+        "receiver_source": "method_explicit",
+        "trait_signature_matches": true
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX11",
+      "path": "conformance/cases/receiver/rx11-trait-receiver-mismatch.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-TRAIT-MISMATCH",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T02",
+      "description": "trait 的共享接收者不得在实现中改成更强的独占接收者。",
+      "expected": {
+        "reason": "trait_receiver_mode_mismatch",
+        "required_receiver": "&Point",
+        "provided_receiver": "&mut Point",
+        "must_not_retry_other_impl": true
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX12",
+      "path": "conformance/cases/receiver/rx12-trait-group-default.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-TRAIT-RECEIVER-DEFAULT",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T01",
+      "description": "trait impl 禁止附带组默认接收者。",
+      "expected": {
+        "reason": "receiver_default_only_on_inherent_impl",
+        "offending_tokens": "impl Measure for Point(self: &Self)"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX13",
+      "path": "conformance/cases/receiver/rx13-trait-static-stays-static.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T02",
+      "description": "trait 静态函数在实现中不会自动补入 self。",
+      "expected": {
+        "normalized_signature": "Zero.zero() -> i32",
+        "has_receiver": false,
+        "receiver_source": "trait_signature"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX14",
+      "path": "conformance/cases/receiver/rx14-trait-static-implicit-member.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-NONE",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V10"
+      ],
+      "owner": "T02",
+      "description": "trait 静态函数中使用隐式成员时拒绝。",
+      "expected": {
+        "reason": "no_lexical_receiver",
+        "offending_expression": ".x",
+        "trait_method_is_static": true
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX15",
+      "path": "conformance/cases/receiver/rx15-arrow-lexical-equivalence.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "箭头闭包中的 .x 与 self.x 产生等价的词法绑定与捕获。",
+      "expected": {
+        "alpha_equivalent_methods": [
+          "Point.implicit",
+          "Point.explicit"
+        ],
+        "equivalence_covers": [
+          "receiver_binding",
+          "capture_places",
+          "origin_flow",
+          "Hold",
+          "Call",
+          "Cleanup",
+          "Resume"
+        ],
+        "receiver_rebound_at_call": false
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX16",
+      "path": "conformance/cases/receiver/rx16-nested-arrow-lexical.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "嵌套箭头闭包继续引用同一个词法接收者。",
+      "expected": {
+        "implicit_member_target": "Point.nested.self.x",
+        "receiver_rebound_at_call": false,
+        "all_nested_environment_dependencies_checked": true
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX17",
+      "path": "conformance/cases/receiver/rx17-ordinary-name-not-receiver.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "同名普通局部或参数不改变隐式成员的 receiver 绑定。",
+      "expected": {
+        "member_binding": "Point.add_local.self.x",
+        "bare_x_in_arrow": "arrow_parameter_x",
+        "outer_x": "local_x",
+        "distinct_bindings": true
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX18",
+      "path": "conformance/cases/receiver/rx18-local-self-shadow.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-RESERVED-NAME",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "禁止局部绑定占用保留接收者名字 self。",
+      "expected": {
+        "reason": "reserved_receiver_name",
+        "offending_binding": "let self = 1"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX19",
+      "path": "conformance/cases/receiver/rx19-arrow-self-shadow.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-RESERVED-NAME",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "禁止箭头闭包参数遮蔽保留接收者名字 self。",
+      "expected": {
+        "reason": "reserved_receiver_name",
+        "offending_binding": "closure_parameter_self"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX20",
+      "path": "conformance/cases/receiver/rx20-nested-named-function.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-NESTED-NAMED-FN",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "块内普通具名 fn 不属于语法，不能将其隐式改成捕获闭包。",
+      "expected": {
+        "reason": "named_function_not_allowed_as_block_statement",
+        "offending_tokens": "fn inner",
+        "must_not_rewrite_as_closure": true
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX21",
+      "path": "conformance/cases/receiver/rx21-unbound-method-function.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "Type.method 是仍带 receiver 首参数的无绑定函数值。",
+      "expected": {
+        "expression": "Point.read",
+        "function_type": "fn(&Point) -> i32",
+        "bound_receiver_environment": false
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX22",
+      "path": "conformance/cases/receiver/rx22-instance-method-value.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-METHOD-VALUE",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "实例方法成员不能直接作为已绑定回调取值。",
+      "expected": {
+        "reason": "implicit_bound_method_value_not_supported",
+        "offending_expression": "p.read",
+        "suggestion": "() => p.read()"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX23",
+      "path": "conformance/cases/receiver/rx23-implicit-method-value.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-METHOD-VALUE",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "隐式 receiver 的方法成员取值与 obj.method 同样拒绝。",
+      "expected": {
+        "reason": "implicit_bound_method_value_not_supported",
+        "offending_expression": ".read",
+        "suggestion": "() => .read()"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX24",
+      "path": "conformance/cases/receiver/rx24-explicit-callback-lambda.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "显式箭头闭包可构造方法回调，捕获与依赖经过统一检查。",
+      "expected": {
+        "callback_is": "ordinary_closure",
+        "call_target": "Point.read",
+        "receiver_origin": "p",
+        "all_environment_contracts_checked": true
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX25",
+      "path": "conformance/cases/receiver/rx25-uppercase-member.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "大写 Center 若确为 receiver 字段，仍可用隐式成员访问。",
+      "expected": {
+        "expression": ".Center",
+        "resolved_member": "Holder.Center",
+        "enum_inference": false
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX26",
+      "path": "conformance/cases/receiver/rx26-no-enum-fallback.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-RECEIVER-MEMBER-NOT-FOUND",
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "期望枚举类型不能让缺失 receiver 成员 .Center 回退成枚举标签。",
+      "expected": {
+        "reason": "receiver_member_not_found",
+        "receiver_type": "Point",
+        "missing_member": "Center",
+        "must_not_resolve_to": "Alignment.Center"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX27",
+      "path": "conformance/cases/receiver/rx27-callable-field-value.zil",
+      "kind": "accept",
+      "phase": "types",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "真实函数字段可正常取值，不能误判为方法绑定。",
+      "expected": {
+        "expression": ".callback",
+        "resolved_kind": "field",
+        "field_type": "fn(i32) -> i32",
+        "exercise_return_if_executed": 6
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "RX28",
+      "path": "conformance/cases/receiver/rx28-move-keeps-address-category.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-RECEIVER"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "move 闭包使用地址接收者时仍保留真实地址依赖，不获得目标责任。",
+      "expected": {
+        "capture": [
+          {
+            "source": "self",
+            "category": "Address",
+            "mode": "by_value",
+            "truncated_at": "address_dereference"
+          }
+        ],
+        "hold": [
+          {
+            "origin": "self",
+            "kind": "address_window",
+            "bounded_by": "input_address_lifetime"
+          }
+        ],
+        "call": {
+          "reads": [
+            "self.x"
+          ],
+          "field_snapshot_at_closure_creation": false
+        },
+        "owns_target_responsibility": false,
+        "extends_target_lifetime": false
+      },
+      "status": "NotRun"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "scope": "Production source-to-Core once-only preparation and fixed evaluation order; cleanup and resource transfer are explicitly not certified by these frontend observations.",
+  "steps": [
+    { "kind": "cargo-test", "package": "zil-expand", "filter": "plan_t01_004_", "min_passed": 3 }
+  ]
+}

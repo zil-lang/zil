@@ -1,0 +1,12 @@
+{
+  "steps": [
+    {
+      "kind": "command",
+      "command": [
+        "{python}",
+        "tests/bootstrap/failure-chain.py"
+      ],
+      "result_json": true
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "steps": [
+    {
+      "kind": "command",
+      "command": [
+        "{python}",
+        "tests/bootstrap/runner-faults.py"
+      ],
+      "result_json": true
+    }
+  ]
+}

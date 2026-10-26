@@ -1,0 +1,120 @@
+{
+  "generated_from": ".task/*.md",
+  "coverage": {
+    "ZIL-TARGET": [
+      "B0",
+      "W4"
+    ],
+    "ZIL-CORE": [
+      "W1"
+    ],
+    "ZIL-MODES": [
+      "T02",
+      "W1"
+    ],
+    "ZIL-ORIGIN": [
+      "T05",
+      "T06"
+    ],
+    "ZIL-ACCESS": [
+      "T05",
+      "T08"
+    ],
+    "ZIL-CONTRACT": [
+      "T06"
+    ],
+    "ZIL-ROUTE": [
+      "T06",
+      "W1"
+    ],
+    "ZIL-CLEANUP": [
+      "T06",
+      "T07",
+      "T08",
+      "W1"
+    ],
+    "ZIL-PACKAGE": [
+      "T06",
+      "T07",
+      "W1"
+    ],
+    "ZIL-CAPTURE": [
+      "T02",
+      "T08",
+      "W2"
+    ],
+    "ZIL-BYTE-STORAGE": [
+      "B0"
+    ],
+    "ZIL-CFG": [
+      "T08"
+    ],
+    "ZIL-CONCURRENCY": [
+      "T09",
+      "W3"
+    ],
+    "ZIL-ASYNC": [
+      "T09",
+      "W3"
+    ],
+    "ZIL-LOWERING": [
+      "T07",
+      "T09",
+      "W3"
+    ],
+    "ZIL-MODULE": [
+      "T04",
+      "W2"
+    ],
+    "ZIL-SYNTAX": [
+      "T01",
+      "W2"
+    ],
+    "ZIL-RECEIVER": [
+      "T01",
+      "T02",
+      "T08",
+      "W2"
+    ],
+    "ZIL-RECORD": [
+      "T01",
+      "T02",
+      "T08",
+      "W2"
+    ],
+    "ZIL-PIPE": [
+      "T01",
+      "T02",
+      "T08",
+      "W2"
+    ],
+    "ZIL-SCRIPT": [
+      "T01",
+      "T04",
+      "W2"
+    ],
+    "ZIL-COMPTIME": [
+      "T03",
+      "T05",
+      "W2"
+    ],
+    "ZIL-ATTRIBUTE": [
+      "T01",
+      "T03"
+    ],
+    "ZIL-TRAIT": [
+      "T02",
+      "W2"
+    ],
+    "ZIL-ARCH": [
+      "B0",
+      "T04",
+      "T05",
+      "W4"
+    ],
+    "ZIL-ACCEPT": [
+      "B0",
+      "W4"
+    ]
+  }
+}

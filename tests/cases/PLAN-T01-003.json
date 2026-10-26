@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "scope": "Production closure/function-type/return-position impl Trait parsing; closure capture safety and trait-slot legality remain later semantic checks.",
+  "steps": [
+    { "kind": "cargo-test", "package": "zil-syntax", "filter": "plan_t01_003_", "min_passed": 3 }
+  ]
+}

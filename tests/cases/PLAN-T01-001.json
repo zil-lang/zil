@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "scope": "Production conservative formatting changes trivia, independently reparses output, and checks binding/node shape; lossless tokens and delimiter recovery retain original spans.",
+  "steps": [
+    { "kind": "cargo-test", "package": "zil-syntax", "filter": "plan_t01_001_", "min_passed": 3 }
+  ]
+}

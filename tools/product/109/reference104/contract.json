@@ -1,0 +1,23 @@
+{
+  "version": "zil-rust-parity/104/1",
+  "production_baseline": "24ca9583d8789cfdfe3ccdbfe3eeff614bf56429",
+  "scenario_order": ["stream", "buffer", "retained"],
+  "runtime_sizes": [65536, 4194304],
+  "validation_sizes": [0, 1, 7, 8, 9, 256, 257, 4096, 65536, 4194304],
+  "trace_sizes": {"stream": 4096, "buffer": 4194304, "retained": 65536},
+  "allocation_failure_indices": [1, 2, 7, 17],
+  "warmup_pairs": 2,
+  "retained_pairs": 30,
+  "order_seed": 104,
+  "cpu": 2,
+  "process_timeout_seconds": 120,
+  "runtime_optimization": "O2",
+  "compile_scenarios": ["cold_check", "cold_debug_build", "private_edit"],
+  "private_edit_kind": "debug build of used private function body, interface unchanged",
+  "profile": "validation/product-gates.json",
+  "os_page_cache": "not flushed; cold means a new process and empty project cache",
+  "timing": "full process spawn to wait4, input/output files opened before clock",
+  "memory": "wait4 ru_maxrss: maximum individual process peak, not sum of concurrent children",
+  "retention": "separate untimed allocation observer inside run(), logical requested bytes",
+  "stop_rule": "one frozen complete series; any failure is retained and invalidates that series"
+}

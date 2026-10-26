@@ -1,0 +1,69 @@
+{
+  "schema": "zil-109-tool-provenance/1",
+  "upstream_tool_commit": "bc6271ab1ce885806658d801f7f4d2c070bbb13c",
+  "files": [
+    {
+      "source_commit": "bc6271ab1ce885806658d801f7f4d2c070bbb13c",
+      "source_path": "tools/product/108/run.py",
+      "initial_copy_sha256": "556538258a53159bf8ed13a4516e6a7a451b237035c40da6da712acdaf10ba9b",
+      "destination": "tools/product/109/run.py",
+      "unchanged_reference": false
+    },
+    {
+      "source_commit": "bc6271ab1ce885806658d801f7f4d2c070bbb13c",
+      "source_path": "tools/product/108/build_compilers.py",
+      "initial_copy_sha256": "5b2195431efa083d9a054f4028d85316ba3404fa4763b6e0e4a1e2132be24b38",
+      "destination": "tools/product/109/build_compilers.py",
+      "unchanged_reference": false
+    },
+    {
+      "source_commit": "bc6271ab1ce885806658d801f7f4d2c070bbb13c",
+      "source_path": "tools/product/108/contract.json",
+      "initial_copy_sha256": "0389375562f5fad80dff141b54102e63d675330753ace85f54eb1916cc7e9976",
+      "destination": "tools/product/109/contract.json",
+      "unchanged_reference": false
+    },
+    {
+      "source_commit": "bc6271ab1ce885806658d801f7f4d2c070bbb13c",
+      "source_path": "tools/product/108/reference104/run.py",
+      "initial_copy_sha256": "b19c80918d31c02348ee27a8e24e0fb4daae10dbba1bd59c7a3a459a64985c0c",
+      "destination": "tools/product/109/reference104/run.py",
+      "unchanged_reference": true
+    },
+    {
+      "source_commit": "bc6271ab1ce885806658d801f7f4d2c070bbb13c",
+      "source_path": "tools/product/108/reference104/contract.json",
+      "initial_copy_sha256": "ff85696a9daa383b27148539738ed5496bea74c6f551dcd0f4fba4b15c867270",
+      "destination": "tools/product/109/reference104/contract.json",
+      "unchanged_reference": true
+    },
+    {
+      "source_commit": "bc6271ab1ce885806658d801f7f4d2c070bbb13c",
+      "source_path": "tools/product/108/reference104/observer.c",
+      "initial_copy_sha256": "b9fc7d75dd30a751351c910b86498b670ed414670f67fe64c47ed0768f9ca681",
+      "destination": "tools/product/109/reference104/observer.c",
+      "unchanged_reference": true
+    },
+    {
+      "source_commit": "bc6271ab1ce885806658d801f7f4d2c070bbb13c",
+      "source_path": "tools/product/108/reference104/memory-contract.json",
+      "initial_copy_sha256": "2c6834093fe72bf6e5f90e9cdb3099a4e0721a7808d1d0b2a360f88f49a6add5",
+      "destination": "tools/product/109/reference104/memory-contract.json",
+      "unchanged_reference": true
+    },
+    {
+      "source_commit": "bc6271ab1ce885806658d801f7f4d2c070bbb13c",
+      "source_path": "tools/product/108/reference104/memory_launcher.c",
+      "initial_copy_sha256": "43eb42a22a1d82ad8a62a8c199f6426e6a3962ab30005b5248d2ef0538922ff1",
+      "destination": "tools/product/109/reference104/memory_launcher.c",
+      "unchanged_reference": true
+    },
+    {
+      "source_commit": "bc6271ab1ce885806658d801f7f4d2c070bbb13c",
+      "source_path": "tools/product/108/reference104/memory_control.c",
+      "initial_copy_sha256": "b879508ca70ffc87dcc297260760ac4595aa525ccb0904dad8cee201235cd780",
+      "destination": "tools/product/109/reference104/memory_control.c",
+      "unchanged_reference": true
+    }
+  ]
+}

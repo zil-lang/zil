@@ -1,0 +1,9 @@
+{
+  "baseline_name": "zil-design-workflow-complete.zip",
+  "baseline_sha256": "298966eb05575a6b87221cd0c7eec2f1e99014201ba2a434be8a23fabeabd169",
+  "baseline_spec_sha256": "0c9ca0c47a73d797b33f367fdbde14d7ac41014c054aa0db13607e79dc415059",
+  "chat_url": "https://chatgpt.com/g/g-p-6ad104f14bc08191902d790e546081e9-zil/c/6ad626f5-6014-8322-a8ad-d833c63b88ab",
+  "continuity": "baseline bytes read; post-package discussion retrieved as context, not full verbatim conversation",
+  "implementation_state": "No compiler implementation executed",
+  "date": "2026-10-22"
+}

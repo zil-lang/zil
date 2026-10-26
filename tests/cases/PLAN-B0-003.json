@@ -1,0 +1,10 @@
+{
+  "steps": [
+    {
+      "kind": "cargo-test",
+      "package": "zil-verify",
+      "doc": true,
+      "min_passed": 2
+    }
+  ]
+}

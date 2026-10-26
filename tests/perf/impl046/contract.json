@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "baseline_commit": "493edcb0e2367ac7b8131a0c69893150356a0246",
+  "purpose": "Frozen input for related return-origin implementation comparison",
+  "build": "cargo build --release --offline --locked -p zil-driver --example proof_frontier; same harness copied into baseline snapshot",
+  "profile": "release codegen-units=1 lto=thin panic=abort",
+  "toolchain": "rustc 1.99.1; Linux x86_64",
+  "limits": "Limits::default; no thresholds increased",
+  "timing_columns": [
+    "analyze_ns",
+    "verify_ns",
+    "source_to_verified_ns"
+  ],
+  "setup": "typed input prepared before Analyze/Verify timer; Verify input cloning excluded; source_to_verified includes complete ordinary pipeline; one untimed warm Verify per process",
+  "comparison": "six batches alternate baseline/candidate order; seven observations per process; candidate wire hash and source identity must agree exactly; medians reported, no wall-clock success threshold",
+  "cases": [
+    {
+      "file": "chain-reverse-64.zil",
+      "sha256": "3966a5d00d620deff8a6c212401b1f843670a640c5dc6ef3ece4d27b4f21f9f1",
+      "bytes": 3430
+    },
+    {
+      "file": "chain-reverse-128.zil",
+      "sha256": "97d25dc28afa378b93000dc5f63e097b64445e85bd2059f9226479cee936bf68",
+      "bytes": 6942
+    },
+    {
+      "file": "chain-reverse-256.zil",
+      "sha256": "fb891cbf20e762d7a487c236571a2be58f5b54390c2b12f5666f944d3a754f85",
+      "bytes": 14110
+    },
+    {
+      "file": "chain-forward-128.zil",
+      "sha256": "7a62ebd34e59b507af62464177ecc3a2749a023c5cea5d6d1cb884a72e5cb9bc",
+      "bytes": 6942
+    },
+    {
+      "file": "islands-64-plus-128.zil",
+      "sha256": "f4ea937983641ccf1db89757f9c4188faaa4cb56729b1ef838a37a04d7775525",
+      "bytes": 8184
+    },
+    {
+      "file": "tiny-reference.zil",
+      "sha256": "b81f69e420b4209b00cc3d00dea40c421d989fbf4dc408f3c7475a7d44b56337",
+      "bytes": 74
+    },
+    {
+      "file": "scalar-only.zil",
+      "sha256": "c9ffd1857386cea2776d765841b1fd490598d202b23e9def3888818935ce513a",
+      "bytes": 58
+    },
+    {
+      "file": "common-closure.zil",
+      "sha256": "eb3fcd588776e85ecb94d4f04e683456d861d05e0467e3e32c523a0cb5ce3db7",
+      "bytes": 188
+    },
+    {
+      "file": "recursive-permutation.zil",
+      "sha256": "aaefeb9e334a62fbf173aed43a1d94ec8930cf562be1e6508036ea41c43b4cf7",
+      "bytes": 174
+    }
+  ]
+}

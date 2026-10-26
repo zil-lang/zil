@@ -1,0 +1,399 @@
+diff --git a/crates/zil-base/src/lib.rs b/crates/zil-base/src/lib.rs
+index 0da1155d..e4e6e150 100644
+--- a/crates/zil-base/src/lib.rs
++++ b/crates/zil-base/src/lib.rs
+@@ -371,6 +371,14 @@ impl Fingerprint {
+     pub fn of(bytes: &[u8]) -> Self {
+         Self(sha256::digest(bytes))
+     }
++    /// Hash exactly the ordinary Debug byte stream without materializing it.
++    /// This changes neither the formatter nor the identity algorithm.
++    pub fn of_debug<T: fmt::Debug + ?Sized>(value: &T) -> Self {
++        use fmt::Write;
++        let mut sink = DebugHash::new();
++        write!(&mut sink, "{value:?}").expect("Debug formatter failed");
++        Self(sink.finish())
++    }
+     pub fn to_hex(self) -> String {
+         const HEX: &[u8; 16] = b"0123456789abcdef";
+         let mut out = String::with_capacity(64);
+@@ -397,6 +405,52 @@ impl Fingerprint {
+         Some(Self(bytes))
+     }
+ }
++/// Batch tiny formatter fragments before updating SHA; this fixed size is part
++/// of research093's preregistered implementation, not a semantic input.
++struct DebugHash {
++    hash: sha256::State,
++    bytes: [u8; 4096],
++    used: usize,
++}
++impl DebugHash {
++    fn new() -> Self {
++        Self {
++            hash: sha256::State::new(),
++            bytes: [0; 4096],
++            used: 0,
++        }
++    }
++    fn finish(mut self) -> [u8; 32] {
++        self.hash.update(&self.bytes[..self.used]);
++        self.hash.finish()
++    }
++}
++impl fmt::Write for DebugHash {
++    fn write_str(&mut self, value: &str) -> fmt::Result {
++        let mut bytes = value.as_bytes();
++        if self.used != 0 {
++            let n = bytes.len().min(self.bytes.len() - self.used);
++            self.bytes[self.used..self.used + n].copy_from_slice(&bytes[..n]);
++            self.used += n;
++            bytes = &bytes[n..];
++            if self.used == self.bytes.len() {
++                self.hash.update(&self.bytes);
++                self.used = 0;
++            }
++        }
++        if bytes.len() >= self.bytes.len() {
++            let bulk = bytes.len() / self.bytes.len() * self.bytes.len();
++            self.hash.update(&bytes[..bulk]);
++            bytes = &bytes[bulk..];
++        }
++        if !bytes.is_empty() {
++            self.bytes[..bytes.len()].copy_from_slice(bytes);
++            self.used = bytes.len();
++        }
++        Ok(())
++    }
++}
++
+ impl fmt::Display for Fingerprint {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         f.write_str(&self.to_hex())
+@@ -461,3 +515,36 @@ mod tests {
+         assert_eq!(s.line_column(4), Some((2, 1)));
+     }
+ }
++
++#[cfg(test)]
++mod debug_hash_tests {
++    use super::*;
++    #[test]
++    fn debug_byte_identity_unicode_nested_and_boundary_fragments() {
++        for n in [0, 1, 63, 64, 65, 4095, 4096, 4097, 8191, 16385] {
++            let value = (
++                "界\n\0🚀".repeat(n),
++                (0..n)
++                    .map(|i| (i, i % 17))
++                    .collect::<std::collections::BTreeMap<_, _>>(),
++            );
++            assert_eq!(
++                Fingerprint::of_debug(&value),
++                Fingerprint::of(format!("{value:?}").as_bytes())
++            );
++        }
++        struct Fragments;
++        impl fmt::Debug for Fragments {
++            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++                for i in 0..16385 {
++                    f.write_str(if i % 2 == 0 { "x" } else { "界" })?;
++                }
++                Ok(())
++            }
++        }
++        assert_eq!(
++            Fingerprint::of_debug(&Fragments),
++            Fingerprint::of(format!("{:?}", Fragments).as_bytes())
++        );
++    }
++}
+diff --git a/crates/zil-base/src/sha256.rs b/crates/zil-base/src/sha256.rs
+index e208f3f4..3fe1c2c1 100644
+--- a/crates/zil-base/src/sha256.rs
++++ b/crates/zil-base/src/sha256.rs
+@@ -1,57 +1,55 @@
+ // FIPS 180-4 SHA-256 compression. Arithmetic is explicitly modulo 2^32.
+-pub(crate) fn digest(input: &[u8]) -> [u8; 32] {
+-    const K: [u32; 64] = [
+-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+-        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+-        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+-        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+-        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+-        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+-        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+-        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+-        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+-        0xc67178f2,
+-    ];
+-    fn block(state: &mut [u32; 8], bytes: &[u8], k: &[u32; 64]) {
+-        let mut w = [0u32; 64];
+-        for i in 0..16 {
+-            w[i] = u32::from_be_bytes(bytes[i * 4..i * 4 + 4].try_into().expect("four bytes"));
+-        }
+-        for i in 16..64 {
+-            let a = w[i - 15];
+-            let b = w[i - 2];
+-            let s0 = a.rotate_right(7) ^ a.rotate_right(18) ^ (a >> 3);
+-            let s1 = b.rotate_right(17) ^ b.rotate_right(19) ^ (b >> 10);
+-            w[i] = w[i - 16]
+-                .wrapping_add(s0)
+-                .wrapping_add(w[i - 7])
+-                .wrapping_add(s1);
+-        }
+-        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = *state;
+-        for i in 0..64 {
+-            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+-            let ch = (e & f) ^ (!e & g);
+-            let t1 = h
+-                .wrapping_add(s1)
+-                .wrapping_add(ch)
+-                .wrapping_add(k[i])
+-                .wrapping_add(w[i]);
+-            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+-            let maj = (a & b) ^ (a & c) ^ (b & c);
+-            let t2 = s0.wrapping_add(maj);
+-            h = g;
+-            g = f;
+-            f = e;
+-            e = d.wrapping_add(t1);
+-            d = c;
+-            c = b;
+-            b = a;
+-            a = t1.wrapping_add(t2);
+-        }
+-        for (x, y) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
+-            *x = x.wrapping_add(y);
+-        }
++const K: [u32; 64] = [
++    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
++    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
++    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
++    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
++    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
++    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
++    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
++    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
++];
++fn block(state: &mut [u32; 8], bytes: &[u8], k: &[u32; 64]) {
++    let mut w = [0u32; 64];
++    for i in 0..16 {
++        w[i] = u32::from_be_bytes(bytes[i * 4..i * 4 + 4].try_into().expect("four bytes"));
+     }
++    for i in 16..64 {
++        let a = w[i - 15];
++        let b = w[i - 2];
++        let s0 = a.rotate_right(7) ^ a.rotate_right(18) ^ (a >> 3);
++        let s1 = b.rotate_right(17) ^ b.rotate_right(19) ^ (b >> 10);
++        w[i] = w[i - 16]
++            .wrapping_add(s0)
++            .wrapping_add(w[i - 7])
++            .wrapping_add(s1);
++    }
++    let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = *state;
++    for i in 0..64 {
++        let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
++        let ch = (e & f) ^ (!e & g);
++        let t1 = h
++            .wrapping_add(s1)
++            .wrapping_add(ch)
++            .wrapping_add(k[i])
++            .wrapping_add(w[i]);
++        let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
++        let maj = (a & b) ^ (a & c) ^ (b & c);
++        let t2 = s0.wrapping_add(maj);
++        h = g;
++        g = f;
++        f = e;
++        e = d.wrapping_add(t1);
++        d = c;
++        c = b;
++        b = a;
++        a = t1.wrapping_add(t2);
++    }
++    for (x, y) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
++        *x = x.wrapping_add(y);
++    }
++}
++pub(crate) fn digest(input: &[u8]) -> [u8; 32] {
+     let mut state = [
+         0x6a09e667u32,
+         0xbb67ae85,
+@@ -80,3 +78,87 @@ pub(crate) fn digest(input: &[u8]) -> [u8; 32] {
+     }
+     result
+ }
++
++/// Incremental form of the same compression and padding operation. The original
++/// contiguous-input digest stays a separate control path.
++pub(crate) struct State {
++    words: [u32; 8],
++    pending: [u8; 64],
++    used: usize,
++    bytes: u64,
++}
++impl State {
++    pub(crate) fn new() -> Self {
++        Self {
++            words: [
++                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
++                0x5be0cd19,
++            ],
++            pending: [0; 64],
++            used: 0,
++            bytes: 0,
++        }
++    }
++    pub(crate) fn update(&mut self, mut bytes: &[u8]) {
++        self.bytes = self.bytes.wrapping_add(bytes.len() as u64);
++        if self.used != 0 {
++            let n = bytes.len().min(64 - self.used);
++            self.pending[self.used..self.used + n].copy_from_slice(&bytes[..n]);
++            self.used += n;
++            bytes = &bytes[n..];
++            if self.used != 64 {
++                return;
++            }
++            block(&mut self.words, &self.pending, &K);
++            self.used = 0;
++        }
++        let (chunks, remainder) = bytes.as_chunks::<64>();
++        for chunk in chunks {
++            block(&mut self.words, chunk, &K);
++        }
++        self.pending[..remainder.len()].copy_from_slice(remainder);
++        self.used = remainder.len();
++    }
++    pub(crate) fn finish(mut self) -> [u8; 32] {
++        let mut tail = [0u8; 128];
++        tail[..self.used].copy_from_slice(&self.pending[..self.used]);
++        tail[self.used] = 0x80;
++        let length = if self.used < 56 { 64 } else { 128 };
++        tail[length - 8..length].copy_from_slice(&self.bytes.wrapping_mul(8).to_be_bytes());
++        for chunk in tail[..length].as_chunks::<64>().0 {
++            block(&mut self.words, chunk, &K);
++        }
++        let mut result = [0u8; 32];
++        for (i, word) in self.words.into_iter().enumerate() {
++            result[i * 4..i * 4 + 4].copy_from_slice(&word.to_be_bytes());
++        }
++        result
++    }
++}
++
++#[cfg(test)]
++mod stream_tests {
++    use super::*;
++    #[test]
++    fn arbitrary_stream_boundaries_equal_contiguous_sha() {
++        let mut state = 93u64;
++        for n in (0..=256).chain([4095, 4096, 4097, 16383, 65537, 1_000_000]) {
++            let bytes = (0..n)
++                .map(|_| {
++                    state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
++                    (state >> 32) as u8
++                })
++                .collect::<Vec<_>>();
++            let expected = digest(&bytes);
++            for size in [1, 3, 55, 56, 63, 64, 65, 127, 128, 4096] {
++                let mut hash = State::new();
++                hash.update(&[]);
++                for chunk in bytes.chunks(size) {
++                    hash.update(chunk);
++                    hash.update(&[]);
++                }
++                assert_eq!(hash.finish(), expected, "length={n} chunk={size}");
++            }
++        }
++    }
++}
+diff --git a/crates/zil-driver/src/session.rs b/crates/zil-driver/src/session.rs
+index 8678c6d9..ec68e913 100644
+--- a/crates/zil-driver/src/session.rs
++++ b/crates/zil-driver/src/session.rs
+@@ -34,11 +34,84 @@ impl RawSnapshot {
+     fn digest(&self) -> Fingerprint {
+         match self {
+             Self::Typed(typed) => typed.fingerprint(),
+-            other => Fingerprint::of(format!("{other:?}").as_bytes()),
++            other => Fingerprint::of_debug(other),
+         }
+     }
+ }
+ 
++#[cfg(test)]
++mod impl093_digest_tests {
++    use super::*;
++    use zil_base::{FileId, ModuleId};
++
++    #[test]
++    fn every_public_pipeline_snapshot_retains_exact_identity() {
++        let options = CompileOptions {
++            stop_after: Stage::Lower,
++            ..CompileOptions::default()
++        };
++        let mut session = CompilationSession::with_capacity(1024);
++        let source = SourceUnit::new(
++            FileId(0),
++            ModuleId(0),
++            "093-single.zil",
++            "fn value() -> i32 => 42\nfn main() -> i32 => value()\n",
++        );
++        let report = session.compile_source(&source, &options);
++        assert_eq!(
++            report.status,
++            ResultCategory::Success,
++            "{}",
++            report.to_json()
++        );
++        let project = crate::ProjectSources {
++            root: ModuleId(1),
++            modules: vec![
++                SourceUnit::new(
++                    FileId(1),
++                    ModuleId(1),
++                    "093-main.zil",
++                    "import part\nfn main() -> i32 => part.value()\n",
++                ),
++                SourceUnit::new(
++                    FileId(2),
++                    ModuleId(2),
++                    "093-part.zil",
++                    "pub fn value() -> i32 => 42\n",
++                ),
++            ],
++            paths: BTreeMap::from([(vec!["part".into()], ModuleId(2))]),
++        };
++        let report = session.compile_project(&project, &options);
++        assert_eq!(
++            report.status,
++            ResultCategory::Success,
++            "{}",
++            report.to_json()
++        );
++        let mut seen = [false; 8];
++        for raw in session.raw.values() {
++            let index = match raw {
++                RawSnapshot::Parse(_) => 0,
++                RawSnapshot::Expanded(_) => 1,
++                RawSnapshot::Core(_) => 2,
++                RawSnapshot::Typed(_) => 3,
++                RawSnapshot::Candidate(_) => 4,
++                RawSnapshot::Project(_) => 5,
++                RawSnapshot::ProjectCore(_) => 6,
++                RawSnapshot::ProjectTyped(_) => 7,
++            };
++            seen[index] = true;
++            let original = match raw {
++                RawSnapshot::Typed(module) => module.fingerprint(),
++                other => Fingerprint::of(format!("{other:?}").as_bytes()),
++            };
++            assert_eq!(raw.digest(), original, "raw variant {index}");
++        }
++        assert_eq!(seen, [true; 8]);
++    }
++}
++
+ pub struct CompilationSession {
+     pub(super) database: Database,
+     pub(super) raw: BTreeMap<QueryKey, RawSnapshot>,

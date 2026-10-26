@@ -1,0 +1,30 @@
+[package]
+name = "zil-compiler-structure-research"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace]
+
+[dependencies]
+zil-base = { path = "../../../crates/zil-base" }
+zil-ir = { path = "../../../crates/zil-ir" }
+zil-syntax = { path = "../../../crates/zil-syntax" }
+zil-expand = { path = "../../../crates/zil-expand" }
+zil-types = { path = "../../../crates/zil-types" }
+zil-analyze = { path = "../../../crates/zil-analyze" }
+zil-verify = { path = "../../../crates/zil-verify" }
+zil-driver = { path = "../../../crates/zil-driver" }
+
+[profile.release]
+codegen-units = 1
+debug = false
+
+[[bin]]
+name = "cut063"
+path = "main.rs"
+
+[[bin]]
+name = "pipeline063"
+path = "pipeline.rs"

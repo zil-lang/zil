@@ -1,0 +1,137 @@
+(* ZIL-LANG-1.3 normative surface. This EBNF fixes productions, not a soundness proof.
+   ZIL-SYNTAX fixes lexical NEWLINE, control-head braces and arrow-block priority.
+   IDENT includes contextual words; self binding is checked by ZIL-RECEIVER.
+   A bare identifier or balanced parameter-list followed by => or -> selects Closure, without a type query.
+   TUPLEINDEX is an unsigned decimal integer token after a dot, not a float. *)
+Module = { ImportDecl | SyntaxImport | Item | MetaItem | Terminator } ;
+ImportDecl = "import", ModulePath, ["as", IDENT], End ;
+SyntaxImport = "syntax", "use", ModulePath, "as", IDENT, End ;
+ModulePath = IDENT, {".", IDENT} ;
+Qualified = IDENT, {".", IDENT} ;
+Item = {Attribute}, ["pub"], (Function | Struct | Resource | Package | Enum | Trait | Impl | TypeAlias | ConstDecl | ExternDecl) ;
+Struct = "struct", IDENT, [Generics], "{", {Field | Method | Terminator}, "}" ;
+Resource = "resource", IDENT, [Generics], "{", {Field | Method | Terminator}, "}" ;
+Package = "package", IDENT, [Generics], "{", {ManagedField | Field | Method | Terminator}, "}" ;
+ManagedField = {Attribute}, "manages", IDENT, ":", Type, ["=", Expr], FieldEnd ;
+Field = {Attribute}, ["pub"], IDENT, ":", Type, ["=", Expr], FieldEnd ;
+FieldEnd = "," | Terminator | BeforeClose ;
+Enum = "enum", IDENT, [Generics], "{", {Variant | Terminator}, "}" ;
+Variant = {Attribute}, IDENT, [("(", TypeList, ")") | ("{", {Field}, "}")], FieldEnd ;
+Trait = "trait", IDENT, [Generics], [":", Bounds], "{", {Method | Associated | Terminator}, "}" ;
+Impl = InherentImpl | TraitImpl ;
+InherentImpl = "impl", [Generics], Type, [ReceiverDefault], [Where], ImplBody ;
+TraitImpl = "impl", [Generics], Type, "for", Type, [Where], ImplBody ;
+ReceiverDefault = "(", ["give"], "self", ":", Type, ")" ;
+ImplBody = "{", {Method | Associated | Terminator}, "}" ;
+Associated = "type", IDENT, [Generics], [":", Bounds], ["=", Type], End
+           | "const", IDENT, ":", Type, ["=", Expr], End ;
+Method = {Attribute}, ["pub"], Function ;
+Function = "fn", IDENT, [Generics], "(", [Parameters], ")", ["->", ReturnType], [Where], [Contract], FunctionBody ;
+FunctionBody = Block | "=>", Block | "=>", Expr, End | ";" ;
+ExternDecl = "extern", STRING, Function ;
+Parameters = Parameter, {",", Parameter}, [","] ;
+Parameter = {Attribute}, ["give"], IDENT, ":", Type ;
+Generics = "<", GenericParameter, {",", GenericParameter}, [","], ">" ;
+GenericParameter = IDENT, [":", Bounds] | "life", IDENT | "#", IDENT, ":", Type ;
+Where = "where", BoundClause, {",", BoundClause} ;
+BoundClause = Type, ":", Bounds | LIFEIDENT, ":", LIFEIDENT ;
+Bounds = Type, {"+", Type} ;
+TypeList = Type, {",", Type}, [","] ;
+ReturnType = "impl", Bounds | Type ;
+Type = ForeignFunctionType | FunctionType | ErrorType ;
+ForeignFunctionType = "extern", STRING, "fn", "(", [TypeList], ")", "->", Type ;
+FunctionType = "fn", "(", [TypeList], ")", "->", Type ;
+ErrorType = UnionType, ["!", Type] ;
+UnionType = OptionalType, {"|", OptionalType} ;
+OptionalType = TypePrimary, ["?"] ;
+CallableName = "Fn" | "FnMut" | "FnOnce" ;
+CallableType = CallableName, "(", [TypeList], ")", "->", Type ;
+(* Reserved callable-family names require CallableType, not Qualified TypeArgs. *)
+TypePrimary = CallableType | Qualified, [TypeArgs]
+            | "&", [LIFEIDENT], ["mut"], TypePrimary
+            | "[", Type, [";", Expr], "]"
+            | TupleType
+            | "dyn", (CallableType | Qualified, [TypeArgs])
+            | "for", "<", "life", IDENT, ">", TypePrimary
+            | MetaEval | MetaBlock ;
+TupleType = "(", ")" | "(", Type, ")" | "(", Type, ",", [TypeList], ")" ;
+TypeArgs = "<", GenericArg, {",", GenericArg}, [","], ">" ;
+GenericArg = Type | NUMBER | "true" | "false" ;
+TypeAlias = "type", IDENT, [Generics], "=", Type, End ;
+ConstDecl = "const", IDENT, [":", Type], "=", Expr, End ;
+Contract = "contract", "{", {ContractClause, End}, "}" ;
+ContractClause = ("result" | "requires" | "provides" | "effects" | "resume"), "(", [ContractTerms], ")" ;
+ContractTerms = ContractTerm, {",", ContractTerm}, [","] ;
+ContractTerm = Qualified, [TypeArgs], [("(", [ContractTerms], ")") | ("[", ContractTerm, "]")] ;
+Block = "{", {Statement | MetaStatement | Terminator}, "}" ;
+Statement = Binding | Return | Yield | Break | Continue | Defer | IfStmt | WhileStmt | ForStmt | LoopStmt | MatchStmt | WithStmt | UnsafeBlock | (Expr, [AssignOp, Expr], End) ;
+Binding = ("let" | "var"), Pattern, [":", Type], "=", Expr, End ;
+Pattern = IDENT | Literal | "_" | "ref", ["mut"], Pattern | "(", [PatternList], ")" | Qualified, "(", [PatternList], ")" ;
+PatternList = Pattern, {",", Pattern}, [","] ;
+Return = "return", [Expr], End ;
+Yield = "yield", Expr, End ;
+Break = "break", End ;
+Continue = "continue", End ;
+Defer = "defer", Block ;
+IfStmt = "if", Condition, Block, ["else", (Block | IfStmt)] ;
+Condition = Expr | "let", Pattern, "=", Expr ;
+WhileStmt = "while", Condition, Block ;
+ForStmt = "for", Pattern, "in", Expr, Block ;
+LoopStmt = "loop", Block ;
+MatchStmt = "match", Expr, "{", {Pattern, "=>", (Block | Expr), FieldEnd}, "}" ;
+WithStmt = "with", IDENT, "=", Expr, Block ;
+UnsafeBlock = "unsafe", Block ;
+AssignOp = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" ;
+Expr = Closure | Pipeline ;
+Closure = ["move"], (IDENT | "(", [ClosureParams], ")"), ["->", Type], "=>", (ClosureBlock | Expr) ;
+(* ZIL-CAPTURE normalizes closure tails and final if/else branches to Return; ordinary Block is unchanged. *)
+ClosureBlock = Block ;
+ClosureParams = IDENT, [":", Type], {",", IDENT, [":", Type]}, [","] ;
+Pipeline = Or, {"|>", Or} ;
+Or = And, {"||", And} ;
+And = Compare, {"&&", Compare} ;
+Compare = Range, [("==" | "!=" | "<" | "<=" | ">" | ">="), Range] ;
+Range = BitOr, ["..", BitOr] ;
+BitOr = BitXor, {"|", BitXor} ;
+BitXor = BitAnd, {"^", BitAnd} ;
+BitAnd = Shift, {"&", Shift} ;
+Shift = Add, {("<<" | ">>"), Add} ;
+Add = Multiply, {("+" | "-" | "+%" | "-%"), Multiply} ;
+Multiply = Prefix, {("*" | "/" | "%" | "*%"), Prefix} ;
+Prefix = ("!" | "-" | "~" | "*" | "give"), Prefix | "&", ["mut"], Prefix | Postfix ;
+Postfix = Primary, {(".", Member) | ("::", TypeArgs) | ("(", [Arguments], ")") | ("[", SliceIndex, "]") | "?"} ;
+Member = IDENT | TUPLEINDEX ;
+SliceIndex = BitOr, ["..", [BitOr]] | "..", [BitOr] ;
+Arguments = Argument, {",", Argument}, [","] ;
+Argument = ["..."], Expr ;
+Primary = Literal | IDENT | GroupOrTuple | ArrayValue | Construct | ContextRecord | ReceiverMember | IfExpr | MetaEval | MetaBlock | SyntaxIsland ;
+Literal = NUMBER | STRING | CHAR | "true" | "false" ;
+GroupOrTuple = "(", ")" | "(", Expr, ")" | "(", Expr, ",", [ExprList], ")" ;
+ExprList = Expr, {",", Expr}, [","] ;
+ArrayValue = "[", [ExprList], "]" ;
+ValueTypePath = IDENT, {(".", IDENT) | ("::", TypeArgs)} ;
+Construct = ValueTypePath, RecordBody ;
+ContextRecord = ["."], RecordBody ;
+RecordBody = "{", [RecordFields], "}" ;
+RecordFields = "...", Expr, [",", FieldValues] | FieldValues ;
+FieldValues = FieldValue, {",", FieldValue}, [","] ;
+FieldValue = IDENT, [":", Expr] ;
+ReceiverMember = ".", IDENT ;
+IfExpr = "if", Expr, "{", Expr, "}", "else", "{", Expr, "}" ;
+Attribute = "#", "[", Qualified, [("(", [AttrArguments], ")") | ("=", STRING)], "]" ;
+AttrArguments = Expr, {",", Expr}, [","] ;
+MetaEval = "#", "(", Expr, ")" ;
+MetaBlock = "#", Block ;
+MetaItem = MetaIfItems | MetaForItems | MetaEmit ;
+MetaStatement = MetaIfStatements | MetaForStatements | MetaEmit ;
+MetaIfItems = "#", "if", "(", Expr, ")", "{", {Item | MetaItem | Terminator}, "}", ["else", "{", {Item | MetaItem | Terminator}, "}"] ;
+MetaIfStatements = "#", "if", "(", Expr, ")", Block, ["else", Block] ;
+MetaForItems = "#", "for", "(", IDENT, "in", Expr, ")", "{", {Item | MetaItem | Terminator}, "}" ;
+MetaForStatements = "#", "for", "(", IDENT, "in", Expr, ")", Block ;
+MetaEmit = "#", "emit", Expr, End ;
+SyntaxIsland = Qualified, "!", TokenTree ;
+TokenTree = "(", {Token | TokenTree}, ")" | "[", {Token | TokenTree}, "]" | "{", {Token | TokenTree}, "}" ;
+Token = NonDelimiterToken ;
+End = Terminator | BeforeClose ;
+Terminator = ";" | NEWLINE ;
+BeforeClose = (* zero-width boundary immediately before '}', after a complete statement *) ;

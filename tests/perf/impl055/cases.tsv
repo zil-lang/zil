@@ -1,0 +1,20 @@
+# name<TAB>source<TAB>origin
+tiny	tests/perf/impl055/tiny.zil	generated-source
+straight16	tests/perf/impl055/straight_16.zil	generated-source
+straight128	tests/perf/impl055/straight_128.zil	generated-source
+straight512	tests/perf/impl055/straight_512.zil	generated-source
+branches4	tests/perf/impl055/branches_4.zil	generated-source
+branches32	tests/perf/impl055/branches_32.zil	generated-source
+wide4	tests/perf/impl055/wide_4.zil	generated-source
+wide16	tests/perf/impl055/wide_16.zil	generated-source
+wide64	tests/perf/impl055/wide_64.zil	generated-source
+correlation	tests/perf/impl055/correlation.zil	generated-source
+all_exits	tests/perf/impl055/exits.zil	generated-source
+loop	tests/perf/impl055/loop.zil	generated-source
+owned_shared	examples/impl051/owned_shared.zil	existing-source
+consume	examples/impl051/consume.zil	existing-source
+control	examples/impl051/control.zil	existing-source
+descriptor	examples/impl051/descriptor.zil	existing-source
+effects	examples/impl051/effects.zil	existing-source
+unused	examples/impl051/unused.zil	existing-source
+coexist	examples/impl051/coexist.zil	existing-source

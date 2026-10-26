@@ -1,0 +1,764 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "CL01",
+      "path": "conformance/cases/closure/CL01-default-copy-last-use.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "Copy Value 默认共享捕获；最后一次闭包使用后恢复外部写入。",
+      "expected": {
+        "entry": "check",
+        "return_value": 709,
+        "capture": "shared_borrow(value)",
+        "release": "after last use of read"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL02",
+      "path": "conformance/cases/closure/CL02-default-copy-write-conflict.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-LOAN-CONFLICT",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "默认只读捕获不能被静默改成 Copy 快照以通过相交写入。",
+      "expected": {
+        "error_line": 4,
+        "reason": "read 的共享捕获在后续调用仍需 value；当前写入冲突。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL03",
+      "path": "conformance/cases/closure/CL03-move-copy-snapshot.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "move 显式复制 Copy Value，闭包观察创建时的值。",
+      "expected": {
+        "entry": "check",
+        "return_value": 709,
+        "capture": "copy(value)",
+        "call_kind": "Fn"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL04",
+      "path": "conformance/cases/closure/CL04-body-consumption-infers-move.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "正文消费不可 Copy Value，闭包创建时自动移动该值。",
+      "expected": {
+        "entry": "check",
+        "return_value": 31,
+        "capture": "move(token) at closure creation",
+        "call_kind": "FnOnce",
+        "noncopy_reason": "Token contains an exclusive Address"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL05",
+      "path": "conformance/cases/closure/CL05-automatic-move-source-unavailable.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-USE-AFTER-MOVE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "自动移动发生在创建时，不能等到闭包调用才令源值失效。",
+      "expected": {
+        "error_line": 14,
+        "reason": "token 已在 consume 环境创建时移动。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL06",
+      "path": "conformance/cases/closure/CL06-owned-value-can-repeat.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "move 拥有非 Copy Value，但正文只读，不等于只能调用一次。",
+      "expected": {
+        "entry": "check",
+        "return_value": 62,
+        "capture": "move(token)",
+        "call_kind": "Fn",
+        "address_lifetime": "bounded by counter; no escape"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL07",
+      "path": "conformance/cases/closure/CL07-consume-environment-twice.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CLOSURE-ALREADY-CONSUMED",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "移出环境字段的闭包不能再次调用。",
+      "expected": {
+        "error_line": 15,
+        "reason": "第一次调用已消费 consume 环境中的 token。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL08",
+      "path": "conformance/cases/closure/CL08-mutable-capture-var-repeats.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "默认可变捕获使用 FnMut；var 闭包可连续调用，最后使用后外部绑定恢复。",
+      "expected": {
+        "entry": "check",
+        "return_value": 122,
+        "capture": "exclusive_reborrow(count)",
+        "call_kind": "FnMut"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL09",
+      "path": "conformance/cases/closure/CL09-mutable-capture-let-call.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CALL-MUTABLE-BINDING",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "需要独占环境的 FnMut 闭包不能通过 let 绑定调用。",
+      "expected": {
+        "error_line": 7,
+        "reason": "next 的调用需要可写环境绑定；应声明 var next。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL10",
+      "path": "conformance/cases/closure/CL10-disjoint-value-fields.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "直接 Value 字段精确捕获，允许写不相交字段。",
+      "expected": {
+        "entry": "check",
+        "return_value": 38,
+        "capture": "shared_borrow(pair.left)",
+        "not_captured": [
+          "pair.right"
+        ]
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL11",
+      "path": "conformance/cases/closure/CL11-same-value-field-conflict.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-LOAN-CONFLICT",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "精确捕获不能放行对同一字段的相交写入。",
+      "expected": {
+        "error_line": 8,
+        "reason": "read 尚需 pair.left 的共享窗口。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL12",
+      "path": "conformance/cases/closure/CL12-desc-write-shared-environment.zil",
+      "kind": "accept",
+      "phase": "analyze",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS",
+        "ZIL-CONTRACT"
+      ],
+      "acceptance": [
+        "V06",
+        "V03"
+      ],
+      "owner": "T08",
+      "description": "复制 Desc 后写外部目标不改写环境；Fn 仍必须携带实际写入合同。",
+      "expected": {
+        "entry": "check",
+        "input_contract": "node is live, initialized and writable for both sequential calls",
+        "capture": "describe(node)",
+        "call_kind": "Fn",
+        "call_effects": [
+          "write(node.value)"
+        ],
+        "hold_address_window": false
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL13",
+      "path": "conformance/cases/closure/CL13-empty-capture-function-pointer.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "无捕获闭包可转换为同形 fn 函数指针。",
+      "expected": {
+        "entry": "check",
+        "return_value": 42,
+        "representation": "function_pointer_without_environment"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL14",
+      "path": "conformance/cases/closure/CL14-capturing-function-pointer-rejected.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-CAPTURED-FN-POINTER",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "有捕获闭包不能隐式擦除环境成为 fn 指针。",
+      "expected": {
+        "error_line": 3,
+        "reason": "add 捕获 offset；禁止丢弃环境或自动装箱适配。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL15",
+      "path": "conformance/cases/closure/CL15-opaque-owned-return.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-TRAIT"
+      ],
+      "acceptance": [
+        "V06",
+        "V10"
+      ],
+      "owner": "T08",
+      "description": "受限返回 opaque 保留唯一具体闭包类型与静态布局。",
+      "expected": {
+        "entry": "check",
+        "return_value": 42,
+        "hidden_type_count": 1,
+        "required_heap_allocations": 0,
+        "capture": "copy(value)",
+        "exported_contracts": [
+          "Hold",
+          "Call",
+          "Cleanup",
+          "Resume"
+        ]
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL16",
+      "path": "conformance/cases/closure/CL16-opaque-return-local-borrow.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-ESCAPE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ORIGIN"
+      ],
+      "acceptance": [
+        "V06",
+        "V02"
+      ],
+      "owner": "T08",
+      "description": "opaque 返回不能隐藏对函数局部值的默认借用捕获。",
+      "expected": {
+        "error_line": 3,
+        "reason": "返回环境借用 make 的局部 value；opaque 不擦除 Hold。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL17",
+      "path": "conformance/cases/closure/CL17-move-address-not-lifetime-extension.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-ESCAPE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "move 捕获地址保留 Address 边界，不读成快照，也不延长所指对象寿命。",
+      "expected": {
+        "error_line": 7,
+        "capture": "copy(address), not copy(counter.value)",
+        "reason": "地址仍借自 make 的局部 counter。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL18",
+      "path": "conformance/cases/closure/CL18-opaque-distinct-return-types.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-OPAQUE-RETURN-TYPE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-TRAIT"
+      ],
+      "acceptance": [
+        "V06",
+        "V10"
+      ],
+      "owner": "T08",
+      "description": "同一 opaque 返回槽不能自动合并不同闭包表达式的具体类型。",
+      "expected": {
+        "error_line": 7,
+        "reason": "两个 return 对应两个捕获闭包具体类型；禁止隐式 sum/dyn/Box。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL19",
+      "path": "conformance/cases/closure/CL19-exclusive-address-reborrow-ends.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "对已有 &mut 的默认捕获建立重借；最后使用后恢复父窗口。",
+      "expected": {
+        "entry": "check",
+        "return_value": 25,
+        "capture": "exclusive_reborrow(address referent)",
+        "parent_window": "paused until last next use; restored before address.value += 3",
+        "call_kind": "FnMut"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL20",
+      "path": "conformance/cases/closure/CL20-exclusive-address-parent-conflict.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-PARENT-WINDOW",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-ACCESS"
+      ],
+      "acceptance": [
+        "V06",
+        "V12"
+      ],
+      "owner": "T08",
+      "description": "闭包仍将使用独占重借时，父 &mut 不能执行相交操作。",
+      "expected": {
+        "error_line": 11,
+        "reason": "next 的独占重借尚未结束，父 address 的相交访问暂停。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL21",
+      "path": "conformance/cases/closure/CL21-uncalled-owned-environment-cleanup.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ],
+      "acceptance": [
+        "V01",
+        "V06",
+        "V13"
+      ],
+      "owner": "T08",
+      "description": "真实 Managed 转交闭包后即使从未调用，离域仍结算环境责任一次。",
+      "expected": {
+        "entry": "check",
+        "return_value": 0,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "capture": "give(actual carrier file) into environment",
+        "event_counts": {
+          "create": 1,
+          "read": 0,
+          "take": 0,
+          "close": 1
+        },
+        "responsibility_balance": 0
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL22",
+      "path": "conformance/cases/closure/CL22-move-desc-does-not-own.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CAPTURE-ESCAPE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES",
+        "ZIL-ORIGIN"
+      ],
+      "acceptance": [
+        "V01",
+        "V06",
+        "V02"
+      ],
+      "owner": "T08",
+      "description": "move 复制 Desc 别名不会取得局部资源的实际清理责任。",
+      "expected": {
+        "error_line": 5,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "capture": "describe(alias)",
+        "reason": "file 的责任未随返回值转交，alias 不可在 file 清理后调用。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL23",
+      "path": "conformance/cases/closure/CL23-body-give-infers-managed-capture.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES",
+        "ZIL-CLEANUP"
+      ],
+      "acceptance": [
+        "V01",
+        "V06",
+        "V13"
+      ],
+      "owner": "T08",
+      "description": "正文 give 明示责任消费，默认闭包在创建时接管真实载体，可从工厂返回。",
+      "expected": {
+        "entry": "check",
+        "return_value": 17,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "capture": "give(actual carrier file) at closure creation",
+        "call_kind": "FnOnce",
+        "event_counts": {
+          "create": 1,
+          "read": 0,
+          "take": 1,
+          "close": 1
+        },
+        "responsibility_balance": 0
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL24",
+      "path": "conformance/cases/closure/CL24-give-desc-rejected.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-GIVE-DESCRIPTOR",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-MODES"
+      ],
+      "acceptance": [
+        "V01",
+        "V06"
+      ],
+      "owner": "T08",
+      "description": "正文 give Desc 不能反向取得它所指资源的真实载体。",
+      "expected": {
+        "error_line": 5,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "reason": "alias 是 Desc，give 要求实际 Managed 载体。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL25",
+      "path": "conformance/cases/closure/CL25-owned-close-is-not-shared-call.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CLOSURE-CALL-KIND",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-CLEANUP"
+      ],
+      "acceptance": [
+        "V06",
+        "V13"
+      ],
+      "owner": "T08",
+      "description": "关闭环境实际拥有的 Managed 需消费环境，不能通过 Fn 共享环境写 cleanup flag。",
+      "expected": {
+        "error_line": 8,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "inferred_call_kind": "FnOnce",
+        "required_call_kind": "Fn",
+        "reason": "关闭 env.file 将履行其直接持有的清理责任并更新环境记录。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL26",
+      "path": "conformance/cases/closure/CL26-external-close-second-call-state.zil",
+      "kind": "reject",
+      "phase": "analyze",
+      "diagnostic": "E-CALL-PROTOCOL-STATE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-CONTRACT",
+        "ZIL-ROUTE"
+      ],
+      "acceptance": [
+        "V06",
+        "V03",
+        "V04"
+      ],
+      "owner": "T08",
+      "description": "外部 Desc 关闭可保持共享环境，但 Live→Done 合同禁止第二次关闭。",
+      "expected": {
+        "error_line": 7,
+        "fixture": "closure_runtime",
+        "fixture_status": "NotImplemented",
+        "call_kind": "Fn",
+        "capture": "Desc alias plus external management route",
+        "reason": "第一次调用令外部资源为 Done，第二次不满足 Live 前提。"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL27",
+      "path": "conformance/cases/closure/CL27-short-move-tail.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06",
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "裸单参move闭包与尾值沿真实调用得到固定签名。",
+      "expected": {
+        "entry": "check",
+        "return_value": 42
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL28",
+      "path": "conformance/cases/closure/CL28-legacy-callable-tuple.zil",
+      "kind": "reject",
+      "phase": "parse",
+      "diagnostic": "E-PARSE-CALLABLE-SYNTAX",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06",
+        "V11"
+      ],
+      "owner": "T01",
+      "description": "旧Fn协议元组源面给稳定迁移诊断。",
+      "expected": {
+        "error_line": 1,
+        "replacement": "Fn(i32) -> i32"
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL29",
+      "path": "conformance/cases/closure/CL29-explicit-result.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06",
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "显式闭包返回注记必须通过类型核验，不得在展开中丢弃。",
+      "expected": {
+        "entry": "check",
+        "return_value": 42
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL30",
+      "path": "conformance/cases/closure/CL30-tail-if-branches.zil",
+      "kind": "accept",
+      "phase": "run",
+      "diagnostic": null,
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06",
+        "V11"
+      ],
+      "owner": "T08",
+      "description": "闭包末尾if两支的值汇合为返回，分支局部作用域保持。",
+      "expected": {
+        "entry": "check",
+        "return_value": 7
+      },
+      "status": "NotRun"
+    },
+    {
+      "id": "CL31",
+      "path": "conformance/cases/closure/CL31-unconstrained-signature.zil",
+      "kind": "reject",
+      "phase": "types",
+      "diagnostic": "E-CLOSURE-INFERENCE",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-SYNTAX"
+      ],
+      "acceptance": [
+        "V06",
+        "V11"
+      ],
+      "owner": "T02",
+      "description": "参数与结果没有唯一类型约束，不任选一个签名放行。",
+      "expected": {
+        "error_line": 2,
+        "reason": "No annotation, resolved expected signature, body scalar constraint or local call fixes the parameter/result type."
+      },
+      "status": "NotRun"
+    }
+  ]
+}

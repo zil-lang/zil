@@ -1,0 +1,203 @@
+{
+  "files": [
+    {
+      "bytes": 443,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/buffer/rust/buffer.rs",
+      "original_path": "benches/rust-parity/104/buffer/rust/buffer.rs",
+      "sha256": "a6ecd02444dad92da6ab7e91dcef48c94fb6abcced3abee00408f3a583078b2b"
+    },
+    {
+      "bytes": 204,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/buffer/rust/io.rs",
+      "original_path": "benches/rust-parity/104/buffer/rust/io.rs",
+      "sha256": "d9f709051782997a6e7bc7d907be7ce9ba333fbc2dc5349950b524d75bde184a"
+    },
+    {
+      "bytes": 448,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/buffer/rust/main.rs",
+      "original_path": "benches/rust-parity/104/buffer/rust/main.rs",
+      "sha256": "367500a9607b1f88c808c2034e3f7d85518506a2b7d13f6e2381a0e1ce0b4d21"
+    },
+    {
+      "bytes": 69,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/buffer/rust/sequence.rs",
+      "original_path": "benches/rust-parity/104/buffer/rust/sequence.rs",
+      "sha256": "5585ff49e8f1170372786d3add481f2c77272c51ea84eec542e1296718b92c63"
+    },
+    {
+      "bytes": 837,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/buffer/zil/buffer.zil",
+      "original_path": "benches/rust-parity/104/buffer/zil/buffer.zil",
+      "sha256": "1061926bafaec7e3935e0478e95cd105a8e2548e5918732e449d2f6c7f53174c"
+    },
+    {
+      "bytes": 196,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/buffer/zil/io.zil",
+      "original_path": "benches/rust-parity/104/buffer/zil/io.zil",
+      "sha256": "0b67228f46271c5ce6d7217fc3c6cbc209a86e79c91b6f5a6f4287b9626869a1"
+    },
+    {
+      "bytes": 525,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/buffer/zil/main.zil",
+      "original_path": "benches/rust-parity/104/buffer/zil/main.zil",
+      "sha256": "7db641ee21fa87ef1c53ff498c3f0f82fc40555809a95b1f2b60806e84ea16a4"
+    },
+    {
+      "bytes": 229,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/buffer/zil/sequence.zil",
+      "original_path": "benches/rust-parity/104/buffer/zil/sequence.zil",
+      "sha256": "44580d3bcfd2b7efcbd024cfab7841a9d98b7e597f1f8440c12a28d5b85a33e2"
+    },
+    {
+      "bytes": 443,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/retained/rust/buffer.rs",
+      "original_path": "benches/rust-parity/104/retained/rust/buffer.rs",
+      "sha256": "a6ecd02444dad92da6ab7e91dcef48c94fb6abcced3abee00408f3a583078b2b"
+    },
+    {
+      "bytes": 204,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/retained/rust/io.rs",
+      "original_path": "benches/rust-parity/104/retained/rust/io.rs",
+      "sha256": "d9f709051782997a6e7bc7d907be7ce9ba333fbc2dc5349950b524d75bde184a"
+    },
+    {
+      "bytes": 383,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/retained/rust/main.rs",
+      "original_path": "benches/rust-parity/104/retained/rust/main.rs",
+      "sha256": "3b79f5a8f88cc379c226ffe48d7937fc5ad5861ff97098279f1ceb8ab8d88595"
+    },
+    {
+      "bytes": 620,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/retained/rust/state.rs",
+      "original_path": "benches/rust-parity/104/retained/rust/state.rs",
+      "sha256": "6eede37e7bfcf132268cb7cb493b61a59af6d4b88ac4002775f8606f647f83bd"
+    },
+    {
+      "bytes": 837,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/retained/zil/buffer.zil",
+      "original_path": "benches/rust-parity/104/retained/zil/buffer.zil",
+      "sha256": "1061926bafaec7e3935e0478e95cd105a8e2548e5918732e449d2f6c7f53174c"
+    },
+    {
+      "bytes": 196,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/retained/zil/io.zil",
+      "original_path": "benches/rust-parity/104/retained/zil/io.zil",
+      "sha256": "0b67228f46271c5ce6d7217fc3c6cbc209a86e79c91b6f5a6f4287b9626869a1"
+    },
+    {
+      "bytes": 319,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/retained/zil/main.zil",
+      "original_path": "benches/rust-parity/104/retained/zil/main.zil",
+      "sha256": "7d9e65b3f1a8ef804033292fbec09169aa8ec940b5a84447a16808e75bbe8abf"
+    },
+    {
+      "bytes": 629,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/retained/zil/state.zil",
+      "original_path": "benches/rust-parity/104/retained/zil/state.zil",
+      "sha256": "00ff37d5ebfb94163b8efc31ceafb9470713876952a267b21558ab776ccaba36"
+    },
+    {
+      "bytes": 204,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/stream/rust/io.rs",
+      "original_path": "benches/rust-parity/104/stream/rust/io.rs",
+      "sha256": "d9f709051782997a6e7bc7d907be7ce9ba333fbc2dc5349950b524d75bde184a"
+    },
+    {
+      "bytes": 278,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/stream/rust/main.rs",
+      "original_path": "benches/rust-parity/104/stream/rust/main.rs",
+      "sha256": "34099ca8d5b1992a943af4b74cede404831e9a6d08bdd918a7edd570cc3c4bc3"
+    },
+    {
+      "bytes": 59,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/stream/rust/transform.rs",
+      "original_path": "benches/rust-parity/104/stream/rust/transform.rs",
+      "sha256": "c67d88c8b2ced200151fe5065935beeaed1acf7cb3f9b6830880f3aa9a9297cc"
+    },
+    {
+      "bytes": 196,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/stream/zil/io.zil",
+      "original_path": "benches/rust-parity/104/stream/zil/io.zil",
+      "sha256": "0b67228f46271c5ce6d7217fc3c6cbc209a86e79c91b6f5a6f4287b9626869a1"
+    },
+    {
+      "bytes": 235,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/stream/zil/main.zil",
+      "original_path": "benches/rust-parity/104/stream/zil/main.zil",
+      "sha256": "6cbc3c5598057bfecdee873abf2edf1a0585dda881cc740c5c795d8cfb3de1d4"
+    },
+    {
+      "bytes": 115,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/programs104/stream/zil/transform.zil",
+      "original_path": "benches/rust-parity/104/stream/zil/transform.zil",
+      "sha256": "4aa40d6a0c24605dd70b195ca61e33402f1db4bce71c059a89f08e202152ab28"
+    },
+    {
+      "bytes": 27505,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/reference104/run.py",
+      "original_path": "tools/product/104/run.py",
+      "sha256": "b19c80918d31c02348ee27a8e24e0fb4daae10dbba1bd59c7a3a459a64985c0c"
+    },
+    {
+      "bytes": 1200,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/reference104/contract.json",
+      "original_path": "tools/product/104/contract.json",
+      "sha256": "ff85696a9daa383b27148539738ed5496bea74c6f551dcd0f4fba4b15c867270"
+    },
+    {
+      "bytes": 3606,
+      "commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+      "local_path": "tools/product/108/reference104/observer.c",
+      "original_path": "tools/product/104/observer.c",
+      "sha256": "b9fc7d75dd30a751351c910b86498b670ed414670f67fe64c47ed0768f9ca681"
+    },
+    {
+      "bytes": 1356,
+      "commit": "9f5dd1188bf363c61d08d1840c97ee3f7b3a2218",
+      "local_path": "tools/product/108/reference104/memory_launcher.c",
+      "original_path": "tools/product/104/memory_launcher.c",
+      "sha256": "43eb42a22a1d82ad8a62a8c199f6426e6a3962ab30005b5248d2ef0538922ff1"
+    },
+    {
+      "bytes": 504,
+      "commit": "9f5dd1188bf363c61d08d1840c97ee3f7b3a2218",
+      "local_path": "tools/product/108/reference104/memory_control.c",
+      "original_path": "tools/product/104/memory_control.c",
+      "sha256": "b879508ca70ffc87dcc297260760ac4595aa525ccb0904dad8cee201235cd780"
+    },
+    {
+      "bytes": 1464,
+      "commit": "9f5dd1188bf363c61d08d1840c97ee3f7b3a2218",
+      "local_path": "tools/product/108/reference104/memory-contract.json",
+      "original_path": "tools/product/104/memory-contract.json",
+      "sha256": "2c6834093fe72bf6e5f90e9cdb3099a4e0721a7808d1d0b2a360f88f49a6add5"
+    }
+  ],
+  "memory_tool_commit": "9f5dd1188bf363c61d08d1840c97ee3f7b3a2218",
+  "schema": "zil-108-frozen-reference/1",
+  "source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954"
+}

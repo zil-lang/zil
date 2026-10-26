@@ -1,0 +1,290 @@
+//! Bounded packages. Raw declarations and operands are rechecked here;
+//! producer type/ownership claims are never a proof. Responsibility and field
+//! description provenance are independently reconstructed in `resources`.
+use super::*;
+
+/// Reconstructed from executable entry instructions, never a producer claim.
+/// Empty vectors preserve the ordinary function path without a view table.
+#[derive(Default)]
+pub(super) struct CaptureViews {
+    pub(super) by_local: Vec<Option<u32>>,
+    pub(super) by_capture: Vec<Option<LocalId>>,
+}
+
+impl CaptureViews {
+    pub(super) fn capture(&self, local: LocalId) -> Option<u32> {
+        self.by_local.get(local.0 as usize).copied().flatten()
+    }
+}
+
+pub(super) fn capture_views(
+    module: &TypedModule,
+    function: &TypedFunction,
+    predecessors: &[Vec<usize>],
+    budget: &mut Budget,
+) -> Check<CaptureViews> {
+    let Some(environment) = function.environment else {
+        return Ok(CaptureViews::default());
+    };
+    let captures = &closures::definition(module, environment, Some(function.span))?.captures;
+    budget.spend(captures.len())?;
+    if !captures.iter().any(|ty| matches!(ty, Type::Package { .. })) {
+        return Ok(CaptureViews::default());
+    }
+    let bad = |message| reject("E-VERIFY-CAPTURE", Some(function.span), message);
+    let entry = function.entry.0 as usize;
+    if !predecessors[entry].is_empty() {
+        return Err(bad(
+            "a Package capture entry cannot have incoming CFG edges",
+        ));
+    }
+    let instructions = &function.blocks[entry].instructions;
+    if !instructions
+        .first()
+        .is_some_and(|i| matches!(i.kind, InstructionKind::ScopeEnter { .. }))
+    {
+        return Err(bad(
+            "Package capture views require an entry root ScopeEnter",
+        ));
+    }
+    budget.spend(function.locals.len().saturating_add(captures.len()))?;
+    let mut views = CaptureViews {
+        by_local: vec![None; function.locals.len()],
+        by_capture: vec![None; captures.len()],
+    };
+    let mut prefix_end = 1;
+    for instruction in instructions.iter().skip(1) {
+        budget.spend(1)?;
+        let InstructionKind::BindPackageCapture { local, index } = instruction.kind else {
+            break;
+        };
+        // Operand/type validation ran before this CFG contract.
+        if views.by_local[local.0 as usize].replace(index).is_some()
+            || views.by_capture[index as usize].replace(local).is_some()
+        {
+            return Err(bad(
+                "Package capture bindings must be one-to-one and unique",
+            ));
+        }
+        prefix_end += 1;
+    }
+    budget.spend(captures.len())?;
+    if captures
+        .iter()
+        .enumerate()
+        .any(|(index, ty)| matches!(ty, Type::Package { .. }) && views.by_capture[index].is_none())
+    {
+        return Err(bad(
+            "every Package capture requires exactly one entry-prefix Bind",
+        ));
+    }
+    for (block, body) in function.blocks.iter().enumerate() {
+        for (position, instruction) in body.instructions.iter().enumerate() {
+            budget.spend(1)?;
+            match instruction.kind {
+                InstructionKind::BindPackageCapture { .. }
+                    if block != entry || position == 0 || position >= prefix_end =>
+                {
+                    return Err(bad(
+                        "Package Bind must belong to the consecutive entry prefix",
+                    ));
+                }
+                InstructionKind::EndPackageCapture { local, index }
+                    if views.capture(local) != Some(index) =>
+                {
+                    return Err(bad("Package End must match the unique capture binding"));
+                }
+                InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local)
+                    if views.capture(local).is_some() =>
+                {
+                    return Err(bad(
+                        "Package capture views cannot use ordinary StorageLive or StorageDead",
+                    ));
+                }
+                InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
+                    if views.capture(local).is_some() =>
+                {
+                    return Err(bad("Package capture views cannot expose a local address"));
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(views)
+}
+
+pub(super) fn check_type_for(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
+    let Type::Package { name, fields } = ty else {
+        return Err(reject(
+            "E-VERIFY-PACKAGE",
+            span,
+            "package operation requires an actual nominal package",
+        ));
+    };
+    resources::charge_payload(ty, budget)?;
+    if name.is_empty() {
+        return Err(reject("E-VERIFY-PACKAGE", span, "empty package identity"));
+    }
+    let mut names = BTreeSet::new();
+    let mut owns = false;
+    for (name, field) in fields {
+        if name.is_empty() || !names.insert(name) {
+            return Err(reject(
+                "E-VERIFY-PACKAGE",
+                span,
+                "package fields must have unique nonempty names",
+            ));
+        }
+        if byte_buffers::is_desc(field) {
+            return Err(unsupported(
+                "borrowed byte storage package fields are outside the finite profile",
+                span,
+            ));
+        }
+        if matches!(field, Type::Managed(_)) {
+            resources::check_type_for(module, field, span, budget)?;
+            owns = true;
+        } else {
+            // This independent finite-Copy admission also rejects nested
+            // packages, descriptions, addresses and owning environments.
+            check_type(field, span)?;
+        }
+    }
+    if !owns {
+        return Err(unsupported(
+            "this package slice requires at least one manages field",
+            span,
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn check_instruction(
+    module: &TypedModule,
+    function: &TypedFunction,
+    instruction: &Instruction,
+    budget: &mut Budget,
+) -> Check<Option<Type>> {
+    let span = Some(instruction.span);
+    let bad = |message| reject("E-VERIFY-PACKAGE", span, message);
+    match &instruction.kind {
+        InstructionKind::BindPackageCapture { local, index }
+        | InstructionKind::EndPackageCapture { local, index } => {
+            let environment = function.environment.ok_or_else(|| {
+                bad("Package capture binding requires an actual closure environment")
+            })?;
+            let definition = closures::definition(module, environment, span)?;
+            let ty = definition
+                .captures
+                .get(*index as usize)
+                .ok_or_else(|| bad("Package capture index is outside the environment"))?;
+            // End can occur on many edges. Charge each deep raw type equality,
+            // rather than relying on an earlier declaration admission.
+            resources::charge_payload(ty, budget)?;
+            if !matches!(ty, Type::Package { .. }) || local_type(function, *local, span)? != ty {
+                return Err(bad(
+                    "Package capture view must exactly match its Package field type",
+                ));
+            }
+            budget.spend(function.parameters.len())?;
+            if function.parameters.contains(local) {
+                return Err(bad("a Package capture view cannot also be a parameter"));
+            }
+            Ok(None)
+        }
+        InstructionKind::MakePackage { fields } => {
+            let result = instruction
+                .result
+                .ok_or_else(|| bad("package construction requires a typed result"))?;
+            let ty = value_type(function, result, span)?;
+            check_type_for(module, ty, span, budget)?;
+            let Type::Package {
+                fields: expected, ..
+            } = ty
+            else {
+                unreachable!()
+            };
+            if fields.len() != expected.len() {
+                return Err(bad(
+                    "package construction requires every declared field exactly once",
+                ));
+            }
+            budget.spend(fields.len())?;
+            for (value, (_, expected)) in fields.iter().zip(expected) {
+                if value_type(function, *value, span)? != expected {
+                    return Err(bad("package input differs from its declared field type"));
+                }
+            }
+            Ok(Some(ty.clone()))
+        }
+        InstructionKind::ReadPackageField { local, index }
+        | InstructionKind::DescribePackageField { local, index }
+        | InstructionKind::TakePackageField { local, index }
+        | InstructionKind::DropPackageField { local, index }
+        | InstructionKind::StorePackageField { local, index, .. } => {
+            let Type::Package { fields, .. } = local_type(function, *local, span)? else {
+                return Err(bad("package projection requires a package local"));
+            };
+            let (_, ty) = fields
+                .get(*index as usize)
+                .ok_or_else(|| bad("package field index is outside its declaration"))?;
+            resources::charge_payload(ty, budget)?;
+            match &instruction.kind {
+                InstructionKind::DescribePackageField { .. } => {
+                    let Type::Managed(inner) = ty else {
+                        return Err(bad("package description requires a manages field"));
+                    };
+                    Ok(Some(Type::Desc(inner.clone())))
+                }
+                InstructionKind::TakePackageField { .. }
+                | InstructionKind::DropPackageField { .. } => {
+                    if !matches!(ty, Type::Managed(_)) {
+                        return Err(bad(
+                            "package field transfer or cleanup requires a manages field",
+                        ));
+                    }
+                    Ok(
+                        matches!(instruction.kind, InstructionKind::TakePackageField { .. })
+                            .then(|| ty.clone()),
+                    )
+                }
+                InstructionKind::StorePackageField { value, .. } => {
+                    if !function.locals[local.0 as usize].mutable {
+                        return Err(reject(
+                            "E-VERIFY-MUTABILITY",
+                            span,
+                            "package field store requires mutable storage",
+                        ));
+                    }
+                    if value_type(function, *value, span)? != ty {
+                        return Err(bad(
+                            "package field store differs from its declared field type",
+                        ));
+                    }
+                    Ok(None)
+                }
+                InstructionKind::ReadPackageField { .. } => {
+                    if matches!(ty, Type::Managed(_)) {
+                        return Err(bad("package Copy projection cannot copy a manages field"));
+                    }
+                    check_type(ty, span)?;
+                    Ok(Some(ty.clone()))
+                }
+                _ => unreachable!("only field operations enter this match"),
+            }
+        }
+        InstructionKind::DropPackage { local } => {
+            if !matches!(local_type(function, *local, span)?, Type::Package { .. }) {
+                return Err(bad("package cleanup requires a package local"));
+            }
+            Ok(None)
+        }
+        _ => unreachable!("only package operations enter their checker"),
+    }
+}

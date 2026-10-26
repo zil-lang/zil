@@ -1,0 +1,10 @@
+{
+  "steps": [
+    { "kind": "cargo-test", "package": "zil-db", "filter": "cache::tests", "min_passed": 4 },
+    { "kind": "cargo-test", "package": "zil-driver", "filter": "cache_", "min_passed": 5 },
+    { "kind": "cargo-test", "package": "zil-driver", "filter": "cancellation_", "min_passed": 4 },
+    { "kind": "cargo-test", "package": "zil-driver", "filter": "artifact_preflight_", "min_passed": 3 },
+    { "kind": "cargo-test", "package": "zil-driver", "filter": "late_artifact_failure_", "min_passed": 1 },
+    { "kind": "cargo-test", "package": "zil-driver", "filter": "artifacts::tests::second_native_rename_failure", "min_passed": 1 }
+  ]
+}

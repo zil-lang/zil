@@ -1,0 +1,65 @@
+{
+  "admission": "read unchanged product runtime thresholds, per-cell 0.9 and geometric mean 0.95; original runtime cells and startup cells separately and together; all regressions reported",
+  "allocation_failure_indices": [
+    0,
+    1,
+    2,
+    7,
+    17
+  ],
+  "arms": [
+    "base",
+    "candidate",
+    "rust"
+  ],
+  "cpu": 2,
+  "memory_metric": "small native exec/fork launcher target wait4 peak RSS; Python parent high-water marks excluded",
+  "memory_order": "same twelve cells; five repetitions each; left-rotate base/candidate/rust by repetition modulo three",
+  "memory_repetitions": 5,
+  "optimization": "O2",
+  "order": "original six cells then six startup cells; warmups base/candidate/rust then rust/candidate/base; all six permutations five times, seeded shuffle per cell",
+  "order_seed": 108,
+  "process_timeout_seconds": 120,
+  "production_baseline": "fe2e650038062641dc2b467018243f1566fecff4",
+  "production_candidate": "7a219f2d782532324e1ea7401cab68c9eada7c82",
+  "profile": "validation/product-gates.json",
+  "reference_identity_sha256": "3f93941e5121987e7de68259696a79bf3346299ba3e7c37670407dc9ba6915ea",
+  "reference_memory_commit": "9f5dd1188bf363c61d08d1840c97ee3f7b3a2218",
+  "reference_source_commit": "38ec6bc2d267b44bb7edab8a0d894af9cdb23954",
+  "retained_triplets": 30,
+  "runtime_sizes": [
+    65536,
+    4194304
+  ],
+  "scenario_order": [
+    "stream",
+    "buffer",
+    "retained"
+  ],
+  "schema": "zil-native-binding/108/1",
+  "scope": "finite runtime comparison only; no whole product or compilation/maintenance claim",
+  "startup_sizes": [
+    0,
+    1
+  ],
+  "stop_rule": "one complete frozen series; any identity/order/output/exit/deadline failure invalidates and retains all observations; no post-result expansion or winner selection",
+  "timing": "perf_counter_ns immediately before Popen to completed wait4; files opened before clock; output hash afterward",
+  "trace_sizes": {
+    "buffer": 4194304,
+    "retained": 65536,
+    "stream": 4096
+  },
+  "validation_sizes": [
+    0,
+    1,
+    7,
+    8,
+    9,
+    256,
+    257,
+    4096,
+    65536,
+    4194304
+  ],
+  "warmup_triplets": 2
+}

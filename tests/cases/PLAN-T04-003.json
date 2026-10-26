@@ -1,0 +1,10 @@
+{
+  "steps": [
+    {
+      "kind": "command",
+      "command": ["{python}", "tests/script/native-project-protocol.py"],
+      "result_json": true,
+      "timeout": 240
+    }
+  ]
+}
