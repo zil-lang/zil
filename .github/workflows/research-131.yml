@@ -1,0 +1,38 @@
+name: Research 131 effect retraction
+on:
+  push:
+    branches: [research/131-effect-retraction]
+    paths:
+      - tools/research/131/**
+      - .github/workflows/research-131.yml
+permissions:
+  contents: read
+jobs:
+  finite-model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Exact source and toolchain identities
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          sha256sum tools/research/131/effect_graph.rs
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup run 1.99.1 rustc -vV
+      - name: Debug and optimized algorithm tests
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          for opt in 0 3; do
+            rustup run 1.99.1 rustc --edition=2024 -D warnings -C opt-level=$opt --test tools/research/131/effect_graph.rs -o results/tests-$opt
+            results/tests-$opt --nocapture --test-threads=1 | tee results/tests-$opt.log
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: research-131-logs
+          path: results/*.log
+          retention-days: 14
+          if-no-files-found: error
