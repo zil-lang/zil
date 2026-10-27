@@ -85,10 +85,10 @@ impl CompilationSession {
         options: &CompileOptions,
     ) -> CompileReport {
         let start = Instant::now();
-        // Apply the existing session capacity before discovery can read any raw cache.
-        if self.raw.len() > self.capacity {
-            self.clear();
-        }
+        // Discovery may borrow immutable syntax from the previous request.
+        // The existing compile_project_request capacity guard still clears
+        // cache ownership before publishing this request; the lent Arcs do
+        // not preserve query authority or add another retained cache.
         let mut project = ProjectSources {
             root: ModuleId(0),
             modules: vec![SourceUnit::new(
@@ -905,6 +905,22 @@ mod discovery158_tests {
         fs::write(dir.0.join("leaf/mod.zil"), "pub fn answer()->i32=>42").unwrap();
         let errors = discover(&session, &path, &CompileOptions::default()).unwrap_err();
         assert!(errors.iter().any(|e| e.code == "E-MODULE-AMBIGUOUS"));
+    }
+    #[test]
+    fn capacity_clear_keeps_immutable_lent_syntax_but_not_query_authority() {
+        let (_dir, path, mut session) = setup();
+        session.capacity = 1;
+        assert!(session.raw.len() > session.capacity);
+        let before = discover(&session, &path, &CompileOptions::default()).unwrap();
+        let r = session.compile_path(&path, &CompileOptions::default());
+        assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+        assert_eq!(r.verification_runs, 1);
+        assert!(!r.cache_hit); // Old query authority was actually cleared.
+        let after = discover(&session, &path, &CompileOptions::default()).unwrap();
+        for (a, b) in before.iter().zip(after.iter()) {
+            assert!(Arc::ptr_eq(a, b));
+        }
+        assert_eq!(session.active_query_count(), 0);
     }
     #[test]
     fn discovery_cancellation_and_active_query_guards_still_apply() {
