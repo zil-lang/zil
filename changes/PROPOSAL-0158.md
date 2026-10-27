@@ -1,0 +1,6 @@
+# 158 Query-equivalent filesystem syntax memoization
+
+The filesystem adapter previously parsed all immutable source bytes before an identical published Parse query could be reused. Reuse only by exact existing query key after current bytes and module/file identities are reconstructed. Loader charges bytes independently, and query matching includes current remaining token/node quotas and all other limits. No accepted-program, diagnostic, ABI, independent Verify or compiler-default change is intended. Source files, import entry ambiguity, symlinks and directory boundaries remain rechecked.
+
+## Capacity-order refinement
+The first experiment used an explicit 16384-query session. Before checking the default32 case, preserve the baseline's clear boundary: filesystem discovery lends exact immutable Parse Arcs, then compile_project_request performs its existing capacity clear before any query publication. This does not retain another cache or preserve old query authority; it avoids needlessly destroying borrowed immutable input before the guard. A capacity1 test requires a cache miss, fresh Verify, and identical parse Arcs. The earlier binary and measurement stay archived; the refined binary needs a new measurement.
