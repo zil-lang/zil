@@ -1,0 +1,24 @@
+{
+  "status": "Pass",
+  "scope": "same-author independent arithmetic recomputation, NOT independent review",
+  "processes": 384,
+  "requests": 1536,
+  "all_input_fingerprints_match": true,
+  "inputs_unchanged": true,
+  "input_files": 2786,
+  "request_ratio": 0.46632603352201096,
+  "process_ratio": 0.47305562631226816,
+  "request_scenarios": {
+    "cold": 0.4122122123870113,
+    "unchanged": 1.0033508841318668,
+    "private_edit": 0.42401633771664704,
+    "public_edit": 0.42852335383497375
+  },
+  "frozen_spec_sha256": "7db4eeb3d05c34974a229fecafe6bbd1ecb7a5d8219f52c43f01aac408063eae",
+  "timing_sha256": "ec7935b956ca5da1aaed0eb93445b80431def3a03c5870e4121d2ea0f25ae4c2",
+  "scope_notes": [
+    "Private/public edits add unused declarations, not arbitrary called-body edits.",
+    "Largest tree1024 input is preflight/native, not part of the frozen 16 timed cells. Separate secondary scale campaign is labeled separately.",
+    "The frozen order prose retained obsolete B/F names from 141; actual measurement records and implementation use A/C ABBA/BAAB."
+  ]
+}
