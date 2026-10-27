@@ -193,10 +193,22 @@ impl Builder<'_, '_> {
                         decl.ty,
                     ));
                 }
-                if !decl.ty.is_copy_value() && !matches!(decl.ty, Type::Closure(_)) {
+                let resource_head = !mutable
+                    && matches!(&decl.ty, Type::Managed(payload)
+                        if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
+                if resource_head && self.managed_captures.contains_key(&local) {
                     return Err(unsupported(
                         e.span,
-                        "address targets must be finite Copy values; nested addresses are not implemented",
+                        "borrowing a captured resource head requires an explicit environment-head protocol",
+                    ));
+                }
+                if !decl.ty.is_copy_value()
+                    && !matches!(decl.ty, Type::Closure(_))
+                    && !resource_head
+                {
+                    return Err(unsupported(
+                        e.span,
+                        "address targets must be finite Copy values or actual shared user-resource heads; descriptors and nested addresses are not head positions",
                     ));
                 }
                 if mutable && !decl.mutable {
@@ -222,7 +234,9 @@ impl Builder<'_, '_> {
                 operand,
             } => {
                 let result = self.expr(operand, None)?;
-                if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee()) {
+                if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee())
+                    && !result.1.is_shared_resource_head_address()
+                {
                     return Err(error(
                         "E-OPERATOR-TYPE",
                         e.span,
