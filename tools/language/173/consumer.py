@@ -124,7 +124,7 @@ def main():
                                          "llvm_sha256": digest(phases / "llvm.ll")})
                 save(out / "summary.json", report)
                 linked = command(["clang", "-" + opt, phases / "llvm.ll",
-                                  repo / "tools/research/142/allocator_probe.c", "-Wl,--wrap=realloc",
+                                  repo / "tools/language/173/allocator_probe.c", "-Wl,--wrap=realloc",
                                   "-Wl,--wrap=free", "-o", probe], directory / "probe-link")
                 if linked.returncode:
                     raise RuntimeError(f"{name}/{opt}: allocator probe link failed")
