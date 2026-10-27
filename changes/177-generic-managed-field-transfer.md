@@ -15,3 +15,5 @@ consumer01在泛型体Store原语处正确拒绝；转普通具体helper后的co
 新增原生Store+Closure组合、重复give/缺字段整传/非manages/普通Desc/未调用模板负例，并由非作者核查。六文件每入口五模块消费者逐分配点失败注入；作者三片与现有泛型套件进入最终workspace回归。旧consumer01/02保持失败身份，不将改写或新接线反标到旧输入。
 
 独审预读指出具体Batch在旧known_copy中可能经解引用伪造本地所有者；新分类按实际Package声明拒绝Copy，并递归检查tuple/array，给出未实例化模板反例。此分类不授权资源头转交，Desc local give仍关闭。
+
+consumer03又揭示普通helper调用作为比较左值时，泛型检查器错误把比较结果的bool提示传给i32返回值。仅隔离比较结果与操作数的类型提示；双方操作数仍严格同型。增加i32 helper比较正例与bool右值不匹配负例，保留原失败。
