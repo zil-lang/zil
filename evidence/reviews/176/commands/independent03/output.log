@@ -1,0 +1,85 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 3.26s
+     Running tests/impl167_owned_arrays.rs (/workspace/scratch/39be3faa4442/targets/review176-by175/debug/deps/impl167_owned_arrays-57093b6aa53da9c2)
+
+running 32 tests
+test callback_array_borrows_forbid_overlapping_slot_changes_and_escaping_storage ... ok
+test callback_array_capture_remains_explicitly_closed_in_source_and_raw_wire ... ok
+test byte_buffer_field_windows_use_the_actual_inline_element ... ok
+test construction_and_copy_projection_clean_each_element_once ... ok
+test dynamic_indices_and_implicit_resource_arrays_remain_explicit_boundaries ... ok
+test callback_preparation_and_replacement_error_paths_keep_exact_owners ... ok
+test failed_replacement_keeps_the_old_element_until_scope_cleanup ... ok
+test moved_once_callback_array_element_preserves_remaining_cleanup ... ok
+test old_byte_buffer_window_cannot_survive_any_array_element_replacement ... ok
+test original159_same_factory_handler_array_constructs_and_cleans ... ok
+test nested_owned_callback_arrays_transfer_refill_borrow_and_drop_once ... ok
+test package_fields_clean_in_declaration_order_inside_each_array_element ... ok
+test partial_array_exit_and_branch_join_clean_only_live_elements ... ok
+test prepared_prefix_is_cleaned_in_reverse_order_on_later_error ... ok
+test private_array_element_fields_remain_private_across_modules ... ok
+test partial_slots_and_descriptors_cannot_be_reused_after_transfer_or_replacement ... ok
+test raw_and_wire_callback_addresses_cannot_survive_replacement_or_forge_permissions ... ok
+test raw_and_wire_callback_array_inputs_require_actual_local_moves ... ok
+test raw_and_wire_cannot_copy_elements_or_retake_the_same_slot ... ok
+test raw_and_wire_cannot_relabel_owned_operations_as_copy_aggregate_operations ... ok
+test raw_and_wire_charge_callback_array_length_times_inline_environment_work ... ok
+test raw_and_wire_check_static_bounds_and_charge_declared_array_size ... ok
+test raw_and_wire_consume_resource_free_callback_values_exactly_once ... ok
+test raw_and_wire_require_cleanup_before_overwriting_and_complete_whole_moves ... ok
+test pure_callback_slots_borrow_the_actual_environment_and_move_as_a_whole ... ok
+test repeated_loop_refill_reinitializes_only_the_chosen_slot ... ok
+test replacement_cleans_previous_element_before_installing_prepared_value ... ok
+test source_identity_and_nonresource_callback_slot_moves_are_not_forged ... ok
+test shared_callback_array_elements_remain_callable_by_shared_borrow ... ok
+test whole_array_can_cross_modules_with_exact_public_package_identity ... ok
+test taking_and_refilling_an_element_preserves_unique_cleanup ... ok
+test whole_array_roundtrip_and_move_keep_inline_owners ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.27s
+
+     Running tests/impl168_retained_composition.rs (/workspace/scratch/39be3faa4442/targets/review176-by175/debug/deps/impl168_retained_composition-e15ec715193e5615)
+
+running 26 tests
+test consumed_callee_is_cleaned_when_later_argument_fails ... ok
+test consuming_subenvironment_is_taken_and_called_exactly_once ... ok
+test consumed_persistent_slot_can_be_refilled_without_rebirth ... ok
+test distinct_source_opaque_factories_cannot_mix_even_when_forwarded ... ok
+test cross_module_forwarding_preserves_public_opaque_result ... ok
+test failed_replacement_keeps_original_slot_responsibility ... ok
+test forward_factories_resolve_reverse_declarations_and_cleanup_once ... ok
+test independent_ownership_checks_run_without_nominal_resources ... ok
+test independent_raw_and_wire_bound_repeated_child_layout_expansion ... ok
+test independent_raw_and_wire_charge_wide_leaf_inside_closure_dag ... ok
+test independent_raw_and_wire_charge_wide_package_array_elements ... ok
+test independent_raw_and_wire_reject_cycles_wrong_capture_indices_and_permissions ... ok
+test independent_raw_and_wire_reject_repeated_nested_take_and_factory_cycles ... ok
+test nested_error_exit_cleans_inner_activation_then_recursive_environment ... ok
+test forwarding_keeps_exact_mutable_and_consuming_factory_kinds ... ok
+test nested_move_creation_transfers_ownership_before_any_call ... ok
+test nonmove_inner_borrow_keeps_outer_owned_callback_live ... ok
+test owned_mutable_subenvironment_updates_real_inline_storage ... ok
+test persistent_slot_cannot_replace_a_still_borrowed_element ... ok
+test owned_shared_subenvironment_is_borrowed_and_dropped_recursively ... ok
+test persistent_slot_move_capture_transfers_the_actual_element ... ok
+test persistent_slot_preserves_cleanup_birth_under_later_guard ... ok
+test recursive_factory_identity_and_escaping_nested_borrow_are_rejected ... ok
+test retained_alias_and_consuming_callback_misuse_are_rejected ... ok
+test same_factory_slot_replacement_drops_previous_after_new_is_ready ... ok
+test uncalled_subenvironment_and_siblings_follow_capture_cleanup_order ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.89s
+
+     Running tests/review176_by175.rs (/workspace/scratch/39be3faa4442/targets/review176-by175/debug/deps/review176_by175-550178f70d6a70f0)
+
+running 7 tests
+test independent_failure_after_new_owned_argument_and_before_field_publication ... ok
+test independent_fnonce_double_take_call_and_no_resource_closure_uniqueness ... ok
+test independent_nonzero_field_offset_and_four_module_f_g_h_state_chain ... ok
+test independent_raw_and_wire_reject_parent_drop_with_only_field_window_remaining ... ok
+test independent_raw_and_wire_check_real_field_and_call_permission ... ok
+test independent_raw_and_wire_reject_pure_callback_published_twice_without_addresses ... ok
+test independently_reject_equal_layout_opaque_forwarder_and_live_parent_move ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.33s
+

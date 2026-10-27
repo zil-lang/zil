@@ -1,0 +1,54 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.45s
+     Running tests/review176_by175.rs (/workspace/scratch/39be3faa4442/targets/review176-by175/debug/deps/review176_by175-550178f70d6a70f0)
+
+running 7 tests
+test independent_failure_after_new_owned_argument_and_before_field_publication ... FAILED
+test independent_nonzero_field_offset_and_four_module_f_g_h_state_chain ... FAILED
+test independent_raw_and_wire_check_real_field_and_call_permission ... FAILED
+test independent_raw_and_wire_reject_parent_drop_with_only_field_window_remaining ... FAILED
+test independent_raw_and_wire_reject_pure_callback_published_twice_without_addresses ... ok
+test independently_reject_equal_layout_opaque_forwarder_and_live_parent_move ... FAILED
+test independent_fnonce_double_take_call_and_no_resource_closure_uniqueness ... ok
+
+failures:
+
+---- independent_failure_after_new_owned_argument_and_before_field_publication stdout ----
+
+thread 'independent_failure_after_new_owned_argument_and_before_field_publication' (52) panicked at crates/zil-driver/tests/review176_by175.rs:113:5:
+{"status":"SafeReject","phase":"lex","diagnostics":[{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":262,"end":267},"notes":[]},{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":268,"end":273},"notes":[]}],"artifacts":{},"input_fingerprint":"e0b094919c79fd8b8594b3b2fdc9b354cb7a7c9e512a82ffb55490861d42896b","seconds":0.002700856,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- independent_nonzero_field_offset_and_four_module_f_g_h_state_chain stdout ----
+
+thread 'independent_nonzero_field_offset_and_four_module_f_g_h_state_chain' (54) panicked at crates/zil-driver/tests/review176_by175.rs:83:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"lex","diagnostics":[{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":206,"end":211},"notes":[]},{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":446,"end":451},"notes":[]}],"artifacts":{},"input_fingerprint":"95933f5d37ff542d2a57aca638c31d259425985179b8f8e9d9db93876011e20f","seconds":0.00256903,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"model.zil","2":"factory.zil","3":"update.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- independent_raw_and_wire_check_real_field_and_call_permission stdout ----
+
+thread 'independent_raw_and_wire_check_real_field_and_call_permission' (55) panicked at crates/zil-driver/tests/review176_by175.rs:126:57:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 262, end: 267 }), notes: [] }, Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 268, end: 273 }), notes: [] }]
+
+---- independent_raw_and_wire_reject_parent_drop_with_only_field_window_remaining stdout ----
+
+thread 'independent_raw_and_wire_reject_parent_drop_with_only_field_window_remaining' (56) panicked at crates/zil-driver/tests/review176_by175.rs:126:57:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 262, end: 267 }), notes: [] }, Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 268, end: 273 }), notes: [] }]
+
+---- independently_reject_equal_layout_opaque_forwarder_and_live_parent_move stdout ----
+
+thread 'independently_reject_equal_layout_opaque_forwarder_and_live_parent_move' (58) panicked at crates/zil-driver/tests/review176_by175.rs:113:5:
+{"status":"SafeReject","phase":"lex","diagnostics":[{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":262,"end":267},"notes":[]},{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":268,"end":273},"notes":[]}],"artifacts":{},"input_fingerprint":"8eaf1dd305abf63190069cea403e4f32af58c750024016d7541420c94f9d7b20","seconds":0.001163284,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+
+
+failures:
+    independent_failure_after_new_owned_argument_and_before_field_publication
+    independent_nonzero_field_offset_and_four_module_f_g_h_state_chain
+    independent_raw_and_wire_check_real_field_and_call_permission
+    independent_raw_and_wire_reject_parent_drop_with_only_field_window_remaining
+    independently_reject_equal_layout_opaque_forwarder_and_live_parent_move
+
+test result: FAILED. 2 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+error: test failed, to rerun pass `-p zil-driver --test review176_by175`
