@@ -77,6 +77,7 @@ pub(super) fn check(
                     | InstructionKind::StoreOwnedArrayElement { .. }
                     | InstructionKind::DropOwnedArray { .. }
                     | InstructionKind::BorrowOwnedArrayElement { .. }
+                    | InstructionKind::BorrowPackageField { .. }
                     | InstructionKind::BindPackageCapture { .. }
                     | InstructionKind::EndPackageCapture { .. }
             );

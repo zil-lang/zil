@@ -497,6 +497,7 @@ pub(super) fn preflight(
                     | InstructionKind::DropOwnedArrayElement { local, .. }
                     | InstructionKind::StoreOwnedArrayElement { local, .. }
                     | InstructionKind::BorrowOwnedArrayElement { local, .. }
+                    | InstructionKind::BorrowPackageField { local, .. }
                     | InstructionKind::BindPackageCapture { local, .. }
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::DropManaged { local }
