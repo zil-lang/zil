@@ -284,6 +284,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !ty.is_shared_resource_head_address()
+                && !ty.is_shared_package_address()
                 && !resources::supported_type(ty, &lir.resources)
                 && !packages::supported_type(ty, &lir.resources)
                 && !errors::supported_type(ty, &lir.resources)
@@ -564,20 +565,13 @@ impl FunctionEmitter<'_> {
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
         match &instruction.kind {
-            InstructionKind::OwnedStoreBorrow { .. }
-            | InstructionKind::BorrowPackageField { .. } => {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Codegen,
-                    "State field/window semantics are not yet implemented",
-                    Some(instruction.span),
-                )]);
-            }
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
             | InstructionKind::OwnedStorePush { .. }
             | InstructionKind::OwnedStorePop { .. }
             | InstructionKind::OwnedStoreLen { .. }
-            | InstructionKind::OwnedStoreCapacity { .. } => {
+            | InstructionKind::OwnedStoreCapacity { .. }
+            | InstructionKind::OwnedStoreBorrow { .. } => {
                 self.dynamic_store_instruction(instruction)?;
             }
             InstructionKind::ByteBufferNew
@@ -588,6 +582,9 @@ impl FunctionEmitter<'_> {
             | InstructionKind::ByteBufferCapacity { .. }
             | InstructionKind::ByteBufferBorrow { .. } => {
                 self.byte_buffer_instruction(instruction)?
+            }
+            InstructionKind::BorrowPackageField { local, index, .. } => {
+                self.borrow_package_field(instruction, *local, *index)?;
             }
             InstructionKind::ReadPackageField { local, index } => {
                 self.read_package_field(instruction, *local, *index)?
@@ -1677,7 +1674,8 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
         Type::Address { inner, .. }
             if inner.is_copy_value()
                 || matches!(inner.as_ref(), Type::Closure(_))
-                || ty.is_shared_resource_head_address() =>
+                || ty.is_shared_resource_head_address()
+                || ty.is_shared_package_address() =>
         {
             Ok("ptr".into())
         }
@@ -1733,7 +1731,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Address { inner, .. }
             if inner.is_address_pointee()
                 || matches!(inner.as_ref(), Type::Closure(_))
-                || ty.is_shared_resource_head_address() =>
+                || ty.is_shared_resource_head_address()
+                || ty.is_shared_package_address() =>
         {
             Ok(8)
         }

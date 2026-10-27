@@ -102,7 +102,7 @@ fn head_windows(module: &TypedModule, budget: &mut Budget) -> Check<bool> {
                 .saturating_add(1),
         )?;
         if function.locals.iter().map(|local| &local.ty).chain(&function.values)
-            .any(|ty| matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
+            .any(|ty| ty.is_shared_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
             return Ok(true);
         }
     }
@@ -439,6 +439,7 @@ fn check(
             | InstructionKind::TakeLocal { local }
             | InstructionKind::BorrowLocalMut { local }
             | InstructionKind::BorrowOwnedArrayElement { local, .. }
+            | InstructionKind::BorrowPackageField { local, .. }
             | InstructionKind::Store { local, .. }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::CallClosureMut { callee: local, .. }
@@ -645,10 +646,12 @@ fn reconstruct(
                         {
                             row.push(Root::Capture(*index));
                         }
-                        InstructionKind::ByteBufferBorrow { buffer, .. } => {
+                        InstructionKind::ByteBufferBorrow { buffer, .. }
+                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. } => {
                             roots_join(&mut row, &values[buffer.0 as usize], budget)?;
                         }
-                        InstructionKind::BorrowOwnedArrayElement { local, .. } => {
+                        InstructionKind::BorrowOwnedArrayElement { local, .. }
+                        | InstructionKind::BorrowPackageField { local, .. } => {
                             row.push(Root::Local(*local));
                         }
                         InstructionKind::BorrowLocal { local }

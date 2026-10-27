@@ -655,6 +655,9 @@ fn check_function_signature_type(
     budget: &mut Budget,
 ) -> Check<()> {
     match ty {
+        Type::Address { inner, .. } if ty.is_shared_package_address() => {
+            dynamic_store::check_element(module, inner, span, budget)
+        }
         Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
             resources::check_type_for(module, inner, span, budget)
         }
@@ -681,6 +684,9 @@ fn check_local_type(
             span,
             "local closure type references an absent environment",
         )),
+        Type::Address { inner, .. } if ty.is_shared_package_address() => {
+            dynamic_store::check_element(module, inner, span, budget)
+        }
         Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
             resources::check_type_for(module, inner, span, budget)
         }
@@ -752,6 +758,22 @@ fn check_function(
             return Err(fail("E-VERIFY-PARAMETER", "duplicate parameter local"));
         }
         *p = true;
+    }
+    if matches!(function.return_type, Type::Address { .. }) {
+        budget.spend(function.locals.len().saturating_add(function.values.len()))?;
+        if function.return_type.is_shared_package_address()
+            || function
+                .locals
+                .iter()
+                .map(|local| &local.ty)
+                .chain(&function.values)
+                .any(Type::is_shared_package_address)
+        {
+            return Err(unsupported(
+                "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
+                Some(function.span),
+            ));
+        }
     }
     if function.return_type.is_shared_resource_head_address()
         || (matches!(function.return_type, Type::Address { .. })
@@ -1019,19 +1041,13 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
-        InstructionKind::OwnedStoreBorrow { .. } | InstructionKind::BorrowPackageField { .. } => {
-            return Err(Diagnostic::unsupported(
-                Phase::Verify,
-                "State field/window semantics are not yet implemented",
-                span,
-            ));
-        }
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
         | InstructionKind::OwnedStorePush { .. }
         | InstructionKind::OwnedStorePop { .. }
         | InstructionKind::OwnedStoreLen { .. }
-        | InstructionKind::OwnedStoreCapacity { .. } => {
+        | InstructionKind::OwnedStoreCapacity { .. }
+        | InstructionKind::OwnedStoreBorrow { .. } => {
             dynamic_store::check_instruction(module, function, instruction, budget)?
         }
         InstructionKind::ByteBufferNew
@@ -1051,7 +1067,8 @@ fn check_instruction(
         | InstructionKind::TakePackageField { .. }
         | InstructionKind::DropPackageField { .. }
         | InstructionKind::StorePackageField { .. }
-        | InstructionKind::DropPackage { .. } => {
+        | InstructionKind::DropPackage { .. }
+        | InstructionKind::BorrowPackageField { .. } => {
             packages::check_instruction(module, function, instruction, budget)?
         }
         InstructionKind::MakeOwnedArray { .. }
@@ -1291,6 +1308,10 @@ fn check_instruction(
             let field = match projected {
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
+                Type::Package { fields, .. } if !*mutable => {
+                    dynamic_store::check_element(module, projected, span, budget)?;
+                    fields.get(*index as usize).map(|(_, ty)| ty)
+                }
                 _ => None,
             }
             .ok_or_else(|| {

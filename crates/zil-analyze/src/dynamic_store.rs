@@ -11,7 +11,8 @@ pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
         | InstructionKind::OwnedStorePush { store, .. }
         | InstructionKind::OwnedStorePop { store } => Some((store, true)),
         InstructionKind::OwnedStoreLen { store }
-        | InstructionKind::OwnedStoreCapacity { store } => Some((store, false)),
+        | InstructionKind::OwnedStoreCapacity { store }
+        | InstructionKind::OwnedStoreBorrow { store, .. } => Some((store, false)),
         _ => None,
     }
 }

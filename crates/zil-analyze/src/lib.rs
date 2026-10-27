@@ -9,6 +9,7 @@
 //! materialized are charged before the corresponding work or allocation. These
 //! are deterministic logical units, not elapsed time or an allocator byte count.
 mod budget;
+mod callable_fields;
 mod dynamic_store;
 mod helpers;
 mod holds;
@@ -268,6 +269,7 @@ fn analyze_budgeted(
     for (function, package) in module.functions.iter().zip(package_functions) {
         scopes::check(module, function, package, budget)?;
     }
+    callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
     resources::check_module(module, &hold_graphs, budget)?;
     for (function, holds) in

@@ -96,6 +96,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !ty.is_shared_resource_head_address()
+                && !ty.is_shared_package_address()
                 && !resource_type(ty, &module.resources)
                 && !package_type(ty, &module.resources)
                 && !error_type(ty, &module.resources)
@@ -150,7 +151,7 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     };
     fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
         && fields.iter().all(|(_, ty)| {
-            ty.is_copy_value() || matches!(ty, Type::Managed(_) if resource_type(ty, resources))
+            ty.is_copy_value() || matches!(ty, Type::Closure(_)) || matches!(ty, Type::Managed(_) if resource_type(ty, resources))
                 || matches!(ty, Type::Array { element, length } if *length > 0 && package_type(element, resources) && !package_array_fields(element) && !package_store_fields(element))
         })
 }

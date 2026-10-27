@@ -7,6 +7,7 @@ use zil_ir::*;
 mod addresses;
 mod aggregates;
 mod byte_buffer;
+mod callable_fields;
 mod closures;
 mod conditions;
 mod dynamic_store;
@@ -132,6 +133,9 @@ fn signatures(
                 format!("function {} is declared twice", f.name),
             ))
         }
+        if f.return_type.is_shared_package_address() {
+            errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
+        }
         if f.return_type.is_shared_resource_head_address()
             || (matches!(f.return_type, Type::Address { .. })
                 && (f
@@ -148,6 +152,7 @@ fn signatures(
             ));
         }
         if !(f.callable_return.is_some()
+            || callable_fields::template(f)
             || f.return_type.is_copy_value()
             || f.return_type.is_scalar_or_address()
             || packages::supported(&f.return_type)
@@ -206,7 +211,8 @@ fn signatures(
                     | PassingMode::BorrowMut
             ) && !(p.mode == PassingMode::Borrow
                 && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
-                    || p.ty.is_shared_resource_head_address()))
+                    || p.ty.is_shared_resource_head_address()
+                    || p.ty.is_shared_package_address()))
                 && !(p.mode == PassingMode::BorrowMut
                     && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee()))
                 && !(p.mode == PassingMode::Give && matches!(p.ty, Type::Managed(_)))
@@ -526,6 +532,28 @@ impl<'a, 'c> Builder<'a, 'c> {
                 body.span,
                 "opaque callable factory must establish one returned hidden closure type",
             ));
+        }
+        if matches!(self.function.return_type, Type::Address { .. }) {
+            self.closures.snapshot(
+                self.function
+                    .locals
+                    .len()
+                    .saturating_add(self.function.values.len()),
+                body.span,
+            )?;
+            if self
+                .function
+                .locals
+                .iter()
+                .map(|local| &local.ty)
+                .chain(&self.function.values)
+                .any(Type::is_shared_package_address)
+            {
+                return Err(unsupported(
+                    body.span,
+                    "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
+                ));
+            }
         }
         for i in self.first_closure..self.closures.pending.len() {
             self.materialize_closure(ClosureId(i as u32))?;
@@ -1566,7 +1594,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                     if hints.is_empty() {
                         hints = self.sequence_hints(value);
                     }
-                    let (id, ty) = self.expr(v, hints.get(name))?;
+                    let (id, ty) = if hints
+                        .get(name)
+                        .is_some_and(|ty| matches!(ty, Type::Closure(_)))
+                    {
+                        self.owned_array_input(v, hints.get(name))?
+                    } else {
+                        self.expr(v, hints.get(name))?
+                    };
                     let l = self.local(name, ty, false, v.span)?;
                     self.sequenced_values.insert(l);
                     self.store(l, id, v.span)?
