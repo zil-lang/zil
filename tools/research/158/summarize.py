@@ -14,7 +14,7 @@ def ratio(xs,metric,w):
   seq=[pairs[rnd.randrange(len(pairs))]for j in pairs];boot.append(sum(z[1]for z in seq)/sum(z[0]for z in seq))
  boot.sort();norm=sum(w[c]for c in xs)*len(pairs)
  return {'ratio_C_over_A':c/a,'baseline_mean':a/norm,'candidate_mean':c/norm,'exploratory_paired_bootstrap95':[boot[199],boot[7799]],'blocks':len(pairs),'block_ratios':[y/x for x,y in pairs]}
-out={'schema':'zil158-results/1','processes':len(rows),'requests':sum(len(x['requests'])for x in rows),'common_profile_coverage':sum(weights[c]for c in cases),'groups':{},'per_case':{},'limits':'six blocks on shared host; bootstrap descriptive, no multiplicity-adjusted or formal release claim; weighted workload assumption not production telemetry'}
+out={'schema':'zil158-results/1','processes':len(rows),'requests':sum(len(x['requests'])for x in rows),'common_profile_coverage':sum(weights[c]for c in cases),'groups':{},'per_case':{},'limits':f"{spec['blocks']} blocks on shared host; bootstrap descriptive, no multiplicity-adjusted or formal release claim; weighted workload assumption not production telemetry"}
 for g in ['weighted','large','consumer','medium','tiny','equal']:
  xs=[c for c in cases if g in ['weighted','equal']or cats[c]==g];w={c:1 if g=='equal'else weights[c]for c in xs};out['groups'][g]={m:ratio(xs,m,w)for m in ['request','process','rss']}
 for c in cases:out['per_case'][c]={m:ratio([c],m,{c:1})for m in ['request','process','rss']}
