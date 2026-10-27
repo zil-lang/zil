@@ -200,10 +200,22 @@ fn negative_and_overflow_capacity_requests_preserve_populated_prefix() {
 }
 
 #[test]
-fn source_guards_reject_missing_context_store_fields_and_capture() {
+fn original_package_store_field_declaration_is_now_supported() {
+    let source = format!("{PACKAGE} package Bad{{manages children:Store<P>}} fn main()->i32=>0");
+    let report = check(&source);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn source_guards_reject_missing_context_and_capture() {
     for (source,category,needle) in [
   (format!("{PACKAGE} fn main()->i32{{let s=store_new();return 0}}"),ResultCategory::SafeReject,"store_new requires"),
-  (format!("{PACKAGE} package Bad{{manages children:Store<P>}} fn main()->i32=>0"),ResultCategory::Unsupported,"Store fields require"),
   (format!("{PACKAGE} fn main()->i32{{let s=empty();let f=move ()=>i32(store_len(s));return f()}}"),ResultCategory::Unsupported,"Store capture requires"),
   (format!("{PACKAGE} fn main()->i32{{let s=empty();let f=()=>i32(store_len(s));return f()}}"),ResultCategory::Unsupported,"Store capture requires"),
   ("resource Z{} package Empty{manages z:Z} fn main()->i32{let s:Store<Empty>=store_new();return 0}".into(),ResultCategory::Unsupported,"nonzero complete direct-Managed"),
@@ -621,7 +633,7 @@ fn source_neighbours_preserve_transfer_and_nested_composition_boundaries() {
 }
 
 #[test]
-fn raw_wire_forbidden_store_composition_and_head_access_are_independently_rejected() {
+fn raw_wire_store_composition_boundaries_and_head_access_are_independently_checked() {
     use zil_ir::{InstructionKind as I, LocalDecl, LocalId, Type};
     let source = format!(
         "{PACKAGE} fn main()->i32{{let n=7;let f=move ()=>n;let s=empty();store_reserve(s,1);store_push(s,make(65));let moved=give s;return i32(store_len(moved))-1+f()-7}}"
@@ -658,22 +670,24 @@ fn raw_wire_forbidden_store_composition_and_head_access_are_independently_reject
             ),
         ],
     };
-    for (label, ty) in [
-        ("package-store-field", direct.clone()),
+    for (label, ty, accepted) in [
+        ("package-store-field", direct.clone(), true),
         (
             "array-leaf-store-field",
             Type::Array {
                 element: Box::new(direct.clone()),
                 length: 2,
             },
+            true,
         ),
-        ("state-array-leaf-store-field", nested),
+        ("state-array-leaf-store-field", nested, false),
         (
             "error-payload-store-field",
             Type::ErrorUnion {
                 error: Box::new(Type::Unit),
                 result: Box::new(direct.clone()),
             },
+            true,
         ),
     ] {
         let mut mutated = original.clone();
@@ -690,20 +704,34 @@ fn raw_wire_forbidden_store_composition_and_head_access_are_independently_reject
             mutable: false,
             span: function.span,
         });
-        reject_candidate(
-            label,
-            mutated,
-            plan.clone(),
-            "E-UNSUPPORTED",
-            "Store fields require",
-        );
+        if accepted {
+            // 174 admits these exact complete shapes. Preserve the original
+            // candidate and independently re-run Analyze and both Verify paths.
+            let limits = Limits::default();
+            let target = TargetProfile::host_llvm();
+            let derived = zil_analyze::analyze(&mutated, &limits).unwrap();
+            let bytes = zil_ir::wire::encode_module_candidate(&mutated, &derived, &limits).unwrap();
+            zil_verify::verify_module(mutated, derived, &target, &limits).unwrap();
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+            let dir = directory();
+            fs::write(dir.join("candidate.bin"), bytes).unwrap();
+            fs::write(dir.join("accepted.json"),format!("{{\"status\":\"Pass\",\"case\":\"{label}\",\"analyze\":true,\"raw_verify\":true,\"wire_verify\":true}}\n")).unwrap();
+        } else {
+            reject_candidate(
+                label,
+                mutated,
+                plan.clone(),
+                "E-UNSUPPORTED",
+                "Store fields require",
+            );
+        }
     }
     for (label, ty, message) in [
         ("closure-store-capture", store, "Store capture requires"),
         (
             "closure-package-store-capture",
             direct,
-            "Store fields require",
+            "Package capture with Store fields",
         ),
     ] {
         let mut mutated = original.clone();
