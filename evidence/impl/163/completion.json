@@ -1,0 +1,20 @@
+{
+  "task": "163",
+  "status": "Pass",
+  "integrator": "/root",
+  "implementation_commit": "f5a5b532b3410474495a43780c63d4a0dc1fbcf3",
+  "reviewer": "/root/nested_closures",
+  "review": "evidence/reviews/163/handoff-binding.json",
+  "original_review": "evidence/reviews/163/review.json",
+  "original_review_sha256": "1d3f8f0a48ab847918f7e74857a824e587dae41246d4d27d58770d3eb61245af",
+  "author_evidence": "evidence/impl/163/acceptance.json",
+  "integrated_workspace": "evidence/impl/164/165-final-workspace/command.json",
+  "integrated_source_commit": "03aa25206fbf4c5d783c5fe0ecc4078fbe628b73",
+  "integrated_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+  "scope": "This finite task and its actual integration checks have completed. Historical author/reviewer failures and pending-at-the-time receipts are retained unchanged.",
+  "complete_language": "NotSatisfied",
+  "full_zui_ready": false,
+  "product": "NotRun",
+  "formal_parent": "B0 Doing",
+  "historical_handoff": "Fail remains; normative registry/history omissions are not waived or repaired by this receipt"
+}

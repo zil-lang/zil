@@ -1,0 +1,27 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "--locked",
+    "--offline",
+    "--workspace",
+    "--all-targets",
+    "-j",
+    "2",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/compose159",
+  "source_commit": "03aa25206fbf4c5d783c5fe0ecc4078fbe628b73",
+  "crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+  "source_status": "",
+  "start": 1793098096.2654228,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "ba5eff45ae37b959e6fbde697860b1a6acabc6cfe67b41c33a84d9fbda8fcf34",
+  "end": 1793098112.2460988,
+  "seconds": 15.98067593574524,
+  "ending_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+  "ending_source_status": ""
+}
