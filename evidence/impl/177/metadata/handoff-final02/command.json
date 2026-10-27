@@ -1,0 +1,18 @@
+{
+  "command": [
+    "node",
+    "tools/handoff.mjs"
+  ],
+  "source_commit": "3d32f35d5cf503b428d06852677fd4e281c8aec8",
+  "source_clean": true,
+  "start": 1793119350.9061232,
+  "exit_code": 1,
+  "status": "Fail",
+  "end": 1793119364.9836152,
+  "stdout_sha256": "1f68386a80db68dcfa03ac08049dfe18775b54f55ae2917dd1b47c899376b75b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "errors": 1152,
+  "warnings": 0,
+  "current_slice_errors": [],
+  "new_errors_vs_start": []
+}
