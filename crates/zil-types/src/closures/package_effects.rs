@@ -27,6 +27,7 @@ pub(super) fn classify(
     body: &CoreBlock,
     parameters: &[CoreClosureParameter],
     captures: &mut [Capture],
+    nested_moves: &BTreeMap<zil_base::NodeId, BTreeSet<String>>,
     limits: &Limits,
     work: &mut usize,
 ) -> R<()> {
@@ -84,6 +85,7 @@ pub(super) fn classify(
         scopes: vec![BTreeSet::new()],
         limits,
         work,
+        nested_moves,
     };
     for parameter in parameters {
         scan.bind(&parameter.name, parameter.span)?;
@@ -107,6 +109,7 @@ struct Scan<'a> {
     scopes: Vec<BTreeSet<String>>,
     limits: &'a Limits,
     work: &'a mut usize,
+    nested_moves: &'a BTreeMap<zil_base::NodeId, BTreeSet<String>>,
 }
 
 impl Scan<'_> {
@@ -365,10 +368,19 @@ impl Scan<'_> {
                     .join(Some(current), Some(other), span)?
                     .expect("branches");
             }
-            // Nested fn literals are checked independently when materialized;
-            // their bodies do not execute during this expression evaluation.
-            CoreExprKind::Closure { .. }
-            | CoreExprKind::Integer(_)
+            CoreExprKind::Closure { .. } => {
+                // The body executes later, but its owned captures transfer at
+                // creation. Only these source-inferred transfers enter this
+                // flow; Analyze/Verify independently check the actual IR.
+                if let Some(names) = self.nested_moves.get(&expression.id) {
+                    for name in names {
+                        if let Some(package) = self.package(name, span)? {
+                            self.whole(state, package, EMPTY, span)?;
+                        }
+                    }
+                }
+            }
+            CoreExprKind::Integer(_)
             | CoreExprKind::Bool(_)
             | CoreExprKind::Literal(_)
             | CoreExprKind::String(_)

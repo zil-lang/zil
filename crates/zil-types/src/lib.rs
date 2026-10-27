@@ -1741,6 +1741,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         self.borrowed_captures
                             .get(local)
                             .cloned()
+                            .or_else(|| self.managed_captures.get(local).map(|(_, ty)| ty.clone()))
                             .unwrap_or_else(|| self.function.locals[local.0 as usize].ty.clone()),
                     ),
                 );
@@ -1817,7 +1818,13 @@ impl<'a, 'c> Builder<'a, 'c> {
         for capture in captures {
             let stored = capture.stored_type();
             let value = if matches!(capture.ty, Type::Managed(_)) {
-                let kind = if matches!(stored, Type::Managed(_)) {
+                let kind = if let Some((index, _)) = self.managed_captures.get(&capture.source) {
+                    if matches!(stored, Type::Managed(_)) {
+                        InstructionKind::TakeCapture { index: *index }
+                    } else {
+                        InstructionKind::DescribeCapture { index: *index }
+                    }
+                } else if matches!(stored, Type::Managed(_)) {
                     InstructionKind::TakeLocal {
                         local: capture.source,
                     }
@@ -1827,6 +1834,13 @@ impl<'a, 'c> Builder<'a, 'c> {
                     }
                 };
                 self.value(kind, stored, capture.span)?
+            } else if capture.moved && self.borrowed_captures.contains_key(&capture.source) {
+                let expression = CoreExpr {
+                    id: zil_base::NodeId(0),
+                    kind: CoreExprKind::Name(capture.name.clone()),
+                    span: capture.span,
+                };
+                self.expr(&expression, Some(&stored))?.0
             } else if capture.borrowed {
                 let expression = CoreExpr {
                     id: zil_base::NodeId(0),
