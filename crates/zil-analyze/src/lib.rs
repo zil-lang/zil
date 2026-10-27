@@ -200,6 +200,11 @@ fn analyze_budgeted(
                     | InstructionKind::TakePackageField { local, .. }
                     | InstructionKind::DropPackageField { local, .. }
                     | InstructionKind::StorePackageField { local, .. }
+                    | InstructionKind::ProjectOwnedArrayField { local, .. }
+                    | InstructionKind::TakeOwnedArrayElement { local, .. }
+                    | InstructionKind::DropOwnedArrayElement { local, .. }
+                    | InstructionKind::StoreOwnedArrayElement { local, .. }
+                    | InstructionKind::BorrowOwnedArrayElement { local, .. }
                     | InstructionKind::CallClosureMut { callee: local, .. }
                     | InstructionKind::CallClosureShared { callee: local, .. } => {
                         budget.lookup(state.len(), "initialized local lookup")?;
@@ -227,6 +232,7 @@ fn analyze_budgeted(
                     | InstructionKind::StorageDead(local)
                     | InstructionKind::DropManaged { local }
                     | InstructionKind::DropPackage { local }
+                    | InstructionKind::DropOwnedArray { local }
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::DropClosure { local } => {
                         budget.lookup(state.len(), "storage initialization removal")?;
@@ -293,6 +299,7 @@ fn transfer(
             InstructionKind::TakeLocal { local }
             | InstructionKind::DropManaged { local }
             | InstructionKind::DropPackage { local }
+            | InstructionKind::DropOwnedArray { local }
             | InstructionKind::EndPackageCapture { local, .. }
             | InstructionKind::DropClosure { local }
             | InstructionKind::StorageLive(local)

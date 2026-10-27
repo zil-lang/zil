@@ -73,9 +73,15 @@ fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
         | InstructionKind::TakePackageField { local, .. }
         | InstructionKind::DropPackageField { local, .. }
         | InstructionKind::StorePackageField { local, .. }
+        | InstructionKind::ProjectOwnedArrayField { local, .. }
+        | InstructionKind::TakeOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArrayElement { local, .. }
+        | InstructionKind::StoreOwnedArrayElement { local, .. }
+        | InstructionKind::BorrowOwnedArrayElement { local, .. }
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropClosure { local }
         | InstructionKind::DropPackage { local }
+        | InstructionKind::DropOwnedArray { local }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local }
         | InstructionKind::TakeLocal { local }
@@ -124,6 +130,13 @@ pub(super) fn check_function(
                 | InstructionKind::DropPackageField { .. }
                 | InstructionKind::StorePackageField { .. }
                 | InstructionKind::DropPackage { .. }
+                | InstructionKind::MakeOwnedArray { .. }
+                | InstructionKind::ProjectOwnedArrayField { .. }
+                | InstructionKind::TakeOwnedArrayElement { .. }
+                | InstructionKind::DropOwnedArrayElement { .. }
+                | InstructionKind::StoreOwnedArrayElement { .. }
+                | InstructionKind::DropOwnedArray { .. }
+                | InstructionKind::BorrowOwnedArrayElement { .. }
                 | InstructionKind::MakeErrorUnion { .. }
                 | InstructionKind::ErrorTag { .. }
                 | InstructionKind::ReadErrorUnion { .. } => required = true,

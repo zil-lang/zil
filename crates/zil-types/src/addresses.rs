@@ -4,6 +4,7 @@ impl Builder<'_, '_> {
     pub(super) fn affine_type(&self, ty: &Type) -> bool {
         match ty {
             Type::Package { .. } => true,
+            ty if packages::owned_array_supported(ty) => true,
             Type::Address { mutable: true, .. } => true,
             Type::Closure(id) => self.closures.pending[id.0 as usize]
                 .captures

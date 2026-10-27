@@ -595,7 +595,11 @@ pub(super) fn check(
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::DropClosure { local }
-                | InstructionKind::DropPackage { local } => {
+                | InstructionKind::DropPackage { local }
+                | InstructionKind::DropOwnedArray { local }
+                | InstructionKind::TakeOwnedArrayElement { local, .. }
+                | InstructionKind::DropOwnedArrayElement { local, .. }
+                | InstructionKind::StoreOwnedArrayElement { local, .. } => {
                     access.check(&empty, &[Root::Local(*local)], true, budget)?;
                 }
                 InstructionKind::TakePackageField { local, index }
@@ -652,6 +656,7 @@ pub(super) fn check(
                 InstructionKind::TakeLocal { local } => {
                     if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
+                        || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
                         || byte_buffers::is_owned(&f.locals[local.0 as usize].ty)
                     {
                         access.check(&empty, &[Root::Local(*local)], true, budget)?;
