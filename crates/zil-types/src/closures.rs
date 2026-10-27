@@ -518,6 +518,7 @@ impl Graph {
             ty if *ty == Type::ByteBuffer
                 || ty.is_copy_value()
                 || packages::supported(ty)
+                || packages::owned_array_supported(ty)
                 || matches!(ty, Type::Slice { element } if element.is_copy_value()) =>
             {
                 AGGREGATE

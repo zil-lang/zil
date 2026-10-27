@@ -158,7 +158,12 @@ fn scalar(ty: &Type, span: Span) -> CompileResult<()> {
 }
 
 fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
-    if let Type::Closure(id) = ty {
+    if let Type::Array { element, length } = ty
+        && *length > 0
+        && matches!(element.as_ref(), Type::Package { .. })
+    {
+        local_value(element, span, module)
+    } else if let Type::Closure(id) = ty {
         if id.0 as usize >= module.closures.len() {
             return Err(bad("closure type references an absent environment"));
         }
@@ -406,7 +411,11 @@ pub(super) fn preflight(
         }
         budget.input(1, "return type preflight")?;
         local_value(&function.return_type, function.span, module)?;
-        let mut package = matches!(function.return_type, Type::Package { .. });
+        let scoped_aggregate = |ty: &Type| {
+            matches!(ty, Type::Package { .. })
+                || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+        };
+        let mut package = scoped_aggregate(&function.return_type);
         budget.input(function.parameters.len(), "parameter preflight")?;
         for parameter in &function.parameters {
             if parameter.0 as usize >= function.locals.len() {
@@ -428,12 +437,12 @@ pub(super) fn preflight(
             budget.input(1, "local type preflight")?;
             budget.input(local.name.len(), "local metadata")?;
             local_value(&local.ty, local.span, module)?;
-            package |= matches!(local.ty, Type::Package { .. });
+            package |= scoped_aggregate(&local.ty);
         }
         for ty in &function.values {
             budget.input(1, "value type preflight")?;
             local_value(ty, function.span, module)?;
-            package |= matches!(ty, Type::Package { .. });
+            package |= scoped_aggregate(ty);
         }
         for block in &function.blocks {
             instructions = count(
@@ -463,10 +472,16 @@ pub(super) fn preflight(
                     | InstructionKind::TakePackageField { local, .. }
                     | InstructionKind::DropPackageField { local, .. }
                     | InstructionKind::StorePackageField { local, .. }
+                    | InstructionKind::ProjectOwnedArrayField { local, .. }
+                    | InstructionKind::TakeOwnedArrayElement { local, .. }
+                    | InstructionKind::DropOwnedArrayElement { local, .. }
+                    | InstructionKind::StoreOwnedArrayElement { local, .. }
+                    | InstructionKind::BorrowOwnedArrayElement { local, .. }
                     | InstructionKind::BindPackageCapture { local, .. }
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::DropManaged { local }
                     | InstructionKind::DropPackage { local }
+                    | InstructionKind::DropOwnedArray { local }
                     | InstructionKind::DropClosure { local }
                     | InstructionKind::CallClosureMut { callee: local, .. }
                     | InstructionKind::CallClosureShared { callee: local, .. }
@@ -494,6 +509,7 @@ pub(super) fn preflight(
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakeManaged { fields }
                     | InstructionKind::MakePackage { fields }
+                    | InstructionKind::MakeOwnedArray { elements: fields }
                     | InstructionKind::MakeVariant { fields, .. } => {
                         budget.input(fields.len(), "aggregate operands")?;
                     }

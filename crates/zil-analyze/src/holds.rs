@@ -122,6 +122,16 @@ fn infer(
                         };
                         found.insert(root);
                     }
+                    InstructionKind::ProjectOwnedArrayField { local, .. }
+                        if instruction
+                            .result
+                            .is_some_and(|value| buffer_desc(&f.values[value.0 as usize])) =>
+                    {
+                        // Array element slots are independently owned, but the
+                        // initial window profile keeps a conservative whole
+                        // array storage origin across element replacement.
+                        found.insert(Root::Local(*local));
+                    }
                     InstructionKind::DescribeCapture { index }
                         if instruction
                             .result
