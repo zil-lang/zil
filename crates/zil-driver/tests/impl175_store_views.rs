@@ -129,6 +129,15 @@ fn read(p:&P)->i32=>p.n
 "#;
 const SETUP: &str =
     "let s=empty();store_reserve(s,2);store_push(s,make(65));store_push(s,make(66));";
+const STATE: &str = r#"
+package State{manages tag:R;manages left:Store<P>;manages right:Store<P>}
+fn state()->State{
+    let left=empty();store_reserve(left,1);store_push(left,make(65));
+    let right=empty();store_reserve(right,1);store_push(right,make(66));
+    return State{tag:R{code:90},left:give left,right:give right}
+}
+fn relay(value:State)->State=>value
+"#;
 
 #[test]
 fn shared_element_windows_cross_functions_and_keep_one_owner() {
@@ -174,6 +183,109 @@ fn failed_argument_preparation_ends_element_window_and_cleans_prefix_once() {
         "{PACKAGE}enum E{{Fail}}fn combine(view:&P,value:i32)->i32=>view.n+value;fn fail()->E!i32=>E.Fail;fn main()->E!i32{{{SETUP}return combine(store_at(s,0),fail()?)}}"
     );
     native(&[("main", &source)], b"AB", 1);
+}
+
+#[test]
+fn actual_store_fields_preserve_separation_and_last_use_before_parent_move() {
+    let source = format!(
+        "{PACKAGE}{STATE}fn main()->i32{{var s=state();let view=store_at(s.left,0);s.right=empty();let result=read(view);s.left=empty();let moved=relay(s);return result-65}}"
+    );
+    native(&[("main", &source)], b"BAZ", 0);
+    let helper = "fn use_pair(a:Store<P>,b:Store<P>)->i32{let view=store_at(a,0);store_reserve(b,4);return read(view)}";
+    let source = format!(
+        "{PACKAGE}{STATE}{helper}fn main()->i32{{let s=state();return use_pair(s.left,s.right)-65}}"
+    );
+    native(&[("main", &source)], b"ZAB", 0);
+    let source = format!(
+        "{PACKAGE}{STATE}{helper}fn main()->i32{{let s=state();return use_pair(s.left,s.left)-65}}"
+    );
+    reject_source(
+        &source,
+        ResultCategory::SafeReject,
+        zil_base::Phase::Verify,
+        "E-BORROW-CONFLICT",
+        "alias",
+    );
+}
+
+#[test]
+fn actual_field_windows_block_mutation_take_replace_and_whole_parent_move() {
+    for change in [
+        "store_reserve(s.left,4);",
+        "store_push(s.left,make(67));",
+        "store_pop(s.left);",
+        "let taken=give s.left;",
+        "s.left=empty();",
+        "let moved=relay(s);",
+        "consume(s);",
+    ] {
+        let source = format!(
+            "{PACKAGE}{STATE}fn consume(value:State){{}}fn main()->i32{{var s=state();let view=store_at(s.left,0);{change}return read(view)}}"
+        );
+        reject_source(
+            &source,
+            ResultCategory::SafeReject,
+            zil_base::Phase::Verify,
+            "E-BORROW-CONFLICT",
+            "",
+        );
+    }
+}
+
+#[test]
+fn old_field_descriptions_cannot_reanimate_element_windows() {
+    for change in ["s.left=empty();", "let moved=relay(s);"] {
+        let source = format!(
+            "{PACKAGE}{STATE}fn main()->i32{{var s=state();let old=s.left;{change}return read(store_at(old,0))}}"
+        );
+        reject_source(
+            &source,
+            ResultCategory::SafeReject,
+            zil_base::Phase::Analyze,
+            "E-ANALYZE-IR",
+            "invalidates a description required later",
+        );
+    }
+    // Start with a valid, last-use-ended old description, then bypass Analyze
+    // and retarget a later element operation to that stale SSA description.
+    use zil_ir::InstructionKind as I;
+    let source = format!(
+        "{PACKAGE}{STATE}fn main()->i32{{var s=state();let old=s.left;store_len(old);s.left=empty();return read(store_at(s.left,0))}}"
+    );
+    let (mut module, plan) = candidate(&source);
+    let f = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let stale = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if let I::OwnedStoreLen { store } = i.kind {
+                Some(store)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let borrow = f
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, I::OwnedStoreBorrow { .. }))
+        .unwrap();
+    if let I::OwnedStoreBorrow { store, .. } = &mut borrow.kind {
+        *store = stale;
+    }
+    reject_candidate(
+        "stale-field-description",
+        module,
+        plan,
+        "E-BORROW-CONFLICT",
+        "",
+    );
 }
 
 fn reject_source(
@@ -628,6 +740,77 @@ fn raw_and_wire_reject_container_drop_during_an_active_element_window() {
     reject_candidate(
         "early-container-drop",
         module,
+        plan,
+        "E-BORROW-CONFLICT",
+        "",
+    );
+}
+
+#[test]
+fn raw_and_wire_rebuild_field_separation_and_parent_invalidation() {
+    use zil_ir::InstructionKind as I;
+    let source = format!(
+        "{PACKAGE}{STATE}fn main()->i32{{let s=state();let view=store_at(s.left,0);store_reserve(s.right,4);return read(view)}}"
+    );
+    let (module, plan) = candidate(&source);
+    let main = module
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    let mut bad = module.clone();
+    let descriptor = bad.functions[main]
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, I::DescribePackageField { index: 2, .. }))
+        .unwrap();
+    if let I::DescribePackageField { index, .. } = &mut descriptor.kind {
+        *index = 1;
+    }
+    // Public Hold rows coarsen both fields to the same parent. Their equality
+    // cannot manufacture separation: Verify must reconstruct the actual field.
+    reject_candidate(
+        "retargeted-field-description",
+        bad,
+        plan.clone(),
+        "E-BORROW-CONFLICT",
+        "",
+    );
+    let mut bad = module;
+    let f = &mut bad.functions[main];
+    let (block, position) = f
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(b, block)| {
+            block
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, I::DropPackage { .. }))
+                .map(|i| (b, i))
+        })
+        .unwrap();
+    let drop = f.blocks[block].instructions.remove(position);
+    let block = f
+        .blocks
+        .iter_mut()
+        .find(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::OwnedStoreBorrow { .. }))
+        })
+        .unwrap();
+    let position = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::OwnedStoreBorrow { .. }))
+        .unwrap();
+    block.instructions.insert(position + 1, drop);
+    reject_candidate(
+        "early-whole-parent-drop",
+        bad,
         plan,
         "E-BORROW-CONFLICT",
         "",
