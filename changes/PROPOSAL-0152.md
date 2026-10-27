@@ -16,3 +16,5 @@ actual allocator failure injection and allocation/free accounting. No speed clai
 from allocation counts. Formal gates and independent review remain NotRun.
 
 Validation: 5 native/negative tests, plus 32 deterministic deque-model traces × O0/O2 × 6 allocator schedules = 384 executions / 99840 commands; 230 actual allocator failures including 94 wrapped-growth failures, all released. This is allocator-fault byte FIFO validation, not async cancellation or generic owning element storage.
+
+Large-allocation confirmation: 65536-slot queue uses 16 realloc calls (initial capacity3), one tracked live buffer, 98304 FIFO events; failure on the final growth preserves/drains 49152 pending bytes. O0/O2 both pass, 4 executions. Physical allocator peak RSS is not measured.
