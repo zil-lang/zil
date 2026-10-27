@@ -610,13 +610,14 @@ fn returned_snapshot(bound: &CoreCallableReturn, span: Span, budget: &mut Budget
 
 fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span) -> R<Signature> {
     // Repeated uses must reserve the complete shape before cloning a signature.
-    // Resolved Copy aggregates and shared scalar addresses are the admitted
-    // context types; a template/unsupported shape is not silently inferred.
+    // Reuse the existing finite ordinary ABI shapes, including owned error
+    // alternatives. This does not grant a closure capture or callable ABI.
     budget.work(signature.parameters.len(), span)?;
     let admitted = |ty: &Type| {
         ty.is_copy_value()
             || ty.is_scalar_or_address()
             || resources::supported(ty)
+            || errors::owned(ty)
             || packages::supported(ty)
             || packages::owned_array_supported(ty)
     };
