@@ -777,8 +777,13 @@ fn raw_and_wire_rebuild_field_separation_and_parent_invalidation() {
         "E-BORROW-CONFLICT",
         "",
     );
-    let mut bad = module;
-    let f = &mut bad.functions[main];
+    // With no later parent access, the remaining live element address itself
+    // must reject cleanup, independently of ordinary initialization checks.
+    let source = format!(
+        "{PACKAGE}{STATE}fn main()->i32{{let s=state();let view=store_at(s.left,0);return read(view)}}"
+    );
+    let (mut bad, plan) = candidate(&source);
+    let f = bad.functions.iter_mut().find(|f| f.name == "main").unwrap();
     let (block, position) = f
         .blocks
         .iter()
