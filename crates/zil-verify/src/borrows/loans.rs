@@ -517,13 +517,18 @@ pub(super) fn check(
     head_windows: bool,
     budget: &mut Budget,
 ) -> Check<Apart> {
-    if !head_windows && !f.locals.iter().any(|l| {
-        affine_type(module, &l.ty)
-            || byte_buffers::is_carrier(&l.ty)
-            || resources::arrays::is_owned_type(&l.ty)
-    }) && !f.values.iter().any(|t| {
-        affine_type(module, t) || byte_buffers::is_carrier(t) || resources::arrays::is_owned_type(t)
-    }) {
+    if !head_windows
+        && !f.locals.iter().any(|l| {
+            affine_type(module, &l.ty)
+                || byte_buffers::is_carrier(&l.ty)
+                || resources::arrays::is_owned_type(&l.ty)
+        })
+        && !f.values.iter().any(|t| {
+            affine_type(module, t)
+                || byte_buffers::is_carrier(t)
+                || resources::arrays::is_owned_type(t)
+        })
+    {
         return Ok(Apart::new());
     }
     let apart = RefCell::new(Apart::new());
@@ -578,8 +583,12 @@ pub(super) fn check(
         }
         let mut locals = copy_state(&flow.inputs[b], budget)?;
         let mut descriptor_locals = if head_windows {
-            state_cost(&facts.inputs[b], budget)?;
-            facts.inputs[b].clone()
+            if let Some(input) = facts.inputs.get(b) {
+                state_cost(input, budget)?;
+                input.clone()
+            } else {
+                State::new()
+            }
         } else {
             State::new()
         };

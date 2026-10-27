@@ -25,13 +25,20 @@ fn captures_descriptors(module: &TypedModule, ty: &Type) -> bool {
 }
 
 fn has_sources(module: &TypedModule, ty: &Type, head_windows: bool) -> bool {
-    closures::holds_addresses(module, ty) || tracked_desc(ty, head_windows)
+    closures::holds_addresses(module, ty)
+        || tracked_desc(ty, head_windows)
         || (head_windows && captures_descriptors(module, ty))
 }
 
 fn head_windows(module: &TypedModule, budget: &mut Budget) -> Check<bool> {
     for function in &module.functions {
-        budget.spend(function.locals.len().saturating_add(function.values.len()).saturating_add(1))?;
+        budget.spend(
+            function
+                .locals
+                .len()
+                .saturating_add(function.values.len())
+                .saturating_add(1),
+        )?;
         if function.locals.iter().map(|local| &local.ty).chain(&function.values)
             .any(|ty| matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
             return Ok(true);
@@ -210,7 +217,10 @@ fn check(
         }
         budget.spend(claim.roots.len())?;
     }
-    if !f.values.iter().any(|ty| has_sources(module, ty, head_windows))
+    if !f
+        .values
+        .iter()
+        .any(|ty| has_sources(module, ty, head_windows))
         && !f
             .parameters
             .iter()
@@ -508,7 +518,10 @@ fn reconstruct(
     let predecessors = &graph.predecessors;
     let reachable = &graph.reachable;
     budget.spend(v)?;
-    if !f.values.iter().any(|ty| has_sources(module, ty, head_windows))
+    if !f
+        .values
+        .iter()
+        .any(|ty| has_sources(module, ty, head_windows))
         && !f
             .parameters
             .iter()
@@ -558,7 +571,11 @@ fn reconstruct(
                     match &instruction.kind {
                         InstructionKind::DescribeLocal { local }
                             if byte_buffers::is_owned(&f.locals[local.0 as usize].ty)
-                                || (head_windows && matches!(f.locals[local.0 as usize].ty, Type::Managed(_))) =>
+                                || (head_windows
+                                    && matches!(
+                                        f.locals[local.0 as usize].ty,
+                                        Type::Managed(_)
+                                    )) =>
                         {
                             row.push(Root::Local(*local));
                         }
@@ -606,7 +623,8 @@ fn reconstruct(
                         InstructionKind::BorrowCapture { index, .. }
                         | InstructionKind::ReadCapture { index }
                             if matches!(f.values[result.0 as usize], Type::Address { .. })
-                                || (head_windows && matches!(f.values[result.0 as usize], Type::Desc(_))) =>
+                                || (head_windows
+                                    && matches!(f.values[result.0 as usize], Type::Desc(_))) =>
                         {
                             row.push(Root::Capture(*index))
                         }
@@ -731,7 +749,14 @@ fn reconstruct_module(
             #[cfg(test)]
             TEST_SOLVES.with(|n| n.set(n.get() + 1));
             let function = &module.functions[index];
-            let facts = reconstruct(module, function, &graphs[index], &summaries, head_windows, budget)?;
+            let facts = reconstruct(
+                module,
+                function,
+                &graphs[index],
+                &summaries,
+                head_windows,
+                budget,
+            )?;
             let mut changed = false;
             if matches!(function.return_type, Type::Address { .. }) {
                 for (block, reachable) in function.blocks.iter().zip(&graphs[index].reachable) {
@@ -786,10 +811,11 @@ pub(super) fn check_module(
     let head_windows = head_windows(module, budget)?;
     let facts = reconstruct_module(module, graphs, head_windows, budget)?;
     budget.spend(module.resources.len())?;
-    let has_buffers = head_windows || module
-        .resources
-        .iter()
-        .any(|r| r.payload == Type::ByteBuffer);
+    let has_buffers = head_windows
+        || module
+            .resources
+            .iter()
+            .any(|r| r.payload == Type::ByteBuffer);
     let effects = if has_buffers {
         buffer_effects::infer(module, graphs, &facts, head_windows, budget)?
     } else {
@@ -846,7 +872,15 @@ pub(super) fn check_module(
             }
         }
         check(module, function, plan, graph, facts, head_windows, budget)?;
-        let required = loans::check(module, function, graph, facts, &effects, head_windows, budget)?;
+        let required = loans::check(
+            module,
+            function,
+            graph,
+            facts,
+            &effects,
+            head_windows,
+            budget,
+        )?;
         if has_buffers {
             apart.push(required);
         }
@@ -974,7 +1008,14 @@ mod frontier_tests {
             let mut all = Vec::with_capacity(module.functions.len());
             for (index, function) in module.functions.iter().enumerate() {
                 TEST_SOLVES.with(|n| n.set(n.get() + 1));
-                let facts = reconstruct(module, function, &graphs[index], &summaries, head_windows, budget)?;
+                let facts = reconstruct(
+                    module,
+                    function,
+                    &graphs[index],
+                    &summaries,
+                    head_windows,
+                    budget,
+                )?;
                 if matches!(function.return_type, Type::Address { .. }) {
                     for (block, reachable) in function.blocks.iter().zip(&graphs[index].reachable) {
                         budget.spend(1)?;
@@ -1025,8 +1066,8 @@ mod frontier_tests {
     fn compare(module: &TypedModule) -> (usize, usize) {
         let graphs = graphs(module);
         TEST_SOLVES.with(|n| n.set(0));
-        let fast =
-            reconstruct_module(module, &graphs, false, &mut Budget::new(&Limits::default())).unwrap();
+        let fast = reconstruct_module(module, &graphs, false, &mut Budget::new(&Limits::default()))
+            .unwrap();
         let fast_visits = TEST_SOLVES.with(|n| n.get());
         TEST_SOLVES.with(|n| n.set(0));
         let reference = slow(module, &graphs, &mut Budget::new(&Limits::default())).unwrap();
@@ -1098,8 +1139,8 @@ mod frontier_tests {
             max_analysis_steps: 0,
             ..Limits::default()
         };
-        let error =
-            reconstruct_module(&module, &graphs(&module), false, &mut Budget::new(&limits)).unwrap_err();
+        let error = reconstruct_module(&module, &graphs(&module), false, &mut Budget::new(&limits))
+            .unwrap_err();
         assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
     }
 }

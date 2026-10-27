@@ -754,8 +754,11 @@ fn check_function(
     }
     if function.return_type.is_shared_resource_head_address()
         || (matches!(function.return_type, Type::Address { .. })
-            && function.parameters.iter().any(|local|
-                function.locals[local.0 as usize].ty.is_shared_resource_head_address()))
+            && function.parameters.iter().any(|local| {
+                function.locals[local.0 as usize]
+                    .ty
+                    .is_shared_resource_head_address()
+            }))
     {
         return Err(unsupported(
             "resource-head windows are synchronous inputs; head-derived returns require a separate contract",
@@ -1188,7 +1191,8 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
-            } else if matches!(inner, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. })) {
+            } else if matches!(inner, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
+            {
                 resources::check_type_for(module, inner, span, budget)?;
             } else {
                 check_type(inner, span)?;

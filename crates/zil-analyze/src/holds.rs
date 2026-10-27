@@ -23,7 +23,14 @@ fn tracked_desc(ty: &Type, head_windows: bool) -> bool {
 // grounded effects, so enable the lane once for the complete actual module.
 fn head_windows(module: &TypedModule, budget: &mut Budget) -> CompileResult<bool> {
     for function in &module.functions {
-        budget.spend(function.locals.len().saturating_add(function.values.len()).saturating_add(1), "resource head window discovery")?;
+        budget.spend(
+            function
+                .locals
+                .len()
+                .saturating_add(function.values.len())
+                .saturating_add(1),
+            "resource head window discovery",
+        )?;
         if function.locals.iter().map(|l| &l.ty).chain(&function.values)
             .any(|ty| matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
             return Ok(true);
@@ -61,10 +68,11 @@ fn infer(
     let v = f.values.len();
     budget.spend(v, "dense Hold candidate")?;
     let captured_address = |ty: &Type| match ty {
-        Type::Closure(id) => module
-            .closures
-            .get(id.0 as usize)
-            .is_some_and(|c| c.captures.iter().any(|t| matches!(t, Type::Address { .. }) || (head_windows && matches!(t, Type::Desc(_))))),
+        Type::Closure(id) => module.closures.get(id.0 as usize).is_some_and(|c| {
+            c.captures.iter().any(|t| {
+                matches!(t, Type::Address { .. }) || (head_windows && matches!(t, Type::Desc(_)))
+            })
+        }),
         _ => false,
     };
     if !f
@@ -125,9 +133,9 @@ fn infer(
                         found.insert(Root::Local(*local));
                     }
                     InstructionKind::DescribePackageField { local, index }
-                        if instruction
-                            .result
-                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize], head_windows)) =>
+                        if instruction.result.is_some_and(|value| {
+                            tracked_desc(&f.values[value.0 as usize], head_windows)
+                        }) =>
                     {
                         let root = match &f.locals[local.0 as usize].ty {
                             Type::Package { fields, .. } if fields.get(*index as usize)
@@ -137,9 +145,9 @@ fn infer(
                         found.insert(root);
                     }
                     InstructionKind::ProjectOwnedArrayField { local, .. }
-                        if instruction
-                            .result
-                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize], head_windows)) =>
+                        if instruction.result.is_some_and(|value| {
+                            tracked_desc(&f.values[value.0 as usize], head_windows)
+                        }) =>
                     {
                         // Array element slots are independently owned, but the
                         // initial window profile keeps a conservative whole
@@ -147,9 +155,9 @@ fn infer(
                         found.insert(Root::Local(*local));
                     }
                     InstructionKind::DescribeCapture { index }
-                        if instruction
-                            .result
-                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize], head_windows)) =>
+                        if instruction.result.is_some_and(|value| {
+                            tracked_desc(&f.values[value.0 as usize], head_windows)
+                        }) =>
                     {
                         found.insert(Root::Capture(*index));
                     }
@@ -185,7 +193,9 @@ fn infer(
                         let ty = instruction
                             .result
                             .and_then(|id| f.values.get(id.0 as usize));
-                        if matches!(ty, Some(Type::Address { .. })) || ty.is_some_and(|ty| head_windows && matches!(ty, Type::Desc(_))) {
+                        if matches!(ty, Some(Type::Address { .. }))
+                            || ty.is_some_and(|ty| head_windows && matches!(ty, Type::Desc(_)))
+                        {
                             found.insert(Root::Capture(*index));
                         }
                     }
@@ -310,7 +320,9 @@ pub(super) fn infer_module(
             .functions
             .iter()
             .zip(graphs)
-            .map(|(f, (preds, reachable))| infer(module, &[], head_windows, f, preds, reachable, budget))
+            .map(|(f, (preds, reachable))| {
+                infer(module, &[], head_windows, f, preds, reachable, budget)
+            })
             .collect();
     }
     let count = module.functions.len();
@@ -530,7 +542,9 @@ mod frontier_tests {
                 .functions
                 .iter()
                 .zip(graphs)
-                .map(|(f, (preds, reachable))| infer(module, &[], head_windows, f, preds, reachable, budget))
+                .map(|(f, (preds, reachable))| {
+                    infer(module, &[], head_windows, f, preds, reachable, budget)
+                })
                 .collect();
         }
         budget.spend(module.functions.len(), "return contract table")?;

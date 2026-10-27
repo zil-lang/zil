@@ -201,12 +201,14 @@ impl Expander<'_> {
                 );
                 continue;
             }
-            let Some(_host) = locals
-                .get(host_name)
-                .filter(|a| a.kind == s::AggregateKind::Struct && a.generics.is_empty())
-            else {
+            let Some(host) = locals.get(host_name).filter(|a| {
+                matches!(
+                    a.kind,
+                    s::AggregateKind::Struct | s::AggregateKind::Resource
+                ) && a.generics.is_empty()
+            }) else {
                 self.unsupported(
-                    "static local traits currently require a concrete local value struct",
+                    "static local traits require a concrete local value struct or a shared-head resource implementation",
                     item.span,
                 );
                 continue;
@@ -231,6 +233,21 @@ impl Expander<'_> {
                 .traits
                 .get(trait_name)
                 .expect("collected local declaration");
+            if host.kind == s::AggregateKind::Resource
+                && declaration.members.iter().any(|member| match &member.kind {
+                    s::ItemKind::Function(function) => !function.params.first().is_some_and(|parameter|
+                        parameter.name == "self" && !parameter.give
+                        && matches!(&parameter.ty.kind, s::TypeKind::Reference { mutable: false, inner, .. }
+                            if plain_name(inner) == Some("Self"))),
+                    _ => true,
+                })
+            {
+                self.unsupported(
+                    "resource trait implementations in this slice require shared &Self receivers",
+                    item.span,
+                );
+                continue;
+            }
             let Some(left) =
                 work.checked_sub(declaration.members.len().saturating_add(i.members.len()))
             else {

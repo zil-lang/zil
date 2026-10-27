@@ -133,8 +133,13 @@ fn signatures(
         }
         if f.return_type.is_shared_resource_head_address()
             || (matches!(f.return_type, Type::Address { .. })
-                && (f.parameters.iter().any(|p| p.ty.is_shared_resource_head_address())
-                    || f.receiver.as_ref().is_some_and(|r| r.ty.is_shared_resource_head_address())))
+                && (f
+                    .parameters
+                    .iter()
+                    .any(|p| p.ty.is_shared_resource_head_address())
+                    || f.receiver
+                        .as_ref()
+                        .is_some_and(|r| r.ty.is_shared_resource_head_address())))
         {
             errors.push(unsupported(
                 f.span,
