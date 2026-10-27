@@ -1,0 +1,50 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review175-by176/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.52s
+     Running tests/impl175_store_views.rs (/workspace/scratch/39be3faa4442/targets/review175-by176/debug/deps/impl175_store_views-2b21878bd7a24e97)
+
+running 20 tests
+test element_read_respects_actual_package_field_visibility ... ok
+test every_intersecting_container_mutation_is_rejected_while_view_is_live ... ok
+test element_shape_mutable_owned_field_return_and_capture_guards_are_explicit ... ok
+test old_field_descriptions_cannot_reanimate_element_windows ... ok
+test raw_and_wire_rebuild_element_type_index_and_hold_origins ... ok
+test raw_and_wire_reject_container_drop_during_an_active_element_window ... ok
+test raw_and_wire_rebuild_field_separation_and_parent_invalidation ... ok
+test raw_and_wire_reject_write_retargeted_behind_an_active_window ... ok
+test actual_field_windows_block_mutation_take_replace_and_whole_parent_move ... ok
+test failed_argument_preparation_ends_element_window_and_cleans_prefix_once ... ok
+test direct_projection_and_last_use_allow_later_reserve_and_pop ... ok
+test copy_child_address_keeps_a_live_window_through_local_callback ... ok
+test indirect_alias_contract_is_instantiated_from_real_store_roots ... ok
+test verify_window_budget_has_an_exact_n_and_n_minus_one_boundary ... ok
+test shared_element_windows_cross_functions_and_keep_one_owner ... ok
+test view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper ... ok
+test shared_views_allow_len_capacity_and_unrelated_address_return ... ok
+test actual_store_fields_preserve_separation_and_last_use_before_parent_move ... ok
+test runtime_negative_empty_and_end_indices_trap_before_element_access ... ok
+test runtime_index_reads_real_metadata_through_four_source_modules ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.21s
+
+     Running tests/review175_by176.rs (/workspace/scratch/39be3faa4442/targets/review175-by176/debug/deps/review175_by176-21133f972dec71d2)
+
+running 4 tests
+
+thread 'runtime_input_uses_initialized_len_even_when_capacity_is_larger' (213) panicked at crates/zil-driver/tests/review175_by176.rs:55:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":822,"end":828},"notes":[]}],"artifacts":{},"input_fingerprint":"9ac11f0a3be73969d929be51e26242d0218e7d16f84aee871a9f1a07e046140f","seconds":0.006176725,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"review175.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test runtime_input_uses_initialized_len_even_when_capacity_is_larger ... FAILED
+test raw_borrow_ssa_retarget_and_early_parent_transfer_reconstruct_actual_roots ... ok
+test alias_subwindow_and_whole_parent_moves_cannot_cross_live_reads ... ok
+test copy_array_subwindow_and_separate_parent_field_work_through_helpers ... ok
+
+failures:
+
+failures:
+    runtime_input_uses_initialized_len_even_when_capacity_is_larger
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.63s
+
+error: test failed, to rerun pass `-p zil-driver --test review175_by176`

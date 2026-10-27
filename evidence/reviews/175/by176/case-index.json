@@ -1,0 +1,246 @@
+[
+  {
+    "id": "review175-by176-45-0",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-0",
+    "kept": [
+      "compile.json",
+      "native.txt",
+      "source.zil",
+      "stdin"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "stdin_hex": "",
+    "native_record": "O0 Output { status: ExitStatus(unix_wait_status(0)), stdout: \"ZAB\", stderr: \"\" }",
+    "executable_sha256": "49dc78adcabfbd140826951f4d1f67c4b578e434eff430255fa99c592bd35850",
+    "executable_retained": false
+  },
+  {
+    "id": "review175-by176-45-1",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-1",
+    "kept": [
+      "reject.json",
+      "source.zil"
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      "E-BORROW-CONFLICT"
+    ]
+  },
+  {
+    "id": "review175-by176-45-2",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-2",
+    "kept": [
+      "compile.json",
+      "native.txt",
+      "source.zil",
+      "stdin"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "stdin_hex": "30",
+    "native_record": "O0 Output { status: ExitStatus(unix_wait_status(0)), stdout: \"ZAB\", stderr: \"\" }",
+    "executable_sha256": "d40a21a4192931ebf017d17a14b42c7b7c5979f47328da81d7ca573ebeed53a1",
+    "executable_retained": false
+  },
+  {
+    "id": "review175-by176-45-3",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-3",
+    "kept": [
+      "reject.json",
+      "source.zil"
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      "E-BORROW-CONFLICT"
+    ]
+  },
+  {
+    "id": "review175-by176-45-4",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-4",
+    "kept": [
+      "retarget-borrow-source-raw.txt",
+      "retarget-borrow-source-wire.txt",
+      "retarget-borrow-source.bin",
+      "source.zil"
+    ],
+    "kind": "raw-and-wire-forged-candidate"
+  },
+  {
+    "id": "review175-by176-45-5",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-5",
+    "kept": [
+      "reject.json",
+      "source.zil"
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      "E-BORROW-CONFLICT"
+    ]
+  },
+  {
+    "id": "review175-by176-45-6",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-6",
+    "kept": [
+      "early-parent-transfer-raw.txt",
+      "early-parent-transfer-wire.txt",
+      "early-parent-transfer.bin",
+      "source.zil"
+    ],
+    "kind": "raw-and-wire-forged-candidate"
+  },
+  {
+    "id": "review175-by176-45-7",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-7",
+    "kept": [
+      "reject.json",
+      "source.zil"
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      "E-BORROW-CONFLICT"
+    ]
+  },
+  {
+    "id": "review175-by176-45-8",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-8",
+    "kept": [
+      "compile.json",
+      "native.txt",
+      "source.zil",
+      "stdin"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "stdin_hex": "",
+    "native_record": "O2 Output { status: ExitStatus(unix_wait_status(0)), stdout: \"ZAB\", stderr: \"\" }",
+    "executable_sha256": "0dab10b3bd85ef7321cd402c4f4ee335bdaa2cf6d33e74b4d804755d30d5b55a",
+    "executable_retained": false
+  },
+  {
+    "id": "review175-by176-45-9",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-9",
+    "kept": [
+      "compile.json",
+      "native.txt",
+      "source.zil",
+      "stdin"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "stdin_hex": "30",
+    "native_record": "O2 Output { status: ExitStatus(unix_wait_status(0)), stdout: \"ZAB\", stderr: \"\" }",
+    "executable_sha256": "0e459c28b5748c1673ae2897b88cce99dba9f7e49ecabb4fbe9567187aa16fbd",
+    "executable_retained": false
+  },
+  {
+    "id": "review175-by176-45-10",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-10",
+    "kept": [
+      "compile.json",
+      "native.txt",
+      "source.zil",
+      "stdin"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "stdin_hex": "31",
+    "native_record": "O0 Output { status: ExitStatus(unix_wait_status(4)), stdout: \"\", stderr: \"\" }",
+    "executable_sha256": "d40a21a4192931ebf017d17a14b42c7b7c5979f47328da81d7ca573ebeed53a1",
+    "executable_retained": false
+  },
+  {
+    "id": "review175-by176-45-11",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-11",
+    "kept": [
+      "compile.json",
+      "native.txt",
+      "source.zil",
+      "stdin"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "stdin_hex": "",
+    "native_record": "O0 Output { status: ExitStatus(unix_wait_status(0)), stdout: \"ZAB\", stderr: \"\" }",
+    "executable_sha256": "72a693c9063ffd63587d62ed41dffb7d24f9daacb96d4dfddf9d6c7f27940391",
+    "executable_retained": false
+  },
+  {
+    "id": "review175-by176-45-12",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-12",
+    "kept": [
+      "compile.json",
+      "native.txt",
+      "source.zil",
+      "stdin"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "stdin_hex": "",
+    "native_record": "O2 Output { status: ExitStatus(unix_wait_status(0)), stdout: \"ZAB\", stderr: \"\" }",
+    "executable_sha256": "a2ea480aa28a1d424f2aab2e6ed2c95d4ec0d845a3aff5fac224a2e20a883b0a",
+    "executable_retained": false
+  },
+  {
+    "id": "review175-by176-45-13",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-13",
+    "kept": [
+      "compile.json",
+      "native.txt",
+      "source.zil",
+      "stdin"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "stdin_hex": "31",
+    "native_record": "O2 Output { status: ExitStatus(unix_wait_status(4)), stdout: \"\", stderr: \"\" }",
+    "executable_sha256": "0e459c28b5748c1673ae2897b88cce99dba9f7e49ecabb4fbe9567187aa16fbd",
+    "executable_retained": false
+  },
+  {
+    "id": "review175-by176-45-14",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-14",
+    "kept": [
+      "compile.json",
+      "native.txt",
+      "source.zil",
+      "stdin"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "stdin_hex": "2f",
+    "native_record": "O0 Output { status: ExitStatus(unix_wait_status(4)), stdout: \"\", stderr: \"\" }",
+    "executable_sha256": "d40a21a4192931ebf017d17a14b42c7b7c5979f47328da81d7ca573ebeed53a1",
+    "executable_retained": false
+  },
+  {
+    "id": "review175-by176-45-15",
+    "source_directory": "/workspace/scratch/39be3faa4442/run-logs/review175-by176/final-evidence/review175-by176-45-15",
+    "kept": [
+      "compile.json",
+      "native.txt",
+      "source.zil",
+      "stdin"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "stdin_hex": "2f",
+    "native_record": "O2 Output { status: ExitStatus(unix_wait_status(4)), stdout: \"\", stderr: \"\" }",
+    "executable_sha256": "0e459c28b5748c1673ae2897b88cce99dba9f7e49ecabb4fbe9567187aa16fbd",
+    "executable_retained": false
+  }
+]
