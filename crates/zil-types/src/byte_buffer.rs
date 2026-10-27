@@ -88,7 +88,11 @@ pub(super) fn add_definition(
                         work = work.checked_sub(fields.len()).ok_or_else(limit)?;
                         pending.extend(fields.iter().map(|(_, ty)| ty));
                     }
-                    Type::OwnedStore { element } => {
+                    Type::OwnedStore { element }
+                    | Type::Array { element, .. }
+                    | Type::Opaque {
+                        hidden: element, ..
+                    } => {
                         work = work.checked_sub(1).ok_or_else(limit)?;
                         pending.push(element);
                     }
