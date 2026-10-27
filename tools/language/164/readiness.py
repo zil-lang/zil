@@ -60,6 +60,10 @@ def main():
                 if isinstance(node, ast.Assign)
                 and any(isinstance(target, ast.Name) and target.id == "gaps" for target in node.targets))
     summary = {"status": "Running", "cli_sha256": digest(cli), "original_probe_sha256": digest(original),
+               "source_commit": subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip(),
+               "crates_tree": subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD:crates"], text=True).strip(),
+               "consumer_sources": {str(path.relative_to(repo)): digest(path)
+                                    for path in sorted((repo / "examples/mainline/zui_language164").glob("*.zil"))},
                "baseline": args.baseline, "gaps": [], "native": []}
     write(out / "summary.json", summary)
     required = set() if args.baseline else {"nested-owning-callback", "generic-trait-bound"}
@@ -75,6 +79,8 @@ def main():
         write(out / "summary.json", summary)
         if report["status"] not in {"Success", "SafeReject", "Unsupported"}:
             raise RuntimeError(f"{name}: compiler/tool failure: {report}")
+        if report["phase"] == "parse" or (result.returncode == 0) != (report["status"] == "Success"):
+            raise RuntimeError(f"{name}: invalid probe or inconsistent compiler process result: {report}")
         if name in required and (report["status"] != "Success" or report["verification_runs"] != 1):
             raise RuntimeError(f"{name}: required source capability did not pass: {report}")
     if not args.baseline:
