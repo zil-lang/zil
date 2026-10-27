@@ -1,6 +1,11 @@
 {
   "files": [
     {
+      "path": "HANDOFF.json",
+      "bytes": 936,
+      "sha256": "c4e2db9020fca9ef23e86404928155936756feb5571573d484bd15de22de3152"
+    },
+    {
       "path": "REVIEW.json",
       "bytes": 11159,
       "sha256": "bb3a4ef5f95b84ada4cc0e53bcf74cf90752e48188271d33cacaca2df30d4359"
@@ -481,6 +486,6 @@
       "sha256": "97d50135ef0a61715a6e838c7d09a7f5a97eecaf4cc41ee0a2e109863519a965"
     }
   ],
-  "bytes": 454334,
+  "bytes": 455270,
   "excludes": "executables, object files, Cargo target and bulk phase dumps"
 }
