@@ -1,0 +1,29 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/reference172/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-inputs/ordinary-abi/main.zil",
+    "--opt",
+    "O0",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/before-root-context-fix/ordinary-abi/program",
+    "--json"
+  ],
+  "start": 1793111780.5683074,
+  "end": 1793111780.5759943,
+  "exit_code": 3,
+  "compiler": {
+    "source_commit": "69882483d6b29bee8d831386325da739ac915fd4",
+    "cli": "/workspace/scratch/39be3faa4442/targets/reference172/zil",
+    "sha256": "b315b878f9f6889084a2505be3ec3fc6b988cfdeb247e19e40a7a8b6397b5fd2",
+    "original_path": "/workspace/scratch/39be3faa4442/targets/172-proof/debug/zil",
+    "source_build_receipt": "/workspace/scratch/39be3faa4442/zil-restored/wt172/evidence/impl/172/commands/172-final-build-cli.json",
+    "validation_summary": "/workspace/scratch/39be3faa4442/zil-restored/wt172/evidence/impl/172/SUMMARY.json"
+  },
+  "input_files": {
+    "main.zil": "dc8dfd7901edaecc9acda41ed12761fae596e76893d018bdcbc9b4db5567bdbd",
+    "callbacks.zil": "43e1d624af10f478dd01f04413e7091f13e9e33b4a45f4976f12934b39eb801b",
+    "relay.zil": "72bd087d0ca0a361967d1cedfb9c5bcdb5b7050f23cac6c54fcdf50b031cdcf4",
+    "model.zil": "89c2f281070c4da6d38609c4149825372f4a078b21381c9511d384dec5442b15"
+  }
+}

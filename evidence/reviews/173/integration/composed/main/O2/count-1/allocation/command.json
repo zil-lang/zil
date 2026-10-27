@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/composed/main/O2/allocation-probe"
+  ],
+  "status": "Completed",
+  "start": 1793111946.335487,
+  "stdin_hex": "31",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "0"
+  },
+  "exit_code": 0,
+  "stdout_sha256": "46e1910438dfbdeb8a05d5203339465227c727e024813cd2f72acbabe9c0c4c5",
+  "stderr_sha256": "b8b1b700fc1f5742dd87d8c4ea53d5ad4eef9e38c800f820db7d7fca8c5c1000",
+  "end": 1793111946.3381314
+}

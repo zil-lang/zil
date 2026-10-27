@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/reference173/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-inputs/both-owning-payloads/main.zil",
+    "--opt",
+    "O2",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-results/both-owning-payloads/O2/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-results/both-owning-payloads/O2/phases",
+    "--json"
+  ],
+  "controlled_environment": {},
+  "start": 1793111947.5835283,
+  "end": 1793111947.73725,
+  "exit_code": 0,
+  "stdout_sha256": "d383e2bd053e56904114184325cb50f2611de1ced4f756863fcc79231a7f37ff",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

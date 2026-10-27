@@ -1,0 +1,74 @@
+{
+  "scope": "Independent readback of exact native/negative receipts",
+  "compiler_commit": "02cce89206e74cb5aa0050faf4885973288b9383",
+  "compiler_sha256": "623dcf1d58f4dc5c0cb02dff9c912e2a5a866d5d0c7dc9188878114e8d6e3c73",
+  "composed_native": 44,
+  "additional_native": 12,
+  "negative_checks": [
+    {
+      "case": "array-with-owned-error-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "code": "E-UNSUPPORTED",
+      "message_substring": "capture requires",
+      "matched": true
+    },
+    {
+      "case": "borrow-owned-error-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "code": "E-UNSUPPORTED",
+      "message_substring": "capture requires",
+      "matched": true
+    },
+    {
+      "case": "borrowed-error-payload",
+      "status": "Unsupported",
+      "phase": "types",
+      "code": "E-UNSUPPORTED",
+      "message_substring": "error union payloads require",
+      "matched": true
+    },
+    {
+      "case": "move-owned-error-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "code": "E-UNSUPPORTED",
+      "message_substring": "capture requires",
+      "matched": true
+    },
+    {
+      "case": "nested-owned-error-payload",
+      "status": "Unsupported",
+      "phase": "types",
+      "code": "E-UNSUPPORTED",
+      "message_substring": "error union payloads require",
+      "matched": true
+    },
+    {
+      "case": "owned-error-callable-parameter",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "code": "E-UNSUPPORTED",
+      "message_substring": "non-Copy aggregate",
+      "matched": true
+    },
+    {
+      "case": "owned-error-callable-result",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "code": "E-UNSUPPORTED",
+      "message_substring": "non-Copy aggregate",
+      "matched": true
+    },
+    {
+      "case": "reused-owned-error-value",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "code": "E-UNINITIALIZED",
+      "message_substring": "not initialized",
+      "matched": true
+    }
+  ],
+  "status": "Pass"
+}

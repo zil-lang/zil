@@ -1,0 +1,18 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/reference173/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-inputs/move-owned-error-capture/main.zil",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-results/negative/move-owned-error-capture/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-results/negative/move-owned-error-capture/phases",
+    "--json"
+  ],
+  "controlled_environment": {},
+  "start": 1793111947.969686,
+  "end": 1793111947.9855516,
+  "exit_code": 3,
+  "stdout_sha256": "da89a64807882c78adcf95db9c4b74f6ba89a5b51e0a9e05384a88c0afc4fa1b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

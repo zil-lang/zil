@@ -1,0 +1,240 @@
+{
+  "schema": "zil-independent-integration-review-v1",
+  "reviewer": "/root/dynamic_store",
+  "implementation_author": "/root",
+  "reviewed_integration_commit": "6a623edef1e8d928b5b11091a50f9319fbe6fd59",
+  "compiler_source_commit": "02cce89206e74cb5aa0050faf4885973288b9383",
+  "compiler_sha256": "623dcf1d58f4dc5c0cb02dff9c912e2a5a866d5d0c7dc9188878114e8d6e3c73",
+  "status": "Pass",
+  "blocking_findings": [],
+  "scope": "Only root-authored 173 merge connections, context_signature owned-error ordinary ABI admission, composed consumers/probe and historical test expectation migrations.",
+  "scope_exclusions": [
+    "No independent approval of reviewer-authored 172; its formal review is assigned to resource_heads.",
+    "No repeated review of public IR/Wire already independently reviewed by package_fields.",
+    "No formal workspace or product-gate verdict; root runs those gates separately."
+  ],
+  "identity_migration": "IDENTITY-MIGRATION.json confirms 02c to 6a changes only five test modules and two change records; production and consumer bytes are identical.",
+  "merge_checks": [
+    "Analyze retains distinct shared resource-head and Store carrier admission.",
+    "Constraint Graph union preserves both prior branches and does not confer capture or callable ABI.",
+    "Verify capture preconditions retain both shared-head and Store exclusions plus 170 owning-array-field restriction."
+  ],
+  "owned_error_context_check": "Complete signature validate_type and callable contract charging still precede clone; ordinary helper admission reuses errors::owned. Later aggregate payload, capture and callable ABI boundaries remain enforced.",
+  "composed_native": {
+    "executions": 44,
+    "ordinary": 14,
+    "instrumented": 30,
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "independently_derived_expectations": "STATIC.md",
+    "all_allocated_equal_frees": true,
+    "all_live_zero": true
+  },
+  "additional_native": {
+    "executions": 12,
+    "ordinary": 4,
+    "instrumented": 8,
+    "ordinary_abi_output": "ABC",
+    "two_owning_payloads_output": "DEC",
+    "no_Store_in_these_probes": true,
+    "all_allocated_equal_frees": true,
+    "all_live_zero": true
+  },
+  "negative_probes": [
+    {
+      "case": "array-with-owned-error-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer",
+          "span": {
+            "file": 0,
+            "start": 237,
+            "end": 242
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "borrow-owned-error-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer",
+          "span": {
+            "file": 0,
+            "start": 223,
+            "end": 228
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "borrowed-error-payload",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages",
+          "span": {
+            "file": 0,
+            "start": 178,
+            "end": 211
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "move-owned-error-capture",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer",
+          "span": {
+            "file": 0,
+            "start": 228,
+            "end": 233
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "nested-owned-error-payload",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages",
+          "span": {
+            "file": 0,
+            "start": 178,
+            "end": 212
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "owned-error-callable-parameter",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "non-Copy aggregate, address, opaque, and resource analysis is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "owned-error-callable-result",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "non-Copy aggregate, address, opaque, and resource analysis is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 0
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "native_commands": []
+    },
+    {
+      "case": "reused-owned-error-value",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 1 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 244,
+            "end": 249
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 1,
+      "native_commands": []
+    }
+  ],
+  "negative_exact_checks": "CHECKS.json",
+  "negative_count": 8,
+  "before_context_fix": "Both independent positive programs previously returned Types/Unsupported E-UNSUPPORTED unsupported signature in closure inference with Verify=0 on exact reference172/69882483.",
+  "legacy_expectations": [
+    "047 and 147 original &R/&Self source strings preserved and separately expected Success/Verify=1.",
+    "163 source unchanged; only the former Unsupported declaration expectation changed.",
+    "166 owning-error capture remains Types/Unsupported at its actual capture gate; precise expected message migrated.",
+    "Two cfg(test) Package verifier messages changed manages field to owning field without editing candidates or rejection category."
+  ],
+  "production_source_modified_by_reviewer": false,
+  "new_build_targets_created": false,
+  "not_claimed": [
+    "Full-language readiness",
+    "ZUI framework readiness",
+    "Rust runtime/memory/compiler cost comparison",
+    "Independent 172 approval"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/composed/field_exit/O0/allocation-probe"
+  ],
+  "status": "Completed",
+  "start": 1793111948.0381904,
+  "stdin_hex": "",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "0"
+  },
+  "exit_code": 1,
+  "stdout_sha256": "2640f8d1a0d67391c2c84b9ea278b30d1cafc96be11e6b697b0d850da8fde21d",
+  "stderr_sha256": "a06127ba43b75e41c41c728982c31a517e8a5b85abf892dbfddab445ba831ccf",
+  "end": 1793111948.0403562
+}

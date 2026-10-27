@@ -1,0 +1,21 @@
+{
+  "compiler_source_commit": "02cce89206e74cb5aa0050faf4885973288b9383",
+  "reviewed_integration_commit": "6a623edef1e8d928b5b11091a50f9319fbe6fd59",
+  "production_and_consumer_files_unchanged": true,
+  "changed_paths": [
+    "changes/173-interface-clarifications.md",
+    "changes/173-legacy-expectations.md",
+    "crates/zil-driver/tests/impl047.rs",
+    "crates/zil-driver/tests/impl147_static_traits.rs",
+    "crates/zil-driver/tests/impl166_owned_results.rs",
+    "crates/zil-verify/src/package_tests.rs",
+    "crates/zil-verify/src/package_tests/fields.rs"
+  ],
+  "driver_source_probe_literals_unchanged": [
+    47,
+    147,
+    163
+  ],
+  "signature_and_consumers_source_identity": "SOURCE.json",
+  "verify_package_modules_are_cfg_test": true
+}

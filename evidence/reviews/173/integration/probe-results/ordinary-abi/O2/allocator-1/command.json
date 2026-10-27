@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/review173-integration/probe-results/ordinary-abi/O2/probe"
+  ],
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "1"
+  },
+  "start": 1793111946.786992,
+  "end": 1793111946.7885425,
+  "exit_code": 0,
+  "stdout_sha256": "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78",
+  "stderr_sha256": "fc0b59a2e41e2e22397d6085c489e17cf6cd657f48405c285cde7e7bc4d4884a"
+}
