@@ -1,0 +1,97 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.12s
+     Running tests/generic_regressions.rs (/workspace/scratch/39be3faa4442/targets/162/debug/deps/generic_regressions-302d6e1cf0b289ed)
+
+running 9 tests
+test concrete_unary_and_binary_errors_remain_errors_when_unused ... ok
+test duplicate_generic_and_ordinary_function_must_reject ... ok
+test generic_record_default_cannot_gain_numeric_constraint_from_instance ... ok
+test selected_analysis_work_and_unused_signature_lifetimes_are_checked ... ok
+test substituted_type_depth_is_reserved_before_instance_cloning ... ok
+test unused_generic_body_respects_selected_depth ... ok
+test unused_generic_body_respects_selected_work ... ok
+test unused_generic_concrete_bad_operation_is_not_discarded ... ok
+test unused_generic_control_flow_is_checked_before_template_removal ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/generics.rs (/workspace/scratch/39be3faa4442/targets/162/debug/deps/generics-3f645049f12e702d)
+
+running 6 tests
+test bool_and_distinct_integer_instantiations ... ok
+test concrete_instantiations_inference_recursive_reuse_and_hygiene ... ok
+test generic_arity_constraints_and_bounds_fail_closed ... ok
+test generic_body_cannot_gain_operations_or_copy_from_an_instance ... ok
+test generic_instance_growth_is_bounded_before_type_building ... ok
+test symbolic_result_and_nested_calls_do_not_collapse_distinct_parameters ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+
+     Running tests/impl103_generic_aliases.rs (/workspace/scratch/39be3faa4442/targets/162/debug/deps/impl103_generic_aliases-58ee44ff15945f15)
+
+running 13 tests
+test alias_cycles_include_argument_growth_and_erased_arguments ... ok
+test alias_substitution_preserves_slice_callback_and_generic_constraints ... ok
+test aliases_feed_ct_and_callable_bound_signatures_without_runtime_authority ... ok
+test aliases_preserve_lexical_type_and_value_shadowing ... ok
+test builtin_type_names_and_value_names_are_not_captured_by_binders ... ok
+test declarations_and_phantom_arguments_are_checked_even_when_unused ... ok
+test definition_nominals_survive_alias_and_function_binder_names ... ok
+test expansion_preserves_exact_work_node_and_depth_boundaries ... ok
+test four_module_alias_consumer_executes_dynamic_inputs_at_o0_and_o2 ... ok
+test module_aliases_keep_definition_identity_and_private_boundaries ... ok
+test nominal_capture_cannot_accept_the_callers_primitive_instead ... ok
+test transparency_cannot_grant_copy_ownership_or_extend_a_borrow ... ok
+test type_arguments_compose_simultaneously_without_new_nominal_identity ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.39s
+
+     Running tests/impl147_static_traits.rs (/workspace/scratch/39be3faa4442/targets/162/debug/deps/impl147_static_traits-28815c96c30ed9fa)
+
+running 11 tests
+test attributes_and_ambiguous_method_names_are_not_silently_erased ... ok
+test empty_impl_cannot_manufacture_builtin_capabilities ... ok
+test finite_nominal_generic_bounds_are_now_checked_before_instantiation ... ok
+test headless_layout_traits_write_512_rectangles_through_owned_buffer ... ok
+test missing_extra_duplicate_methods_and_overlapping_impls_reject ... ok
+test mutable_and_static_trait_methods_use_existing_borrow_and_return_paths ... ok
+test nominal_impls_inherit_read_receiver_and_dispatch_by_concrete_type ... ok
+test ordinary_ownership_checks_still_reject_trait_method_escape ... ok
+test trait_signature_cannot_silently_change_modes_types_or_results ... ok
+test unsupported_solver_features_are_not_invented_by_lowering_to_functions ... ok
+test value_receiver_and_ordinary_closure_composition_are_native ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.90s
+
+     Running tests/impl156_module_methods.rs (/workspace/scratch/39be3faa4442/targets/162/debug/deps/impl156_module_methods-5b3ca47a50f15a54)
+
+running 8 tests
+test different_modules_with_same_spelling_keep_exact_nominal_owner ... ok
+test field_callable_precedence_is_not_reinterpreted_as_method ... ok
+test imported_methods_work_inside_returned_owned_and_nonmove_closures ... ok
+test imported_methods_work_on_locals_and_borrowed_receivers ... ok
+test inline_declared_public_methods_and_private_fields_compose ... ok
+test private_methods_fields_and_incorrect_permissions_remain_rejected ... ok
+test private_trait_and_private_nominal_do_not_leak_through_returned_values ... ok
+test public_trait_methods_from_defining_module_use_checked_signatures ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.81s
+
+     Running tests/impl162_trait_bounds.rs (/workspace/scratch/39be3faa4442/targets/162/debug/deps/impl162_trait_bounds-97198dc1c84f2e92)
+
+running 12 tests
+test actual_impl_signatures_and_independent_loan_checks_still_run ... ok
+test borrowed_receivers_do_not_gain_mutation_or_move_permissions ... ok
+test bound_method_named_len_and_self_parameters_are_symbolic ... ok
+test forwarding_requires_a_prior_bound_even_when_unused ... ok
+test imported_public_bounds_keep_definition_and_nominal_module_identity ... ok
+test missing_trait_wrong_arguments_and_ambiguous_bounds_reject_before_specialization ... ok
+test mutable_multiple_bounds_and_value_receiver_keep_passing_modes ... ok
+test private_and_same_spelling_foreign_traits_cannot_satisfy_bound ... ok
+test same_named_inherent_method_does_not_satisfy_nominal_bound ... ok
+test shared_bounds_dispatch_for_multiple_nominal_types_and_forward_symbolically ... ok
+test trait_bound_scans_obey_actual_work_budget ... ok
+test unused_definitions_cannot_gain_members_types_or_copy_from_instances ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.10s
+

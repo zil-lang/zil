@@ -1,0 +1,492 @@
+{
+  "task": "162",
+  "status": "ImplementationValidated_PendingIndependentReview",
+  "implementation_author": "/root/trait_bounds",
+  "implementation_commit": "76fc53ddd53c51df724a59e5e40299b79d4acf81",
+  "production_baseline": "e9a604c80d56027a5fb6c28bcb8b58f9c9e84a7b",
+  "dispatch_commit": "19e5fa4188d0b65929d640618f3d2a098aee9473",
+  "created_at_utc": "2026-10-27T10:25:24.067347+00:00",
+  "source_sha256": {
+    "changes/162-generic-trait-bounds.md": "c11fef800b4a4a22c35880ef0447a29c95080aefeb400aa1f8b1099d5e165f80",
+    "crates/zil-driver/tests/impl147_static_traits.rs": "a0963e5da26ee603a740acab9fabaae954dcc0ed6107823c5eac25fd03129daa",
+    "crates/zil-driver/tests/impl162_trait_bounds.rs": "34814e9bf2305b345d2bc377bf288e2c3d999d96e75ec1355e07b0f750d7a131",
+    "crates/zil-expand/src/generic_check.rs": "7b47500ea0766dca1b36d4ef1fb55086030153f6c3e4ad6b1a7717e12993c97c",
+    "crates/zil-expand/src/generic_trait_bounds.rs": "9fd5f7559105443935cda491668904d59bf62ab913f9cae7fa4249a11871870d",
+    "crates/zil-expand/src/generics.rs": "8e94e2f05393a187d3032cc4d436b65f8bc8745926021e140809f0f82b7fa7df"
+  },
+  "commands": [
+    {
+      "command": "cargo test --locked --offline -p zil-driver --test impl162_trait_bounds --test impl147_static_traits --test impl156_module_methods --test generics --test generic_regressions --test impl103_generic_aliases -- --test-threads=1",
+      "exit_code": 0,
+      "passed": 59,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 6
+    },
+    {
+      "command": "cargo clippy --locked --offline -p zil-expand -p zil-driver --test impl162_trait_bounds -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0
+    }
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "clang": "Ubuntu clang version 17.0.6 (++20240501091250+6009708b4367-1~exp1~20240501211359.8)"
+  },
+  "toolchain_difference": "Clang17.0.6 used in this run; inherited159 README reports17.0.0. All native evidence here is newly executed.",
+  "new_suite": {
+    "tests": 12,
+    "native_executions": 8,
+    "optimization_profiles": [
+      "O0",
+      "O2"
+    ],
+    "native": [
+      {
+        "compile_report": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/compile.json",
+        "report_sha256": "3a3d5efbe7a087acbe9d909b2da3e5aba84a05926191bdec8bfdea9ae6ee2dff",
+        "verification_runs": 1,
+        "status": "Success",
+        "artifacts": {
+          "candidate": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/phases/candidate.txt",
+            "sha256": "55679c48263acaeb223ef6fe4e353d65ac2062bef0e5d87756b668ae0cfb5030"
+          },
+          "core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/phases/core.txt",
+            "sha256": "19da2c3856624e35087e2891c696013e9490390dd9b77bc10fa2f52ea2444718"
+          },
+          "ct-core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/phases/ct-core.txt",
+            "sha256": "19da2c3856624e35087e2891c696013e9490390dd9b77bc10fa2f52ea2444718"
+          },
+          "executable": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/program",
+            "sha256": "84083b1c64983f10e53b5bab47411bfcd1b18102b29f247a40c2b936b9234eb9"
+          },
+          "lir": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/phases/lir.txt",
+            "sha256": "ae0ee06478a07642f6d820018c4818b06e4880e17020aca163c10c328ad19f94"
+          },
+          "llvm": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/program.ll",
+            "sha256": "afe826a239104ab2bf8ecb85da70647b83aaba0a7b1cd056b125c7471453180b"
+          },
+          "source-map": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/phases/source-map.txt",
+            "sha256": "3b6eb90dc9288c58315b4940ea1ce3794690a930d0825a5e69340cd863fedca0"
+          },
+          "syntax": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/phases/syntax.txt",
+            "sha256": "a556522ec28568bd577123a06613a575c585ef48923178f650d7a6172cb8e587"
+          },
+          "typed": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/phases/typed.txt",
+            "sha256": "9cff4d3f870e9b62a4b8d33dac59bc5b43533c1555ac39da9c59a88f3f914e5b"
+          },
+          "verified": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-0/phases/verified.txt",
+            "sha256": "5823dd8d8ba5911dab1fd02a5d2a88c2fdbacb5b7cfcbf26574cdf623a708bd5"
+          }
+        },
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "compile_report": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/compile.json",
+        "report_sha256": "8b9813bcb2cacef7e94219ad3dbac316b05bbc0cd6453d3a21eee28661ba3162",
+        "verification_runs": 1,
+        "status": "Success",
+        "artifacts": {
+          "candidate": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/phases/candidate.txt",
+            "sha256": "55679c48263acaeb223ef6fe4e353d65ac2062bef0e5d87756b668ae0cfb5030"
+          },
+          "core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/phases/core.txt",
+            "sha256": "19da2c3856624e35087e2891c696013e9490390dd9b77bc10fa2f52ea2444718"
+          },
+          "ct-core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/phases/ct-core.txt",
+            "sha256": "19da2c3856624e35087e2891c696013e9490390dd9b77bc10fa2f52ea2444718"
+          },
+          "executable": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/program",
+            "sha256": "44b628825d5bb8ac1eaf304faa9757ec46bb54963d8db491fabf093723231bcc"
+          },
+          "lir": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/phases/lir.txt",
+            "sha256": "ae0ee06478a07642f6d820018c4818b06e4880e17020aca163c10c328ad19f94"
+          },
+          "llvm": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/program.ll",
+            "sha256": "afe826a239104ab2bf8ecb85da70647b83aaba0a7b1cd056b125c7471453180b"
+          },
+          "source-map": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/phases/source-map.txt",
+            "sha256": "3b6eb90dc9288c58315b4940ea1ce3794690a930d0825a5e69340cd863fedca0"
+          },
+          "syntax": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/phases/syntax.txt",
+            "sha256": "a556522ec28568bd577123a06613a575c585ef48923178f650d7a6172cb8e587"
+          },
+          "typed": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/phases/typed.txt",
+            "sha256": "9cff4d3f870e9b62a4b8d33dac59bc5b43533c1555ac39da9c59a88f3f914e5b"
+          },
+          "verified": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-1/phases/verified.txt",
+            "sha256": "5823dd8d8ba5911dab1fd02a5d2a88c2fdbacb5b7cfcbf26574cdf623a708bd5"
+          }
+        },
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "compile_report": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/compile.json",
+        "report_sha256": "e0dac208a3a072d43b4f13a5435d684063bacb0535795a61db69a800f3782dcd",
+        "verification_runs": 1,
+        "status": "Success",
+        "artifacts": {
+          "candidate": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/phases/candidate.txt",
+            "sha256": "6fb124073aae5a0e3514d2b3d1f2a1371be10630aca3100e75089201c546de2a"
+          },
+          "core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/phases/core.txt",
+            "sha256": "9c8a5eba385a1697281b79c2779caa2d0939e7e7f6067497b0562bcbe842060c"
+          },
+          "ct-core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/phases/ct-core.txt",
+            "sha256": "9c8a5eba385a1697281b79c2779caa2d0939e7e7f6067497b0562bcbe842060c"
+          },
+          "executable": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/program",
+            "sha256": "5bcfcc151bf8474e910714a3d080036cd5e5acc11a450f8efb68e5461ed5189a"
+          },
+          "interfaces": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/phases/interfaces.txt",
+            "sha256": "aa6e1b59c5131c5791282e127d138e2379ea731a53015d5702e93a3418505e1f"
+          },
+          "lir": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/phases/lir.txt",
+            "sha256": "fc95031cf4bbe1828d6e76efd10be6ebd369efa86119caa4f4f8dcb80d23b24d"
+          },
+          "llvm": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/program.ll",
+            "sha256": "bab76833bfcced686c3c87878f9e5e4e0f3ac0da5c167685029efc4f171a2d4d"
+          },
+          "source-map": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/phases/source-map.txt",
+            "sha256": "3868722be0f9f44acbc77260aba20126599dc6327f5f9bcd2111bd49d2b20c6e"
+          },
+          "syntax": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/phases/syntax.txt",
+            "sha256": "aded3f0f2bb3a9ddba8d53fff6ea007823e677a58d9ed92e3cff42739653a0f9"
+          },
+          "typed": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/phases/typed.txt",
+            "sha256": "65c0f99c42b9dd9f05a6cfce1e1376a6460a98af24ac0cd4cc7dffb8f19d6a2e"
+          },
+          "verified": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/phases/verified.txt",
+            "sha256": "6b0435a3f607499005f028a20ee69100211ffee8a872bca34bd42227f2595756"
+          },
+          "verified-interfaces": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-2/phases/verified-interfaces.txt",
+            "sha256": "78ee5d422433f6b49c4517ebed8e3c12bd9b9bdd4799243afdd2a2d6c93fa361"
+          }
+        },
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "compile_report": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/compile.json",
+        "report_sha256": "bc7defb191d3d9f1930085a03120b68d3cc9f8f91214d19cc3be36c234a092a8",
+        "verification_runs": 1,
+        "status": "Success",
+        "artifacts": {
+          "candidate": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/phases/candidate.txt",
+            "sha256": "6fb124073aae5a0e3514d2b3d1f2a1371be10630aca3100e75089201c546de2a"
+          },
+          "core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/phases/core.txt",
+            "sha256": "9c8a5eba385a1697281b79c2779caa2d0939e7e7f6067497b0562bcbe842060c"
+          },
+          "ct-core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/phases/ct-core.txt",
+            "sha256": "9c8a5eba385a1697281b79c2779caa2d0939e7e7f6067497b0562bcbe842060c"
+          },
+          "executable": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/program",
+            "sha256": "487d0175154a9404a7b16aedf08e024f041fb82f77b848adf3a4c83313dfcbaa"
+          },
+          "interfaces": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/phases/interfaces.txt",
+            "sha256": "aa6e1b59c5131c5791282e127d138e2379ea731a53015d5702e93a3418505e1f"
+          },
+          "lir": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/phases/lir.txt",
+            "sha256": "fc95031cf4bbe1828d6e76efd10be6ebd369efa86119caa4f4f8dcb80d23b24d"
+          },
+          "llvm": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/program.ll",
+            "sha256": "bab76833bfcced686c3c87878f9e5e4e0f3ac0da5c167685029efc4f171a2d4d"
+          },
+          "source-map": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/phases/source-map.txt",
+            "sha256": "3868722be0f9f44acbc77260aba20126599dc6327f5f9bcd2111bd49d2b20c6e"
+          },
+          "syntax": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/phases/syntax.txt",
+            "sha256": "aded3f0f2bb3a9ddba8d53fff6ea007823e677a58d9ed92e3cff42739653a0f9"
+          },
+          "typed": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/phases/typed.txt",
+            "sha256": "65c0f99c42b9dd9f05a6cfce1e1376a6460a98af24ac0cd4cc7dffb8f19d6a2e"
+          },
+          "verified": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/phases/verified.txt",
+            "sha256": "6b0435a3f607499005f028a20ee69100211ffee8a872bca34bd42227f2595756"
+          },
+          "verified-interfaces": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-3/phases/verified-interfaces.txt",
+            "sha256": "78ee5d422433f6b49c4517ebed8e3c12bd9b9bdd4799243afdd2a2d6c93fa361"
+          }
+        },
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "compile_report": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/compile.json",
+        "report_sha256": "e92c6267d1dd2742ea867a053e238952181626be3554127db46a68d4884e6e66",
+        "verification_runs": 1,
+        "status": "Success",
+        "artifacts": {
+          "candidate": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/phases/candidate.txt",
+            "sha256": "9eeb02e728bd2d59461fd0dd1908d0cab020ab92ea1a1d23344e2220302e13c8"
+          },
+          "core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/phases/core.txt",
+            "sha256": "2042c69a28516d84efbbad0623c3cabad3a74081305ccdb5072fffae1ef7c6fe"
+          },
+          "ct-core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/phases/ct-core.txt",
+            "sha256": "2042c69a28516d84efbbad0623c3cabad3a74081305ccdb5072fffae1ef7c6fe"
+          },
+          "executable": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/program",
+            "sha256": "e0b91e174cb71f5313a9b070be12cacf61a446df049b7793f77358db77c0dd00"
+          },
+          "lir": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/phases/lir.txt",
+            "sha256": "598a89abf71f9d22a033ac9a46365a148f93b5ecf1baee394da243a5272027bc"
+          },
+          "llvm": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/program.ll",
+            "sha256": "135a88a4dacfc12f2ab5e2678bc84ae6f896f158227df981e76d2f4ea386514e"
+          },
+          "source-map": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/phases/source-map.txt",
+            "sha256": "f4a0d446ea3964164cdc1c6787539efb0c94015251e8ad8129261bfbf6d47b0d"
+          },
+          "syntax": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/phases/syntax.txt",
+            "sha256": "cc10690e4462553a818d39b701fe0bc5d2c2aa9799f5e4e522c8147d17c66a70"
+          },
+          "typed": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/phases/typed.txt",
+            "sha256": "d3b33e4e239e69083b06f56f07b631d8c78e3e2da9594026b4004ed085e4b7f3"
+          },
+          "verified": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-4/phases/verified.txt",
+            "sha256": "a1f24c916707d73f6e28aaefcbad955d5c2b3e38475ae687e23f4d496213c415"
+          }
+        },
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "compile_report": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/compile.json",
+        "report_sha256": "15606d3a03e44c33a9d32c7874dc46b7e8011e4c28fa94c3ef38a1a8dd821c5a",
+        "verification_runs": 1,
+        "status": "Success",
+        "artifacts": {
+          "candidate": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/phases/candidate.txt",
+            "sha256": "9eeb02e728bd2d59461fd0dd1908d0cab020ab92ea1a1d23344e2220302e13c8"
+          },
+          "core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/phases/core.txt",
+            "sha256": "2042c69a28516d84efbbad0623c3cabad3a74081305ccdb5072fffae1ef7c6fe"
+          },
+          "ct-core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/phases/ct-core.txt",
+            "sha256": "2042c69a28516d84efbbad0623c3cabad3a74081305ccdb5072fffae1ef7c6fe"
+          },
+          "executable": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/program",
+            "sha256": "1b236c1e56f5e3a3eee70152558f095f7d2586a3b7481b3d7bf62f8f237a50b7"
+          },
+          "lir": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/phases/lir.txt",
+            "sha256": "598a89abf71f9d22a033ac9a46365a148f93b5ecf1baee394da243a5272027bc"
+          },
+          "llvm": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/program.ll",
+            "sha256": "135a88a4dacfc12f2ab5e2678bc84ae6f896f158227df981e76d2f4ea386514e"
+          },
+          "source-map": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/phases/source-map.txt",
+            "sha256": "f4a0d446ea3964164cdc1c6787539efb0c94015251e8ad8129261bfbf6d47b0d"
+          },
+          "syntax": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/phases/syntax.txt",
+            "sha256": "cc10690e4462553a818d39b701fe0bc5d2c2aa9799f5e4e522c8147d17c66a70"
+          },
+          "typed": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/phases/typed.txt",
+            "sha256": "d3b33e4e239e69083b06f56f07b631d8c78e3e2da9594026b4004ed085e4b7f3"
+          },
+          "verified": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-5/phases/verified.txt",
+            "sha256": "a1f24c916707d73f6e28aaefcbad955d5c2b3e38475ae687e23f4d496213c415"
+          }
+        },
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "compile_report": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/compile.json",
+        "report_sha256": "c116abbf7c6e1a892d5f235a3f040b4c1274855f70f6ccdbe86c5bf6a1f6208a",
+        "verification_runs": 1,
+        "status": "Success",
+        "artifacts": {
+          "candidate": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/phases/candidate.txt",
+            "sha256": "f879b6ea60ef6b29943faa33d384ff47f3ef2532d5dab0b88030a55cbbf352d4"
+          },
+          "core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/phases/core.txt",
+            "sha256": "eaf680b4621a633c3056494209396474934ee976e650f41f93b5f2c00d990ee5"
+          },
+          "ct-core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/phases/ct-core.txt",
+            "sha256": "eaf680b4621a633c3056494209396474934ee976e650f41f93b5f2c00d990ee5"
+          },
+          "executable": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/program",
+            "sha256": "6ae8f56120a89be50d966f860c0ca03e8cde7e54dad583ca86be750686b40783"
+          },
+          "lir": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/phases/lir.txt",
+            "sha256": "df67a544283964c8fa3dd1cd6b7f8811d7bc56a4f342a041227fb12b50cb32bc"
+          },
+          "llvm": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/program.ll",
+            "sha256": "b35ae1e3bce75b384f7a2fcf8e52cb17bf3053947ffa114bc1de906c531843cd"
+          },
+          "source-map": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/phases/source-map.txt",
+            "sha256": "a2a147d52d34d0a93cb257e723676a13e8ca0623f8e492f233566ff6fbf1f38a"
+          },
+          "syntax": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/phases/syntax.txt",
+            "sha256": "28f94aede7cc4c7c4a849cfde53b3fdbd48e4bb13fecaae612a6a876e44eb317"
+          },
+          "typed": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/phases/typed.txt",
+            "sha256": "f345528ecc5d4263590a21763aaa492b8eb7cb8cce2f644d92e4bba753f024b5"
+          },
+          "verified": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-6/phases/verified.txt",
+            "sha256": "f0f1dd67f6404ec6ea173eb342e51adaac757358d5a53a5d127a86e203dc80f8"
+          }
+        },
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "compile_report": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/compile.json",
+        "report_sha256": "a972e25434cd892414eea99f0fa4fe338cff0f98a107a1b0c3b3630669ef3446",
+        "verification_runs": 1,
+        "status": "Success",
+        "artifacts": {
+          "candidate": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/phases/candidate.txt",
+            "sha256": "f879b6ea60ef6b29943faa33d384ff47f3ef2532d5dab0b88030a55cbbf352d4"
+          },
+          "core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/phases/core.txt",
+            "sha256": "eaf680b4621a633c3056494209396474934ee976e650f41f93b5f2c00d990ee5"
+          },
+          "ct-core": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/phases/ct-core.txt",
+            "sha256": "eaf680b4621a633c3056494209396474934ee976e650f41f93b5f2c00d990ee5"
+          },
+          "executable": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/program",
+            "sha256": "bbacffd2a84db8752c9f5a95add7bf979e1393cdfc66136cc83d9602af42fdf8"
+          },
+          "lir": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/phases/lir.txt",
+            "sha256": "df67a544283964c8fa3dd1cd6b7f8811d7bc56a4f342a041227fb12b50cb32bc"
+          },
+          "llvm": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/program.ll",
+            "sha256": "b35ae1e3bce75b384f7a2fcf8e52cb17bf3053947ffa114bc1de906c531843cd"
+          },
+          "source-map": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/phases/source-map.txt",
+            "sha256": "a2a147d52d34d0a93cb257e723676a13e8ca0623f8e492f233566ff6fbf1f38a"
+          },
+          "syntax": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/phases/syntax.txt",
+            "sha256": "28f94aede7cc4c7c4a849cfde53b3fdbd48e4bb13fecaae612a6a876e44eb317"
+          },
+          "typed": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/phases/typed.txt",
+            "sha256": "f345528ecc5d4263590a21763aaa492b8eb7cb8cce2f644d92e4bba753f024b5"
+          },
+          "verified": {
+            "path": "/workspace/scratch/39be3faa4442/run-logs/162-native-final/bounds162-698-7/phases/verified.txt",
+            "sha256": "f0f1dd67f6404ec6ea173eb342e51adaac757358d5a53a5d127a86e203dc80f8"
+          }
+        },
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "logs_sha256": {
+    "first-tests.log": "27d7de92da5c92c3ef2de9cd2ec03311d4122f8f818e877e9a41c54c628c03dd",
+    "focused-tests-before-shadow-guard.log": "1d6b94ce2e1e1f8af1547f2df9b7747d8b4e2aa1fe1e0a0a16ba951eb3d53874",
+    "committed-tests.log": "f44db910a0b72e0ebd80cb9ddee3abba9e87aacd0790478932b8f2ca8fc3afd6",
+    "committed-clippy.log": "99f71393b9903dca098310bb446022a4bdee195ea9996f351a787195555210a6",
+    "fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "original_failures": {
+    "log": "first-tests.log",
+    "passed": 10,
+    "failed": 2,
+    "causes": [
+      "New cross-module fixture omitted semicolon after expression-bodied factory",
+      "Negative x+x is rejected for unknown-T move before the expected numeric-bound reason; fixture changed to x+1, no compiler rule weakened"
+    ]
+  },
+  "limits": [
+    "No public schema or ABI changes",
+    "No where/supertraits/associated types/dyn/generic trait declarations",
+    "No new foreign-trait impl support",
+    "Only existing finite ordinary value-struct static implementations satisfy nominal bounds",
+    "Static/type-qualified generic method calls remain Unsupported",
+    "No full-workspace or formal product gate run by implementation agent",
+    "No independent review or Rust runtime/compiler performance claim"
+  ]
+}
