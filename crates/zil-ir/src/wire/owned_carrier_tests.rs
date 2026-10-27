@@ -237,7 +237,7 @@ fn schema19_owned_claims_reject_noncanonical_flags_and_array_allocation_bombs() 
             Reader::new(&writer.output, &limits)
                 .unwrap()
                 .instruction()
-                .unwrap_err()[0]
+                .unwrap_err()
                 .code,
             "E-WIRE-BOOL"
         );
@@ -268,7 +268,7 @@ fn schema19_owned_claims_reject_noncanonical_flags_and_array_allocation_bombs() 
         Reader::new(&writer.output, &limits)
             .unwrap()
             .instruction()
-            .unwrap_err()[0]
+            .unwrap_err()
             .code,
         "E-WIRE-BOOL"
     );
