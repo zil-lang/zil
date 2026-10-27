@@ -85,6 +85,10 @@ impl CompilationSession {
         options: &CompileOptions,
     ) -> CompileReport {
         let start = Instant::now();
+        // Apply the existing session capacity before discovery can read any raw cache.
+        if self.raw.len() > self.capacity {
+            self.clear();
+        }
         let mut project = ProjectSources {
             root: ModuleId(0),
             modules: vec![SourceUnit::new(
@@ -103,7 +107,7 @@ impl CompilationSession {
                 Vec::new()
             })
         } else {
-            load_sources(&mut project, path, options)
+            load_sources(&mut project, path, options, self)
         };
         let mut report = match loaded {
             Ok(_) if options.stop_after == Stage::Parse => {
@@ -697,6 +701,7 @@ fn load_sources(
     project: &mut ProjectSources,
     path: &Path,
     options: &CompileOptions,
+    session: &CompilationSession,
 ) -> CompileResult<Vec<Arc<ParseResult>>> {
     options
         .cancellation
@@ -739,9 +744,29 @@ fn load_sources(
         // files which have yet to be read.
         parse_limits.max_source_bytes = project.modules[index].text.len();
         parse_limits.max_tokens = remaining.max_tokens.min(remaining.max_nodes);
-        let parsed = zil_syntax::parse_with_limits(&project.modules[index], &parse_limits);
+        // Match the exact query key project_pipeline will use. The loader
+        // has separately charged source bytes; per-file token/node quotas and
+        // every other query axis must still match, including source identity.
+        let mut query_options = options.clone();
+        query_options.limits.max_tokens = parse_limits.max_tokens;
+        query_options.limits.max_nodes = remaining.max_nodes;
+        let key = query_key(&project.modules[index], &query_options, Phase::Parse, false);
+        let cached = if session.database.read(&key).map_err(|e| vec![e])?.is_some() {
+            match session.raw.get(&key) {
+                Some(RawSnapshot::Parse(p)) => Some(p.clone()),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let parsed = cached.unwrap_or_else(|| {
+            Arc::new(zil_syntax::parse_with_limits(
+                &project.modules[index],
+                &parse_limits,
+            ))
+        });
         if !parsed.diagnostics.is_empty() {
-            return Err(parsed.diagnostics);
+            return Err(parsed.diagnostics.clone());
         }
         charge_frontend(&mut remaining, &parsed)?;
         for item in &parsed.module.items {
@@ -797,8 +822,104 @@ fn load_sources(
             };
             project.paths.insert(import.path.clone(), id);
         }
-        syntax.push(Arc::new(parsed));
+        syntax.push(parsed);
         index += 1;
     }
     Ok(syntax)
+}
+
+#[cfg(test)]
+mod discovery158_tests {
+    use super::*;
+    use std::{
+        fs,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    struct Dir(std::path::PathBuf);
+    impl Dir {
+        fn new() -> Self {
+            let p = std::env::var_os("ZIL_TEST_REPORT_DIR")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir)
+                .join(format!(
+                    "discovery158-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+            fs::create_dir_all(&p).unwrap();
+            Self(p)
+        }
+    }
+    fn discover(
+        session: &CompilationSession,
+        path: &Path,
+        options: &CompileOptions,
+    ) -> CompileResult<Vec<Arc<ParseResult>>> {
+        let mut p = ProjectSources {
+            root: ModuleId(0),
+            modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
+            paths: BTreeMap::new(),
+        };
+        load_sources(&mut p, path, options, session)
+    }
+    fn setup() -> (Dir, std::path::PathBuf, CompilationSession) {
+        let dir = Dir::new();
+        let main = dir.0.join("main.zil");
+        fs::write(&main, "import leaf; fn main()->i32=>leaf.answer()-42").unwrap();
+        fs::write(dir.0.join("leaf.zil"), "pub fn answer()->i32=>42").unwrap();
+        let mut session = CompilationSession::with_capacity(1024);
+        let r = session.compile_path(&main, &CompileOptions::default());
+        assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+        (dir, main, session)
+    }
+    #[test]
+    fn discovery_reuses_exact_published_syntax_arcs_but_reads_edited_bytes() {
+        let (dir, path, session) = setup();
+        let options = CompileOptions::default();
+        let syntax = discover(&session, &path, &options).unwrap();
+        assert_eq!(syntax.len(), 2);
+        for p in &syntax {
+            assert!(
+                session
+                    .raw
+                    .values()
+                    .any(|v| matches!(v,RawSnapshot::Parse(q) if Arc::ptr_eq(p,q)))
+            );
+        }
+        fs::write(dir.0.join("leaf.zil"), "pub fn answer()->i32=>43").unwrap();
+        let changed = discover(&session, &path, &options).unwrap();
+        assert!(Arc::ptr_eq(&syntax[0], &changed[0]));
+        assert!(!Arc::ptr_eq(&syntax[1], &changed[1]));
+    }
+    #[test]
+    fn cached_syntax_cannot_hide_lower_quotas_syntax_errors_or_ambiguous_entries() {
+        let (dir, path, session) = setup();
+        let mut low = CompileOptions::default();
+        low.limits.max_tokens = 3;
+        assert!(discover(&session, &path, &low).is_err());
+        fs::write(dir.0.join("leaf.zil"), "pub fn answer( ->").unwrap();
+        assert!(discover(&session, &path, &CompileOptions::default()).is_err());
+        fs::write(dir.0.join("leaf.zil"), "pub fn answer()->i32=>42").unwrap();
+        fs::create_dir(dir.0.join("leaf")).unwrap();
+        fs::write(dir.0.join("leaf/mod.zil"), "pub fn answer()->i32=>42").unwrap();
+        let errors = discover(&session, &path, &CompileOptions::default()).unwrap_err();
+        assert!(errors.iter().any(|e| e.code == "E-MODULE-AMBIGUOUS"));
+    }
+    #[test]
+    fn discovery_cancellation_and_active_query_guards_still_apply() {
+        let (_dir, path, mut session) = setup();
+        let options = CompileOptions::default();
+        options.cancellation.cancel();
+        assert!(discover(&session, &path, &options).is_err());
+        let key = session
+            .raw
+            .iter()
+            .find_map(|(k, v)| matches!(v, RawSnapshot::Parse(_)).then(|| k.clone()))
+            .unwrap();
+        session.database.begin(key.clone()).unwrap();
+        assert!(discover(&session, &path, &CompileOptions::default()).is_err());
+        session.database.abort(&key);
+        assert!(discover(&session, &path, &CompileOptions::default()).is_ok());
+    }
 }
