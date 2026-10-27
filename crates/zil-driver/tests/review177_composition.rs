@@ -269,7 +269,7 @@ fn borrowed_and_nonfield_values_do_not_get_the_new_give_capability() {
 #[test]
 fn concrete_resource_give_refill_keeps_actual_callback_state() {
     let source = format!(
-        "{MODEL}fn replace<C:FnMut()->i32>(input:Panel<C>)->Panel<C>{{var next=input;let old=give next.tag;next.tag=Tag{{code:89}};let callback=&mut next.callback;next.hits=callback();next.hits=callback();return next}}fn main()->i32{{let current=replace(panel(handler()));return current.hits-2}}"
+        "{MODEL}fn replace<C:FnMut()->i32>(input:Panel<C>)->Panel<C>{{var next=input;let old=give next.tag;next.tag=Tag{{code:89}};let callback=&mut next.callback;let first=callback();next.hits=callback();return next}}fn main()->i32{{let current=replace(panel(handler()));return current.hits-2}}"
     );
     native(&source, "resource-leaf", b"XYAW", None);
 }
@@ -329,6 +329,34 @@ fn simultaneous_store_window_and_callback_or_parent_mutation_stays_closed() {
             "",
         );
     }
+    let source = format!(
+        "{MODEL}fn main()->i32{{var current=panel(handler());let callback=&mut current.callback;let moved=current;return callback()}}"
+    );
+    reject(
+        &[("main", &source)],
+        "callback-window-parent-move",
+        ResultCategory::SafeReject,
+        Phase::Verify,
+        "E-BORROW-CONFLICT",
+        "",
+    );
+}
+
+#[test]
+fn callback_parent_qualification_blocks_sibling_copy_write_before_its_last_use() {
+    // This is the original independent03 positive fixture, retained verbatim.
+    // Its first hits write overlaps the callback's still-live coarse parent root.
+    let source = format!(
+        "{MODEL}fn replace<C:FnMut()->i32>(input:Panel<C>)->Panel<C>{{var next=input;let old=give next.tag;next.tag=Tag{{code:89}};let callback=&mut next.callback;next.hits=callback();next.hits=callback();return next}}fn main()->i32{{let current=replace(panel(handler()));return current.hits-2}}"
+    );
+    reject(
+        &[("main", &source)],
+        "callback-live-parent-copy-write",
+        ResultCategory::SafeReject,
+        Phase::Verify,
+        "E-BORROW-CONFLICT",
+        "shared address still required",
+    );
 }
 
 #[test]
