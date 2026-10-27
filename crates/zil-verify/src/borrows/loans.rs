@@ -277,6 +277,31 @@ struct Access<'a> {
     apart: Option<&'a RefCell<Apart>>,
 }
 impl Access<'_> {
+    fn check_descriptor_callback(
+        &self,
+        function: &TypedFunction,
+        held: &Loans,
+        roots: &[Root],
+        write: bool,
+        budget: &mut Budget,
+    ) -> Check<()> {
+        // A callback's captured address is in use during this invocation even
+        // when this is the closure's final use. Future liveness alone would
+        // miss its conflict with a Desc write in the same environment.
+        budget.spend(self.active.len())?;
+        let mut active = self.active.clone();
+        join(&mut active, held, budget)?;
+        let own = environment_loans(function, held, budget)?;
+        Access {
+            flow: self.flow,
+            active: &active,
+            ignore: self.ignore,
+            span: self.span,
+            apart: self.apart,
+        }
+        .check(&own, roots, write, budget)
+    }
+
     fn check(&self, own: &Loans, roots: &[Root], write: bool, budget: &mut Budget) -> Check<()> {
         for &other in self.active {
             budget.spend(own.len().saturating_add(1))?;
@@ -656,8 +681,7 @@ pub(super) fn check(
                     }
                     _ => unreachable!(),
                 };
-                let own = environment_loans(f, held, budget)?;
-                access.check(&own, callback, true, budget)?;
+                access.check_descriptor_callback(f, held, callback, true, budget)?;
             }
             if let InstructionKind::Call {
                 function: callee,
@@ -668,14 +692,19 @@ pub(super) fn check(
                 for (parameter, write) in &effects[callee.0 as usize] {
                     budget.spend(1)?;
                     let argument = arguments[*parameter as usize];
-                    let own = if head_windows
+                    if head_windows
                         && captures_descriptors(module, &f.values[argument.0 as usize], budget)?
                     {
-                        environment_loans(f, &flow.values[argument.0 as usize], budget)?
+                        access.check_descriptor_callback(
+                            f,
+                            &flow.values[argument.0 as usize],
+                            &facts.values[argument.0 as usize],
+                            *write,
+                            budget,
+                        )?;
                     } else {
-                        Loans::new()
-                    };
-                    access.check(&own, &facts.values[argument.0 as usize], *write, budget)?;
+                        access.check(&empty, &facts.values[argument.0 as usize], *write, budget)?;
+                    }
                 }
             }
             match &instruction.kind {
