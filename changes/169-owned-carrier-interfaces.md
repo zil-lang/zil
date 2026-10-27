@@ -21,3 +21,7 @@ root单写IR枚举、opcode、序列化、指纹、版本与共同登记。接�
 ## 新交付规则
 
 源码包从Git受控文件导出，保留源码、测试夹具、配置、锁、文档与当前任务；排除evidence、执行产物、构建缓存及Git数据库。审计收据与恢复历史如需提供另包，优先小于50MB，不收录可重建的大型阶段产物；旧161–165交付不重打。
+
+## 确认补充：闭包借入与同质回调元素
+
+168确认 `BorrowCapture { index:u32, mutable:bool }` 使用opcode78；只借具体Closure真实环境地址，不转移责任。167确认 `BorrowOwnedArrayElement { local:LocalId,index:u32,mutable:bool }` 使用opcode79；只借静态槽内具体Closure，数组/元素仍负清理责任。对活动借用的移出、替换、整数组移动/清理必须拒绝。167先验证Package元素，再组合168递归清理支持同一工厂的具体回调元素；接口登记本身不代表该组合已验收。
