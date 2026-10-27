@@ -44,3 +44,21 @@ Analyze/Verify 已有字段债务和旧描述检查若出现反例，只修实�
 原 172 的 Store 字段声明拒绝输入保留，预期按新合同迁移为 Success；其余
 原反例保持。每次失败和后续定向通过分别记录；本提案不预先宣称任何测试通过，
 不升级 B0、完整语言或产品状态，也不作编译速度比较。
+
+## 实际迁移与公共接口
+
+已吸收 177 的公共 schema/Wire 21；本片仍未增加 opcode、layout 或 FFI。
+规范摘要迁移到
+`8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be`，
+设计正文摘要保持不变。
+
+集成方明确授权将 172 中原样输入的四个有限合法形状迁移为正例：
+一个源码 `manages Store<P>` 字段声明，以及原 raw/Wire 的完整
+`Package<Managed Store>`、其普通固定数组和其拥有错误载荷。三个原 raw/Wire
+形状均重新 Analyze，再分别做独立 raw 与 roundtrip Verify；完整密封 Store
+定义、原 172 元素合同继续被检查。原输入和首次旧预期失败记录均保留。
+170 拥有数组字段中的嵌套 Store、Store 捕获、缺定义和伪造 metadata 等原
+反例保持拒绝；Store-bearing Package 捕获只精确迁移诊断措辞。
+
+限定实测及四目标反思见 `examples/mainline/impl174/README.md`。施工方只提交
+候选和真实证据，独立审核、全量与主树工单状态由集成方负责。
