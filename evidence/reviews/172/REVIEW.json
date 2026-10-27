@@ -8,6 +8,7 @@
   "author_evidence_commit": "b0173a393752dbaa061d2ac33cbfb2f73430f9b3",
   "probe_commit": "48df93b1199b5487693c450a79b12c4f479adf7a",
   "status": "Pass",
+  "verdict": "Pass",
   "scope": "Finite direct-Managed Package dynamic initialized prefix on Linux x64; independent source, raw, wire, LLVM/native and allocator-failure review",
   "blocking_findings": [],
   "static_checks": [
