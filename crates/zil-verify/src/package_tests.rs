@@ -358,10 +358,6 @@ fn package_fields_reject_noncopy_and_nested_owners() {
 fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
     for ty in [
         Type::Tuple(vec![package()]),
-        Type::Array {
-            element: Box::new(package()),
-            length: 1,
-        },
         Type::Record {
             name: "Hidden".into(),
             fields: vec![("p".into(), package())],
@@ -394,6 +390,23 @@ fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
         let mut m = plain();
         m.functions[0].locals[0].ty = ty;
         rejected(m, "non-Copy type");
+    }
+}
+
+#[test]
+fn package_array_relabel_cannot_replace_required_owned_array_operations() {
+    let mut module = plain();
+    module.functions[0].locals[0].ty = Type::Array {
+        element: Box::new(package()),
+        length: 1,
+    };
+    let (raw, wire) = check_both(module);
+    for result in [raw, wire] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.code == "E-VERIFY-TYPE"),
+            "{errors:?}"
+        );
     }
 }
 

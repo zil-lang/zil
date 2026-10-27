@@ -160,7 +160,7 @@ fn scalar(ty: &Type, span: Span) -> CompileResult<()> {
 fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
     if let Type::Array { element, length } = ty
         && *length > 0
-        && matches!(element.as_ref(), Type::Package { .. })
+        && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
     {
         local_value(element, span, module)
     } else if let Type::Closure(id) = ty {
@@ -413,7 +413,7 @@ pub(super) fn preflight(
         local_value(&function.return_type, function.span, module)?;
         let scoped_aggregate = |ty: &Type| {
             matches!(ty, Type::Package { .. })
-                || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+                || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_)))
         };
         let mut package = scoped_aggregate(&function.return_type);
         budget.input(function.parameters.len(), "parameter preflight")?;

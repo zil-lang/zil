@@ -143,7 +143,7 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
 
 fn owned_array_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     matches!(ty, Type::Array { element, length }
-        if *length > 0 && package_type(element, resources))
+        if *length > 0 && (package_type(element, resources) || matches!(element.as_ref(), Type::Closure(_))))
 }
 
 /// The B0 ABI uses no storage for unit and natural scalar size/alignment. This

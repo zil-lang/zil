@@ -852,6 +852,10 @@ enum Term {
     /// The bool distinguishes a carrier expression from a descriptor.
     Resource(Variable, bool),
     Closure(usize),
+    ClosureArray {
+        element: usize,
+        length: u32,
+    },
     ClosureAddress(usize, bool),
     Function(Rc<Signature>),
     /// Nominal receiver already constrained; only valid immediately as a callee.
@@ -908,6 +912,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || packages::supported(&function.return_type)
+            || packages::owned_array_supported(&function.return_type)
             || resources::supported(&function.return_type))
         {
             return Err(unsupported(
@@ -1183,6 +1188,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     "shared address and scalar types differ",
                 ))
             }
+            (
+                Term::ClosureArray {
+                    element: a,
+                    length: an,
+                },
+                Term::ClosureArray {
+                    element: b,
+                    length: bn,
+                },
+            ) if a == b && an == bn => Ok(()),
+            (Term::ClosureArray { .. }, Term::ClosureArray { .. }) => Err(error(
+                "E-TYPE-MISMATCH",
+                span,
+                "callback arrays require the same source factory identity and fixed length",
+            )),
             (Term::Closure(a), Term::Closure(b)) if a == b => Ok(()),
             (Term::Closure(_), Term::Closure(_)) => Err(error(
                 "E-TYPE-MISMATCH",
@@ -1205,6 +1225,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 | Term::Address(..)
                 | Term::Resource(..)
                 | Term::Closure(_)
+                | Term::ClosureArray { .. }
                 | Term::ClosureAddress(..)
         ) {
             return Err(unsupported(
@@ -2229,24 +2250,33 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 Ok(Term::Scalar(result))
             }
             CoreExprKind::Array(items) => {
+                let length = u32::try_from(items.len()).map_err(|_| {
+                    Diagnostic::limit(Phase::Types, "array length overflow", Some(span))
+                })?;
                 let element = self.fresh(VALUE, false, span)?;
                 let hint = match expected {
                     Some(Type::Array { element, .. }) => Some(element.as_ref()),
                     _ => None,
                 };
-                for item in items {
+                let mut callback = None;
+                for (index, item) in items.iter().enumerate() {
                     let term = self.expr_expected(item, hint, depth + 1, false)?;
-                    self.unify(&Term::Scalar(element), &term, item.span)?;
+                    if index == 0
+                        && let Term::Closure(id) = term
+                    {
+                        callback = Some(id);
+                    }
+                    if let Some(id) = callback {
+                        self.unify(&Term::Closure(id), &term, item.span)?;
+                    } else {
+                        self.unify(&Term::Scalar(element), &term, item.span)?;
+                    }
+                }
+                if let Some(element) = callback {
+                    return Ok(Term::ClosureArray { element, length });
                 }
                 let result = self.fresh(VALUE, false, span)?;
-                self.graph.array(
-                    result,
-                    element,
-                    u32::try_from(items.len()).map_err(|_| {
-                        Diagnostic::limit(Phase::Types, "array length overflow", Some(span))
-                    })?,
-                    span,
-                )?;
+                self.graph.array(result, element, length, span)?;
                 Ok(Term::Scalar(result))
             }
             CoreExprKind::Record { ty, fields } => {
@@ -2286,6 +2316,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 let index_term = self.expr(index, depth + 1, false)?;
                 let index_variable = self.scalar(&index_term, index.span)?;
                 self.graph.constrain(index_variable, INTEGER, index.span)?;
+                if let Term::ClosureArray { element, .. } = base {
+                    // Ordinary lowering proves the literal exact location;
+                    // this layer retains only its source opaque identity.
+                    return Ok(Term::Closure(element));
+                }
                 let result = self.fresh(VALUE, false, span)?;
                 let base = self.projection_base(&base, span)?;
                 self.graph

@@ -578,3 +578,390 @@ fn raw_and_wire_cannot_relabel_owned_operations_as_copy_aggregate_operations() {
         );
     }
 }
+
+const PURE_CALLBACK: &str =
+    "fn make(n:i32)->impl FnMut()->i32{var x=n;return move()->i32=>{x+=1;return x}}";
+const OWNED_CALLBACK: &str = r#"
+extern "C" fn putchar(x:i32)->i32;
+resource R{code:i32} impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
+fn base(n:i32)->impl FnMut()->i32{let r=R{code:n};var x=n;return move()=>{x+=1;return x+r.code-n}}
+fn forward(n:i32)->impl FnMut()->i32{return base(n)}
+fn wrap(n:i32)->impl FnMut()->i32{var child=forward(n);return move()=>child()}
+"#;
+
+#[test]
+fn original159_same_factory_handler_array_constructs_and_cleans() {
+    native(
+        &[(
+            "main",
+            "fn make(n:i32)->impl FnMut()->i32{var x=n;return move()->i32=>{x+=1;return x}}fn main(){let handlers=[make(1),make(2)]}",
+        )],
+        b"",
+        0,
+    );
+}
+
+#[test]
+fn pure_callback_slots_borrow_the_actual_environment_and_move_as_a_whole() {
+    let source = format!(
+        "{PURE_CALLBACK} fn main()->i32{{var a=[make(1),make(2)];let first=&mut a[0];if first()!=2||first()!=3{{return 1}};var b=a;let second=&mut b[1];if second()!=3||second()!=4{{return 2}};var old=b[0];b[0]=make(8);let replacement=&mut b[0];return old()+replacement()-13}}"
+    );
+    native(&[("main", &source)], b"", 0);
+}
+
+#[test]
+fn nested_owned_callback_arrays_transfer_refill_borrow_and_drop_once() {
+    let source = format!(
+        "{OWNED_CALLBACK} fn main()->i32{{var a=[wrap(65),wrap(66)];var old=a[0];a[0]=wrap(67);if old()!=66||old()!=67{{return 1}};let first=&mut a[0];if first()!=68{{return 2}};let second=&mut a[1];if second()!=67{{return 3}};return 0}}"
+    );
+    native(&[("main", &source)], b"ACB", 0);
+}
+
+#[test]
+fn shared_callback_array_elements_remain_callable_by_shared_borrow() {
+    native(
+        &[(
+            "main",
+            "fn make(n:i32)->impl Fn()->i32{return move()=>n}fn main()->i32{let a=[make(20),make(22)];let first=&a[0];let second=&a[1];return first()+second()-42}",
+        )],
+        b"",
+        0,
+    );
+}
+
+#[test]
+fn moved_once_callback_array_element_preserves_remaining_cleanup() {
+    native(
+        &[(
+            "main",
+            r#"
+extern "C" fn putchar(x:i32)->i32;
+resource R{code:i32} impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
+fn make(n:i32)->impl FnOnce()->i32{let r=R{code:n};return move()=>{let owned=give r;return owned.code}}
+fn main()->i32{let a=[make(65),make(66)];let first=a[0];return first()-65}
+"#,
+        )],
+        b"AB",
+        0,
+    );
+}
+
+#[test]
+fn callback_preparation_and_replacement_error_paths_keep_exact_owners() {
+    let prefix = format!("{OWNED_CALLBACK} enum E{{Fail}}fn fail()->E!i32{{return E.Fail}}");
+    let preparation =
+        format!("{prefix} fn main()->E!i32{{let a=[wrap(65),wrap(fail()?)];return 0}}");
+    native(&[("main", &preparation)], b"A", 1);
+    let replacement = format!(
+        "{prefix} fn main()->E!i32{{var a=[wrap(65),wrap(66)];a[0]=wrap(fail()?);return 0}}"
+    );
+    native(&[("main", &replacement)], b"AB", 1);
+}
+
+#[test]
+fn callback_array_borrows_forbid_overlapping_slot_changes_and_escaping_storage() {
+    for operation in [
+        "a[0]=make(3)",
+        "a[1]=make(3)",
+        "let moved=a[0]",
+        "let moved=a",
+    ] {
+        let source = format!(
+            "{PURE_CALLBACK} fn main()->i32{{var a=[make(1),make(2)];let p=&mut a[0];{operation};return p()}}"
+        );
+        let report = check(&[("main", &source)]);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code.starts_with("E-BORROW")),
+            "{}",
+            report.to_json()
+        );
+    }
+    let source = format!(
+        "{PURE_CALLBACK} fn main()->i32{{let a=[make(1),make(2)];let p=&mut a[0];return p()}}"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-IMMUTABLE-ASSIGNMENT"),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn source_identity_and_nonresource_callback_slot_moves_are_not_forged() {
+    for body in [
+        "let f=make(1);let a=[f,f];return 0",
+        "let a=[make(1),make(2)];var old=a[0];let b=[old,old];return 0",
+        "let a=[make(1),make(2)];let first=a[0];let second=a[0];return 0",
+        "let a=[make(1),forward(2)];return 0",
+        "var a=[make(1),make(2)];a[0]=forward(3);return 0",
+    ] {
+        let source = format!(
+            "{PURE_CALLBACK} fn forward(n:i32)->impl FnMut()->i32{{return make(n)}}fn main()->i32{{{body}}}"
+        );
+        let report = check(&[("main", &source)]);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(report.phase, zil_base::Phase::Parse, "{}", report.to_json());
+    }
+    let report = check(&[(
+        "main",
+        "fn main(){let n=1;let borrowed=()=>n;let a=[borrowed]}",
+    )]);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("self-contained")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn raw_and_wire_consume_resource_free_callback_values_exactly_once() {
+    use zil_ir::{InstructionKind, Type};
+    let source = format!(
+        "{PURE_CALLBACK} fn main()->i32{{var a=[make(1),make(2)];var old=a[0];a[0]=make(3);return old()-2}}"
+    );
+    let (original, plan) = candidate(&source);
+    assert!(original.resources.is_empty());
+    for variant in 0..3 {
+        let mut forged = original.clone();
+        let mut changed = 0;
+        for function in &mut forged.functions {
+            let taken = function
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| {
+                    matches!(i.kind, InstructionKind::TakeOwnedArrayElement { .. })
+                        .then_some(i.result)
+                        .flatten()
+                });
+            for instruction in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                match &mut instruction.kind {
+                    InstructionKind::MakeOwnedArray { elements } if variant == 0 => {
+                        elements[1] = elements[0];
+                        changed += 1;
+                    }
+                    InstructionKind::StoreOwnedArrayElement { value, .. } if variant == 1 => {
+                        *value = taken.unwrap();
+                        changed += 1;
+                    }
+                    InstructionKind::TakeOwnedArrayElement { local, index } if variant == 2 => {
+                        let array = *local;
+                        let slot = *index;
+                        if let Some(value) = instruction.result {
+                            assert!(matches!(
+                                function.values[value.0 as usize],
+                                Type::Closure(_)
+                            ));
+                        }
+                        instruction.kind = InstructionKind::BorrowOwnedArrayElement {
+                            local: array,
+                            index: slot,
+                            mutable: true,
+                        };
+                        changed += 1;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert_eq!(changed, 1);
+        rejected_candidate(
+            [
+                "duplicate-pure-callback-ssa",
+                "reuse-taken-callback-after-store",
+                "borrow-relabelled-as-owned-environment",
+            ][variant],
+            forged,
+            plan.clone(),
+            ResultCategory::SafeReject,
+        );
+    }
+}
+
+#[test]
+fn callback_array_capture_remains_explicitly_closed_in_source_and_raw_wire() {
+    use zil_ir::{ClosureId, Type};
+    let source = format!(
+        "{PURE_CALLBACK} fn main()->i32{{let a=[make(1),make(2)];let f=move()=>{{var old=a[0];return old()}};return f()}}"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Types, "{}", report.to_json());
+    let valid = format!(
+        "{PURE_CALLBACK} fn main()->i32{{let a=[make(1),make(2)];let n=0;let f=move()=>n;return f()}}"
+    );
+    let (mut module, plan) = candidate(&valid);
+    assert_eq!(module.closures.len(), 2);
+    module.closures[1].captures[0] = Type::Array {
+        element: Box::new(Type::Closure(ClosureId(0))),
+        length: 2,
+    };
+    rejected_candidate(
+        "closed-callback-array-capture",
+        module,
+        plan,
+        ResultCategory::Unsupported,
+    );
+}
+
+#[test]
+fn raw_and_wire_callback_array_inputs_require_actual_local_moves() {
+    use zil_ir::{InstructionKind, Type};
+    let source = format!(
+        "{PURE_CALLBACK} fn main()->i32{{let first=make(1);let second=make(2);let a=[first,second];return 0}}"
+    );
+    let (original, plan) = candidate(&source);
+    for copied_load in [true, false] {
+        let mut forged = original.clone();
+        let mut changed = 0;
+        for f in &mut forged.functions {
+            if f.name != "main" {
+                continue;
+            }
+            let mut first = None;
+            for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                if let InstructionKind::TakeLocal { local } = &mut i.kind
+                    && i.result
+                        .is_some_and(|v| matches!(f.values[v.0 as usize], Type::Closure(_)))
+                {
+                    if let Some(first) = first {
+                        if !copied_load {
+                            *local = first;
+                            changed += 1;
+                        }
+                    } else {
+                        first = Some(*local);
+                        if copied_load {
+                            i.kind = InstructionKind::Load(*local);
+                            changed += 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(changed, 1);
+        rejected_candidate(
+            if copied_load {
+                "load-cannot-publish-callback-slot"
+            } else {
+                "same-callback-local-moved-twice"
+            },
+            forged,
+            plan.clone(),
+            ResultCategory::SafeReject,
+        );
+    }
+}
+
+#[test]
+fn raw_and_wire_callback_addresses_cannot_survive_replacement_or_forge_permissions() {
+    use zil_ir::InstructionKind;
+    let source = format!(
+        "{PURE_CALLBACK} fn main()->i32{{var a=[make(1),make(2)];let p=&mut a[0];let n=p();a[0]=make(3);let q=&mut a[0];return q()-n-2}}"
+    );
+    let (original, plan) = candidate(&source);
+    for variant in 0..3 {
+        let mut forged = original.clone();
+        let mut changed = 0;
+        for f in &mut forged.functions {
+            let mut first = None;
+            for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                match &mut i.kind {
+                    InstructionKind::CallClosureBorrowed { callee, .. } if variant == 0 => {
+                        if let Some(first) = first {
+                            *callee = first;
+                            changed += 1;
+                        } else {
+                            first = Some(*callee);
+                        }
+                    }
+                    InstructionKind::BorrowOwnedArrayElement { mutable, .. }
+                        if variant == 1 && changed == 0 =>
+                    {
+                        *mutable = false;
+                        changed += 1;
+                    }
+                    InstructionKind::BorrowOwnedArrayElement { index, .. }
+                        if variant == 2 && changed == 0 =>
+                    {
+                        *index = u32::MAX;
+                        changed += 1;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert_eq!(changed, 1);
+        rejected_candidate(
+            [
+                "stale-callback-address-after-refill",
+                "forged-callback-borrow-permission",
+                "callback-borrow-index-outside-array",
+            ][variant],
+            forged,
+            plan.clone(),
+            ResultCategory::SafeReject,
+        );
+    }
+}
+
+#[test]
+fn raw_and_wire_charge_callback_array_length_times_inline_environment_work() {
+    use zil_ir::Type;
+    let source = format!("{OWNED_CALLBACK} fn main(){{let a=[wrap(65),wrap(66)]}}");
+    let (mut module, plan) = candidate(&source);
+    let mut changed = 0;
+    for f in &mut module.functions {
+        for ty in f.locals.iter_mut().map(|l| &mut l.ty).chain(&mut f.values) {
+            if let Type::Array { length, .. } = ty {
+                *length = u32::MAX;
+                changed += 1;
+            }
+        }
+    }
+    assert!(changed > 0);
+    rejected_candidate(
+        "expanded-callback-array-budget",
+        module,
+        plan,
+        ResultCategory::ResourceLimit,
+    );
+}

@@ -3,7 +3,7 @@
 use super::*;
 
 pub(crate) fn is_owned_type(ty: &Type) -> bool {
-    matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+    matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_)))
 }
 
 pub(crate) fn check_type_for(
@@ -19,20 +19,29 @@ pub(crate) fn check_type_for(
             "operation requires an owning array",
         ));
     };
-    let Type::Package { fields, .. } = element.as_ref() else {
-        return Err(unsupported(
-            "owning arrays currently require finite Package elements",
-            span,
-        ));
-    };
     if *length == 0 {
         return Err(unsupported(
             "owning arrays require a nonzero fixed length",
             span,
         ));
     }
-    budget.spend((*length as usize).saturating_mul(fields.len().saturating_add(1)))?;
-    packages::check_type_for(module, element, span, budget)
+    match element.as_ref() {
+        Type::Package { fields, .. } => {
+            budget.spend((*length as usize).saturating_mul(fields.len().saturating_add(1)))?;
+            packages::check_type_for(module, element, span, budget)
+        }
+        Type::Closure(id) => {
+            closures::definition(module, *id, span)?;
+            budget.spend(*length as usize)?;
+            // The global independent closure-layout pass also charges the
+            // length multiplied by fully expanded inline child work.
+            closures::self_contained(module, *id, budget)
+        }
+        _ => Err(unsupported(
+            "owning arrays require finite Package or self-contained Closure elements",
+            span,
+        )),
+    }
 }
 
 pub(crate) fn check_instruction(
@@ -88,7 +97,7 @@ pub(crate) fn check_instruction(
     match &instruction.kind {
         InstructionKind::ProjectOwnedArrayField { field, .. } => {
             let Type::Package { fields, .. } = element.as_ref() else {
-                unreachable!()
+                return Err(bad("field projection requires an actual Package element"));
             };
             let (_, ty) = fields.get(*field as usize).ok_or_else(|| {
                 bad("owning array field index is outside its Package declaration")
@@ -122,10 +131,24 @@ pub(crate) fn check_instruction(
         InstructionKind::DropOwnedArrayElement { .. } | InstructionKind::DropOwnedArray { .. } => {
             Ok(None)
         }
-        InstructionKind::BorrowOwnedArrayElement { .. } => Err(unsupported(
-            "owning array environment borrowing requires the concrete closure array slice",
-            span,
-        )),
+        InstructionKind::BorrowOwnedArrayElement { mutable, .. } => {
+            if !matches!(element.as_ref(), Type::Closure(_)) {
+                return Err(bad(
+                    "environment borrowing requires a concrete Closure array element",
+                ));
+            }
+            if *mutable && !function.locals[local.0 as usize].mutable {
+                return Err(reject(
+                    "E-VERIFY-MUTABILITY",
+                    span,
+                    "exclusive callback array borrow requires mutable storage",
+                ));
+            }
+            Ok(Some(Type::Address {
+                mutable: *mutable,
+                inner: element.clone(),
+            }))
+        }
         _ => unreachable!("owning array local operation"),
     }
 }
