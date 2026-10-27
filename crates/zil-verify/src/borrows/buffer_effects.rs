@@ -153,7 +153,7 @@ pub(super) fn infer(
                     if head_windows {
                         local_transfer(
                             &mut descriptor_locals,
-                            &instruction.kind,
+                            instruction,
                             &facts[index].values,
                             budget,
                         )?;
