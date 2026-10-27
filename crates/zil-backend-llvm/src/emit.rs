@@ -1,5 +1,6 @@
 mod arrays;
 mod byte_buffer;
+mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
@@ -123,6 +124,7 @@ pub fn emit_with_options(
     }
     text.push_str("declare void @llvm.trap()\n");
     text.push_str(&byte_buffer::runtime(lir)?);
+    text.push_str(&dynamic_store::runtime(lir)?);
     for (operation, bits) in intrinsics {
         text.push_str(&format!(
             "declare {{ i{bits}, i1 }} @llvm.{operation}.with.overflow.i{bits}(i{bits}, i{bits})\n"
@@ -240,6 +242,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                     || matches!(ty, Type::Closure(_))
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     || (resources::supported_type(ty, &lir.resources)
+                        && !matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }))
                         && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
                     || packages::supported_type(ty, &lir.resources)
             })
@@ -567,11 +570,7 @@ impl FunctionEmitter<'_> {
             | InstructionKind::OwnedStorePop { .. }
             | InstructionKind::OwnedStoreLen { .. }
             | InstructionKind::OwnedStoreCapacity { .. } => {
-                return invalid(
-                    "E-CODEGEN-INSTRUCTION",
-                    "owned store operations await their checked lowering",
-                    Some(instruction.span),
-                );
+                self.dynamic_store_instruction(instruction)?;
             }
             InstructionKind::ByteBufferNew
             | InstructionKind::ByteBufferReserve { .. }
@@ -1635,7 +1634,7 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
         Type::I64 => Ok("i64".into()),
         Type::U8 => Ok("i8".into()),
         Type::U16 => Ok("i16".into()),
-        Type::ByteBuffer => Ok("{ ptr, i64, i64 }".into()),
+        Type::ByteBuffer | Type::OwnedStore { .. } => Ok("{ ptr, i64, i64 }".into()),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok("ptr".into()),
         Type::Array { element, length } => {
             Ok(format!("[{length} x {}]", aggregate_field_type(element)?))
@@ -1676,13 +1675,15 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
         }
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok("ptr".into())
         }
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             llvm_type(payload)
         }
@@ -1716,7 +1717,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
-        Type::ByteBuffer => Ok(8),
+        Type::ByteBuffer | Type::OwnedStore { .. } => Ok(8),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
         Type::I32 => Ok(4),
         Type::I64 => Ok(8),
@@ -1730,13 +1731,15 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         }
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok(8)
         }
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             alignment(payload, closures)
         }

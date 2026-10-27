@@ -65,6 +65,12 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
+            if dynamic_store::is_carrier(ty) {
+                return Err(unsupported(
+                    "Store capture requires a separate retained storage profile",
+                    None,
+                ));
+            }
             if packages::has_array_fields(ty) {
                 return Err(unsupported(
                     "Package capture with owning array fields requires a retained nested-field protocol",
@@ -308,6 +314,7 @@ pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
         match ty {
             Type::Array { element, .. }
             | Type::Slice { element }
+            | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
             | Type::Desc(element)
