@@ -164,9 +164,15 @@ pub fn check_program(
             .filter(|f| f.callable_return.is_some())
         {
             let id = table[&f.name].id;
-            let dependencies =
-                retained::dependencies(f, table, Some(&imports), &mut dependency_work, limits)
-                    .map_err(|e| vec![e])?;
+            let dependencies = retained::factory_dependencies(
+                f,
+                table,
+                Some(&imports),
+                &closure_state,
+                &mut dependency_work,
+                limits,
+            )
+            .map_err(|e| vec![e])?;
             factory_graph.insert(id, (f.span, dependencies));
             factory_sources.insert(id, (module, f));
         }
