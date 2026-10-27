@@ -1,0 +1,27 @@
+{
+  "command": [
+    "python3",
+    "tools/language/175/consumer.py",
+    "--repo",
+    "/workspace/scratch/39be3faa4442/zil-restored/wt175",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets/175/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/run-logs/175/consumer02"
+  ],
+  "source_commit": "fd69ff6c7cbbc95fcd395d5dbe11fb3c3c85790d",
+  "crates_tree": "6937ecf38b4bf300df400ec462772b60b30ea73a",
+  "source_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/175",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/175/cases05"
+  },
+  "start": 1793115497.4228246,
+  "exit_code": 0,
+  "status": "Pass",
+  "end": 1793115498.8395553,
+  "log_sha256": "98b1c789a0b6b8f4cc9729c08923cd12e9662f830213673df7939f0c4dc5ebb1"
+}

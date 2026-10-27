@@ -1,0 +1,27 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "-p",
+    "zil-cli",
+    "--bin",
+    "zil",
+    "--offline",
+    "-j2"
+  ],
+  "source_commit": "fd69ff6c7cbbc95fcd395d5dbe11fb3c3c85790d",
+  "crates_tree": "6937ecf38b4bf300df400ec462772b60b30ea73a",
+  "source_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/175",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/175/cases05"
+  },
+  "start": 1793115496.5852928,
+  "exit_code": 0,
+  "status": "Pass",
+  "end": 1793115497.3876307,
+  "log_sha256": "3c8f7eea4b27e5285f24c8d8026809d009cec6f8bf5e6448fdc356c673538141"
+}

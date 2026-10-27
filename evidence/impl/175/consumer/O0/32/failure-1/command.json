@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/175/consumer02/O0/probe"
+  ],
+  "status": "Completed",
+  "start": 1793115498.1048272,
+  "stdin_hex": "3332",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "1"
+  },
+  "exit_code": 1,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8",
+  "end": 1793115498.1066506
+}

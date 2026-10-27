@@ -1,0 +1,46 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.84s
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/39be3faa4442/targets/175/debug/deps/impl171_resource_heads-eb5aeb3f3386f885)
+
+running 17 tests
+test active_head_prevents_write_move_replacement_and_old_address_revival ... ok
+test desc_only_imported_helpers_export_writes_into_caller_head_window ... ok
+test actual_head_trait_and_inherent_methods_and_plain_parameters ... ok
+test descriptor_callback_cannot_use_a_captured_field_address_as_write_permission ... ok
+test descriptor_and_head_parameters_do_not_assume_distinct_origins ... ok
+test descriptor_capturing_callbacks_cannot_write_under_a_live_head ... ok
+test descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls ... ok
+test descriptor_only_helper_exports_its_internal_callback_effect_across_modules ... ok
+test head_metadata_work_has_an_exact_finite_budget_boundary ... ok
+test failed_argument_preparation_ends_head_window_and_cleans_owner_once ... ok
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... ok
+test last_use_then_descriptor_write_is_allowed ... ok
+test original_159_resource_address_receiver_probe_is_unchanged_and_now_supported ... ok
+test imported_heads_keep_nominal_identity_visibility_and_actual_storage ... ok
+test raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head ... ok
+test resource_trait_nonshared_receivers_and_head_indirect_calls_stay_closed ... ok
+test unrelated_owned_callback_and_shared_head_compose ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.05s
+
+     Running tests/impl172_owned_store.rs (/workspace/scratch/39be3faa4442/targets/175/debug/deps/impl172_owned_store-46f517749f5328ff)
+
+running 15 tests
+test empty_pop_propagates_unit_error_without_an_element_obligation ... ok
+test empty_context_and_factory_own_a_real_allocation_free_head ... ok
+test exact_verify_budget_boundary_and_untrusted_constructor_metadata_are_bounded ... ok
+test full_push_returns_the_uninserted_package_to_native_error_cleanup ... ok
+test raw_wire_actual_inline_size_product_is_bounded ... ok
+test raw_wire_constructor_depth_is_bounded_before_identity ... ok
+test raw_wire_forbidden_store_composition_and_head_access_are_independently_rejected ... ok
+test negative_and_overflow_capacity_requests_preserve_populated_prefix ... ok
+test raw_wire_store_is_not_byte_storage_and_pop_result_keeps_cleanup_debt ... ok
+test raw_wire_reject_forged_heads_bad_elements_and_double_transfer ... ok
+test reserved_prefix_push_pop_and_drop_transfer_each_package_once ... ok
+test source_guards_reject_missing_context_store_fields_and_capture ... ok
+test source_neighbours_preserve_transfer_and_nested_composition_boundaries ... ok
+test whole_give_roundtrip_preserves_ascending_prefix_cleanup ... ok
+test runtime_count_crosses_four_modules_then_drains_real_prefix ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.07s
+

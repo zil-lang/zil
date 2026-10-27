@@ -1,0 +1,52 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-types)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-backend-llvm)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 16.46s
+     Running tests/impl175_store_views.rs (/workspace/scratch/39be3faa4442/targets/175/debug/deps/impl175_store_views-2b21878bd7a24e97)
+
+running 20 tests
+test actual_field_windows_block_mutation_take_replace_and_whole_parent_move ... ok
+test copy_child_address_keeps_a_live_window_through_local_callback ... ok
+test actual_store_fields_preserve_separation_and_last_use_before_parent_move ... ok
+test element_read_respects_actual_package_field_visibility ... ok
+test direct_projection_and_last_use_allow_later_reserve_and_pop ... ok
+test element_shape_mutable_owned_field_return_and_capture_guards_are_explicit ... ok
+test every_intersecting_container_mutation_is_rejected_while_view_is_live ... ok
+test failed_argument_preparation_ends_element_window_and_cleans_prefix_once ... ok
+test indirect_alias_contract_is_instantiated_from_real_store_roots ... ok
+test old_field_descriptions_cannot_reanimate_element_windows ... ok
+test raw_and_wire_rebuild_element_type_index_and_hold_origins ... ok
+test raw_and_wire_reject_container_drop_during_an_active_element_window ... ok
+test raw_and_wire_reject_write_retargeted_behind_an_active_window ... ok
+test raw_and_wire_rebuild_field_separation_and_parent_invalidation ... FAILED
+test runtime_negative_empty_and_end_indices_trap_before_element_access ... ok
+test shared_element_windows_cross_functions_and_keep_one_owner ... ok
+test shared_views_allow_len_capacity_and_unrelated_address_return ... ok
+test verify_window_budget_has_an_exact_n_and_n_minus_one_boundary ... ok
+test view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper ... ok
+test runtime_index_reads_real_metadata_through_four_source_modules ... ok
+
+failures:
+
+---- raw_and_wire_rebuild_field_separation_and_parent_invalidation stdout ----
+
+thread 'raw_and_wire_rebuild_field_separation_and_parent_invalidation' (343) panicked at crates/zil-driver/tests/impl175_store_views.rs:542:9:
+early-whole-parent-drop/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-INITIALIZATION", message: "load may read a local before initialization", span: Some(Span { file: FileId(0), start: 694, end: 701 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    raw_and_wire_rebuild_field_separation_and_parent_invalidation
+
+test result: FAILED. 19 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.29s
+
+error: test failed, to rerun pass `-p zil-driver --test impl175_store_views`
