@@ -35,6 +35,11 @@ pub enum Type {
     /// Sealed dynamic byte-storage payload, legal only in Managed/Desc and its
     /// exact resource definition. Not a Copy value or a forgeable raw pointer.
     ByteBuffer,
+    /// Sealed dynamic storage payload. Only an exact Managed/Desc wrapper and
+    /// independently checked element/resource definitions may establish a head.
+    OwnedStore {
+        element: Box<Type>,
+    },
     /// An opaque external token, never a ZIL address or an ownership proof.
     ForeignHandle,
     /// Readonly static UTF-16 plus NUL, or null. No foreign return admission.
@@ -104,17 +109,28 @@ impl Type {
     /// Scalars or one shared address layer to a finite Copy value.
     pub fn is_scalar_or_shared_address(&self) -> bool {
         self.is_b0_scalar()
+            || self.is_shared_resource_head_address()
             || matches!(self, Self::Address { mutable: false, inner } if inner.is_address_pointee())
     }
     /// One address layer; admission is not a permission proof.
     pub fn is_scalar_or_address(&self) -> bool {
         self.is_b0_scalar()
+            || self.is_shared_resource_head_address()
             || matches!(self, Self::Address { inner, .. } if inner.is_address_pointee())
     }
     /// Structural eligibility only; each checker separately proves sources,
     /// bounds, liveness, permissions and the supported target profile.
     pub fn is_address_pointee(&self) -> bool {
         self.is_copy_value() || matches!(self, Self::Slice { element } if element.is_copy_value())
+    }
+    /// Structural eligibility for a shared actual user-resource header. This
+    /// does not establish its nominal definition, initialization, provenance or
+    /// permission. General pointee admission intentionally remains unchanged.
+    pub fn is_shared_resource_head_address(&self) -> bool {
+        matches!(self, Self::Address { mutable: false, inner }
+            if matches!(inner.as_ref(), Self::Managed(payload)
+                if matches!(payload.as_ref(), Self::Record { .. })
+                    && payload.is_copy_value()))
     }
     pub fn is_slice_address(&self) -> bool {
         matches!(self, Self::Address { inner, .. } if matches!(inner.as_ref(), Self::Slice { .. }))
@@ -163,6 +179,7 @@ impl Type {
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
+            Self::OwnedStore { element } => format!("Store<{}>", element.name()),
             Self::ForeignHandle => "c_handle".into(),
             Self::CWideString => "c_wstr".into(),
             other => format!("{other:?}"),
@@ -723,6 +740,34 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstructionKind {
+    /// Construct an empty owning prefix; no allocation. Element metadata is a
+    /// raw claim and must be independently checked before executable admission.
+    OwnedStoreNew {
+        element: Type,
+    },
+    /// Explicit absolute capacity request; failure preserves the old header and
+    /// every initialized element. Never expands runtime capacity into IR slots.
+    OwnedStoreReserve {
+        store: ValueId,
+        capacity: ValueId,
+    },
+    /// Consume one complete element. Full capacity returns it in the error
+    /// alternative of Element!Unit; success commits one initialized prefix slot.
+    OwnedStorePush {
+        store: ValueId,
+        value: ValueId,
+    },
+    /// Consume the last initialized slot into Unit!Element, or return Unit error
+    /// when empty. The returned element carries its complete responsibility.
+    OwnedStorePop {
+        store: ValueId,
+    },
+    OwnedStoreLen {
+        store: ValueId,
+    },
+    OwnedStoreCapacity {
+        store: ValueId,
+    },
     /// New empty managed storage; no allocation and no implicit user code.
     ByteBufferNew,
     /// Absolute-capacity request; failure preserves the complete old state.
@@ -845,19 +890,19 @@ pub enum InstructionKind {
     DropPackage {
         local: LocalId,
     },
-    /// Transfer one live Managed field, retaining the package's local shell.
+    /// Transfer one supported live owning field, retaining the package shell.
     /// The result is an existing responsibility, never a fresh allocation.
     TakePackageField {
         local: LocalId,
         index: u32,
     },
-    /// Conditionally discharge one Managed field before a prepared replacement.
+    /// Conditionally discharge one owning field before a prepared replacement.
     /// This explicit cleanup never changes the shell or sibling field debts.
     DropPackageField {
         local: LocalId,
         index: u32,
     },
-    /// Write a matching field of an active, mutable package local. Managed
+    /// Write a matching field of an active, mutable package local. Owning
     /// destinations must have no live debt and consume the input exactly once.
     StorePackageField {
         local: LocalId,
@@ -1263,7 +1308,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V19\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V20\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1338,6 +1383,10 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
         Type::ByteBuffer => b.push(24),
+        Type::OwnedStore { element } => {
+            b.push(25);
+            encode_type(b, element);
+        }
         Type::ForeignHandle => b.push(20),
         Type::CWideString => b.push(21),
         Type::ForeignCallback { parameters, result } => {
@@ -1982,6 +2031,32 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             encode_u32(b, address.0);
         }
         InstructionKind::ByteBufferNew => b.push(63),
+        InstructionKind::OwnedStoreNew { element } => {
+            b.push(80);
+            encode_type(b, element);
+        }
+        InstructionKind::OwnedStoreReserve { store, capacity } => {
+            b.push(81);
+            encode_u32(b, store.0);
+            encode_u32(b, capacity.0);
+        }
+        InstructionKind::OwnedStorePush { store, value } => {
+            b.push(82);
+            encode_u32(b, store.0);
+            encode_u32(b, value.0);
+        }
+        InstructionKind::OwnedStorePop { store } => {
+            b.push(83);
+            encode_u32(b, store.0);
+        }
+        InstructionKind::OwnedStoreLen { store } => {
+            b.push(84);
+            encode_u32(b, store.0);
+        }
+        InstructionKind::OwnedStoreCapacity { store } => {
+            b.push(85);
+            encode_u32(b, store.0);
+        }
         InstructionKind::ByteBufferReserve { buffer, capacity } => {
             b.push(64);
             encode_u32(b, buffer.0);
