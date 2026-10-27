@@ -309,3 +309,245 @@ impl Rewriter<'_> {
         Ok(())
     }
 }
+
+pub(super) type BindingSite = (zil_base::NodeId, Span, String);
+/// Only promote bindings which actually use the newly admitted replacement.
+/// Existing mutable resources with ordinary borrowed captures keep old IR.
+pub(super) fn reassigned_bindings(body: &CoreBlock, limits: &Limits) -> R<BTreeSet<BindingSite>> {
+    let mut scan = BindingScan {
+        scopes: vec![BTreeMap::new()],
+        marked: BTreeSet::new(),
+        work: limits.max_analysis_steps,
+        depth: limits.max_call_depth,
+    };
+    scan.block(body, 0)?;
+    Ok(scan.marked)
+}
+struct BindingScan {
+    scopes: Vec<BTreeMap<String, Option<BindingSite>>>,
+    marked: BTreeSet<BindingSite>,
+    work: usize,
+    depth: usize,
+}
+impl BindingScan {
+    fn charge(&mut self, n: usize, d: usize, s: Span) -> R<()> {
+        self.work = self.work.checked_sub(n).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "managed binding scan work exceeded", Some(s))
+        })?;
+        if d > self.depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "managed binding scan depth exceeded",
+                Some(s),
+            ));
+        }
+        Ok(())
+    }
+    fn pattern(&mut self, p: &CorePattern, d: usize) -> R<()> {
+        self.charge(1, d, p.span)?;
+        match &p.kind {
+            CorePatternKind::Name(n) => {
+                self.scopes.last_mut().unwrap().insert(n.clone(), None);
+            }
+            CorePatternKind::Tuple(xs) | CorePatternKind::Variant { fields: xs, .. } => {
+                for x in xs {
+                    self.pattern(x, d + 1)?
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn block(&mut self, b: &CoreBlock, d: usize) -> R<()> {
+        self.charge(1, d, b.span)?;
+        self.scopes.push(BTreeMap::new());
+        for s in &b.statements {
+            self.statement(s, d + 1)?
+        }
+        self.scopes.pop();
+        Ok(())
+    }
+    fn statement(&mut self, s: &CoreStatement, d: usize) -> R<()> {
+        self.charge(1, d, s.span)?;
+        match &s.kind {
+            CoreStatementKind::Binding {
+                name,
+                mutable,
+                initializer,
+                ..
+            } => {
+                if let Some(e) = initializer {
+                    self.expr(e, d + 1)?
+                };
+                self.scopes
+                    .last_mut()
+                    .unwrap()
+                    .insert(name.clone(), mutable.then(|| (s.id, s.span, name.clone())));
+            }
+            CoreStatementKind::Assign { target, value } => {
+                if let CoreExprKind::Name(n) = &target.kind {
+                    if let Some(Some(site)) = self.scopes.iter().rev().find_map(|m| m.get(n)) {
+                        self.marked.insert(site.clone());
+                    }
+                }
+                self.expr(target, d + 1)?;
+                self.expr(value, d + 1)?;
+            }
+            CoreStatementKind::Expression(e) | CoreStatementKind::Return(Some(e)) => {
+                self.expr(e, d + 1)?
+            }
+            CoreStatementKind::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                self.expr(condition, d + 1)?;
+                self.block(then_body, d + 1)?;
+                if let Some(b) = else_body {
+                    self.block(b, d + 1)?
+                }
+            }
+            CoreStatementKind::IfLet {
+                pattern,
+                value,
+                then_body,
+                else_body,
+            } => {
+                self.expr(value, d + 1)?;
+                self.scopes.push(BTreeMap::new());
+                self.pattern(pattern, d + 1)?;
+                self.block(then_body, d + 1)?;
+                self.scopes.pop();
+                if let Some(b) = else_body {
+                    self.block(b, d + 1)?
+                }
+            }
+            CoreStatementKind::While { condition, body } => {
+                self.expr(condition, d + 1)?;
+                self.block(body, d + 1)?
+            }
+            CoreStatementKind::WhileLet {
+                pattern,
+                value,
+                body,
+            } => {
+                self.expr(value, d + 1)?;
+                self.scopes.push(BTreeMap::new());
+                self.pattern(pattern, d + 1)?;
+                self.block(body, d + 1)?;
+                self.scopes.pop();
+            }
+            CoreStatementKind::ForRange {
+                name,
+                start,
+                end,
+                body,
+            } => {
+                self.expr(start, d + 1)?;
+                self.expr(end, d + 1)?;
+                self.scopes.push(BTreeMap::from([(name.clone(), None)]));
+                self.block(body, d + 1)?;
+                self.scopes.pop();
+            }
+            CoreStatementKind::Match { value, arms } => {
+                self.expr(value, d + 1)?;
+                for a in arms {
+                    self.scopes.push(BTreeMap::new());
+                    self.pattern(&a.pattern, d + 1)?;
+                    self.block(&a.body, d + 1)?;
+                    self.scopes.pop();
+                }
+            }
+            CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => self.block(b, d + 1)?,
+            CoreStatementKind::Break
+            | CoreStatementKind::Continue
+            | CoreStatementKind::Return(None)
+            | CoreStatementKind::Unsupported(_) => {}
+        }
+        Ok(())
+    }
+    fn expr(&mut self, e: &CoreExpr, d: usize) -> R<()> {
+        self.charge(1, d, e.span)?;
+        match &e.kind {
+            CoreExprKind::Ascribed { value, .. }
+            | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::CompileTime(value)
+            | CoreExprKind::Try(value)
+            | CoreExprKind::Unary { operand: value, .. } => self.expr(value, d + 1)?,
+            CoreExprKind::Binary { left, right, .. } => {
+                self.expr(left, d + 1)?;
+                self.expr(right, d + 1)?
+            }
+            CoreExprKind::Call { callee, arguments } => {
+                self.expr(callee, d + 1)?;
+                for a in arguments {
+                    self.expr(a, d + 1)?
+                }
+            }
+            CoreExprKind::Tuple(xs) | CoreExprKind::Array(xs) => {
+                for x in xs {
+                    self.expr(x, d + 1)?
+                }
+            }
+            CoreExprKind::Index { object, index } => {
+                self.expr(object, d + 1)?;
+                self.expr(index, d + 1)?
+            }
+            CoreExprKind::Slice { object, start, end } => {
+                self.expr(object, d + 1)?;
+                for x in [start, end].into_iter().flatten() {
+                    self.expr(x, d + 1)?
+                }
+            }
+            CoreExprKind::Member { object, .. } => self.expr(object, d + 1)?,
+            CoreExprKind::Record { fields, .. } => {
+                for (_, x) in fields {
+                    self.expr(x, d + 1)?
+                }
+            }
+            CoreExprKind::RecordUpdate { base, fields, .. } => {
+                self.expr(base, d + 1)?;
+                for (_, x) in fields {
+                    self.expr(x, d + 1)?
+                }
+            }
+            CoreExprKind::Sequence { bindings, value } => {
+                self.scopes.push(BTreeMap::new());
+                for (n, x) in bindings {
+                    self.expr(x, d + 1)?;
+                    self.scopes.last_mut().unwrap().insert(n.clone(), None);
+                }
+                self.expr(value, d + 1)?;
+                self.scopes.pop();
+            }
+            CoreExprKind::Closure {
+                parameters, body, ..
+            } => {
+                self.scopes.push(BTreeMap::new());
+                for p in parameters {
+                    self.scopes.last_mut().unwrap().insert(p.name.clone(), None);
+                }
+                self.block(body, d + 1)?;
+                self.scopes.pop();
+            }
+            CoreExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                self.expr(condition, d + 1)?;
+                self.expr(then_value, d + 1)?;
+                self.expr(else_value, d + 1)?
+            }
+            CoreExprKind::Literal(_)
+            | CoreExprKind::Integer(_)
+            | CoreExprKind::Bool(_)
+            | CoreExprKind::String(_)
+            | CoreExprKind::Unit
+            | CoreExprKind::Name(_)
+            | CoreExprKind::ReceiverMember(_)
+            | CoreExprKind::Unsupported(_) => {}
+        }
+        Ok(())
+    }
+}

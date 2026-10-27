@@ -114,3 +114,85 @@ fn live_old_views_descriptors_and_annotation_mismatch_are_rejected() {
         assert_ne!(r.status, ResultCategory::Success, "{}", r.to_json());
     }
 }
+
+#[test]
+fn untouched_mutable_resources_keep_borrowed_capture_compatibility() {
+    native(
+        "resource R{n:i32} fn main()->i32{var a=R{n:42};let f=()=>a.n;if f()!=42{return 1};if true{var a=1;a=2;if a!=2{return 2}};return a.n-42}",
+        b"",
+    );
+}
+#[test]
+fn last_use_of_old_descriptor_before_replacement_is_allowed() {
+    native(
+        "resource R{n:i32} fn main()->i32{var a=R{n:1};let d=a;let n=d.n;a=R{n:3};return a.n+n-4}",
+        b"",
+    );
+}
+#[test]
+fn nested_owning_closure_remains_an_explicit_existing_language_gap() {
+    let r = compile(
+        "resource R{n:i32} fn main()->i32{var a=R{n:1};var f=move()->i32=>{var g=move()->i32=>{a=R{n:3};return a.n};return g()};return f()-3}",
+    );
+    assert_eq!(r.status, ResultCategory::Unsupported, "{}", r.to_json());
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.message.contains("nested closure inference")),
+        "{}",
+        r.to_json()
+    );
+}
+#[test]
+fn independent_verify_rejects_omitted_or_invalid_slot_cleanup() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::InstructionKind;
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "slot155.zil",
+        "fn main()->i32{var b=bytes_new();bytes_reserve(b,64);b=bytes_new();return 0}",
+    );
+    let ast = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand(&source, &ast).unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    assert!(zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).is_ok());
+    for corrupt_index in [false, true] {
+        let mut bad = module.clone();
+        let block = bad
+            .functions
+            .iter_mut()
+            .flat_map(|f| f.blocks.iter_mut())
+            .find(|b| {
+                b.instructions
+                    .iter()
+                    .any(|i| matches!(i.kind, InstructionKind::DropPackageField { .. }))
+            })
+            .unwrap();
+        let index = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::DropPackageField { .. }))
+            .unwrap();
+        if corrupt_index {
+            if let InstructionKind::DropPackageField { index, .. } =
+                &mut block.instructions[index].kind
+            {
+                *index = u32::MAX;
+            }
+        } else {
+            block.instructions.remove(index);
+        }
+        let mut proof = plan.clone();
+        proof.module_fingerprint = bad.fingerprint();
+        assert!(
+            zil_verify::verify_module(bad.clone(), proof.clone(), &target, &limits).is_err(),
+            "corrupt_index={corrupt_index}"
+        );
+        let encoded = zil_ir::wire::encode_module_candidate(&bad, &proof, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&encoded, &target, &limits).is_err());
+    }
+}

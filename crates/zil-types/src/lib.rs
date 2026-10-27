@@ -325,6 +325,7 @@ struct Builder<'a, 'c> {
     sequenced_values: std::collections::BTreeSet<LocalId>,
     managed_slots: std::collections::BTreeSet<LocalId>,
     managed_slot_work: usize,
+    managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
 }
 struct LoopContext {
     continue_target: BlockId,
@@ -393,6 +394,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             sequenced_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
             managed_slot_work: limits.max_analysis_steps,
+            managed_rebindings: managed_slots::reassigned_bindings(&f.body, limits)?,
         };
         if f.foreign.is_none() {
             b.emit(
@@ -780,7 +782,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                     // owner; the binding is not visible during initialization.
                     self.finish_resource_temps(s.span)?;
                 }
-                if *mutable && matches!(t, Type::Managed(_)) {
+                if *mutable
+                    && matches!(t, Type::Managed(_))
+                    && self
+                        .managed_rebindings
+                        .contains(&(s.id, s.span, name.clone()))
+                {
                     return self.managed_slot(name, t, v, s.span);
                 }
                 let local = self.local(name, t, *mutable, s.span)?;
