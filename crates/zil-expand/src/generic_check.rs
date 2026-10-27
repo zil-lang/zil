@@ -8,6 +8,7 @@ pub(super) fn validate_parametric<'l>(
     enums: &BTreeMap<String, &'l EnumDecl>,
     signatures: &BTreeMap<String, Cow<'l, Function>>,
     pattern_types: &BTreeMap<String, TypeRef>,
+    traits: &trait_bounds::Index<'l>,
     budget: &mut Budget<'l>,
 ) -> R<()> {
     // Validate every written signature even if the template remains unused.
@@ -31,6 +32,8 @@ pub(super) fn validate_parametric<'l>(
     let mut check = Check {
         variables,
         callable: callable::template(function)?,
+        bounds: traits.bounds(function, budget)?,
+        traits,
         next_local: function.params.len(),
         nominals,
         enums,
@@ -244,6 +247,8 @@ struct State {
 struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
     callable: Option<callable::CallableTemplate>,
+    bounds: trait_bounds::Bounds,
+    traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
     nominals: &'s BTreeMap<String, &'l Item>,
     enums: &'s BTreeMap<String, &'l EnumDecl>,
@@ -318,6 +323,94 @@ impl Check<'_, '_, '_> {
         *mode = *mutable;
         Ok(actual)
     }
+
+    fn bound_method(
+        &mut self,
+        object: &Expr,
+        actual: &TypeRef,
+        name: &str,
+        arguments: &[Argument],
+        state: &mut State,
+    ) -> R<TypeRef> {
+        let host = match &group(actual).kind {
+            TypeKind::Reference { inner, .. } => inner.as_ref(),
+            _ => actual,
+        };
+        let variable = trait_bounds::plain(host)
+            .filter(|name| self.variables.contains(*name))
+            .ok_or_else(|| {
+                unsupported(
+                    object.span,
+                    "parametric method receiver requires a declared type-parameter bound",
+                )
+            })?;
+        let method = self
+            .traits
+            .method(&self.bounds, variable, name, self.budget, object.span)?;
+        let Some(receiver) = method.params.first().filter(|p| p.name == "self") else {
+            return Err(error(
+                object.span,
+                "static trait method requires a type-qualified call",
+            ));
+        };
+        if receiver.give || method.params.iter().any(|p| p.give) {
+            return Err(unsupported(
+                object.span,
+                "trait-bound resource passing modes require their category solver",
+            ));
+        }
+        if arguments.len() + 1 != method.params.len() {
+            return Err(error(
+                object.span,
+                "trait-bound method argument count differs",
+            ));
+        }
+        let substitutions = BTreeMap::from([("Self".to_owned(), host.clone())]);
+        let expected = substituted_type(&receiver.ty, &substitutions, self.budget)?;
+        match &group(&expected).kind {
+            TypeKind::Reference { mutable, .. } => {
+                if matches!(group(actual).kind, TypeKind::Reference { .. }) {
+                    let actual = self.argument(object, state, &expected, Some(&expected))?;
+                    same(&actual, &expected, object.span, self.budget)?;
+                } else {
+                    let (place, writable) = self.place(object, state)?;
+                    if *mutable && !writable {
+                        return Err(error(
+                            object.span,
+                            "mutable trait receiver requires a writable place",
+                        ));
+                    }
+                    same(&place, host, object.span, self.budget)?;
+                }
+            }
+            _ => {
+                if matches!(group(actual).kind, TypeKind::Reference { .. }) {
+                    return Err(error(
+                        object.span,
+                        "cannot move an unknown non-Copy trait receiver through a reference",
+                    ));
+                }
+                let consumed = self.expr(object, state, Some(&expected), false)?;
+                same(&consumed, &expected, object.span, self.budget)?;
+            }
+        }
+        for (argument, parameter) in arguments.iter().zip(&method.params[1..]) {
+            if argument.spread {
+                return Err(unsupported(
+                    argument.span,
+                    "trait-bound method tuple spread",
+                ));
+            }
+            let expected = substituted_type(&parameter.ty, &substitutions, self.budget)?;
+            let actual = self.argument(&argument.value, state, &expected, Some(&expected))?;
+            same(&actual, &expected, argument.span, self.budget)?;
+        }
+        match &method.return_type {
+            Some(result) => substituted_type(result, &substitutions, self.budget),
+            None => Ok(unit(object.span)),
+        }
+    }
+
     fn expr(
         &mut self,
         e: &Expr,
@@ -556,17 +649,17 @@ impl Check<'_, '_, '_> {
                     object,
                     member: MemberName::Name(name),
                 } = &callee.kind
-                    && name == "len"
                 {
                     let ty = self.expr(object, state, None, true)?;
-                    if matches!(&group(&ty).kind, TypeKind::Reference { inner, .. } if matches!(group(inner).kind, TypeKind::Array { length: None, .. }))
+                    if name == "len"
+                        && matches!(&group(&ty).kind, TypeKind::Reference { inner, .. } if matches!(group(inner).kind, TypeKind::Array { length: None, .. }))
                     {
                         if !arguments.is_empty() {
                             return Err(error(e.span, "slice len requires no arguments"));
                         }
                         return Ok(named("i64", e.span));
                     }
-                    return Err(unsupported(e.span, "generic len requires a borrowed slice"));
+                    return self.bound_method(object, &ty, name, arguments, state);
                 }
 
                 if let Some(value) =
@@ -775,6 +868,14 @@ impl Check<'_, '_, '_> {
                 if variables.iter().any(|name| !found.contains_key(name)) {
                     return Err(error(e.span, "unconstrained nested generic argument"));
                 }
+                self.traits.check_arguments(
+                    &function.generics,
+                    &found,
+                    &self.bounds,
+                    &self.variables,
+                    self.budget,
+                    e.span,
+                )?;
                 match &function.return_type {
                     Some(result) => substituted_type(result, &found, self.budget),
                     None => Ok(unit(e.span)),
