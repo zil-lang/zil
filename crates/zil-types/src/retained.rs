@@ -58,7 +58,10 @@ pub(super) fn order(
         }
     }
     if ordered.len() != graph.len() {
-        let (id, _) = counts.iter().find(|(_, count)| **count != 0).expect("cycle");
+        let (id, _) = counts
+            .iter()
+            .find(|(_, count)| **count != 0)
+            .expect("cycle");
         return Err(unsupported(
             graph[id].0,
             "recursive opaque factory result dependencies have no finite concrete identity",
@@ -69,8 +72,50 @@ pub(super) fn order(
 
 fn spend(work: &mut usize, count: usize, span: Span) -> R<()> {
     *work = work.checked_sub(count).ok_or_else(|| {
-        Diagnostic::limit(Phase::Types, "factory dependency budget exceeded", Some(span))
+        Diagnostic::limit(
+            Phase::Types,
+            "factory dependency budget exceeded",
+            Some(span),
+        )
     })?;
+    Ok(())
+}
+
+pub(super) fn self_contained(
+    closures: &[closures::Pending],
+    root: ClosureId,
+    work: &mut usize,
+    span: Span,
+) -> R<()> {
+    let mut seen = BTreeSet::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        spend(work, 1, span)?;
+        if !seen.insert(id) {
+            continue;
+        }
+        let closure = closures.get(id.0 as usize).ok_or_else(|| {
+            error(
+                "E-CLOSURE-INFERENCE",
+                span,
+                "nested closure identity is unresolved",
+            )
+        })?;
+        spend(work, closure.captures.len(), span)?;
+        for capture in &closure.captures {
+            match capture.stored_type() {
+                Type::Closure(child) => pending.push(child),
+                Type::Managed(_) | Type::Package { .. } => {}
+                ty if ty.is_copy_value() => {}
+                _ => {
+                    return Err(unsupported(
+                        span,
+                        "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape",
+                    ));
+                }
+            }
+        }
+    }
     Ok(())
 }
 
@@ -86,7 +131,9 @@ impl Dependencies<'_, '_> {
     fn node(&mut self, depth: usize, span: Span) -> R<()> {
         if depth > self.limits.max_call_depth {
             return Err(Diagnostic::limit(
-                Phase::Types, "factory dependency depth exceeded", Some(span),
+                Phase::Types,
+                "factory dependency depth exceeded",
+                Some(span),
             ));
         }
         spend(self.work, 1, span)
@@ -104,7 +151,9 @@ impl Dependencies<'_, '_> {
         match &pattern.kind {
             CorePatternKind::Name(name) => self.bind(name, pattern.span)?,
             CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
-                for field in fields { self.pattern(field, depth + 1)?; }
+                for field in fields {
+                    self.pattern(field, depth + 1)?;
+                }
             }
             _ => {}
         }
@@ -123,34 +172,62 @@ impl Dependencies<'_, '_> {
         for statement in &block.statements {
             self.node(depth + 1, statement.span)?;
             match &statement.kind {
-                CoreStatementKind::Binding { name, initializer, .. } => {
-                    if let Some(value) = initializer { self.expr(value, depth + 1)?; }
+                CoreStatementKind::Binding {
+                    name, initializer, ..
+                } => {
+                    if let Some(value) = initializer {
+                        self.expr(value, depth + 1)?;
+                    }
                     self.bind(name, statement.span)?;
                 }
                 CoreStatementKind::Assign { target, value } => {
                     self.expr(target, depth + 1)?;
                     self.expr(value, depth + 1)?;
                 }
-                CoreStatementKind::Expression(e) | CoreStatementKind::Return(Some(e)) => self.expr(e, depth + 1)?,
-                CoreStatementKind::If { condition, then_body, else_body } => {
+                CoreStatementKind::Expression(e) | CoreStatementKind::Return(Some(e)) => {
+                    self.expr(e, depth + 1)?
+                }
+                CoreStatementKind::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
                     self.expr(condition, depth + 1)?;
                     self.block(then_body, depth + 1)?;
-                    if let Some(body) = else_body { self.block(body, depth + 1)?; }
+                    if let Some(body) = else_body {
+                        self.block(body, depth + 1)?;
+                    }
                 }
-                CoreStatementKind::IfLet { pattern, value, then_body, else_body } => {
+                CoreStatementKind::IfLet {
+                    pattern,
+                    value,
+                    then_body,
+                    else_body,
+                } => {
                     self.expr(value, depth + 1)?;
                     self.patterned(pattern, then_body, depth + 1)?;
-                    if let Some(body) = else_body { self.block(body, depth + 1)?; }
+                    if let Some(body) = else_body {
+                        self.block(body, depth + 1)?;
+                    }
                 }
                 CoreStatementKind::While { condition, body } => {
                     self.expr(condition, depth + 1)?;
                     self.block(body, depth + 1)?;
                 }
-                CoreStatementKind::WhileLet { pattern, value, body } => {
+                CoreStatementKind::WhileLet {
+                    pattern,
+                    value,
+                    body,
+                } => {
                     self.expr(value, depth + 1)?;
                     self.patterned(pattern, body, depth + 1)?;
                 }
-                CoreStatementKind::ForRange { name, start, end, body } => {
+                CoreStatementKind::ForRange {
+                    name,
+                    start,
+                    end,
+                    body,
+                } => {
                     self.expr(start, depth + 1)?;
                     self.expr(end, depth + 1)?;
                     self.scopes.push(BTreeSet::new());
@@ -160,9 +237,13 @@ impl Dependencies<'_, '_> {
                 }
                 CoreStatementKind::Match { value, arms } => {
                     self.expr(value, depth + 1)?;
-                    for arm in arms { self.patterned(&arm.pattern, &arm.body, depth + 1)?; }
+                    for arm in arms {
+                        self.patterned(&arm.pattern, &arm.body, depth + 1)?;
+                    }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => self.block(body, depth + 1)?,
+                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+                    self.block(body, depth + 1)?
+                }
                 _ => {}
             }
         }
@@ -177,12 +258,20 @@ impl Dependencies<'_, '_> {
                     CoreExprKind::Name(name) if !self.bound(name) => self.signatures.get(name),
                     CoreExprKind::Member { object, member } => {
                         if let CoreExprKind::Name(alias) = &object.kind {
-                            if self.bound(alias) { None } else {
-                                self.imports.and_then(|imports| imports.aliases.get(alias)
-                                    .and_then(|module| imports.signatures.get(module))
-                                    .and_then(|table| table.get(member)))
+                            if self.bound(alias) {
+                                None
+                            } else {
+                                self.imports.and_then(|imports| {
+                                    imports
+                                        .aliases
+                                        .get(alias)
+                                        .and_then(|module| imports.signatures.get(module))
+                                        .and_then(|table| table.get(member))
+                                })
                             }
-                        } else { None }
+                        } else {
+                            None
+                        }
                     }
                     _ => None,
                 };
@@ -190,28 +279,45 @@ impl Dependencies<'_, '_> {
                     self.found.insert(signature.id);
                 }
                 self.expr(callee, depth + 1)?;
-                for argument in arguments { self.expr(argument, depth + 1)?; }
+                for argument in arguments {
+                    self.expr(argument, depth + 1)?;
+                }
             }
-            CoreExprKind::Ascribed { value, .. } | CoreExprKind::IntegerConvert { value, .. }
-            | CoreExprKind::CompileTime(value) | CoreExprKind::Try(value)
-            | CoreExprKind::Unary { operand: value, .. } | CoreExprKind::Member { object: value, .. } => self.expr(value, depth + 1)?,
-            CoreExprKind::Binary { left, right, .. } | CoreExprKind::Index { object: left, index: right } => {
+            CoreExprKind::Ascribed { value, .. }
+            | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::CompileTime(value)
+            | CoreExprKind::Try(value)
+            | CoreExprKind::Unary { operand: value, .. }
+            | CoreExprKind::Member { object: value, .. } => self.expr(value, depth + 1)?,
+            CoreExprKind::Binary { left, right, .. }
+            | CoreExprKind::Index {
+                object: left,
+                index: right,
+            } => {
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
             }
             CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
-                for field in fields { self.expr(field, depth + 1)?; }
+                for field in fields {
+                    self.expr(field, depth + 1)?;
+                }
             }
             CoreExprKind::Slice { object, start, end } => {
                 self.expr(object, depth + 1)?;
-                for value in [start, end].into_iter().flatten() { self.expr(value, depth + 1)?; }
+                for value in [start, end].into_iter().flatten() {
+                    self.expr(value, depth + 1)?;
+                }
             }
             CoreExprKind::Record { fields, .. } => {
-                for (_, field) in fields { self.expr(field, depth + 1)?; }
+                for (_, field) in fields {
+                    self.expr(field, depth + 1)?;
+                }
             }
             CoreExprKind::RecordUpdate { base, fields, .. } => {
                 self.expr(base, depth + 1)?;
-                for (_, field) in fields { self.expr(field, depth + 1)?; }
+                for (_, field) in fields {
+                    self.expr(field, depth + 1)?;
+                }
             }
             CoreExprKind::Sequence { bindings, value } => {
                 self.scopes.push(BTreeSet::new());
@@ -222,13 +328,21 @@ impl Dependencies<'_, '_> {
                 self.expr(value, depth + 1)?;
                 self.scopes.pop();
             }
-            CoreExprKind::Closure { parameters, body, .. } => {
+            CoreExprKind::Closure {
+                parameters, body, ..
+            } => {
                 self.scopes.push(BTreeSet::new());
-                for parameter in parameters { self.bind(&parameter.name, parameter.span)?; }
+                for parameter in parameters {
+                    self.bind(&parameter.name, parameter.span)?;
+                }
                 self.block(body, depth + 1)?;
                 self.scopes.pop();
             }
-            CoreExprKind::If { condition, then_value, else_value } => {
+            CoreExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
                 self.expr(condition, depth + 1)?;
                 self.expr(then_value, depth + 1)?;
                 self.expr(else_value, depth + 1)?;
@@ -314,6 +428,7 @@ impl Builder<'_, '_> {
             let ty = capture.stored_type();
             if matches!(&ty, Type::Managed(_) if resources::supported(&ty))
                 || packages::supported(&ty)
+                || matches!(ty, Type::Closure(_))
             {
                 cleanup.push(index as u32);
             } else if !ty.is_copy_value() {

@@ -461,7 +461,16 @@ fn prepare(
 ) -> R<CoreFunction> {
     // Scalar-only functions retain their existing inference/default behavior.
     if !has_closure {
-        return Ok(function.clone());
+        let dependencies = retained::dependencies(
+            function,
+            signatures,
+            imports,
+            &mut budget.work,
+            budget.limits,
+        )?;
+        if dependencies.is_empty() {
+            return Ok(function.clone());
+        }
     }
     let mut solver = Solver::new(function, signatures, imports, enums, budget)?;
     solver.block(&function.body, 0)?;
@@ -927,8 +936,35 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             closure_expressions: BTreeMap::new(),
             callable_hint: None,
         };
-        for parameter in &function.parameters {
-            let term = this.known_term(&parameter.ty, parameter.span)?;
+        for (index, parameter) in function.parameters.iter().enumerate() {
+            let term = if let Some(bound) = function
+                .callable_parameter
+                .as_ref()
+                .filter(|bound| bound.index as usize == index)
+            {
+                let ty = Type::Opaque {
+                    identity: function.id,
+                    hidden: Box::new(Type::FunctionPointer {
+                        parameters: bound.parameters.clone(),
+                        result: Box::new(bound.result.clone()),
+                    }),
+                };
+                let Term::Closure(id) = this.known_term(&ty, parameter.span)? else {
+                    unreachable!()
+                };
+                match helpers::parameter_mode(&parameter.ty, &bound.generic_name) {
+                    Some(Some(mutable)) => Term::ClosureAddress(id, mutable),
+                    Some(None) => Term::Closure(id),
+                    None => {
+                        return Err(unsupported(
+                            parameter.span,
+                            "invalid callable helper parameter",
+                        ));
+                    }
+                }
+            } else {
+                this.known_term(&parameter.ty, parameter.span)?
+            };
             this.insert(&parameter.name, term, false, parameter.span)?;
         }
         Ok(this)
@@ -1396,7 +1432,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 "opaque callable return requires a closure environment",
                             ));
                         };
-                        if self.ordinary_return_identity.is_some_and(|previous| previous != id) {
+                        if self
+                            .ordinary_return_identity
+                            .is_some_and(|previous| previous != id)
+                        {
                             return Err(error(
                                 "E-TYPE-MISMATCH",
                                 e.span,
@@ -1991,7 +2030,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         }
                         return self.known_result(&signature, span);
                     }
-                    Term::Closure(id) => {
+                    Term::Closure(id) | Term::ClosureAddress(id, _) => {
                         self.budget.work(self.closures[id].parameters.len(), span)?;
                         (
                             self.closures[id].parameters.clone(),

@@ -157,12 +157,15 @@ fn retained069_cross_module_factory_publishes_actual_return_contract() {
 
 #[test]
 fn retained069_nearest_source_boundaries_fail_closed() {
+    checked(
+        "fn inner()->impl Fn()->i32{return move ()=>1} fn make()->impl Fn()->i32{return inner()} fn main()->i32{return 0}",
+    );
     for text in [
         "fn make(n:i32)->impl Fn()->i32{return ()=>n} fn main()->i32{return 0}",
         "resource R{n:i32} fn make()->impl Fn()->i32{let r=R{n:1};return ()=>r.n} fn main()->i32{return 0}",
         "fn make()->impl FnOnce()->i32{return move ()=>1} fn main()->i32{return 0}",
         "fn make()->impl Fn()->i32{return make()} fn main()->i32{return 0}",
-        "fn inner()->impl Fn()->i32{return move ()=>1} fn make()->impl Fn()->i32{return inner()} fn main()->i32{return 0}",
+        "fn inner()->impl Fn()->i32{return make()} fn make()->impl Fn()->i32{return inner()} fn main()->i32{return 0}",
     ] {
         rejected(text, Phase::Types, "E-UNSUPPORTED");
     }
