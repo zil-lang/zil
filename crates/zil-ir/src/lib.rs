@@ -66,8 +66,9 @@ pub enum Type {
         fields: Vec<(String, Type)>,
     },
     /// A nominal, finite, non-Copy value. SSA/ABI values are always complete;
-    /// local storage may temporarily hold a checked subset of Managed fields.
-    /// At least one field is Managed; the remainder must be finite Copy values.
+    /// local storage may temporarily hold a checked subset of owning fields.
+    /// At least one field is Managed; the remainder follow the independently
+    /// checked finite Copy / complete owning-array field contract.
     Package {
         name: String,
         fields: Vec<(String, Type)>,
@@ -106,7 +107,8 @@ impl Type {
             Self::Unit | Self::Bool | Self::I32 | Self::I64 | Self::U8 | Self::U16
         )
     }
-    /// Scalars or one shared address layer to a finite Copy value.
+    /// Scalars or one shared address layer to a finite Copy value or the exact
+    /// shared user-resource head shape. This does not establish loan authority.
     pub fn is_scalar_or_shared_address(&self) -> bool {
         self.is_b0_scalar()
             || self.is_shared_resource_head_address()
