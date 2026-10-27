@@ -279,3 +279,38 @@ fn generic_comparison_result_hint_does_not_retype_a_concrete_helper_operand() {
         report.to_json()
     );
 }
+
+#[test]
+fn ordinary_generic_concrete_package_projections_and_array_take_remain_usable() {
+    for source in [
+        r#"resource R{n:i32}package P{manages r:R;n:i32}fn make()->P=>P{r:R{n:1},n:41};fn read<T>(p:P)->i32{let n=(p).n;return n+p.n}fn main()->i32=>read::<i32>(make())-82;"#,
+        r#"resource R{n:i32}package P{manages r:R;n:i32}fn make()->P=>P{r:R{n:1},n:41};fn read<T>(p:[P;1])->i32{return p[0].n+p[0].n}fn main()->i32=>read::<i32>([make()])-82;"#,
+        r#"resource R{n:i32}package P{manages r:R;n:i32}fn make()->P=>P{r:R{n:1},n:41};fn first<T>(p:[P;1])->P=>p[0];fn main()->i32{let p=first::<i32>([make()]);return p.n-41}"#,
+    ] {
+        native(&[("main", source)], b"", 0);
+    }
+}
+
+#[test]
+fn borrowed_package_array_cannot_create_a_manages_field_owner() {
+    let source = format!(
+        "{MODEL} fn unused<F:FnMut()->i32>(callback:F,b:&[Batch;1])->State<F>{{let alias=b[0];return State::<F>{{r:R{{code:90}},items:give alias.items,callback:callback,hits:0}}}} fn main()->i32=>0"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Expand
+                && d.code == "E-UNSUPPORTED"
+                && d.message.contains("requires a declared bound")),
+        "{}",
+        report.to_json()
+    );
+}

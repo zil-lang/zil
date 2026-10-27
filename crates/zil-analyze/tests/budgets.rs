@@ -160,7 +160,8 @@ fn exact_work_budget_covers_instruction_visits_and_fingerprinting() {
     // Explicit-scope admission scans each instruction once even for legacy raw IR.
     // Owning-array presence checks visit all 100 SSA types, including Copy-only
     // modules whose callback arrays may still need affine element checking.
-    let required = 1230 + 3 * target_text_bytes(&raw);
+    // Callback-field admission visits 100 SSA types and one return type.
+    let required = 1230 + 101 + 3 * target_text_bytes(&raw);
     let exact = Limits {
         max_functions: 1,
         max_blocks: 1,
@@ -189,7 +190,8 @@ fn exact_work_budget_includes_set_scans_across_functions() {
     // 6 additional input/hash units and 15 set construction/scan/export units.
     // Each of the two functions has a result and a parameter type shape.
     // Owning-array presence checks add one visit per local, hence two here.
-    let required = 106 + 3 * target_text_bytes(&raw);
+    // Two locals and two return types add four callback-field shape visits.
+    let required = 106 + 4 + 3 * target_text_bytes(&raw);
     let exact = Limits {
         max_analysis_steps: required,
         ..Limits::default()
@@ -225,7 +227,8 @@ fn exact_work_budget_covers_cfg_edges_and_predecessor_visits() {
     // A chain of n empty blocks costs 2 module units + 4 name units +
     // 22*n structural, matrix, edge, reachability, and ordered transfer units.
     // The return type shape contributes 2 preflight/hash visits.
-    let required = 184 + 3 * target_text_bytes(&raw);
+    // Callback-field admission visits the single return type.
+    let required = 184 + 1 + 3 * target_text_bytes(&raw);
     let exact = Limits {
         max_analysis_steps: required,
         ..Limits::default()

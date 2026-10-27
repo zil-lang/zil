@@ -285,6 +285,9 @@ impl Check<'_, '_, '_> {
         Ok(())
     }
     fn package_local(&self, expression: &Expr, state: &State) -> Option<usize> {
+        if let ExprKind::Group(inner) = &expression.kind {
+            return self.package_local(inner, state);
+        }
         let ExprKind::Name(name) = &expression.kind else {
             return None;
         };
@@ -348,6 +351,11 @@ impl Check<'_, '_, '_> {
                 "generic managed give requires a local owning Package",
             ));
         };
+        let mut object = object.as_ref();
+        while let ExprKind::Group(inner) = &object.kind {
+            self.budget.node(object.span, 0)?;
+            object = inner;
+        }
         let ExprKind::Name(name) = &object.kind else {
             unreachable!()
         };
@@ -720,10 +728,30 @@ impl Check<'_, '_, '_> {
                     e.span,
                 )
             }
-            ExprKind::Index { .. } => {
+            ExprKind::Index { object, .. } => {
                 let (ty, _) = self.place(e, state)?;
                 if !borrowing && !known_copy(&ty, &self.variables, self.nominals) {
-                    return Err(needs_bound());
+                    // Existing concrete owning arrays transfer complete Package
+                    // elements, and Copy-member reads project without a move.
+                    // A reference to such an array grants neither operation by
+                    // copying its Package value into a local carrier.
+                    let (base, _) = self.place(object, state)?;
+                    let concrete_package = !dependent(&ty, &self.variables)
+                        && matches!(&group(&ty).kind, TypeKind::Named { path, .. }
+                            if matches!(self.nominals.get(&path.join(".")),
+                                Some(Item { kind: ItemKind::Aggregate(a), .. })
+                                if a.kind == AggregateKind::Package));
+                    if !concrete_package
+                        || !matches!(
+                            &group(&base).kind,
+                            TypeKind::Array {
+                                length: Some(_),
+                                ..
+                            }
+                        )
+                    {
+                        return Err(needs_bound());
+                    }
                 }
                 Ok(ty)
             }
