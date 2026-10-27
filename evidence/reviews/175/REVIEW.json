@@ -1,0 +1,12 @@
+{
+  "reviewer": "/root/callback_field176",
+  "verdict": "Pass",
+  "implementation_commit": "579d49a76ad2aaef8b1c007289255dd1c4c7a54f",
+  "reviewed_production_commit": "fd69ff6c7cbbc95fcd395d5dbe11fb3c3c85790d",
+  "reviewed_production_crates_tree": "6937ecf38b4bf300df400ec462772b60b30ea73a",
+  "original_review_commit": "6f1312135f002cd23a2d1919c47fdd7c97b69364",
+  "original_receipt": "evidence/reviews/175/by176/review.json",
+  "original_report": "evidence/reviews/175/by176/README.md",
+  "kind": "canonical-receipt-alias",
+  "note": "Mechanical handoff metadata alias: implementation_commit is the exact reviewed_delivery_commit already recorded in the original receipt. No production, tests, original evidence or failed-attempt records changed; no tests rerun and no new acceptance claim."
+}
