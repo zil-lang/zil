@@ -1107,6 +1107,39 @@ impl<'a> Writer<'a> {
                 self.boolean(*is_error)?;
                 self.u32(value.0)?;
             }
+            InstructionKind::MakeOwnedArray { elements } => {
+                self.u8(72)?;
+                self.count(elements.len(), self.limits.max_values)?;
+                for element in elements {
+                    self.u32(element.0)?;
+                }
+            }
+            InstructionKind::ProjectOwnedArrayField { local, index, field } => {
+                self.u8(73)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+                self.u32(*field)?;
+            }
+            InstructionKind::TakeOwnedArrayElement { local, index } => {
+                self.u8(74)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+            }
+            InstructionKind::DropOwnedArrayElement { local, index } => {
+                self.u8(75)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+            }
+            InstructionKind::StoreOwnedArrayElement { local, index, value } => {
+                self.u8(76)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+                self.u32(value.0)?;
+            }
+            InstructionKind::DropOwnedArray { local } => {
+                self.u8(77)?;
+                self.u32(local.0)?;
+            }
             InstructionKind::ErrorTag { value } => {
                 self.u8(47)?;
                 self.u32(value.0)?;
@@ -2061,6 +2094,35 @@ impl<'a> Reader<'a> {
                 is_error: self.boolean()?,
             },
             71 => InstructionKind::DropErrorUnion {
+                local: LocalId(self.u32()?),
+            },
+            72 => {
+                let count = self.count(self.limits.max_values, 4)?;
+                let mut elements = Vec::with_capacity(count);
+                for _ in 0..count {
+                    elements.push(ValueId(self.u32()?));
+                }
+                InstructionKind::MakeOwnedArray { elements }
+            }
+            73 => InstructionKind::ProjectOwnedArrayField {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+                field: self.u32()?,
+            },
+            74 => InstructionKind::TakeOwnedArrayElement {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+            },
+            75 => InstructionKind::DropOwnedArrayElement {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+            },
+            76 => InstructionKind::StoreOwnedArrayElement {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+                value: ValueId(self.u32()?),
+            },
+            77 => InstructionKind::DropOwnedArray {
                 local: LocalId(self.u32()?),
             },
             49 => {
