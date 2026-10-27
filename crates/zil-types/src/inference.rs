@@ -844,6 +844,8 @@ enum Term {
     Closure(usize),
     ClosureAddress(usize, bool),
     Function(Rc<Signature>),
+    /// Nominal receiver already constrained; only valid immediately as a callee.
+    Method(Rc<Signature>),
     /// Internal selector only, never a storable function value.
     SliceLength,
     Module(zil_base::ModuleId),
@@ -1055,6 +1057,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn value_term(&mut self, term: Term, span: Span) -> R<Term> {
+        if matches!(term, Term::Method(_)) {
+            return Err(unsupported(
+                span,
+                "stored bound method values are not implemented",
+            ));
+        }
         if matches!(term, Term::Function(_)) {
             Ok(Term::Scalar(self.scalar(&term, span)?))
         } else {
@@ -1866,6 +1874,31 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
                 let callee_type = self.expr(callee, depth + 1, false)?;
                 let (parameters, result) = match callee_type {
+                    Term::Method(signature) => {
+                        if arguments.len() + 1 != signature.parameters.len() {
+                            return Err(error(
+                                "E-CALL-ARITY",
+                                span,
+                                "method argument count mismatch",
+                            ));
+                        }
+                        for (index, (argument, ty)) in
+                            arguments.iter().zip(&signature.parameters[1..]).enumerate()
+                        {
+                            if let Some(bound) = signature
+                                .callable
+                                .as_ref()
+                                .filter(|bound| bound.index as usize == index + 1)
+                            {
+                                self.bind_callable_argument(argument, ty, bound, depth + 1)?;
+                            } else {
+                                let value =
+                                    self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                                self.bind_term(&value, ty, argument.span)?;
+                            }
+                        }
+                        return self.known_term(&signature.result, span);
+                    }
                     Term::SliceLength => {
                         if !arguments.is_empty() {
                             return Err(error(
@@ -2006,6 +2039,46 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         && self.graph.is_slice(base)
                     {
                         return Ok(Term::SliceLength);
+                    }
+                    if !write && !matches!(object_type, Term::Resource(..)) {
+                        self.graph.solve()?;
+                        if let Some(ty @ Type::Record { .. }) = self.graph.ty(base)? {
+                            validate_type(&ty, 0, span, self.budget)?;
+                            let Type::Record { name, fields } = &ty else {
+                                unreachable!()
+                            };
+                            if ty.is_copy_value()
+                                && !fields.iter().any(|(name, _)| name == member)
+                                && let Some((_, short)) = name.split_once(':')
+                                && let Some(signature) = self
+                                    .signatures
+                                    .get(&format!("{short}.{member}"))
+                                    .filter(|signature| signature.receiver.is_some())
+                            {
+                                let signature = context_signature(signature, self.budget, span)?;
+                                let receiver = &signature.parameters[0];
+                                let value = if let (
+                                    Type::Address { mutable, .. },
+                                    Term::Scalar(variable),
+                                ) = (receiver, &object_type)
+                                {
+                                    Term::Address(*variable, *mutable)
+                                } else {
+                                    object_type.clone()
+                                };
+                                if matches!(receiver, Type::Address { mutable: true, .. })
+                                    && matches!(value, Term::Address(_, false))
+                                {
+                                    return Err(error(
+                                        "E-ADDRESS-PERMISSION",
+                                        object.span,
+                                        "a shared receiver cannot grant exclusive access",
+                                    ));
+                                }
+                                self.bind_term(&value, receiver, object.span)?;
+                                return Ok(Term::Method(Rc::new(signature)));
+                            }
+                        }
                     }
                     if let Some(ty @ Type::Package { .. }) = self.graph.ty(base)? {
                         let field = aggregates::field(&ty, member, span)?.1;
