@@ -6,9 +6,9 @@
     "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
     "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
     "spec/diagnostics.json": "f288d0cae6be3ec9a5c138e0df705e3cc7b4ee5d169ad9b7ffdec79cf725ced2",
-    "spec/interfaces.json": "a1551d63c53f0862c737d195eacb77e41f3631dbd5f16d11d414894f00184525",
+    "spec/interfaces.json": "86204475649218dbdcd64930fd5498aed708210bb2c11ab1f69d888a3f5d6f40",
     "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
     "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
   },
-  "normative_hash": "e21f4f09e90a860829491fb0594d13b2ee98b31740b1b8577709124e45c9d571"
+  "normative_hash": "56b24928b183687a9468f8b98097756243a5b6fb088aa0121f3b05fdc6f83219"
 }
