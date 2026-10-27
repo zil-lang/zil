@@ -296,6 +296,8 @@ pub fn check(
     functions.sort_by_key(|f| f.id);
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
+    dynamic_store::add_definitions(&functions, &mut resource_definitions, limits)
+        .map_err(|e| vec![e])?;
     Ok(TypedModule {
         resources: resource_definitions,
         schema_version: SCHEMA_VERSION,
@@ -785,7 +787,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 // A resource annotation names the nominal type; create/give
                 // determines whether this binding holds the carrier or a description.
-                let wanted = ty.as_ref().filter(|t| !matches!(t, Type::Desc(_)));
+                let store_constructor = matches!(&e.kind, CoreExprKind::Call { callee, .. } if dynamic_store::primitive(callee) == Some("store_new"));
+                let wanted = ty.as_ref().filter(|t| !matches!(t, Type::Desc(_)) || store_constructor);
                 let (v, t) = self.transfer_expr(e, wanted)?;
                 if let Some(wanted) = ty
                     && !matches!((&t, wanted), (Type::Managed(a), Type::Desc(b)) if a == b)
@@ -1398,6 +1401,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 )
             }
             CoreExprKind::Call { callee, arguments } => {
+                if let Some(name) = dynamic_store::primitive(callee) {
+                    return self.dynamic_store_call(name, arguments, expected, e.span);
+                }
                 if let Some(name) = byte_buffer::primitive(callee) {
                     return self.byte_buffer_call(name, arguments, expected, e.span);
                 }
@@ -1595,6 +1601,13 @@ impl<'a, 'c> Builder<'a, 'c> {
     /// A known operand constrains an unsuffixed integer literal; this does not
     /// insert numeric conversions or change the type of a bound runtime value.
     fn known_type(&self, e: &CoreExpr) -> Option<Type> {
+        if let CoreExprKind::Call { callee, arguments } = &e.kind
+            && let Some(name) = dynamic_store::primitive(callee)
+            && let Some(first) = arguments.first()
+            && let Some(ty) = self.known_type(first)
+            && let Some(element) = dynamic_store::element(&ty) {
+            return Some(dynamic_store::result_type(name, element));
+        }
         if let CoreExprKind::Call { callee, .. } = &e.kind
             && let Some(name) = byte_buffer::primitive(callee)
         {

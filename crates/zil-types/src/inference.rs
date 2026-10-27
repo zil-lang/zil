@@ -553,6 +553,7 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
         }
         Type::Address { inner, .. }
         | Type::Slice { element: inner }
+        | Type::OwnedStore { element: inner }
         | Type::Managed(inner)
         | Type::Desc(inner)
         | Type::Opaque { hidden: inner, .. } => validate_type(inner, depth + 1, span, budget)?,

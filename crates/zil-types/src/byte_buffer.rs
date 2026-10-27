@@ -88,6 +88,14 @@ pub(super) fn add_definition(
                         work = work.checked_sub(fields.len()).ok_or_else(limit)?;
                         pending.extend(fields.iter().map(|(_, ty)| ty));
                     }
+                    Type::OwnedStore { element } => {
+                        work = work.checked_sub(1).ok_or_else(limit)?;
+                        pending.push(element);
+                    }
+                    Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                        work = work.checked_sub(1).ok_or_else(limit)?;
+                        pending.push(payload);
+                    }
                     Type::ErrorUnion { error, result } => {
                         work = work.checked_sub(2).ok_or_else(limit)?;
                         pending.push(error);
