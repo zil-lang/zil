@@ -1,4 +1,4 @@
-//! Concrete ordinary-record receiver inference in closure bodies.
+//! Concrete nominal and finite resource receiver inference in closure bodies.
 //! No new dispatch or ownership rule: final Builder::method_call and independent
 //! Verify remain authoritative. Capture writes use the existing address path.
 use super::*;
@@ -14,9 +14,8 @@ impl InferBuilder<'_, '_> {
         span: Span,
     ) -> R<Option<LocalType>> {
         let variable = match base {
-            LocalType::Scalar(v) | LocalType::Address(v, _) => v,
-            // This slice does not infer consuming resource/Package receivers.
-            LocalType::Resource(..) | LocalType::SliceLength => return Ok(None),
+            LocalType::Scalar(v) | LocalType::Address(v, _) | LocalType::Resource(v, _) => v,
+            LocalType::SliceLength => return Ok(None),
         };
         self.graph.solve()?;
         let Some(actual) = self.graph.ty(variable)? else {
@@ -26,15 +25,15 @@ impl InferBuilder<'_, '_> {
             Type::Address { inner, .. } => inner.as_ref(),
             other => other,
         };
-        let Type::Record { name, fields } = nominal else {
-            return Ok(None);
-        };
-        self.graph.reserve_type(nominal, 0, span)?;
-        if !nominal.is_copy_value() || fields.iter().any(|(name, _)| name == member) {
+        if !matches!(
+            nominal,
+            Type::Record { .. } | Type::Package { .. } | Type::ByteBuffer
+        ) {
             return Ok(None);
         }
+        self.graph.reserve_type(nominal, 0, span)?;
         let Some(signature) =
-            aggregates::resolve_method(name, member, self.signatures, self.imports)
+            aggregates::resolve_type_method(nominal, member, self.signatures, self.imports)
         else {
             return Ok(None);
         };
@@ -58,6 +57,14 @@ impl InferBuilder<'_, '_> {
         };
         if matches!(receiver, Type::Address { mutable: true, .. }) {
             self.mark_address_write(object, depth + 1)?;
+        }
+        if matches!(receiver, Type::Desc(_))
+            && self
+                .resource_writes
+                .get(&signature.id)
+                .is_some_and(|writes| writes.contains(&0))
+        {
+            self.mark_resource_write(receiver_value, object.span)?;
         }
         receiver_value.bind(&mut self.graph, receiver, object.span)?;
         for (index, (argument, parameter)) in
