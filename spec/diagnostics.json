@@ -981,6 +981,27 @@
         "ZIL-ARCH",
         "ZIL-CLEANUP"
       ]
+    },
+    {
+      "code": "E-OWNED-STORE-NAME",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES"
+      ]
+    },
+    {
+      "code": "E-VERIFY-OWNED-STORE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP",
+        "ZIL-ARCH"
+      ]
     }
   ]
 }
