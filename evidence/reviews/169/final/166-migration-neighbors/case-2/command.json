@@ -1,0 +1,31 @@
+{
+  "case": 2,
+  "status": "Pass",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-2/main.zil",
+    "--json"
+  ],
+  "exit_code": 1,
+  "expected": {
+    "category": "SafeReject",
+    "phase": "analyze",
+    "code": "E-ANALYZE-IR",
+    "message_contains": "invalidates a description"
+  },
+  "observed": {
+    "category": "SafeReject",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: head transition invalidates a description required later",
+        "span": null,
+        "notes": []
+      }
+    ]
+  }
+}

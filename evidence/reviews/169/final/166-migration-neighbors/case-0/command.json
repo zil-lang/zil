@@ -1,0 +1,35 @@
+{
+  "case": 0,
+  "status": "Pass",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-0/main.zil",
+    "--json"
+  ],
+  "exit_code": 1,
+  "expected": {
+    "category": "SafeReject",
+    "phase": "analyze",
+    "code": "E-UNINITIALIZED",
+    "message_contains": "not initialized"
+  },
+  "observed": {
+    "category": "SafeReject",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 4 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 105,
+          "end": 106
+        },
+        "notes": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "case": 6,
+  "status": "Pass",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-6/main.zil",
+    "--json"
+  ],
+  "exit_code": 1,
+  "expected": {
+    "category": "SafeReject",
+    "phase": "types",
+    "code": "E-TRY-ERROR-TYPE",
+    "message_contains": "exactly the enclosing error type"
+  },
+  "observed": {
+    "category": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TRY-ERROR-TYPE",
+        "message": "? requires exactly the enclosing error type; error conversion is explicit",
+        "span": {
+          "file": 0,
+          "start": 113,
+          "end": 120
+        },
+        "notes": []
+      }
+    ]
+  }
+}

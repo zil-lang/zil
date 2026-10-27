@@ -1,0 +1,35 @@
+{
+  "case": 8,
+  "status": "Pass",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-8/main.zil",
+    "--json"
+  ],
+  "exit_code": 1,
+  "expected": {
+    "category": "SafeReject",
+    "phase": "ct",
+    "code": "E-CT-FORBIDDEN",
+    "message_contains": "serializable pure Copy values"
+  },
+  "observed": {
+    "category": "SafeReject",
+    "phase": "ct",
+    "diagnostics": [
+      {
+        "phase": "ct",
+        "category": "SafeReject",
+        "code": "E-CT-FORBIDDEN",
+        "message": "CT program supports serializable pure Copy values only",
+        "span": {
+          "file": 0,
+          "start": 51,
+          "end": 79
+        },
+        "notes": []
+      }
+    ]
+  }
+}

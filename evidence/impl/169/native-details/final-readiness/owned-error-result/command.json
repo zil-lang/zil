@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/169/final-readiness/owned-error-result.zil",
+    "--json"
+  ],
+  "start": 1793103529.9880092,
+  "status": "Completed",
+  "exit_code": 3,
+  "end": 1793103529.9972723,
+  "seconds": 0.009263038635253906
+}

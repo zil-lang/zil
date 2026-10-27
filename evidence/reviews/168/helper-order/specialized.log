@@ -1,0 +1,64 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-types)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-backend-llvm)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review168-helper/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 20.61s
+     Running tests/impl125_factory_helpers.rs (/workspace/scratch/39be3faa4442/targets/review168-helper/debug/deps/impl125_factory_helpers-458f153cbbbf0c6d)
+
+running 13 tests
+test independent_raw_and_wire_checks_reject_both_helper_and_factory_forgery ... ok
+test invalid_escape_modes_and_factory_dependencies_stay_rejected ... ok
+test module_local_factory_and_helper_names_keep_definition_identity ... ok
+test new_composition_still_pays_types_and_verify_budgets ... ok
+test raw_core_helper_factory_dependencies_respect_parameter_shadowing ... ok
+test helper_warms_the_returned_handler_and_two_instances_remain_independent ... ok
+test helper_factory_dependencies_resolve_in_either_order_but_reject_cycles ... ok
+test checked_in_component_prepares_warms_and_retains_two_owned_handlers ... ok
+test shared_initialization_helper_then_owned_snapshot_handler ... ok
+test helper_factory_dependencies_use_definition_module_and_imports ... ok
+test initializer_error_value_and_returned_environment_cleanup_are_preserved ... ok
+test consuming_initialization_and_consumed_or_unused_returned_handler ... ok
+test mutable_preparation_then_retained_component_events ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.58s
+
+     Running tests/impl168_retained_composition.rs (/workspace/scratch/39be3faa4442/targets/review168-helper/debug/deps/impl168_retained_composition-e15ec715193e5615)
+
+running 26 tests
+test distinct_source_opaque_factories_cannot_mix_even_when_forwarded ... ok
+test independent_ownership_checks_run_without_nominal_resources ... ok
+test independent_raw_and_wire_bound_repeated_child_layout_expansion ... ok
+test independent_raw_and_wire_charge_wide_leaf_inside_closure_dag ... ok
+test independent_raw_and_wire_charge_wide_package_array_elements ... ok
+test independent_raw_and_wire_reject_cycles_wrong_capture_indices_and_permissions ... ok
+test independent_raw_and_wire_reject_repeated_nested_take_and_factory_cycles ... ok
+test consuming_subenvironment_is_taken_and_called_exactly_once ... ok
+test forward_factories_resolve_reverse_declarations_and_cleanup_once ... ok
+test cross_module_forwarding_preserves_public_opaque_result ... ok
+test consumed_callee_is_cleaned_when_later_argument_fails ... ok
+test failed_replacement_keeps_original_slot_responsibility ... ok
+test nested_error_exit_cleans_inner_activation_then_recursive_environment ... ok
+test persistent_slot_cannot_replace_a_still_borrowed_element ... ok
+test nested_move_creation_transfers_ownership_before_any_call ... ok
+test recursive_factory_identity_and_escaping_nested_borrow_are_rejected ... ok
+test retained_alias_and_consuming_callback_misuse_are_rejected ... ok
+test forwarding_keeps_exact_mutable_and_consuming_factory_kinds ... ok
+test nonmove_inner_borrow_keeps_outer_owned_callback_live ... ok
+test owned_shared_subenvironment_is_borrowed_and_dropped_recursively ... ok
+test consumed_persistent_slot_can_be_refilled_without_rebirth ... ok
+test owned_mutable_subenvironment_updates_real_inline_storage ... ok
+test uncalled_subenvironment_and_siblings_follow_capture_cleanup_order ... ok
+test same_factory_slot_replacement_drops_previous_after_new_is_ready ... ok
+test persistent_slot_move_capture_transfers_the_actual_element ... ok
+test persistent_slot_preserves_cleanup_birth_under_later_guard ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.66s
+

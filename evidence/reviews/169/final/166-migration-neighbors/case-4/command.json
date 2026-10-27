@@ -1,0 +1,35 @@
+{
+  "case": 4,
+  "status": "Pass",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-4/main.zil",
+    "--json"
+  ],
+  "exit_code": 1,
+  "expected": {
+    "category": "SafeReject",
+    "phase": "types",
+    "code": "E-GIVE-TYPE",
+    "message_contains": "managed resource carrier"
+  },
+  "observed": {
+    "category": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-GIVE-TYPE",
+        "message": "give requires a managed resource carrier",
+        "span": {
+          "file": 0,
+          "start": 89,
+          "end": 95
+        },
+        "notes": []
+      }
+    ]
+  }
+}

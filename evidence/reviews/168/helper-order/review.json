@@ -1,0 +1,100 @@
+{
+  "task": "168 helper factory ordering follow-up",
+  "reviewer": "/root/trait_bounds",
+  "author": "/root/nested_closures",
+  "verdict": "Pass",
+  "status": "Pass",
+  "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+  "tested_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+  "author_code_commit": "3ba9e9e798f875eef5166c29a99652cd47f113e2",
+  "author_delivery_commit": "70f4cb4cb842ee3c1fc09a825b64708dc3aa1cd2",
+  "crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+  "author_and_final_main_crates_exactly_equal": true,
+  "source_worktree_clean": true,
+  "production_diff_from_7179": [
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/program.rs",
+    "crates/zil-types/src/retained.rs"
+  ],
+  "target": "targets/review168-helper",
+  "scope": [
+    "finite helper-definition factory dependencies in both single-module and project Types entry paths",
+    "helper definition module/import identity",
+    "lexical shadowing at untrusted Core boundary",
+    "existing recursive helper/factory rejection",
+    "precharged AST/import/dependency work without raising limits"
+  ],
+  "executed": {
+    "driver_tests_passed": 39,
+    "failed": 0,
+    "ignored": 0,
+    "suites": {
+      "impl125_factory_helpers": 13,
+      "impl168_retained_composition": 26
+    },
+    "specialized_native_executions": 62,
+    "independent_native_executions": 2,
+    "all_native_success_verification_runs": 1,
+    "source_before_after_orders": "both Source + public single-module Types + native O0/O2 pass",
+    "recursive_factory_through_helper": "Types Unsupported/E-UNSUPPORTED, recursive message preserved",
+    "shadowing": "untrusted raw Core parameter/global factory name collision passes Types/Analyze/Verify; not claimed as accepted source syntax",
+    "selected_budget_boundaries": [
+      {
+        "phase": "Types",
+        "N": 501,
+        "N_minus_1": 500,
+        "status_at_N": "Pass",
+        "status_at_N_minus_1": "ResourceLimit"
+      },
+      {
+        "phase": "Verify",
+        "N": 4224,
+        "N_minus_1": 4223,
+        "status_at_N": "Pass",
+        "status_at_N_minus_1": "ResourceLimit"
+      }
+    ]
+  },
+  "independent_before_after": {
+    "case": "three-module helper private factory with a same-name independent caller factory",
+    "old_commit": "febc071cae01ea328d6aa9d8595937cb03d1291e",
+    "old_phase": "types",
+    "old_status": "Unsupported",
+    "old_message": "callable factory result identity has not been resolved",
+    "old_report_sha256": "da40c9d84e7f8448f70f99289e20568e19f2abcd88e453f385b120e7517433da",
+    "new_native": "O0/O2 result49 asserted by main, exit0, empty stdout/stderr",
+    "new_receipt_sha256": "95a1a63fe2952b4ad37fbdd27b3e2b4b4d11832c1753b188e2f67367d8f3221c",
+    "same_source_sha256": {
+      "main.zil": "3bbe068692e07ab638585a729c6db7d7edd845ee2896e5263f07521f72b79067",
+      "helpers.zil": "c66e937638f45e67a5a76021f825695a5f74c4a1705f04bc17fc73fe7e162842",
+      "factory.zil": "348376576e0c8193ab717d5ad00b4e3753d178b5686fb5fe0fc796500e13952d"
+    }
+  },
+  "code_assessment": [
+    "Each helper uses its own TemplateKey=(ModuleId,NodeId), defining module signatures and import aliases; caller name tables are not substituted.",
+    "Reached helper definitions are visited once per factory; pending expansion and copied names/import maps are charged before allocation/clone. Factory graph ordering continues to reject cycles.",
+    "No speculative Builder instantiation, Verify trust shortcut, public IR/schema change, or default budget increase. The preexisting restriction on nested callable helper contracts remains."
+  ],
+  "preserved_fixture_boundaries": {
+    "original_drafts": "independent-initial-unexecuted retains early unexecuted closure-literal drafts; later alias/parameter-shadow drafts have actual Expand Unsupported observations in baseline-fixture-checks. No source-level shadowing capability is inferred from the raw Core control.",
+    "actual_source_baseline_observation_count": 6,
+    "scope_note": "Source fixtures with additional unresolved generic/opaque forms were narrowed to an already-supported factory/helper shape; no production Expand changes."
+  },
+  "normative_registry": {
+    "file": "data/normative-inputs.json",
+    "sha256": "f7aa3794fac6219874b73221951acac15d5d83a6ef17177b3fe0630024e3d6ed",
+    "all_7_declared_file_hashes_match": true,
+    "combined_hash_matches": true,
+    "normative_hash": "9eeacdb5333925a084d7dc14a0c4b50b1a3d01684acb8214ea4bd381251ed666"
+  },
+  "evidence_sha256": {
+    "specialized.log": "d55d8f5018785087f0a26fda638fbdf7a42a7522ca601fca5ba28edbe00164ec",
+    "build-cli.log": "10778487f5d4f8c531a027ffa88f5ac355bed16c9d424949257ad17d9842e9ff",
+    "native.json": "1b159fc413a7bcb650a6ae459079f501bd9d487b52382880a0033669428a0c76",
+    "non-native.json": "c0fe4407cb20be89b5a96205756063aa2c039110db5112cb77ab57023ac24fff",
+    "independent-native.json": "95a1a63fe2952b4ad37fbdd27b3e2b4b4d11832c1753b188e2f67367d8f3221c"
+  },
+  "self_review_exclusion": "This review does not independently approve task166, whose implementation was authored by this reviewer.",
+  "new_blocking_findings": [],
+  "completed_utc": "2026-10-27T12:19:08.968015+00:00"
+}

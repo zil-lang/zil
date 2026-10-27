@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/review169-lock/matrix26/main/O0/program"
+  ],
+  "start": 1793103528.8576076,
+  "status": "Completed",
+  "exit_code": 0,
+  "stdout_sha256": "1b371a1041b99d45c8bc98103f59f9fbad3dd7bbdac40ef61d6802a81943f92e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793103528.8609364
+}

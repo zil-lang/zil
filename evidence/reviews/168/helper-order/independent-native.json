@@ -1,0 +1,33 @@
+{
+  "tested_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+  "cli_sha256": "11e6340e7cba7a20614954d4be472e48e4c02e0e224b8bfdb44fd45d70cf2a69",
+  "source_sha256": {
+    "main.zil": "3bbe068692e07ab638585a729c6db7d7edd845ee2896e5263f07521f72b79067",
+    "helpers.zil": "c66e937638f45e67a5a76021f825695a5f74c4a1705f04bc17fc73fe7e162842",
+    "factory.zil": "348376576e0c8193ab717d5ad00b4e3753d178b5686fb5fe0fc796500e13952d"
+  },
+  "source_check": "main compares the returned callback result with 49 and returns1 on mismatch",
+  "old_candidate": "febc071cae01ea328d6aa9d8595937cb03d1291e",
+  "old_status": "Types Unsupported: callable factory result identity has not been resolved",
+  "native": [
+    {
+      "opt": "O0",
+      "status": "Success",
+      "verification_runs": 1,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "compile_report_sha256": "7d9421609f6b773264db1dc0e5469e684ffe91432b689fc31c380c332cc71f84"
+    },
+    {
+      "opt": "O2",
+      "status": "Success",
+      "verification_runs": 1,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "compile_report_sha256": "cb450a567686c2d6491336f50c2567c3e44c0ae32f0d11e2749a2d036a3ab9c8"
+    }
+  ],
+  "status": "Pass"
+}

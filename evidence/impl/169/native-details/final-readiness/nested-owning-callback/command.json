@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/169/final-readiness/nested-owning-callback.zil",
+    "--json"
+  ],
+  "start": 1793103529.952976,
+  "status": "Completed",
+  "exit_code": 0,
+  "end": 1793103529.973301,
+  "seconds": 0.0203249454498291
+}

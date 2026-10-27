@@ -1,0 +1,31 @@
+{
+  "case": 1,
+  "status": "Pass",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review169-lock/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/review169-lock/166-migration-neighbors/case-1/main.zil",
+    "--json"
+  ],
+  "exit_code": 1,
+  "expected": {
+    "category": "SafeReject",
+    "phase": "analyze",
+    "code": "E-ANALYZE-IR",
+    "message_contains": "every owned element or field live"
+  },
+  "observed": {
+    "category": "SafeReject",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: whole aggregate move requires every owned element or field live",
+        "span": null,
+        "notes": []
+      }
+    ]
+  }
+}

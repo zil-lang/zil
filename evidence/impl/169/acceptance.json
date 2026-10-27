@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "stage_verdict": "StagePass_FullZuiNotReady",
+  "scope": "Finite 166–169 language implementation and final integrated source validation; not full language, product, historical governance repair or a performance comparison.",
+  "baseline": "45dbb920d444ab54a307785d068c934926cfb90c",
+  "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+  "crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+  "compiler_schema": 19,
+  "raw_wire": 19,
+  "normative_hash": "9eeacdb5333925a084d7dc14a0c4b50b1a3d01684acb8214ea4bd381251ed666",
+  "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "checks": {
+    "final-workspace-03": {
+      "status": "Pass",
+      "source_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+      "crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+      "receipt": "evidence/impl/169/integration/final-workspace-03/command.json",
+      "receipt_sha256": "7e8148b7f710ad33195e7d856268d7c8857aad86bb6ca6001d728fa6b0b176e1",
+      "tests": {
+        "passed": 1463,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 147
+      }
+    },
+    "final-clippy": {
+      "status": "Pass",
+      "source_commit": "289949b7f97360f9ce312e8af118be73d6bc2045",
+      "crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+      "receipt": "evidence/impl/169/integration/final-clippy/command.json",
+      "receipt_sha256": "d11bdf8a14cd808927580b15aa1cd32d15db92708174a5ad4a7d0e3dd1bfc672"
+    },
+    "final-fmt": {
+      "status": "Pass",
+      "source_commit": "289949b7f97360f9ce312e8af118be73d6bc2045",
+      "crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+      "receipt": "evidence/impl/169/integration/final-fmt/command.json",
+      "receipt_sha256": "4421c557df9bd45f1b3c465c1f19ef1bce8c5fcf1eebe3a8ddb4bce0f394dcdf"
+    }
+  },
+  "independent_reviews": {
+    "166": {
+      "reviewer": "/root",
+      "verdict": "Pass",
+      "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+      "receipt": "evidence/reviews/166/final-binding.json",
+      "sha256": "45fe935b1dc5678a990bc1211f5b0fc0ff6926f468e16563495ed84be2ae78ee"
+    },
+    "167": {
+      "reviewer": "/root/trait_bounds",
+      "verdict": "Pass",
+      "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+      "receipt": "evidence/reviews/167/final-binding.json",
+      "sha256": "8eea706789695ddba7da90ac57c3f32e6d7aa5c10511b77a5d287296e40ceafb"
+    },
+    "168": {
+      "reviewer": "/root/trait_bounds",
+      "verdict": "Pass",
+      "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+      "receipt": "evidence/reviews/168/final-binding.json",
+      "sha256": "ac71a951c029d9c588d8227ea2857ef12b8c5ddc855c909de8e76b040eab92d4"
+    },
+    "169": {
+      "reviewer": "/root/source_inventory",
+      "verdict": "Pass",
+      "implementation_commit": "4668c67e84679970b8e85a866e1830bd4953f0ff",
+      "receipt": "evidence/reviews/169/final/INTEGRATION-REVIEW.json",
+      "sha256": "be7b4281fb366613738831a325d2cdbff70f14fb16d51f26ca0e89e2a098c677"
+    }
+  },
+  "consumer": {
+    "receipt": "evidence/impl/169/consumer.json",
+    "ordinary_native": 8,
+    "instrumented_native": 18,
+    "total_native": 26,
+    "builds": 8,
+    "verification_runs_per_build": 1,
+    "selected_failure_sites": [
+      1,
+      2,
+      4
+    ],
+    "all_instrumented_live_zero": true,
+    "allocations_equal_frees": true,
+    "failure_coverage": "Specified consumer sites, not every possible allocation failure position."
+  },
+  "original_159_probes": {
+    "receipt": "evidence/impl/169/readiness.json",
+    "script_sha256": "1acf26ce2b3b74629a4936d74ab0f943ce71d6751f1843c2a3a64d7241520f45",
+    "unchanged_inputs": true,
+    "successes": [
+      "nested-owning-callback",
+      "generic-trait-bound",
+      "array-of-capturing-callbacks"
+    ],
+    "remaining": [
+      "owned-array-elements",
+      "owned-error-result",
+      "owning-method-receiver"
+    ]
+  },
+  "old164_consumer": {
+    "native_executions": 4,
+    "events_and_drop_observations_per_execution": 1024,
+    "actual_allocations_equal_frees": true,
+    "live_zero": true
+  },
+  "root166_native_recheck": {
+    "receipt": "evidence/reviews/166/final-consumer.json",
+    "ordinary": 4,
+    "instrumented": 8,
+    "not_added_to_workspace_count": true
+  },
+  "fixed_findings": [
+    "whole owning array capture guard",
+    "persistent callback slot cleanup position with later live guard",
+    "wide non-Closure leaf cost in nested closure layout",
+    "full Package element width times array length budgeting",
+    "helper-defined factory declaration order and defining module lookup",
+    "recovery worktree alias collision",
+    "generated execution receipts outside evidence excluded from source package"
+  ],
+  "historical_results": {
+    "handoff_status": "Fail",
+    "latest_checked_commit": "b6b36af4a18bdf18fed8ddc7a934854796e9e812",
+    "errors": 1152,
+    "receipt": "evidence/impl/169/integration/handoff-current/command.json",
+    "note": "Inherited historical task snapshots, missing original baseline/evidence and prior governance records are not rewritten; this is not a language regression gate. A final post-metadata check is recorded separately."
+  },
+  "retained_failed_runs": [
+    "evidence/impl/169/integration/final-workspace-01/command.json",
+    "evidence/impl/169/integration/final-workspace-02/command.json",
+    "evidence/impl/169/integration/factory-migration/command.json",
+    "evidence/impl/169/integration/166-diagnostic-migration/command.json"
+  ],
+  "packaging": {
+    "format": "zil-source/1",
+    "source_no_evidence_or_native_outputs": true,
+    "generated_receipts_excluded_outside_evidence": 13,
+    "audit_max_decimal_MB": 50,
+    "tool": "tools/language/169/package.py",
+    "actual_archive_and_cold_verification": "Recorded in the separate delivery report after packaging; no unexecuted cold check is counted here."
+  },
+  "rust_goal_scope": "New capability and finite cleanup observations only; no new Rust runtime/RSS/maintenance/compilation comparison and no product-level conjunction claim.",
+  "next_plan": "docs/NEXT-LANGUAGE-170.md"
+}
