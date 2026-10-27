@@ -492,6 +492,15 @@ fn resource_trait_nonshared_receivers_and_head_indirect_calls_stay_closed() {
             report.to_json()
         );
     }
+    let source = format!("{RESOURCE}fn main(){{let r=R{{code:65,n:42}};let p=&r;p.drop()}}");
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Types, "{}", report.to_json());
 }
 
 fn raw_head() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
@@ -583,6 +592,12 @@ fn raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head() {
             }
         })
         .unwrap();
+    let mut forged = original.clone();
+    if let Type::Address { mutable, .. } = &mut forged.functions[main].values[head.1.0 as usize] {
+        *mutable = true;
+    }
+    reject_raw_and_wire("forged-mutable-head", forged, plan.clone(), "E-UNSUPPORTED");
+
     let mut forged = original.clone();
     for instruction in forged.functions[main]
         .blocks
