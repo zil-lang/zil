@@ -317,6 +317,91 @@ impl Check<'_, '_, '_> {
         self.budget.text(member, expression.span)?;
         Ok(self.package_slots.get(&(local, member.clone())).copied())
     }
+    fn managed_field_transfer(&mut self, operand: &Expr, state: &mut State) -> R<TypeRef> {
+        if !self
+            .callable
+            .as_ref()
+            .is_some_and(|bound| bound.owned_state)
+        {
+            return Err(unsupported(
+                operand.span,
+                "generic managed give requires an owning State profile",
+            ));
+        }
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(member),
+        } = &operand.kind
+        else {
+            return Err(unsupported(
+                operand.span,
+                "generic managed give requires a direct Package manages field",
+            ));
+        };
+        let Some(owner) = self.package_local(object, state) else {
+            return Err(unsupported(
+                operand.span,
+                "generic managed give requires a local owning Package",
+            ));
+        };
+        let ExprKind::Name(name) = &object.kind else {
+            unreachable!()
+        };
+        let TypeKind::Named { path, .. } = &group(&state.locals[name].ty).kind else {
+            unreachable!()
+        };
+        let Some(Item {
+            kind: ItemKind::Aggregate(aggregate),
+            ..
+        }) = self.nominals.get(&path.join("."))
+        else {
+            unreachable!()
+        };
+        for field in &aggregate.fields {
+            self.budget.node(field.span, 0)?;
+        }
+        let declared = aggregate
+            .fields
+            .iter()
+            .find(|field| &field.name == member)
+            .ok_or_else(|| error(operand.span, "unknown generic Package field"))?;
+        if !declared.manages {
+            return Err(error(
+                operand.span,
+                "generic give requires a declared manages field",
+            ));
+        }
+        // Place resolution checks the real nominal declaration and privacy.
+        // It does not grant ownership to a descriptor or a reference carrier.
+        let (ty, _) = self.place(operand, state)?;
+        if dependent(&ty, &self.variables) {
+            return Err(unsupported(
+                operand.span,
+                "generic manages field give requires a concrete resource type",
+            ));
+        }
+        let concrete = match &group(&ty).kind {
+            TypeKind::Named { path, args } if path.as_slice() == ["Store"] => {
+                matches!(args.as_slice(), [GenericArg::Type(_)])
+            }
+            TypeKind::Named { path, args } if path.as_slice() == ["ByteBuffer"] => args.is_empty(),
+            TypeKind::Named { path, args } => matches!(self.nominals.get(&path.join(".")),
+                Some(Item { kind: ItemKind::Aggregate(resource), .. })
+                if resource.kind == AggregateKind::Resource && resource.generics.len() == args.len()),
+            _ => false,
+        };
+        if !concrete {
+            return Err(unsupported(
+                operand.span,
+                "generic manages field give requires a concrete resource type",
+            ));
+        }
+        let slot = self.field_slot(owner, member, operand.span)?;
+        if !state.moved.insert(slot) {
+            return Err(error(operand.span, "managed Package field used after give"));
+        }
+        Ok(ty)
+    }
     fn clone_state(&mut self, state: &State) -> R<State> {
         for local in state.locals.values() {
             self.budget.ty(&local.ty)?;
@@ -481,7 +566,12 @@ impl Check<'_, '_, '_> {
                         "generic value used after move; Copy cannot be inferred from a concrete instance",
                     ));
                 }
-                if !borrowing && !known_copy(&ty, &self.variables) {
+                let owning_package = self
+                    .callable
+                    .as_ref()
+                    .is_some_and(|bound| bound.owned_state)
+                    && self.package_local(e, state).is_some();
+                if !borrowing && (!known_copy(&ty, &self.variables) || owning_package) {
                     for ((owner, _), field) in &self.package_slots {
                         self.budget.node(e.span, 0)?;
                         if *owner == id && state.moved.contains(field) {
@@ -694,6 +784,10 @@ impl Check<'_, '_, '_> {
                 };
                 Ok(checked_integer(text, expected, true, e.span)?.0)
             }
+            ExprKind::Unary {
+                op: UnaryOp::Give,
+                operand,
+            } => self.managed_field_transfer(operand, state),
             ExprKind::Unary { op, operand } => {
                 let ty = self.expr(operand, state, expected, false)?;
                 if dependent(&ty, &self.variables) {
@@ -1147,6 +1241,13 @@ impl Check<'_, '_, '_> {
                     substitutions.insert(p.name.clone(), ty.clone());
                 }
                 let ty = substituted_type(&field.ty, &substitutions, self.budget)?;
+                if field.manages
+                    && self
+                        .existing_field_slot(e, state)?
+                        .is_some_and(|slot| state.moved.contains(&slot))
+                {
+                    return Err(error(e.span, "managed Package field used after give"));
+                }
                 if let Some(local) = package
                     && self.callable.as_ref().is_some_and(|bound| {
                         callable::parameter_mode(&ty, &bound.generic_name) == Some(None)
