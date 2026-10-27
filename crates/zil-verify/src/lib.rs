@@ -433,6 +433,9 @@ fn check_module(
                         // function value types. Bound it before fingerprinting.
                         check_type_shape(target, &module.target, limits, &mut budget)?;
                     }
+                    InstructionKind::OwnedStoreNew { element } => {
+                        check_type_shape(element, &module.target, limits, &mut budget)?;
+                    }
                     InstructionKind::Unsupported(feature) => {
                         return Err(unsupported(
                             format!("unknown or unimplemented instruction: {feature}"),
@@ -503,6 +506,9 @@ fn check_type_shape(
             native_values::target(target, None)?;
         }
         match ty {
+            Type::OwnedStore { element } => {
+                pending.push((element, depth + 1));
+            }
             Type::Slice { element } => {
                 slices::target(target)?;
                 pending.push((element, depth + 1));
@@ -2120,7 +2126,15 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::StorageLive(_)
         | InstructionKind::StorageDead(_)
         | InstructionKind::ByteBufferNew
+        | InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::Unsupported(_) => ([None, None], &[]),
+        InstructionKind::OwnedStoreReserve { store, capacity } => {
+            ([Some(*store), Some(*capacity)], &[])
+        }
+        InstructionKind::OwnedStorePush { store, value } => ([Some(*store), Some(*value)], &[]),
+        InstructionKind::OwnedStorePop { store }
+        | InstructionKind::OwnedStoreLen { store }
+        | InstructionKind::OwnedStoreCapacity { store } => ([Some(*store), None], &[]),
         InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
         | InstructionKind::StorePackageField { value, .. }
