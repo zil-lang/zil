@@ -1,0 +1,27 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl174_store_fields",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/174",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/174/cases02"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "start": 1793114611.59288,
+  "end": 1793114619.9328587,
+  "source_state": "author development worktree; exact final candidate rerun will be separately bound",
+  "log_sha256": "8382ed2acef9840118b7822888a93441d7226311a0eb32a28b93664834bc00a8"
+}

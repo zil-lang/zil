@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "status": "Pass",
+  "scope": "Author focused implementation validation only; independent review and integration gates are separate.",
+  "implementation_commit": "9a878f2f91aae4efd4b851eeb8979cacc21ffdd1",
+  "later_test_commit": "cc6508f7491db70452a006873c814063afe54c88",
+  "crates_tree": "506a899b2204d3f5abdd398defebce1b98d216d4",
+  "production_changes_after_implementation": false,
+  "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+  "public_schema": 21,
+  "baseline": "81b480be45643be9fddd3955f118c1439e195507",
+  "new_suite": {
+    "tests": 13,
+    "passed": 13,
+    "native_invocations": 24,
+    "source_rejection_cases": 10,
+    "raw_and_wire_rejection_pairs": 7,
+    "verify_budget_n": 22550,
+    "verify_budget_n_minus_1": 22549
+  },
+  "prior_store_suite": {
+    "tests": 16,
+    "passed": 16,
+    "original_input_migrations": [
+      "Source: package with explicit manages Store<P> field",
+      "Raw/Wire: complete Package with Managed Store field",
+      "Raw/Wire: ordinary fixed array of that complete Package",
+      "Raw/Wire: owned ErrorUnion success payload of that complete Package"
+    ],
+    "capture_diagnostic_migration": "Package capture with Store fields requires a retained storage protocol",
+    "other_original_negatives": "Retained; original inputs and first expected-Unsupported failures are recorded."
+  },
+  "consumer": {
+    "builds": 6,
+    "verification_runs_per_build": 1,
+    "executions": 50,
+    "ordinary": 12,
+    "instrumented": 38,
+    "allocation_failure_executions": 28,
+    "balanced_allocations": true,
+    "receipt": "consumer01/summary.json"
+  },
+  "intersecting_regressions": {
+    "suites": 8,
+    "tests": 88,
+    "failed": 0,
+    "ignored": 0,
+    "receipt": "regression05/command.json"
+  },
+  "quality": {
+    "clippy-libs": "Pass",
+    "clippy-tests": "Pass",
+    "fmt": "Pass"
+  },
+  "evidence": {
+    "all_selected_artifacts_rehashed": true,
+    "manifest": "artifact-manifest.json",
+    "selected_artifact_files": 606,
+    "native_outputs_in_retained_artifacts": false,
+    "wire_candidates_are_data": true
+  },
+  "retained_first_failures": [
+    "discovery01: initial Analyze Package field preflight rejected all six new native groups",
+    "legacy-discovery: colliding Rust StableCrateId before tests; switched isolated target",
+    "discovery03: old expected rejection changed by authorized Store field admission; author raw fixture separator and exact diagnostic expectations corrected"
+  ],
+  "limits": [
+    "Linux x64 only, unchanged 172 element shape",
+    "No Store or Store-bearing Package capture",
+    "No Store-bearing State inside 170 owning array fields",
+    "No implicit Box, RC, GC, or new Store field opcodes",
+    "No full workspace run or self integration",
+    "Not a Rust performance or product breakthrough claim"
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_task": "B0 Doing"
+}

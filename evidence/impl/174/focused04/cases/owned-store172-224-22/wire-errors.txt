@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "Store fields require direct manages ownership outside owning array fields",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 260,
+                end: 410,
+            },
+        ),
+        notes: [],
+    },
+]

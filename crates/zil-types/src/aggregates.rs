@@ -382,10 +382,16 @@ struct Resolver<'a> {
 impl Resolver<'_> {
     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
         let resolved = self.ty(&field.ty, depth, field.span)?;
-        if dynamic_store::is_carrier(&resolved) {
+        if dynamic_store::is_carrier(&resolved) && !field.manages {
             return Err(unsupported(
                 field.span,
-                "Store fields require a separate owning composition profile",
+                "Store fields require an explicit package manages declaration",
+            ));
+        }
+        if matches!(&resolved, Type::Array { element, .. } if packages::has_store_fields(element)) {
+            return Err(unsupported(
+                field.span,
+                "Store fields require direct manages ownership outside owning array fields",
             ));
         }
         if byte_buffer::resource(&resolved) && !field.manages {
@@ -397,7 +403,12 @@ impl Resolver<'_> {
         if field.manages {
             // A source Ref/Desc spelling cannot turn a borrowed entry into an
             // ownership declaration. Re-resolution of normalized Core is safe.
-            if !matches!(field.ty, Type::Named(_) | Type::Managed(_)) {
+            // The reserved Store<T> source spelling expands directly to its
+            // sealed Desc payload. Ref<Store<T>> instead has an additional
+            // wrapper and cannot manufacture an ownership declaration.
+            if !matches!(field.ty, Type::Named(_) | Type::Managed(_))
+                && !matches!(&field.ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
+            {
                 return Err(error(
                     "E-RESOURCE-TYPE",
                     field.span,
