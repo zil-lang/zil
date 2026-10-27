@@ -1,0 +1,59 @@
+{
+  "status": "Pass",
+  "scope": "Fixed homogeneous owning Package arrays only; concrete Closure elements remain the next increment",
+  "implementation_commit": "a710be769a34ac37182ced84cbaa5b44a99f7734",
+  "crates_tree": "a572ade5e272338d7de4fe41b12f3139b74ebed1",
+  "test_receipt_sha256": "2a81b18df7ca31f6325091b957ebf78d49776aafc93fa5f7e6c5f4007596fe75",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl167_owned_arrays",
+    "-j2",
+    "--",
+    "--test-threads=1"
+  ],
+  "tests": {
+    "passed": 19,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 1
+  },
+  "native_executions": 22,
+  "native_optimizations": [
+    "O0",
+    "O2"
+  ],
+  "raw_rejections": 10,
+  "wire_rejections": 10,
+  "evidence_path": "/workspace/scratch/39be3faa4442/run-logs/167/package-locked/command.json",
+  "mechanism": [
+    "inline complete array ABI",
+    "local shell and per-element responsibility",
+    "literal exact element index",
+    "prepare RHS before old-element cleanup",
+    "independent verifier reconstruction",
+    "conservative whole-array ByteBuffer window origins",
+    "length times fields budget"
+  ],
+  "initial_fixture_failures_preserved": [
+    "source-first.log: ByteBuffer allocation capacity was not reserved before indexing; one missing declaration semicolon",
+    "source-second.log: .length was not the slice length syntax; replaced with an actual indexed use"
+  ],
+  "boundaries": [
+    "nonliteral owning indices",
+    "direct Managed arrays",
+    "nested owning arrays",
+    "owning slices",
+    "array captures",
+    "dynamic generic containers",
+    "concrete Closure arrays at this commit"
+  ],
+  "public_ir_author": "/root",
+  "implementation_author": "/root/source_inventory",
+  "independent_review": "pending root exact-commit review"
+}
