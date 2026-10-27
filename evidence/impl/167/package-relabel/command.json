@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-verify",
+    "package_array_relabel_cannot_replace_required_owned_array_operations",
+    "-j2",
+    "--",
+    "--test-threads=1"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt167",
+  "source_commit": "02040876a7f56f14b2058b91f6277b9db86ec393",
+  "crates_tree": "2f7c79feb7bafdf826bf3ce5d31beff1df9da232",
+  "source_status": "",
+  "start": 1793101670.9808736,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "51f89091a259870d7c1aaeff7f9d437e0bc97e4b97ff2546ab11a1f4d0356f4f",
+  "end": 1793101683.1806405,
+  "seconds": 12.199766874313354,
+  "tests": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 7
+  },
+  "ending_crates_tree": "2f7c79feb7bafdf826bf3ce5d31beff1df9da232",
+  "ending_source_status": ""
+}

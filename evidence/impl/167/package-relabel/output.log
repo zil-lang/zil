@@ -1,0 +1,45 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt167/crates/zil-verify)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.06s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/167-clean5/debug/deps/zil_verify-6b93d57ec30d26b7)
+
+running 1 test
+test package_tests::package_array_relabel_cannot_replace_required_owned_array_operations ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 236 filtered out; finished in 0.00s
+
+     Running tests/impl082_bytes_ffi.rs (/workspace/scratch/39be3faa4442/targets/167-clean5/debug/deps/impl082_bytes_ffi-64679813da6b2145)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+
+     Running tests/impl086_static_foreign.rs (/workspace/scratch/39be3faa4442/targets/167-clean5/debug/deps/impl086_static_foreign-3c632352cd50a53b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+
+     Running tests/impl091_slices.rs (/workspace/scratch/39be3faa4442/targets/167-clean5/debug/deps/impl091_slices-ca7ff70f415b1ac9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.00s
+
+     Running tests/impl095_byte_buffers.rs (/workspace/scratch/39be3faa4442/targets/167-clean5/debug/deps/impl095_byte_buffers-058aba1315c3dc17)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.00s
+
+     Running tests/impl099_owned_bytes.rs (/workspace/scratch/39be3faa4442/targets/167-clean5/debug/deps/impl099_owned_bytes-ab5a42acfa211a29)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+     Running tests/impl124_signed_shifts.rs (/workspace/scratch/39be3faa4442/targets/167-clean5/debug/deps/impl124_signed_shifts-54ee50997b2e4f8d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
