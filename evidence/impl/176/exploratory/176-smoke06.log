@@ -1,0 +1,28 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-driver)
+warning: unused import: `Limits`
+ --> crates/zil-driver/tests/impl176_callable_fields.rs:3:24
+  |
+3 | use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
+  |                        ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `check` is never used
+  --> crates/zil-driver/tests/impl176_callable_fields.rs:18:4
+   |
+18 | fn check(files: &[(&str,&str)]) -> CompileReport {
+   |    ^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zil-driver` (test "impl176_callable_fields") generated 2 warnings (run `cargo fix --test "impl176_callable_fields" -p zil-driver` to apply 1 suggestion)
+    Finished `test` profile [unoptimized] target(s) in 6.27s
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets/176/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+
+running 1 test
+test whole_state_parameters_and_results_keep_original_fnmut_environment ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+

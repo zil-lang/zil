@@ -1,0 +1,39 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-driver)
+warning: unused import: `Limits`
+ --> crates/zil-driver/tests/impl176_callable_fields.rs:3:24
+  |
+3 | use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
+  |                        ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `check` is never used
+  --> crates/zil-driver/tests/impl176_callable_fields.rs:18:4
+   |
+18 | fn check(files: &[(&str,&str)]) -> CompileReport {
+   |    ^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zil-driver` (test "impl176_callable_fields") generated 2 warnings (run `cargo fix --test "impl176_callable_fields" -p zil-driver` to apply 1 suggestion)
+    Finished `test` profile [unoptimized] target(s) in 5.26s
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets/176/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+
+running 1 test
+
+thread 'whole_state_parameters_and_results_keep_original_fnmut_environment' (82) panicked at crates/zil-driver/tests/impl176_callable_fields.rs:30:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"package requires finite Copy/complete array fields and at least one explicit Managed resource","span":{"file":0,"start":535,"end":563},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-81-0/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-81-0/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-81-0/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-81-0/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-81-0/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-81-0/phases/typed.txt"},"input_fingerprint":"ec457718091cc253b4a26e50affc9ca3516b407b969be15bb83244e335d4bba5","seconds":0.03156687,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"d33f7ffe86b8fd9432e8036b0295d58782570de281cda50bd33d1c1f64679038","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test whole_state_parameters_and_results_keep_original_fnmut_environment ... FAILED
+
+failures:
+
+failures:
+    whole_state_parameters_and_results_keep_original_fnmut_environment
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p zil-driver --test impl176_callable_fields`
