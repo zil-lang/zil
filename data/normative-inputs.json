@@ -7,8 +7,8 @@
     "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
     "spec/diagnostics.json": "47fc86621621801c20bc7c2f10d9029308ce6d4d0b1d7c31df563ddcdf608746",
     "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
-    "spec/interfaces.json": "919658e83b8bc176137384f1ddbcf84b6182bc9a9cc541616dc981099b66bfa4",
+    "spec/interfaces.json": "5d909dafa7a3a05df1d25f56c84575792f273f4a63548b585b46785584e54bfc",
     "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
   },
-  "normative_hash": "c358b8c5e0abaf11d81b1d55e23f6896cfb485eb4291f34937fe43e9e7ea319c"
+  "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be"
 }

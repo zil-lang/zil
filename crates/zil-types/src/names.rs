@@ -53,6 +53,7 @@ fn primitive_name(name: &str) -> bool {
             | "store_pop"
             | "store_len"
             | "store_capacity"
+            | "store_at"
             | "ByteBuffer"
             | "bytes_new"
             | "bytes_reserve"
