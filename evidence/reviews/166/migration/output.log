@@ -1,0 +1,9 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-verify)
+    Finished `test` profile [unoptimized] target(s) in 5.37s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/review166/debug/deps/zil_verify-c59aee014cb4882b)
+
+running 1 test
+test package_tests::owning_error_union_local_relabeling_still_requires_actual_injection ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 236 filtered out; finished in 0.00s
+

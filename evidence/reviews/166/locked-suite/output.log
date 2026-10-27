@@ -1,0 +1,32 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-analyze)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-lower)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review166/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 14.29s
+     Running tests/impl166_owned_results.rs (/workspace/scratch/39be3faa4442/targets/review166/debug/deps/impl166_owned_results-c517e595343f1e06)
+
+running 13 tests
+test raw_and_wire_do_not_extend_ordinary_union_admission_to_closure_capture ... ok
+test native_entry_keeps_void_or_i32_success_boundary ... ok
+test raw_and_wire_reconstruct_union_debt_and_exact_active_tag ... ok
+test source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode ... ok
+test public_owned_result_crosses_module_boundaries ... ok
+test whole_local_reassignment_is_explicitly_outside_first_owned_union_profile ... ok
+test named_success_payload_crosses_two_ordinary_functions_then_cleans_once ... ok
+test failed_binding_cleans_partial_preparation_then_existing_union_in_order ... ok
+test stored_and_discarded_unions_drop_active_payloads_in_lexical_order ... ok
+test continue_and_break_discharge_each_actual_loop_union ... ok
+test both_owned_arms_propagate_and_native_boundary_cleans_only_returned_error ... ok
+test failing_later_argument_cleans_staged_union_before_earlier_local ... ok
+test success_and_returned_error_buffers_are_really_freed_before_later_fields ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+

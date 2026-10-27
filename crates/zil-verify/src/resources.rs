@@ -303,7 +303,8 @@ impl Slots {
             if matches!(
                 (ty, managed),
                 (Type::Managed(_) | Type::Package { .. }, true) | (Type::Desc(_), false)
-            ) || matches!(ty, Type::Closure(id) if if managed {
+            ) || (managed && errors::owned(ty))
+                || matches!(ty, Type::Closure(id) if if managed {
                     owned_closures[id.0 as usize]
                 } else { borrowed_closures[id.0 as usize] })
                 || (!managed
@@ -787,6 +788,24 @@ impl Transfer<'_> {
                 }
             }
             match &instruction.kind {
+                InstructionKind::MakeErrorUnion { value, .. } if result.is_some() => {
+                    self.consume(state, *value, span, validate)?;
+                    fresh_result = Some(INPUT);
+                }
+                InstructionKind::TakeErrorUnion { value, .. } => {
+                    self.consume(state, *value, span, validate)?;
+                    if result.is_some() {
+                        fresh_result = Some(INPUT);
+                    }
+                }
+                InstructionKind::ErrorTag { value }
+                    if errors::owned(&f.values[value.0 as usize]) =>
+                {
+                    let debt = slots.managed_value[value.0 as usize].expect("typed owned union");
+                    if validate && state.debt[debt] != LIVE {
+                        return Err(bad(span, "error tag requires a live owned union"));
+                    }
+                }
                 InstructionKind::BindPackageCapture { .. } => {}
                 InstructionKind::EndPackageCapture { local, .. } => {
                     if validate {
@@ -1085,6 +1104,7 @@ impl Transfer<'_> {
                 }
                 InstructionKind::DropManaged { local }
                 | InstructionKind::DropClosure { local }
+                | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropPackage { local } => {
                     let index = slots.managed_local[local.0 as usize].expect("typed cleanup local");
                     if validate {

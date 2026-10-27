@@ -1,0 +1,163 @@
+{
+  "status": "Pass",
+  "source_commit": "729087d279d0cf919a5895d8e19d03c3bc971e4c",
+  "compiler_source_commit": "dbf99ce24742f4796cb182d751e6676280666d85",
+  "selected_cases": [
+    "argument_failure",
+    "error_entry"
+  ],
+  "cli_sha256": "0084d86c3f32bc2ac0060588cf3f0288e79228c647de79cf27ad015ca39621dd",
+  "sources": {
+    "argument_failure.zil": "cff25f7430b5d1d585ae43709d09e9b9ec06007f04e02c4eee38382520a8361f",
+    "arrays.zil": "426994d02b6551d925e32105296e6b09c20b50533fd207237aec82ea0adf7c07",
+    "callbacks.zil": "983d754ade6b0650b56a01b5d0ff81fa4f38336d17aafaff7537b586d5c12a77",
+    "error_entry.zil": "b7c84ec14ae93020d9abfacfd71bdc2a11a0094bbfc8e84603380f12595152e2",
+    "main.zil": "1013a3e43f0357cef1942489cff8e3e1c606caadcad7e8a6f410be6641117b8f",
+    "model.zil": "4441e0f82da325f956e1bbfdc46c071412370257e1e73cf4f8f3cb2fdabf2631",
+    "prepare_failure.zil": "fce9070ce2a3dcce9bbd0cb363658ab325d54466ede2effb4354c34a9a4b4f70",
+    "transport.zil": "716e1425d49007a9632be1a145a36047b5443e901c0ddb1d22fed31fca408cc4"
+  },
+  "observations": [
+    {
+      "case": "argument_failure",
+      "optimization": "O0",
+      "allocation_failure": false,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "65b33a497ba9c2154b4f329f084921f26c980cebc7897d5ce9abf731deedc73b"
+    },
+    {
+      "case": "argument_failure",
+      "optimization": "O0",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "65b33a497ba9c2154b4f329f084921f26c980cebc7897d5ce9abf731deedc73b"
+    },
+    {
+      "case": "argument_failure",
+      "optimization": "O2",
+      "allocation_failure": false,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "65b33a497ba9c2154b4f329f084921f26c980cebc7897d5ce9abf731deedc73b"
+    },
+    {
+      "case": "argument_failure",
+      "optimization": "O2",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "BA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "65b33a497ba9c2154b4f329f084921f26c980cebc7897d5ce9abf731deedc73b"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O0",
+      "allocation_failure": false,
+      "exit_code": 1,
+      "stdout": "D",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "0e3161891cc97bd5d95ac05ef23aaa9ba8b3a702abe4cfe1b7b9eb5b3ae35a46"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O0",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "D",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "llvm_sha256": "0e3161891cc97bd5d95ac05ef23aaa9ba8b3a702abe4cfe1b7b9eb5b3ae35a46"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O2",
+      "allocation_failure": false,
+      "exit_code": 1,
+      "stdout": "D",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "0e3161891cc97bd5d95ac05ef23aaa9ba8b3a702abe4cfe1b7b9eb5b3ae35a46"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O2",
+      "allocation_failure": true,
+      "exit_code": 1,
+      "stdout": "D",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "llvm_sha256": "0e3161891cc97bd5d95ac05ef23aaa9ba8b3a702abe4cfe1b7b9eb5b3ae35a46"
+    }
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "ordinary_executions": 4,
+  "instrumented_executions": 8,
+  "scope": "Finite owned result/array/closure composition and native cleanup; not full ZUI readiness"
+}

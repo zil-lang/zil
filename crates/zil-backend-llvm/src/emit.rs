@@ -40,7 +40,7 @@ pub fn emit_with_options(
         .iter()
         .map(|closure| (closure.id, closure))
         .collect::<BTreeMap<_, _>>();
-    let wrapper = entry_wrapper(&functions, options.entry)?;
+    let wrapper = entry_wrapper(&functions, options.entry, &lir.resources)?;
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     let mut intrinsics = BTreeSet::new();
     let mut body = String::new();
@@ -251,6 +251,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             || function.return_type.is_scalar_or_address()
             || resources::supported_type(&function.return_type, &lir.resources)
             || packages::supported_type(&function.return_type, &lir.resources)
+            || errors::supported_type(&function.return_type, &lir.resources)
             || (matches!(function.return_type, Type::Closure(_))
                 && function.callable_return_contract.is_some()))
             || function.parameters.iter().any(|id| {
@@ -259,6 +260,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                     || ty.is_scalar_or_address()
                     || resources::supported_type(ty, &lir.resources)
                     || packages::supported_type(ty, &lir.resources)
+                    || errors::supported_type(ty, &lir.resources)
                     || callable_parameter_type(ty, &lir.closures))
             })
         {
@@ -276,6 +278,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !resources::supported_type(ty, &lir.resources)
                 && !packages::supported_type(ty, &lir.resources)
+                && !errors::supported_type(ty, &lir.resources)
             {
                 return unsupported(
                     format!("LLVM representation for {}", ty.name()),
@@ -290,6 +293,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
 fn entry_wrapper(
     functions: &BTreeMap<FunctionId, &TypedFunction>,
     entry: EntryPoint,
+    resources: &[ResourceDefinition],
 ) -> CompileResult<String> {
     let function = match entry {
         EntryPoint::None => return Ok(String::new()),
@@ -350,8 +354,10 @@ fn entry_wrapper(
             {
                 let llvm = llvm_type(&function.return_type)?;
                 text.push_str(&format!(
-                    "  %entry.result = call {llvm} @{symbol}()\n  %entry.error = extractvalue {llvm} %entry.result, 0\n  br i1 %entry.error, label %error, label %success\nerror:\n  ret i32 1\nsuccess:\n"
+                    "  %entry.result = call {llvm} @{symbol}()\n  %entry.error = extractvalue {llvm} %entry.result, 0\n  br i1 %entry.error, label %error, label %success\nerror:\n"
                 ));
+                text.push_str(&errors::entry_cleanup(&function.return_type, resources)?);
+                text.push_str("  ret i32 1\nsuccess:\n");
                 if **result == Type::I32 {
                     text.push_str(&format!(
                         "  %entry.success = extractvalue {llvm} %entry.result, 2\n  ret i32 %entry.success\n"
@@ -564,6 +570,9 @@ impl FunctionEmitter<'_> {
                 self.describe_package_field(instruction, *local, *index)?
             }
             InstructionKind::DropPackage { local } => self.drop_package(instruction, *local)?,
+            InstructionKind::DropErrorUnion { local } => {
+                self.drop_error_union(instruction, *local)?
+            }
             InstructionKind::TakePackageField { local, index } => {
                 self.take_package_field(instruction, *local, *index)?
             }
@@ -615,7 +624,8 @@ impl FunctionEmitter<'_> {
                 self.make_error_union(instruction, *is_error, *value)?;
             }
             InstructionKind::ErrorTag { value } => self.error_tag(instruction, *value)?,
-            InstructionKind::ReadErrorUnion { value, is_error } => {
+            InstructionKind::ReadErrorUnion { value, is_error }
+            | InstructionKind::TakeErrorUnion { value, is_error } => {
                 self.read_error_union(instruction, *value, *is_error)?;
             }
             InstructionKind::ForeignCall {

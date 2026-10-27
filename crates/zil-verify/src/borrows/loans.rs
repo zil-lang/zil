@@ -595,6 +595,7 @@ pub(super) fn check(
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::DropClosure { local }
+                | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropPackage { local } => {
                     access.check(&empty, &[Root::Local(*local)], true, budget)?;
                 }
@@ -652,6 +653,7 @@ pub(super) fn check(
                 InstructionKind::TakeLocal { local } => {
                     if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
+                        || errors::owned(&f.locals[local.0 as usize].ty)
                         || byte_buffers::is_owned(&f.locals[local.0 as usize].ty)
                     {
                         access.check(&empty, &[Root::Local(*local)], true, budget)?;

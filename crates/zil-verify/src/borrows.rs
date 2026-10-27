@@ -382,6 +382,7 @@ fn check(
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::EndPackageCapture { local, .. }
                 | InstructionKind::DropClosure { local }
+                | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropPackage { local } => Some(Root::Local(local)),
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
@@ -396,6 +397,7 @@ fn check(
                 InstructionKind::TakeLocal { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
+                        || errors::owned(&f.locals[local.0 as usize].ty)
                         || byte_buffers::is_owned(&f.locals[local.0 as usize].ty) =>
                 {
                     Some(Root::Local(local))

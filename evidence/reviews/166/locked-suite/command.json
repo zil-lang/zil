@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl166_owned_results",
+    "-j",
+    "2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review166",
+  "source_commit": "dbf99ce24742f4796cb182d751e6676280666d85",
+  "crates_tree": "38250e5c5384a28ab4d02ef4992d9cff4198b299",
+  "source_status": "",
+  "start": 1793100872.3956249,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "f26b11cb31089a8a1e6d7e381edaccd7e11dbed6152b77aaeba7bcca743e3578",
+  "end": 1793100887.9195573,
+  "seconds": 15.523932456970215,
+  "tests": {
+    "passed": 13,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 1
+  },
+  "ending_crates_tree": "38250e5c5384a28ab4d02ef4992d9cff4198b299",
+  "ending_source_status": ""
+}
