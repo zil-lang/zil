@@ -609,33 +609,20 @@ pub(super) fn check(
             if let Some((buffer, write)) = buffer_effects::access(&instruction.kind, head_windows) {
                 access.check(&empty, &facts.values[buffer.0 as usize], write, budget)?;
             }
-            if head_windows {
-                let callback = match &instruction.kind {
-                    InstructionKind::CallClosure { callee, .. }
-                    | InstructionKind::CallClosureOnce { callee, .. }
-                    | InstructionKind::CallClosureBorrowed { callee, .. }
-                        if captures_descriptors(module, &f.values[callee.0 as usize], budget)? =>
-                    {
-                        Some(&facts.values[callee.0 as usize])
-                    }
-                    InstructionKind::CallClosureShared { callee, .. }
-                    | InstructionKind::CallClosureMut { callee, .. }
-                        if captures_descriptors(
-                            module,
-                            &f.locals[callee.0 as usize].ty,
-                            budget,
-                        )? =>
-                    {
-                        descriptor_locals.get(callee)
-                    }
-                    _ => None,
-                };
-                if let Some(callback) = callback {
-                    // No unproved closure body is silently read-only. This
-                    // conservative access also exports unknown parameter
-                    // separation through the existing independent contract.
-                    access.check(&empty, callback, true, budget)?;
-                }
+            if head_windows
+                && let Some(callback) = buffer_effects::callback_roots(
+                    module,
+                    f,
+                    &instruction.kind,
+                    &facts.values,
+                    &descriptor_locals,
+                    budget,
+                )?
+            {
+                // No unproved closure body is silently read-only. This
+                // conservative access also exports unknown parameter
+                // separation through the existing independent contract.
+                access.check(&empty, callback, true, budget)?;
             }
             if let InstructionKind::Call {
                 function: callee,

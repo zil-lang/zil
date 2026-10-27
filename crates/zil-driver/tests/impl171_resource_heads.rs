@@ -271,7 +271,7 @@ fn descriptor_capturing_callbacks_cannot_write_under_a_live_head() {
 
 #[test]
 fn descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls() {
-    let prefix = format!("{RESOURCE}fn apply<F:Fn()->i32>(f:&F)->i32{{return f()}}");
+    let prefix = format!("{RESOURCE}fn apply<F:Fn()->i32>(f:&F)->i32{{return f()+f()}}");
     let source = format!(
         "{prefix}fn main()->i32{{let r=R{{code:65,n:42}};let d=r;let f=()=>{{write(d,43);return 0}};let p=&r;apply(&f);return p.n}}"
     );
