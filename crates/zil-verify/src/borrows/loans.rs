@@ -32,6 +32,28 @@ struct Flow {
     mutable: Vec<bool>,
     roots: Vec<Roots>,
 }
+
+/// Descriptor writes do not mutate the closure's environment position. Only
+/// that position's loan is delegated here; shared addresses captured alongside
+/// a Desc keep their own read-only qualification and cannot authorize a write.
+fn environment_loans(function: &TypedFunction, loans: &Loans, budget: &mut Budget) -> Check<Loans> {
+    budget.spend(loans.len())?;
+    let mut result = Loans::new();
+    for &loan in loans {
+        let ty = if loan < function.values.len() {
+            &function.values[loan]
+        } else {
+            let local = function.parameters[loan - function.values.len()];
+            &function.locals[local.0 as usize].ty
+        };
+        if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))) {
+            budget.spend(result.len().saturating_add(1))?;
+            result.insert(loan);
+        }
+    }
+    Ok(result)
+}
+
 fn local_transfer(
     state: &mut Locals,
     instruction: &Instruction,
@@ -255,6 +277,31 @@ struct Access<'a> {
     apart: Option<&'a RefCell<Apart>>,
 }
 impl Access<'_> {
+    fn check_descriptor_callback(
+        &self,
+        function: &TypedFunction,
+        held: &Loans,
+        roots: &[Root],
+        write: bool,
+        budget: &mut Budget,
+    ) -> Check<()> {
+        // A callback's captured address is in use during this invocation even
+        // when this is the closure's final use. Future liveness alone would
+        // miss its conflict with a Desc write in the same environment.
+        budget.spend(self.active.len())?;
+        let mut active = self.active.clone();
+        join(&mut active, held, budget)?;
+        let own = environment_loans(function, held, budget)?;
+        Access {
+            flow: self.flow,
+            active: &active,
+            ignore: self.ignore,
+            span: self.span,
+            apart: self.apart,
+        }
+        .check(&own, roots, write, budget)
+    }
+
     fn check(&self, own: &Loans, roots: &[Root], write: bool, budget: &mut Budget) -> Check<()> {
         for &other in self.active {
             budget.spend(own.len().saturating_add(1))?;
@@ -514,15 +561,21 @@ pub(super) fn check(
     graph: &FunctionGraph,
     facts: &Facts,
     effects: &[Effects],
+    head_windows: bool,
     budget: &mut Budget,
 ) -> Check<Apart> {
-    if !f.locals.iter().any(|l| {
-        affine_type(module, &l.ty)
-            || byte_buffers::is_carrier(&l.ty)
-            || resources::arrays::is_owned_type(&l.ty)
-    }) && !f.values.iter().any(|t| {
-        affine_type(module, t) || byte_buffers::is_carrier(t) || resources::arrays::is_owned_type(t)
-    }) {
+    if !head_windows
+        && !f.locals.iter().any(|l| {
+            affine_type(module, &l.ty)
+                || byte_buffers::is_carrier(&l.ty)
+                || resources::arrays::is_owned_type(&l.ty)
+        })
+        && !f.values.iter().any(|t| {
+            affine_type(module, t)
+                || byte_buffers::is_carrier(t)
+                || resources::arrays::is_owned_type(t)
+        })
+    {
         return Ok(Apart::new());
     }
     let apart = RefCell::new(Apart::new());
@@ -576,6 +629,16 @@ pub(super) fn check(
             reverse(&mut live, instruction, v);
         }
         let mut locals = copy_state(&flow.inputs[b], budget)?;
+        let mut descriptor_locals = if head_windows {
+            if let Some(input) = facts.inputs.get(b) {
+                state_cost(input, budget)?;
+                input.clone()
+            } else {
+                State::new()
+            }
+        } else {
+            State::new()
+        };
         for (i, instruction) in block.instructions.iter().enumerate() {
             let active = active(&flow, &locals, &after[i], v, budget)?;
             let ignore = instruction
@@ -590,8 +653,35 @@ pub(super) fn check(
                 span,
                 apart: apart_ref,
             };
-            if let Some((buffer, write)) = byte_buffers::access(&instruction.kind) {
+            if let Some((buffer, write)) = buffer_effects::access(&instruction.kind, head_windows) {
                 access.check(&empty, &facts.values[buffer.0 as usize], write, budget)?;
+            }
+            if head_windows
+                && let Some(callback) = buffer_effects::callback_roots(
+                    module,
+                    f,
+                    &instruction.kind,
+                    &facts.values,
+                    &descriptor_locals,
+                    budget,
+                )?
+            {
+                // No unproved closure body is silently read-only. This
+                // conservative access also exports unknown parameter
+                // separation through the existing independent contract.
+                let held = match &instruction.kind {
+                    InstructionKind::CallClosure { callee, .. }
+                    | InstructionKind::CallClosureOnce { callee, .. }
+                    | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                        &flow.values[callee.0 as usize]
+                    }
+                    InstructionKind::CallClosureShared { callee, .. }
+                    | InstructionKind::CallClosureMut { callee, .. } => {
+                        locals.get(callee).unwrap_or(&empty)
+                    }
+                    _ => unreachable!(),
+                };
+                access.check_descriptor_callback(f, held, callback, true, budget)?;
             }
             if let InstructionKind::Call {
                 function: callee,
@@ -601,12 +691,20 @@ pub(super) fn check(
             {
                 for (parameter, write) in &effects[callee.0 as usize] {
                     budget.spend(1)?;
-                    access.check(
-                        &empty,
-                        &facts.values[arguments[*parameter as usize].0 as usize],
-                        *write,
-                        budget,
-                    )?;
+                    let argument = arguments[*parameter as usize];
+                    if head_windows
+                        && captures_descriptors(module, &f.values[argument.0 as usize], budget)?
+                    {
+                        access.check_descriptor_callback(
+                            f,
+                            &flow.values[argument.0 as usize],
+                            &facts.values[argument.0 as usize],
+                            *write,
+                            budget,
+                        )?;
+                    } else {
+                        access.check(&empty, &facts.values[argument.0 as usize], *write, budget)?;
+                    }
                 }
             }
             match &instruction.kind {
@@ -682,7 +780,7 @@ pub(super) fn check(
                     }
                 }
                 InstructionKind::DropManaged { local }
-                    if byte_buffers::is_owned(&f.locals[local.0 as usize].ty) =>
+                    if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     access.check(&empty, &[Root::Local(*local)], true, budget)?;
                 }
@@ -691,7 +789,7 @@ pub(super) fn check(
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
                         || errors::owned(&f.locals[local.0 as usize].ty)
                         || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
-                        || byte_buffers::is_owned(&f.locals[local.0 as usize].ty)
+                        || matches!(f.locals[local.0 as usize].ty, Type::Managed(_))
                     {
                         access.check(&empty, &[Root::Local(*local)], true, budget)?;
                     }
@@ -779,6 +877,9 @@ pub(super) fn check(
                 _ => {}
             }
             local_transfer(&mut locals, instruction, &flow.values, budget)?;
+            if head_windows {
+                super::local_transfer(&mut descriptor_locals, instruction, &facts.values, budget)?;
+            }
         }
     }
     Ok(apart.into_inner())
