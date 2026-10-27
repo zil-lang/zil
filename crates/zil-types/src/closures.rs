@@ -1,6 +1,7 @@
 //! Local Copy aggregate, resource and shared-address closures. Inference variables are private compiler state, never
 //! forged `Type::Unsupported` values in the public IR.
 use super::*;
+mod methods;
 mod package_effects;
 mod patterns;
 
@@ -1959,7 +1960,27 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     return self.variant(&ty, variant, arguments, depth, span);
                 }
                 if !self.direct(callee) {
-                    let callee_type = self.expr(callee, depth + 1)?;
+                    // Infer the receiver once. Function-valued fields and slice
+                    // len keep their existing precedence over nominal methods.
+                    let callee_type = if let CoreExprKind::Member { object, member } = &callee.kind
+                    {
+                        self.visit(depth + 1, callee.span)?;
+                        let base = self.expr(object, depth + 2)?;
+                        if let Some(result) =
+                            self.nominal_method_call(base, object, member, arguments, depth, span)?
+                        {
+                            return Ok(result);
+                        }
+                        if member == "len"
+                            && matches!(base, LocalType::Address(v, _) if self.graph.is_slice(v))
+                        {
+                            LocalType::SliceLength
+                        } else {
+                            self.project(base, Projection::Field(member.clone()), callee.span)?
+                        }
+                    } else {
+                        self.expr(callee, depth + 1)?
+                    };
                     if matches!(callee_type, LocalType::SliceLength) {
                         if !arguments.is_empty() {
                             return Err(error(
