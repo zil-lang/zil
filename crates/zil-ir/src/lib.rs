@@ -1209,7 +1209,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V18\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V19\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
