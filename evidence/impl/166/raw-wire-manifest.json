@@ -1,0 +1,200 @@
+[
+  {
+    "case": "nonconsuming-read",
+    "candidate_sha256": "122e5c2af976abff85dd8c1c0ef8d9c107e2201211a60195a41e52ae4fe185ff",
+    "raw": {
+      "sha256": "070744efad49fda307462d6ba6cb51590708143e7ddc3c4dee24d2fae7b99912",
+      "codes": [
+        "E-VERIFY-ERROR"
+      ],
+      "messages": [
+        "an owned error union requires consuming TakeErrorUnion, never ReadErrorUnion"
+      ]
+    },
+    "wire": {
+      "sha256": "070744efad49fda307462d6ba6cb51590708143e7ddc3c4dee24d2fae7b99912",
+      "codes": [
+        "E-VERIFY-ERROR"
+      ],
+      "messages": [
+        "an owned error union requires consuming TakeErrorUnion, never ReadErrorUnion"
+      ]
+    }
+  },
+  {
+    "case": "load-copy",
+    "candidate_sha256": "3b8077864bc276a0c47c2d6cee97bebe799d7053df1415980978862d2e112687",
+    "raw": {
+      "sha256": "de05a51159e1fff88263a8ddf1481020626309dabc025b4f0cbb494353da6459",
+      "codes": [
+        "E-VERIFY-ERROR"
+      ],
+      "messages": [
+        "an owned error union requires TakeLocal, never copying Load"
+      ]
+    },
+    "wire": {
+      "sha256": "de05a51159e1fff88263a8ddf1481020626309dabc025b4f0cbb494353da6459",
+      "codes": [
+        "E-VERIFY-ERROR"
+      ],
+      "messages": [
+        "an owned error union requires TakeLocal, never copying Load"
+      ]
+    }
+  },
+  {
+    "case": "opposite-tag-edge",
+    "candidate_sha256": "10baa749acc5b059f4aa4012cf30cd978241ab6eea981840bc23743905bf16f5",
+    "raw": {
+      "sha256": "6c986a223f4533bd89c3b24e5007769a060f44b9c972b9518408e8150a7c3f2a",
+      "codes": [
+        "E-VERIFY-ERROR-TAG"
+      ],
+      "messages": [
+        "owning payload extraction requires its exact active tag on every incoming path"
+      ]
+    },
+    "wire": {
+      "sha256": "6c986a223f4533bd89c3b24e5007769a060f44b9c972b9518408e8150a7c3f2a",
+      "codes": [
+        "E-VERIFY-ERROR-TAG"
+      ],
+      "messages": [
+        "owning payload extraction requires its exact active tag on every incoming path"
+      ]
+    }
+  },
+  {
+    "case": "unproved-tag",
+    "candidate_sha256": "25321c4380fc060009878d31f71064863abf90b664f28fac7a47b5e536e85cd3",
+    "raw": {
+      "sha256": "6c986a223f4533bd89c3b24e5007769a060f44b9c972b9518408e8150a7c3f2a",
+      "codes": [
+        "E-VERIFY-ERROR-TAG"
+      ],
+      "messages": [
+        "owning payload extraction requires its exact active tag on every incoming path"
+      ]
+    },
+    "wire": {
+      "sha256": "6c986a223f4533bd89c3b24e5007769a060f44b9c972b9518408e8150a7c3f2a",
+      "codes": [
+        "E-VERIFY-ERROR-TAG"
+      ],
+      "messages": [
+        "owning payload extraction requires its exact active tag on every incoming path"
+      ]
+    }
+  },
+  {
+    "case": "tag-after-transfer",
+    "candidate_sha256": "b05cc3dca6e6cc914a607a41b38968774acaa18e9a3be07444f6baa083ea40c3",
+    "raw": {
+      "sha256": "09ab4b4e3da41215a062fc909d6b4d727d55d82d7bd27f497aa12363c2cadf16",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "messages": [
+        "error tag requires a live owned union"
+      ]
+    },
+    "wire": {
+      "sha256": "09ab4b4e3da41215a062fc909d6b4d727d55d82d7bd27f497aa12363c2cadf16",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "messages": [
+        "error tag requires a live owned union"
+      ]
+    }
+  },
+  {
+    "case": "omitted-cleanup",
+    "candidate_sha256": "4ecfa6f4db61a4d27fcead04308d8ac8a3fd155954b2c9c087cb52b5f2239188",
+    "raw": {
+      "sha256": "b01772866534617f39efc3bdc6ed172b0b5562676b9d32c8733666d0ce3eda5e",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "messages": [
+        "storage ends or restarts with an outstanding resource responsibility"
+      ]
+    },
+    "wire": {
+      "sha256": "b01772866534617f39efc3bdc6ed172b0b5562676b9d32c8733666d0ce3eda5e",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "messages": [
+        "storage ends or restarts with an outstanding resource responsibility"
+      ]
+    }
+  },
+  {
+    "case": "owned-union-capture",
+    "candidate_sha256": "88962c0aeb0997d54915a6634635f157176afe3787eacdf6cc9e0b7af9bec61e",
+    "raw": {
+      "sha256": "dfd9e9f471794437b83a7262b6c660dc2dc3e04f274610a13dc8d93dea3abc04",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "messages": [
+        "owning error-union captures are outside the finite closure profile"
+      ]
+    },
+    "wire": {
+      "sha256": "dfd9e9f471794437b83a7262b6c660dc2dc3e04f274610a13dc8d93dea3abc04",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "messages": [
+        "owning error-union captures are outside the finite closure profile"
+      ]
+    }
+  },
+  {
+    "case": "duplicate-take",
+    "candidate_sha256": "aeeb9e37939366c2e8c0283a9baac442ff72d200e50b8c5361bd21029856ab0a",
+    "raw": {
+      "sha256": "23d547a561994a4d60a8a539f0ef9cb3bacbb9bfa29daa8bf385fd28e47fed78",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "messages": [
+        "managed SSA value was not available exactly once"
+      ]
+    },
+    "wire": {
+      "sha256": "23d547a561994a4d60a8a539f0ef9cb3bacbb9bfa29daa8bf385fd28e47fed78",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "messages": [
+        "managed SSA value was not available exactly once"
+      ]
+    }
+  },
+  {
+    "case": "duplicate-injection",
+    "candidate_sha256": "7a33ab7d47229ae72b30a68693fbef19a2afd670cc702b889b904fb7f4cc9966",
+    "raw": {
+      "sha256": "a8fd0cf5496f4cd4a345aefe06e9e11e7723a3e0b1662225152764ed25d9a740",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "messages": [
+        "managed SSA value was not available exactly once"
+      ]
+    },
+    "wire": {
+      "sha256": "a8fd0cf5496f4cd4a345aefe06e9e11e7723a3e0b1662225152764ed25d9a740",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "messages": [
+        "managed SSA value was not available exactly once"
+      ]
+    }
+  }
+]

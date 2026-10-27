@@ -1,0 +1,18 @@
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt166/crates/zil-analyze)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.88s
+     Running tests/package_budgets.rs (/workspace/scratch/39be3faa4442/targets/166/debug/deps/package_budgets-f229a47bb8fb9fd6)
+
+running 5 tests
+StoreCopy: [891, 2751, 1821, 9447]; width interaction = 5766
+test repeated_field_comparisons_charge_nominal_name_bytes ... ok
+StoreCopy: [927, 3159, 2973, 22503]; width interaction = 17298
+test repeated_copy_field_stores_charge_payload_width ... ok
+ReadCopy: [2097, 3120, 11831, 30152]; width interaction = 17298
+test repeated_copy_field_reads_charge_payload_width ... ok
+Describe: [4900, 6760, 14448, 27840]; width interaction = 11532
+test repeated_field_descriptions_charge_payload_width ... ok
+TakeRefill: [16107, 14216, 26027, 47200]; width interaction = 23064
+test repeated_managed_field_take_refill_charges_payload_width ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
