@@ -312,25 +312,18 @@ fn byte_storage_windows_remain_subject_to_mutation_and_transfer_checks() {
 }
 
 #[test]
-fn original_resource_address_receiver_probe_remains_explicitly_unsupported() {
+fn original_resource_address_receiver_declaration_probe_now_succeeds() {
     let report = check(&[(
         "main",
         "trait Read{fn read(self:&Self)->i32;}resource C{x:i32}impl Read for C{fn read()->i32=>.x}fn main(){}",
     )]);
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("addresses to resource or package heads")),
-        "{}",
-        report.to_json()
-    );
+    assert_eq!(report.verification_runs, 1);
 }
 
 #[test]
