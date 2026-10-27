@@ -67,18 +67,24 @@ def main():
     parser.add_argument("--cli", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--source-commit", help="exact source identity for an evidence-free unpacked source tree")
+    parser.add_argument("--compiler-commit", help="compiler source identity when checking a separate frozen candidate")
+    parser.add_argument("--case", action="append", choices=sorted(CASES), help="run only the named finite consumer; repeatable")
     args = parser.parse_args()
     repo, cli, out = args.repo.resolve(), args.cli.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     source_commit = args.source_commit or subprocess.check_output(
         ["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
     sources = repo / "examples/mainline/zui_language169"
-    report = {"status": "Running", "source_commit": source_commit, "cli_sha256": digest(cli),
+    selected = args.case or list(CASES)
+    report = {"status": "Running", "source_commit": source_commit,
+              "compiler_source_commit": args.compiler_commit or source_commit,
+              "selected_cases": selected, "cli_sha256": digest(cli),
               "sources": {path.name: digest(path) for path in sorted(sources.glob("*.zil"))},
               "observations": [], "full_language": "NotSatisfied", "product": "NotRun"}
     save(out / "summary.json", report)
     try:
-        for name, case in CASES.items():
+        for name in selected:
+            case = CASES[name]
             for opt in ("O0", "O2"):
                 directory = out / name / opt
                 executable, probe, phases = directory / "program", directory / "allocation-probe", directory / "phases"
@@ -110,7 +116,7 @@ def main():
                                                    "stdout": observed.stdout.decode(), "allocation": allocation,
                                                    "llvm_sha256": digest(phases / "llvm.ll")})
                     save(out / "summary.json", report)
-        report.update(status="Pass", ordinary_executions=8, instrumented_executions=16,
+        report.update(status="Pass", ordinary_executions=len(selected) * 2, instrumented_executions=len(selected) * 4,
                       scope="Finite owned result/array/closure composition and native cleanup; not full ZUI readiness")
     except Exception as error:
         report.update(status="Fail", error_type=type(error).__name__, error=str(error))
