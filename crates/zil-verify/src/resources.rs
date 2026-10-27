@@ -43,6 +43,7 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
         budget.spend(2)?;
         match ty {
             Type::Array { element, .. }
+            | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
             | Type::Desc(element) => pending.push(element),
@@ -93,6 +94,9 @@ pub(super) fn check_type_for(
             span,
         ));
     };
+    if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
+        return dynamic_store::check_carrier(module, ty, span, budget);
+    }
     if inner.as_ref() == &Type::ByteBuffer {
         return byte_buffers::check_carrier(module, ty, span, budget);
     }
@@ -142,6 +146,16 @@ pub(super) fn check_definitions(
     for resource in &module.resources {
         budget.spend(resource.name.len().saturating_add(1))?;
         check_type_shape(&resource.payload, &module.target, limits, budget)?;
+        if dynamic_store::check_definition(module, resource, budget)? {
+            if !names.insert(&resource.name) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-STORE",
+                    None,
+                    "Store definition must be unique",
+                ));
+            }
+            continue;
+        }
         if resource.payload == Type::ByteBuffer || resource.name == byte_buffers::NAME {
             byte_buffers::target(&module.target, None)?;
             if resource.name != byte_buffers::NAME
@@ -820,7 +834,18 @@ impl Transfer<'_> {
                     ));
                 }
             }
+            if let Some((store, true)) = dynamic_store::access(&instruction.kind) {
+                let row = slots.desc_value[store.0 as usize].expect("checked Store description");
+                self.write_roots(&state.desc[row], written, span, validate, budget)?;
+            }
             match &instruction.kind {
+                InstructionKind::OwnedStorePush { value, .. } => {
+                    self.consume(state, *value, span, validate)?;
+                    fresh_result = Some(INPUT);
+                }
+                InstructionKind::OwnedStorePop { .. } => {
+                    fresh_result = Some(INPUT);
+                }
                 InstructionKind::MakeErrorUnion { value, .. } if result.is_some() => {
                     self.consume(state, *value, span, validate)?;
                     fresh_result = Some(INPUT);
@@ -851,9 +876,9 @@ impl Transfer<'_> {
                         )?;
                     }
                 }
-                InstructionKind::MakeManaged { .. } | InstructionKind::ByteBufferNew => {
-                    fresh_result = Some(FRESH)
-                }
+                InstructionKind::OwnedStoreNew { .. }
+                | InstructionKind::MakeManaged { .. }
+                | InstructionKind::ByteBufferNew => fresh_result = Some(FRESH),
                 InstructionKind::MakePackage { fields }
                 | InstructionKind::MakeOwnedArray { elements: fields } => {
                     for &value in fields {

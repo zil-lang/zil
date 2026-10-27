@@ -316,6 +316,7 @@ pub fn check_program(
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
+    dynamic_store::add_definitions(&functions, &mut resources, limits).map_err(|e| vec![e])?;
     Ok(TypedProgram {
         module: TypedModule {
             resources,

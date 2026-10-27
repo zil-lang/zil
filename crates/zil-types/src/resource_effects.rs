@@ -668,6 +668,18 @@ impl<T: Tracking> Scan<'_, '_, T> {
                 }
             }
             CoreExprKind::Call { callee, arguments } => {
+                if let Some(name) = dynamic_store::primitive(callee) {
+                    self.visit(depth + 1, callee.span)?;
+                    for (index, argument) in arguments.iter().enumerate() {
+                        let origins = self.expr(argument, depth + 1)?;
+                        if index == 0
+                            && matches!(name, "store_reserve" | "store_push" | "store_pop")
+                        {
+                            self.record(origins, argument.span)?;
+                        }
+                    }
+                    return Ok(Origins::new());
+                }
                 if let Some(name) = byte_buffer::primitive(callee) {
                     self.visit(depth + 1, callee.span)?;
                     for (index, argument) in arguments.iter().enumerate() {

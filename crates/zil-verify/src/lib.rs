@@ -49,6 +49,7 @@ mod cleanup;
 mod closure_tests;
 mod closures;
 mod ct_program;
+mod dynamic_store;
 #[cfg(test)]
 mod error_scope_tests;
 mod errors;
@@ -1023,10 +1024,7 @@ fn check_instruction(
         | InstructionKind::OwnedStorePop { .. }
         | InstructionKind::OwnedStoreLen { .. }
         | InstructionKind::OwnedStoreCapacity { .. } => {
-            return Err(unsupported(
-                "owned store operations await their independent checker",
-                span,
-            ));
+            dynamic_store::check_instruction(module, function, instruction, budget)?
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferReserve { .. }
@@ -1932,6 +1930,13 @@ fn check_instruction(
                     "resource construction cannot manufacture a borrowed description",
                 ));
             };
+            if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-STORE",
+                    span,
+                    "sealed Store cannot be assembled with MakeManaged",
+                ));
+            }
             let Type::Record {
                 fields: expected, ..
             } = inner.as_ref()
@@ -1979,6 +1984,13 @@ fn check_instruction(
                     "resource field access requires a description",
                 ));
             };
+            if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-STORE",
+                    span,
+                    "sealed Store has no ordinary readable or writable head fields",
+                ));
+            }
             let Type::Record { fields, .. } = inner.as_ref() else {
                 return Err(reject(
                     "E-VERIFY-BYTE-BUFFER",

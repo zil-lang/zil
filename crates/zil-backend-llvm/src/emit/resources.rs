@@ -3,7 +3,7 @@
 use super::*;
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    if byte_buffer::is_resource(ty, resources) {
+    if dynamic_store::is_resource(ty, resources) || byte_buffer::is_resource(ty, resources) {
         return true;
     }
     match ty {
@@ -115,6 +115,15 @@ impl FunctionEmitter<'_> {
         };
         let teardown = definition.teardown;
         let byte_buffer = definition.payload == Type::ByteBuffer;
+        let store_drop = if matches!(definition.payload, Type::OwnedStore { .. }) {
+            Some(dynamic_store::helper(
+                &definition.payload,
+                self.resources,
+                "drop",
+            )?)
+        } else {
+            None
+        };
         let flag = self.temp();
         let label = self.continuation;
         self.continuation += 1;
@@ -132,7 +141,9 @@ impl FunctionEmitter<'_> {
             "  store i1 false, ptr %resource.live.{}, align 1",
             local.0
         ));
-        if byte_buffer {
+        if let Some(store_drop) = store_drop {
+            self.line(format!("  call void @{store_drop}(ptr %local.{})", local.0));
+        } else if byte_buffer {
             self.line(format!(
                 "  call void @zil.bytes.drop(ptr %local.{})",
                 local.0

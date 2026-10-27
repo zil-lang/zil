@@ -9,7 +9,7 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
     fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
         && fields.iter().all(|(_, ty)| {
             ty.is_copy_value()
-                || matches!(ty, Type::Managed(_) if resources::supported_type(ty, resources))
+                || matches!(ty, Type::Managed(payload) if !matches!(payload.as_ref(), Type::OwnedStore { .. }) && resources::supported_type(ty, resources))
                 || matches!(ty, Type::Array { element, length } if *length > 0 && supported_type(element, resources) && !has_array_fields(element))
         })
 }
@@ -36,6 +36,12 @@ pub(super) fn teardown_paths(
     while let Some((ty, path)) = pending.pop() {
         match ty {
             Type::Managed(payload) => {
+                if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                    return unsupported(
+                        "Store fields require a separate owning composition profile",
+                        None,
+                    );
+                }
                 let definition = resources
                     .iter()
                     .find(|r| &r.payload == payload.as_ref())
