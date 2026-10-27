@@ -804,6 +804,11 @@ impl<'a> Writer<'a> {
                 self.u8(40)?;
                 self.u32(*index)?;
             }
+            InstructionKind::BorrowCapture { index, mutable } => {
+                self.u8(78)?;
+                self.u32(*index)?;
+                self.boolean(*mutable)?;
+            }
             InstructionKind::CallClosureBorrowed {
                 callee,
                 kind,
@@ -2043,6 +2048,10 @@ impl<'a> Reader<'a> {
             },
             39 => InstructionKind::DescribeCapture { index: self.u32()? },
             40 => InstructionKind::TakeCapture { index: self.u32()? },
+            78 => InstructionKind::BorrowCapture {
+                index: self.u32()?,
+                mutable: self.boolean()?,
+            },
             41 => {
                 let callee = LocalId(self.u32()?);
                 let count = self.count(self.limits.max_values, 4)?;
