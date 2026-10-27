@@ -1,0 +1,45 @@
+{
+  "status": "Pass",
+  "scope": "Finite174-177 language-stage acceptance metadata only; full ZUI, full language and product gates remain incomplete",
+  "kind": "handoff-metadata-adapter",
+  "implementation_commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+  "full_workspace_source_commit": "a4494cae3f0f9a0b2077f3e5f046cef5d96d4882",
+  "crates_tree": "362d68b3ef816258ad41351a2a1ea7ea8f4f7399",
+  "tests_passed": 1620,
+  "tests_failed": 0,
+  "native_consumer177_executions": 64,
+  "source_records": [
+    {
+      "path": "evidence/impl/177/acceptance.json",
+      "sha256": "6718e2c096c9e5713ca35c00cac121416e6b664d0af76b9755b6537e4d419dc0"
+    },
+    {
+      "path": "evidence/impl/175/author-result.json",
+      "sha256": "a9a6cdc28a217e91913b818af5175d2cdea96bac7588e0e005ac178b733cf90e"
+    },
+    {
+      "path": "evidence/impl/176/SUMMARY.json",
+      "sha256": "b4d5c9fe8cfb020b8af9435f884183f78f49f1ddb20368d1a5dd7a69a26c9d43"
+    },
+    {
+      "path": "evidence/reviews/174/REVIEW.json",
+      "sha256": "e9a12e18bc4ca982339760b976e2e426b196d1833d268ff4a8722b7bc7f271a0"
+    },
+    {
+      "path": "evidence/reviews/175/REVIEW.json",
+      "sha256": "fef1fce773e6e277549c27dc297757fc06fa087c9e086df71413b3c0c7fadb39"
+    },
+    {
+      "path": "evidence/reviews/176/REVIEW.json",
+      "sha256": "2f83c8593aed81b1ea8f296fd3674fca3a0ba872348ce00ddcf2936cd3aa30c1"
+    },
+    {
+      "path": "evidence/reviews/177/composition/REVIEW.json",
+      "sha256": "7a6b55f3c2f30c1be83cdb910e3cbec9f175c455d84aceef9e8d8e6eb5eb5074"
+    }
+  ],
+  "note": "Original AuthorPass, bounded StagePass_FullZuiNotReady and author numerical summaries remain unchanged. This adapter records the actually completed finite-stage integration in the existing handoff outcome schema; it does not rerun tests or convert the global historical handoff failure to Pass. Review evidence is an array as required by the existing checker.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}

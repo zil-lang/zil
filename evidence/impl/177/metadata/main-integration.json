@@ -1,0 +1,26 @@
+{
+  "integration_commit": "a85b23f288432a74117ebc049b21cda742b2e86b",
+  "task_metadata_commit": "ceeea10d7f7642adfc1f44c9abe0692ec3ad4867",
+  "crates_tree": "362d68b3ef816258ad41351a2a1ea7ea8f4f7399",
+  "source_clean": true,
+  "records": {
+    "175": [
+      "579d49a76ad2aaef8b1c007289255dd1c4c7a54f",
+      "/root/callback_field176",
+      "evidence/reviews/175/REVIEW.json",
+      "evidence/impl/175/author-result.json"
+    ],
+    "176": [
+      "dfd9ca572b3d9d04a0b3a142e75df98cd1896b29",
+      "/root/store_view175",
+      "evidence/reviews/176/REVIEW.json",
+      "evidence/impl/176/SUMMARY.json"
+    ],
+    "177": [
+      "be6fd5cbf089072a13853cecb614abde2d05d58a",
+      "/root/store_field174",
+      "evidence/reviews/177/composition/REVIEW.json",
+      "evidence/impl/177/acceptance.json"
+    ]
+  }
+}
