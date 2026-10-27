@@ -151,64 +151,49 @@ pub fn check_program(
             helpers::install(core, context, &mut closure_state, limits).map_err(|e| vec![e])?;
         }
     }
-    let mut factories = BTreeMap::new();
+    let mut dependency_work = limits.max_analysis_steps;
+    let mut factory_graph = BTreeMap::new();
+    let mut factory_sources = BTreeMap::new();
     for module in &program.modules {
-        let core = &module.core;
-        if core.functions.iter().all(|f| f.callable_return.is_none()) {
-            continue;
-        }
-        let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
-        for f in core
-            .functions
-            .iter()
-            .filter(|f| f.callable_return.is_some())
-        {
-            let table = &signatures_by_module[&core.module_id];
-            let imports = imports_for(module, &signatures_by_module)?;
+        let table = &signatures_by_module[&module.core.module_id];
+        let imports = imports_for(module, &signatures_by_module)?;
+        for f in module.core.functions.iter().filter(|f| f.callable_return.is_some()) {
             let id = table[&f.name].id;
-            let pending_start = closure_state.pending.len();
-            let thin_start = closure_state.thin.len();
-            let mut builder =
-                Builder::new(f, id, table, limits, &mut closure_state).map_err(|e| vec![e])?;
-            builder.imports = Some(&imports);
-            builder.enums = Some(&enum_types);
-            let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
-            visibility.check(&typed, core.module_id)?;
-            for closure in &closure_state.pending[pending_start..] {
-                if let Some(function) = &closure.typed {
-                    visibility.check(function, core.module_id)?;
-                }
-            }
-            for function in closure_state.thin[thin_start..].iter().flatten() {
-                visibility.check(function, core.module_id)?;
-            }
-            signatures_by_module
-                .get_mut(&core.module_id)
-                .expect("module table")
-                .get_mut(&f.name)
-                .expect("factory signature")
-                .result = typed.return_type.clone();
-            factories.insert(id, typed);
+            let dependencies = retained::dependencies(f, table, Some(&imports), &mut dependency_work, limits)
+                .map_err(|e| vec![e])?;
+            factory_graph.insert(id, (f.span, dependencies));
+            factory_sources.insert(id, (module, f));
         }
     }
-    if !closure_state.helper_tables.is_empty() {
-        for module in &program.modules {
-            for f in module
-                .core
-                .functions
-                .iter()
-                .filter(|f| f.callable_return.is_some())
-            {
-                helpers::resolve_factory_result(
-                    &mut closure_state,
-                    module.core.module_id,
-                    &f.name,
-                    &signatures_by_module[&module.core.module_id][&f.name].result,
-                    f.span,
-                )
-                .map_err(|e| vec![e])?;
+    let factory_order = retained::order(factory_graph, &mut dependency_work).map_err(|e| vec![e])?;
+    let mut factories = BTreeMap::new();
+    for id in factory_order {
+        let (module, f) = factory_sources[&id];
+        let core = &module.core;
+        let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
+        let table = &signatures_by_module[&core.module_id];
+        let imports = imports_for(module, &signatures_by_module)?;
+        let pending_start = closure_state.pending.len();
+        let thin_start = closure_state.thin.len();
+        let mut builder = Builder::new(f, id, table, limits, &mut closure_state).map_err(|e| vec![e])?;
+        builder.imports = Some(&imports);
+        builder.enums = Some(&enum_types);
+        let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
+        visibility.check(&typed, core.module_id)?;
+        for closure in &closure_state.pending[pending_start..] {
+            if let Some(function) = &closure.typed {
+                visibility.check(function, core.module_id)?;
             }
         }
+        for function in closure_state.thin[thin_start..].iter().flatten() {
+            visibility.check(function, core.module_id)?;
+        }
+        signatures_by_module.get_mut(&core.module_id).expect("module table")
+            .get_mut(&f.name).expect("factory signature").result = typed.return_type.clone();
+        helpers::resolve_factory_result(
+            &mut closure_state, core.module_id, &f.name, &typed.return_type, f.span,
+        ).map_err(|e| vec![e])?;
+        factories.insert(id, typed);
     }
     let mut functions = Vec::new();
     let mut interfaces = Vec::new();

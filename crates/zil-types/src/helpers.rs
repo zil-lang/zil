@@ -136,8 +136,8 @@ pub(super) fn reserve_signatures(
 }
 
 /// Templates can run while opaque factories are being checked, but their lookup
-/// snapshot keeps every opaque result unresolved until that entire pass ends.
-/// Then update only the concrete result slots; no second deep table clone.
+/// snapshot is updated after each dependency-ordered factory completes.
+/// Only concrete result slots change; no second deep table clone is required.
 pub(super) fn resolve_factory_result(
     state: &mut closures::State,
     module: ModuleId,
