@@ -44,6 +44,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                     || callable_parameter_type(ty, &module.closures)
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
                     || (resource_type(ty, &module.resources)
+                        && !matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }))
                         && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
                     || (package_type(ty, &module.resources) && !package_array_fields(ty))
             })

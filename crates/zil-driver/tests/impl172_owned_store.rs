@@ -641,7 +641,11 @@ fn raw_wire_forbidden_store_composition_and_head_access_are_independently_reject
         ),
     ] {
         let mut mutated = original.clone();
-        let function = &mut mutated.functions[0];
+        let function = mutated
+            .functions
+            .iter_mut()
+            .find(|f| f.name.ends_with(":main") || f.name == "main")
+            .unwrap();
         let id = LocalId(function.locals.len() as u32);
         function.locals.push(LocalDecl {
             id,
@@ -719,10 +723,12 @@ fn raw_wire_forbidden_store_composition_and_head_access_are_independently_reject
 }
 
 #[test]
-fn raw_wire_constructor_depth_and_actual_inline_size_have_independent_limits() {
+fn raw_wire_constructor_depth_is_bounded_before_identity() {
     use zil_ir::{InstructionKind as I, Type};
     let source = format!("{PACKAGE} fn main()->i32{{let s=empty();return i32(store_len(s))}}");
+    eprintln!("172 depth: candidate begin");
     let (original, plan) = candidate(&source);
+    eprintln!("172 depth: candidate done");
     let target = TargetProfile::host_llvm();
     let limits = Limits::default();
     let mut deep = original.clone();
@@ -732,36 +738,55 @@ fn raw_wire_constructor_depth_and_actual_inline_size_have_independent_limits() {
         element = Type::Tuple(vec![element]);
     }
     deep.functions[new.0].blocks[new.1].instructions[new.2].kind = I::OwnedStoreNew { element };
-    let wide = Limits {
-        max_call_depth: limits.max_call_depth + 10,
-        ..limits.clone()
-    };
-    let bytes = zil_ir::wire::encode_module_candidate(&deep, &plan, &wide).unwrap();
     let dir = directory();
-    for (route, result) in [
-        (
-            "raw",
-            zil_verify::verify_module(deep, plan.clone(), &target, &limits),
-        ),
-        (
-            "wire",
-            zil_verify::verify_module_bytes(&bytes, &target, &limits),
-        ),
-    ] {
-        let errors = result.unwrap_err();
-        fs::write(
-            dir.join(format!("deep-metadata-{route}.txt")),
-            format!("{errors:#?}\n"),
-        )
-        .unwrap();
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.category == ResultCategory::ResourceLimit),
-            "{errors:?}"
-        );
+    eprintln!("172 depth: raw Verify begin");
+    let errors = zil_verify::verify_module(deep, plan.clone(), &target, &limits).unwrap_err();
+    fs::write(dir.join("deep-metadata-raw.txt"), format!("{errors:#?}\n")).unwrap();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::ResourceLimit),
+        "{errors:?}"
+    );
+    eprintln!("172 depth: raw Verify and Drop done");
+    // Build hostile bytes independently of the recursive public type writer,
+    // so decoder/Verify admission cannot be hidden by an encoder rejection.
+    let mut seed = original.clone();
+    seed.functions[new.0].blocks[new.1].instructions[new.2].kind = I::OwnedStoreNew {
+        element: Type::Tuple(vec![]),
+    };
+    let mut bytes = zil_ir::wire::encode_module_candidate(&seed, &plan, &limits).unwrap();
+    let positions: Vec<_> = bytes
+        .windows(6)
+        .enumerate()
+        .filter(|(_, window)| *window == [80, 4, 0, 0, 0, 0])
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(positions.len(), 1, "unique New(empty tuple) seed metadata");
+    let mut metadata = vec![80u8];
+    for _ in 0..limits.max_call_depth + 2 {
+        metadata.extend([4u8, 1, 0, 0, 0]);
     }
-    let mut overflow = original;
+    metadata.push(2); // I32 terminal type.
+    bytes.splice(positions[0]..positions[0] + 6, metadata);
+    fs::write(dir.join("deep-candidate.bin"), &bytes).unwrap();
+    eprintln!("172 depth: Wire Verify begin");
+    let errors = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    fs::write(dir.join("deep-metadata-wire.txt"), format!("{errors:#?}\n")).unwrap();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::ResourceLimit),
+        "{errors:?}"
+    );
+    eprintln!("172 depth: Wire Verify and Drop done");
+}
+
+#[test]
+fn raw_wire_actual_inline_size_product_is_bounded() {
+    use zil_ir::Type;
+    let source = format!("{PACKAGE} fn main()->i32{{let s=empty();return i32(store_len(s))}}");
+    let (mut overflow, plan) = candidate(&source);
     let definition = overflow
         .resources
         .iter_mut()
