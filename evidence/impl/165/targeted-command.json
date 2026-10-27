@@ -1,0 +1,34 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-expand",
+    "--test",
+    "generics",
+    "--test",
+    "attributes",
+    "--test",
+    "impl094_generic_places"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt165",
+  "source_commit": "4c6213a77bd7b8561b4fed7a5e11c37c80363670",
+  "crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+  "source_status": "",
+  "start": 1793097942.6779869,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "0ef068cf42f1bfd4250effcae90b4ebf5e57a80f2873e3470cd3c27a30fd43e3",
+  "end": 1793097951.317435,
+  "seconds": 8.639448165893555,
+  "tests": {
+    "passed": 8,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 3
+  },
+  "ending_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+  "ending_source_status": ""
+}

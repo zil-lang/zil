@@ -1,0 +1,90 @@
+{
+  "source_commit": "7f14d1de646e8455a4a096f47958ed33f6a6ef32",
+  "compiler_built_at": "712a9602797891083fe3f549381e1e12ab34dd02",
+  "source_equivalence": "git diff --quiet 712a960 7f14d1d -- crates: exit0",
+  "cli_sha256": "40d203b2aaf0dc5bc7bd345b17615e1efe80d3235c403cdde6a95ced490c5154",
+  "cases": [
+    {
+      "case": "unused-attribute",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review164/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/165/baseline/unused-attribute.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "unexecuted generic declaration attribute",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 30
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "unknown-copy-bound",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review164/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/165/baseline/unknown-copy-bound.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic bound Copy is not a declared nominal trait",
+          "span": {
+            "file": 0,
+            "start": 9,
+            "end": 13
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "declared-copy-bound",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review164/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/165/baseline/declared-copy-bound.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "declared-read-bound",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review164/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/165/baseline/declared-read-bound.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    }
+  ]
+}
