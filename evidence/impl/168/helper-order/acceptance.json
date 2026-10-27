@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "scope": "Author verification of private helper-body factory dependency scheduling, not expanded generic/helper semantics or final full-workspace acceptance",
+  "author": "/root/nested_closures",
+  "implementation_commit": "3ba9e9e798f875eef5166c29a99652cd47f113e2",
+  "crates_tree": "0388c0c9936b0e4c1747f904abd458f9e8d5b956",
+  "baseline": "7179b49ca556479acbd53c1ae4566f63970f31cf",
+  "proposal_commit": "5b7b9684a9630bcb014dbca2e3089c33c1a06f72",
+  "root_discovery": "After the 125 migration, other-before succeeded and other-after failed in Types with unresolved callable factory result; root retained the workspace/source failure.",
+  "implementation": [
+    "Direct lexical dependency scans now also collect callable helper TemplateKeys.",
+    "Factory scheduling uses a bounded visited worklist over reached helper definitions with definition-site module signatures and import aliases.",
+    "Parameters, alias snapshots, AST visits and dependency growth are charged before cloning or allocation using the existing Types analysis allowance.",
+    "Existing factory topological cycle rejection and ordinary helper recursion/trace/borrow checks remain the authority; no speculative Builder retries."
+  ],
+  "changed_files": [
+    "changes/168-helper-factory-order.md",
+    "crates/zil-driver/tests/impl125_factory_helpers.rs",
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/program.rs",
+    "crates/zil-types/src/retained.rs"
+  ],
+  "author_tests": {
+    "impl125_factory_helpers": 13,
+    "impl168_retained_composition": 26,
+    "native125": 22,
+    "native168": 40,
+    "new_native_executions": 6,
+    "O0_O2_factory_result_42_both_orders": "Pass",
+    "single_module_Types_Analyze_Verify_both_orders": "Pass",
+    "cross_module_definition_private_and_imported_factories": "Pass",
+    "raw_Core_parameter_shadowing_without_spurious_factory_cycle": "Pass",
+    "factory_helper_cycle": "Types Unsupported",
+    "clippy_warnings_denied": "Pass",
+    "changed_files_format": "Pass",
+    "full_workspace": "NotRun by author; root integration gate"
+  },
+  "kept_boundaries": [
+    "Helper-local closure literals and same-name generic source alias cases in draft fixtures remain Expand Unsupported; no Expand production file was changed.",
+    "Calling independently created local factory environments through unsupported helper origin forms remains Types Unsupported; the cross-module positive only creates them.",
+    "The lexical shadowing acceptance test is explicitly untrusted raw Core, not source/native evidence.",
+    "General nested/recursive helper contracts, dynamic callbacks, borrowing/escape permissions, public schema and budget defaults are unchanged."
+  ],
+  "preserved_fixture_failures": {
+    "prior-fixture-targeted.log": "Two draft tests exceeded existing Expand/helper-origin support.",
+    "prior-fixture-corrected.log": "The same-name source alias draft remained Expand Unsupported.",
+    "prior-fixture-shadow-final.log": "Direct same-name parameter plus forwarded factory source remained Expand Unsupported. Final shadow control uses explicitly labeled raw Core."
+  },
+  "exact_build": {
+    "source_clean": true,
+    "fresh_target": "/workspace/scratch/39be3faa4442/targets/168-order/final",
+    "debug": 0,
+    "incremental": 0,
+    "commands": "commands.json"
+  },
+  "rust_goals": {
+    "safety": "Existing independent verification and rejection boundaries retained; new scheduler pays actual bounded work.",
+    "runtime_memory": "Six new native executions prove the finite behavior. No paired Rust timing/RSS measurement.",
+    "expression_maintenance": "Factory/helper composition is independent of declaration order within the existing profile; broad generic completeness is not claimed.",
+    "compile_cost": "No speed claim or default budget increase; direct helper-body visits are explicit.",
+    "product_breakthrough": "No new full-product/Rust superiority claim."
+  },
+  "independent_review": "Pending separate exact-commit reviewer receipt",
+  "full_zui_ready": false
+}
