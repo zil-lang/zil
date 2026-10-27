@@ -206,6 +206,7 @@ fn analyze_budgeted(
                     | InstructionKind::DropOwnedArrayElement { local, .. }
                     | InstructionKind::StoreOwnedArrayElement { local, .. }
                     | InstructionKind::BorrowOwnedArrayElement { local, .. }
+                    | InstructionKind::BorrowPackageField { local, .. }
                     | InstructionKind::CallClosureMut { callee: local, .. }
                     | InstructionKind::CallClosureShared { callee: local, .. } => {
                         budget.lookup(state.len(), "initialized local lookup")?;

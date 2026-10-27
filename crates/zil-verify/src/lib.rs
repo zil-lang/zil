@@ -931,6 +931,7 @@ fn check_function(
                 | InstructionKind::DropOwnedArrayElement { local, .. }
                 | InstructionKind::StoreOwnedArrayElement { local, .. }
                 | InstructionKind::BorrowOwnedArrayElement { local, .. }
+                | InstructionKind::BorrowPackageField { local, .. }
                 | InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local }
                 | InstructionKind::TakeLocal { local }
@@ -1018,6 +1019,13 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::OwnedStoreBorrow { .. } | InstructionKind::BorrowPackageField { .. } => {
+            return Err(Diagnostic::unsupported(
+                Phase::Verify,
+                "State field/window semantics are not yet implemented",
+                span,
+            ));
+        }
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
         | InstructionKind::OwnedStorePush { .. }
@@ -2159,6 +2167,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::DropOwnedArrayElement { .. }
         | InstructionKind::DropOwnedArray { .. }
         | InstructionKind::BorrowOwnedArrayElement { .. }
+        | InstructionKind::BorrowPackageField { .. }
         | InstructionKind::DropManaged { .. }
         | InstructionKind::DropPackage { .. }
         | InstructionKind::DropErrorUnion { .. }
@@ -2179,6 +2188,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
             ([Some(*store), Some(*capacity)], &[])
         }
         InstructionKind::OwnedStorePush { store, value } => ([Some(*store), Some(*value)], &[]),
+        InstructionKind::OwnedStoreBorrow { store, index } => ([Some(*store), Some(*index)], &[]),
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store } => ([Some(*store), None], &[]),
