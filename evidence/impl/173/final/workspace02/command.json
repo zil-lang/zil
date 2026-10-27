@@ -1,0 +1,36 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/preflight173",
+  "source_commit": "02cce89206e74cb5aa0050faf4885973288b9383",
+  "crates_tree": "901eafb22dcfad61848da795146deef7d5ff5717",
+  "source_status": "",
+  "start": 1793111529.4304445,
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/173-final-compact",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/173-final/details02"
+  },
+  "status": "Fail",
+  "prior_attempt": "workspace01: linker IO failure (disk full); no tests ran; source unchanged",
+  "exit_code": 101,
+  "end": 1793111644.4468112,
+  "log_sha256": "d75a765720e058c820f8080ae080d179ea0a0e1f2ec5a21909920c3d3d387165",
+  "tests": {
+    "passed": 390,
+    "failed": 1,
+    "ignored": 0,
+    "groups": 36
+  },
+  "ending_crates_tree": "901eafb22dcfad61848da795146deef7d5ff5717",
+  "ending_source_status": ""
+}

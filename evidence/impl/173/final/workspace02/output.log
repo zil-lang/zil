@@ -1,0 +1,637 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-analyze)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-lower)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-driver)
+   Compiling zil-ide v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-ide)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/preflight173/crates/zil-cli)
+    Finished `test` profile [unoptimized] target(s) in 1m 04s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/zil_analyze-a5dce2e7a4398044)
+
+running 23 tests
+test budget::tests::arithmetic_overflow_is_a_limit_failure ... ok
+test holds::frontier_tests::frontier_matches_full_scan_on_cycles_components_and_parameter_permutations ... ok
+test holds::frontier_tests::frontier_rejects_absent_target_and_zero_budget_without_panicking ... ok
+test resource_tests::independent_effect_fixed_point_follows_direct_and_forwarding_calls ... ok
+test resource_tests::independent_effects_distinguish_borrowed_target_and_owned_environment_writes ... ok
+test resource_tests::independent_once_state_consumes_captures_and_rejects_reuse ... ok
+test resource_tests::independent_resource_closure_flow_accepts_repeatable_and_consuming_environments ... ok
+test resource_tests::independent_resource_diagnostics_reject_copy_leaks_and_repeated_cleanup ... ok
+test resource_tests::independent_sources_reject_stale_borrowed_capture_and_repeated_consuming_ssa ... ok
+test holds::frontier_tests::frontier_rechecks_only_relevant_functions_on_reverse_chain ... ok
+test resources::frontier_tests::all_small_dependency_graphs_match_complete_reference_rows ... ok
+test resources::frontier_tests::compiled_graph_has_exact_budget_boundary_and_does_not_reuse_stale_effects ... ok
+test resources::frontier_tests::every_concrete_closure_call_has_its_entry_dependency ... ok
+test resources::frontier_tests::forward_star_disconnected_duplicate_and_recursive_effect_graphs ... ok
+test resources::frontier_tests::module_budget_boundary_and_fresh_request_are_exact ... ok
+test resources::frontier_tests::public_helper_contract_cuts_the_private_effect_dependency ... ok
+test resources::frontier_tests::reverse_chain_revisits_only_affected_predecessors ... ok
+test resources::frontier_tests::transitive_owned_write_is_rejected_after_convergence_and_borrowed_write_is_legal ... ok
+test resources::frontier_tests::unreachable_call_does_not_create_a_summary_consumer ... ok
+test tests::emits_initialized_boundary_facts ... ok
+test tests::invalid_edge_rejected_without_panic ... ok
+test tests::uninitialized_load_is_rejected ... ok
+test resources::frontier_tests::compiled_effect_constraints_cover_large_cycles_permutations_and_disconnected_components ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+
+     Running tests/budgets.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/budgets-42f48a19e85b3ab8)
+
+running 12 tests
+test all_metadata_positions_are_bounded_before_fingerprinting ... ok
+test call_argument_visits_are_bounded_before_fingerprinting ... ok
+test callable_return_metadata_is_reserved_before_fingerprinting_or_validation ... ok
+test exact_work_budget_covers_cfg_edges_and_predecessor_visits ... ok
+test every_type_position_rejects_unknown_semantics_before_hashing ... ok
+test exact_work_budget_covers_instruction_visits_and_fingerprinting ... ok
+test exact_work_budget_includes_set_scans_across_functions ... ok
+test initialization_facts_survive_a_branch_and_backedge ... ok
+test original_raw_reproducer_checks_each_limit_independently ... ok
+test known_recursive_aggregate_shape_obeys_selected_depth ... ok
+test structural_limits_accumulate_across_functions ... ok
+test unsupported_metadata_does_not_allocate_unbounded_diagnostics ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/package_budgets.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/package_budgets-84792b760e803f13)
+
+running 5 tests
+test repeated_copy_field_stores_charge_payload_width ... ok
+test repeated_field_comparisons_charge_nominal_name_bytes ... ok
+test repeated_copy_field_reads_charge_payload_width ... ok
+test repeated_field_descriptions_charge_payload_width ... ok
+test repeated_managed_field_take_refill_charges_payload_width ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/zil_backend_llvm-81ce2b1f3f32f080)
+
+running 18 tests
+test tests::changing_any_lir_closure_claim_is_rejected_before_tools_or_output ... ok
+test tests::bytes083_native_unsigned_result_and_untrusted_byte_layout_are_independent ... ok
+test tests::empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi ... ok
+test tests::error_projection_tag_mismatch_traps_including_unit_payload ... ok
+test tests::error_union_nested_in_enum_preserves_wide_and_unit_payload_layout ... ok
+test tests::integer_arithmetic_comparisons_and_explicit_wrapping_execute ... ok
+test tests::loop_and_branch_execute_mutable_local_dataflow ... ok
+test tests::missing_tool_and_invalid_entry_fail_without_a_native_artifact ... ok
+test tests::native_entry_never_enters_an_environment_function_even_when_empty ... ok
+test tests::native_harness_observes_full_signed_results_at_both_optimization_levels ... ok
+test tests::checked_integer_failures_trap_in_native_code_before_printing ... ok
+test tests::nonzero_cfg_entry_is_selected_by_the_native_prologue ... ok
+test tests::ordinary_main_uses_real_process_exit_status_and_unit_returns_zero ... ok
+test tests::recursion_and_direct_calls_use_identity_symbols_not_source_names ... ok
+test tests::runtime_closure_environments_are_independent_copies_and_repeatable ... ok
+test tests::tampered_lir_is_rejected_before_invoking_tools_or_creating_outputs ... ok
+test tests::unit_parameters_loads_stores_calls_and_returns_are_erased_after_verification ... ok
+test tests::synchronous_error_main_maps_both_tags_and_erased_success_at_o0_o2 ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.85s
+
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/zil_base-3323a89df60ba644)
+
+running 6 tests
+test source_map::tests::source_map_checks_utf8_spans_and_depth_budget ... ok
+test source_map::tests::source_map_validates_and_traces_cross_file_provenance ... ok
+test tests::json_controls_and_unicode ... ok
+test source_map::tests::source_map_rejects_cycles_duplicates_and_missing_files ... ok
+test tests::span_utf8_bounds ... ok
+test tests::sha256_known_answers ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/main.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/zil-78a8684df9a834bc)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/qc.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/qc-bc0330e3e0c1e070)
+
+running 2 tests
+test forwards_literal_arguments_and_real_exit_status ... ok
+test help_and_missing_tool_are_distinct ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/stream_io.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/stream_io-3ab2ea478735dd90)
+
+running 1 test
+test run_and_json_run_forward_real_stdin_to_the_native_program ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/zil_ct-667afafb88496c44)
+
+running 15 tests
+test materialize::tests::identity_header_overflow_precedes_body_budget_and_empty_input_is_free ... ok
+test materialize::tests::impl090_slice_identity_cursor_visits_object_and_both_bounds ... ok
+test materialize::tests::impl105_enum_reification_charges_fresh_constructor_nodes_text_and_depth ... ok
+test materialize::tests::lazy_identity_cursor_preserves_exact_node_depth_and_diagnostic_order ... ok
+test source::tests::arithmetic_error_does_not_publish_core ... ok
+test source::tests::bytes083_standalone_scalar_hints_are_symmetric_and_cumulatively_bounded ... ok
+test source::tests::callable_return_metadata_is_preserved_and_bounded_before_clone ... ok
+test source::tests::minimum_target_integer_is_preserved ... ok
+test source::tests::source_ct_budget_is_shared_by_all_expressions ... ok
+test source::tests::source_ct_does_not_eagerly_execute_short_circuit_rhs ... ok
+test source::tests::source_ct_returns_ordinary_core_with_source_identity ... ok
+test source::tests::source_ct_verifier_rejects_mixed_types ... ok
+test tests::checked_division_reports_error ... ok
+test tests::executes_verified_arithmetic ... ok
+test tests::overflow_and_wrapping_differ ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/zil_db-43877e21f1283294)
+
+running 11 tests
+test cache::tests::cancellation_after_real_temporary_write_cannot_publish_or_leave_partial_file ... ok
+test cache::tests::each_corruption_class_is_untrusted_and_can_be_rebuilt ... ok
+test cache::tests::oversized_reads_and_writes_are_bounded ... ok
+test tests::absent_invalidation_preserves_active_queries_revision_and_published_identity ... ok
+test cache::tests::incomplete_temp_files_are_not_committed_candidates ... ok
+test tests::all_fingerprint_kinds_control_the_actual_transitive_invalidation_set ... ok
+test tests::cancellation_is_shared_and_deadlines_do_not_require_background_threads ... ok
+test tests::dependency_cycles_and_active_ancestors_cannot_be_observed_or_published ... ok
+test tests::failed_new_publications_cannot_create_forward_edges_or_replace_old_snapshots ... ok
+test tests::stale_input_and_cancelled_publication_abort_the_active_record ... ok
+test tests::absent_producers_match_legacy_scanning_on_reachable_dags_and_after_eviction ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.36s
+
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/zil_driver-583b28d5a7c9573c)
+
+running 26 tests
+test artifacts::tests::second_native_rename_failure_restores_both_previous_outputs ... ok
+test ct_program::tests::ct122_original_teardown_is_bounded_before_query_copy ... ok
+test ct_program::tests::ct_reachable_pattern_trees_are_bounded_before_clone ... ok
+test project::discovery158_tests::capacity_clear_keeps_immutable_lent_syntax_but_not_query_authority ... ok
+test project::discovery158_tests::cached_syntax_cannot_hide_lower_quotas_syntax_errors_or_ambiguous_entries ... ok
+test project::discovery158_tests::discovery_cancellation_and_active_query_guards_still_apply ... ok
+test session::construction_identity150_tests::construction_identity_binds_every_query_axis_and_all_limits ... ok
+test project::discovery158_tests::discovery_reuses_exact_published_syntax_arcs_but_reads_edited_bytes ... ok
+test session::construction_identity150_tests::construction_identity_binds_order_count_upstream_key_and_observation ... ok
+test tests::artifact_preflight_protects_source_from_every_phase_dump_and_native_destination ... ok
+test tests::artifact_preflight_detects_hard_links_and_parent_symlink_aliases ... ok
+test tests::artifact_preflight_rejects_dump_native_collisions_before_any_write ... ok
+test tests::cache_changed_source_limits_build_inputs_and_file_identity_cannot_reuse_stale_snapshots ... ok
+test tests::cache_disk_corruption_is_rebuilt_and_never_substitutes_for_phase_execution ... ok
+test tests::cache_tampered_raw_typed_snapshot_is_rejected_by_a_new_verifier_run ... ok
+test tests::cache_session_reuses_raw_phases_but_always_runs_independent_verification ... ok
+test tests::cache_target_change_reuses_frontend_and_rechecks_target_dependent_phases ... ok
+test tests::cancellation_after_native_link_removes_the_unpublished_executable ... ok
+test tests::cancellation_before_start_and_after_cache_hit_cannot_report_success ... ok
+test tests::cancellation_during_a_phase_aborts_publication_and_next_request_recovers ... ok
+test tests::explicit_main_contract_has_the_frozen_types_diagnostics ... ok
+test tests::late_artifact_failure_preserves_both_previous_native_outputs ... ok
+test tests::cancellation_after_native_link_preserves_both_previous_successful_outputs ... ok
+test tests::source_ct_keeps_original_core_and_propagates_ct_errors ... ok
+test tests::unsupported_profile_and_invalid_source_have_explicit_categories ... ok
+test tests::native_entry_cannot_select_a_synthesized_closure_with_or_without_captures ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/aggregates.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/aggregates-e144ce4f4dcbeb84)
+
+running 10 tests
+test empty_unit_bool_tuples_and_nested_arrays ... ok
+test instance_method_value_is_not_silently_bound ... ok
+test malformed_record_fields_and_nominal_mismatch ... ok
+test raw_aggregate_shapes_obey_work_and_depth_limits_before_identity_checks ... ok
+test arrays_nested_fields_loop_and_copy_return ... ok
+test records_nested_update_parameter_and_return ... ok
+test record_defaults_context_and_inferred_updates ... ok
+test static_and_value_receiver_methods ... ok
+test wire_roundtrip_and_independent_field_forgery_rejection ... ok
+test signed_and_upper_bounds_reads_and_writes_trap ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s
+
+     Running tests/borrowed_closures.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/borrowed_closures-fa5eabda2403ecd5)
+
+running 13 tests
+test borrowed_and_move_environments_keep_distinct_semantics ... ok
+test conflicting_writes_include_alias_copies_and_loop_backedges ... ok
+test exclusive_capture_calls_require_mutable_environments_and_escape_stays_closed ... ok
+test branch_and_shadowed_local_have_distinct_places ... ok
+test loop_local_storage_restarts_and_control_exits_end_it ... ok
+test one_shared_root_with_many_unrelated_locals_and_blocks_fits_default_budget ... ok
+test ordinary_capture_and_all_copies_end_at_last_use ... ok
+test raw_address_access_requires_real_address_type ... ok
+test raw_dead_storage_and_reactivation_cannot_hide_a_live_reference ... ok
+test raw_hold_rows_bind_every_value_and_external_capture ... ok
+test short_circuit_loop_temps_and_rhs_last_use_preserve_storage ... ok
+test parameter_address_has_distinct_native_stack_instances ... ok
+test unit_address_has_real_storage_and_unit_abi_is_erased ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+     Running tests/closures_frontend.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/closures_frontend-1a78b742ecd0f8ab)
+
+running 22 tests
+test c014_01_first_call_resolves_identity_and_repeated_calls_keep_one_environment ... ok
+test c014_02_known_i64_capture_constrains_unannotated_parameter_and_literals ... ok
+test c014_03_parameter_and_inner_binding_shadow_outer_capture_candidates ... ok
+test c014_04_capture_identity_and_source_order_survive_later_shadowing ... ok
+test c014_05_local_copy_assignment_and_pending_capture_are_concrete_values ... ok
+test c014_07_body_call_signature_and_boolean_constraints_infer_without_call_defaults ... ok
+test c014_06_rejects_ambiguous_conflicting_and_mutating_closures ... ok
+test c014_09_closure_body_resolves_imports_without_exporting_environment_functions ... ok
+test c014_10_ct_parameter_shadowing_does_not_use_outer_i64_hint ... ok
+test c014_11_captureless_unit_closure_and_scalar_control_flow_are_supported ... ok
+test c014_12_callee_is_evaluated_once_before_arguments ... ok
+test c014_08_synthetic_functions_share_graph_budgets ... ok
+test c014_14_known_later_argument_constrains_earlier_unsuffixed_literal ... ok
+test c014_13_real_native_pending_capture_copy_and_i64_inference ... ok
+test c014_15_whole_function_constraints_are_preserved_and_call_order_independent ... ok
+test c014_17_explicit_types_still_conflict_and_return_annotations_constrain ... ok
+test c014_16_ct_uses_solved_context_before_verified_evaluation ... ok
+test c014_18_lexical_capture_identity_does_not_follow_later_bindings ... ok
+test c014_20_raw_type_and_metadata_budgets_precede_recursive_cloning ... ok
+test c014_21_budget_preflight_visits_tail_after_first_closure_and_charges_names ... ok
+test c014_22_synthetic_function_budget_is_global_and_checked_before_ct ... ok
+test c014_19_ct_unit_equality_remains_available_without_runtime_admission ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.69s
+
+     Running tests/closures_native.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/closures_native-39796cbd9f04f898)
+
+running 3 tests
+test move_snapshot_survives_outer_mutation_local_copy_and_later_shadowing ... ok
+test runtime_parameters_create_distinct_environments_at_the_same_source_site ... ok
+test unit_capture_and_empty_unit_result_work_through_the_source_pipeline ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/comptime_programs.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/comptime_programs-e96fdef468647e79)
+
+running 14 tests
+test ct027_02_range_continue_break_and_nested_calls ... ok
+test ct027_01_recursive_functions_and_local_mutation_execute_natively ... ok
+test ct027_03_short_circuit_and_branch_skip_unexecuted_arithmetic ... ok
+test ct027_05_mutual_recursion_and_nested_compile_time_marker ... ok
+test ct027_06_calls_observe_checked_arithmetic_failures ... ok
+test ct027_07_execution_and_recursion_budgets_do_not_fall_back ... ok
+test ct027_08_runtime_bindings_and_shadowed_function_names_are_rejected ... ok
+test ct027_09_multiple_queries_share_actual_execution_budget ... ok
+test ct027_10_project_calls_respect_visibility_and_module_identity ... ok
+test ct027_11_raw_wire_reverification_and_forged_claims ... ok
+test ct027_12_ordinary_verified_addresses_do_not_grant_ct_permission ... ok
+test ct027_04_i64_context_wrapping_and_unit_calls ... ok
+test ct027_13_unsuffixed_literals_share_runtime_type_context ... ok
+test ct027_14_query_selection_preserves_later_integer_context ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.20s
+
+     Running tests/cross_function_borrows.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/cross_function_borrows-7a8f3ec4a85d1ade)
+
+running 11 tests
+test branch_union_alias_substitution_and_rebinding_preserve_last_use ... ok
+test bool_unit_and_i32_incoming_references_work ... ok
+test contract_identity_tracks_return_origin_changes_only_after_verify ... ok
+test every_returned_root_blocks_writes_until_last_use ... ok
+test forged_argument_roots_and_missing_return_holds_fail ... ok
+test local_storage_and_value_parameters_cannot_escape ... ok
+test low_budget_never_turns_recursive_unknown_origins_into_success ... ok
+test incoming_pointer_and_exact_return_origin_use_native_abi ... ok
+test returned_pointer_composes_with_closure_and_inner_calls ... ok
+test recursive_and_mutually_recursive_forwarding_find_grounded_origins ... ok
+test source_module_boundaries_preserve_pointer_signatures_and_return_roots ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.15s
+
+     Running tests/generic_regressions.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/generic_regressions-8dd137fa1a3d7efa)
+
+running 9 tests
+test duplicate_generic_and_ordinary_function_must_reject ... ok
+test generic_record_default_cannot_gain_numeric_constraint_from_instance ... ok
+test selected_analysis_work_and_unused_signature_lifetimes_are_checked ... ok
+test substituted_type_depth_is_reserved_before_instance_cloning ... ok
+test unused_generic_body_respects_selected_depth ... ok
+test unused_generic_body_respects_selected_work ... ok
+test concrete_unary_and_binary_errors_remain_errors_when_unused ... ok
+test unused_generic_concrete_bad_operation_is_not_discarded ... ok
+test unused_generic_control_flow_is_checked_before_template_removal ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/generics.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/generics-0665cd470979d094)
+
+running 6 tests
+test bool_and_distinct_integer_instantiations ... ok
+test generic_arity_constraints_and_bounds_fail_closed ... ok
+test generic_body_cannot_gain_operations_or_copy_from_an_instance ... ok
+test generic_instance_growth_is_bounded_before_type_building ... ok
+test symbolic_result_and_nested_calls_do_not_collapse_distinct_parameters ... ok
+test concrete_instantiations_inference_recursive_reuse_and_hygiene ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+     Running tests/impl029.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl029-385c527e7a9c8615)
+
+running 16 tests
+test enum029_02_nested_enum_tuple_bool_and_integer_matrix ... ok
+test enum029_01_unit_and_tuple_payloads_cross_function_native ... ok
+test enum029_04_array_record_update_and_copy_return ... ok
+test enum029_03_unit_zero_array_and_record_padding_payloads ... ok
+test enum029_05_variant_replacement_in_loop_uses_fixed_scratch ... ok
+test enum029_06_scalar_match_ct_and_constructor_ct_context ... ok
+test enum029_08_nonexhaustive_and_shadowed_arms_reject ... ok
+test enum029_09_pattern_arity_names_nominality_and_infinite_layout_reject ... ok
+test enum029_10_wire_and_forged_variant_types_indices_reverify ... ok
+test enum029_07_match_input_emits_one_call ... ok
+test enum029_12_explicit_trap_is_ct_error_and_unreachable_still_rejects ... ok
+test enum029_13_copy_enum_ct_evaluates_and_runtime_pattern_name_stays_runtime ... ok
+test enum029_11_checked_raw_payload_mismatch_traps_at_o0_and_o2 ... ok
+test enum029_14_union_uses_max_payload_instead_of_all_variants ... ok
+test enum029_15_match_break_continue_join_and_shared_result_contract_compose ... ok
+test enum029_16_type_name_shadow_and_budget_fail_closed ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.29s
+
+     Running tests/impl030.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl030-6df51d349b21775b)
+
+running 14 tests
+test aggregate_projection_constraints_reject_conflicts_and_bad_fields ... ok
+test aggregate_constraint_expansion_obeys_selected_work_and_depth ... ok
+test compound_projection_indices_evaluate_once_before_rhs ... ok
+test frozen_closure_and_frozen_capture_are_rejected ... ok
+test default_writes_update_external_state_and_nested_address_capture_stays_closed ... ok
+test mixed_address_and_owned_state_keep_hold_until_actual_last_call ... ok
+test inferred_array_capture_and_projected_assignment ... ok
+test move_aggregate_readonly_and_projected_parameter_inference ... ok
+test mutable_bool_unit_and_temporary_environments ... ok
+test mutable_counter_updates_and_independent_copy ... ok
+test raw_capture_address_cannot_be_overwritten ... ok
+test raw_capture_write_cannot_use_readonly_entry_or_invalid_field ... ok
+test raw_mutability_and_by_value_mut_call_forgery_fail ... ok
+test nested_record_array_tuple_environment_and_aggregate_result ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.93s
+
+     Running tests/impl031.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl031-0f7104cd79be1553)
+
+running 4 tests
+test raw_address_cannot_hide_invalid_nominal_shape ... ok
+test tuple_and_array_borrow_signatures_preserve_copy_values ... ok
+test aggregates_ct_recursive_borrow_and_last_use_compose ... ok
+test whole_object_borrow_rejects_projected_writes_and_escaping_locals ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running tests/impl032.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl032-a798f3a6b36154b2)
+
+running 4 tests
+test raw_projection_type_and_hold_claims_are_independently_checked ... ok
+test projected_borrows_keep_whole_object_origins ... ok
+test shared_projection_and_receiver_end_to_end ... ok
+test tuple_unit_field_and_zero_length_bounds ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+
+     Running tests/impl033.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl033-ba19dad3b956609e)
+
+running 10 tests
+test function_factory_aggregation_and_indirect_calls_execute ... ok
+test independent_verify_rejects_environment_target_and_embedded_address_contract ... ok
+test independent_verify_rejects_forged_function_identity_signature_and_operands ... ok
+test copying_through_a_shared_pointer_slot_retains_the_function_identity ... ok
+test module_function_values_keep_identity_visibility_and_signature_hash ... ok
+test raw_function_signature_is_bounded_before_hashing ... ok
+test runtime_pointer_capability_does_not_grant_ct_execution_authority ... ok
+test source_function_pointer_signature_and_environment_boundaries ... ok
+test unit_signature_and_function_returned_by_indirect_call_execute ... ok
+test indirect_call_context_preserves_large_integer_and_static_method_value ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+
+     Running tests/impl034.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl034-886b2d6b336d3028)
+
+running 11 tests
+test aggregate_return_materializes_records_arrays_and_tuples ... ok
+test aggregate_wire_shape_copy_steps_and_expanded_cell_quotas ... ok
+test ct_bounds_and_runtime_names_are_diagnosed_before_native ... ok
+test aggregate_argument_context_keeps_i64_literals_and_record_names ... ok
+test raw_ascribed_expression_does_not_grant_type_or_shape_authority ... ok
+test review_cross_module_record_result_keeps_declaring_nominal_identity ... ok
+test nested_aggregates_functions_generic_instances_and_empty_data ... ok
+test review_expanded_return_and_call_frames_enforce_exact_quotas ... ok
+test review_empty_unit_nested_projection_and_signed_limits_execute ... ok
+test review_materialized_children_receive_fresh_noncolliding_node_ids ... ok
+test review_inferred_ct_results_preserve_zero_length_array_element_types ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.97s
+
+     Running tests/impl035.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl035-5c94b39b99a4cbdc)
+
+running 17 tests
+test generic035_01_option_factories_match_and_context_native ... ok
+test generic035_02_result_two_arguments_and_explicit_numeric_context ... ok
+test generic035_03_nested_enum_and_tuple_patterns ... ok
+test generic035_05_instances_arrays_updates_and_local_context ... ok
+test generic035_04_record_and_array_payloads ... ok
+test generic035_07_uninstantiated_bad_definitions_and_layout_reject ... ok
+test generic035_08_missing_constraints_nominality_and_payload_mismatch_reject ... ok
+test generic035_09_unused_generic_match_is_checked_before_erasure ... ok
+test generic035_10_expansion_budgets_cover_unused_layout_and_instances ... ok
+test generic035_06_generic_match_move_states_and_shadowing ... ok
+test generic035_11_recursive_factories_and_nested_zero_argument_calls ... ok
+test generic035_12_symbolic_bool_matrix_and_integer_aliases ... ok
+test generic035_14_record_field_context_and_generic_record_payload ... ok
+test generic035_13_full_example ... ok
+test generic035_15_explicit_and_inferred_applications_share_one_instance ... ok
+test generic035_16_unused_payload_literal_ranges_and_signed_minimum ... ok
+test generic035_17_grouped_enum_types_remain_transparent ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.55s
+
+     Running tests/impl036.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl036-516dc087f3ae9d3a)
+
+running 9 tests
+test expanded_callable_constraint_dag_obeys_work_and_depth_limits ... ok
+test enum_constructors_and_callback_payloads_work_before_and_inside_closures ... ok
+test inferred_higher_order_closure_and_mutable_pointer_fields_execute ... ok
+test explicit_shared_address_capture_and_shared_aggregate_capture_execute ... ok
+test module_function_values_and_static_members_work_inside_closures ... ok
+test pointer_constraints_reject_conflicting_signature_arity_and_recursion ... ok
+test raw_callable_capture_shape_remains_independently_checked ... ok
+test shared_pointer_capture_retains_whole_place_hold ... ok
+test nested_function_results_tuple_values_and_unit_abi_execute ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.73s
+
+     Running tests/impl037.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl037-1b9374c44d529de5)
+
+running 13 tests
+test pattern037_bindings_are_immutable_and_confined_to_success ... ok
+test pattern037_bound_storage_cannot_escape_and_ct_shadow_stays_runtime ... ok
+test pattern037_array_record_and_callback_payloads ... ok
+test pattern037_closure_loop_conditions_and_local_lifetimes ... ok
+test pattern037_closure_body_inferred_tuple_and_enum_conditions ... ok
+test pattern037_fnmut_condition_once_and_failed_match_rechecks ... ok
+test pattern037_example_break_continue_and_unit_variant ... ok
+test pattern037_invalid_shapes_names_and_nominality_reject ... ok
+test pattern037_irrefutable_conditions_and_return_paths ... ok
+test pattern037_match_inside_closure_and_closure_inside_match ... ok
+test pattern037_raw_core_pattern_depth_is_bounded_before_cloning ... ok
+test pattern037_scalar_ct_loops_and_closed_queries ... ok
+test pattern037_nested_patterns_else_if_and_outer_shadow ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.47s
+
+     Running tests/impl039.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl039-187f622c71a6a524)
+
+running 9 tests
+test alias_expansion_checks_depth_and_growth_before_copying_expanded_types ... ok
+test alias_example_executes_concrete_generic_while_let ... ok
+test aliases_are_transparent_in_signatures_aggregates_addresses_and_callbacks ... ok
+test aliases_normalize_method_receivers_and_preserve_borrow_escape_rejection ... ok
+test generic_enum_conditions_compose_with_inferred_closure_and_ct_values ... ok
+test concrete_nominal_aliases_construct_and_pattern_match_without_new_identity ... ok
+test nested_generic_if_let_bindings_feed_calls_without_escaping_success_scope ... ok
+test generic_parameters_and_lexical_values_shadow_aliases_in_their_namespace ... ok
+test unused_aliases_are_checked_without_erasing_invalid_definitions ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.15s
+
+     Running tests/impl040.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl040-01e6fae73548b3c0)
+
+running 9 tests
+test captures_and_incompatible_contexts_are_rejected_before_codegen ... ok
+test converted_and_environment_functions_share_the_function_budget ... ok
+test cl13_runs_and_cl14_uses_the_required_capture_diagnostic ... ok
+test exported_factory_retains_its_module_resolution_and_thin_identity ... ok
+test independent_verify_still_rejects_environment_entry_as_function_ref ... ok
+test function_return_argument_record_array_tuple_and_assignment_contexts_execute ... ok
+test mixed_pending_and_thin_entries_have_dense_independent_id_spaces ... ok
+test record_update_and_projected_assignments_preserve_pointer_contexts ... ok
+test nested_thin_functions_preserve_unit_and_aggregate_abi ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
+
+     Running tests/impl041.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl041-4061813f43ad95e8)
+
+running 4 tests
+test dynamic_borrow_index_runs_once_with_fnmut_constraints ... ok
+test closure_body_projects_shared_capture_and_shared_parameter ... ok
+test source_inference_does_not_grant_borrow_or_write_permissions ... ok
+test ordinary_shared_projections_are_still_available_with_unrelated_closures ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+
+     Running tests/impl042.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl042-4df2e31282d6fd44)
+
+running 18 tests
+test address_transfer_clears_the_source ... ok
+test closure_hold_and_exclusive_environment_move ... ok
+test capture_permissions_follow_calls_and_do_not_escape_scope ... ok
+test compound_dereference_keeps_one_authority_and_evaluates_address_once ... ok
+test default_address_captures_reborrow_and_move_address_captures_transfer ... ok
+test exclusive_nearest_conflicts ... ok
+test default_closure_modifies_the_external_position ... ok
+test low_budget_is_a_limit_and_whole_object_aliases_are_conservative ... ok
+test independent_and_sequential_reborrows ... ok
+test native_exclusive_call_and_reborrow ... ok
+test raw_closure_address_parameters_remain_explicitly_unsupported ... ok
+test raw_exclusive_ssa_transfer_is_single_use_even_without_source_local ... ok
+test raw_load_cannot_copy_exclusive_address_or_environment ... ok
+test raw_permission_conflicts_are_independent_of_candidate_inference ... ok
+test raw_shared_upgrade_and_false_closure_call_kind_fail ... ok
+test projected_address_writes_and_method_receiver ... ok
+test wire_roundtrip_preserves_executable_permissions ... ok
+test return_contracts_and_control_flow_keep_parent_windows ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.81s
+
+     Running tests/impl043.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl043-d3c55817c33b92e0)
+
+running 11 tests
+test module043_02_opaque_record_moves_and_public_field_native ... ok
+test module043_03_private_declarations_reject ... ok
+test module043_04_private_field_reads_writes_construction_and_closures_reject ... ok
+test module043_05_uninstantiated_templates_and_aliases_still_checked ... ok
+test module043_06_project_expansion_budget_stops_without_executable ... ok
+test module043_01_public_templates_aliases_and_two_consumers_native ... ok
+test module043_08_same_spelling_in_different_modules_is_not_the_same_type ... ok
+test module043_07_reexports_aliases_explicit_calls_and_shared_module_identity ... ok
+test module043_09_template_body_uses_definition_scope_and_checks_foreign_private_field ... ok
+test module043_10_ct_opaque_results_are_copies_and_private_queries_reject ... ok
+test module043_11_lexical_bindings_can_shadow_imports_and_type_names ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.63s
+
+     Running tests/impl044.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl044-caa93bdd8b4b3966)
+
+running 14 tests
+test closure_requires_its_own_lexical_unsafe_region ... ok
+test c_i32_i64_and_unit_use_real_native_symbols ... ok
+test raw_argument_arity_and_type_are_checked ... ok
+test raw_call_requires_active_matching_lexical_region ... ok
+test raw_cfg_joins_duplicate_regions_and_dead_calls_cannot_gain_authority ... ok
+test raw_ct_cannot_execute_a_well_formed_foreign_program ... ok
+test raw_foreign_signature_body_symbol_and_environment_are_independent_checks ... ok
+test raw_foreign_target_and_duplicate_symbol_checks_are_not_candidate_claims ... ok
+test raw_ordinary_call_and_function_pointer_cannot_hide_foreign_requirements ... ok
+test raw_roundtrip_preserves_foreign_metadata_and_explicit_regions ... ok
+test source_ct_rejects_direct_foreign_and_unsafe_wrappers ... ok
+test unsupported_signatures_and_implicit_unsafe_are_rejected_at_source ... ok
+test untrusted_foreign_metadata_obeys_work_budgets ... ok
+test nested_unsafe_loop_break_continue_and_return_are_balanced ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.25s
+
+     Running tests/impl046.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl046-50658f4099c8900f)
+
+running 6 tests
+test forged_root_and_out_of_range_call_cannot_manufacture_authority ... ok
+test budgets_still_fail_closed_and_scalar_only_programs_work ... ok
+test recursive_parameter_permutation_reaches_all_grounded_roots ... ok
+test scalar_consumer_is_recomputed_when_address_callee_grows ... ok
+test unreachable_bad_call_is_not_a_summary_edge_but_is_still_structurally_rejected ... ok
+test source_reverse_chain_exports_exact_origins_and_roundtrips_wire ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/impl047.rs (/workspace/scratch/39be3faa4442/targets/173-final-compact/debug/deps/impl047-5c04d3b5a6c2df24)
+
+running 15 tests
+test resource047_01_factory_describe_give_and_cleanup_native ... ok
+test resource047_02_all_normal_exits_and_conditional_transfer_native ... ok
+test resource047_04_pattern_conditions_end_temporary_scope_native ... ok
+test resource047_03_temporaries_short_circuit_and_conditional_results_native ... ok
+test resource047_06_source_transfer_errors_reject ... ok
+test resource047_07_malformed_drop_and_result_contracts_reject ... ok
+test resource047_05_explicit_descriptor_and_default_cleanup_native ... ok
+test resource047_09_result_mode_is_exported_and_invalidates_signature ... ok
+test resource047_08_exported_opaque_factory_and_hidden_drop_native ... ok
+test resource047_11_unimplemented_resource_shapes_have_explicit_boundaries ... FAILED
+test resource047_10_old_descriptions_and_incoming_create_reject_independently ... ok
+test resource047_13_factory_temps_end_before_new_local_owns_result_native ... ok
+test resource047_12_resource_pipeline_and_range_endpoint_temps_native ... ok
+test resource047_15_array_resource_field_context_native ... ok
+test resource047_14_i64_resource_field_context_native ... ok
+
+failures:
+
+---- resource047_11_unimplemented_resource_shapes_have_explicit_boundaries stdout ----
+
+thread 'resource047_11_unimplemented_resource_shapes_have_explicit_boundaries' (5395) panicked at crates/zil-driver/tests/impl047.rs:386:9:
+assertion `left == right` failed: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{},"input_fingerprint":"d399cbc7716e89ffe6cdd0772b264ad718bf747ad5489d91676c442b40472790","seconds":0.004276038,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"resources.zil"},"scalar_interfaces":[]}
+  left: Success
+ right: Unsupported
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    resource047_11_unimplemented_resource_shapes_have_explicit_boundaries
+
+test result: FAILED. 14 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s
+
+error: test failed, to rerun pass `-p zil-driver --test impl047`

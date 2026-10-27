@@ -1,0 +1,226 @@
+[
+  {
+    "run": "final-consumer",
+    "path": "field_exit/O0/allocation-probe",
+    "bytes": 25776,
+    "sha256": "35ba6f824b8820f0ec876d2e2ca4733e992e1e6ac633d39f95de7cf90ec195cb",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "field_exit/O0/phases/llvm.ll",
+    "bytes": 47862,
+    "sha256": "25ec7e3df7e09a1854fcf032c11b918dff2dfa48603af33a938d953890f60ba2",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "field_exit/O0/program",
+    "bytes": 24776,
+    "sha256": "1022c9cd30e13331a618b79b7ca9b8ee1ee9b710ce544e6800694a2e719369b3",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "field_exit/O0/program.ll",
+    "bytes": 47862,
+    "sha256": "25ec7e3df7e09a1854fcf032c11b918dff2dfa48603af33a938d953890f60ba2",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "field_exit/O2/allocation-probe",
+    "bytes": 17336,
+    "sha256": "82e5d49bd569c1952340c6ca0d2afc18e30a31e7edf6518beb020a5d0b4b0fd0",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "field_exit/O2/phases/llvm.ll",
+    "bytes": 47862,
+    "sha256": "25ec7e3df7e09a1854fcf032c11b918dff2dfa48603af33a938d953890f60ba2",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "field_exit/O2/program",
+    "bytes": 16328,
+    "sha256": "50e51b7488041b67908d9d7d4ca77ff91a26206fd2b02ed5a8ac05e15bca13f8",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "field_exit/O2/program.ll",
+    "bytes": 47862,
+    "sha256": "25ec7e3df7e09a1854fcf032c11b918dff2dfa48603af33a938d953890f60ba2",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "main/O0/allocation-probe",
+    "bytes": 38632,
+    "sha256": "27ad2b8bcb0d024eae4e73668db85b8f6ee753310a0ba419175c89fd65980e28",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "main/O0/phases/llvm.ll",
+    "bytes": 121447,
+    "sha256": "ae79db8ea70f8c7ca267d89eda05b13264e2b7bdce7dc81357bf6084ef6c68f9",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "main/O0/program",
+    "bytes": 33536,
+    "sha256": "c0462ce60f4917a8bf03a2d69543c4929ca6212e79176afe1a50c771d135965e",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "main/O0/program.ll",
+    "bytes": 121447,
+    "sha256": "ae79db8ea70f8c7ca267d89eda05b13264e2b7bdce7dc81357bf6084ef6c68f9",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "main/O2/allocation-probe",
+    "bytes": 17688,
+    "sha256": "19efed4dbe8c3d25728c7f1c0369fe0cb7314b98e93b500e284e5534a117b3ec",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "main/O2/phases/llvm.ll",
+    "bytes": 121447,
+    "sha256": "ae79db8ea70f8c7ca267d89eda05b13264e2b7bdce7dc81357bf6084ef6c68f9",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "main/O2/program",
+    "bytes": 16688,
+    "sha256": "e67970d3e2bad5c39fcde01f7e067bed4a7ae461ee0030f62df6920bf2590618",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "main/O2/program.ll",
+    "bytes": 121447,
+    "sha256": "ae79db8ea70f8c7ca267d89eda05b13264e2b7bdce7dc81357bf6084ef6c68f9",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "prepare_failure/O0/allocation-probe",
+    "bytes": 29872,
+    "sha256": "34b586c2e13472c0ff8ebe5775717030905aef3ebf8381e1a4d4cd80cc93dda0",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "prepare_failure/O0/phases/llvm.ll",
+    "bytes": 57633,
+    "sha256": "8eb3b82b0d4189a44e0937196fb1df4244c591998918a9daa896578a717eea27",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "prepare_failure/O0/program",
+    "bytes": 24776,
+    "sha256": "ee537df8223736d62d72acb959b4a14a55a371fcef594e2f86e889307e98ee9f",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "prepare_failure/O0/program.ll",
+    "bytes": 57633,
+    "sha256": "8eb3b82b0d4189a44e0937196fb1df4244c591998918a9daa896578a717eea27",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "prepare_failure/O2/allocation-probe",
+    "bytes": 17336,
+    "sha256": "5f8bb3b655b7567ef08b4bb2cb284a72decce12c66ec4376bf918ab986c50e37",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "prepare_failure/O2/phases/llvm.ll",
+    "bytes": 57633,
+    "sha256": "8eb3b82b0d4189a44e0937196fb1df4244c591998918a9daa896578a717eea27",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "prepare_failure/O2/program",
+    "bytes": 16328,
+    "sha256": "d42ea6293c6234db5767954caa37300043ace4d032f5973f458c1d5a87d43e7b",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-consumer",
+    "path": "prepare_failure/O2/program.ll",
+    "bytes": 57633,
+    "sha256": "8eb3b82b0d4189a44e0937196fb1df4244c591998918a9daa896578a717eea27",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-readiness",
+    "path": "O0-phases/llvm.ll",
+    "bytes": 22052,
+    "sha256": "330dff2ddf081384ba0161e8b7824debc2f60893cd682a62ba4033db109a45f0",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-readiness",
+    "path": "O0-probe",
+    "bytes": 21816,
+    "sha256": "188db1e71e20322a894b6f1c4497d9ab108189c727c7b1df2a74a7ba34d1f3ac",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-readiness",
+    "path": "O0-program",
+    "bytes": 16768,
+    "sha256": "e3a89f91b5fe6921339161ebf07c394524e32c07ebf50bccd89b1b1f73ff193c",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-readiness",
+    "path": "O0-program.ll",
+    "bytes": 22052,
+    "sha256": "330dff2ddf081384ba0161e8b7824debc2f60893cd682a62ba4033db109a45f0",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-readiness",
+    "path": "O2-phases/llvm.ll",
+    "bytes": 22052,
+    "sha256": "330dff2ddf081384ba0161e8b7824debc2f60893cd682a62ba4033db109a45f0",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-readiness",
+    "path": "O2-probe",
+    "bytes": 17384,
+    "sha256": "e9fe18ce334ac5ca6132f115e7d60f628597d62562041c131be10d31a8d8de01",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-readiness",
+    "path": "O2-program",
+    "bytes": 16432,
+    "sha256": "94c19544e3ea44fa81e0fc5560be8e9f3fed40803ca4c0734e2bf55843f89f06",
+    "bytes_in_compact_receipts": false
+  },
+  {
+    "run": "final-readiness",
+    "path": "O2-program.ll",
+    "bytes": 22052,
+    "sha256": "330dff2ddf081384ba0161e8b7824debc2f60893cd682a62ba4033db109a45f0",
+    "bytes_in_compact_receipts": false
+  }
+]

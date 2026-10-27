@@ -1,0 +1,44 @@
+{
+  "status": "Fail",
+  "source_commit": "5c3bdb276741fe9b2d325fd9faea3d4362430448",
+  "compiler_source_commit": "5c3bdb276741fe9b2d325fd9faea3d4362430448",
+  "cli_sha256": "25dfce760b65b472116279d73bd3e386356aa8af9297b5b66cde56cc3c5f1673",
+  "selected": [
+    "main",
+    "prepare_failure",
+    "field_exit"
+  ],
+  "sources": {
+    "callbacks.zil": "70966581e5d0450d002d8cb3241ac24d6f0037ad552841df8e8a201d7504ffae",
+    "collection.zil": "511c58f20177af6c96703c962883f0a6e4b62c6efe662240e6d557142edeb137",
+    "field_exit.zil": "1375bbcdabb6ab73982d1177878d82209a42926a3c9846716eb4604fc62aeed9",
+    "main.zil": "2232b23d155f0831d11b731797048cd101ed62058a40eba5d2c1372486142c63",
+    "model.zil": "ff9a1098a882d061de98122b089b708bbe493a65147e6dc6bff7110c67852285",
+    "panel.zil": "db3aab60c1e55a0f314b34c682e73da33859e24986f53bc734198c0ffb554978",
+    "prepare_failure.zil": "40805f24e89f606f77b8041e36fc2f3b0b64e5b10a5bbb5162264bae5719b813"
+  },
+  "builds": [
+    {
+      "entry": "main",
+      "optimization": "O0",
+      "verification_runs": 1,
+      "llvm_sha256": "ae79db8ea70f8c7ca267d89eda05b13264e2b7bdce7dc81357bf6084ef6c68f9"
+    }
+  ],
+  "observations": [
+    {
+      "entry": "main",
+      "scenario": "count-0",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "30",
+      "stdout": "HZCBA",
+      "exit_code": 0,
+      "fail_at": 0
+    }
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "error_type": "JSONDecodeError",
+  "error": "Expecting value: line 1 column 1 (char 0)"
+}
