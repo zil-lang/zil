@@ -1,0 +1,8 @@
+   Compiling independent-review165 v0.0.0 (/workspace/scratch/39be3faa4442/run-logs/review165/probes)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.33s
+     Running `/workspace/scratch/39be3faa4442/targets/165review/debug/independent-review165`
+PASS undeclared-copy: [Diagnostic { phase: Expand, category: SafeReject, code: "E-GENERIC-ARGUMENT", message: "generic bound Copy is not a declared nominal trait", span: Some(Span { file: FileId(0), start: 9, end: 13 }), notes: [] }]
+PASS unused-symbolic-method: checked bound and symbolic method with no instance
+PASS unknown-unused-attribute: [Diagnostic { phase: Parse, category: SafeReject, code: "E-PARSE-ATTRIBUTE-UNKNOWN", message: "unknown attribute `independent_unknown` on a retained attachment", span: Some(Span { file: FileId(0), start: 0, end: 22 }), notes: [] }]
+PASS declared-copy-cannot-grant-capability: [Diagnostic { phase: Expand, category: SafeReject, code: "E-GENERIC-ARGUMENT", message: "nominal bounds cannot manufacture built-in capabilities", span: Some(Span { file: FileId(0), start: 20, end: 24 }), notes: [] }]
+PASS unused-bound-cannot-invent-member: [Diagnostic { phase: Expand, category: SafeReject, code: "E-GENERIC-ARGUMENT", message: "method missing is not provided by the declared trait bounds of T", span: Some(Span { file: FileId(0), start: 67, end: 68 }), notes: [] }]

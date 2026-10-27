@@ -1,0 +1,97 @@
+[
+  {
+    "path": "declared-copy-cannot-grant-capability-diagnostics.txt",
+    "sha256": "2f267df6962520ec3532b18efc1538bec9317da3f0cd6fb494a6ab8cb37c07b8",
+    "bytes": 401
+  },
+  {
+    "path": "declared-copy-cannot-grant-capability.zil",
+    "sha256": "634447e799621195658befbf38ec4f36ae29cbeeeba86f74a35c4082f9d3f5bc",
+    "bytes": 56
+  },
+  {
+    "path": "first-attempt-probe.rs",
+    "sha256": "83f46bfdb5809d992bbd6eaa03bd1102a50b8a52a1c8aec637d56e8cdc974db7",
+    "bytes": 2639
+  },
+  {
+    "path": "generics.log",
+    "sha256": "a2710933b0df91641b1b2294b5a454ce3965c611f3c57a6a096f0a02d99554ae",
+    "bytes": 1018
+  },
+  {
+    "path": "probes/Cargo.lock",
+    "sha256": "3622d44a7db2feb222af1dd0b0af161c8c0f08a070860f883dcc86967179a2af",
+    "bytes": 547
+  },
+  {
+    "path": "probes/Cargo.toml",
+    "sha256": "8ea2e2a2ce748e0b0385d41a8d8e5513dbf3de01ace4bbcc8b858b75129174c6",
+    "bytes": 379
+  },
+  {
+    "path": "probes/src/main.rs",
+    "sha256": "b4ea69efbf984b69cf9419a424f0e1802b7aa4dd7d1c3e7e7d04a667e638d158",
+    "bytes": 3367
+  },
+  {
+    "path": "probes-final.log",
+    "sha256": "ed7143b4251d7f117385cec1cdccde935198861219cc99b399f0b675e5ffcbc1",
+    "bytes": 1373
+  },
+  {
+    "path": "probes-first.log",
+    "sha256": "eba0f46f2b6084d4dae2a09985f602998916d20fae7ec52176614f1bf684ebdd",
+    "bytes": 1465
+  },
+  {
+    "path": "probes.log",
+    "sha256": "eba0f46f2b6084d4dae2a09985f602998916d20fae7ec52176614f1bf684ebdd",
+    "bytes": 1465
+  },
+  {
+    "path": "review.json",
+    "sha256": "494e2af04051dd8a437c50247ec0da67f84dcc4fa476834879a90e793050c7e2",
+    "bytes": 4203
+  },
+  {
+    "path": "undeclared-copy-diagnostics.txt",
+    "sha256": "5a359f9ac6a96355fff021409518fdcbf1d279dfe657d41e5654fe0f246250a3",
+    "bytes": 395
+  },
+  {
+    "path": "undeclared-copy.zil",
+    "sha256": "bb5136414c0ade7ae7738f358eea5ff04bb0380873c7eae8e958007e28fad015",
+    "bytes": 45
+  },
+  {
+    "path": "unknown-unused-attribute-diagnostics.txt",
+    "sha256": "3a93c389067c467338550a85c7f9c1c80f0dbf0b7234ec5777aa4bed9eb06df2",
+    "bytes": 415
+  },
+  {
+    "path": "unknown-unused-attribute.zil",
+    "sha256": "f82ec5e6765de5a71825bee920d1e9ff21d99824bb9294d55681c7e22797dadc",
+    "bytes": 62
+  },
+  {
+    "path": "unused-bound-cannot-invent-member-diagnostics.txt",
+    "sha256": "e29234990daa1ac2678bfb43ece011919a57d285ca58bab5e92ab13e2de347d9",
+    "bytes": 410
+  },
+  {
+    "path": "unused-bound-cannot-invent-member.zil",
+    "sha256": "f7bb4840db08cd7bec924fd17af452ab50064048e5006aadf39e8a2d6da6b67a",
+    "bytes": 98
+  },
+  {
+    "path": "unused-symbolic-method-core.txt",
+    "sha256": "58cc2edfbbc05ea8e29524e91f2003dd5cfd943a1db7e60bfea79a82f6b6159a",
+    "bytes": 2753
+  },
+  {
+    "path": "unused-symbolic-method.zil",
+    "sha256": "a50f65459ca81c988b1caa6c7814fb9b394ebe71de579dda420dcd9ae3b82e4a",
+    "bytes": 95
+  }
+]

@@ -1,0 +1,14 @@
+     Locking 4 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review165/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review165/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review165/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review165/crates/zil-expand)
+   Compiling independent-review165 v0.0.0 (/workspace/scratch/39be3faa4442/run-logs/review165/probes)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.28s
+     Running `/workspace/scratch/39be3faa4442/targets/165review/debug/independent-review165`
+PASS undeclared-copy: [Diagnostic { phase: Expand, category: SafeReject, code: "E-GENERIC-ARGUMENT", message: "generic bound Copy is not a declared nominal trait", span: Some(Span { file: FileId(0), start: 9, end: 13 }), notes: [] }]
+PASS unused-symbolic-method: checked bound and symbolic method with no instance
+
+thread 'main' (5) panicked at src/main.rs:16:63:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Parse, category: SafeReject, code: "E-PARSE-ATTRIBUTE-UNKNOWN", message: "unknown attribute `independent_unknown` on a retained attachment", span: Some(Span { file: FileId(0), start: 0, end: 22 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

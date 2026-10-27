@@ -1,0 +1,27 @@
+Cloning into bare repository '/workspace/scratch/39be3faa4442/cold164/repository.git'...
+Preparing worktree (checking out 'main')
+HEAD is now at e158fdd review163: retain independent receiver and nested composition acceptance
+Preparing worktree (detached HEAD e9a604c)
+HEAD is now at e9a604c handoff159: bind final source, measured variants and explicit ZUI gaps
+Preparing worktree (detached HEAD 84af56e)
+HEAD is now at 84af56e evidence161: bind bounded regressions and native capture cleanup to f3570f1
+Preparing worktree (detached HEAD ee2e8b0)
+HEAD is now at ee2e8b0 evidence162: bind nominal-bound source and native validation
+Preparing worktree (detached HEAD f5a5b53)
+HEAD is now at f5a5b53 evidence163: retain method receiver native and boundary checks
+Preparing worktree (detached HEAD c7f8118)
+HEAD is now at c7f8118 types161: lower nested closures with lexical ownership and capture writeback
+{
+  "status": "Pass",
+  "source_commit": "e158fddcfd0def1f5c365a9b83ff7cc089f5e740",
+  "destination": "/workspace/scratch/39be3faa4442/cold164",
+  "worktrees": {
+    "main": "e158fddcfd0def1f5c365a9b83ff7cc089f5e740",
+    "baseline159": "e9a604c80d56027a5fb6c28bcb8b58f9c9e84a7b",
+    "nested161": "84af56e5185abc2fa1ac2e62f3395638fe0c3788",
+    "bounds162": "ee2e8b04de7829491f8168eb54ccceedab72f57d",
+    "methods163": "f5a5b532b3410474495a43780c63d4a0dc1fbcf3",
+    "review163combo": "c7f8118bfdf0e971e4a76a3b3a1a8aceb969ce7e"
+  },
+  "note": "Compiler toolchains and caches are installed separately; no GitHub access was used."
+}

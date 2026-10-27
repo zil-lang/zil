@@ -1,0 +1,86 @@
+{
+  "id": "independent-review-165",
+  "status": "Pass",
+  "reviewer": "/root/nested_closures",
+  "implementation_author": "/root/trait_bounds",
+  "created_at": "2026-10-27T10:47:36.050832+00:00",
+  "dispatch_baseline": "7f14d1de646e8455a4a096f47958ed33f6a6ef32",
+  "tested_commit": "4c6213a77bd7b8561b4fed7a5e11c37c80363670",
+  "delivered_commit": "a821e945143e19b23a0fff8896bd80759f582652",
+  "crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+  "delivery_equivalence": "Tested and delivered crates tree objects are identical; delivery adds only evidence/impl/165.",
+  "changed_files": [
+    "changes/165-unused-generic-regression.md",
+    "crates/zil-expand/tests/generics.rs"
+  ],
+  "production_source_changed": false,
+  "rules_relaxed": false,
+  "diff_review": [
+    "Original Copy-generic regression now asserts one exact Expand/SafeReject/E-GENERIC-ARGUMENT diagnostic and source span.",
+    "Registered but unexecuted generic inline attribute retains exact Expand/Unsupported diagnostic.",
+    "Unused valid declared trait bound checks its symbolic method body without an instance, leaves only ordinary sample entry, and validates source map.",
+    "Original generic-record specialization and source-map checks remain unchanged."
+  ],
+  "verification": {
+    "target": "/workspace/scratch/39be3faa4442/targets/165review",
+    "rust": "1.99.1",
+    "migrated_suite_passed": 4,
+    "independent_source_probes_passed": 5,
+    "native_tests_run": 0,
+    "scope": "test-contract migration only; independent source checks stop at Parse/Expand; no production or ABI change"
+  },
+  "independent_cases": [
+    {
+      "name": "undeclared-copy",
+      "expected": "Expand/SafeReject/E-GENERIC-ARGUMENT: generic bound Copy is not a declared nominal trait",
+      "pass": true
+    },
+    {
+      "name": "unused-symbolic-method",
+      "expected": "successful Expand, one ordinary sample entry, valid source map, no generic instance",
+      "pass": true
+    },
+    {
+      "name": "unknown-unused-attribute",
+      "expected": "Parse/SafeReject/E-PARSE-ATTRIBUTE-UNKNOWN",
+      "pass": true
+    },
+    {
+      "name": "declared-copy-cannot-grant-capability",
+      "expected": "Expand/SafeReject/E-GENERIC-ARGUMENT: nominal bounds cannot manufacture built-in capabilities",
+      "pass": true
+    },
+    {
+      "name": "unused-bound-cannot-invent-member",
+      "expected": "Expand/SafeReject/E-GENERIC-ARGUMENT: method not provided by declared bounds",
+      "pass": true
+    }
+  ],
+  "clarification": {
+    "finding": "A genuinely unknown retained attribute is rejected by Parse/SafeReject/E-PARSE-ATTRIBUTE-UNKNOWN. The original inline attribute is registered but unexecuted on the generic template, hence Expand/Unsupported.",
+    "parent_acknowledged": true,
+    "production_fix_required": false,
+    "initial_reviewer_fixture": "Initial independent fixture wrongly assumed unknown attributes reach Expand, and panicked at Parse rejection. Corrected expectation to exact existing Parse rejection; first-attempt-probe.rs and probes-first.log preserve the initial failed review run.",
+    "status": "Resolved without changing author implementation"
+  },
+  "commands": [
+    {
+      "command": "source /workspace/scratch/39be3faa4442/toolchains/env.sh; CARGO_TARGET_DIR=/workspace/scratch/39be3faa4442/targets/165review cargo test --locked --offline -p zil-expand --test generics",
+      "exit": 0,
+      "log": "generics.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/39be3faa4442/targets/165review cargo run --offline --manifest-path /workspace/scratch/39be3faa4442/run-logs/review165/probes/Cargo.toml",
+      "exit": 101,
+      "log": "probes-first.log",
+      "note": "review fixture correction described above; not a production failure"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/scratch/39be3faa4442/targets/165review cargo run --locked --offline --manifest-path /workspace/scratch/39be3faa4442/run-logs/review165/probes/Cargo.toml",
+      "exit": 0,
+      "log": "probes-final.log"
+    }
+  ],
+  "remaining_blockers": [],
+  "scope_limit": "Root remains responsible for complete workspace revalidation; B0 and product-gate conclusions unchanged."
+}

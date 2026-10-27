@@ -1,0 +1,68 @@
+{
+  "status": "CandidatePass_FinalPackagePending",
+  "reviewer": "/root/source_inventory",
+  "scope": "Independent review of parent-authored packaging/restoration; rerun of 161/162/163 in fresh restored checkout and empty target. Source semantics independent reviews are separate.",
+  "source_commit": "e158fddcfd0def1f5c365a9b83ff7cc089f5e740",
+  "source_tree": "26f864a23989134198d8da85f0ed585964fb76f0",
+  "crates_tree": "42bafd5f66e49c0e6e077ed793fe78327b43558f",
+  "restored_destination": "/workspace/scratch/39be3faa4442/cold164",
+  "target": "/workspace/scratch/39be3faa4442/targets/cold164",
+  "target_absent_before_test": true,
+  "offline_locked": true,
+  "refs_count": 20,
+  "reachable_commits_count": 97,
+  "worktree_count": 6,
+  "all_original_worktree_heads_preserved": true,
+  "source_zip": {
+    "status": "Pass",
+    "sha256": "962aa0c6c19ce2996223ba78df1ccb0dc3718a75130507eac6bfe5e569bc6e40",
+    "files": 2701,
+    "file_bytes": 14009218,
+    "exclusions": [],
+    "generated_substitutions": [],
+    "git_mode_check": "Pass",
+    "actual_unzip_mode_and_bytes_check": "Pass"
+  },
+  "tests": {
+    "passed": 53,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 3
+  },
+  "first_auditor_failure": {
+    "path": "source-zip-check.json",
+    "classification": "AuditorFormatAssumption",
+    "reason": "Initial header checker required Unix mode for every ZIP entry. Git archive encodes ordinary 100644 entries as DOS-default mode=0. A real local Git archive control with 100644, 100755 and 120000 verified its encodings and unzip results.",
+    "control": "zip-mode-control/control.json",
+    "corrected_check": "source-zip-canonical-check.json",
+    "actual_extraction_check": "source-unzip-check.json",
+    "production_changed": false
+  },
+  "163_boundaries": [
+    "Public resource factories with result(create), default Desc read receivers and explicit give consuming receivers are supported and used consistently by consumer164.",
+    "Public resource/Package names and public methods cross modules; private owners/methods and Drop remain hidden.",
+    "Local ByteBuffer methods and whole-Package value methods are supported. Whole-Package refill uses exit flow to preserve FnMut only when all exits restore responsibility.",
+    "Original159 resource trait receiver self:&Self remains Unsupported. Desc/give support does not close that address-semantics probe.",
+    "ByteBuffer extension lookup remains local; no cross-module extension registry is claimed."
+  ],
+  "limits": [
+    "97 reachable commits from current complete ref snapshot; this does not restore historical commits absent from159.",
+    "Historical snapshot-only/Fail handoff status is inherited, not rewritten.",
+    "Toolchains are separate local installations: Rust1.99.1 and Clang17.0.6; no toolchain archive implied.",
+    "Final package will add docs/evidence and a migrated generics regression. Final refs/ZIP/source identity and that test remain to be checked; current53 results retain e158fdd identity."
+  ],
+  "evidence": {
+    "preflight.json": "9f42a986bbd652b0dc89a0435cd0fca292e80cb97d434cb875f7dd6072b78c5a",
+    "restore-command.json": "36ade7cdbb7f52beb5983c04e5e2298fd319bc41a6ef5ce5d3804ca6d5c7f233",
+    "restore.log": "72664c35939176477107742ca491ed860810e62bd576b64146466841a1658425",
+    "restored-identity.json": "4a8379a360d3717080d2a98d1c3a8a60da316c1d1188086685ef6edfd708171e",
+    "source-zip-check.json": "4bcdd9b350a561738d81a67e042236b5572f759f04e3a6596d30e89ef7eafe7f",
+    "source-zip-canonical-check.json": "7050e454bb5e1a1775520105a774655702521377fc304d6efebbeeb811904f42",
+    "source-unzip-check.json": "df47734f00052a9e7a897a70fefae787fde1e246d245f39e4feaf243431b9925",
+    "targeted-tests/command.json": "33298fd23a03d58dce84ca7523df070b1af575613b4e2dc33764c24f4f3cd209",
+    "targeted-tests/output.log": "b4f47014daac1ab5ed38d84b5d02f54271f479a091c8b9576bd92ac82b0cc66d",
+    "check_source_zip.py": "cbdcd665e6a725ffb8b317535a51f56738d6b35fc94bfef3d65b06868e29f002",
+    "toolchain.json": "ce6ec022d2c518d58fd1a9235590fbbe5955cc8a8c46854c6e2035ca0c1e2ab0",
+    "zip-mode-control/control.json": "e3cdf26f4a4e17b265e91a57dd0df7c8298dddc005f01b83c847698fd8b40def"
+  }
+}

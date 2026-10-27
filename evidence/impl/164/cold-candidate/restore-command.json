@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "/workspace/scratch/39be3faa4442/delivery164/candidate/restore164.py",
+    "--manifest",
+    "/workspace/scratch/39be3faa4442/delivery164/candidate/RESTORE164.json",
+    "--destination",
+    "/workspace/scratch/39be3faa4442/cold164"
+  ],
+  "exit_code": 0,
+  "start": 1793097690.133227,
+  "end": 1793097692.7793622,
+  "log_sha256": "72664c35939176477107742ca491ed860810e62bd576b64146466841a1658425",
+  "status": "Pass"
+}

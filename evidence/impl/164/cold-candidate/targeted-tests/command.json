@@ -1,0 +1,37 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl161_nested_closures",
+    "--test",
+    "impl162_trait_bounds",
+    "--test",
+    "impl163_resource_methods",
+    "-j2",
+    "--",
+    "--test-threads=1"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/cold164/main",
+  "source_commit": "e158fddcfd0def1f5c365a9b83ff7cc089f5e740",
+  "crates_tree": "42bafd5f66e49c0e6e077ed793fe78327b43558f",
+  "source_status": "",
+  "start": 1793097739.4483714,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "b4f47014daac1ab5ed38d84b5d02f54271f479a091c8b9576bd92ac82b0cc66d",
+  "end": 1793097793.0133905,
+  "seconds": 53.56501913070679,
+  "tests": {
+    "passed": 53,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 3
+  },
+  "ending_crates_tree": "42bafd5f66e49c0e6e077ed793fe78327b43558f",
+  "ending_source_status": ""
+}

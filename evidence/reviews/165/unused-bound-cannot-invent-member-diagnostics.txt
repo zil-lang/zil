@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Expand,
+        category: SafeReject,
+        code: "E-GENERIC-ARGUMENT",
+        message: "method missing is not provided by the declared trait bounds of T",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 67,
+                end: 68,
+            },
+        ),
+        notes: [],
+    },
+]
