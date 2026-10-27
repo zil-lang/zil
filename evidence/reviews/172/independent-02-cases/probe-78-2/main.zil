@@ -1,0 +1,1 @@
+resource R{code:i32}package P{manages a:R;manages b:R}fn empty()->Store<P> contract{result(create)}{return store_new()}fn item()->P=>P{a:R{code:1},b:R{code:2}};fn consume(give s:Store<P>)->P{return item()}fn main(){let s=empty();store_push(s,consume(give s));}
