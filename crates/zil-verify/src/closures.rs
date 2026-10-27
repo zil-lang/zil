@@ -65,6 +65,12 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
+            if packages::has_array_fields(ty) {
+                return Err(unsupported(
+                    "Package capture with owning array fields requires a retained nested-field protocol",
+                    None,
+                ));
+            }
             if resources::arrays::is_owned_type(ty) {
                 return Err(unsupported(
                     "owned array capture requires a separate retained array protocol",
