@@ -75,6 +75,7 @@ fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
         | InstructionKind::StorePackageField { local, .. }
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropClosure { local }
+        | InstructionKind::DropErrorUnion { local }
         | InstructionKind::DropPackage { local }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local }

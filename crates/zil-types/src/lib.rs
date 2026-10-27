@@ -135,6 +135,7 @@ fn signatures(
             || f.return_type.is_copy_value()
             || f.return_type.is_scalar_or_address()
             || packages::supported(&f.return_type)
+            || errors::supported(&f.return_type)
             || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
         {
             errors.push(unsupported(
@@ -155,7 +156,8 @@ fn signatures(
             !(r.ty.is_copy_value()
                 || r.ty.is_scalar_or_address()
                 || resources::supported(&r.ty)
-                || packages::supported(&r.ty))
+                || packages::supported(&r.ty)
+                || errors::supported(&r.ty))
         }) {
             errors.push(unsupported(f.span, "receiver capability typing"))
         }
@@ -169,7 +171,8 @@ fn signatures(
             if !(p.ty.is_copy_value()
                 || p.ty.is_scalar_or_address()
                 || resources::supported(&p.ty)
-                || packages::supported(&p.ty))
+                || packages::supported(&p.ty)
+                || errors::supported(&p.ty))
             {
                 errors.push(unsupported(
                     p.span,
@@ -827,6 +830,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                         format!("{name} is not mutable"),
                     ));
                 }
+                if errors::owned(&d.ty) {
+                    return Err(unsupported(
+                        s.span,
+                        "owned error-union whole-local reassignment requires a retained slot",
+                    ));
+                }
                 let (v, t) = self.transfer_expr(value, Some(&d.ty))?;
                 self.same(&t, &d.ty, value.span)?;
                 self.store(l, v, s.span)?;
@@ -1203,7 +1212,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                             desc,
                         ));
                     }
-                    let kind = if matches!(ty, Type::Package { .. }) {
+                    let kind = if matches!(ty, Type::Package { .. }) || errors::owned(&ty) {
                         InstructionKind::TakeLocal { local }
                     } else {
                         InstructionKind::Load(local)

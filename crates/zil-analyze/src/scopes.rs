@@ -245,6 +245,7 @@ pub(super) fn check(
                 | InstructionKind::DropPackageField { local, .. }
                 | InstructionKind::StorePackageField { local, .. }
                 | InstructionKind::DropManaged { local }
+                | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::CallClosureMut { callee: local, .. }

@@ -59,6 +59,12 @@ struct Effect {
 type Shapes = BTreeMap<Place, Shape>;
 type Live = BTreeSet<Place>;
 
+pub(super) fn owned_error(ty: &Type) -> bool {
+    matches!(ty, Type::ErrorUnion { error, result }
+        if matches!(error.as_ref(), Type::Package { .. })
+            || matches!(result.as_ref(), Type::Package { .. }))
+}
+
 fn error(message: &str) -> Vec<Diagnostic> {
     bad(format!("resource closure: {message}"))
 }
@@ -129,6 +135,10 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
 }
 fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<Shape> {
     Ok(match ty {
+        ty if owned_error(ty) => Shape {
+            owned: true,
+            description: false,
+        },
         Type::Managed(_) | Type::Package { .. } => Shape {
             owned: true,
             description: false,
@@ -302,6 +312,7 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
         InstructionKind::MakeErrorUnion { value, .. }
         | InstructionKind::ErrorTag { value }
         | InstructionKind::ReadErrorUnion { value, .. }
+        | InstructionKind::TakeErrorUnion { value, .. }
         | InstructionKind::VariantTag { value }
         | InstructionKind::ReadVariant { value, .. } => (Some(*value), None, &[]),
         InstructionKind::ByteBufferNew
@@ -322,6 +333,7 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
         | InstructionKind::EndPackageCapture { .. }
         | InstructionKind::DropManaged { .. }
         | InstructionKind::DropPackage { .. }
+        | InstructionKind::DropErrorUnion { .. }
         | InstructionKind::DropClosure { .. }
         | InstructionKind::StorageLive(_)
         | InstructionKind::StorageDead(_)
@@ -707,6 +719,41 @@ impl Flow<'_> {
                 ));
             }
             match &i.kind {
+                InstructionKind::MakeErrorUnion { value, .. }
+                    if out_shape.is_some_and(|s| s.owned) =>
+                {
+                    self.consume(state, *value, check, budget)?;
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Incoming]),
+                        sources: BTreeSet::new(),
+                    });
+                }
+                InstructionKind::TakeErrorUnion { value, .. } => {
+                    if !f.values.get(value.0 as usize).is_some_and(owned_error) {
+                        return Err(error("TakeErrorUnion requires an owned error-union value"));
+                    }
+                    self.consume(state, *value, check, budget)?;
+                    if out_shape.is_some_and(|s| s.owned) {
+                        produced = Some(Fact {
+                            life: BTreeSet::from([Life::Available]),
+                            birth: BTreeSet::from([Birth::Incoming]),
+                            sources: BTreeSet::new(),
+                        });
+                    }
+                }
+                InstructionKind::ErrorTag { value }
+                    if f.values.get(value.0 as usize).is_some_and(owned_error) =>
+                {
+                    if check
+                        && !exact(
+                            &copied(state, Place::Value(*value), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error("error tag requires a live owned union"));
+                    }
+                }
                 InstructionKind::BindPackageCapture { local, index } => {
                     let whole = copied(state, Place::Capture(*index), budget)?;
                     if check && !exact(&whole, Life::Available) {
@@ -1197,7 +1244,16 @@ impl Flow<'_> {
                 }
                 InstructionKind::DropManaged { local }
                 | InstructionKind::DropPackage { local }
+                | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropClosure { local } => {
+                    if matches!(i.kind, InstructionKind::DropErrorUnion { .. })
+                        && !f
+                            .locals
+                            .get(local.0 as usize)
+                            .is_some_and(|l| owned_error(&l.ty))
+                    {
+                        return Err(error("DropErrorUnion requires an owned error-union local"));
+                    }
                     if matches!(i.kind, InstructionKind::DropPackage { .. })
                         && !matches!(
                             f.locals.get(local.0 as usize).map(|l| &l.ty),
