@@ -170,7 +170,7 @@ pub resource Stamp{pub code:i32}
 impl Drop for Stamp{fn drop(self:Self){unsafe{putchar(.code)}}}
 pub package Scene<F>{pub lead:[i64;3];pub callback:F;manages stamp:Stamp;pub tail:u16;pub seen:i32}
 pub fn wrap<F:FnMut(i32)->i32>(callback:F)->Scene<F>{
-    return Scene::<F>{lead:[17i64,19i64,23i64],callback:callback,stamp:Stamp{code:84},tail:513u16,seen:0}
+    return Scene::<F>{lead:[i64(17),i64(19),i64(23)],callback:callback,stamp:Stamp{code:84},tail:513u16,seen:0}
 }
 "#;
 const FACTORY: &str = r#"
@@ -194,11 +194,11 @@ fn independent_nonzero_field_offset_and_four_module_f_g_h_state_chain() {
 fn main()->i32{
     var state=model.wrap(factory.counter(5,65));
     state=update.step(state,3);state=update.twice(state,2);
-    if state.seen!=12||state.lead[2]!=23i64||state.tail!=513u16{return 10}
+    if state.seen!=12||state.lead[2]!=i64(23)||state.tail!=513u16{return 10}
     let first=&mut state.callback;if first(1)!=13{return 11}
     state.callback=factory.counter(20,66);
     let second=&mut state.callback;if second(2)!=22{return 12}
-    if state.lead[0]+state.lead[1]!=36i64{return 13}
+    if state.lead[0]+state.lead[1]!=i64(36){return 13}
     return 0
 }"#;
     native(
@@ -218,7 +218,7 @@ const SINGLE: &str = r#"
 extern "C" fn putchar(x:i32)->i32;
 resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
 package Holder<F>{prefix:[i64;2];callback:F;manages guard:R;last:u8}
-fn pack<F:FnMut(i32)->i32>(callback:F)->Holder<F>{return Holder::<F>{prefix:[31i64,37i64],callback:callback,guard:R{code:84},last:9u8}}
+fn pack<F:FnMut(i32)->i32>(callback:F)->Holder<F>{return Holder::<F>{prefix:[i64(31),i64(37)],callback:callback,guard:R{code:84},last:9u8}}
 fn make(seed:i32,mark:i32)->impl FnMut(i32)->i32{var n=seed;let r=R{code:mark};return move(delta:i32)=>{n+=delta;return n+r.code-mark}}
 fn forward(seed:i32,mark:i32)->impl FnMut(i32)->i32{return make(seed,mark)}
 fn relay<G:FnMut(i32)->i32>(s:Holder<G>)->Holder<G>{return s}
