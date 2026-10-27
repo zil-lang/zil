@@ -546,31 +546,56 @@ fn check(files: &[(&str, &str)], label: &str) -> zil_driver::CompileReport {
 
 #[test]
 fn reserved_store_at_cannot_hide_in_unused_templates_patterns_or_closure_parameters() {
-    for (case, (source, phase)) in [
-        ("resource store_at{x:i32}fn main(){}", Phase::Expand),
-        ("package store_at{x:i32}fn main(){}", Phase::Expand),
-        ("enum store_at{A}fn main(){}", Phase::Expand),
+    for (case, (source, phase, code)) in [
         (
-            "type Identity<store_at>=store_at;fn main(){}",
+            "resource store_at{x:i32}fn main(){}",
             Phase::Expand,
+            "E-NAME-DUPLICATE",
+        ),
+        (
+            "package store_at{x:i32}fn main(){}",
+            Phase::Expand,
+            "E-NAME-DUPLICATE",
+        ),
+        (
+            "enum store_at{A}fn main(){}",
+            Phase::Expand,
+            "E-NAME-DUPLICATE",
+        ),
+        (
+            "type Identity<store_at> = store_at;fn main(){}",
+            Phase::Expand,
+            "E-OWNED-STORE-NAME",
         ),
         (
             "fn unused<T>(store_at:T)->T{return store_at}fn main(){}",
             Phase::Expand,
+            "E-OWNED-STORE-NAME",
         ),
         (
             "fn unused<T>(x:T)->T{let store_at=x;return store_at}fn main(){}",
             Phase::Expand,
+            "E-OWNED-STORE-NAME",
         ),
         (
             "extern \"C\" fn store_at(x:i32)->i32;fn main(){}",
             Phase::Expand,
+            "E-NAME-DUPLICATE",
         ),
-        ("fn main(){for store_at in 0..1{}}", Phase::Types),
-        ("fn main(){let f=(store_at:i32)=>store_at;}", Phase::Types),
+        (
+            "fn main(){for store_at in 0..1{}}",
+            Phase::Types,
+            "E-OWNED-STORE-NAME",
+        ),
+        (
+            "fn main(){let f=(store_at:i32)=>store_at;}",
+            Phase::Types,
+            "E-OWNED-STORE-NAME",
+        ),
         (
             "enum E{Some(i32),None}fn main(){let e=E.Some(1);if let E.Some(store_at)=e{}}",
             Phase::Types,
+            "E-OWNED-STORE-NAME",
         ),
     ]
     .into_iter()
@@ -587,11 +612,20 @@ fn reserved_store_at_cannot_hide_in_unused_templates_patterns_or_closure_paramet
             report
                 .diagnostics
                 .iter()
-                .any(|d| d.phase == phase && d.code == "E-OWNED-STORE-NAME"),
+                .any(|d| d.phase == phase && d.code == code),
             "{source}: {}",
             report.to_json()
         );
         assert_eq!(report.verification_runs, 0);
+        if code == "E-NAME-DUPLICATE" {
+            // The project symbol table rejects these before canonicalization;
+            // the standalone Expand API independently retains its precise rule.
+            let unit = SourceUnit::new(FileId(0), ModuleId(0), "standalone.zil", source);
+            let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+            let errors = zil_expand::expand(&unit, &syntax).unwrap_err();
+            error(&errors, ResultCategory::SafeReject, "E-OWNED-STORE-NAME");
+            record(&format!("standalone-{case}.txt"), format!("{errors:#?}\n"));
+        }
     }
 }
 
