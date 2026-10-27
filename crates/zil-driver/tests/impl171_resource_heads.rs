@@ -297,6 +297,30 @@ fn descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls() {
 }
 
 #[test]
+fn descriptor_callback_cannot_use_a_captured_field_address_as_write_permission() {
+    for invocation in ["f()", "apply(&f)"] {
+        let source = format!(
+            "{RESOURCE}fn apply<F:Fn()->i32>(f:&F)->i32{{return f()}}fn main()->i32{{let r=R{{code:65,n:42}};let d=r;let p=&r;let field=&p.n;let f=()=>{{write(d,43);return *field}};return {invocation}}}"
+        );
+        let report = check(&[("main", &source)]);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-BORROW-CONFLICT"),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn descriptor_only_helper_exports_its_internal_callback_effect_across_modules() {
     let model = r#"extern "C" fn putchar(x:i32)->i32;
 pub resource R{code:i32;pub n:i32}
