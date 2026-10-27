@@ -33,13 +33,8 @@ impl InferBuilder<'_, '_> {
         if !nominal.is_copy_value() || fields.iter().any(|(name, _)| name == member) {
             return Ok(None);
         }
-        let Some((_, short_name)) = name.split_once(':') else {
-            return Ok(None);
-        };
-        let Some(signature) = self
-            .signatures
-            .get(&format!("{short_name}.{member}"))
-            .filter(|s| s.receiver.is_some())
+        let Some(signature) =
+            aggregates::resolve_method(name, member, self.signatures, self.imports)
         else {
             return Ok(None);
         };

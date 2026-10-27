@@ -127,24 +127,7 @@ pub fn expand_program_module_with_limits(
     let specialized = generics::specialize(module, limits)?;
     let module = &specialized;
     let expanded = expand_inner(source, module, true)?;
-    let exports = module
-        .items
-        .iter()
-        .filter_map(|item| {
-            if !item.public {
-                return None;
-            }
-            let s::ItemKind::Function(function) = &item.kind else {
-                return None;
-            };
-            expanded
-                .core
-                .functions
-                .iter()
-                .find(|f| f.name == function.name && f.span == function.span)
-                .map(|f| f.id)
-        })
-        .collect();
+    let exports = source_exports(module, &expanded.core);
     Ok((
         ProgramModule {
             core: expanded.core,
@@ -153,6 +136,92 @@ pub fn expand_program_module_with_limits(
         },
         expanded.source_map,
     ))
+}
+
+/// Export ordinary functions and declared public methods. A method's
+/// visibility comes from its declaration and public nominal owner, never from
+/// seeing a same-spelled method in a downstream module. Trait signatures in a
+/// public local trait are public through their public concrete implementation.
+fn source_exports(module: &s::Module, core: &CoreModule) -> Vec<NodeId> {
+    let public_nominals: std::collections::BTreeSet<_> = module
+        .items
+        .iter()
+        .filter_map(|item| {
+            if !item.public {
+                return None;
+            }
+            match &item.kind {
+                s::ItemKind::Aggregate(a) if a.kind == s::AggregateKind::Struct => {
+                    Some(a.name.as_str())
+                }
+                _ => None,
+            }
+        })
+        .collect();
+    let public_traits: std::collections::BTreeSet<_> = module
+        .items
+        .iter()
+        .filter_map(|item| {
+            if let s::ItemKind::Trait(t) = &item.kind
+                && item.public
+            {
+                Some(t.name.as_str())
+            } else {
+                None
+            }
+        })
+        .collect();
+    let functions: std::collections::BTreeMap<_, _> = core
+        .functions
+        .iter()
+        .map(|f| ((f.name.clone(), f.span), f.id))
+        .collect();
+    let mut result = Vec::new();
+    let mut add = |f: &s::Function, prefix: Option<&str>| {
+        let name = prefix.map_or_else(|| f.name.clone(), |owner| format!("{owner}.{}", f.name));
+        if let Some(id) = functions.get(&(name, f.span)) {
+            result.push(*id);
+        }
+    };
+    for item in &module.items {
+        match &item.kind {
+            s::ItemKind::Function(f) if item.public => add(f, None),
+            s::ItemKind::Aggregate(a) if public_nominals.contains(a.name.as_str()) => {
+                for member in &a.methods {
+                    if member.public
+                        && let s::ItemKind::Function(f) = &member.kind
+                    {
+                        add(f, Some(&a.name));
+                    }
+                }
+            }
+            s::ItemKind::Impl(i) => {
+                let Some(owner) = type_path(&i.target) else {
+                    continue;
+                };
+                if !public_nominals.contains(owner.as_str()) {
+                    continue;
+                }
+                let public_trait = i
+                    .trait_type
+                    .as_ref()
+                    .and_then(type_path)
+                    .is_some_and(|name| public_traits.contains(name.as_str()));
+                for member in &i.members {
+                    if (if i.trait_type.is_some() {
+                        public_trait
+                    } else {
+                        member.public
+                    }) && let s::ItemKind::Function(f) = &member.kind
+                    {
+                        add(f, Some(&owner));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    result
 }
 
 /// Specialize a resolved project as one bounded syntax input, then expand each
@@ -241,24 +310,7 @@ pub fn expand_program_with_limits(
                     Some(module.span),
                 )]
             })?;
-        let mut exports: Vec<NodeId> = module
-            .items
-            .iter()
-            .filter_map(|item| {
-                let s::ItemKind::Function(function) = &item.kind else {
-                    return None;
-                };
-                if !item.public {
-                    return None;
-                }
-                expanded
-                    .core
-                    .functions
-                    .iter()
-                    .find(|f| f.name == function.name && f.span == function.span)
-                    .map(|f| f.id)
-            })
-            .collect();
+        let mut exports = source_exports(module, &expanded.core);
         exports.extend(expanded.generated_exports);
         let mut resolved_imports = imports.clone();
         resolved_imports.extend(expanded.generated_imports);
