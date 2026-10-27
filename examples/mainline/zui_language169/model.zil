@@ -19,5 +19,8 @@ pub fn make(code: i32, fail: bool) -> Fault!Item {
 pub fn relay(value: Fault!Item) -> Fault!Item { return value }
 
 pub fn owned_error(code: i32) -> Item!i32 {
-    return Item { ticket: Ticket { code: code }, data: bytes_new(), code: code }
+    let data = bytes_new()
+    bytes_reserve(data, 1)
+    bytes_push(data, u8(code))
+    return Item { ticket: Ticket { code: code }, data: give data, code: code }
 }
