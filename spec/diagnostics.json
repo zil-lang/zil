@@ -993,6 +993,16 @@
       ]
     },
     {
+      "code": "E-OWNED-STORE-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD"
+      ]
+    },
+    {
       "code": "E-VERIFY-OWNED-STORE",
       "phases": [
         "verify"
