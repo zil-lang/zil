@@ -151,9 +151,7 @@ fn source_exports(module: &s::Module, core: &CoreModule) -> Vec<NodeId> {
                 return None;
             }
             match &item.kind {
-                s::ItemKind::Aggregate(a) if a.kind == s::AggregateKind::Struct => {
-                    Some(a.name.as_str())
-                }
+                s::ItemKind::Aggregate(a) => Some(a.name.as_str()),
                 _ => None,
             }
         })
