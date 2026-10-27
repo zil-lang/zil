@@ -741,7 +741,11 @@ impl Check<'_, '_, '_> {
                             if matches!(self.nominals.get(&path.join(".")),
                                 Some(Item { kind: ItemKind::Aggregate(a), .. })
                                 if a.kind == AggregateKind::Package));
-                    if !concrete_package
+                    if self
+                        .callable
+                        .as_ref()
+                        .is_some_and(|bound| bound.owned_state)
+                        || !concrete_package
                         || !matches!(
                             &group(&base).kind,
                             TypeKind::Array {
