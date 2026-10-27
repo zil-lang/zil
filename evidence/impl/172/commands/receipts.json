@@ -1,0 +1,64 @@
+[
+  {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl172_owned_store",
+      "--test",
+      "impl170_package_fields",
+      "--offline",
+      "-j2",
+      "--",
+      "--test-threads=2"
+    ],
+    "env": {
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/172-proof",
+      "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/172-final-tests"
+    },
+    "log": "commands/172-final-tests.log",
+    "exit_code": 0,
+    "implementation_commit": "69882483d6b29bee8d831386325da739ac915fd4",
+    "log_sha256": "8a8ddcb1b5360f269577c191e6f252bf260e058185bd94267c3888cffd1e24d4"
+  },
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl172_owned_store",
+      "--offline",
+      "-j2",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "env": {
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/172-lint"
+    },
+    "log": "commands/172-clippy.log",
+    "exit_code": 0,
+    "implementation_commit": "69882483d6b29bee8d831386325da739ac915fd4",
+    "log_sha256": "0d6b2e7b62727ae428496ca2a61d49307167e53cd59f10fb093b690f2b4582e8"
+  },
+  {
+    "command": [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "env": {},
+    "log": "commands/172-format.log",
+    "exit_code": 0,
+    "implementation_commit": "69882483d6b29bee8d831386325da739ac915fd4",
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

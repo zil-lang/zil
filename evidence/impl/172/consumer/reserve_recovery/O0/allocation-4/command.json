@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/172-final-consumer/reserve_recovery/O0/allocation-probe"
+  ],
+  "start": 1793111077.229078,
+  "status": "Completed",
+  "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "4"
+  },
+  "exit_code": 0,
+  "stdout_sha256": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738",
+  "stderr_sha256": "590c5f66def2d4792008087e0801c1fd1d94a91a9941c9e603988b6051eb9914",
+  "end": 1793111077.2310252
+}

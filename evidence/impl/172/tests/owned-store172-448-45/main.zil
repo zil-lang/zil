@@ -1,0 +1,8 @@
+
+extern "C" fn putchar(x:i32)->i32;
+resource R{code:i32}
+impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
+package P{manages r:R;n:i32}
+fn make(code:i32)->P=>P{r:R{code:code},n:code}
+fn empty()->Store<P> contract{result(create)}{return store_new()}
+ package Q{manages r:R;n:i32} fn main()->i32{let s=empty();store_push(s,Q{r:R{code:1},n:1});return 0}

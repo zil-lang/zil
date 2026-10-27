@@ -1,0 +1,44 @@
+{
+  "observations": [
+    {
+      "log": "172-native02.log",
+      "classification": "InfrastructureFailure",
+      "explanation": "Cargo reported zil_verify rlib/rmeta availability mismatch before test execution; no language-rejection credit."
+    },
+    {
+      "log": "172-native03.log",
+      "classification": "FixtureFailure",
+      "explanation": "8/10: sample Fault!void omitted explicit return, and wide metadata exceeded max_nodes rather than actual Verify work budget. Fixtures corrected; producer acceptance unchanged."
+    },
+    {
+      "log": "172-native05.log",
+      "classification": "InfrastructureFailure",
+      "explanation": "Cargo E0463 could not find zil_driver before test execution; fresh target and CARGO_INCREMENTAL=0 used."
+    },
+    {
+      "log": "172-native06.log",
+      "classification": "ImplementationFailure",
+      "explanation": "Public Wire recursive writer exhausted the ordinary test-thread stack for 258-deep constructor metadata. Raw Verify had not yet been tested in this run."
+    },
+    {
+      "log": "172-depth-diagnostic.log",
+      "classification": "ImplementationFailure",
+      "explanation": "Markers isolate the first crash to encode_module_candidate after normal candidate creation."
+    },
+    {
+      "log": "172-depth-diagnostic2.log",
+      "classification": "ImplementationFailure",
+      "explanation": "Raw Verify and automatic Drop returned ResourceLimit; manually constructed equivalent Wire bytes crashed recursive Reader before its default depth rejection."
+    },
+    {
+      "log": "172-native07.log",
+      "classification": "FixtureFailure",
+      "explanation": "Two fixtures selected a foreign declaration for an unused malformed local and read a private manages field from another module. Added the local to main and performed content checks in the declaring model module."
+    }
+  ],
+  "wire_fix_commit": "bf2280d8ef53ed234f0605e10a55d7741b914b3e",
+  "wire_fix_author": "/root",
+  "same_hostile_bytes_sha256": "dcd22cf30d2f1239d09b0babd22c5079ed12a04e8cf2c76e75760c8474f7e531",
+  "fixed_regression_directory": "tests/owned-store172-448-10",
+  "ordinary_stack_and_default_verify_depth_preserved": true
+}

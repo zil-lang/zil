@@ -1,0 +1,56 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-verify)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 32.77s
+     Running tests/impl170_package_fields.rs (/workspace/scratch/39be3faa4442/targets/172-proof/debug/deps/impl170_package_fields-6d15c3741eb270eb)
+
+running 16 tests
+test complete_fields_construct_return_and_drop_in_declaration_order ... ok
+test conditional_missing_field_and_self_replacement_keep_exact_flags ... ok
+test arrays_and_both_error_union_payloads_recursively_clean_fields ... ok
+test field_take_local_element_refill_and_parent_refill_are_exact ... ok
+test incomplete_and_reused_field_carriers_are_rejected ... ok
+test failed_preparation_cleans_only_actual_temporaries_and_keeps_the_old_field ... ok
+test nested_partial_places_and_retained_parent_captures_remain_explicitly_closed ... ok
+test public_field_roundtrip_crosses_nominal_module_boundaries ... ok
+test missing_parent_field_cleans_remaining_fields_and_moved_array_once ... ok
+test raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields ... ok
+test raw_and_wire_charge_outer_times_inner_array_layout ... ok
+test raw_and_wire_budget_boundary_is_exact_for_nested_field_module ... ok
+test raw_and_wire_owning_field_cannot_hide_in_capture_metadata ... ok
+test raw_and_wire_consume_array_inputs_once_and_reconstruct_field_state ... ok
+test repeated_take_refill_preserves_parent_cleanup_position ... ok
+test replacing_a_complete_array_field_cleans_the_old_field_first ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.52s
+
+     Running tests/impl172_owned_store.rs (/workspace/scratch/39be3faa4442/targets/172-proof/debug/deps/impl172_owned_store-303df5d675b7019b)
+
+running 15 tests
+test empty_pop_propagates_unit_error_without_an_element_obligation ... ok
+test empty_context_and_factory_own_a_real_allocation_free_head ... ok
+test exact_verify_budget_boundary_and_untrusted_constructor_metadata_are_bounded ... ok
+test full_push_returns_the_uninserted_package_to_native_error_cleanup ... ok
+test raw_wire_actual_inline_size_product_is_bounded ... ok
+test raw_wire_constructor_depth_is_bounded_before_identity ... ok
+test raw_wire_forbidden_store_composition_and_head_access_are_independently_rejected ... ok
+test raw_wire_reject_forged_heads_bad_elements_and_double_transfer ... ok
+test raw_wire_store_is_not_byte_storage_and_pop_result_keeps_cleanup_debt ... ok
+test negative_and_overflow_capacity_requests_preserve_populated_prefix ... ok
+test reserved_prefix_push_pop_and_drop_transfer_each_package_once ... ok
+test source_guards_reject_missing_context_store_fields_and_capture ... ok
+test source_neighbours_preserve_transfer_and_nested_composition_boundaries ... ok
+test whole_give_roundtrip_preserves_ascending_prefix_cleanup ... ok
+test runtime_count_crosses_four_modules_then_drains_real_prefix ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.06s
+

@@ -1,0 +1,69 @@
+{
+  "schema": "zil-owned-store-author-validation-v1",
+  "implementation_commit": "69882483d6b29bee8d831386325da739ac915fd4",
+  "implementation_author": "/root/dynamic_store",
+  "crates_tree": "118e246b47beb9e027d656a09ebbd411191a0fff",
+  "design_sha256": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "normative_hash": "c358b8c5e0abaf11d81b1d55e23f6896cfb485eb4291f34937fe43e9e7ea319c",
+  "schema_and_wire": 20,
+  "status": "AuthorValidationPass",
+  "independent_review": "Pending",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing",
+  "target": "x86_64-unknown-linux-gnu",
+  "source_entry": "contextual store_new(); Store<direct-Managed + Copy complete Package>",
+  "focused_tests": {
+    "172": 15,
+    "170_composition_regression": 16,
+    "failed": 0,
+    "skipped": 0
+  },
+  "source_rejections": 19,
+  "source_native_builds": 20,
+  "raw_wire_rejection_pairs": 22,
+  "verify_budget": {
+    "N": 7122,
+    "N_minus_1": 7121,
+    "at_N": "Pass raw and wire",
+    "at_N_minus_1": "ResourceLimit raw and wire"
+  },
+  "hostile_metadata": [
+    "wide explicit New element preflight",
+    "depth 258 before identity",
+    "four Copy-array lengths 1000000 with actual byte product overflow"
+  ],
+  "wire_stack_regression_sha256": "dcd22cf30d2f1239d09b0babd22c5079ed12a04e8cf2c76e75760c8474f7e531",
+  "cli_sha256": "b315b878f9f6889084a2505be3ec3fc6b988cfdeb247e19e40a7a8b6397b5fd2",
+  "native_consumer": {
+    "ordinary_executions": 12,
+    "instrumented_executions": 22,
+    "all_live_allocations_zero": true,
+    "all_successful_allocations_freed": true,
+    "failed_allocation_indices": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ]
+  },
+  "required_limits_unchanged": true,
+  "omitted_artifacts": [
+    "native executables",
+    "Cargo target output",
+    "redundant syntax/Core/LIR dumps"
+  ],
+  "scope_exclusions": [
+    "Store fields or captures",
+    "Store elements with 170 owning-array fields",
+    "nested Store or Closure elements",
+    "element address/slice export",
+    "in-place arbitrary indexed take/refill",
+    "automatic growth",
+    "Windows native support",
+    "external callback lifecycle/cancellation",
+    "Rust cost comparison"
+  ]
+}
