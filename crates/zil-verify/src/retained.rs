@@ -87,6 +87,9 @@ pub(super) fn check_claim(
             cleanup.push(index as u32);
         } else if matches!(ty, Type::Managed(_)) {
             cleanup.push(index as u32);
+        } else if let Type::Closure(id) = ty {
+            closures::self_contained(module, *id, budget)?;
+            cleanup.push(index as u32);
         } else if !ty.is_copy_value() {
             return Err(unsupported(
                 "returned callable captures must be self-contained finite Copy, Managed or Package values",
@@ -130,9 +133,12 @@ pub(super) fn check_body(
                     creations += 1;
                 }
                 InstructionKind::Call { function, .. } => {
-                    let target = module.functions.get(function.0 as usize)
-                        .ok_or_else(|| bad(f, "factory call target is outside the function table"))?;
-                    if target.callable_return_contract.as_ref()
+                    let target = module.functions.get(function.0 as usize).ok_or_else(|| {
+                        bad(f, "factory call target is outside the function table")
+                    })?;
+                    if target
+                        .callable_return_contract
+                        .as_ref()
                         .is_some_and(|c| c.closure == contract.closure)
                     {
                         creations += 1;
@@ -157,7 +163,11 @@ pub(super) fn check_body(
 /// A raw producer cannot claim a finite factory identity by making factories
 /// endorse each other. This independent graph walk does not consume a Types or
 /// Analyze summary and does not recurse on the host stack.
-fn check_dependencies(module: &TypedModule, root: &TypedFunction, budget: &mut Budget) -> Check<()> {
+fn check_dependencies(
+    module: &TypedModule,
+    root: &TypedFunction,
+    budget: &mut Budget,
+) -> Check<()> {
     let mut active = std::collections::BTreeSet::new();
     let mut complete = std::collections::BTreeSet::new();
     let mut pending = vec![(root.id, false)];
@@ -168,26 +178,41 @@ fn check_dependencies(module: &TypedModule, root: &TypedFunction, budget: &mut B
             complete.insert(id);
             continue;
         }
-        if complete.contains(&id) { continue; }
+        if complete.contains(&id) {
+            continue;
+        }
         if !active.insert(id) {
-            return Err(bad(root, "recursive callable factory dependencies cannot establish a finite identity"));
+            return Err(bad(
+                root,
+                "recursive callable factory dependencies cannot establish a finite identity",
+            ));
         }
         pending.push((id, true));
-        let function = module.functions.get(id.0 as usize)
+        let function = module
+            .functions
+            .get(id.0 as usize)
             .ok_or_else(|| bad(root, "factory dependency is outside the function table"))?;
         let mut dependencies = std::collections::BTreeSet::new();
         for block in &function.blocks {
             budget.spend(1)?;
             for instruction in &block.instructions {
                 budget.spend(1)?;
-                if let InstructionKind::Call { function: callee, .. } = instruction.kind {
-                    let target = module.functions.get(callee.0 as usize)
-                        .ok_or_else(|| bad(root, "factory call target is outside the function table"))?;
-                    if target.callable_return_contract.is_some() { dependencies.insert(callee); }
+                if let InstructionKind::Call {
+                    function: callee, ..
+                } = instruction.kind
+                {
+                    let target = module.functions.get(callee.0 as usize).ok_or_else(|| {
+                        bad(root, "factory call target is outside the function table")
+                    })?;
+                    if target.callable_return_contract.is_some() {
+                        dependencies.insert(callee);
+                    }
                 }
             }
         }
-        for dependency in dependencies { pending.push((dependency, false)); }
+        for dependency in dependencies {
+            pending.push((dependency, false));
+        }
     }
     Ok(())
 }
