@@ -13,11 +13,11 @@ pub fn make(code: i32, fail: bool) -> Fault!Item {
     let data = bytes_new()
     if !bytes_reserve(data, 1) || !bytes_push(data, u8(code)) { return Fault.Memory }
     if fail { return Fault.Invalid }
-    return Item { ticket: give tag; data: give data; code: code }
+    return Item { ticket: give tag, data: give data, code: code }
 }
 
 pub fn relay(value: Fault!Item) -> Fault!Item { return value }
 
 pub fn owned_error(code: i32) -> Item!i32 {
-    return Item { ticket: Ticket { code: code }; data: bytes_new(); code: code }
+    return Item { ticket: Ticket { code: code }, data: bytes_new(), code: code }
 }
