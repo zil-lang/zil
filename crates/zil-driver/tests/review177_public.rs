@@ -1,13 +1,11 @@
 //! Independent public21 review. Manual byte oracles exercise the real transport;
-//! raw borrowed instructions remain Unsupported at this public-only commit.
+//! Public-only semantic stub probes are frozen in tests/frozen/177_public/.
 use std::{collections::BTreeMap, fs, path::PathBuf};
 use zil_base::{
     Diagnostic, FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Span, TargetProfile,
 };
 use zil_driver::{CompileOptions, ProjectSources, compile_project};
-use zil_ir::{
-    CandidatePlan, Instruction, InstructionKind, LocalId, Type, TypedModule, ValueId, wire,
-};
+use zil_ir::{CandidatePlan, Instruction, InstructionKind, LocalId, TypedModule, ValueId, wire};
 
 fn record(name: &str, bytes: impl AsRef<[u8]>) {
     if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
@@ -378,139 +376,6 @@ fn new_instruction_envelopes_obey_exact_byte_node_and_instruction_limits() {
                 bytes.len()
             ),
         );
-    }
-}
-
-#[test]
-fn raw_and_wire_transport_never_bypass_declared_semantic_stubs_or_local_preflight() {
-    for (case, kind) in [
-        InstructionKind::OwnedStoreBorrow {
-            store: ValueId(0),
-            index: ValueId(0),
-        },
-        InstructionKind::BorrowPackageField {
-            local: LocalId(0),
-            index: 0,
-            mutable: false,
-        },
-        InstructionKind::BorrowPackageField {
-            local: LocalId(u32::MAX),
-            index: u32::MAX,
-            mutable: true,
-        },
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let (module, plan) = append(Instruction {
-            result: None,
-            kind,
-            span: span(),
-        });
-        let limits = Limits::default();
-        let bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
-        for (route, errors) in [
-            (
-                "raw",
-                zil_verify::verify_module(
-                    module.clone(),
-                    plan.clone(),
-                    &TargetProfile::host_llvm(),
-                    &limits,
-                )
-                .unwrap_err(),
-            ),
-            (
-                "wire",
-                zil_verify::verify_module_bytes(&bytes, &TargetProfile::host_llvm(), &limits)
-                    .unwrap_err(),
-            ),
-        ] {
-            assert!(
-                errors.iter().any(|d| d.phase == Phase::Verify
-                    && d.category == ResultCategory::Unsupported
-                    && d.message.contains("semantics are not yet implemented")),
-                "{errors:?}"
-            );
-            record(
-                &format!("stub-{case}-{route}.txt"),
-                format!("{errors:#?}\n"),
-            );
-        }
-        if case == 2 {
-            let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
-            error(&errors, ResultCategory::SafeReject, "E-ANALYZE-IR");
-            assert!(
-                errors
-                    .iter()
-                    .any(|d| d.message.contains("local ID outside table"))
-            );
-            record("local-preflight.txt", format!("{errors:#?}\n"));
-        }
-    }
-}
-
-#[test]
-fn package_address_predicate_does_not_widen_copy_pointees_or_verify_authority() {
-    let package = Type::Package {
-        name: "Review177".into(),
-        fields: vec![("n".into(), Type::I64)],
-    };
-    let shared = Type::Address {
-        mutable: false,
-        inner: Box::new(package.clone()),
-    };
-    assert!(shared.is_shared_package_address());
-    assert!(shared.is_scalar_or_shared_address());
-    assert!(shared.is_scalar_or_address());
-    for ty in [&package, &shared] {
-        assert!(!ty.is_copy_value());
-        assert!(!ty.is_address_pointee());
-    }
-    for ty in [
-        Type::Address {
-            mutable: true,
-            inner: Box::new(package.clone()),
-        },
-        Type::Address {
-            mutable: false,
-            inner: Box::new(shared.clone()),
-        },
-        Type::Address {
-            mutable: false,
-            inner: Box::new(Type::OwnedStore {
-                element: Box::new(package),
-            }),
-        },
-    ] {
-        assert!(!ty.is_shared_package_address());
-        assert!(!ty.is_scalar_or_shared_address());
-        assert!(!ty.is_scalar_or_address());
-    }
-    let (mut module, mut plan) = base();
-    module.functions[0].values.push(shared);
-    plan.module_fingerprint = module.fingerprint();
-    let limits = Limits::default();
-    let bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
-    for (route, errors) in [
-        (
-            "raw",
-            zil_verify::verify_module(module, plan, &TargetProfile::host_llvm(), &limits)
-                .unwrap_err(),
-        ),
-        (
-            "wire",
-            zil_verify::verify_module_bytes(&bytes, &TargetProfile::host_llvm(), &limits)
-                .unwrap_err(),
-        ),
-    ] {
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.phase == Phase::Verify && d.category == ResultCategory::Unsupported),
-            "{errors:?}"
-        );
-        record(&format!("shape-only-{route}.txt"), format!("{errors:#?}\n"));
     }
 }
 
