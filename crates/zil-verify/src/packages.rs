@@ -124,6 +124,11 @@ pub(super) fn has_array_fields(ty: &Type) -> bool {
         if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
 }
 
+pub(super) fn has_store_fields(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+        if fields.iter().any(|(_, ty)| dynamic_store::is_carrier(ty)))
+}
+
 /// Count concrete cleanup/layout occurrences, including each nested owning
 /// array repetition. Copy arrays need no generated per-element cleanup.
 pub(super) fn layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
@@ -227,9 +232,11 @@ fn check_package_type(
                 "package fields must have unique nonempty names",
             ));
         }
-        if dynamic_store::is_carrier(field) {
+        if dynamic_store::is_carrier(field)
+            && (!matches!(field, Type::Managed(_)) || !array_fields)
+        {
             return Err(unsupported(
-                "Store fields require a separate owning composition profile",
+                "Store fields require direct manages ownership outside owning array fields",
                 span,
             ));
         }

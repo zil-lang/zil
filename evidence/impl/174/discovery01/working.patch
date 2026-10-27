@@ -1,0 +1,288 @@
+diff --git a/crates/zil-backend-llvm/src/emit/packages.rs b/crates/zil-backend-llvm/src/emit/packages.rs
+index 95b9352..5b711c2 100644
+--- a/crates/zil-backend-llvm/src/emit/packages.rs
++++ b/crates/zil-backend-llvm/src/emit/packages.rs
+@@ -9,8 +9,8 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
+     fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
+         && fields.iter().all(|(_, ty)| {
+             ty.is_copy_value()
+-                || matches!(ty, Type::Managed(payload) if !matches!(payload.as_ref(), Type::OwnedStore { .. }) && resources::supported_type(ty, resources))
+-                || matches!(ty, Type::Array { element, length } if *length > 0 && supported_type(element, resources) && !has_array_fields(element))
++                || matches!(ty, Type::Managed(_) if resources::supported_type(ty, resources))
++                || matches!(ty, Type::Array { element, length } if *length > 0 && supported_type(element, resources) && !has_array_fields(element) && !has_store_fields(element))
+         })
+ }
+ 
+@@ -19,6 +19,11 @@ fn has_array_fields(ty: &Type) -> bool {
+         if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
+ }
+ 
++fn has_store_fields(ty: &Type) -> bool {
++    matches!(ty, Type::Package { fields, .. }
++        if fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))))
++}
++
+ fn owned_field(ty: &Type) -> bool {
+     matches!(ty, Type::Managed(_))
+         || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+@@ -37,10 +42,8 @@ pub(super) fn teardown_paths(
+         match ty {
+             Type::Managed(payload) => {
+                 if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+-                    return unsupported(
+-                        "Store fields require a separate owning composition profile",
+-                        None,
+-                    );
++                    result.push((path, dynamic_store::helper(payload, resources, "drop")?));
++                    continue;
+                 }
+                 let definition = resources
+                     .iter()
+diff --git a/crates/zil-lower/src/lib.rs b/crates/zil-lower/src/lib.rs
+index 980eeba..b0915fd 100644
+--- a/crates/zil-lower/src/lib.rs
++++ b/crates/zil-lower/src/lib.rs
+@@ -46,7 +46,9 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
+                     || (resource_type(ty, &module.resources)
+                         && !matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }))
+                         && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
+-                    || (package_type(ty, &module.resources) && !package_array_fields(ty))
++                    || (package_type(ty, &module.resources)
++                        && !package_array_fields(ty)
++                        && !package_store_fields(ty))
+             })
+             || !closure.parameters.iter().all(Type::is_copy_value)
+         {
+@@ -148,8 +150,8 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+     };
+     fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
+         && fields.iter().all(|(_, ty)| {
+-            ty.is_copy_value() || matches!(ty, Type::Managed(payload) if !matches!(payload.as_ref(), Type::OwnedStore { .. }) && resource_type(ty, resources))
+-                || matches!(ty, Type::Array { element, length } if *length > 0 && package_type(element, resources) && !package_array_fields(element))
++            ty.is_copy_value() || matches!(ty, Type::Managed(_) if resource_type(ty, resources))
++                || matches!(ty, Type::Array { element, length } if *length > 0 && package_type(element, resources) && !package_array_fields(element) && !package_store_fields(element))
+         })
+ }
+ 
+@@ -157,6 +159,10 @@ fn package_array_fields(ty: &Type) -> bool {
+     matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
+ }
+ 
++fn package_store_fields(ty: &Type) -> bool {
++    matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))))
++}
++
+ fn error_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+     matches!(ty, Type::ErrorUnion { error, result }
+         if (error.is_copy_value() || package_type(error, resources))
+diff --git a/crates/zil-types/src/aggregates.rs b/crates/zil-types/src/aggregates.rs
+index c9ed712..bbb15fb 100644
+--- a/crates/zil-types/src/aggregates.rs
++++ b/crates/zil-types/src/aggregates.rs
+@@ -382,10 +382,10 @@ struct Resolver<'a> {
+ impl Resolver<'_> {
+     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
+         let resolved = self.ty(&field.ty, depth, field.span)?;
+-        if dynamic_store::is_carrier(&resolved) {
++        if dynamic_store::is_carrier(&resolved) && !field.manages {
+             return Err(unsupported(
+                 field.span,
+-                "Store fields require a separate owning composition profile",
++                "Store fields require an explicit package manages declaration",
+             ));
+         }
+         if byte_buffer::resource(&resolved) && !field.manages {
+@@ -397,7 +397,12 @@ impl Resolver<'_> {
+         if field.manages {
+             // A source Ref/Desc spelling cannot turn a borrowed entry into an
+             // ownership declaration. Re-resolution of normalized Core is safe.
+-            if !matches!(field.ty, Type::Named(_) | Type::Managed(_)) {
++            // The reserved Store<T> source spelling expands directly to its
++            // sealed Desc payload. Ref<Store<T>> instead has an additional
++            // wrapper and cannot manufacture an ownership declaration.
++            if !matches!(field.ty, Type::Named(_) | Type::Managed(_))
++                && !matches!(&field.ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
++            {
+                 return Err(error(
+                     "E-RESOURCE-TYPE",
+                     field.span,
+diff --git a/crates/zil-types/src/byte_buffer.rs b/crates/zil-types/src/byte_buffer.rs
+index 5eb594f..cbf8398 100644
+--- a/crates/zil-types/src/byte_buffer.rs
++++ b/crates/zil-types/src/byte_buffer.rs
+@@ -88,7 +88,9 @@ pub(super) fn add_definition(
+                         work = work.checked_sub(fields.len()).ok_or_else(limit)?;
+                         pending.extend(fields.iter().map(|(_, ty)| ty));
+                     }
+-                    Type::OwnedStore { element } => {
++                    Type::OwnedStore { element }
++                    | Type::Array { element, .. }
++                    | Type::Opaque { hidden: element, .. } => {
+                         work = work.checked_sub(1).ok_or_else(limit)?;
+                         pending.push(element);
+                     }
+diff --git a/crates/zil-types/src/closures.rs b/crates/zil-types/src/closures.rs
+index 405c568..93e1f48 100644
+--- a/crates/zil-types/src/closures.rs
++++ b/crates/zil-types/src/closures.rs
+@@ -228,6 +228,12 @@ impl State {
+                     "Store capture requires a separate retained storage profile",
+                 ));
+             }
++            if packages::has_store_fields(&capture.stored_type()) {
++                return Err(unsupported(
++                    capture.span,
++                    "Package capture with Store fields requires a retained storage protocol",
++                ));
++            }
+             if packages::has_array_fields(&capture.stored_type()) {
+                 return Err(unsupported(
+                     capture.span,
+diff --git a/crates/zil-types/src/dynamic_store.rs b/crates/zil-types/src/dynamic_store.rs
+index cbeb116..57c5a43 100644
+--- a/crates/zil-types/src/dynamic_store.rs
++++ b/crates/zil-types/src/dynamic_store.rs
+@@ -104,28 +104,52 @@ pub(super) fn add_definitions(
+             .chain(function.locals.iter().map(|l| &l.ty))
+             .chain(std::iter::once(&function.return_type))
+         {
+-            let Some(element) = element(ty) else { continue };
+-            let cost = inference::type_snapshot_work(element, function.span, limits)?;
+-            work = work
+-                .checked_sub(cost.saturating_add(2))
+-                .ok_or_else(exhausted)?;
+-            if !supported_element(element) {
+-                return Err(unsupported(
+-                    function.span,
+-                    "Store elements require nonzero complete direct-Managed Packages",
+-                ));
+-            }
+-            let name = definition_name(element);
+-            if let Some(old) = found.get(&name) {
+-                if old != element {
+-                    return Err(error(
+-                        "E-OWNED-STORE-TYPE",
+-                        function.span,
+-                        "one Store nominal element has conflicting layouts",
+-                    ));
++            let mut pending = vec![ty];
++            while let Some(ty) = pending.pop() {
++                if let Some(element) = element(ty) {
++                    let cost = inference::type_snapshot_work(element, function.span, limits)?;
++                    work = work
++                        .checked_sub(cost.saturating_add(2))
++                        .ok_or_else(exhausted)?;
++                    if !supported_element(element) {
++                        return Err(unsupported(
++                            function.span,
++                            "Store elements require nonzero complete direct-Managed Packages",
++                        ));
++                    }
++                    let name = definition_name(element);
++                    if let Some(old) = found.get(&name) {
++                        if old != element {
++                            return Err(error(
++                                "E-OWNED-STORE-TYPE",
++                                function.span,
++                                "one Store nominal element has conflicting layouts",
++                            ));
++                        }
++                    } else {
++                        found.insert(name, element.clone());
++                    }
++                    // Its exact element predicate excludes another Store.
++                    continue;
++                }
++                // A Store may only be mentioned by a complete State parameter
++                // or result, with no direct Store SSA value in this module.
++                // Charge children before growing the bounded worklist.
++                match ty {
++                    Type::Package { fields, .. } => {
++                        work = work.checked_sub(fields.len()).ok_or_else(exhausted)?;
++                        pending.extend(fields.iter().map(|(_, field)| field));
++                    }
++                    Type::Array { element, .. } | Type::Opaque { hidden: element, .. } => {
++                        work = work.checked_sub(1).ok_or_else(exhausted)?;
++                        pending.push(element);
++                    }
++                    Type::ErrorUnion { error, result } => {
++                        work = work.checked_sub(2).ok_or_else(exhausted)?;
++                        pending.extend([error.as_ref(), result.as_ref()]);
++                    }
++                    _ => {}
+                 }
+-            } else {
+-                found.insert(name, element.clone());
+             }
+         }
+     }
+diff --git a/crates/zil-types/src/packages.rs b/crates/zil-types/src/packages.rs
+index 3c8bd14..a598fad 100644
+--- a/crates/zil-types/src/packages.rs
++++ b/crates/zil-types/src/packages.rs
+@@ -19,12 +19,17 @@ pub(super) fn has_array_fields(ty: &Type) -> bool {
+         if fields.iter().any(|(_, t)| array_field_supported(t)))
+ }
+ 
++pub(super) fn has_store_fields(ty: &Type) -> bool {
++    matches!(ty, Type::Package { fields, .. }
++        if fields.iter().any(|(_, t)| dynamic_store::is_carrier(t)))
++}
++
+ pub(super) fn supported(ty: &Type) -> bool {
+     matches!(ty, Type::Package { fields, .. }
+         if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
+         && fields.iter().all(|(_, t)| t.is_copy_value()
+             || array_field_supported(t)
+-            || matches!(t, Type::Managed(_) if resources::supported(t) && !dynamic_store::is_carrier(t))))
++            || matches!(t, Type::Managed(_) if resources::supported(t))))
+ }
+ 
+ /// A separate predicate prevents existing nominal Package operations from
+diff --git a/crates/zil-verify/src/closures.rs b/crates/zil-verify/src/closures.rs
+index 7e98b2e..afe8639 100644
+--- a/crates/zil-verify/src/closures.rs
++++ b/crates/zil-verify/src/closures.rs
+@@ -71,6 +71,12 @@ pub(super) fn check_definitions(
+                     None,
+                 ));
+             }
++            if packages::has_store_fields(ty) {
++                return Err(unsupported(
++                    "Package capture with Store fields requires a retained storage protocol",
++                    None,
++                ));
++            }
+             if packages::has_array_fields(ty) {
+                 return Err(unsupported(
+                     "Package capture with owning array fields requires a retained nested-field protocol",
+diff --git a/crates/zil-verify/src/packages.rs b/crates/zil-verify/src/packages.rs
+index 70bb81e..7082dde 100644
+--- a/crates/zil-verify/src/packages.rs
++++ b/crates/zil-verify/src/packages.rs
+@@ -124,6 +124,11 @@ pub(super) fn has_array_fields(ty: &Type) -> bool {
+         if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
+ }
+ 
++pub(super) fn has_store_fields(ty: &Type) -> bool {
++    matches!(ty, Type::Package { fields, .. }
++        if fields.iter().any(|(_, ty)| dynamic_store::is_carrier(ty)))
++}
++
+ /// Count concrete cleanup/layout occurrences, including each nested owning
+ /// array repetition. Copy arrays need no generated per-element cleanup.
+ pub(super) fn layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
+@@ -227,9 +232,11 @@ fn check_package_type(
+                 "package fields must have unique nonempty names",
+             ));
+         }
+-        if dynamic_store::is_carrier(field) {
++        if dynamic_store::is_carrier(field)
++            && (!matches!(field, Type::Managed(_)) || !array_fields)
++        {
+             return Err(unsupported(
+-                "Store fields require a separate owning composition profile",
++                "Store fields require direct manages ownership outside owning array fields",
+                 span,
+             ));
+         }
