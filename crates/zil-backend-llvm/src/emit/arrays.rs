@@ -201,7 +201,7 @@ impl FunctionEmitter<'_> {
         Ok(())
     }
 
-    fn owned_array_teardowns(&self, element: &Type) -> CompileResult<Vec<(Option<usize>, String)>> {
+    fn owned_array_teardowns(&self, element: &Type) -> CompileResult<Vec<(Vec<u32>, String)>> {
         if let Type::Closure(id) = element {
             let definition = self.closures.get(id).ok_or_else(|| {
                 vec![Diagnostic::error(
@@ -212,44 +212,12 @@ impl FunctionEmitter<'_> {
                 )]
             })?;
             return Ok(if resource_closures::owns(definition) {
-                vec![(None, format!("zil.closure.drop.{}", id.0))]
+                vec![(Vec::new(), format!("zil.closure.drop.{}", id.0))]
             } else {
                 vec![]
             });
         }
-        let Type::Package { fields, .. } = element else {
-            return invalid(
-                "E-CODEGEN-CFG",
-                "owning array element cleanup requires Package",
-                Some(self.function.span),
-            );
-        };
-        let mut teardowns = Vec::new();
-        for (field, (_, ty)) in fields.iter().enumerate() {
-            if let Type::Managed(payload) = ty {
-                let definition = self
-                    .resources
-                    .iter()
-                    .find(|r| &r.payload == payload.as_ref())
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            Phase::Codegen,
-                            "E-CODEGEN-CFG",
-                            Some(self.function.span),
-                            "owning array element resource definition is absent",
-                        )]
-                    })?;
-                let teardown = if definition.payload == Type::ByteBuffer {
-                    Some("zil.bytes.drop".into())
-                } else {
-                    definition.teardown.map(symbol)
-                };
-                if let Some(teardown) = teardown {
-                    teardowns.push((Some(field), teardown));
-                }
-            }
-        }
-        Ok(teardowns)
+        packages::teardown_paths(element, self.resources)
     }
 
     fn drop_owned_array_element(
@@ -257,7 +225,7 @@ impl FunctionEmitter<'_> {
         local: LocalId,
         index: u32,
         array: &str,
-        teardowns: &[(Option<usize>, String)],
+        teardowns: &[(Vec<u32>, String)],
     ) -> CompileResult<()> {
         let flag = self.temp();
         let label = self.continuation;
@@ -278,7 +246,10 @@ impl FunctionEmitter<'_> {
         ));
         for (field, teardown) in teardowns {
             let pointer = self.temp();
-            let field = field.map_or_else(String::new, |field| format!(", i32 {field}"));
+            let field = field
+                .iter()
+                .map(|index| format!(", i32 {index}"))
+                .collect::<String>();
             self.line(format!(
                 "  {pointer} = getelementptr {array}, ptr %local.{}, i32 0, i32 {index}{field}",
                 local.0

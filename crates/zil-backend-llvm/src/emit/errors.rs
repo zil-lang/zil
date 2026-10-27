@@ -18,32 +18,12 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
 fn teardowns(
     payload: &Type,
     resources: &[ResourceDefinition],
-) -> CompileResult<Vec<(usize, String)>> {
-    let Type::Package { fields, .. } = payload else {
-        return Ok(Vec::new());
-    };
-    let mut result = Vec::new();
-    for (index, (_, ty)) in fields.iter().enumerate() {
-        if let Type::Managed(inner) = ty {
-            let definition = resources
-                .iter()
-                .find(|r| &r.payload == inner.as_ref())
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        Phase::Codegen,
-                        "E-CODEGEN-CFG",
-                        None,
-                        "error payload field lacks its resource definition",
-                    )]
-                })?;
-            if definition.payload == Type::ByteBuffer {
-                result.push((index, "zil.bytes.drop".into()));
-            } else if let Some(drop) = definition.teardown {
-                result.push((index, symbol(drop)));
-            }
-        }
+) -> CompileResult<Vec<(Vec<u32>, String)>> {
+    if matches!(payload, Type::Package { .. }) {
+        packages::teardown_paths(payload, resources)
+    } else {
+        Ok(Vec::new())
     }
-    Ok(result)
 }
 
 /// The native boundary consumes the returned error Value. Source main's own
@@ -60,9 +40,13 @@ pub(super) fn entry_cleanup(ty: &Type, resources: &[ResourceDefinition]) -> Comp
     let mut text = format!(
         "  %entry.error.value = extractvalue {union} %entry.result, 1\n  %entry.error.storage = alloca {payload}\n  store {payload} %entry.error.value, ptr %entry.error.storage\n"
     );
-    for (index, teardown) in teardowns(error, resources)? {
+    for (index, (path, teardown)) in teardowns(error, resources)?.iter().enumerate() {
+        let suffix = path
+            .iter()
+            .map(|index| format!(", i32 {index}"))
+            .collect::<String>();
         text.push_str(&format!(
-            "  %entry.error.field.{index} = getelementptr {payload}, ptr %entry.error.storage, i32 0, i32 {index}\n  call void @{teardown}(ptr %entry.error.field.{index})\n"
+            "  %entry.error.field.{index} = getelementptr {payload}, ptr %entry.error.storage, i32 0{suffix}\n  call void @{teardown}(ptr %entry.error.field.{index})\n"
         ));
     }
     Ok(text)
@@ -124,9 +108,15 @@ impl FunctionEmitter<'_> {
                     "  {pointer} = getelementptr {union}, ptr %local.{}, i32 0, i32 {arm}",
                     local.0
                 ));
-                for (index, teardown) in drops {
+                for (path, teardown) in drops {
                     let field = self.temp();
-                    self.line(format!("  {field} = getelementptr {payload_llvm}, ptr {pointer}, i32 0, i32 {index}"));
+                    let suffix = path
+                        .iter()
+                        .map(|index| format!(", i32 {index}"))
+                        .collect::<String>();
+                    self.line(format!(
+                        "  {field} = getelementptr {payload_llvm}, ptr {pointer}, i32 0{suffix}"
+                    ));
                     self.line(format!("  call void @{teardown}(ptr {field})"));
                 }
             }

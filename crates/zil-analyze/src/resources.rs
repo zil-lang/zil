@@ -195,6 +195,11 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
         },
     })
 }
+fn package_owned_field(ty: &Type) -> bool {
+    matches!(ty, Type::Managed(_))
+        || matches!(ty, Type::Array { element, length } if *length > 0 && matches!(element.as_ref(), Type::Package { .. }))
+}
+
 fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> CompileResult<Shapes> {
     let mut result = BTreeMap::new();
     for (place, ty) in f.locals.iter().map(|l| (Place::Local(l.id), &l.ty)).chain(
@@ -212,7 +217,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
         if let (Place::Local(local), Type::Package { fields, .. }) = (place, ty) {
             budget.spend(fields.len(), "package field shapes")?;
             for (index, (_, field)) in fields.iter().enumerate() {
-                if matches!(field, Type::Managed(_)) {
+                if package_owned_field(field) {
                     budget.lookup(result.len(), "package field shape insertion")?;
                     result.insert(
                         Place::PackageField {
@@ -609,7 +614,7 @@ fn package_transition(
     budget.spend(count, "owned aggregate slot lifecycle")?;
     for index in 0..count {
         let place = if let Some(fields) = fields {
-            if !matches!(fields[index].1, Type::Managed(_)) {
+            if !package_owned_field(&fields[index].1) {
                 continue;
             }
             Place::PackageField {
@@ -1212,7 +1217,7 @@ impl Flow<'_> {
                     } else if let InstructionKind::StorePackageField { value, .. } = i.kind {
                         budget.type_work(
                             ty,
-                            !matches!(ty, Type::Managed(_)),
+                            !package_owned_field(ty),
                             "package field store type checks",
                         )?;
                         if !decl.mutable
@@ -1223,7 +1228,7 @@ impl Flow<'_> {
                                 "package field store requires a mutable shell and matching value",
                             ));
                         }
-                        if matches!(ty, Type::Managed(_)) {
+                        if package_owned_field(ty) {
                             let place = Place::PackageField {
                                 local: *local,
                                 index: *index,
@@ -1261,17 +1266,20 @@ impl Flow<'_> {
                             ));
                         }
                     } else {
-                        let Type::Managed(payload) = ty else {
+                        if !package_owned_field(ty) {
                             return Err(error(
-                                "package ownership operation requires a Managed field",
+                                "package ownership operation requires an owning field",
                             ));
-                        };
+                        }
                         let place = Place::PackageField {
                             local: *local,
                             index: *index,
                         };
                         let mut fact = copied(state, place, budget)?;
                         if matches!(i.kind, InstructionKind::DescribePackageField { .. }) {
+                            let Type::Managed(payload) = ty else {
+                                return Err(error("package description requires a Managed field"));
+                            };
                             budget.type_work(
                                 payload,
                                 false,
@@ -1304,7 +1312,7 @@ impl Flow<'_> {
                                 budget.type_work(ty, false, "package field take type check")?;
                                 if result != Some(ty) {
                                     return Err(error(
-                                        "package field take requires its exact Managed result",
+                                        "package field take requires its exact owning result",
                                     ));
                                 }
                                 if check && !exact(&fact, Life::Available) {

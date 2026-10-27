@@ -1,0 +1,18 @@
+extern "C" fn putchar(value:i32)->i32;
+pub enum Fault { Memory; Invalid }
+pub resource Ticket { pub code:i32 }
+impl Drop for Ticket { fn drop(self:Self) { unsafe { putchar(.code) } } }
+pub package Item { manages ticket:Ticket; manages data:ByteBuffer; pub code:i32 }
+pub fn make(code:i32, fail:bool)->Fault!Item {
+    let ticket=Ticket{code:code}
+    let data=bytes_new()
+    if !bytes_reserve(data,1)||!bytes_push(data,u8(code)) { return Fault.Memory }
+    if fail { return Fault.Invalid }
+    return Item{ticket:give ticket,data:give data,code:code}
+}
+pub fn lossy(code:i32)->Item {
+    let data=bytes_new()
+    bytes_reserve(data,1)
+    bytes_push(data,u8(code))
+    return Item{ticket:Ticket{code:code},data:give data,code:code}
+}
