@@ -1,0 +1,580 @@
+{
+  "task": "168",
+  "status": "Pass",
+  "scope": "Finite retained concrete closure composition; author validation only",
+  "implementation_author": "/root/nested_closures",
+  "implementation_commit": "da49a4271fb2941eb7d2b6aa118ccd7ead5db7d5",
+  "tested_commit": "da49a4271fb2941eb7d2b6aa118ccd7ead5db7d5",
+  "production_commit": "a3bf9197589b047529a626d0bdc1e1365a27e15b",
+  "production_equivalent_to_tested": true,
+  "independent_review": "Pending",
+  "dispatch_commit": "4ba11e113dc38dec1776596c3ccd7dccf7cc1a0f",
+  "baseline": "45dbb920d444ab54a307785d068c934926cfb90c",
+  "schema_version": 19,
+  "normative_hash": "56b24928b183687a9468f8b98097756243a5b6fb088aa0121f3b05fdc6f83219",
+  "toolchain": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "clang": "Ubuntu clang17.0.6",
+    "baseline159_clang": "17.0.0 (not reproduced; version difference retained)",
+    "target": "x86_64-unknown-linux-gnu",
+    "cargo_incremental": "0",
+    "cargo_locked": true,
+    "cargo_offline": true
+  },
+  "results": {
+    "new_driver_tests": 20,
+    "native_executions": 28,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "source_negative_cases": 6,
+    "raw_wire_mutations": 8,
+    "raw_wire_rejections": 16,
+    "neighbor_driver_tests": 43,
+    "verify_library_tests": 236,
+    "fmt": "Pass",
+    "clippy_warnings_denied": "Pass"
+  },
+  "commands": [
+    {
+      "name": "driver",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl168_retained_composition",
+        "--test",
+        "impl069_retained",
+        "--test",
+        "impl070_retained",
+        "--test",
+        "impl127_local_factory",
+        "--test",
+        "impl161_nested_closures"
+      ],
+      "exit": 101,
+      "seconds": 18.327,
+      "log": "/workspace/scratch/39be3faa4442/run-logs/168/final/driver.log"
+    },
+    {
+      "name": "verify",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-verify",
+        "--lib"
+      ],
+      "exit": 0,
+      "seconds": 8.556,
+      "log": "/workspace/scratch/39be3faa4442/run-logs/168/final/verify.log"
+    },
+    {
+      "name": "fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit": 0,
+      "seconds": 3.931,
+      "log": "/workspace/scratch/39be3faa4442/run-logs/168/final/fmt.log"
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "-p",
+        "zil-lower",
+        "-p",
+        "zil-backend-llvm",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl168_retained_composition",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "seconds": 11.034,
+      "log": "/workspace/scratch/39be3faa4442/run-logs/168/final/clippy.log"
+    }
+  ],
+  "corrected_command": {
+    "tested_commit": "da49a4271fb2941eb7d2b6aa118ccd7ead5db7d5",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl168_retained_composition"
+    ],
+    "exit": 0,
+    "log": "/workspace/scratch/39be3faa4442/run-logs/168/final/driver-corrected.log"
+  },
+  "prior_failures_preserved": [
+    {
+      "log": "driver.log",
+      "description": "19/20 new tests plus all43 neighbors passed; final raw negative already rejected correctly but assertion expected Analyze substring unpaid. Only test assertion changed to exact Verify message; driver-corrected.log has20/20."
+    },
+    {
+      "logs": "/workspace/scratch/39be3faa4442/run-logs/168",
+      "description": "Earlier missing-rlib / StableCrateId Cargo incremental cache errors and development failures retained. Final validation ran fresh target168/final with CARGO_INCREMENTAL=0."
+    }
+  ],
+  "changed_files": [
+    "crates/zil-analyze/src/holds.rs",
+    "crates/zil-analyze/src/resources.rs",
+    "crates/zil-analyze/src/retained.rs",
+    "crates/zil-backend-llvm/src/emit.rs",
+    "crates/zil-backend-llvm/src/emit/resource_closures.rs",
+    "crates/zil-driver/tests/impl069_retained.rs",
+    "crates/zil-driver/tests/impl168_retained_composition.rs",
+    "crates/zil-lower/src/lib.rs",
+    "crates/zil-types/src/addresses.rs",
+    "crates/zil-types/src/closures.rs",
+    "crates/zil-types/src/closures/methods.rs",
+    "crates/zil-types/src/helpers.rs",
+    "crates/zil-types/src/inference.rs",
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/program.rs",
+    "crates/zil-types/src/retained.rs",
+    "crates/zil-verify/src/borrows.rs",
+    "crates/zil-verify/src/borrows/loans.rs",
+    "crates/zil-verify/src/closure_tests.rs",
+    "crates/zil-verify/src/closures.rs",
+    "crates/zil-verify/src/ct_program.rs",
+    "crates/zil-verify/src/lib.rs",
+    "crates/zil-verify/src/resources.rs",
+    "crates/zil-verify/src/retained.rs",
+    "crates/zil-verify/src/retained_tests.rs"
+  ],
+  "production_file_sha256": {
+    "crates/zil-analyze/src/holds.rs": "797513bb3c50a3da0b4911c3c31847a32e41c3deb99761750235202e01de4549",
+    "crates/zil-analyze/src/resources.rs": "8dde8747c87ee2d7a7a3d8cb307ad9e286f111bc2173e38983f2f2eb3f99ed0d",
+    "crates/zil-analyze/src/retained.rs": "2cd9298e2d0e8e31166290ec7fba6c7b44649f53e4b9ec3470e307b7efc78e2b",
+    "crates/zil-backend-llvm/src/emit.rs": "60c402f62f27356fc1fe948641f8c86af0eb68a4a45f2ae45dda8f3b0e200b4e",
+    "crates/zil-backend-llvm/src/emit/resource_closures.rs": "4a6d8c41123fa2f5920f01f564d9ca1b85bb30378ea14741dcb7268c60009998",
+    "crates/zil-lower/src/lib.rs": "0bd2c501254efa1d2a8036a74afac500a9653151347084e7b0e345155839491f",
+    "crates/zil-types/src/addresses.rs": "796854cdc2cb446ae2b987d3d78a31c55d5e6e4045724fd918a2125c8620a4b9",
+    "crates/zil-types/src/closures.rs": "3ac2de83d8a254b2159a213cae075afce549dfdbc071b2d6e3df13ab0bda6285",
+    "crates/zil-types/src/closures/methods.rs": "997ad8fbb3e844c6ae50ed5b496c2034c6db9308efb78bae172ccdfb67f9aa87",
+    "crates/zil-types/src/helpers.rs": "4d54abe42845bbc283fa8ea2777c8b2c8a0c8ade2d55077b9b3aa11111e87352",
+    "crates/zil-types/src/inference.rs": "cb274cb6b09b6e1ed82bdd6821336d5755713f5a8ab73ec9a1400ec7e1f3ab72",
+    "crates/zil-types/src/lib.rs": "9fdf1fd211312eb6186c059df6175feae181c80678a5d075f14702d58610209a",
+    "crates/zil-types/src/program.rs": "2f1a9f6d4974cce6857dff6ab66ca6c474a429f2c2b8f0d8ec606a532334e310",
+    "crates/zil-types/src/retained.rs": "84bc28f4ce819bee393befe8fafda03367f945e84d5ddb2a266e1ed11d2ac270",
+    "crates/zil-verify/src/borrows.rs": "56f9dcf9063be5ae87f02341e461ebb0675bd51ca56fcd0ba9d48c2991187ec9",
+    "crates/zil-verify/src/borrows/loans.rs": "42773cbfceb56613e6319c34b004db31db034b65b5f330bc0bc1da9befcf75e3",
+    "crates/zil-verify/src/closure_tests.rs": "d13576e7d63f9a1938187d11250cc5d6dea9ea9e3916338883ddc1455121a4c2",
+    "crates/zil-verify/src/closures.rs": "df64eee7c17a69b4a636b2572e0fe8b72963c0cdc7db0d031da91e3b9af3ef3b",
+    "crates/zil-verify/src/ct_program.rs": "0fe123f19a0c1d458a44957d731e87f0284d068cda6547b2761b2bc2f2d7d1eb",
+    "crates/zil-verify/src/lib.rs": "6a4a19ead977abd09c61c9c65bafb0d941e1962408da44c059aa8147740d4c04",
+    "crates/zil-verify/src/resources.rs": "470a3eb733f40650fcf66bd471b6dbcf185490f9a826d729dfed2cd0d5c186a7",
+    "crates/zil-verify/src/retained.rs": "3c2dae920b7dd5cdad76bdc729e038dfffbfd030da5a761666e0dd9f0ba2abb6",
+    "crates/zil-verify/src/retained_tests.rs": "943e745a341a5abad0ae56ecd37f6ab7615e8fc1f8b07ccb17eb768d09f3aab5"
+  },
+  "native_observations": [
+    {
+      "case": "retained168-callee-error-O0-67-4",
+      "exit": "Some(1)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "4e9be3df0ab9c411f13647393c2ca5be3f623ddd2a383fb930c76e74dbab4b7e"
+      },
+      "compile_sha256": "50f06d9cede27308667dd09cdbd7b2c6defdd039354e904e2140e32fc31d914d",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-callee-error-O0-67-4/program"
+      ]
+    },
+    {
+      "case": "retained168-callee-error-O2-67-14",
+      "exit": "Some(1)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "4e9be3df0ab9c411f13647393c2ca5be3f623ddd2a383fb930c76e74dbab4b7e"
+      },
+      "compile_sha256": "b7bb8fff632bc15eeec7b5eda4822a73cfc0fd979af87944d0fa2403c5e7ccf7",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-callee-error-O2-67-14/program"
+      ]
+    },
+    {
+      "case": "retained168-deferred-move-O0-67-9",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "42aed81de0306536b9056507bd431f0d18bcefe3c68f006421f18cce4889c662"
+      },
+      "compile_sha256": "aa6818128cf252f864f3c7bced8932d9abe52b6d6de71b303ef778b53eea5ccc",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-deferred-move-O0-67-9/program"
+      ]
+    },
+    {
+      "case": "retained168-deferred-move-O2-67-12",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "42aed81de0306536b9056507bd431f0d18bcefe3c68f006421f18cce4889c662"
+      },
+      "compile_sha256": "fc935eb154a64490ce3591ca8f3d26ee230f36fa263137d6dd0a979399d46964",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-deferred-move-O2-67-12/program"
+      ]
+    },
+    {
+      "case": "retained168-forward-O0-67-6",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "5953cfafe3925cfcac6ae2d7271c26e3d16d36b42a2432d933bdf4feb087ac32"
+      },
+      "compile_sha256": "588a305068c1b768a35aafd5c66e9eb0b9087b6efa8f09323974fed5c4346525",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-forward-O0-67-6/program"
+      ]
+    },
+    {
+      "case": "retained168-forward-O2-67-11",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "5953cfafe3925cfcac6ae2d7271c26e3d16d36b42a2432d933bdf4feb087ac32"
+      },
+      "compile_sha256": "5b7cc3e1d89924bbf7447763338ad6de52f14f24855cb0e49a01e11c1d3b6c46",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-forward-O2-67-11/program"
+      ]
+    },
+    {
+      "case": "retained168-forward-mut-O0-67-5",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "294f0b9f26ca082186af40e45a2d32cb0d99979ec937fdf7646b09f9843dbb76"
+      },
+      "compile_sha256": "f81679872676bf02ccea8e3da7a6c60b38dc1a331260446687af75bea374b27b",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-forward-mut-O0-67-5/program"
+      ]
+    },
+    {
+      "case": "retained168-forward-mut-O2-67-13",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "294f0b9f26ca082186af40e45a2d32cb0d99979ec937fdf7646b09f9843dbb76"
+      },
+      "compile_sha256": "c85ec361156df44b329c64609529830f40e7eead737e630f2af0caea440a6fb6",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-forward-mut-O2-67-13/program"
+      ]
+    },
+    {
+      "case": "retained168-forward-once-O0-67-18",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "cfbcfd9eee141e4b0b0b11b92545454562aae277d1c17b6f780ab4ed13d5c6be"
+      },
+      "compile_sha256": "cd5ad3d168504aeed3fda90beead33e0d843899df41e390e19d67c15efa89091",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-forward-once-O0-67-18/program"
+      ]
+    },
+    {
+      "case": "retained168-forward-once-O2-67-30",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "cfbcfd9eee141e4b0b0b11b92545454562aae277d1c17b6f780ab4ed13d5c6be"
+      },
+      "compile_sha256": "b24a28676479980c0085333db1e03b13eb3cda05651450ffc877215cbd81bcb9",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-forward-once-O2-67-30/program"
+      ]
+    },
+    {
+      "case": "retained168-module-forward-O0-67-1",
+      "exit": "Some(0)",
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": {
+        "module1.zil": "a7ce064f9cc5dd317dbeb35e91d4ac3ecd5edd2abbd2d832b4ea058ff6bb88fa",
+        "module0.zil": "ed4076b322a2e52133d1d3cd8848ae90ff077f3526d9b6bf13c9e0a688ba94f2",
+        "module2.zil": "6806bf729133220f4e3b99382be43fb6c5a509eb3fddfb8e483647f2bdb94f46"
+      },
+      "compile_sha256": "c56a1f9380e136ab8b652b4280ff38b887d1af4c325ca1e20b396aa349c78997",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-module-forward-O0-67-1/program"
+      ]
+    },
+    {
+      "case": "retained168-module-forward-O2-67-10",
+      "exit": "Some(0)",
+      "stdout": "",
+      "stderr": "",
+      "source_sha256": {
+        "module1.zil": "a7ce064f9cc5dd317dbeb35e91d4ac3ecd5edd2abbd2d832b4ea058ff6bb88fa",
+        "module0.zil": "ed4076b322a2e52133d1d3cd8848ae90ff077f3526d9b6bf13c9e0a688ba94f2",
+        "module2.zil": "6806bf729133220f4e3b99382be43fb6c5a509eb3fddfb8e483647f2bdb94f46"
+      },
+      "compile_sha256": "ced7c86a6c59a24e91e66c7ea246ee51dd2f79290096e98f0cc10dd1bf228557",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-module-forward-O2-67-10/program"
+      ]
+    },
+    {
+      "case": "retained168-mutable-O0-67-21",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "69cf5a9c13d57acf81926becd6a0c6ba981de1c848fba690386b666592e3711d"
+      },
+      "compile_sha256": "cc909d13354b9019462e587a459a84335c07784cc470beab4794185e02d122a5",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-mutable-O0-67-21/program"
+      ]
+    },
+    {
+      "case": "retained168-mutable-O2-67-27",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "69cf5a9c13d57acf81926becd6a0c6ba981de1c848fba690386b666592e3711d"
+      },
+      "compile_sha256": "15ecfe58116acab45be606249b3b723732af400b785960c697bbc6a59607729b",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-mutable-O2-67-27/program"
+      ]
+    },
+    {
+      "case": "retained168-nested-error-O0-67-8",
+      "exit": "Some(1)",
+      "stdout": "BA",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "83689d030e5f2768974b470ed52c943c000ceda07c618f3c9035805c02657356"
+      },
+      "compile_sha256": "35f3c5a71d303a22e652f47ee64098a6c46416d202efb4822ebd35e645eb06d9",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-nested-error-O0-67-8/program"
+      ]
+    },
+    {
+      "case": "retained168-nested-error-O2-67-17",
+      "exit": "Some(1)",
+      "stdout": "BA",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "83689d030e5f2768974b470ed52c943c000ceda07c618f3c9035805c02657356"
+      },
+      "compile_sha256": "52dbe0616d1552684f8ed142272789bc85e1bb796c34a4f22f36eb82279f79fb",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-nested-error-O2-67-17/program"
+      ]
+    },
+    {
+      "case": "retained168-once-O0-67-2",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "13a02d68ed814ff5ad22d316832577f6b761ad509de949d55eaca97c30b461db"
+      },
+      "compile_sha256": "3a28c2e35127b37e7b7ba91929f4a933f8af813593388b1b9bd2eac7827a6cd7",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-once-O0-67-2/program"
+      ]
+    },
+    {
+      "case": "retained168-once-O2-67-15",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "13a02d68ed814ff5ad22d316832577f6b761ad509de949d55eaca97c30b461db"
+      },
+      "compile_sha256": "170a10390963fd128f045d6417654ca52089b3a8489614e8292d873fda57f2db",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-once-O2-67-15/program"
+      ]
+    },
+    {
+      "case": "retained168-replace-O0-67-26",
+      "exit": "Some(0)",
+      "stdout": "AB",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "e19f5f7e8f445661d1d00b8582f147de3d8f90320740e20ce428b78cea45f7c4"
+      },
+      "compile_sha256": "972d4b8ca2464dc4a343a327dab761ac0f82e9de8eff8623d342c49b0f7a9aae",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-replace-O0-67-26/program"
+      ]
+    },
+    {
+      "case": "retained168-replace-O2-67-31",
+      "exit": "Some(0)",
+      "stdout": "AB",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "e19f5f7e8f445661d1d00b8582f147de3d8f90320740e20ce428b78cea45f7c4"
+      },
+      "compile_sha256": "039b479ee0ba191ae06482781e1cd021ae002d9544464996332daf46bef869df",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-replace-O2-67-31/program"
+      ]
+    },
+    {
+      "case": "retained168-replace-error-O0-67-3",
+      "exit": "Some(1)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "0fdfd39c44afe71c7e6eb833a0d5d089205b3c6969a4b158359b1ded244e47ff"
+      },
+      "compile_sha256": "7ec093bb35528a5daf34bfcb8a2537d7397d8f3ed48df889668d51870fbb7fc6",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-replace-error-O0-67-3/program"
+      ]
+    },
+    {
+      "case": "retained168-replace-error-O2-67-19",
+      "exit": "Some(1)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "0fdfd39c44afe71c7e6eb833a0d5d089205b3c6969a4b158359b1ded244e47ff"
+      },
+      "compile_sha256": "b68f43620087d8d6a1d3f24abb89e6ff2bfd2db55d9de8a24a5417e9fc8172a3",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-replace-error-O2-67-19/program"
+      ]
+    },
+    {
+      "case": "retained168-shared-borrow-O0-67-16",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "f8bf82b45539201ee9a785e01827e83f188ccfe92fcdae8497f124ede067a040"
+      },
+      "compile_sha256": "7de4d030129f88ece76b3bff6495b01a99cccf7245b95c427da730e407ff93ba",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-shared-borrow-O0-67-16/program"
+      ]
+    },
+    {
+      "case": "retained168-shared-borrow-O2-67-22",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "f8bf82b45539201ee9a785e01827e83f188ccfe92fcdae8497f124ede067a040"
+      },
+      "compile_sha256": "2d0cd6b1926e4d4d270da6decb6dfb1fc31b9bff1b15cc4a4d9886ff5de2bf15",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-shared-borrow-O2-67-22/program"
+      ]
+    },
+    {
+      "case": "retained168-shared-deep-O0-67-20",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "8ec531e555afcc9b3ac1c4ac70d1752c9cf42c67fd2dc29bd3e776d3f551e2e9"
+      },
+      "compile_sha256": "b53f980785ed5e77bbc4130c2b42c91f5aa21dcd94b04a3318e4f4d4c1a5e49e",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-shared-deep-O0-67-20/program"
+      ]
+    },
+    {
+      "case": "retained168-shared-deep-O2-67-33",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "8ec531e555afcc9b3ac1c4ac70d1752c9cf42c67fd2dc29bd3e776d3f551e2e9"
+      },
+      "compile_sha256": "53f8e61949af4e18bea097bf7b64ba8fa5c3bcc5481e939ab1939b1a3a85dbb7",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-shared-deep-O2-67-33/program"
+      ]
+    },
+    {
+      "case": "retained168-uncalled-O0-67-29",
+      "exit": "Some(0)",
+      "stdout": "AB",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "c090d5c977074a5fc83cfbc701c9bf075e06bd1cbf78d51a674354e1de5f080a"
+      },
+      "compile_sha256": "32accaff165eaccef998778a8ec75309fee322ee1736d53bcfc3567f108703c7",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-uncalled-O0-67-29/program"
+      ]
+    },
+    {
+      "case": "retained168-uncalled-O2-67-32",
+      "exit": "Some(0)",
+      "stdout": "AB",
+      "stderr": "",
+      "source_sha256": {
+        "module0.zil": "c090d5c977074a5fc83cfbc701c9bf075e06bd1cbf78d51a674354e1de5f080a"
+      },
+      "compile_sha256": "0f9f69b278184b1b2f9eef00a5492a1521c492198c43a0223458e22ec5b657e2",
+      "native_command": [
+        "/workspace/scratch/39be3faa4442/run-logs/168/final/native-corrected/retained168-uncalled-O2-67-32/program"
+      ]
+    }
+  ],
+  "remaining_boundaries": [
+    "Closure parameter/result signatures remain finite Copy; owned ErrorUnion/Array callback payloads are not opened by168.",
+    "Owned nested environments must be self-contained; moving child environments with external Address/Desc dependencies remains Unsupported.",
+    "Ordinary owning local slots support same-factory replacement; replacing/refilling an owned child capture field itself is not added.",
+    "Heterogeneous callback storage, dyn erasure, implicitBox/RC, arbitrary recursive opaque factory dependencies remain outside this slice.",
+    "Homogeneous callback arrays are167 follow-on work;168 alone does not claim collection readiness."
+  ],
+  "full_language": "NotSatisfied",
+  "full_zui": "NotSatisfied",
+  "performance_claim": "NotMeasured",
+  "source_package_executables": false
+}
