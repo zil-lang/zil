@@ -1,0 +1,16 @@
+{
+  "status": "Pass",
+  "cases": 32,
+  "steps": 512,
+  "natural_defects": 0,
+  "controlled_mutations": 1,
+  "controlled_property": "byte-truncate.complete-state/1",
+  "shrink_runs": 8,
+  "original_steps": 16,
+  "reduced_steps": 1,
+  "shrink_stop": "complete",
+  "compileRuns": 160,
+  "nativeRuns": 160,
+  "verify_disabled": false,
+  "tooling": "existing TS Roam core/shrink, not newly rebuilt Rust Roam"
+}
