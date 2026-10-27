@@ -775,6 +775,15 @@ fn raw_wire_constructor_depth_is_bounded_before_identity() {
     }
     deep.functions[new.0].blocks[new.1].instructions[new.2].kind = I::OwnedStoreNew { element };
     let dir = directory();
+    // Only the input-producing writer gets a larger depth allowance. Both
+    // verification routes retain the unmodified default depth limit and stack.
+    let writer_limits = Limits {
+        max_call_depth: limits.max_call_depth + 10,
+        ..limits.clone()
+    };
+    eprintln!("172 depth: encoder begin");
+    let encoded = zil_ir::wire::encode_module_candidate(&deep, &plan, &writer_limits).unwrap();
+    eprintln!("172 depth: encoder done");
     eprintln!("172 depth: raw Verify begin");
     let errors = zil_verify::verify_module(deep, plan.clone(), &target, &limits).unwrap_err();
     fs::write(dir.join("deep-metadata-raw.txt"), format!("{errors:#?}\n")).unwrap();
@@ -805,6 +814,10 @@ fn raw_wire_constructor_depth_is_bounded_before_identity() {
     }
     metadata.push(2); // I32 terminal type.
     bytes.splice(positions[0]..positions[0] + 6, metadata);
+    assert_eq!(
+        encoded, bytes,
+        "deep writer bytes match the independent manual metadata sequence"
+    );
     fs::write(dir.join("deep-candidate.bin"), &bytes).unwrap();
     eprintln!("172 depth: Wire Verify begin");
     let errors = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
