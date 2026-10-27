@@ -1,0 +1,651 @@
+CandidatePlan {
+    schema_version: 21,
+    module_fingerprint: Fingerprint(
+        [
+            105,
+            252,
+            252,
+            61,
+            54,
+            120,
+            157,
+            75,
+            105,
+            89,
+            207,
+            57,
+            4,
+            143,
+            13,
+            54,
+            198,
+            189,
+            102,
+            43,
+            38,
+            132,
+            167,
+            157,
+            178,
+            4,
+            108,
+            66,
+            110,
+            16,
+            86,
+            78,
+        ],
+    ),
+    target_fingerprint: Fingerprint(
+        [
+            125,
+            226,
+            181,
+            37,
+            16,
+            162,
+            128,
+            186,
+            229,
+            157,
+            20,
+            128,
+            199,
+            43,
+            191,
+            225,
+            19,
+            13,
+            186,
+            49,
+            237,
+            160,
+            85,
+            172,
+            235,
+            15,
+            142,
+            9,
+            204,
+            190,
+            71,
+            212,
+        ],
+    ),
+    functions: [
+        FunctionPlan {
+            function: FunctionId(
+                0,
+            ),
+            blocks: [],
+            holds: [],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                1,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [
+                        Parameter(
+                            0,
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        1,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        2,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                2,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        1,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        2,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        3,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        4,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        5,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        6,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        7,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                3,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                4,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [
+                        Parameter(
+                            0,
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        1,
+                    ),
+                    roots: [
+                        Parameter(
+                            0,
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        2,
+                    ),
+                    roots: [
+                        Parameter(
+                            0,
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        3,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                5,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        1,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                0,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        2,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        3,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        4,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                0,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        5,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        6,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        7,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        8,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        9,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                2,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        10,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        11,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        12,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                2,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        13,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        14,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        15,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        16,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        17,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        18,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        19,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        20,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        21,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        22,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        23,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        24,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        25,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        26,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        27,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                6,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                7,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        1,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                0,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        2,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        3,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                0,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        4,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        5,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        6,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                0,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        7,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                0,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        8,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        9,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        10,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        11,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        12,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        13,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        14,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        15,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        16,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+    ],
+    origins: [],
+    responsibilities: [],
+    unsupported: [],
+}

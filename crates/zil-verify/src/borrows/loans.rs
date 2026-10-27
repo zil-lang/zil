@@ -158,7 +158,9 @@ fn reconstruct(
                             }
                         }
                         InstructionKind::ByteBufferBorrow { .. }
-                        | InstructionKind::BorrowOwnedArrayElement { .. } => {
+                        | InstructionKind::OwnedStoreBorrow { .. }
+                        | InstructionKind::BorrowOwnedArrayElement { .. }
+                        | InstructionKind::BorrowPackageField { .. } => {
                             row.insert(id);
                         }
                         InstructionKind::BorrowCapture { .. }
@@ -393,10 +395,10 @@ fn check_pairs(
 fn consumers(kind: &InstructionKind) -> impl Iterator<Item = &ValueId> {
     let (callee, values): (Option<&ValueId>, &[ValueId]) = match kind {
         InstructionKind::Store { value, .. }
-        | InstructionKind::StoreOwnedArrayElement { value, .. } => {
-            (None, std::slice::from_ref(value))
-        }
-        InstructionKind::MakeOwnedArray { elements } => (None, elements),
+        | InstructionKind::StoreOwnedArrayElement { value, .. }
+        | InstructionKind::StorePackageField { value, .. } => (None, std::slice::from_ref(value)),
+        InstructionKind::MakeOwnedArray { elements }
+        | InstructionKind::MakePackage { fields: elements } => (None, elements),
         InstructionKind::CallClosureOnce { callee, arguments } => (Some(callee), arguments),
         InstructionKind::Call { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
@@ -421,14 +423,28 @@ fn ownership(
     reserve(budget, &[n, v, 2])?;
     budget.spend(v.saturating_mul(2))?;
     let mut affine: Vec<_> = f.values.iter().map(|t| affine_type(module, t)).collect();
-    // Owning-array publication consumes even a resource-free concrete callback.
+    // Owning array/State publication consumes a resource-free concrete callback.
     // This is a move obligation, not a fabricated resource cleanup obligation.
     // Preserve the established ordinary closure Copy profile outside this lane.
     for instruction in f.blocks.iter().flat_map(|block| &block.instructions) {
         budget.spend(1)?;
         let elements: &[ValueId] = match &instruction.kind {
-            InstructionKind::MakeOwnedArray { elements } => elements,
-            InstructionKind::StoreOwnedArrayElement { value, .. } => std::slice::from_ref(value),
+            InstructionKind::MakeOwnedArray { elements }
+            | InstructionKind::MakePackage { fields: elements } => elements,
+            InstructionKind::Call {
+                function,
+                arguments,
+            } if module.functions[function.0 as usize]
+                .callable_contract
+                .is_none()
+                && packages::has_callable_fields(
+                    &module.functions[function.0 as usize].return_type,
+                ) =>
+            {
+                arguments
+            }
+            InstructionKind::StoreOwnedArrayElement { value, .. }
+            | InstructionKind::StorePackageField { value, .. } => std::slice::from_ref(value),
             _ => &[],
         };
         budget.spend(elements.len())?;
@@ -440,6 +456,7 @@ fn ownership(
         if matches!(
             instruction.kind,
             InstructionKind::TakeOwnedArrayElement { .. }
+                | InstructionKind::TakePackageField { .. }
         ) && let Some(value) = instruction.result
             && matches!(f.values[value.0 as usize], Type::Closure(_))
         {
@@ -569,11 +586,13 @@ pub(super) fn check(
             affine_type(module, &l.ty)
                 || byte_buffers::is_carrier(&l.ty)
                 || resources::arrays::is_owned_type(&l.ty)
+                || packages::has_callable_fields(&l.ty)
         })
         && !f.values.iter().any(|t| {
             affine_type(module, t)
                 || byte_buffers::is_carrier(t)
                 || resources::arrays::is_owned_type(t)
+                || packages::has_callable_fields(t)
         })
     {
         return Ok(Apart::new());
@@ -718,7 +737,8 @@ pub(super) fn check(
                         budget,
                     )?;
                 }
-                InstructionKind::BorrowOwnedArrayElement { local, mutable, .. } => {
+                InstructionKind::BorrowOwnedArrayElement { local, mutable, .. }
+                | InstructionKind::BorrowPackageField { local, mutable, .. } => {
                     access.check(&empty, &[Root::Local(*local)], *mutable, budget)?;
                 }
                 InstructionKind::Store { local, .. }

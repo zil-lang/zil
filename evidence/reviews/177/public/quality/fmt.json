@@ -1,0 +1,16 @@
+{
+  "command": [
+    "cargo",
+    "fmt",
+    "--all",
+    "--",
+    "--check"
+  ],
+  "review_source_commit": "061e22536784f4e568dfbcebbb8ca2086cdc54a7",
+  "source_status": "",
+  "start": 1793115994.5063186,
+  "end": 1793115996.2010434,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

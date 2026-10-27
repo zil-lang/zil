@@ -1,0 +1,13 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-public174/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.86s
+     Running tests/review177_public.rs (/workspace/scratch/39be3faa4442/targets/177-review-public/debug/deps/review177_public-5a5287b1a3a86651)
+
+running 5 tests
+test literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruptions ... ok
+test new_instruction_envelopes_obey_exact_byte_node_and_instruction_limits ... ok
+test reserved_store_at_cannot_hide_in_unused_templates_patterns_or_closure_parameters ... ok
+test ordinary_members_longer_identifiers_and_module_qualifiers_keep_their_namespace ... ok
+test whole_module_fingerprints_bind_new_operands_result_presence_and_span ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

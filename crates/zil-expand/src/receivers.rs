@@ -12,7 +12,11 @@ impl Expander<'_> {
             self.diagnostics.push(primitive_name_error(&f.name, f.span));
             return;
         }
-        let callable_parameter = match generics::callable::template(f) {
+        let callable_parameter = match generics::callable::expanded_template(
+            f,
+            &self.declarations,
+            &mut self.callable_work,
+        ) {
             Ok(Some(template)) if prefix.is_none() => Some(CoreCallableParameter {
                 index: template.index as u32,
                 generic_name: template.generic_name,

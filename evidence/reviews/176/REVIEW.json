@@ -1,0 +1,244 @@
+{
+  "reviewer": "/root/store_view175",
+  "implementation_author": "/root/callback_field176",
+  "implementation_commit": "dfd9ca572b3d9d04a0b3a142e75df98cd1896b29",
+  "tested_production_commit": "55a59cdfcfc78dc85d9ac631e51d9105ee750c79",
+  "implementation_crates_tree": "0fe0f25da88ee0a22a3897544f213579899d0cde",
+  "verdict": "Pass",
+  "scope": "176 finite self-contained concrete callback fields in ordinary owning generic State; independent bounded review only",
+  "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+  "schema_wire_version": 21,
+  "target": "x86_64-unknown-linux-gnu",
+  "review_test_commit": "69d20fe368f3a8b2e5dbcb2964e000edde0cf7b1",
+  "source_test": "crates/zil-driver/tests/review176_by175.rs",
+  "source_test_sha256": "0e31cc4178e7f795ae2e54d00d2d8b838932beda46899fe35fb9f3459e0d17e6",
+  "production_modified_by_reviewer": false,
+  "author_replay": {
+    "tests": 12,
+    "passed": 12,
+    "failed": 0,
+    "command": "commands/author-replay01/command.json",
+    "source_commit": "55a59cdfcfc78dc85d9ac631e51d9105ee750c79",
+    "reusable_for_delivery": "Git crates trees exactly equal; final author commit adds only examples/tools/evidence"
+  },
+  "independent": {
+    "tests": 7,
+    "passed": 7,
+    "failed": 0,
+    "native_executions": 8,
+    "source_semantic_rejections": 9,
+    "raw_candidates": 5,
+    "raw_and_wire_rejections": 10,
+    "command": "commands/independent03/command.json",
+    "source_rejection_details": [
+      {
+        "case": "review176-different-factory-on-error-path-461-1",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-TYPE-MISMATCH",
+            "message": "different closure expressions have different concrete types",
+            "span": {
+              "file": 0,
+              "start": 756,
+              "end": 795
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "case": "review176-live-field-take-461-21",
+        "phase": "verify",
+        "diagnostics": [
+          {
+            "phase": "verify",
+            "category": "SafeReject",
+            "code": "E-BORROW-CONFLICT",
+            "message": "write or storage change overlaps a shared address still required by a later use",
+            "span": {
+              "file": 0,
+              "start": 669,
+              "end": 679
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "case": "review176-live-parent-move-461-20",
+        "phase": "verify",
+        "diagnostics": [
+          {
+            "phase": "verify",
+            "category": "SafeReject",
+            "code": "E-BORROW-CONFLICT",
+            "message": "write or storage change overlaps a shared address still required by a later use",
+            "span": {
+              "file": 0,
+              "start": 675,
+              "end": 676
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "case": "review176-once-double-call-461-0",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-UNINITIALIZED",
+            "message": "local 2 is not initialized on every incoming path",
+            "span": {
+              "file": 0,
+              "start": 363,
+              "end": 366
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "case": "review176-once-double-take-461-3",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: package field take requires that field live on every path",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "case": "review176-opaque-field-461-17",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-TYPE-MISMATCH",
+            "message": "different closure expressions have different concrete types",
+            "span": {
+              "file": 0,
+              "start": 637,
+              "end": 662
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "case": "review176-opaque-join-after-helper-461-19",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-TYPE-MISMATCH",
+            "message": "callable State requires the same nominal shape and source factory identity",
+            "span": {
+              "file": 0,
+              "start": 644,
+              "end": 673
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "case": "review176-opaque-whole-state-461-18",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-TYPE-MISMATCH",
+            "message": "callable State requires the same nominal shape and source factory identity",
+            "span": {
+              "file": 0,
+              "start": 637,
+              "end": 659
+            },
+            "notes": []
+          }
+        ]
+      },
+      {
+        "case": "review176-pure-two-owners-461-4",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-UNINITIALIZED",
+            "message": "local 0 is not initialized on every incoming path",
+            "span": {
+              "file": 0,
+              "start": 346,
+              "end": 347
+            },
+            "notes": []
+          }
+        ]
+      }
+    ]
+  },
+  "adjacent_regressions": {
+    "impl167_owned_arrays": 32,
+    "impl168_retained_composition": 26,
+    "passed": 58,
+    "failed": 0,
+    "command": "commands/independent03/command.json"
+  },
+  "total_current_scoped_tests_passed": 77,
+  "verify_budget_replay": [
+    {
+      "case": "author-cases01/callable-fields176-257-10/budget-boundary.txt",
+      "observed": "wire=false minimum_success=15478 nearest_reject=15477\nwire=true minimum_success=15478 nearest_reject=15477\n"
+    }
+  ],
+  "findings": [],
+  "independent_observations": [
+    "four modules; FnMut(i32)->i32 at nonzero inline field offset; F/G/H complete State chains retain actual environment",
+    "different opaque forward factories with equal actual ClosureId remain distinct; field and whole-State substitutions reject",
+    "FnOnce repeats and pure callback second publication reject; ordinary pure Fn copy control still executes",
+    "RHS failure after acquiring a new Managed argument prints BAT: prepared B then old callback A then parent T",
+    "raw shared reborrow chain cannot call FnMut; immutable parent, non-callable field index and early whole-parent drop reject",
+    "pure callback duplicate SSA publication rejects with no Address in the function",
+    "production Verify depends only on base/IR and imports no Types/Analyze proof"
+  ],
+  "review_fixture_failures_preserved": [
+    {
+      "command": "commands/independent01/command.json",
+      "passed": 2,
+      "failed": 5,
+      "cause": "reviewer used unsupported i64 numeric suffix; fixed to explicit i64(...) conversions; lexical failures were not counted as semantic success"
+    },
+    {
+      "command": "commands/independent02/command.json",
+      "passed": 6,
+      "failed": 1,
+      "cause": "permission counterexample hit earlier ReborrowAddress upgrade rejection; changed entire chain to shared, retaining exact FnMut-call rejection expectation"
+    }
+  ],
+  "limitations": [
+    "one callable generic F and existing at-least-one-manages Package profile",
+    "whole callback-State capture, callback-State arrays, borrowed environment escape, arbitrary dyn and ordinary F returns remain closed",
+    "callback loans conservatively cover the parent local; no independent-field mutable permission claim",
+    "Store and callback State union plus real allocation-fault consumer belong to 177 integration, not this review",
+    "no workspace-wide or performance gate run by reviewer"
+  ],
+  "historical_handoff": "root tracks baseline 1152 historical errors/0 warnings at /run-logs/177/start-handoff/command.json; this review does not rewrite historical task hashes",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}

@@ -1,0 +1,10 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/177/readiness-final01/result/O0-program"
+  ],
+  "start": 1793118340.9048638,
+  "status": "Completed",
+  "exit_code": 0,
+  "end": 1793118340.9073138,
+  "seconds": 0.0024499893188476562
+}

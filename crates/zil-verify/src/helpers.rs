@@ -346,6 +346,18 @@ pub(super) fn check_module(
                 "a callback helper must be an ordinary checked function",
             ));
         }
+        // A concrete self-contained input may enter ordinary owning State.
+        // This is an owned value boundary; borrowed/descriptor environments
+        // still require the separately reconstructed synchronous contract.
+        if f.callable_contract.is_none()
+            && !borrowed
+            && matches!(&f.return_type, Type::Package { fields, .. }
+                if fields.iter().any(|(_, ty)| *ty == Type::Closure(closure)))
+        {
+            closures::self_contained(module, closure, budget)?;
+            packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
+            continue;
+        }
         if !f.return_type.is_copy_value() {
             return Err(unsupported(
                 "concrete callback helper results must be finite Copy values",

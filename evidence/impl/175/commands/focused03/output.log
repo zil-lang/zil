@@ -1,0 +1,14 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-driver)
+error: found crates (`zil_verify` and `zil_verify`) with colliding StableCrateId values
+   --> crates/zil-driver/tests/impl175_store_views.rs:512:5
+    |
+512 |     zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    |     ^^^^^^^^^^
+
+error: could not compile `zil-driver` (test "impl175_store_views") due to 1 previous error

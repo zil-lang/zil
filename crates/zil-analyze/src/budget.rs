@@ -163,6 +163,7 @@ fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
     if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
     && fields.iter().all(|(_, t)| {
         t.is_copy_value()
+            || (arrays && matches!(t, Type::Closure(_)))
             || matches!(t, Type::Managed(p) if **p == Type::ByteBuffer
                 || (arrays && matches!(p.as_ref(), Type::OwnedStore { .. }))
                 || (matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value()))
@@ -211,6 +212,7 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
     } else if crate::dynamic_store::is_carrier(ty)
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
         || ty.is_shared_resource_head_address()
+        || ty.is_shared_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
             if **inner == Type::ByteBuffer
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))

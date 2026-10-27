@@ -1,0 +1,17 @@
+{
+  "command": [
+    "clang",
+    "-O0",
+    "/workspace/scratch/39be3faa4442/run-logs/177/readiness-final01/result/O0-phases/llvm.ll",
+    "/workspace/scratch/39be3faa4442/zil-restored/wt177/tools/research/142/allocator_probe.c",
+    "-Wl,--wrap=realloc",
+    "-Wl,--wrap=free",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/177/readiness-final01/result/O0-probe"
+  ],
+  "start": 1793118340.9075763,
+  "status": "Completed",
+  "exit_code": 0,
+  "end": 1793118341.0266914,
+  "seconds": 0.11911511421203613
+}

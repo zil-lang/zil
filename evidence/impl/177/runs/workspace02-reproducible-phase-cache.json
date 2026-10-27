@@ -1,0 +1,8 @@
+{
+  "scope": "successful driver phase dumps from completed workspace02; failed Verify unit logs unchanged",
+  "files": 9398,
+  "uncompressed_bytes": 925633088,
+  "compressed_bytes": 59149910,
+  "archive": "workspace02-reproducible-phase-cache.zip",
+  "time": 1793117750.2494726
+}

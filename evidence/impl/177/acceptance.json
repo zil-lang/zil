@@ -1,0 +1,184 @@
+{
+  "schema": "zil-language-stage-acceptance/177",
+  "status": "StagePass_FullZuiNotReady",
+  "actor": "/root",
+  "implementation_commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+  "last_production_change": "8abc75bbc1f98450a16efde00539d753fb836551",
+  "public_implementation_commit": "aa235a3379492221197b4686bec042c042c4e100",
+  "final_workspace_source_commit": "a4494cae3f0f9a0b2077f3e5f046cef5d96d4882",
+  "final_workspace_crates_tree": "362d68b3ef816258ad41351a2a1ea7ea8f4f7399",
+  "candidate_to_final_crates_diff": [
+    "crates/zil-driver/tests/review177_composition.rs"
+  ],
+  "reuse_reason": "The only candidate-to-full-workspace crates change is the independent review177_composition test. Production, consumer sources and runner are identical. Final CLI was independently built by root and reviewer with identical bytes.",
+  "cli_sha256": "50aa6fd19475e3a1bd23edf6d2bfb57ff5743381f65bb499da99a251a3a4a4ee",
+  "target": "x86_64-unknown-linux-gnu; LLVM",
+  "schema_wire_version": 21,
+  "typed_fingerprint_domain": "ZIL-TYPED-MODULE-V21",
+  "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+  "workspace": {
+    "status": "Pass",
+    "passed": 1620,
+    "failed": 0,
+    "ignored": 0,
+    "reported_groups": 164,
+    "nonempty_groups": 151,
+    "zero_selection_groups_not_counted_as_pass": 13,
+    "receipt": "runs/workspace03/command.json",
+    "log": "runs/workspace03/output.log"
+  },
+  "clippy": {
+    "status": "Pass",
+    "receipt": "runs/clippy-final01/command.json",
+    "scope": "workspace, all targets, -D warnings"
+  },
+  "fmt": {
+    "status": "Pass",
+    "receipt": "runs/fmt-final01/command.json"
+  },
+  "consumer177": {
+    "status": "Pass",
+    "builds": 4,
+    "source_files": 6,
+    "modules_per_entry": [
+      5
+    ],
+    "native_executions": 64,
+    "ordinary": 20,
+    "instrumented": 44,
+    "allocation_failure_injections": 28,
+    "all_live_zero_and_allocated_equal_frees": true,
+    "receipt": "runs/consumer-final01/result/summary.json"
+  },
+  "consumer173_regression": {
+    "status": "Pass",
+    "native_executions": 44,
+    "ordinary": 14,
+    "instrumented": 30,
+    "receipt": "runs/consumer173-final01/result/summary.json"
+  },
+  "readiness": {
+    "status": "StagePass_FullZuiNotReady",
+    "original_probes": [
+      {
+        "capability": "nested-owning-callback",
+        "status": "Success",
+        "phase": "verify",
+        "diagnostic_codes": []
+      },
+      {
+        "capability": "owned-array-elements",
+        "status": "SafeReject",
+        "phase": "types",
+        "diagnostic_codes": [
+          "E-TYPE-MISMATCH"
+        ]
+      },
+      {
+        "capability": "owned-error-result",
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      {
+        "capability": "generic-trait-bound",
+        "status": "Success",
+        "phase": "verify",
+        "diagnostic_codes": []
+      },
+      {
+        "capability": "owning-method-receiver",
+        "status": "Success",
+        "phase": "verify",
+        "diagnostic_codes": []
+      },
+      {
+        "capability": "array-of-capturing-callbacks",
+        "status": "Success",
+        "phase": "verify",
+        "diagnostic_codes": []
+      }
+    ],
+    "consumer164_native_executions": 4,
+    "events_and_drops_per_execution": 1024,
+    "receipt": "runs/readiness-final01/result/summary.json"
+  },
+  "independent_reviews": [
+    {
+      "path": "evidence/reviews/174/REVIEW.json",
+      "sha256": "e9a12e18bc4ca982339760b976e2e426b196d1833d268ff4a8722b7bc7f271a0",
+      "reviewer": "/root",
+      "implementation_commit": "9a878f2f91aae4efd4b851eeb8979cacc21ffdd1",
+      "verdict": "Pass"
+    },
+    {
+      "path": "evidence/reviews/175/REVIEW.json",
+      "sha256": "fef1fce773e6e277549c27dc297757fc06fa087c9e086df71413b3c0c7fadb39",
+      "reviewer": "/root/callback_field176",
+      "implementation_commit": "579d49a76ad2aaef8b1c007289255dd1c4c7a54f",
+      "verdict": "Pass"
+    },
+    {
+      "path": "evidence/reviews/176/REVIEW.json",
+      "sha256": "2f83c8593aed81b1ea8f296fd3674fca3a0ba872348ce00ddcf2936cd3aa30c1",
+      "reviewer": "/root/store_view175",
+      "implementation_commit": "dfd9ca572b3d9d04a0b3a142e75df98cd1896b29",
+      "verdict": "Pass"
+    },
+    {
+      "path": "evidence/reviews/177/public/REVIEW.json",
+      "sha256": "6f443e365794997c809d8b171c8b401e103f68d556931a408d1ec4949a61eed7",
+      "reviewer": "/root/store_field174",
+      "implementation_commit": "aa235a3379492221197b4686bec042c042c4e100",
+      "verdict": "Pass"
+    },
+    {
+      "path": "evidence/reviews/177/composition/REVIEW.json",
+      "sha256": "7a6b55f3c2f30c1be83cdb910e3cbec9f175c455d84aceef9e8d8e6eb5eb5074",
+      "reviewer": "/root/store_field174",
+      "implementation_commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+      "verdict": "Pass"
+    }
+  ],
+  "supplemental_compatibility": "compatibility-review/final-summary.json",
+  "isolation": "compatibility-review/final-isolation.json",
+  "toolchain": "runs/toolchain-final.json",
+  "failed_attempts_retained": {
+    "workspace01": "3 exact Analyze budget fixture failures; real extra type visits measured; no production budget raised",
+    "workspace02": "1605 passed, 2 old Verify shape diagnostic expectations failed; original malformed operations still reject under precise migrated expectations",
+    "consumer01_to_03": "Generic Store builtin remains closed; concrete helper route and finite manages-field give/comparison propagation repaired",
+    "composition_focused05": "Missing owning-State indexed-profile guard; corrected before final full run",
+    "composition_focused07": "StableCrateId cache collision; 0 tests; fresh target used",
+    "composition_focused08": "Test used two State<F> inputs beyond existing callable signature profile",
+    "composition_focused09": "Partial whole-State overwrite correctly rejects unpaid old resource; assertion corrected without widening production",
+    "cli_final01": "Wrong Cargo package in command; no tests executed; final02 built zil-cli correctly",
+    "public_frozen01": "InvalidEvidenceIdentity correction retained; only exact aa235a3 frozen02 used for acceptance",
+    "reviewers": "Original author/reviewer fixture, parse and native attempts retained in their exact-source evidence directories"
+  },
+  "boundaries": [
+    "Generic Store primitives remain closed in parametric bodies; concrete ordinary helper route is used.",
+    "Callable F occurs in only one input parameter; this does not limit the number of FnMut invocations.",
+    "Callback field loan remains conservative at whole-parent local granularity.",
+    "Shared Store windows permit only admitted Copy reads; no mutable, direct capture, return or escaping window.",
+    "Partial whole-State overwrite cannot discard unpaid old resources; Analyze still rejects it.",
+    "Owned-State indexed non-Copy Package transfer remains closed; restored ordinary concrete-array compatibility is not a general indexed ownership protocol.",
+    "Store profile is Linux x64 LLVM only; Win64 implementation and execution are not claimed.",
+    "Original159 direct resource-array modes and direct E!ByteBuffer successful owned payload remain rejected.",
+    "External retained-callback registration, shutdown/drain, reentrancy, cancellation and full UI are not established."
+  ],
+  "packaging": {
+    "source_contains_evidence": false,
+    "source_contains_execution_products": false,
+    "audit_separate": true,
+    "audit_limit_bytes": 50000000,
+    "actual_package_and_cold_results": "Reported separately after packaging to avoid a self-referential hash cycle"
+  },
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "performance_measurement": false,
+  "new_rust_four_goal_conjunction_proven": false
+}

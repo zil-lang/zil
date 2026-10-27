@@ -1,0 +1,21 @@
+{
+  "command": [
+    "cargo",
+    "clean"
+  ],
+  "source_commit": "d5efa072c86a92640f365aeaa118741e29e695cb",
+  "crates_tree": "e542dbafd127e8bb368f268926714afff4ba8d94",
+  "source_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/175",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/175/cases04"
+  },
+  "start": 1793115405.0182526,
+  "exit_code": 0,
+  "status": "Pass",
+  "end": 1793115405.1398344,
+  "log_sha256": "a9d4543e215d188419ba28f49103d4eeeb521a6f9bc86186a3b872ff915e73dd"
+}

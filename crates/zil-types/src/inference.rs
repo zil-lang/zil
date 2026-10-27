@@ -621,7 +621,9 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             || packages::supported(ty)
             || packages::owned_array_supported(ty)
     };
-    if (!admitted(&signature.result) && signature.callable_return.is_none())
+    if (!admitted(&signature.result)
+        && signature.callable_return.is_none()
+        && !callable_fields::signature(signature))
         || signature.parameters.iter().enumerate().any(|(index, ty)| {
             !admitted(ty)
                 && !signature
@@ -859,6 +861,12 @@ enum Term {
         length: u32,
     },
     ClosureAddress(usize, bool),
+    /// Ordinary owning state retains the source factory identity separately
+    /// from its eventual layout/ClosureId.
+    ClosurePackage {
+        shape: Rc<Type>,
+        environment: usize,
+    },
     Function(Rc<Signature>),
     /// Nominal receiver already constrained; only valid immediately as a callee.
     Method(Rc<Signature>),
@@ -891,6 +899,7 @@ struct Solver<'a, 'b, 'c> {
     // when its hidden environment is forwarded by another factory.
     factory_terms: BTreeMap<FunctionId, usize>,
     ordinary_return_identity: Option<usize>,
+    helper_environment: Option<(String, usize)>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     enums: &'a BTreeMap<String, Type>,
@@ -911,6 +920,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         budget: &'b mut Budget<'c>,
     ) -> R<Self> {
         if !(function.callable_return.is_some()
+            || callable_fields::template(function)
             || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || packages::supported(&function.return_type)
@@ -932,6 +942,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             ordinary_callable_return: function.callable_return.clone(),
             factory_terms: BTreeMap::new(),
             ordinary_return_identity: None,
+            helper_environment: None,
             signatures,
             imports,
             enums,
@@ -959,14 +970,19 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 let Term::Closure(id) = this.known_term(&ty, parameter.span)? else {
                     unreachable!()
                 };
-                match helpers::parameter_mode(&parameter.ty, &bound.generic_name) {
-                    Some(Some(mutable)) => Term::ClosureAddress(id, mutable),
-                    Some(None) => Term::Closure(id),
-                    None => {
-                        return Err(unsupported(
-                            parameter.span,
-                            "invalid callable helper parameter",
-                        ));
+                this.helper_environment = Some((bound.generic_name.clone(), id));
+                if callable_fields::placeholder_package(&parameter.ty, &bound.generic_name) {
+                    this.state_term(&parameter.ty, &bound.generic_name, id, parameter.span)?
+                } else {
+                    match helpers::parameter_mode(&parameter.ty, &bound.generic_name) {
+                        Some(Some(mutable)) => Term::ClosureAddress(id, mutable),
+                        Some(None) => Term::Closure(id),
+                        None => {
+                            return Err(unsupported(
+                                parameter.span,
+                                "invalid callable helper parameter",
+                            ));
+                        }
                     }
                 }
             } else {
@@ -991,7 +1007,52 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
 
+    fn state_term(&mut self, ty: &Type, generic: &str, environment: usize, span: Span) -> R<Term> {
+        validate_type(ty, 0, span, self.budget)?;
+        let Type::Package { name, fields } = ty else {
+            return Err(unsupported(
+                span,
+                "callable State requires an owning Package",
+            ));
+        };
+        if !fields
+            .iter()
+            .any(|(_, t)| matches!(t,Type::Named(n) if n==generic))
+        {
+            return Err(unsupported(span, "callable State has no direct F field"));
+        }
+        let shape = Type::Package {
+            name: callable_fields::nominal_base(name).to_owned(),
+            fields: fields
+                .iter()
+                .map(|(n, t)| {
+                    (
+                        n.clone(),
+                        if matches!(t,Type::Named(n) if n==generic) {
+                            Type::Named("$callback".into())
+                        } else {
+                            t.clone()
+                        },
+                    )
+                })
+                .collect(),
+        };
+        Ok(Term::ClosurePackage {
+            shape: Rc::new(shape),
+            environment,
+        })
+    }
+
     fn known_term(&mut self, ty: &Type, span: Span) -> R<Term> {
+        if let Some((name, id)) = self.helper_environment.clone() {
+            if matches!(ty,Type::Named(n) if n==&name) {
+                return Ok(Term::Closure(id));
+            }
+            if callable_fields::placeholder_package(ty, &name) {
+                return self.state_term(ty, &name, id, span);
+            }
+        }
+
         if let Type::Opaque { hidden, .. } = ty {
             let Type::FunctionPointer { parameters, result } = hidden.as_ref() else {
                 return Err(unsupported(
@@ -1026,7 +1087,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.bind(variable, payload, span)?;
             Ok(Term::Resource(variable, matches!(ty, Type::Managed(_))))
         } else if let Type::Address { mutable, inner } = ty {
-            if !inner.is_address_pointee() && !ty.is_shared_resource_head_address() {
+            if !inner.is_address_pointee()
+                && !ty.is_shared_resource_head_address()
+                && !ty.is_shared_package_address()
+            {
                 return Err(unsupported(span, "nested reference signature"));
             }
             self.bind(variable, inner, span)?;
@@ -1042,17 +1106,32 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         ty: &Type,
         bound: &CoreCallableParameter,
         depth: usize,
-    ) -> R<()> {
-        let wanted = helpers::parameter_mode(ty, &bound.generic_name).ok_or_else(|| {
-            unsupported(argument.span, "invalid callable template parameter shape")
-        })?;
+    ) -> R<usize> {
+        let state = callable_fields::placeholder_package(ty, &bound.generic_name);
+        let wanted = if state {
+            None
+        } else {
+            helpers::parameter_mode(ty, &bound.generic_name).ok_or_else(|| {
+                unsupported(argument.span, "invalid callable template parameter shape")
+            })?
+        };
         let previous = self
             .callable_hint
             .replace((bound.parameters.clone(), bound.result.clone()));
         let term = self.expr(argument, depth, false)?;
         self.callable_hint = previous;
         let id = match (wanted, term) {
-            (None, Term::Closure(id)) => id,
+            (None, Term::ClosurePackage { shape, environment }) if state => {
+                let expected =
+                    self.state_term(ty, &bound.generic_name, environment, argument.span)?;
+                self.unify(
+                    &Term::ClosurePackage { shape, environment },
+                    &expected,
+                    argument.span,
+                )?;
+                environment
+            }
+            (None, Term::Closure(id)) if !state => id,
             (Some(want_mut), Term::ClosureAddress(id, actual_mut)) if !want_mut || actual_mut => id,
             _ => {
                 return Err(error(
@@ -1073,7 +1152,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         for (variable, ty) in parameters.into_iter().zip(&bound.parameters) {
             self.bind(variable, ty, argument.span)?;
         }
-        self.bind(self.closures[id].result, &bound.result, argument.span)
+        self.bind(self.closures[id].result, &bound.result, argument.span)?;
+        Ok(id)
     }
     fn fresh(&mut self, domain: u8, literal: bool, span: Span) -> R<Variable> {
         self.budget.work(1, span)?;
@@ -1135,6 +1215,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
+        if let Some((name, _)) = &self.helper_environment
+            && (matches!(ty,Type::Named(n) if n==name)
+                || callable_fields::placeholder_package(ty, name))
+        {
+            let expected = self.known_term(ty, span)?;
+            return self.unify(term, &expected, span);
+        }
         if let Term::Resource(variable, managed) = term {
             return match ty {
                 Type::Desc(payload) => self.bind(*variable, payload, span),
@@ -1151,7 +1238,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 Type::Address {
                     mutable: wanted,
                     inner,
-                } if (inner.is_address_pointee() || ty.is_shared_resource_head_address())
+                } if (inner.is_address_pointee()
+                    || ty.is_shared_resource_head_address()
+                    || ty.is_shared_package_address())
                     && (*mutable || !wanted) =>
                 {
                     self.bind(*variable, inner, span)
@@ -1207,6 +1296,28 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 span,
                 "callback arrays require the same source factory identity and fixed length",
             )),
+            (
+                Term::ClosurePackage {
+                    shape: a,
+                    environment: ae,
+                },
+                Term::ClosurePackage {
+                    shape: b,
+                    environment: be,
+                },
+            ) => {
+                validate_type(a, 0, span, self.budget)?;
+                validate_type(b, 0, span, self.budget)?;
+                if ae == be && a == b {
+                    Ok(())
+                } else {
+                    Err(error(
+                        "E-TYPE-MISMATCH",
+                        span,
+                        "callable State requires the same nominal shape and source factory identity",
+                    ))
+                }
+            }
             (Term::Closure(a), Term::Closure(b)) if a == b => Ok(()),
             (Term::Closure(_), Term::Closure(_)) => Err(error(
                 "E-TYPE-MISMATCH",
@@ -1230,6 +1341,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 | Term::Resource(..)
                 | Term::Closure(_)
                 | Term::ClosureArray { .. }
+                | Term::ClosurePackage { .. }
                 | Term::ClosureAddress(..)
         ) {
             return Err(unsupported(
@@ -1952,7 +2064,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     self.expression_index += 1;
                     let arity = match name {
                         "store_new" => 0,
-                        "store_reserve" | "store_push" => 2,
+                        "store_reserve" | "store_push" | "store_at" => 2,
                         _ => 1,
                     };
                     if arguments.len() != arity {
@@ -1990,8 +2102,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         ));
                     };
                     validate_type(&element, 0, span, self.budget)?;
-                    if name == "store_reserve" || name == "store_push" {
-                        let wanted = if name == "store_reserve" {
+                    if matches!(name, "store_reserve" | "store_push" | "store_at") {
+                        let wanted = if matches!(name, "store_reserve" | "store_at") {
                             Type::I64
                         } else {
                             (*element).clone()
@@ -2071,6 +2183,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 let callee_type = self.expr(callee, depth + 1, false)?;
                 let (parameters, result) = match callee_type {
                     Term::Method(signature) => {
+                        let mut state_environment = None;
                         if arguments.len() + 1 != signature.parameters.len() {
                             return Err(error(
                                 "E-CALL-ARITY",
@@ -2086,12 +2199,31 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 .as_ref()
                                 .filter(|bound| bound.index as usize == index + 1)
                             {
-                                self.bind_callable_argument(argument, ty, bound, depth + 1)?;
+                                state_environment = Some(self.bind_callable_argument(
+                                    argument,
+                                    ty,
+                                    bound,
+                                    depth + 1,
+                                )?);
                             } else {
                                 let value =
                                     self.expr_expected(argument, Some(ty), depth + 1, false)?;
                                 self.bind_term(&value, ty, argument.span)?;
                             }
+                        }
+                        if let (Some(environment), Some(bound)) =
+                            (state_environment, signature.callable.as_ref())
+                            && callable_fields::placeholder_package(
+                                &signature.result,
+                                &bound.generic_name,
+                            )
+                        {
+                            return self.state_term(
+                                &signature.result,
+                                &bound.generic_name,
+                                environment,
+                                span,
+                            );
                         }
                         return self.known_result(&signature, span);
                     }
@@ -2106,6 +2238,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return self.known_term(&Type::I64, span);
                     }
                     Term::Function(signature) => {
+                        let mut state_environment = None;
                         if arguments.len() != signature.parameters.len() {
                             return Err(error(
                                 "E-CALL-ARITY",
@@ -2121,12 +2254,31 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 .as_ref()
                                 .filter(|b| b.index as usize == index)
                             {
-                                self.bind_callable_argument(argument, ty, bound, depth + 1)?;
+                                state_environment = Some(self.bind_callable_argument(
+                                    argument,
+                                    ty,
+                                    bound,
+                                    depth + 1,
+                                )?);
                             } else {
                                 let value =
                                     self.expr_expected(argument, Some(ty), depth + 1, false)?;
                                 self.bind_term(&value, ty, argument.span)?;
                             }
+                        }
+                        if let (Some(environment), Some(bound)) =
+                            (state_environment, signature.callable.as_ref())
+                            && callable_fields::placeholder_package(
+                                &signature.result,
+                                &bound.generic_name,
+                            )
+                        {
+                            return self.state_term(
+                                &signature.result,
+                                &bound.generic_name,
+                                environment,
+                                span,
+                            );
                         }
                         return self.known_result(&signature, span);
                     }
@@ -2228,6 +2380,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     false
                 };
                 let object_type = self.expr(object, depth + 1, write && !resource_field)?;
+                if let Term::ClosurePackage { shape, environment } = &object_type {
+                    validate_type(shape, 0, span, self.budget)?;
+                    let field = aggregates::field(shape, member, span)?.1;
+                    if matches!(&field,Type::Named(n) if n=="$callback") {
+                        return Ok(Term::Closure(*environment));
+                    }
+                    return self.known_term(
+                        &if write {
+                            field
+                        } else {
+                            packages::projection_type(field)
+                        },
+                        span,
+                    );
+                }
                 let Term::Module(module) = object_type else {
                     let base = self.projection_base(&object_type, span)?;
                     if member == "len"

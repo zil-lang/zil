@@ -1,0 +1,16 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/review177_composition.rs (/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/deps/review177_composition-61b04e19546b98d2)
+
+running 9 tests
+test callback_parent_qualification_blocks_sibling_copy_write_before_its_last_use ... ok
+test borrowed_and_nonfield_values_do_not_get_the_new_give_capability ... ok
+test concrete_resource_give_refill_keeps_actual_callback_state ... ok
+test independent_raw_and_wire_rebuild_both_composed_loan_kinds ... ok
+test concrete_byte_buffer_give_refill_releases_both_actual_allocations ... ok
+test last_store_read_can_end_before_mutable_callback_qualification ... ok
+test simultaneous_store_window_and_callback_or_parent_mutation_stays_closed ... ok
+test unused_template_keeps_field_identity_and_rejects_conditional_partial_publication ... ok
+test returning_partial_branch_does_not_poison_the_complete_branch ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s
+

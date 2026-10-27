@@ -1,0 +1,5 @@
+{
+  "target": "/workspace/scratch/39be3faa4442/targets/177-combined",
+  "reason": "Completed runs preserved; StableCrateId collision requires a fresh root target",
+  "last_cli_sha256": "7d30f74cf8cd1c453e2cfc91a15d609aa20eb9f1aaaf22ae69eb5fe6d947ecd9"
+}

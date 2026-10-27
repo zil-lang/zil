@@ -1,0 +1,77 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-types)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-ct)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 23.75s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/177-final/debug/deps/zil_driver-583b28d5a7c9573c)
+
+running 26 tests
+test artifacts::tests::second_native_rename_failure_restores_both_previous_outputs ... ok
+test ct_program::tests::ct_reachable_pattern_trees_are_bounded_before_clone ... ok
+test project::discovery158_tests::cached_syntax_cannot_hide_lower_quotas_syntax_errors_or_ambiguous_entries ... ok
+test ct_program::tests::ct122_original_teardown_is_bounded_before_query_copy ... ok
+test project::discovery158_tests::capacity_clear_keeps_immutable_lent_syntax_but_not_query_authority ... ok
+test project::discovery158_tests::discovery_cancellation_and_active_query_guards_still_apply ... ok
+test session::construction_identity150_tests::construction_identity_binds_every_query_axis_and_all_limits ... ok
+test session::construction_identity150_tests::construction_identity_binds_order_count_upstream_key_and_observation ... ok
+test project::discovery158_tests::discovery_reuses_exact_published_syntax_arcs_but_reads_edited_bytes ... ok
+test tests::artifact_preflight_detects_hard_links_and_parent_symlink_aliases ... ok
+test tests::artifact_preflight_rejects_dump_native_collisions_before_any_write ... ok
+test tests::cache_changed_source_limits_build_inputs_and_file_identity_cannot_reuse_stale_snapshots ... ok
+test tests::artifact_preflight_protects_source_from_every_phase_dump_and_native_destination ... ok
+test tests::cache_session_reuses_raw_phases_but_always_runs_independent_verification ... ok
+test tests::cache_tampered_raw_typed_snapshot_is_rejected_by_a_new_verifier_run ... ok
+test tests::cache_target_change_reuses_frontend_and_rechecks_target_dependent_phases ... ok
+test tests::cache_disk_corruption_is_rebuilt_and_never_substitutes_for_phase_execution ... ok
+test tests::cancellation_after_native_link_removes_the_unpublished_executable ... ok
+test tests::cancellation_before_start_and_after_cache_hit_cannot_report_success ... ok
+test tests::cancellation_during_a_phase_aborts_publication_and_next_request_recovers ... ok
+test tests::explicit_main_contract_has_the_frozen_types_diagnostics ... ok
+test tests::cancellation_after_native_link_preserves_both_previous_successful_outputs ... ok
+test tests::native_entry_cannot_select_a_synthesized_closure_with_or_without_captures ... ok
+test tests::source_ct_keeps_original_core_and_propagates_ct_errors ... ok
+test tests::unsupported_profile_and_invalid_source_have_explicit_categories ... ok
+test tests::late_artifact_failure_preserves_both_previous_native_outputs ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+
+     Running tests/impl177_state_composition.rs (/workspace/scratch/39be3faa4442/targets/177-final/debug/deps/impl177_state_composition-343f8c8517143965)
+
+running 11 tests
+test borrowed_package_array_cannot_create_a_manages_field_owner ... ok
+test borrowed_concrete_package_cannot_be_copied_into_a_local_give_capability ... ok
+test complete_state_replacement_clears_old_field_slots_after_rhs_is_ready ... FAILED
+test direct_store_builtin_in_parametric_body_remains_a_separate_closed_protocol ... ok
+test generic_comparison_result_hint_does_not_retype_a_concrete_helper_operand ... ok
+test complete_local_assignment_restores_liveness_after_rhs_transfer ... ok
+test give_does_not_grant_ownership_to_copy_callable_or_descriptor_values ... ok
+test generic_state_takes_refills_and_calls_actual_callback_after_store_transfer ... ok
+test owning_state_indexed_package_transfer_waits_for_its_own_symbolic_slot_protocol ... ok
+test unused_templates_reject_missing_fields_and_concrete_batch_aliases ... ok
+test ordinary_generic_concrete_package_projections_and_array_take_remain_usable ... ok
+
+failures:
+
+---- complete_state_replacement_clears_old_field_slots_after_rhs_is_ready stdout ----
+
+thread 'complete_state_replacement_clears_old_field_slots_after_rhs_is_ready' (382) panicked at crates/zil-driver/tests/impl177_state_composition.rs:82:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"callable parameter must occur once as F, &F, &mut F or an owning State<F>","span":{"file":0,"start":681,"end":695},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/177/composition-focused08/cases/state-composition177-378-2/phases/syntax.txt"},"input_fingerprint":"df9062654345e765c27d391d9e01ad3a809957e7834e4e0a664bca8966d1a22b","seconds":0.010185401,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    complete_state_replacement_clears_old_field_slots_after_rhs_is_ready
+
+test result: FAILED. 10 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.71s
+
+error: test failed, to rerun pass `-p zil-driver --test impl177_state_composition`

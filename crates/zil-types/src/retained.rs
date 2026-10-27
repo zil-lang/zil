@@ -179,8 +179,14 @@ pub(super) fn self_contained(
         })?;
         spend(work, closure.captures.len(), span)?;
         for capture in &closure.captures {
-            match capture.stored_type() {
-                Type::Closure(child) => pending.push(child),
+            if capture.borrowed || (matches!(capture.ty, Type::Managed(_)) && !capture.moved) {
+                return Err(unsupported(
+                    span,
+                    "retained callable environments cannot capture borrowed positions or descriptions",
+                ));
+            }
+            match &capture.ty {
+                Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) | Type::Package { .. } => {}
                 ty if ty.is_copy_value() => {}
                 _ => {

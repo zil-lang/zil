@@ -1,0 +1,90 @@
+{
+  "compiler_commit": "cc6508f7491db70452a006873c814063afe54c88",
+  "cli_sha256": "18fa8ec6ebe8b763291c47db8ab0097c3db44dacbee71720386003b5a498c579",
+  "cases": [
+    {
+      "case": "grouped_copy_field",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/174-v21/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/grouped_copy_field/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "array_copy_field",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/174-v21/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/array_copy_field/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "array_take",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/174-v21/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/array_take/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "copy_alias_array",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/174-v21/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/copy_alias_array/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "mutable_parameter_reborrow",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/174-v21/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/mutable_parameter_reborrow/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "shared_parameter_projection",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/174-v21/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/shared_parameter_projection/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    }
+  ]
+}

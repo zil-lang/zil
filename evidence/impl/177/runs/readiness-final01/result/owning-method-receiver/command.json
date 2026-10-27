@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/177-final/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/177/readiness-final01/result/owning-method-receiver.zil",
+    "--json"
+  ],
+  "start": 1793118340.6518362,
+  "status": "Completed",
+  "exit_code": 0,
+  "end": 1793118340.661617,
+  "seconds": 0.0097808837890625
+}

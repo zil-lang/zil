@@ -9,6 +9,7 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
     fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
         && fields.iter().all(|(_, ty)| {
             ty.is_copy_value()
+                || matches!(ty, Type::Closure(_))
                 || matches!(ty, Type::Managed(_) if resources::supported_type(ty, resources))
                 || matches!(ty, Type::Array { element, length } if *length > 0 && supported_type(element, resources) && !has_array_fields(element) && !has_store_fields(element))
         })
@@ -25,7 +26,7 @@ fn has_store_fields(ty: &Type) -> bool {
 }
 
 fn owned_field(ty: &Type) -> bool {
-    matches!(ty, Type::Managed(_))
+    matches!(ty, Type::Managed(_) | Type::Closure(_))
         || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
 }
 
@@ -40,6 +41,7 @@ pub(super) fn teardown_paths(
     let mut result = Vec::new();
     while let Some((ty, path)) = pending.pop() {
         match ty {
+            Type::Closure(id) => result.push((path, format!("zil.closure.drop.{}", id.0))),
             Type::Managed(payload) => {
                 if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
                     result.push((path, dynamic_store::helper(payload, resources, "drop")?));
@@ -152,6 +154,28 @@ impl FunctionEmitter<'_> {
             );
         };
         Ok((llvm_type(ty)?, field.clone()))
+    }
+
+    pub(super) fn borrow_package_field(
+        &mut self,
+        instruction: &Instruction,
+        local: LocalId,
+        index: u32,
+    ) -> CompileResult<()> {
+        let (package, field) = self.package_field(local, index)?;
+        if !matches!(field, Type::Closure(_)) {
+            return invalid(
+                "E-CODEGEN-CFG",
+                "callback field address requires its concrete environment",
+                Some(instruction.span),
+            );
+        }
+        self.line(format!(
+            "  {} = getelementptr {package}, ptr %local.{}, i32 0, i32 {index}",
+            value(result(instruction)?),
+            local.0
+        ));
+        Ok(())
     }
 
     pub(super) fn read_package_field(

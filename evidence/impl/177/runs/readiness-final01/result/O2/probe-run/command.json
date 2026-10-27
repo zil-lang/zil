@@ -1,0 +1,10 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/177/readiness-final01/result/O2-probe"
+  ],
+  "start": 1793118341.4712036,
+  "status": "Completed",
+  "exit_code": 0,
+  "end": 1793118341.474255,
+  "seconds": 0.0030515193939208984
+}

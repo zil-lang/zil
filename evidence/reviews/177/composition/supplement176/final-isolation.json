@@ -1,0 +1,272 @@
+{
+  "verdict": "Pass",
+  "reviewer": "/root/callback_field176",
+  "baseline_commit": "81b480be45643be9fddd3955f118c1439e195507",
+  "final_source_commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+  "production_commit": "8abc75bbc1f98450a16efde00539d753fb836551",
+  "scope": "Read-only frozen-file, dependency-boundary and public-schema representation isolation inspection of exact committed snapshots. Not a semantic safety audit.",
+  "excluded": [
+    "No full workspace tests or runtime runs",
+    "No independent semantic review of 176 by its own author",
+    "Does not replace independent 174/175/176/177 reviews or root acceptance",
+    "Does not establish whole-language or product readiness"
+  ],
+  "production_modified": false,
+  "repo_refs_modified": false,
+  "checks": {
+    "frozen_files_byte_identical": true,
+    "verify_dependency_isolation": true,
+    "schema_versions_match_21": true,
+    "typed_fingerprint_domain_match": true,
+    "opcodes_86_87_representation_matches": true,
+    "normative_registry_matches_committed_bytes": true
+  },
+  "frozen_files": [
+    {
+      "path": "_zil_design.md",
+      "baseline_bytes": 84316,
+      "final_bytes": 84316,
+      "baseline_sha256": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+      "final_sha256": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+      "byte_identical": true
+    },
+    {
+      "path": "_zil_goal.md",
+      "baseline_bytes": 14376,
+      "final_bytes": 14376,
+      "baseline_sha256": "bb33e2acdb02e946d13776618724485d37f8a0a22a14318174566b0d7d4d92c7",
+      "final_sha256": "bb33e2acdb02e946d13776618724485d37f8a0a22a14318174566b0d7d4d92c7",
+      "byte_identical": true
+    },
+    {
+      "path": "validation/product-gates.json",
+      "baseline_bytes": 1932,
+      "final_bytes": 1932,
+      "baseline_sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+      "final_sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+      "byte_identical": true
+    }
+  ],
+  "verify": {
+    "manifest": {
+      "path": "crates/zil-verify/Cargo.toml",
+      "commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+      "sha256": "923a34cf372b236e1955935ababb8fff631bb8fbcbba256f50b949a84cbf20e9"
+    },
+    "manifest_byte_identical_to_baseline": true,
+    "declared_direct_dependencies": [
+      "zil-base",
+      "zil-ir"
+    ],
+    "allowed_direct_dependencies": [
+      "zil-base",
+      "zil-ir"
+    ],
+    "dependency_policy": {
+      "path": "policy/dependencies.json",
+      "commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+      "sha256": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752"
+    },
+    "dependency_policy_byte_identical_to_baseline": true,
+    "transitive_internal_dependency_manifests": [
+      {
+        "name": "zil-base",
+        "workspace_path": "crates/zil-base",
+        "actual_package_name": "zil-base",
+        "direct_dependencies": [],
+        "manifest": {
+          "path": "crates/zil-base/Cargo.toml",
+          "commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+          "sha256": "7eae24124d86c3db6aedcf7326cdbe69548a30454d1dbecab41f1ddc1789d100"
+        }
+      },
+      {
+        "name": "zil-ir",
+        "workspace_path": "crates/zil-ir",
+        "actual_package_name": "zil-ir",
+        "direct_dependencies": [
+          "zil-base"
+        ],
+        "manifest": {
+          "path": "crates/zil-ir/Cargo.toml",
+          "commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+          "sha256": "7a7692cb5cec45b0e8dddfffd4851d883ccaf05fcef20c8464cc276eaf1c96fe"
+        }
+      }
+    ],
+    "source_files_scanned": 31,
+    "changed_source_paths": [
+      "crates/zil-verify/src/borrows.rs",
+      "crates/zil-verify/src/borrows/buffer_effects.rs",
+      "crates/zil-verify/src/borrows/loans.rs",
+      "crates/zil-verify/src/borrows/roots.rs",
+      "crates/zil-verify/src/cleanup.rs",
+      "crates/zil-verify/src/closures.rs",
+      "crates/zil-verify/src/dynamic_store.rs",
+      "crates/zil-verify/src/helpers.rs",
+      "crates/zil-verify/src/lib.rs",
+      "crates/zil-verify/src/package_tests.rs",
+      "crates/zil-verify/src/packages.rs",
+      "crates/zil-verify/src/resources.rs",
+      "crates/zil-verify/src/resources/arrays.rs"
+    ],
+    "types_analyze_name_mentions": [
+      {
+        "path": "crates/zil-verify/src/lib.rs",
+        "line": 185,
+        "text": "/// returns no wrapper. This function never calls zil-types or zil-analyze.",
+        "comment_only": true
+      }
+    ],
+    "noncomment_types_analyze_references": [],
+    "conclusion": "Verify has no production dependency on Types or Analyze and no source-level noncomment reference/call to either; the one name mention is documentation. This is a static dependency/isolation finding, not proof of verification correctness."
+  },
+  "schema": {
+    "interfaces": {
+      "path": "spec/interfaces.json",
+      "commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+      "sha256": "5d909dafa7a3a05df1d25f56c84575792f273f4a63548b585b46785584e54bfc"
+    },
+    "interface_document_format_version": 1,
+    "compiler_schema_version": 21,
+    "compiler_version_source": {
+      "path": "crates/zil-base/src/lib.rs",
+      "commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+      "sha256": "a5ec7cb91af62e5fbdb808155520358ce3350bcd20d1525d238d5b94bb3b18c9"
+    },
+    "raw_wire_version": 21,
+    "wire_source": {
+      "path": "crates/zil-ir/src/wire.rs",
+      "commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+      "sha256": "a0104fd08047b26e8b10bae060f320a234157743bb513e36b0245f9af30475a0"
+    },
+    "typed_fingerprint_domain": "ZIL-TYPED-MODULE-V21",
+    "ir_and_fingerprint_source": {
+      "path": "crates/zil-ir/src/lib.rs",
+      "commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+      "sha256": "fa7c46364b8ebee3052d3a04d57670293ecf661bb3e4696710a5f5530cf28392"
+    },
+    "operations": [
+      {
+        "tag": 86,
+        "name": "OwnedStoreBorrow",
+        "interface_key": "implemented_partial_schema.store_element_windows21.operation",
+        "interface_operation": "86 OwnedStoreBorrow { store:ValueId, index:ValueId } -> Address { mutable:false, inner:exact Package Item }. Reserved source store_at(store,index), receiver evaluated before index exactly once.",
+        "ir_definition": {
+          "matched": true,
+          "line": 783,
+          "excerpt": "OwnedStoreBorrow {\n        store: ValueId,\n        index: ValueId,\n    }"
+        },
+        "wire_encoder": {
+          "matched": true,
+          "line": 764,
+          "excerpt": "InstructionKind::OwnedStoreBorrow { store, index } => {\n                self.u8(86)?;\n                self.u32(store.0)?;\n                self.u32(index.0)?;\n            }"
+        },
+        "wire_decoder": {
+          "matched": true,
+          "line": 2083,
+          "excerpt": "86 => InstructionKind::OwnedStoreBorrow {\n                store: ValueId(self.u32()?),\n                index: ValueId(self.u32()?),\n            }"
+        },
+        "typed_fingerprint": {
+          "matched": true,
+          "line": 2093,
+          "excerpt": "InstructionKind::OwnedStoreBorrow { store, index } => {\n            b.push(86);\n            encode_u32(b, store.0);\n            encode_u32(b, index.0);\n        }"
+        },
+        "matches": true
+      },
+      {
+        "tag": 87,
+        "name": "BorrowPackageField",
+        "interface_key": "implemented_partial_schema.callable_package_fields21.operation",
+        "interface_operation": "87 BorrowPackageField { local:LocalId, index:u32, mutable:bool } -> Address<exact ClosureId>. Only an initialized concrete callable field at the real carrier position; mutability and callable mode are checked independently.",
+        "ir_definition": {
+          "matched": true,
+          "line": 896,
+          "excerpt": "BorrowPackageField {\n        local: LocalId,\n        index: u32,\n        mutable: bool,\n    }"
+        },
+        "wire_encoder": {
+          "matched": true,
+          "line": 769,
+          "excerpt": "InstructionKind::BorrowPackageField {\n                local,\n                index,\n                mutable,\n            } => {\n                self.u8(87)?;\n                self.u32(local.0)?;\n                self.u32(*index)?;\n                self.boolean(*mutable)?;\n            }"
+        },
+        "wire_decoder": {
+          "matched": true,
+          "line": 2087,
+          "excerpt": "87 => InstructionKind::BorrowPackageField {\n                local: LocalId(self.u32()?),\n                index: self.u32()?,\n                mutable: self.boolean()?,\n            }"
+        },
+        "typed_fingerprint": {
+          "matched": true,
+          "line": 1690,
+          "excerpt": "InstructionKind::BorrowPackageField {\n            local,\n            index,\n            mutable,\n        } => {\n            b.push(87);\n            encode_u32(b, local.0);\n            encode_u32(b, *index);\n            b.push(u8::from(*mutable));\n        }"
+        },
+        "matches": true
+      }
+    ]
+  },
+  "normative": {
+    "registry": {
+      "path": "data/normative-inputs.json",
+      "commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+      "sha256": "3599284f75371dcd31ce4795e191abb5b58234c585074833b671b7421af00a3b"
+    },
+    "required_input_list_source": "spec/interfaces.json:normative_inputs",
+    "hash_algorithm_source": "tools/handoff.mjs:historicalSnapshot",
+    "algorithm": "SHA256 of sorted path + NUL + SHA256(committed file bytes) + LF entries, UTF-8",
+    "registered_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+    "recomputed_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+    "files": [
+      {
+        "path": "_zil_design.md",
+        "registered_sha256": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+        "actual_sha256": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+        "matches": true,
+        "changed_from_baseline": false
+      },
+      {
+        "path": "policy/dependencies.json",
+        "registered_sha256": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+        "actual_sha256": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+        "matches": true,
+        "changed_from_baseline": false
+      },
+      {
+        "path": "spec/attributes.json",
+        "registered_sha256": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+        "actual_sha256": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+        "matches": true,
+        "changed_from_baseline": false
+      },
+      {
+        "path": "spec/diagnostics.json",
+        "registered_sha256": "47fc86621621801c20bc7c2f10d9029308ce6d4d0b1d7c31df563ddcdf608746",
+        "actual_sha256": "47fc86621621801c20bc7c2f10d9029308ce6d4d0b1d7c31df563ddcdf608746",
+        "matches": true,
+        "changed_from_baseline": false
+      },
+      {
+        "path": "spec/grammar.ebnf",
+        "registered_sha256": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+        "actual_sha256": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+        "matches": true,
+        "changed_from_baseline": false
+      },
+      {
+        "path": "spec/interfaces.json",
+        "registered_sha256": "5d909dafa7a3a05df1d25f56c84575792f273f4a63548b585b46785584e54bfc",
+        "actual_sha256": "5d909dafa7a3a05df1d25f56c84575792f273f4a63548b585b46785584e54bfc",
+        "matches": true,
+        "changed_from_baseline": true
+      },
+      {
+        "path": "validation/product-gates.json",
+        "registered_sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+        "actual_sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+        "matches": true,
+        "changed_from_baseline": false
+      }
+    ],
+    "changed_inputs_since_baseline": [
+      "spec/interfaces.json"
+    ]
+  }
+}

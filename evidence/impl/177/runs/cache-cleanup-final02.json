@@ -1,0 +1,41 @@
+{
+  "time": 1793118839.2764797,
+  "removed_reproducible_caches": [
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/174",
+      "reason": "completed author/reviewer build cache; final full suite runs only in targets/177-final",
+      "preserved_cli_sha256": null
+    },
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/174-v21",
+      "reason": "completed author/reviewer build cache; final full suite runs only in targets/177-final",
+      "preserved_cli_sha256": "18fa8ec6ebe8b763291c47db8ab0097c3db44dacbee71720386003b5a498c579"
+    },
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/176",
+      "reason": "completed author/reviewer build cache; final full suite runs only in targets/177-final",
+      "preserved_cli_sha256": null
+    },
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/177-review-composition",
+      "reason": "completed author/reviewer build cache; final full suite runs only in targets/177-final",
+      "preserved_cli_sha256": "50aa6fd19475e3a1bd23edf6d2bfb57ff5743381f65bb499da99a251a3a4a4ee"
+    },
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/177-review-public",
+      "reason": "completed author/reviewer build cache; final full suite runs only in targets/177-final",
+      "preserved_cli_sha256": null
+    },
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/review175-by176",
+      "reason": "completed author/reviewer build cache; final full suite runs only in targets/177-final",
+      "preserved_cli_sha256": null
+    },
+    {
+      "target": "/workspace/scratch/39be3faa4442/targets/164",
+      "reason": "completed author/reviewer build cache; final full suite runs only in targets/177-final",
+      "preserved_cli_sha256": "d68bc0b124c8471b48ca97ec902417faa17268445761c71eba702caeb18b0837"
+    }
+  ],
+  "free_after_bytes": 1353490432
+}

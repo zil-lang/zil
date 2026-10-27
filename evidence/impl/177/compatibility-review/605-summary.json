@@ -1,0 +1,497 @@
+{
+  "compiler_commit": "605bed2ad33e9c99e867636bcbbbcff90da3e867",
+  "cli_sha256": "7d30f74cf8cd1c453e2cfc91a15d609aa20eb9f1aaaf22ae69eb5fe6d947ecd9",
+  "build_receipt": "/workspace/scratch/39be3faa4442/run-logs/review177-composition174/replay02/cli-build.json",
+  "cases": [
+    {
+      "case": "grouped_copy_field",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/grouped_copy_field/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "result": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {},
+        "input_fingerprint": "9e9a7a08f3573fcd0a065dcdbf04ca44c6c38548880f5814977ac9298bae3868",
+        "seconds": 0.007418219,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/grouped_copy_field/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+            "implementation_fingerprint": "aa2381638ab815903039adcae83744714d58fd4a7536e307efda50fad59b6ca2",
+            "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "case": "grouped_copy_field_control",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/grouped_copy_field_control/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "result": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {},
+        "input_fingerprint": "918d3410f45ace828cf8bc4ae6c0651f58a2d939bc8a71d095a3987a30599c1f",
+        "seconds": 0.003142538,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/grouped_copy_field_control/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+            "implementation_fingerprint": "caf3938d81f74db7860edb6fceeefe04134325252a6626cbfc9e38eeb5454092",
+            "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "case": "array_copy_field",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/array_copy_field/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "result": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {},
+        "input_fingerprint": "70cf745d92e2959eeadafec7bb088052b125eb707b56c3d152330205cf5612ff",
+        "seconds": 0.004599131,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/array_copy_field/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+            "implementation_fingerprint": "db3b79773baa3c6d359dc14c0ca08a635e7ad600f8ffe37e4231f5bfbb8a47af",
+            "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "case": "array_copy_field_control",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/array_copy_field_control/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "result": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {},
+        "input_fingerprint": "2314214aff6e0baa8398e0a9d0d6c2d1fc6aef5b2822b4a784f3851ac4ddc809",
+        "seconds": 0.005409684,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/array_copy_field_control/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+            "implementation_fingerprint": "04dbe9be9bf54c07c8aab79eea92d2c8330f2e092597cd4a041a2b2c2ed68028",
+            "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "case": "array_take",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/array_take/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "result": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {},
+        "input_fingerprint": "7c11e570249ccc095db923a2f4b9bc326e74e71e2526b496f2ed3fd4c2a3e13f",
+        "seconds": 0.005064566,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/array_take/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+            "implementation_fingerprint": "5399cb5cb31c6addfe280d94375bda26d5cac177dae02bc1d9e37d8e19d80254",
+            "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "case": "array_take_control",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/array_take_control/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "result": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {},
+        "input_fingerprint": "cdb94e5c5bcfcdf8f8c6b6e3933e9dddfcc1ab8c9b7c2058bc6918c1b7201a24",
+        "seconds": 0.003617549,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/array_take_control/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+            "implementation_fingerprint": "001715e8b71455b7a24d9b4ea4e6276782280485fc343b73955ecaa273bc3af8",
+            "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "case": "moved_package_roundtrip_assignment",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/moved_package_roundtrip_assignment/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "result": {
+        "status": "SafeReject",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-GENERIC-ARGUMENT",
+            "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+            "span": {
+              "file": 0,
+              "start": 145,
+              "end": 146
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {},
+        "input_fingerprint": "f9e05f1870a5956acdaca3525523a4cd9ed61af6d12783b502c8bc9d6190a783",
+        "seconds": 0.000809199,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/moved_package_roundtrip_assignment/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "case": "moved_package_roundtrip_assignment_control",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/moved_package_roundtrip_assignment_control/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "result": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {},
+        "input_fingerprint": "c46e6dec44f66755a94b6ddd538341511d599fe38778b7771d088158f14920fb",
+        "seconds": 0.005295891,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/compat177-by176/moved_package_roundtrip_assignment_control/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+            "implementation_fingerprint": "6042a503470383e3991e20f461500bb73eceeb35dfeb395684939b941f39747b",
+            "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    }
+  ]
+}

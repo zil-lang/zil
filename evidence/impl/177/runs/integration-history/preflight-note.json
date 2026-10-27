@@ -1,0 +1,9 @@
+{
+  "status": "FailThenResolved",
+  "blocked_action": "merge dfd9ca5",
+  "git_error": "You have not concluded your merge (MERGE_HEAD exists).",
+  "old_merge_head": "55a59cdfcfc78dc85d9ac631e51d9105ee750c79",
+  "head_before": "9382631ff5e536da810334a947965dec6c23068f",
+  "resolution": "clean tracked source confirmed; git merge --quit removes stale merge bookkeeping only; all existing commits and redundant merge ancestry retained",
+  "time": 1793116857.0864217
+}

@@ -1,0 +1,20 @@
+[
+  {
+    "case": "review175-by176-209-2",
+    "diagnostics": [
+      {
+        "phase": "parse",
+        "category": "SafeReject",
+        "code": "E-PARSE-IDENTIFIER",
+        "message": "expected an identifier",
+        "span": {
+          "file": 0,
+          "start": 822,
+          "end": 828
+        },
+        "notes": []
+      }
+    ],
+    "kind": "review-fixture-syntax-error"
+  }
+]

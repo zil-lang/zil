@@ -1,0 +1,1 @@
+resource R{n:i32} fn main()->i32{let a:[R;2]=[R{n:1},R{n:2}];return 0}

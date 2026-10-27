@@ -1,0 +1,502 @@
+[
+    ScalarInterface {
+        callable_returns: Some(
+            [],
+        ),
+        module: ModuleId(
+            0,
+        ),
+        exports: [],
+        signature_fingerprint: Fingerprint(
+            [
+                179,
+                21,
+                209,
+                138,
+                26,
+                225,
+                201,
+                207,
+                151,
+                111,
+                199,
+                21,
+                72,
+                208,
+                34,
+                176,
+                232,
+                3,
+                243,
+                219,
+                40,
+                8,
+                21,
+                19,
+                110,
+                247,
+                116,
+                42,
+                67,
+                56,
+                121,
+                66,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                31,
+                5,
+                38,
+                179,
+                52,
+                139,
+                121,
+                67,
+                146,
+                253,
+                230,
+                110,
+                144,
+                252,
+                152,
+                48,
+                156,
+                23,
+                230,
+                8,
+                157,
+                199,
+                124,
+                16,
+                107,
+                77,
+                169,
+                193,
+                153,
+                165,
+                190,
+                100,
+            ],
+        ),
+        result_origins: Some(
+            [],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    192,
+                    243,
+                    27,
+                    179,
+                    152,
+                    35,
+                    81,
+                    73,
+                    197,
+                    222,
+                    122,
+                    244,
+                    68,
+                    197,
+                    160,
+                    214,
+                    83,
+                    12,
+                    205,
+                    95,
+                    88,
+                    184,
+                    192,
+                    190,
+                    106,
+                    150,
+                    211,
+                    67,
+                    10,
+                    172,
+                    54,
+                    35,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+    ScalarInterface {
+        callable_returns: Some(
+            [
+                FunctionCallableReturn {
+                    name: "make",
+                    contract: CallableReturnContract {
+                        closure: ClosureId(
+                            0,
+                        ),
+                        kind: FnMut,
+                        hold: [],
+                        call: [],
+                        writes: [],
+                        cleanup: [],
+                    },
+                },
+            ],
+        ),
+        module: ModuleId(
+            1,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "make",
+                function: FunctionId(
+                    3,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: Closure(
+                    ClosureId(
+                        0,
+                    ),
+                ),
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "pack::<env0>",
+                function: FunctionId(
+                    5,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        Closure(
+                            ClosureId(
+                                0,
+                            ),
+                        ),
+                    ),
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: Package {
+                    name: "@module1:$generic_$module1_State:closure0",
+                    fields: [
+                        (
+                            "ticket",
+                            Managed(
+                                Record {
+                                    name: "@module1:$module1_Ticket",
+                                    fields: [
+                                        (
+                                            "code",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ),
+                        (
+                            "callback",
+                            Closure(
+                                ClosureId(
+                                    0,
+                                ),
+                            ),
+                        ),
+                        (
+                            "hits",
+                            I32,
+                        ),
+                    ],
+                },
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "tick::<env0>",
+                function: FunctionId(
+                    7,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        Package {
+                            name: "@module1:$generic_$module1_State:closure0",
+                            fields: [
+                                (
+                                    "ticket",
+                                    Managed(
+                                        Record {
+                                            name: "@module1:$module1_Ticket",
+                                            fields: [
+                                                (
+                                                    "code",
+                                                    I32,
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ),
+                                (
+                                    "callback",
+                                    Closure(
+                                        ClosureId(
+                                            0,
+                                        ),
+                                    ),
+                                ),
+                                (
+                                    "hits",
+                                    I32,
+                                ),
+                            ],
+                        },
+                    ),
+                ],
+                result: Package {
+                    name: "@module1:$generic_$module1_State:closure0",
+                    fields: [
+                        (
+                            "ticket",
+                            Managed(
+                                Record {
+                                    name: "@module1:$module1_Ticket",
+                                    fields: [
+                                        (
+                                            "code",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ),
+                        (
+                            "callback",
+                            Closure(
+                                ClosureId(
+                                    0,
+                                ),
+                            ),
+                        ),
+                        (
+                            "hits",
+                            I32,
+                        ),
+                    ],
+                },
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "twice::<env0>",
+                function: FunctionId(
+                    6,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        Package {
+                            name: "@module1:$generic_$module1_State:closure0",
+                            fields: [
+                                (
+                                    "ticket",
+                                    Managed(
+                                        Record {
+                                            name: "@module1:$module1_Ticket",
+                                            fields: [
+                                                (
+                                                    "code",
+                                                    I32,
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ),
+                                (
+                                    "callback",
+                                    Closure(
+                                        ClosureId(
+                                            0,
+                                        ),
+                                    ),
+                                ),
+                                (
+                                    "hits",
+                                    I32,
+                                ),
+                            ],
+                        },
+                    ),
+                ],
+                result: Package {
+                    name: "@module1:$generic_$module1_State:closure0",
+                    fields: [
+                        (
+                            "ticket",
+                            Managed(
+                                Record {
+                                    name: "@module1:$module1_Ticket",
+                                    fields: [
+                                        (
+                                            "code",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ),
+                        (
+                            "callback",
+                            Closure(
+                                ClosureId(
+                                    0,
+                                ),
+                            ),
+                        ),
+                        (
+                            "hits",
+                            I32,
+                        ),
+                    ],
+                },
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                113,
+                107,
+                177,
+                247,
+                95,
+                209,
+                140,
+                44,
+                2,
+                126,
+                254,
+                224,
+                247,
+                84,
+                182,
+                238,
+                199,
+                52,
+                167,
+                124,
+                95,
+                225,
+                84,
+                140,
+                43,
+                206,
+                233,
+                142,
+                6,
+                19,
+                55,
+                247,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                207,
+                180,
+                181,
+                157,
+                243,
+                198,
+                75,
+                247,
+                82,
+                4,
+                159,
+                213,
+                94,
+                186,
+                207,
+                102,
+                74,
+                253,
+                16,
+                174,
+                145,
+                38,
+                192,
+                225,
+                156,
+                183,
+                209,
+                192,
+                178,
+                238,
+                109,
+                103,
+            ],
+        ),
+        result_origins: Some(
+            [
+                FunctionResultOrigins {
+                    name: "make",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "pack::<env0>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "tick::<env0>",
+                    parameters: [],
+                },
+                FunctionResultOrigins {
+                    name: "twice::<env0>",
+                    parameters: [],
+                },
+            ],
+        ),
+        contract_fingerprint: Some(
+            Fingerprint(
+                [
+                    17,
+                    117,
+                    151,
+                    9,
+                    135,
+                    11,
+                    40,
+                    9,
+                    101,
+                    73,
+                    232,
+                    197,
+                    213,
+                    206,
+                    60,
+                    77,
+                    78,
+                    68,
+                    142,
+                    221,
+                    94,
+                    56,
+                    63,
+                    64,
+                    205,
+                    132,
+                    67,
+                    7,
+                    222,
+                    170,
+                    96,
+                    143,
+                ],
+            ),
+        ),
+        callable_contracts: Some(
+            [],
+        ),
+    },
+]

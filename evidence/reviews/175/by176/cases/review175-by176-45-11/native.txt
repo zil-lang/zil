@@ -1,0 +1,1 @@
+O0 Output { status: ExitStatus(unix_wait_status(0)), stdout: "ZAB", stderr: "" }

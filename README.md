@@ -1,15 +1,15 @@
-# ZIL — 语言主线 170–173（2026-10-27）
+# ZIL — 语言主线 174–177（2026-10-27）
 
-本轮入口见 [170–173 实施报告](docs/LANGUAGE-173.md)：Package拥有数组字段、真实共享资源头、有限动态拥有前缀Store，以及三者与保存回调/拥有错误的实际组合。内部 schema/raw Wire 为 **20**；完整 workspace **1526项通过**，Clippy与格式检查通过，三入口组合完成44次原生执行。完整语言 NotSatisfied、产品 NotRun、B0 Doing。源码包不放执行产物或证据；见 [交付与恢复](docs/DELIVERY.md)和[下一批ZUI语言前置](docs/NEXT-LANGUAGE-174.md)。
+本轮入口见 [174–177 实施报告](docs/LANGUAGE-177.md)：普通 State 拥有动态 Store、共享读取实际元素、保存并多次调用具体回调环境，以及三者的真实组合。内部 schema/raw Wire 为 **21**；完整 workspace **1620项通过、0失败、0忽略**，Clippy与格式检查通过。新组合完成64次原生执行，其中28次分配失败注入；上一阶段44次消费者也已重跑。完整语言 NotSatisfied、产品 NotRun、B0 Doing。源码包不放执行产物或证据；见 [交付与恢复](docs/DELIVERY.md)和[下一阶段建议](docs/NEXT-LANGUAGE-178.md)。
 
 ```sh
 cargo build --offline --locked -p zil-cli
-python3 tools/language/173/consumer.py --repo . --cli target/debug/zil --out out/language173-new-run
+python3 tools/language/177/consumer.py --repo . --cli target/debug/zil --out out/language177-new-run
 ```
 
-每次使用新的输出目录，消费者运行真实O0/O2及分配失败检查；它不代表完整GUI或产品验收。现有Store首片为Linux x64，字段/捕获、元素借片及Win64支持仍有明确边界。
+每次使用新的输出目录，消费者运行真实O0/O2及分配失败检查；它不代表完整GUI或产品验收。当前Store机器profile仅支持Linux x64 LLVM，元素窗口只读，callback贷款保守覆盖父local。泛型Store原语、精确独立字段借用、就地元素更新、Win64及外部保留回调关闭仍有明确前置。
 
-此前 [166–169报告](docs/LANGUAGE-169.md)和以下介绍均保留各自历史身份、schema及受测数字，不代表本轮当前能力。
+此前 [170–173报告](docs/LANGUAGE-173.md)、[166–169报告](docs/LANGUAGE-169.md)和以下介绍保留各自历史身份、schema及受测数字，不代表本轮新增运行。
 
 ## draft23 施工恢复检查点（2026-10-26，历史）
 

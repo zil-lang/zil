@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/store_field174",
+  "implementation_author": "/root",
+  "verdict": "Pass",
+  "implementation_commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+  "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+  "scope": "Independent review of root177 shared conflict resolution, combined op86/op87 dispatch and loan reconstruction, finite generic direct-manages-field transfer, compatibility and whole-local assignment fixes, unchanged-candidate Verify diagnostic migrations, and the real State consumer. Reviewer-authored174 Store semantics are explicitly excluded from independent approval.",
+  "exclusions": [
+    "No independent re-approval of reviewer-authored174 semantics; root separately reviews174.",
+    "Public schema/Wire review remains separately bound to aa235a3379492221197b4686bec042c042c4e100 in ../public/REVIEW.json.",
+    "No full-workspace, final integration, product, platform GUI, Rust performance or compilation-speed gate was run by this reviewer.",
+    "Passing consumer runs do not open direct Store intrinsics in parametric bodies, borrowed/Desc give, generic T give, owning-State indexed ownership, concurrent disjoint callback/window access, or partial whole-Package replacement."
+  ],
+  "source_identity": "SOURCE.json",
+  "static_review": "STATIC.md",
+  "consumer_oracle": "ORACLE.json",
+  "checks": [
+    {
+      "name": "Final root author suite",
+      "status": "Pass",
+      "tests": 11,
+      "review_source_commit": "d2f08fc4a0a3eb2791d60f229265bf32f05d9550",
+      "implementation_commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+      "receipt": "runs/final05/author-tests.json"
+    },
+    {
+      "name": "Independent reviewer source/raw/wire suite",
+      "status": "Pass",
+      "tests": 9,
+      "source_negative_cases": 13,
+      "positive_source_shapes": 4,
+      "native_builds": 8,
+      "native_executions": 10,
+      "raw_wire_rejection_pairs": 1,
+      "review_source_commit": "aef8c2e7e7d6b81e6b9dad0dac9655d380a28d68",
+      "production_commit": "8abc75bbc1f98450a16efde00539d753fb836551",
+      "receipt": "runs/continuation04/review-tests.json"
+    },
+    {
+      "name": "Verify Package regression scope including two verbatim candidate migrations",
+      "status": "Pass",
+      "tests": 89,
+      "zero_selected_targets_not_counted": 6,
+      "production_commit": "8abc75bbc1f98450a16efde00539d753fb836551",
+      "receipt": "runs/continuation04/verify-migration.json"
+    },
+    {
+      "name": "Consumer independent rebuild and native replay",
+      "status": "Pass",
+      "builds": 4,
+      "verification_runs_per_build": 1,
+      "source_files": 6,
+      "modules_per_entry": 5,
+      "native_executions": 64,
+      "ordinary": 20,
+      "instrumented": 44,
+      "failure_injections": 28,
+      "all_instrumented_live_zero": true,
+      "all_allocations_freed": true,
+      "production_commit": "8abc75bbc1f98450a16efde00539d753fb836551",
+      "receipt": "runs/continuation04/consumer.json",
+      "summary": "runs/continuation04/consumer/summary.json"
+    },
+    {
+      "name": "Supplemental old-source compatibility review",
+      "status": "Pass",
+      "reviewer": "/root/callback_field176",
+      "original_sources_unchanged_and_passed": 4,
+      "rhs_double_consumption_rejected": 1,
+      "native_executions": 0,
+      "receipt": "supplement176/final-summary.json"
+    },
+    {
+      "name": "Reviewer test rustfmt and scoped clippy",
+      "status": "Pass",
+      "receipts": [
+        "runs/quality04/rustfmt.json",
+        "runs/quality04/clippy.json"
+      ]
+    }
+  ],
+  "prior_runs": [
+    {
+      "source": "f7110edf43281cc6202ab7b5e127870deb48b7d1",
+      "root_tests_passed": 6,
+      "consumer_native_passed": 64,
+      "scope": "Historical replay only, not final acceptance; later compatibility regressions are retained.",
+      "receipts": [
+        "runs/replay01/author-tests.json",
+        "runs/replay01/consumer/summary.json"
+      ]
+    },
+    {
+      "source": "605bed2ad33e9c99e867636bcbbbcff90da3e867",
+      "root_tests_passed": 9,
+      "consumer_native_passed": 64,
+      "scope": "Historical replay only, whole-local RHS roundtrip regression remained at this commit.",
+      "receipts": [
+        "runs/replay02/author-tests.json",
+        "runs/replay02/consumer/summary.json"
+      ]
+    }
+  ],
+  "first_failures_retained": [
+    {
+      "receipt": "runs/independent03/command.json",
+      "result": "7 passed, 1 failed",
+      "source_commit": "4a0d419495a100323714a687234e24123ec6a0e4",
+      "cause": "Reviewer positive fixture wrote hits while an existing mutable callback parent loan had a future call. Actual Verify E-BORROW-CONFLICT.",
+      "resolution": "Keep source bytes unchanged as callback_parent_qualification_blocks_sibling_copy_write_before_its_last_use negative; valid positive writes hits after last callback use. No production change.",
+      "original_source_sha256": "a1cd37beb91cf6189744c2bc659c54f34c8da43da703735f59c644eef0efb02b",
+      "source_preservation_verified": true
+    },
+    {
+      "receipt": "runs/final04/focused-tests.json",
+      "result": "10 passed, 1 failed; reviewer suite was not reached by that command",
+      "source_commit": "aef8c2e7e7d6b81e6b9dad0dac9655d380a28d68",
+      "cause": "Root positive fixture declared two State<F> parameters, rejected before body under the finite single-callable-parameter profile.",
+      "resolution": "Root revised to one actual State<F>; remaining old resource debt still correctly prevents partial whole overwrite. Final be6 test asserts Analyze SafeReject E-ANALYZE-IR and verification_runs=0. No production change from8abc.",
+      "original_input_not_claimed_passed": true
+    }
+  ],
+  "current_boundaries": [
+    "Mutable callback-field borrow uses a coarse whole-parent qualification: a still-live Store view or sibling Copy write can conflict. Closing the prior view at its actual last use permits the tested sequence.",
+    "Whole-local p=relay(p) restores moved state only after a successful same-typed RHS; RHS double consumption remains rejected.",
+    "Partial old State whole overwrite remains Analyze SafeReject for unpaid old debt, despite successful Expand slot bookkeeping.",
+    "Ordinary existing fixed-array Package extraction remains compatible; the new owned-State non-Copy indexed protocol remains Unsupported.",
+    "Consumer Items own empty ByteBuffer values; consumer allocations measure Store storage. The separate independent ByteBuffer fixture makes and frees two actual allocations at both O0/O2."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "review_does_not_complete_parent_task": true,
+  "evidence_manifest": "MANIFEST.json",
+  "artifact_verification": {
+    "json_files_parsed": 234,
+    "manifest_files_rehashed": 602,
+    "native_elf_files": 0,
+    "review_test_source_unchanged": true,
+    "git_diff_check_exit_code": 2,
+    "git_diff_check_reason": "Five original Cargo output logs have an extra blank line at EOF. Their bytes and recorded SHA256 are deliberately preserved; no production or Rust test source has a whitespace change.",
+    "byte_preserved_logs": [
+      "runs/continuation04/review-tests.log",
+      "runs/continuation04/verify-migration.log",
+      "runs/final05/author-tests.log",
+      "runs/replay01/author-tests.log",
+      "runs/replay02/author-tests.log"
+    ]
+  }
+}

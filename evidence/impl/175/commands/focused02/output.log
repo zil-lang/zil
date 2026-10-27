@@ -1,0 +1,23 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt175/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 3.76s
+     Running tests/impl175_store_views.rs (/workspace/scratch/39be3faa4442/targets/175/debug/deps/impl175_store_views-2b21878bd7a24e97)
+
+running 14 tests
+test direct_projection_and_last_use_allow_later_reserve_and_pop ... ok
+test element_read_respects_actual_package_field_visibility ... ok
+test copy_child_address_keeps_a_live_window_through_local_callback ... ok
+test element_shape_mutable_owned_field_return_and_capture_guards_are_explicit ... ok
+test every_intersecting_container_mutation_is_rejected_while_view_is_live ... ok
+test raw_and_wire_rebuild_element_type_index_and_hold_origins ... ok
+test raw_and_wire_reject_write_retargeted_behind_an_active_window ... ok
+test indirect_alias_contract_is_instantiated_from_real_store_roots ... ok
+test runtime_negative_empty_and_end_indices_trap_before_element_access ... ok
+test shared_element_windows_cross_functions_and_keep_one_owner ... ok
+test shared_views_allow_len_capacity_and_unrelated_address_return ... ok
+test verify_window_budget_has_an_exact_n_and_n_minus_one_boundary ... ok
+test view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper ... ok
+test runtime_index_reads_real_metadata_through_four_source_modules ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.34s
+
