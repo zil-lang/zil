@@ -2,10 +2,28 @@
 //! their responsibility and be refilled without moving the remaining shell.
 use super::*;
 
+/// The first field-composition slice keeps nested array fields one level deep.
+fn leaf_package(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+        if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
+        && fields.iter().all(|(_, t)| t.is_copy_value()
+            || matches!(t, Type::Managed(_) if resources::supported(t) && !dynamic_store::is_carrier(t))))
+}
+
+pub(super) fn array_field_supported(ty: &Type) -> bool {
+    matches!(ty, Type::Array { element, length } if *length > 0 && leaf_package(element))
+}
+
+pub(super) fn has_array_fields(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+        if fields.iter().any(|(_, t)| array_field_supported(t)))
+}
+
 pub(super) fn supported(ty: &Type) -> bool {
     matches!(ty, Type::Package { fields, .. }
         if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
         && fields.iter().all(|(_, t)| t.is_copy_value()
+            || array_field_supported(t)
             || matches!(t, Type::Managed(_) if resources::supported(t) && !dynamic_store::is_carrier(t))))
 }
 
@@ -249,7 +267,7 @@ impl Builder<'_, '_> {
         // temporary holds its new obligation until old-field cleanup commits.
         let (value, actual) = self.transfer_expr(rhs, Some(&ty))?;
         self.same(&actual, &ty, rhs.span)?;
-        let value = if matches!(ty, Type::Managed(_)) {
+        let value = if matches!(ty, Type::Managed(_)) || array_field_supported(&ty) {
             let prepared = self.stage_argument(value, &ty, rhs.span)?;
             self.emit(
                 InstructionKind::DropPackageField { local, index },
@@ -280,6 +298,12 @@ impl Builder<'_, '_> {
     ) -> R<(ValueId, Type)> {
         if let Some((local, index, element)) = self.owned_array_place(object)? {
             let (field, ty) = aggregates::field(&element, member, span)?;
+            if array_field_supported(&ty) {
+                return Err(unsupported(
+                    span,
+                    "take the complete Package array element before moving its owning field",
+                ));
+            }
             let ty = projection_type(ty);
             let value = self.value(
                 InstructionKind::ProjectOwnedArrayField {
@@ -317,6 +341,8 @@ impl Builder<'_, '_> {
         let (index, field) = aggregates::field(&ty, member, span)?;
         let kind = if matches!(field, Type::Managed(_)) {
             InstructionKind::DescribePackageField { local, index }
+        } else if array_field_supported(&field) {
+            InstructionKind::TakePackageField { local, index }
         } else {
             InstructionKind::ReadPackageField { local, index }
         };

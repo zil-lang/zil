@@ -1,0 +1,35 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-db)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-types)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-analyze)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 34.02s
+     Running tests/impl170_package_fields.rs (/workspace/scratch/39be3faa4442/targets/review170/debug/deps/impl170_package_fields-6d15c3741eb270eb)
+
+running 16 tests
+test nested_partial_places_and_retained_parent_captures_remain_explicitly_closed ... ok
+test incomplete_and_reused_field_carriers_are_rejected ... ok
+test raw_and_wire_budget_boundary_is_exact_for_nested_field_module ... ok
+test raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields ... ok
+test raw_and_wire_charge_outer_times_inner_array_layout ... ok
+test complete_fields_construct_return_and_drop_in_declaration_order ... ok
+test raw_and_wire_owning_field_cannot_hide_in_capture_metadata ... ok
+test raw_and_wire_consume_array_inputs_once_and_reconstruct_field_state ... ok
+test field_take_local_element_refill_and_parent_refill_are_exact ... ok
+test failed_preparation_cleans_only_actual_temporaries_and_keeps_the_old_field ... ok
+test conditional_missing_field_and_self_replacement_keep_exact_flags ... ok
+test repeated_take_refill_preserves_parent_cleanup_position ... ok
+test public_field_roundtrip_crosses_nominal_module_boundaries ... ok
+test replacing_a_complete_array_field_cleans_the_old_field_first ... ok
+test missing_parent_field_cleans_remaining_fields_and_moved_array_once ... ok
+test arrays_and_both_error_union_payloads_recursively_clean_fields ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.27s
+

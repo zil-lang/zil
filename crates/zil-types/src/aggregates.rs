@@ -502,13 +502,16 @@ impl Resolver<'_> {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
                             || (d.kind == AggregateKind::Package
+                                && !f.manages
+                                && packages::array_field_supported(&ty))
+                            || (d.kind == AggregateKind::Package
                                 && f.manages
                                 && matches!(ty, Type::Managed(_))
                                 && resources::supported(&ty)))
                         {
                             return Err(unsupported(
                                 f.span,
-                                "aggregate field requires finite Copy or an explicit package manages resource",
+                                "aggregate field requires finite Copy, an explicit package manages resource, or a complete fixed Package array",
                             ));
                         }
                         fields.push((f.name.clone(), ty));

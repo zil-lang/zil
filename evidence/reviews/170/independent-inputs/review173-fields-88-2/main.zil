@@ -1,0 +1,1 @@
+import model;fn main(){let s=model.make();let a=s.items}

@@ -1,0 +1,6 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-driver)
+error: crate `zil_backend_llvm` required to be available in rlib format, but was not found in this form
+
+error: crate `zil_ct` required to be available in rlib format, but was not found in this form
+
+error: could not compile `zil-driver` (test "impl170_package_fields") due to 2 previous errors

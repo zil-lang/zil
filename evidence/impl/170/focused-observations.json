@@ -1,0 +1,1362 @@
+{
+  "source_commit": "ec233ed4bcb827c0a9388f3641ffb410bc4effb6",
+  "test_source": "crates/zil-driver/tests/impl170_package_fields.rs",
+  "test_sha256": "626e3fbd92e363b559bccfcf04392e71dc38b797b06c01c0b4a137dc09acb470",
+  "cases": [
+    {
+      "case_directory": "package-fields170-3611-0",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2855,
+          "sha256": "2938a17334d06f8481a5dcceaffe69ade0da8835940be776dfa7e552aa5947bf"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 423,
+          "sha256": "fffc5f9ab1e327a5544d488eecaff910aaf430e8d910e6ea0ac7bb2c8506a181"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "98fded522f574ad5cb495e474a743dc55ced7956a6473af865d78bceb1c92d34"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 16337,
+          "sha256": "7d3c201622312a211872b879a65e6dfa3161625b5b697cbb68de3dd7f38852a7"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 6,
+          "sha256": "533fcce22e9707f1897ccaba0c2e616ebe118a26b1f76ed2ff774e0072eb8893"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-1",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2854,
+          "sha256": "b2656d38ca4c1274f321e29670d40edb04f233224228e2ed5d7b4a0b979b3a9f"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 493,
+          "sha256": "22907be7208b72b40ccd3812d6b40a7452b88d4ab7aa562c14afb9239af58ec9"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "eecee60a3736aa781ab7d25f960f640d5b9387e565f52cbf0c06b358e3683ba3"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 18432,
+          "sha256": "59eac77fb5f1e577c21d02d598a1e413710486aeb14b29e03c45aaa87d9e7b09"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 6,
+          "sha256": "145126eecfff33b70486a39a1e715219ac9829d2d7f476b64d0570961c3b3437"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-10",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 1208,
+          "sha256": "d0661d6ed38af3393b80e835e31bbc45ddceb065c0d579adaa8aa3bfa66e89d3"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 425,
+          "sha256": "c24e5ea54554d4b592ffa7a2c6288418658f84ba19f1c61bf819bf3f69bb6905"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-11",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 1747,
+          "sha256": "ede1d1edc0aacbce673e021bace7eee2f932f29a98f33c70abc14e9227caecb8"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 460,
+          "sha256": "d2ab63b6bb010226c083a0438c8cf3318d52008fc0cfb244bdd861e07fa5ce80"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-12",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 3841,
+          "sha256": "495dc35e23d1ccbe6070258d4f07bd75ce367187924a4b7c829f3b288d3f89a5"
+        },
+        {
+          "name": "flow.zil",
+          "bytes": 56,
+          "sha256": "fa3c90493560f2d31d4467143b703e81b75148622bbea9c7dd36c47fdac2db97"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 156,
+          "sha256": "68c187beb9d756a3978ee1e0b034b1e8638891e23f503c7784d4d2c99b85de57"
+        },
+        {
+          "name": "model.zil",
+          "bytes": 320,
+          "sha256": "32b5edd2c841ea14b97afe23bd535d5acd67efd62aca1ef6ab47b6370e6d4cc0"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "b8eeb97ba2148cb9d6964cff324e3fd89fa0d0587a5b9cdaa3b2e5add18fadf8"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 22251,
+          "sha256": "b99f00b6ba5542e52ca4e8c6a9000694236f10b53be2f3d50272c295882a061e"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 5,
+          "sha256": "448086cbe999b39c92b855c173cdd02c4eddc957d34ff587fe62c663519315a9"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-13",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 1748,
+          "sha256": "13b2e1eb7ff817291a40c05ed2c1a507a7587c24b6bbc87fa0e8ac6d97fcd2cf"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 463,
+          "sha256": "ab764c52bbc838af6dbd3a309f4a7255ef4b2a6cfd4c3b26f14380f6a6db2886"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-14",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2871,
+          "sha256": "81363eca43fe7cc9b0472aa53ab93220bf4a7a9c94ecbbd2331ead90fc024697"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 488,
+          "sha256": "8ffffd553c8637b573ba5e34238463c8aad7718549755fa2d9db8adc68f179c2"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "9842d3311979c5225b27ee4118457490737f290938dc29771b7b71605955c2c9"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 20673,
+          "sha256": "26224675935cd33af62ef8768f32d95f07fed8ed45b4d6dd6358020f1dea89ab"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 4,
+          "sha256": "de28dd27908f12fd2805f7144b03b1edcd6d0dd46fc291d7550027cae4d849c5"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-15",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2871,
+          "sha256": "f28cc1d6f1d598ae2bedbec2a491f354e5eabe618a95b287bf7e9560ce1fa9bd"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 493,
+          "sha256": "22907be7208b72b40ccd3812d6b40a7452b88d4ab7aa562c14afb9239af58ec9"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "323a3e1dcfe78730f7928d252e18a598712df96d01e989bc6e0b1f23847cc5c9"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 18432,
+          "sha256": "59eac77fb5f1e577c21d02d598a1e413710486aeb14b29e03c45aaa87d9e7b09"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 6,
+          "sha256": "145126eecfff33b70486a39a1e715219ac9829d2d7f476b64d0570961c3b3437"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-16",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2871,
+          "sha256": "cab1aea88e25887b73a5a1850eae5e882be9b0d82b28aaffd822639e6a60271f"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 418,
+          "sha256": "fd16f43c1a2ac3973af906934fb35c8111075bb0174c3c4733f5e0e44e818caf"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "9b24f03136dbd454c2dba3c47693b082e98bacdde2b17360caa71665387a75f1"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 15099,
+          "sha256": "90d5ad97383414aeb2a6c3c8493a6d0ec3aa39ef1bf0a378703b5a6666f2239f"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "2640f8d1a0d67391c2c84b9ea278b30d1cafc96be11e6b697b0d850da8fde21d"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-17",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "c2d67285703d4d6144c04123461b73437e387c528981ed1ada76d41c8a081998"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 487,
+          "sha256": "6fdfbc2c8cec438289eff8c942401473dbd0c7c022c4b022273bbb35565ec407"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "178fda50d8e2a0e5542012961eb93341e6b6031826454705bc02c15ffefcd957"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 21602,
+          "sha256": "2902271d05ca955dda736d91aaf6d4fe818025e40ac0c351a996ab68dfed7874"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 4,
+          "sha256": "3eb5eaa5ba5128460175529f5d34cc9fe14f2a0dc46cb95fdc9dc36952d627f2"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-18",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2872,
+          "sha256": "ee9e8c58dbbdf269f0937cd85cf929aa7e8edef4c0b73ee6a6c6eed257d53e1b"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 453,
+          "sha256": "9297ec0c100e46495ad051949c4094a070b738e2161b9d6fcacacdb9be9c6ed4"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "b3c7d5b724378e0ebdc4d6c43f9eb690f27d833883b11b0f053ecb750e068557"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 15197,
+          "sha256": "0a01f8406d14954ba3c076c21a80b2c2b3ce24c2ecf797e316031baab0178d15"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "fdbf5889f737e3d16cca11a9c5496b7794b7fdc13898056398d1280910036e0a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-19",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "f4fd7e03345eb37c19410fd81b312b2f8e17cd904c8b6eb231acc6ffc679bb4b"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 423,
+          "sha256": "fffc5f9ab1e327a5544d488eecaff910aaf430e8d910e6ea0ac7bb2c8506a181"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "edc021eb11fc53fd45f84b0b1810a693d6e6a2d6ad427d92b14f8b03fd81035b"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 16337,
+          "sha256": "7d3c201622312a211872b879a65e6dfa3161625b5b697cbb68de3dd7f38852a7"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 6,
+          "sha256": "533fcce22e9707f1897ccaba0c2e616ebe118a26b1f76ed2ff774e0072eb8893"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-2",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2855,
+          "sha256": "76cee83a5b0ffcf1e8a125fda486e34a3cb684c726315891303ef230364f3214"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 453,
+          "sha256": "9297ec0c100e46495ad051949c4094a070b738e2161b9d6fcacacdb9be9c6ed4"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "42fd6de6a1425a7e49f03026982d2c61edf10bc814445f965a7d1b3ba0049c79"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 15197,
+          "sha256": "0a01f8406d14954ba3c076c21a80b2c2b3ce24c2ecf797e316031baab0178d15"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "fdbf5889f737e3d16cca11a9c5496b7794b7fdc13898056398d1280910036e0a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-20",
+      "files": [
+        {
+          "name": "raw-budget.txt",
+          "bytes": 254,
+          "sha256": "e2d91436c532d24097ea79b85220868873ecf03f7c393b9d83ea85b47038388a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-21",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 3843,
+          "sha256": "75d548fa9eba31642d1f0197cd87a295de72fc300b53da7bf1732eb0363be7a6"
+        },
+        {
+          "name": "flow.zil",
+          "bytes": 56,
+          "sha256": "fa3c90493560f2d31d4467143b703e81b75148622bbea9c7dd36c47fdac2db97"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 156,
+          "sha256": "68c187beb9d756a3978ee1e0b034b1e8638891e23f503c7784d4d2c99b85de57"
+        },
+        {
+          "name": "model.zil",
+          "bytes": 320,
+          "sha256": "32b5edd2c841ea14b97afe23bd535d5acd67efd62aca1ef6ab47b6370e6d4cc0"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "3eb649e548359bd43a2de0deda73c0aff04f75a881134074dbac90c0009c4801"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 22251,
+          "sha256": "b99f00b6ba5542e52ca4e8c6a9000694236f10b53be2f3d50272c295882a061e"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 5,
+          "sha256": "448086cbe999b39c92b855c173cdd02c4eddc957d34ff587fe62c663519315a9"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-22",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "e8d76e2c538a445735309356de3dfba993a721c80989f59a6710113a05a08874"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 496,
+          "sha256": "4c81e7bda2210b4905578e766167510985a86f1468471c369c55f7473386458f"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "5e3f930cd75d21320fd6df3b69fddc08e400b8eb62c014a7a6e7bed1390861f4"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 23393,
+          "sha256": "3c2bd9bd13a7f6d171708a83578f0346c643677961b0c6eeb1392c5af45f0754"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 5,
+          "sha256": "448086cbe999b39c92b855c173cdd02c4eddc957d34ff587fe62c663519315a9"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-23",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "2e34a36c477ab3143574c5f35b3bc1f4115f50f48c8d549064d7aab4b270c679"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 467,
+          "sha256": "b56a230769255ee51761c941c455825ea6a5465f96e437da59160f92f0b23577"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "e762208d639a4281e145971687e2b32a1372a783e17366a8106ef0d5c3cf317a"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 16366,
+          "sha256": "f2542e9d4bad03c74df6ce332ef083cf01e74f4e852f60bb72f55c6050e79aeb"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "2640f8d1a0d67391c2c84b9ea278b30d1cafc96be11e6b697b0d850da8fde21d"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-24",
+      "files": [
+        {
+          "name": "wire-budget.txt",
+          "bytes": 254,
+          "sha256": "e2d91436c532d24097ea79b85220868873ecf03f7c393b9d83ea85b47038388a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-25",
+      "files": [
+        {
+          "name": "nested-layout-multiplication-raw.txt",
+          "bytes": 224,
+          "sha256": "01e1354f20e169b6c175725adaa62fb331e165d174d243f156cce120e4e68b85"
+        },
+        {
+          "name": "nested-layout-multiplication-wire.txt",
+          "bytes": 224,
+          "sha256": "01e1354f20e169b6c175725adaa62fb331e165d174d243f156cce120e4e68b85"
+        },
+        {
+          "name": "nested-layout-multiplication.bin",
+          "bytes": 880,
+          "sha256": "32c77414656d86365da168191014a32586313fbdb7ad0bf1775357714f8cef10"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-26",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "6bd19eaa79a19a01806507e5d59a96cd933c26ae2cf884c8852ef7b862d7d1ea"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 444,
+          "sha256": "53029dc01dee3e80e982a5b6cb94b2da644fca89a82b94f19994dd568ffb7bcb"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "4139760285f8713b3e98da655e24d148402d1db0724e5e276c2d8ec0b69b0126"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 13250,
+          "sha256": "f0ee3c9d89dbae406f4fa554af99652e5718c35c36146c287aec446bf9c60f1a"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "fdbf5889f737e3d16cca11a9c5496b7794b7fdc13898056398d1280910036e0a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-27",
+      "files": [
+        {
+          "name": "copy-owned-field-raw.txt",
+          "bytes": 397,
+          "sha256": "674701f47757ffc39c653ed2ad68cbc37acbbc6672f919d517b2ea382a3c715b"
+        },
+        {
+          "name": "copy-owned-field-wire.txt",
+          "bytes": 397,
+          "sha256": "674701f47757ffc39c653ed2ad68cbc37acbbc6672f919d517b2ea382a3c715b"
+        },
+        {
+          "name": "copy-owned-field.bin",
+          "bytes": 8565,
+          "sha256": "fdf677a85091f5609926288be0ae3ced389535cfd9c8acd6de846776ac1bac0a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-28",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "9376d14e5c6aff2d0e771ed146d8ff5e1e10d94ace5aa9de4db1da97a6ed576b"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 495,
+          "sha256": "288deb259385d86b80141f29fc493b0223d21611e869b23da3eba3a18441a287"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "552652df4012a1646ad9d30ba8e7f4aaaac1dca6b3038f1e8a38f5a2cf36cb5b"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 22681,
+          "sha256": "09a71e4fb8fbe8b4f2aa39ab8083877342bb7c450e4df28d997e64a1943b0ded"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 2,
+          "sha256": "38318c00d873bcdbf1dd521e4c68bcf16945d7e63a97f0f9d92b1c9fcbb2338e"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-29",
+      "files": [
+        {
+          "name": "out-of-bounds-field-raw.txt",
+          "bytes": 392,
+          "sha256": "8d133e4bab6d7846cb7d955cbf77d6c9a4d1eba971cd4b1c255d9d58d8506e9c"
+        },
+        {
+          "name": "out-of-bounds-field-wire.txt",
+          "bytes": 392,
+          "sha256": "8d133e4bab6d7846cb7d955cbf77d6c9a4d1eba971cd4b1c255d9d58d8506e9c"
+        },
+        {
+          "name": "out-of-bounds-field.bin",
+          "bytes": 8565,
+          "sha256": "30a41cd179c65d1b95143ce5e939510f2e29d019f8947c8561f6bccb561693f7"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-3",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 1736,
+          "sha256": "8fd894cdfc88b0e207788dfd90f5c9e9de955cca91d3c7a02318fc7a0382cbda"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 451,
+          "sha256": "27673adec040b64a0c2db2908b71a833d4fa4891705ee1d813f9216a65ca8c06"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-30",
+      "files": [
+        {
+          "name": "load-parent-as-array-raw.txt",
+          "bytes": 421,
+          "sha256": "3551f04a4deaf9225f075873e36554c0409ee3311bba7452f323667e62ba9fa5"
+        },
+        {
+          "name": "load-parent-as-array-wire.txt",
+          "bytes": 421,
+          "sha256": "3551f04a4deaf9225f075873e36554c0409ee3311bba7452f323667e62ba9fa5"
+        },
+        {
+          "name": "load-parent-as-array.bin",
+          "bytes": 8561,
+          "sha256": "0c125462402aa7c871f48010e73a42b7fb72d90d39f563f8f3d1773a1171f883"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-31",
+      "files": [
+        {
+          "name": "duplicate-array-input-raw.txt",
+          "bytes": 395,
+          "sha256": "6fa2689c3dfed35daacef0f77156c79b6250e07952417699a42e9eaad3037dea"
+        },
+        {
+          "name": "duplicate-array-input-wire.txt",
+          "bytes": 395,
+          "sha256": "6fa2689c3dfed35daacef0f77156c79b6250e07952417699a42e9eaad3037dea"
+        },
+        {
+          "name": "duplicate-array-input.bin",
+          "bytes": 11766,
+          "sha256": "535e2dc7d30941b4b2e0604ef584ffd2319063e887c5ba2d181bad3c6d40443e"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-32",
+      "files": [
+        {
+          "name": "cleanup-wrong-parent-field-raw.txt",
+          "bytes": 412,
+          "sha256": "dd4f5e25148c1a4fc18b4537ab25c48f3a35b9553cc7288c267b0f8fa6773e3c"
+        },
+        {
+          "name": "cleanup-wrong-parent-field-wire.txt",
+          "bytes": 412,
+          "sha256": "dd4f5e25148c1a4fc18b4537ab25c48f3a35b9553cc7288c267b0f8fa6773e3c"
+        },
+        {
+          "name": "cleanup-wrong-parent-field.bin",
+          "bytes": 8243,
+          "sha256": "d5e57cb6edefc157cd49f28e3306c297d6ee4976268806cef0915e40093d30b6"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-33",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "ad744ac53986f828d3d96be4ebded87a4f33decee86855c84fbd14f2fcd84536"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 496,
+          "sha256": "db6effe9fd29c97c91cf7528eb78deef6c29ba2b7f68ed52632685bef0aff14e"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "87d0542bbc0040e4f4bb2f2b5e50094f0b49004edbaafd25bca7344dcc25b906"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 21253,
+          "sha256": "1d8d01f0e4e0e9b9823d49f9fd654812a348985c2450ad3948236e8ec53cc7ce"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 6,
+          "sha256": "9d99c70d8072eef0e3c52542a13061cd4ec7ca7a3d59afaf2889e97ae7a44bce"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-34",
+      "files": [
+        {
+          "name": "retake-one-array-field-raw.txt",
+          "bytes": 414,
+          "sha256": "6fece8154ef4d23982d4e9f7b714e87d31784dd15a24a1342dcb14acec65174f"
+        },
+        {
+          "name": "retake-one-array-field-wire.txt",
+          "bytes": 414,
+          "sha256": "6fece8154ef4d23982d4e9f7b714e87d31784dd15a24a1342dcb14acec65174f"
+        },
+        {
+          "name": "retake-one-array-field.bin",
+          "bytes": 11766,
+          "sha256": "14e485fdda61f44eb45f7f955818b10500ba1c896ceb3e149e6e9e3fa77bcea9"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-35",
+      "files": [
+        {
+          "name": "retained-nested-field-metadata-raw.txt",
+          "bytes": 255,
+          "sha256": "62c65ac0902d83bcab10af0ca6b13604a500cf5c99675422e3518442623eba90"
+        },
+        {
+          "name": "retained-nested-field-metadata-wire.txt",
+          "bytes": 255,
+          "sha256": "62c65ac0902d83bcab10af0ca6b13604a500cf5c99675422e3518442623eba90"
+        },
+        {
+          "name": "retained-nested-field-metadata.bin",
+          "bytes": 7901,
+          "sha256": "a59191741c59cab694007fb00c1e0de9813fcf3d7c949554aa94586772c3ee21"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-36",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2872,
+          "sha256": "b761be65a23066202cdf968b34761c19fbd50c617b4b3a3cb4c093d5609d3319"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 428,
+          "sha256": "7e4ae23a1ce1a1659e837383b9213d9d86bc9e40ff7fa604c2226b2db042cc43"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "6870b33fec9e343c0d980ec3d63eb528e8b4ada985ddd258ae3a4a2fc1079ec0"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 17670,
+          "sha256": "fd4e5e42e7994485dfdf4bab79090fdadabba9ac9c62d9f5d8b89e165cd32051"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 5,
+          "sha256": "448086cbe999b39c92b855c173cdd02c4eddc957d34ff587fe62c663519315a9"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-37",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "285a467f0d07fb4031edabaa2bc1f8763be6648c008e6127bcf08a82b2e10545"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 496,
+          "sha256": "4c81e7bda2210b4905578e766167510985a86f1468471c369c55f7473386458f"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "b4f1bfc159390580aa50205332c85cb26643a0ee7430da99c9935f1410667328"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 23393,
+          "sha256": "3c2bd9bd13a7f6d171708a83578f0346c643677961b0c6eeb1392c5af45f0754"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 5,
+          "sha256": "448086cbe999b39c92b855c173cdd02c4eddc957d34ff587fe62c663519315a9"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-38",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "0d7e8a20c4ffc0bdff06d29434fce7cd7a6cf41eaf3299cfed454ef9a9559b87"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 467,
+          "sha256": "b56a230769255ee51761c941c455825ea6a5465f96e437da59160f92f0b23577"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "bf26311a85181da0f45ce70f2f91dc33438d8898151e4ea8fc29def4f7414034"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 16366,
+          "sha256": "f2542e9d4bad03c74df6ce332ef083cf01e74f4e852f60bb72f55c6050e79aeb"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "2640f8d1a0d67391c2c84b9ea278b30d1cafc96be11e6b697b0d850da8fde21d"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-39",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "fcfd01a465998111306a06ccb709b434fc167241d920874efdfdc4749801c809"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 444,
+          "sha256": "53029dc01dee3e80e982a5b6cb94b2da644fca89a82b94f19994dd568ffb7bcb"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "710f6f21513b2a908b8b30d7fac8e1fb49a435279145dde278f2fae066794ba9"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 13250,
+          "sha256": "f0ee3c9d89dbae406f4fa554af99652e5718c35c36146c287aec446bf9c60f1a"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "fdbf5889f737e3d16cca11a9c5496b7794b7fdc13898056398d1280910036e0a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-4",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2855,
+          "sha256": "001c4060c5d5f7935b8860ec9388508dae56c9f495699704ea14ace0edd297f1"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 487,
+          "sha256": "6fdfbc2c8cec438289eff8c942401473dbd0c7c022c4b022273bbb35565ec407"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "d826003085be6fcf679e9fe2b82fab7353a595201eca911dfab87257ddd023ec"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 21602,
+          "sha256": "2902271d05ca955dda736d91aaf6d4fe818025e40ac0c351a996ab68dfed7874"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 4,
+          "sha256": "3eb5eaa5ba5128460175529f5d34cc9fe14f2a0dc46cb95fdc9dc36952d627f2"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-40",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "1ef96b94f655faa11803001b5b0877621534aa7a3e65a38182ad5aec2317da3c"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 495,
+          "sha256": "288deb259385d86b80141f29fc493b0223d21611e869b23da3eba3a18441a287"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "e99948484ec40f0567bbcabfd08b214e6ae0a31bd1b90fbcbdd51e96b7427f36"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 22681,
+          "sha256": "09a71e4fb8fbe8b4f2aa39ab8083877342bb7c450e4df28d997e64a1943b0ded"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 2,
+          "sha256": "38318c00d873bcdbf1dd521e4c68bcf16945d7e63a97f0f9d92b1c9fcbb2338e"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-41",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "9c5d5b829ffaa981759e6828f5ceb7e78db4fe444c83e32090211e51924d44e7"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 496,
+          "sha256": "db6effe9fd29c97c91cf7528eb78deef6c29ba2b7f68ed52632685bef0aff14e"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "06b84b8063ae195ec4df0fc3fd97fbf117f39dc1fddc39cd1c0feceabb602c94"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 21253,
+          "sha256": "1d8d01f0e4e0e9b9823d49f9fd654812a348985c2450ad3948236e8ec53cc7ce"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 6,
+          "sha256": "9d99c70d8072eef0e3c52542a13061cd4ec7ca7a3d59afaf2889e97ae7a44bce"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-42",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "1971ea032b3b5a2a1e3dd72b60bf72141b0a60ca228182cc2aa392ebfe0f27b0"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 428,
+          "sha256": "7e4ae23a1ce1a1659e837383b9213d9d86bc9e40ff7fa604c2226b2db042cc43"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "fe793de02b40dbb53c8aaca79682f69c29eab749b46f6b24d51240663929a1f2"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 17670,
+          "sha256": "fd4e5e42e7994485dfdf4bab79090fdadabba9ac9c62d9f5d8b89e165cd32051"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 5,
+          "sha256": "448086cbe999b39c92b855c173cdd02c4eddc957d34ff587fe62c663519315a9"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-43",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2872,
+          "sha256": "ecb6c397f2ea3db6876644c3ad80ed5e6da05bc2e7c0b629ab268d00f03c23eb"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 412,
+          "sha256": "ace10508cb0c7b8159be41abf58dcc64f537559035bdaa82bf4e8ffe21f2856f"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "4b977f4a801eb03fb96becfc0a007472e617b877de95b6b166747ff1bc77f747"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 12693,
+          "sha256": "a6e00d8511f00561f9c2fc5225799fdb4d5f98d388a4dc941e64c1b747a49965"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "fdbf5889f737e3d16cca11a9c5496b7794b7fdc13898056398d1280910036e0a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-44",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "9010eba58df7bbe8c24efb6d6d947b568b6dcbfeb57b58b13eab9c39dc443d5c"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 412,
+          "sha256": "ace10508cb0c7b8159be41abf58dcc64f537559035bdaa82bf4e8ffe21f2856f"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "7f15bc527c68cd3e60326b768d6db582c45551494cb7f1eb31830912d1613bc4"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 12693,
+          "sha256": "a6e00d8511f00561f9c2fc5225799fdb4d5f98d388a4dc941e64c1b747a49965"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "fdbf5889f737e3d16cca11a9c5496b7794b7fdc13898056398d1280910036e0a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-45",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "9034a8b708c7841d9cd5c9e85a10f8691bb51811eb2dfb8e2013868b90cd70d0"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 470,
+          "sha256": "cae0f2ee9d33b1430ebc6dd6c7a5d7f9b0d82b60f53ef28ce328898d75053694"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "329d496805e55ea2ca0691efe3b51691014fdc75298ba91baf2c66cefe09b2a7"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 14704,
+          "sha256": "4b5d8f2ed463d3b5224426c6e877dc9f7f62beea2a960461707861283f0c1d17"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "fdbf5889f737e3d16cca11a9c5496b7794b7fdc13898056398d1280910036e0a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-46",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2873,
+          "sha256": "3498300bd136a23115228b221a6dfb88f840645e56c5580f544fa1c3443150da"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 470,
+          "sha256": "cae0f2ee9d33b1430ebc6dd6c7a5d7f9b0d82b60f53ef28ce328898d75053694"
+        },
+        {
+          "name": "program",
+          "bytes": 16056,
+          "sha256": "92908e6bcfc0c03bd01d6f2c52add1f9e4207b77676bcbee5ffb51d9148b2bc7"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 14704,
+          "sha256": "4b5d8f2ed463d3b5224426c6e877dc9f7f62beea2a960461707861283f0c1d17"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "fdbf5889f737e3d16cca11a9c5496b7794b7fdc13898056398d1280910036e0a"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-5",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2855,
+          "sha256": "6013f6c54006200b38b7730c87920dfc102f1eb55f38dc0033f76b192048656d"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 488,
+          "sha256": "8ffffd553c8637b573ba5e34238463c8aad7718549755fa2d9db8adc68f179c2"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "d7f6ac427a7a2d5a160ce6f70e118e7fdb75edef1a1ddaa806756a08c72bf473"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 20673,
+          "sha256": "26224675935cd33af62ef8768f32d95f07fed8ed45b4d6dd6358020f1dea89ab"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 4,
+          "sha256": "de28dd27908f12fd2805f7144b03b1edcd6d0dd46fc291d7550027cae4d849c5"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-6",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 1154,
+          "sha256": "15a76ae1f6f0ab0e85a4edf63446f7d4bbdd6cfd395ef356d2e65b401b9f49a4"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 425,
+          "sha256": "c1fae2eb7a7779e3cd72400e603c43dc9c52d4a947bb5f2ba405a64f6ac379ad"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-7",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 2855,
+          "sha256": "f3f6d8a670fafc52364a3b37d4146950180a482ecd165a8d26079f7612e626c8"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 418,
+          "sha256": "fd16f43c1a2ac3973af906934fb35c8111075bb0174c3c4733f5e0e44e818caf"
+        },
+        {
+          "name": "program",
+          "bytes": 16024,
+          "sha256": "d387329b10ac38c02c27fed476c026208e78eff862d38fab83dc2d070ae9db38"
+        },
+        {
+          "name": "program.ll",
+          "bytes": 15099,
+          "sha256": "90d5ad97383414aeb2a6c3c8493a6d0ec3aa39ef1bf0a378703b5a6666f2239f"
+        },
+        {
+          "name": "stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "stdout",
+          "bytes": 3,
+          "sha256": "2640f8d1a0d67391c2c84b9ea278b30d1cafc96be11e6b697b0d850da8fde21d"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-8",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 1177,
+          "sha256": "564dea2c7ff4c667b6d7bb3109e5a887ac5fd5d1ebf6ad9a926cdcb83f61aaab"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 434,
+          "sha256": "104cfaa69fa16f1df92e8697cf212314860aa9854d9a9ec3be6b625fb0190608"
+        }
+      ]
+    },
+    {
+      "case_directory": "package-fields170-3611-9",
+      "files": [
+        {
+          "name": "compile.json",
+          "bytes": 1742,
+          "sha256": "1813cfca9a4d9ba55bb6f8912a8566ab1bb7fc2397473395eccc1062f1212271"
+        },
+        {
+          "name": "main.zil",
+          "bytes": 444,
+          "sha256": "9e5917ab9fa27448da20b2ab62db92375a608097e0c0a57684de6686a34ca575"
+        }
+      ]
+    }
+  ]
+}

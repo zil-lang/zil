@@ -45,7 +45,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
                     || (resource_type(ty, &module.resources)
                         && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
-                    || package_type(ty, &module.resources)
+                    || (package_type(ty, &module.resources) && !package_array_fields(ty))
             })
             || !closure.parameters.iter().all(Type::is_copy_value)
         {
@@ -147,7 +147,12 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
         && fields.iter().all(|(_, ty)| {
             ty.is_copy_value() || matches!(ty, Type::Managed(payload) if !matches!(payload.as_ref(), Type::OwnedStore { .. }) && resource_type(ty, resources))
+                || matches!(ty, Type::Array { element, length } if *length > 0 && package_type(element, resources) && !package_array_fields(element))
         })
+}
+
+fn package_array_fields(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
 }
 
 fn error_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {

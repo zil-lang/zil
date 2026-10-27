@@ -114,11 +114,87 @@ pub(super) fn capture_views(
     Ok(views)
 }
 
+pub(super) fn owned_field(ty: &Type) -> bool {
+    matches!(ty, Type::Managed(_))
+        || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+}
+
+pub(super) fn has_array_fields(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+        if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
+}
+
+/// Count concrete cleanup/layout occurrences, including each nested owning
+/// array repetition. Copy arrays need no generated per-element cleanup.
+pub(super) fn layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
+    let mut pending = vec![(ty, 1usize)];
+    let mut total = 0usize;
+    while let Some((ty, count)) = pending.pop() {
+        budget.spend(1)?;
+        total = total
+            .checked_add(count)
+            .ok_or_else(|| limit("package layout work overflow"))?;
+        match ty {
+            Type::Array { element, length } => {
+                let count = if matches!(element.as_ref(), Type::Package { .. }) {
+                    count
+                        .checked_mul(*length as usize)
+                        .ok_or_else(|| limit("package array expansion overflow"))?
+                } else {
+                    count
+                };
+                pending.push((element, count));
+            }
+            Type::Managed(inner)
+            | Type::Desc(inner)
+            | Type::Address { inner, .. }
+            | Type::Opaque { hidden: inner, .. } => pending.push((inner, count)),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| (ty, count)));
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|ty| (ty, count)));
+            }
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len())?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|ty| (ty, count)));
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.extend([(error.as_ref(), count), (result.as_ref(), count)])
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                budget.spend(parameters.len())?;
+                pending.extend(parameters.iter().map(|ty| (ty, count)));
+                pending.push((result, count));
+            }
+            Type::Slice { element } => pending.push((element, count)),
+            _ => {}
+        }
+    }
+    Ok(total)
+}
+
 pub(super) fn check_type_for(
     module: &TypedModule,
     ty: &Type,
     span: Option<Span>,
     budget: &mut Budget,
+) -> Check<()> {
+    check_package_type(module, ty, span, budget, true)
+}
+
+fn check_package_type(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+    array_fields: bool,
 ) -> Check<()> {
     let Type::Package { name, fields } = ty else {
         return Err(reject(
@@ -130,6 +206,16 @@ pub(super) fn check_type_for(
     resources::charge_payload(ty, budget)?;
     if name.is_empty() {
         return Err(reject("E-VERIFY-PACKAGE", span, "empty package identity"));
+    }
+    if has_array_fields(ty) {
+        if !array_fields {
+            return Err(unsupported(
+                "owning array fields require direct-Managed and Copy Package elements",
+                span,
+            ));
+        }
+        let work = layout_work(ty, budget)?;
+        budget.spend(work)?;
     }
     let mut names = BTreeSet::new();
     let mut owns = false;
@@ -156,6 +242,16 @@ pub(super) fn check_type_for(
         if matches!(field, Type::Managed(_)) {
             resources::check_type_for(module, field, span, budget)?;
             owns = true;
+        } else if let Type::Array { element, length } = field
+            && matches!(element.as_ref(), Type::Package { .. })
+        {
+            if *length == 0 {
+                return Err(unsupported(
+                    "owning Package array fields require a nonzero fixed length",
+                    span,
+                ));
+            }
+            check_package_type(module, element, span, budget, false)?;
         } else {
             // This independent finite-Copy admission also rejects nested
             // packages, descriptions, addresses and owning environments.
@@ -250,9 +346,9 @@ pub(super) fn check_instruction(
                 }
                 InstructionKind::TakePackageField { .. }
                 | InstructionKind::DropPackageField { .. } => {
-                    if !matches!(ty, Type::Managed(_)) {
+                    if !owned_field(ty) {
                         return Err(bad(
-                            "package field transfer or cleanup requires a manages field",
+                            "package field transfer or cleanup requires an owning field",
                         ));
                     }
                     Ok(
@@ -276,8 +372,8 @@ pub(super) fn check_instruction(
                     Ok(None)
                 }
                 InstructionKind::ReadPackageField { .. } => {
-                    if matches!(ty, Type::Managed(_)) {
-                        return Err(bad("package Copy projection cannot copy a manages field"));
+                    if owned_field(ty) {
+                        return Err(bad("package Copy projection cannot copy an owning field"));
                     }
                     check_type(ty, span)?;
                     Ok(Some(ty.clone()))

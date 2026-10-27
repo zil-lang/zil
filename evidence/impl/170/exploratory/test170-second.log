@@ -1,0 +1,40 @@
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.96s
+     Running tests/impl170_package_fields.rs (/workspace/scratch/39be3faa4442/targets/170/debug/deps/impl170_package_fields-e9c245f71c32c4fa)
+
+running 12 tests
+test incomplete_and_reused_field_carriers_are_rejected ... FAILED
+test raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields ... FAILED
+test raw_and_wire_owning_field_cannot_hide_in_capture_metadata ... ok
+test nested_partial_places_and_retained_parent_captures_remain_explicitly_closed ... ok
+test complete_fields_construct_return_and_drop_in_declaration_order ... ok
+test field_take_local_element_refill_and_parent_refill_are_exact ... ok
+test replacing_a_complete_array_field_cleans_the_old_field_first ... ok
+test repeated_take_refill_preserves_parent_cleanup_position ... ok
+test public_field_roundtrip_crosses_nominal_module_boundaries ... ok
+test missing_parent_field_cleans_remaining_fields_and_moved_array_once ... ok
+test failed_preparation_cleans_only_actual_temporaries_and_keeps_the_old_field ... ok
+test arrays_and_both_error_union_payloads_recursively_clean_fields ... ok
+
+failures:
+
+---- incomplete_and_reused_field_carriers_are_rejected stdout ----
+
+thread 'incomplete_and_reused_field_carriers_are_rejected' (369) panicked at crates/zil-driver/tests/impl170_package_fields.rs:340:9:
+{"status":"SafeReject","phase":"analyze","diagnostics":[{"phase":"analyze","category":"SafeReject","code":"E-ANALYZE-IR","message":"resource closure: package field take requires that field live on every path","span":null,"notes":[]}],"artifacts":{"core":"/tmp/package-fields170-364-3/phases/core.txt","ct-core":"/tmp/package-fields170-364-3/phases/ct-core.txt","interfaces":"/tmp/package-fields170-364-3/phases/interfaces.txt","source-map":"/tmp/package-fields170-364-3/phases/source-map.txt","syntax":"/tmp/package-fields170-364-3/phases/syntax.txt","typed":"/tmp/package-fields170-364-3/phases/typed.txt"},"input_fingerprint":"f59dc9417d35d3226896a2efdd7c6dffe8e9165efdda4efbed1630c8832a1454","seconds":0.026402763,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"27673adec040b64a0c2db2908b71a833d4fa4891705ee1d813f9216a65ca8c06","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields stdout ----
+
+thread 'raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields' (373) panicked at crates/zil-driver/tests/impl170_package_fields.rs:145:9:
+copy-owned-field: [Diagnostic { phase: Verify, category: Unsupported, code: "E-UNSUPPORTED", message: "non-Copy type requires another checker", span: Some(Span { file: FileId(0), start: 408, end: 415 }), notes: [] }]
+
+
+failures:
+    incomplete_and_reused_field_carriers_are_rejected
+    raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields
+
+test result: FAILED. 10 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.61s
+
+error: test failed, to rerun pass `-p zil-driver --test impl170_package_fields`
