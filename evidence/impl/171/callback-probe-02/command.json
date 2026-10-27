@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl171_resource_heads",
+    "descriptor_only_helper_exports_its_internal_callback_effect_across_modules",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt171",
+  "source_commit": "b20ab1bd5050e0de4cde4cdd43bceb2a5a8c138f",
+  "crates_tree": "d0cc60f827a1df72548aeb3b6326672fa4650451",
+  "source_status": "",
+  "start": 1793110545.1994982,
+  "status": "Fail",
+  "exit_code": 101,
+  "log_sha256": "eafb010e6294f49f8068e5def2d9651e0ad1d0736b2017d1b7dcd1c38d235dbf",
+  "end": 1793110592.94721,
+  "seconds": 47.74771189689636,
+  "tests": {
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "groups": 1
+  },
+  "error": "required test run has no passing tests or contains failures",
+  "ending_crates_tree": "d0cc60f827a1df72548aeb3b6326672fa4650451",
+  "ending_source_status": ""
+}

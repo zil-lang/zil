@@ -1,0 +1,16 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-driver)
+warning: unused imports: `Limits` and `TargetProfile`
+ --> crates/zil-driver/tests/impl171_resource_heads.rs:9:24
+  |
+9 | use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
+  |                        ^^^^^^                                        ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error: crate `zil_ct` required to be available in rlib format, but was not found in this form
+
+error: crate `zil_analyze` required to be available in rlib format, but was not found in this form
+
+warning: `zil-driver` (test "impl171_resource_heads") generated 1 warning
+error: could not compile `zil-driver` (test "impl171_resource_heads") due to 2 previous errors; 1 warning emitted

@@ -1,0 +1,117 @@
+{
+  "task": "171",
+  "implementation_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+  "crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+  "public_base": "bf2280d8ef53ed234f0605e10a55d7741b914b3e",
+  "status": "AuthorLimitedPassPendingIndependentReview",
+  "formal_tests": {
+    "path": "evidence/impl/171/limited-09/command.json",
+    "passed": 17,
+    "failed": 0,
+    "ignored": 0
+  },
+  "native": {
+    "suite": 24,
+    "cli_consumer": 4,
+    "note": "CLI repeats the delivered multi-module and failure programs at O0/O2; counts are command observations, not distinct independent safety proofs"
+  },
+  "raw_wire": {
+    "raw_rejections": 9,
+    "wire_rejections": 9
+  },
+  "budget": {
+    "verify_steps_pass": 5337,
+    "verify_steps_resource_limit": 5336,
+    "defaults_changed": false
+  },
+  "compile_observations": {
+    "success_build": 24,
+    "success_verify_original159_probe": 1,
+    "source_rejections": 27
+  },
+  "retained_runs": {
+    "limited-01": {
+      "receipt": "evidence/impl/171/limited-01/command.json",
+      "classification": "11 passed / 2 failed: initial closure Managed-pointee inference and raw revival fixture first hit immutable-store validation",
+      "status": "Fail"
+    },
+    "limited-02": {
+      "receipt": "evidence/impl/171/limited-02/command.json",
+      "classification": "15 passed, before explicit descriptor-capture scan charging",
+      "status": "Pass"
+    },
+    "limited-03": {
+      "receipt": "evidence/impl/171/limited-03/command.json",
+      "classification": "15 passed after budget charging, before newly exposed internal-callback effect case",
+      "status": "Pass"
+    },
+    "callback-probe": {
+      "receipt": "evidence/impl/171/callback-probe/command.json",
+      "classification": "infrastructure/cache E0463; no test executed",
+      "status": "Fail"
+    },
+    "callback-probe-02": {
+      "receipt": "evidence/impl/171/callback-probe-02/command.json",
+      "classification": "0 passed / 1 failed: actual erroneous acceptance of head-free helper internal callback write",
+      "status": "Fail"
+    },
+    "limited-04": {
+      "receipt": "evidence/impl/171/limited-04/command.json",
+      "classification": "Rust compile error passing InstructionKind to local_transfer; no test executed",
+      "status": "Fail"
+    },
+    "limited-05": {
+      "receipt": "evidence/impl/171/limited-05/command.json",
+      "classification": "15 passed / 1 failed: repeated disjoint callback wrongly rejected while internal effect case now rejects",
+      "status": "Fail"
+    },
+    "limited-06": {
+      "receipt": "evidence/impl/171/limited-06/command.json",
+      "classification": "16 passed / 1 failed: mixed Desc plus captured head-field address direct callback was erroneously accepted",
+      "status": "Fail"
+    },
+    "limited-07": {
+      "receipt": "evidence/impl/171/limited-07/command.json",
+      "classification": "infrastructure/cache rlib error; no test executed",
+      "status": "Fail"
+    },
+    "limited-08": {
+      "receipt": "evidence/impl/171/limited-08/command.json",
+      "classification": "16 passed / 1 failed on fresh target: direct mixed callback rejected but helper reborrow still erroneously accepted",
+      "status": "Fail"
+    },
+    "limited-09": {
+      "receipt": "evidence/impl/171/limited-09/command.json",
+      "classification": "17 passed / 0 failed; mixed combination explicitly Unsupported and no-head historical control native passed",
+      "status": "Pass"
+    },
+    "build-cli": {
+      "receipt": "evidence/impl/171/build-cli/command.json",
+      "classification": "build Pass",
+      "status": "Pass"
+    }
+  },
+  "unsupported_boundaries": [
+    "ByteBuffer resource head",
+    "mutable resource head",
+    "Package-field resource head including the 155 private-slot lowering for actually reassigned Managed locals",
+    "Desc to actual head conversion",
+    "head address returns, head-derived address returns from head-parameter functions",
+    "head capture and captured Managed head borrowing",
+    "head function pointers and FFI entry",
+    "mixed Desc and Address capture callbacks in a module containing actual shared resource-head windows: Verify / E-UNSUPPORTED pending per-capture effect contract"
+  ],
+  "unchanged_controls": [
+    "original 159 probe source unchanged",
+    "ordinary Copy address plus Desc closure without resource-head windows",
+    "disjoint Desc-only callback repeated in a shared helper",
+    "unrelated self-contained owning callback",
+    "normal nonshared resource trait receiver boundary",
+    "ordinary Drop calls remain rejected"
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "performance_claim": "None",
+  "default_limits_changed": false,
+  "formal_full_workspace_run_by_author": false
+}

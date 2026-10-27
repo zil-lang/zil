@@ -1,0 +1,11 @@
+{
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+  "clang": "Ubuntu clang version 17.0.6 (++20240501091250+6009708b4367-1~exp1~20240501211359.8)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin\n",
+  "schema": 20,
+  "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "normative_hash": "c358b8c5e0abaf11d81b1d55e23f6896cfb485eb4291f34937fe43e9e7ea319c",
+  "target_dir": "/workspace/scratch/39be3faa4442/targets/171-final-fresh",
+  "cargo_incremental": "0",
+  "jobs": 2
+}

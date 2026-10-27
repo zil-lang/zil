@@ -1,0 +1,27 @@
+[
+  {
+    "path": "evidence/impl/171/exploratory/test-first.log",
+    "sha256": "9aca0c0acf4f2462041707ecab8a9e6d41db9243fcdba11b1c42817cf7b79390",
+    "identity": "exploratory; exact clean commit was not bound by this run, not final acceptance evidence"
+  },
+  {
+    "path": "evidence/impl/171/exploratory/test-second.log",
+    "sha256": "fd32df07591c259d40c73a0ecc1daa9c6872a566a3ff21610195641ac0e605b8",
+    "identity": "exploratory; exact clean commit was not bound by this run, not final acceptance evidence"
+  },
+  {
+    "path": "evidence/impl/171/exploratory/test-third.log",
+    "sha256": "0f30d067782fbf9aed7f36c1c9f455aa51680aa2da5a98e07a07a5b0785f59ea",
+    "identity": "exploratory; exact clean commit was not bound by this run, not final acceptance evidence"
+  },
+  {
+    "path": "evidence/impl/171/exploratory/test-fourth.log",
+    "sha256": "16bf23702756c40a991260095bae06bfdad2b0f2c6034cf0efa20d067e4f7efd",
+    "identity": "exploratory; exact clean commit was not bound by this run, not final acceptance evidence"
+  },
+  {
+    "path": "evidence/impl/171/exploratory/test-fifth.log",
+    "sha256": "31e858ffd0270288424e9aa71e963098e0dfb4667205d3ab60e9002a1b5c5f9a",
+    "identity": "exploratory; exact clean commit was not bound by this run, not final acceptance evidence"
+  }
+]

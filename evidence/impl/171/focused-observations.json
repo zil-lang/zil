@@ -1,0 +1,232 @@
+{
+  "source_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+  "compile_observations": 52,
+  "compile_categories": [
+    {
+      "category": "SafeReject",
+      "phase": "types",
+      "count": 3
+    },
+    {
+      "category": "SafeReject",
+      "phase": "verify",
+      "count": 10
+    },
+    {
+      "category": "Success",
+      "phase": "link",
+      "count": 24
+    },
+    {
+      "category": "Success",
+      "phase": "verify",
+      "count": 1
+    },
+    {
+      "category": "Unsupported",
+      "phase": "types",
+      "count": 12
+    },
+    {
+      "category": "Unsupported",
+      "phase": "verify",
+      "count": 2
+    }
+  ],
+  "native_observations": [
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "case": "resource-heads171-185-1"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": "",
+      "case": "resource-heads171-185-10"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": "",
+      "case": "resource-heads171-185-13"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "case": "resource-heads171-185-16"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 1,
+      "stdout": "A",
+      "stderr": "",
+      "case": "resource-heads171-185-17"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "case": "resource-heads171-185-19"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": "",
+      "case": "resource-heads171-185-22"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "case": "resource-heads171-185-23"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": "",
+      "case": "resource-heads171-185-25"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "case": "resource-heads171-185-26"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": "",
+      "case": "resource-heads171-185-27"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 1,
+      "stdout": "A",
+      "stderr": "",
+      "case": "resource-heads171-185-30"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": "",
+      "case": "resource-heads171-185-33"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": "",
+      "case": "resource-heads171-185-34"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": "",
+      "case": "resource-heads171-185-36"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": "",
+      "case": "resource-heads171-185-50"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": "",
+      "case": "resource-heads171-185-53"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": "",
+      "case": "resource-heads171-185-55"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": "",
+      "case": "resource-heads171-185-56"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": "",
+      "case": "resource-heads171-185-57"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": "",
+      "case": "resource-heads171-185-58"
+    },
+    {
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": "",
+      "case": "resource-heads171-185-59"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "case": "resource-heads171-185-8"
+    },
+    {
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": "",
+      "case": "resource-heads171-185-9"
+    }
+  ],
+  "native_executions": 24,
+  "raw_rejections": 9,
+  "wire_rejections": 9,
+  "budget_observation": [
+    "N=5337: Pass\nN-1=5336: ResourceLimit\n"
+  ],
+  "retained_false_acceptance_inputs": [
+    {
+      "run": "internal-callback-probe-02",
+      "path": "evidence/impl/171/retained-counterexamples/internal-callback-probe-02/resource-heads171-248-0",
+      "reported_status": "Success",
+      "input_fingerprint": "9ba58ad726f9be1d3317ea2480d5bd3104973dc3b894a8578bb67b47c2565c54"
+    },
+    {
+      "run": "native-final-06",
+      "path": "evidence/impl/171/retained-counterexamples/native-final-06/resource-heads171-177-6",
+      "reported_status": "Success",
+      "input_fingerprint": "7cabf6cb17bd7c7f5235a7a8332f4f274042b2ea3a6088f4c7eafddfe52d8143"
+    },
+    {
+      "run": "native-final-08",
+      "path": "evidence/impl/171/retained-counterexamples/native-final-08/resource-heads171-294-11",
+      "reported_status": "Success",
+      "input_fingerprint": "fc87eaf3aee4275a04f8940edcee4558c2cf1da9cbfb13ae606cb112d115142b"
+    }
+  ]
+}
