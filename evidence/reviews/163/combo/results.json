@@ -1,0 +1,325 @@
+[
+  {
+    "name": "nested_borrowed_resource_methods_update_owned_outer",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_borrowed_resource_methods_update_owned_outer/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_borrowed_resource_methods_update_owned_outer/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_borrowed_resource_methods_update_owned_outer/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "*",
+    "pass_result": true
+  },
+  {
+    "name": "nested_borrowed_resource_methods_update_owned_outer",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_borrowed_resource_methods_update_owned_outer/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_borrowed_resource_methods_update_owned_outer/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_borrowed_resource_methods_update_owned_outer/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "*",
+    "pass_result": true
+  },
+  {
+    "name": "three_levels_owned_resource_method_transfer",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/three_levels_owned_resource_method_transfer/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/three_levels_owned_resource_method_transfer/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/three_levels_owned_resource_method_transfer/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "A",
+    "pass_result": true
+  },
+  {
+    "name": "three_levels_owned_resource_method_transfer",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/three_levels_owned_resource_method_transfer/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/three_levels_owned_resource_method_transfer/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/three_levels_owned_resource_method_transfer/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "A",
+    "pass_result": true
+  },
+  {
+    "name": "nested_package_method_consumption_then_outer_refill",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_package_method_consumption_then_outer_refill/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_package_method_consumption_then_outer_refill/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_package_method_consumption_then_outer_refill/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "ABB",
+    "pass_result": true
+  },
+  {
+    "name": "nested_package_method_consumption_then_outer_refill",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_package_method_consumption_then_outer_refill/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_package_method_consumption_then_outer_refill/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_package_method_consumption_then_outer_refill/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "ABB",
+    "pass_result": true
+  },
+  {
+    "name": "inner_package_refill_repeatable_outer_creation_once",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/inner_package_refill_repeatable_outer_creation_once/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/inner_package_refill_repeatable_outer_creation_once/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/inner_package_refill_repeatable_outer_creation_once/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "ABB",
+    "pass_result": true
+  },
+  {
+    "name": "inner_package_refill_repeatable_outer_creation_once",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/inner_package_refill_repeatable_outer_creation_once/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/inner_package_refill_repeatable_outer_creation_once/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/inner_package_refill_repeatable_outer_creation_once/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 0,
+    "stdout": "ABB",
+    "pass_result": true
+  },
+  {
+    "name": "nested_owned_receiver_preparation_error_cleanup",
+    "optimization": "O0",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_owned_receiver_preparation_error_cleanup/main.zil",
+      "--opt",
+      "O0",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_owned_receiver_preparation_error_cleanup/O0",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_owned_receiver_preparation_error_cleanup/O0-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 1,
+    "stdout": "BAC",
+    "pass_result": true
+  },
+  {
+    "name": "nested_owned_receiver_preparation_error_cleanup",
+    "optimization": "O2",
+    "kind": "positive",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "build",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_owned_receiver_preparation_error_cleanup/main.zil",
+      "--opt",
+      "O2",
+      "-o",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_owned_receiver_preparation_error_cleanup/O2",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_owned_receiver_preparation_error_cleanup/O2-phases",
+      "--json"
+    ],
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "verification_runs": 1,
+    "exit_code": 1,
+    "stdout": "BAC",
+    "pass_result": true
+  },
+  {
+    "name": "nested_method_write_cannot_promise_fn",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_method_write_cannot_promise_fn/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_method_write_cannot_promise_fn/phases",
+      "--json"
+    ],
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "opaque callable kind adaptation is not implemented; declared and actual Fn/FnMut/FnOnce kinds must match",
+        "span": {
+          "file": 0,
+          "start": 91,
+          "end": 148
+        },
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  },
+  {
+    "name": "old_descriptor_after_nested_owned_method",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/old_descriptor_after_nested_owned_method/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/old_descriptor_after_nested_owned_method/phases",
+      "--json"
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: head transition invalidates a description required later",
+        "span": null,
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  },
+  {
+    "name": "nested_package_conditional_refill_cannot_promise_fnmut",
+    "kind": "negative",
+    "command": [
+      "/workspace/scratch/39be3faa4442/targets/review163/combo/debug/zil",
+      "check",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_package_conditional_refill_cannot_promise_fnmut/main.zil",
+      "--emit-dir",
+      "/workspace/scratch/39be3faa4442/run-logs/review163/combo/nested_package_conditional_refill_cannot_promise_fnmut/phases",
+      "--json"
+    ],
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "opaque callable kind adaptation is not implemented; declared and actual Fn/FnMut/FnOnce kinds must match",
+        "span": {
+          "file": 0,
+          "start": 131,
+          "end": 233
+        },
+        "notes": []
+      }
+    ],
+    "pass_result": true
+  }
+]

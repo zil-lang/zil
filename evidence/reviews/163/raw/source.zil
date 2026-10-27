@@ -1,0 +1,1 @@
+resource R{n:i32}impl R{fn read(self:Self){};fn finish(give self:Self){}}fn main(){let r=R{n:42};r.read();(give r).finish()}

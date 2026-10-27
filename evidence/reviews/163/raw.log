@@ -1,0 +1,15 @@
+     Locking 7 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review163/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review163/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review163/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review163/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review163/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review163/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review163/crates/zil-expand)
+   Compiling independent-review163 v0.0.0 (/workspace/scratch/39be3faa4442/run-logs/review163/raw)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 19.35s
+     Running `/workspace/scratch/39be3faa4442/targets/review163/debug/independent-review163`
+duplicate-owned-method-call/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-RESOURCE", message: "managed SSA value was not available exactly once", span: Some(Span { file: FileId(0), start: 106, end: 123 }), notes: [] }]
+duplicate-owned-method-call/wire: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-RESOURCE", message: "managed SSA value was not available exactly once", span: Some(Span { file: FileId(0), start: 106, end: 123 }), notes: [] }]
+descriptor-fed-to-owned-method/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CALL", message: "call argument does not match the target parameter type", span: Some(Span { file: FileId(0), start: 97, end: 105 }), notes: [] }]
+descriptor-fed-to-owned-method/wire: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CALL", message: "call argument does not match the target parameter type", span: Some(Span { file: FileId(0), start: 97, end: 105 }), notes: [] }]
