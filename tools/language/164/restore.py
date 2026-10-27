@@ -18,6 +18,12 @@ parser.add_argument("--destination", required=True, type=pathlib.Path)
 args = parser.parse_args()
 manifest_path = args.manifest.resolve()
 manifest = json.loads(manifest_path.read_text())
+source_commit = manifest.get("source_commit", "")
+if (not re.fullmatch(r"[0-9a-f]{40}", source_commit)
+        or not manifest.get("worktrees") or not manifest.get("refs")
+        or manifest["worktrees"].get("main") != source_commit
+        or manifest["refs"].get("refs/heads/main") != source_commit):
+    parser.error("source_commit, main worktree and main ref must name the same nonempty source")
 bundle = manifest_path.parent / manifest["bundle"]["file"]
 destination = args.destination.resolve()
 if destination.exists():
@@ -36,6 +42,8 @@ run("git", "--git-dir", repository, "fsck", "--full")
 refs = subprocess.check_output(["git", "--git-dir", str(repository), "for-each-ref",
                                "--format=%(refname) %(objectname)"], text=True)
 actual_refs = dict(line.split(" ", 1) for line in refs.splitlines())
+if set(actual_refs) != set(manifest["refs"]):
+    raise RuntimeError("restored refs differ from the complete manifest")
 for name, revision in manifest["refs"].items():
     if actual_refs.get(name) != revision:
         raise RuntimeError(f"ref differs: {name}")

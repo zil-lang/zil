@@ -16,6 +16,7 @@ def git(*args):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--out", required=True, type=pathlib.Path)
+parser.add_argument("--require-tests", action="store_true")
 parser.add_argument("command", nargs=argparse.REMAINDER)
 args = parser.parse_args()
 argv = args.command[1:] if args.command[:1] == ["--"] else args.command
@@ -27,6 +28,10 @@ receipt = {"command": argv, "cwd": str(pathlib.Path.cwd()), "source_commit": git
            "start": time.time(), "status": "Running"}
 path = args.out / "command.json"
 path.write_text(json.dumps(receipt, indent=2) + "\n")
+if receipt["source_status"]:
+    receipt.update(status="DirtySources", error="commit crates changes before recording a validation run")
+    path.write_text(json.dumps(receipt, indent=2) + "\n")
+    sys.exit(2)
 try:
     with open(args.out / "output.log", "wb") as log:
         result = subprocess.run(argv, stdout=log, stderr=subprocess.STDOUT)
@@ -39,6 +44,8 @@ try:
     if tests:
         receipt["tests"] = {"passed": sum(t[0] for t in tests), "failed": sum(t[1] for t in tests),
                             "ignored": sum(t[2] for t in tests), "groups": len(tests)}
+    if args.require_tests and (not tests or sum(t[0] for t in tests) == 0 or any(t[1] for t in tests)):
+        receipt.update(status="Fail", error="required test run has no passing tests or contains failures")
     receipt["ending_crates_tree"] = git("rev-parse", "HEAD:crates")
     receipt["ending_source_status"] = git("status", "--porcelain", "--", "crates")
     if receipt["ending_crates_tree"] != receipt["crates_tree"] or receipt["ending_source_status"] != receipt["source_status"]:
