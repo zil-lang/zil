@@ -1,0 +1,28 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--manifest-path",
+    "evidence/reviews/172/probes/Cargo.toml",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads",
+  "source_commit": "48df93b1199b5487693c450a79b12c4f479adf7a",
+  "crates_tree": "118e246b47beb9e027d656a09ebbd411191a0fff",
+  "source_status": "",
+  "start": 1793111859.8082743,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "9d2552d330d8d7ed4bb9c5e3b122f31a9b47a52160737ad19a49bdef674552c9",
+  "end": 1793111861.296654,
+  "seconds": 1.488379716873169,
+  "tests": {
+    "passed": 5,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 2
+  },
+  "ending_crates_tree": "118e246b47beb9e027d656a09ebbd411191a0fff",
+  "ending_source_status": ""
+}

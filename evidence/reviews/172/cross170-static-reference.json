@@ -1,0 +1,93 @@
+{
+  "schema": "zil-cross-slice-static-check-v1",
+  "reviewer": "/root/package_fields",
+  "implementation_author": "/root/dynamic_store",
+  "implementation_commit": "c80cadd52d2ed1e41bfb9d7926411ef2489636cb",
+  "crates_tree": "8c201e15fb91bff9eb3999177468e3fb8773ffbc",
+  "source_status": "",
+  "status": "CompletedStaticCrossCheck",
+  "scope": "172 Store composition with 170 Package array fields and existing arrays, closures, error unions; allowed cleanup dispatch. Read-only static inspection only.",
+  "blocking_findings": [],
+  "confirmed_rejection_chains": [
+    {
+      "boundary": "direct Package Store field",
+      "source": "aggregates::field_type rejects dynamic_store::is_carrier after type resolution; packages::supported and leaf_package explicitly exclude the carrier",
+      "raw": "packages::check_package_type tests every field before generic Managed resource admission"
+    },
+    {
+      "boundary": "fixed owning-array leaf and 170 State owning-array leaf",
+      "source": "packages::array_field_supported delegates to Store-excluding leaf_package; Analyze finite Package helper admits only ByteBuffer or finite Copy user Record Managed fields",
+      "raw": "resources::arrays::check_type_for and nested packages::check_package_type independently recurse into the same Store exclusion"
+    },
+    {
+      "boundary": "error union payload",
+      "source": "errors::supported accepts Copy or packages::supported only",
+      "raw": "errors::check_type_for delegates Package payloads to packages checker; direct Managed/Desc Store fails Copy check_type"
+    },
+    {
+      "boundary": "closure and closure array",
+      "source": "closure capture admission explicitly rejects direct Store; Package capture shape remains independently restricted",
+      "raw": "global closures checker rejects direct Store; Package uses check_local_type/packages; child closure definitions are each independently admitted; owning closure array calls self_contained"
+    },
+    {
+      "boundary": "Store element owning-array State or nested Store",
+      "source": "dynamic_store::supported_element deliberately uses a direct-Managed + Copy predicate rather than widening packages::supported",
+      "raw": "dynamic_store::check_element repeats exact leaf field check plus packages definition admission and nonzero/x64 layout check"
+    }
+  ],
+  "cleanup_inspection": [
+    "DropManaged clears the local live flag before dispatching the exact dynamic_store drop helper.",
+    "Store drop snapshots ptr/len, writes len=0 before element teardown, visits prefix slots in ascending index and Managed fields in declaration order, then calls bytes.release exactly once.",
+    "Within allowed elements, ByteBuffer fields dispatch zil.bytes.drop and finite user resources dispatch their checked teardown; unsupported Store, owning-array State and closure elements cannot reach this loop.",
+    "Push commits a complete element to an initialized slot before increasing len; on full it returns the original owning Package as error payload. Pop reduces len before loading the returned element, so stale tail memory has no obligation.",
+    "The ordinary 166/170 error cleanup continues through packages::teardown_paths, so allowed returned push/pop Package fields and nested-170 error payloads keep the existing checked recursive cleanup.",
+    "Store causes allocator runtime declarations to be emitted even if no ByteBuffer definition exists. Store helper and existing byte runtime reserve names avoid silently replacing foreign ABI.",
+    "Independent Store inline layout matches LLVM enum/record/tuple/array/error representation conventions; reserve uses actual LLVM stride and rejects negative/overflow request before allocation or head mutation."
+  ],
+  "nonblocking_findings": [
+    {
+      "id": "S172-1",
+      "classification": "unreachable-late-classifier-drift",
+      "summary": "Backend Package supported_type still structurally includes Managed<OwnedStore>, while complete Package teardown_paths would obtain teardown=None and omit Store destruction. Lower/LLVM closure resource clauses also structurally include Store captures.",
+      "why_not_current_exploit": "Types/Analyze/independent Verify reject these compositions; Lower receives immutable VerifiedModule and LLVM bind_lir checks complete functions, resources and closures equality against it. Current valid input cannot reach these cleanup shapes.",
+      "recommendation": "Keep downstream representation predicates closed for this profile and explicitly Unsupported on Store encountered in Package/closure teardown. Parent already forwarded to implementation author."
+    }
+  ],
+  "test_source_observations": [
+    "c80cadd contains raw+wire precise-message regression coverage for direct fields, arrays, nested State leaves, error payload Package Store field, direct capture and Package capture, plus sealed ReadDesc and copying Load rejection.",
+    "source_neighbours_preserve_transfer_and_nested_composition_boundaries has 13 source negatives but asserts only broad SafeReject|Unsupported; formal independent reviewer should assert decisive phase/message for chosen nearest counterexamples."
+  ],
+  "execution": {
+    "tests_run": false,
+    "builds_run": false,
+    "production_files_modified": false
+  },
+  "not_claimed": [
+    "formal independent 172 approval",
+    "171 correctness or public Wire stack fix",
+    "dynamic native allocation balance beyond inspection",
+    "whole-language or ZUI readiness"
+  ],
+  "files": {
+    "crates/zil-types/src/aggregates.rs": "b1cb20ce6d9cd64f4f8e12eea85cf18c6d256873d6ffd00ac57c47c9dca5ee4c",
+    "crates/zil-types/src/packages.rs": "f95842c118dfd2ed00609b3a90b8970c66955d2a2e1e8fb1decd7a16fa8bce8c",
+    "crates/zil-types/src/closures.rs": "7d01c2b1b3910f2d1febb63460f38b29c2046f7b0b35d82c2cb3d340fad6b13f",
+    "crates/zil-types/src/errors.rs": "7936f2f4b28dbdd2d55e417e68140ed16c77ec07a59eb818f82994a8c254c828",
+    "crates/zil-analyze/src/budget.rs": "bf380c7eabf4a762afe13e648ddd8620fd941eccb45feb7b4fb7a4003913e0ca",
+    "crates/zil-verify/src/packages.rs": "208eb2713c721375f048e019603c3a63252955fda5840408e9518a5039e90968",
+    "crates/zil-verify/src/resources/arrays.rs": "0b8506a59e576f2327351c7ec7ab92f76adec4bac6cd2c23556b0d50709d34c4",
+    "crates/zil-verify/src/errors.rs": "f4c113617b9780a9393f519290d1b49266c60d606e6b07ba6d609d8bfdf62fab",
+    "crates/zil-verify/src/closures.rs": "f180ae2c0fe493aa5d578135fcf98a7b77f36b5e0fd81a18158d3dfa1340e059",
+    "crates/zil-verify/src/dynamic_store.rs": "9914ab809f31300fcb0372f54b62be896f52079bde8fd107589f5c6d87f6223f",
+    "crates/zil-lower/src/lib.rs": "788d2250d715e8adc8eaabf00789c8271f2e24c61f96ed0604554c7b4168b18b",
+    "crates/zil-backend-llvm/src/emit.rs": "f5cca2fc6b61bc80753f88c02114d0443aa2bacfb0c69be355efec596d729c2f",
+    "crates/zil-backend-llvm/src/emit/packages.rs": "e4f985b4a3e7f3c7cb9918ae3795025e9e158b4d038cf51b1cbe810fbf6d77d4",
+    "crates/zil-backend-llvm/src/emit/errors.rs": "04d5b37f437a86e2fbe683a95b703e1393a0773c517a4afc4db9b7a8f2b64cf0",
+    "crates/zil-backend-llvm/src/emit/resources.rs": "ffd49f2a61fe2daf9a2c52677dfeb1b4a9cd0dea48ef4924fcf203e63051ec52",
+    "crates/zil-backend-llvm/src/emit/resource_closures.rs": "8bc0efa91b6a377597639798197aa7aa849c281e0c1ce03720cda7be9770119b",
+    "crates/zil-backend-llvm/src/emit/dynamic_store.rs": "246f2dcd560f781d5e36bf47ed1f15c0ba8fa8088de20d0dca6ef4652fea2038",
+    "crates/zil-backend-llvm/src/emit/byte_buffer.rs": "afc95e6c656aa33ca9ea468fe4c2c1488c466e663a4d73832a0a877f98a28093",
+    "crates/zil-backend-llvm/src/emit/enums.rs": "21e03f9c69ddd85777f97849852ef8375d87fc7163943ff4691d49d5e0aa7a54",
+    "crates/zil-driver/tests/impl172_owned_store.rs": "29ec5cbbdb25de8f33b26a47d28c7131e00e34ddaf7d29dbc3521a97e3bc4d76"
+  }
+}

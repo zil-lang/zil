@@ -1,0 +1,29 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--manifest-path",
+    "evidence/reviews/172/probes/Cargo.toml",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review172-resourceheads",
+  "source_commit": "290414c90cc17e27e23988839c41476c29f1a8bb",
+  "crates_tree": "118e246b47beb9e027d656a09ebbd411191a0fff",
+  "source_status": "",
+  "start": 1793111807.6382077,
+  "status": "Fail",
+  "exit_code": 101,
+  "log_sha256": "c7c8f2e0f6e5ea0d6a73cd7d884d2f97e9ab5ea01e28a74202a481203a201bde",
+  "end": 1793111826.2308228,
+  "seconds": 18.592615127563477,
+  "tests": {
+    "passed": 2,
+    "failed": 3,
+    "ignored": 0,
+    "groups": 1
+  },
+  "error": "required test run has no passing tests or contains failures",
+  "ending_crates_tree": "118e246b47beb9e027d656a09ebbd411191a0fff",
+  "ending_source_status": ""
+}

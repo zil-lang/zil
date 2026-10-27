@@ -1,0 +1,1 @@
+stale-store-desc-after-drop
