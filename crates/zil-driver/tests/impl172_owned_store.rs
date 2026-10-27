@@ -209,7 +209,9 @@ fn source_guards_reject_missing_context_store_fields_and_capture() {
   ("resource Z{} package Empty{manages z:Z} fn main()->i32{let s:Store<Empty>=store_new();return 0}".into(),ResultCategory::Unsupported,"nonzero complete direct-Managed"),
   ("fn main()->i32{let s:Store<i32>=store_new();return 0}".into(),ResultCategory::Unsupported,"nonzero complete direct-Managed"),
  ] {
-  let result=check(&source);assert_eq!(result.status,category,"{}",result.to_json());assert!(result.diagnostics.iter().any(|d|d.message.contains(needle)),"{}",result.to_json());
+  let result=check(&source);assert_eq!(result.status,category,"{}",result.to_json());
+  let code=if category==ResultCategory::SafeReject {"E-OWNED-STORE-TYPE"} else {"E-UNSUPPORTED"};
+  assert!(result.diagnostics.iter().any(|d|d.phase==zil_base::Phase::Types && d.code==code && d.message.contains(needle)),"{}",result.to_json());
  }
 }
 
@@ -567,13 +569,47 @@ fn source_neighbours_preserve_transfer_and_nested_composition_boundaries() {
         format!("{PACKAGE} fn main()->i32{{let store_push=1;return store_push}}"),
         format!("{PACKAGE} fn main()->i32{{let s:Store<Store<P>>=store_new();return 0}}"),
     ];
-    for source in sources {
+    use zil_base::Phase;
+    let expected = [
+        (Phase::Analyze, "E-UNINITIALIZED", "not initialized"),
+        (Phase::Types, "E-GIVE-DESCRIPTOR", "does not own"),
+        (Phase::Analyze, "E-UNINITIALIZED", "not initialized"),
+        (Phase::Types, "E-TYPE-MISMATCH", "found Package"),
+        (Phase::Types, "E-UNSUPPORTED", "address"),
+        (Phase::Types, "E-UNSUPPORTED", "address"),
+        (Phase::Types, "E-FIELD-TYPE", "field access requires"),
+        (
+            Phase::Types,
+            "E-UNSUPPORTED",
+            "nonzero complete direct-Managed",
+        ),
+        (Phase::Types, "E-UNSUPPORTED", "Store fields require"),
+        (
+            Phase::Types,
+            "E-UNSUPPORTED",
+            "error union payloads require",
+        ),
+        (Phase::Types, "E-UNSUPPORTED", "Store capture requires"),
+        (Phase::Types, "E-OWNED-STORE-NAME", "cannot be rebound"),
+        (
+            Phase::Types,
+            "E-UNSUPPORTED",
+            "nonzero complete direct-Managed",
+        ),
+    ];
+    for (source, (phase, code, message)) in sources.into_iter().zip(expected) {
         let report = check(&source);
+        let category = if code == "E-UNSUPPORTED" {
+            ResultCategory::Unsupported
+        } else {
+            ResultCategory::SafeReject
+        };
+        assert_eq!(report.status, category, "{}", report.to_json());
         assert!(
-            matches!(
-                report.status,
-                ResultCategory::SafeReject | ResultCategory::Unsupported
-            ),
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.phase == phase && d.code == code && d.message.contains(message)),
             "{}",
             report.to_json()
         );
@@ -812,5 +848,47 @@ fn raw_wire_actual_inline_size_product_is_bounded() {
         plan,
         "E-RESOURCE-LIMIT",
         "owned Store element layout exceeds target address range",
+    );
+}
+
+#[test]
+fn raw_wire_store_is_not_byte_storage_and_pop_result_keeps_cleanup_debt() {
+    use zil_ir::InstructionKind as I;
+    let source = format!(
+        "{PACKAGE} fn main()->i32{{let s=empty();store_reserve(s,1);store_pop(s);return 0}}"
+    );
+    let (original, plan) = candidate(&source);
+    let reserve = locate(&original, |_, i| {
+        matches!(i.kind, I::OwnedStoreReserve { .. })
+    });
+    let mut mutated = original.clone();
+    let I::OwnedStoreReserve { store, capacity } =
+        mutated.functions[reserve.0].blocks[reserve.1].instructions[reserve.2].kind
+    else {
+        unreachable!()
+    };
+    mutated.functions[reserve.0].blocks[reserve.1].instructions[reserve.2].kind =
+        I::ByteBufferReserve {
+            buffer: store,
+            capacity,
+        };
+    reject_candidate(
+        "store-is-not-byte-storage",
+        mutated,
+        plan.clone(),
+        "E-VERIFY-BYTE-BUFFER",
+        "requires a real ByteBuffer description",
+    );
+    let mut mutated = original;
+    let drop = locate(&mutated, |_, i| matches!(i.kind, I::DropErrorUnion { .. }));
+    mutated.functions[drop.0].blocks[drop.1]
+        .instructions
+        .remove(drop.2);
+    reject_candidate(
+        "missing-pop-result-cleanup",
+        mutated,
+        plan,
+        "E-VERIFY-RESOURCE",
+        "outstanding",
     );
 }
