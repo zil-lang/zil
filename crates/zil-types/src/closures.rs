@@ -220,6 +220,12 @@ impl State {
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         for capture in &checker.captures {
+            if packages::owned_array_supported(&capture.stored_type()) {
+                return Err(unsupported(
+                    capture.span,
+                    "owned array capture requires a separate retained array protocol",
+                ));
+            }
             if matches!(capture.stored_type(), Type::Desc(inner) if *inner == Type::ByteBuffer) {
                 return Err(unsupported(
                     capture.span,
@@ -518,6 +524,7 @@ impl Graph {
             ty if *ty == Type::ByteBuffer
                 || ty.is_copy_value()
                 || packages::supported(ty)
+                || packages::owned_array_supported(ty)
                 || matches!(ty, Type::Slice { element } if element.is_copy_value()) =>
             {
                 AGGREGATE

@@ -10,6 +10,7 @@ mod summary_graph;
 enum Place {
     Local(LocalId),
     PackageField { local: LocalId, index: u32 },
+    ArrayElement { local: LocalId, index: u32 },
     Value(ValueId),
     Capture(u32),
     CaptureField { capture: u32, index: u32 },
@@ -19,6 +20,7 @@ enum Source {
     Head(LocalId),
     PackageField { local: LocalId, index: u32 },
     OwnedPackageField { local: LocalId, index: u32 },
+    ArrayElement { local: LocalId, index: u32 },
     OwnedField(u32),
     Argument(u32),
     BorrowedField(u32),
@@ -143,6 +145,14 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             owned: true,
             description: false,
         },
+        Type::Array { element, length }
+            if *length > 0 && matches!(element.as_ref(), Type::Package { .. }) =>
+        {
+            Shape {
+                owned: true,
+                description: false,
+            }
+        }
         Type::Desc(_) => Shape {
             owned: false,
             description: true,
@@ -213,6 +223,26 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
                 }
             }
         }
+        if let (Place::Local(local), Type::Array { element, length }) = (place, ty)
+            && let Type::Package { fields, .. } = element.as_ref()
+        {
+            budget.product(
+                *length as usize,
+                fields.len().saturating_add(1),
+                1,
+                "owning array element shapes",
+            )?;
+            for index in 0..*length {
+                budget.lookup(result.len(), "owning array element shape insertion")?;
+                result.insert(
+                    Place::ArrayElement { local, index },
+                    Shape {
+                        owned: true,
+                        description: false,
+                    },
+                );
+            }
+        }
     }
     if let Some(id) = f.environment {
         let c = module
@@ -258,6 +288,7 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
         InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
         | InstructionKind::StorePackageField { value, .. }
+        | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => (Some(*value), None, &[]),
         InstructionKind::Call { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
@@ -274,6 +305,7 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
         | InstructionKind::MakePackage { fields }
         | InstructionKind::MakeAggregate { fields }
         | InstructionKind::MakeVariant { fields, .. } => (None, None, fields),
+        InstructionKind::MakeOwnedArray { elements } => (None, None, elements),
         InstructionKind::ReadDesc { desc, .. } => (Some(*desc), None, &[]),
         InstructionKind::ByteBufferLen { buffer }
         | InstructionKind::ByteBufferCapacity { buffer }
@@ -326,6 +358,11 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
         | InstructionKind::DescribePackageField { .. }
         | InstructionKind::TakePackageField { .. }
         | InstructionKind::DropPackageField { .. }
+        | InstructionKind::ProjectOwnedArrayField { .. }
+        | InstructionKind::TakeOwnedArrayElement { .. }
+        | InstructionKind::DropOwnedArrayElement { .. }
+        | InstructionKind::DropOwnedArray { .. }
+        | InstructionKind::BorrowOwnedArrayElement { .. }
         | InstructionKind::DescribeCapture { .. }
         | InstructionKind::TakeCapture { .. }
         | InstructionKind::ReadCapture { .. }
@@ -484,6 +521,20 @@ fn live_sources(state: &State, fact: &Fact, budget: &mut Budget) -> CompileResul
                 })
             }
             Source::OwnedField(i) => Some(Place::Capture(*i)),
+            Source::ArrayElement { local, index } => {
+                if !exact(
+                    &copied(state, Place::Local(*local), budget)?,
+                    Life::Available,
+                ) {
+                    return Err(error(
+                        "description may refer to a moved or cleaned array shell",
+                    ));
+                }
+                Some(Place::ArrayElement {
+                    local: *local,
+                    index: *index,
+                })
+            }
             _ => None,
         };
         if let Some(place) = place
@@ -506,7 +557,7 @@ fn no_later_use(
         if fact.sources.iter().any(|actual| {
             *actual == source
                 || matches!((source, actual),
-                (Source::Head(owner), Source::PackageField { local, .. } | Source::OwnedPackageField { local, .. }) if owner == *local)
+                (Source::Head(owner), Source::PackageField { local, .. } | Source::OwnedPackageField { local, .. } | Source::ArrayElement { local, .. }) if owner == *local)
         }) {
             return Err(error(
                 "head transition invalidates a description required later",
@@ -521,8 +572,8 @@ fn forget_order(state: &mut State, local: LocalId, budget: &mut Budget) -> Compi
     Ok(())
 }
 
-// Only local Package slots can be partial. Every SSA carrier and function ABI
-// value remains complete, so whole movement checks all fields before transfer.
+// Only local aggregate slots can be partial. Every SSA carrier and function ABI
+// value remains complete, so whole movement checks every responsibility slot.
 fn package_transition(
     f: &TypedFunction,
     state: &mut State,
@@ -531,24 +582,37 @@ fn package_transition(
     check: bool,
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    let Some(Type::Package { fields, .. }) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
-        return Ok(());
-    };
-    budget.spend(fields.len(), "package field lifecycle")?;
-    for (index, (_, ty)) in fields.iter().enumerate() {
-        if !matches!(ty, Type::Managed(_)) {
-            continue;
+    let (fields, count) = match f.locals.get(local.0 as usize).map(|l| &l.ty) {
+        Some(Type::Package { fields, .. }) => (Some(fields), fields.len()),
+        Some(Type::Array { element, length })
+            if matches!(element.as_ref(), Type::Package { .. }) =>
+        {
+            (None, *length as usize)
         }
-        let place = Place::PackageField {
-            local,
-            index: index as u32,
+        _ => return Ok(()),
+    };
+    budget.spend(count, "owned aggregate slot lifecycle")?;
+    for index in 0..count {
+        let place = if let Some(fields) = fields {
+            if !matches!(fields[index].1, Type::Managed(_)) {
+                continue;
+            }
+            Place::PackageField {
+                local,
+                index: index as u32,
+            }
+        } else {
+            Place::ArrayElement {
+                local,
+                index: index as u32,
+            }
         };
         let mut fact = copied(state, place, budget)?;
         match life {
             Life::Transferred => {
                 if check && !exact(&fact, Life::Available) {
                     return Err(error(
-                        "whole package move requires every Managed field live",
+                        "whole aggregate move requires every owned element or field live",
                     ));
                 }
                 fact.life = BTreeSet::from([Life::Transferred]);
@@ -898,6 +962,184 @@ impl Flow<'_> {
                         sources: BTreeSet::new(),
                     });
                 }
+                InstructionKind::MakeOwnedArray { elements } => {
+                    let Some(Type::Array { element, length }) =
+                        i.result.and_then(|v| f.values.get(v.0 as usize))
+                    else {
+                        return Err(error("owning array construction requires an array result"));
+                    };
+                    if *length == 0
+                        || !matches!(element.as_ref(), Type::Package { .. })
+                        || elements.len() != *length as usize
+                    {
+                        return Err(error(
+                            "owning array construction requires every Package element",
+                        ));
+                    }
+                    budget.spend(elements.len(), "owning array assembly elements")?;
+                    for value in elements {
+                        budget.type_work(element, false, "owning array element type comparison")?;
+                        if f.values.get(value.0 as usize) != Some(element.as_ref()) {
+                            return Err(error("owning array element type mismatch"));
+                        }
+                        self.consume(state, *value, check, budget)?;
+                    }
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Incoming]),
+                        sources: BTreeSet::new(),
+                    });
+                }
+                InstructionKind::ProjectOwnedArrayField { local, index, .. }
+                | InstructionKind::TakeOwnedArrayElement { local, index }
+                | InstructionKind::DropOwnedArrayElement { local, index }
+                | InstructionKind::StoreOwnedArrayElement { local, index, .. } => {
+                    let Some(decl) = f.locals.get(local.0 as usize) else {
+                        return Err(error("owning array operation requires a declared local"));
+                    };
+                    let Type::Array { element, length } = &decl.ty else {
+                        return Err(error(
+                            "owning array element operation requires an array local",
+                        ));
+                    };
+                    let Type::Package { fields, .. } = element.as_ref() else {
+                        return Err(error("owning array element requires a Package"));
+                    };
+                    if *index >= *length {
+                        return Err(error(
+                            "owning array element index is outside the fixed length",
+                        ));
+                    }
+                    if check
+                        && !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error(
+                            "owning array element operation requires a live shell",
+                        ));
+                    }
+                    let place = Place::ArrayElement {
+                        local: *local,
+                        index: *index,
+                    };
+                    let mut fact = copied(state, place, budget)?;
+                    let result = i.result.and_then(|v| f.values.get(v.0 as usize));
+                    match i.kind {
+                        InstructionKind::ProjectOwnedArrayField { field, .. } => {
+                            let Some((_, ty)) = fields.get(field as usize) else {
+                                return Err(error(
+                                    "owning array Package field is outside its declaration",
+                                ));
+                            };
+                            budget.type_work(ty, true, "owning array field projection type")?;
+                            let expected = match ty {
+                                Type::Managed(payload) => Type::Desc(payload.clone()),
+                                ty if ty.is_copy_value() => ty.clone(),
+                                _ => {
+                                    return Err(error(
+                                        "owning array projection requires Copy or Managed field",
+                                    ));
+                                }
+                            };
+                            if result != Some(&expected) {
+                                return Err(error("owning array projection result type mismatch"));
+                            }
+                            if check && !exact(&fact, Life::Available) {
+                                return Err(error(
+                                    "owning array field projection requires a live element",
+                                ));
+                            }
+                            if matches!(ty, Type::Managed(_)) {
+                                produced = Some(Fact {
+                                    sources: BTreeSet::from([Source::ArrayElement {
+                                        local: *local,
+                                        index: *index,
+                                    }]),
+                                    ..Fact::default()
+                                });
+                            }
+                        }
+                        InstructionKind::TakeOwnedArrayElement { .. } => {
+                            budget.type_work(element, false, "owning array take type")?;
+                            if result != Some(element.as_ref()) {
+                                return Err(error(
+                                    "owning array take requires its matching Package result",
+                                ));
+                            }
+                            if check {
+                                if !exact(&fact, Life::Available) {
+                                    return Err(error(
+                                        "owning array take requires a live element on every path",
+                                    ));
+                                }
+                                no_later_use(
+                                    state,
+                                    &self.after[b][position],
+                                    Source::ArrayElement {
+                                        local: *local,
+                                        index: *index,
+                                    },
+                                    budget,
+                                )?;
+                            }
+                            produced = Some(fact.clone());
+                            fact.life = BTreeSet::from([Life::Transferred]);
+                        }
+                        InstructionKind::DropOwnedArrayElement { .. } => {
+                            if i.result.is_some() {
+                                return Err(error("owning array element cleanup has no result"));
+                            }
+                            if check {
+                                no_later_use(
+                                    state,
+                                    &self.after[b][position],
+                                    Source::ArrayElement {
+                                        local: *local,
+                                        index: *index,
+                                    },
+                                    budget,
+                                )?;
+                            }
+                            if fact.life.remove(&Life::Available) {
+                                fact.life.insert(Life::Cleaned);
+                            }
+                        }
+                        InstructionKind::StoreOwnedArrayElement { value, .. } => {
+                            budget.type_work(element, false, "owning array store type")?;
+                            if !decl.mutable
+                                || i.result.is_some()
+                                || f.values.get(value.0 as usize) != Some(element.as_ref())
+                            {
+                                return Err(error(
+                                    "owning array store requires a mutable shell and matching complete element",
+                                ));
+                            }
+                            if check {
+                                if fact.life.contains(&Life::Available) {
+                                    return Err(error(
+                                        "owning array store overwrites an unpaid element",
+                                    ));
+                                }
+                                no_later_use(
+                                    state,
+                                    &self.after[b][position],
+                                    Source::ArrayElement {
+                                        local: *local,
+                                        index: *index,
+                                    },
+                                    budget,
+                                )?;
+                            }
+                            self.consume(state, value, check, budget)?;
+                            fact.life = BTreeSet::from([Life::Available]);
+                            fact.birth = BTreeSet::from([Birth::Incoming]);
+                        }
+                        _ => unreachable!("owning array element operation"),
+                    }
+                    replace(state, place, fact, budget)?;
+                }
                 InstructionKind::ReadPackageField { local, index }
                 | InstructionKind::DescribePackageField { local, index }
                 | InstructionKind::TakePackageField { local, index }
@@ -1245,6 +1487,7 @@ impl Flow<'_> {
                 InstructionKind::DropManaged { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropErrorUnion { local }
+                | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::DropClosure { local } => {
                     if matches!(i.kind, InstructionKind::DropErrorUnion { .. })
                         && !f
@@ -1261,6 +1504,15 @@ impl Flow<'_> {
                         )
                     {
                         return Err(error("DropPackage requires a package local"));
+                    }
+                    if matches!(i.kind, InstructionKind::DropOwnedArray { .. })
+                        && !matches!(
+                            f.locals.get(local.0 as usize).map(|l| &l.ty),
+                            Some(Type::Array { element, length })
+                                if *length > 0 && matches!(element.as_ref(), Type::Package { .. })
+                        )
+                    {
+                        return Err(error("DropOwnedArray requires a finite owning array local"));
                     }
                     let mut fact = copied(state, Place::Local(*local), budget)?;
                     if check {

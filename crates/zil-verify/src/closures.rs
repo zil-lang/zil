@@ -58,6 +58,12 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            if resources::arrays::is_owned_type(ty) {
+                return Err(unsupported(
+                    "owned array capture requires a separate retained array protocol",
+                    None,
+                ));
+            }
             if errors::owned(ty) {
                 return Err(unsupported(
                     "owning error-union captures are outside the finite closure profile",

@@ -61,6 +61,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
             || resource_type(&function.return_type, &module.resources)
             || package_type(&function.return_type, &module.resources)
             || error_type(&function.return_type, &module.resources)
+            || owned_array_type(&function.return_type, &module.resources)
             || (matches!(function.return_type, Type::Closure(_))
                 && function.callable_return_contract.is_some()))
             || function.parameters.iter().any(|id| {
@@ -70,6 +71,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                     || resource_type(ty, &module.resources)
                     || package_type(ty, &module.resources)
                     || error_type(ty, &module.resources)
+                    || owned_array_type(ty, &module.resources)
                     || callable_parameter_type(ty, &module.closures))
             })
         {
@@ -92,6 +94,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                 && !resource_type(ty, &module.resources)
                 && !package_type(ty, &module.resources)
                 && !error_type(ty, &module.resources)
+                && !owned_array_type(ty, &module.resources)
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Lower,
@@ -144,6 +147,11 @@ fn error_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if (error.is_copy_value() || package_type(error, resources))
             && (result.is_copy_value() || package_type(result, resources)))
+}
+
+fn owned_array_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    matches!(ty, Type::Array { element, length }
+        if *length > 0 && package_type(element, resources))
 }
 
 /// The B0 ABI uses no storage for unit and natural scalar size/alignment. This

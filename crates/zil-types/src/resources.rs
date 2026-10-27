@@ -52,6 +52,7 @@ impl Builder<'_, '_> {
     pub(super) fn has_cleanup(&self, ty: &Type) -> bool {
         matches!(ty, Type::Managed(_) | Type::Package { .. })
             || errors::owned(ty)
+            || packages::owned_array_supported(ty)
             || self.owned_closure(ty)
     }
     pub(super) fn drop_owned_local(&mut self, local: LocalId, span: Span) -> R<()> {
@@ -62,6 +63,8 @@ impl Builder<'_, '_> {
             Some(InstructionKind::DropPackage { local })
         } else if errors::owned(ty) {
             Some(InstructionKind::DropErrorUnion { local })
+        } else if packages::owned_array_supported(ty) {
+            Some(InstructionKind::DropOwnedArray { local })
         } else if self.owned_closure(ty) {
             Some(InstructionKind::DropClosure { local })
         } else {
@@ -194,6 +197,7 @@ impl Builder<'_, '_> {
             self.resource_descriptor(value, ty, span)?;
         } else if matches!(ty, Type::Package { .. })
             || errors::owned(&ty)
+            || packages::owned_array_supported(&ty)
             || self.owned_closure(&ty)
         {
             let local = self.temp(ty, span)?;
