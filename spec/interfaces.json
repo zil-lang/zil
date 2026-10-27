@@ -850,11 +850,20 @@
         "74": "TakeOwnedArrayElement { local: LocalId, index: u32 }",
         "75": "DropOwnedArrayElement { local: LocalId, index: u32 }",
         "76": "StoreOwnedArrayElement { local: LocalId, index: u32, value: ValueId }",
-        "77": "DropOwnedArray { local: LocalId }"
+        "77": "DropOwnedArray { local: LocalId }",
+        "79": "BorrowOwnedArrayElement { local: LocalId, index: u32, mutable: bool }"
       },
-      "shape": "First supported profile: nonempty same-type finite Package elements. Complete SSA/parameters/results; local per-element partial state, static literal indices. Raw index/type/length/metadata and actual work are independently checked and budgeted.",
-      "projection": "Copy field value or Managed field Desc rooted in real carrier; ordinary load cannot copy owning arrays. Active shared/mutable windows conflict with corresponding element/whole transfer, cleanup or overwrite.",
+      "shape": "Finite nonempty homogeneous arrays of complete direct-Managed Packages or one concrete ClosureId; source opaque factory identity is preserved. Complete SSA/parameters/results; local per-element partial state, static literal indices. Raw index/type/length/metadata and actual work are independently checked and budgeted. Registration does not replace implementation and native receipts.",
+      "projection": "Copy field value or Managed field Desc rooted in real carrier; ordinary load cannot copy owning arrays. Active shared/mutable windows conflict with corresponding element/whole transfer, cleanup or overwrite. Concrete Closure elements may be borrowed at their actual static slot as Address<Closure>; mutable borrowing requires mutable storage. Actual carrier roots forbid conflicting element/whole transfer, cleanup or replacement while the borrow is active.",
       "cleanup": "Fully prepare new elements before publication; preparation failure settles only acquired owners in reverse order. Complete array cleanup uses increasing indices and existing Package field order. No dynamic allocator or direct resource element mode is inferred."
+    },
+    "retained_closure19": {
+      "operations": {
+        "78": "BorrowCapture { index: u32, mutable: bool }"
+      },
+      "identity": "A source opaque factory has one inference identity per resolved signature. Distinct factory declarations and distinct closure expressions do not implicitly become source-assignment-compatible. Concrete factory forwarding may retain the actual hidden ClosureId; no retagging or implicit box is introduced.",
+      "capture": "A concrete self-contained Closure may be captured by move. BorrowCapture yields Address<Closure> rooted at the actual current environment capture; it transfers no responsibility. Fn cannot request mutable capture borrowing. TakeCapture transfers an owned inner closure only from FnOnce. Nested cleanup settles each live flag before descending.",
+      "boundary": "Verify independently reconstructs capture types, actual roots, call permissions, cleanup responsibility, finite acyclic layout and work/depth budgets. No dynamically heterogeneous callback collection, hidden heap/RC, borrowed escaping capture, CT or FFI admission."
     }
   }
 }
