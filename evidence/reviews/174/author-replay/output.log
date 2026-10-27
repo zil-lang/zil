@@ -1,0 +1,32 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-backend-llvm)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 17.36s
+     Running tests/impl174_store_fields.rs (/workspace/scratch/39be3faa4442/targets/review174-root/debug/deps/impl174_store_fields-8eef8171035c8a9f)
+
+running 13 tests
+test complete_store_fields_construct_move_and_drop_prefix_in_field_order ... ok
+test raw_wire_reconstruct_sealed_store_definition_even_for_state_only_signature ... ok
+test raw_wire_reject_double_take_unpaid_replace_and_wrong_field_projection ... ok
+test raw_wire_store_bearing_capture_remains_closed ... ok
+test replacing_store_field_drops_old_prefix_before_new_publication ... ok
+test sealed_definitions_are_discovered_from_state_only_signatures ... ok
+test cross_module_state_owns_runtime_replacement_and_partial_exit ... ok
+test source_rejects_borrowed_store_fields_and_unsupported_nested_storage ... ok
+test store_field_raw_and_wire_budget_has_an_exact_boundary ... ok
+test source_rejects_missing_field_double_take_and_old_description_retargeting ... ok
+test taken_store_field_early_error_cleans_only_live_shell_fields ... ok
+test whole_field_take_refill_and_state_transfer_have_one_responsibility ... ok
+test store_state_in_owned_error_and_fixed_array_recursively_cleans_prefix ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.72s
+
