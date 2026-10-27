@@ -116,7 +116,24 @@ def main():
                                                    "stdout": observed.stdout.decode(), "allocation": allocation,
                                                    "llvm_sha256": digest(phases / "llvm.ll")})
                     save(out / "summary.json", report)
-        report.update(status="Pass", ordinary_executions=len(selected) * 2, instrumented_executions=len(selected) * 4,
+                if name == "main":
+                    # The old element has been taken and the array contains a
+                    # hole when preparing the replacement's owned error result.
+                    observed = command([probe], directory / "allocation-failure-4",
+                                       {"ZIL_TEST_FAIL_AT": "4"})
+                    native_result(observed, b"ACAB", 1)
+                    allocation = json.loads(observed.stderr)
+                    if (allocation["allocated"] != 3 or allocation["frees"] != 3
+                            or allocation["failures"] != 1 or allocation["live"] != 0):
+                        raise RuntimeError(f"{name} {opt}: failed hole refill cleanup: {allocation}")
+                    report["observations"].append({"case": name, "optimization": opt,
+                                                   "allocation_failure": True, "failure_index": 4,
+                                                   "exit_code": observed.returncode,
+                                                   "stdout": observed.stdout.decode(), "allocation": allocation,
+                                                   "llvm_sha256": digest(phases / "llvm.ll")})
+                    save(out / "summary.json", report)
+        report.update(status="Pass", ordinary_executions=len(selected) * 2,
+                      instrumented_executions=len(selected) * 4 + selected.count("main") * 2,
                       scope="Finite owned result/array/closure composition and native cleanup; not full ZUI readiness")
     except Exception as error:
         report.update(status="Fail", error_type=type(error).__name__, error=str(error))

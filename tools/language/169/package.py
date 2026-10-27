@@ -18,6 +18,23 @@ import zipfile
 
 
 EXCLUDED_ROOTS = {"evidence", "target", "out", "run-logs", ".git", "__pycache__"}
+# Historical generated results also exist outside evidence/. Keep this explicit:
+# JSON test inputs, task contracts and normative manifests remain source files.
+EXCLUDED_FILES = {
+    "data/handoff.json",
+    "docs/IMPL147-RESULT.json",
+    "docs/IMPL148-RESULT.json",
+    "docs/research/146/NATIVE.json",
+    "docs/research/146/RESULT.json",
+    "docs/research/146/TESTS.json",
+    "docs/research/146/preparation-cache-screen.json",
+    "docs/research/150/arithmetic-audit.json",
+    "docs/research/150/native-summary.json",
+    "docs/research/150/summary-primary.json",
+    "docs/research/150/summary-secondary.json",
+    "docs/research/123/growth.png",
+    "docs/research/123/growth.svg",
+}
 NATIVE_SUFFIXES = {".exe", ".o", ".obj", ".a", ".lib", ".so", ".dll", ".dylib", ".wasm", ".bc"}
 NATIVE_MAGICS = (b"\x7fELF", b"MZ", b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe",
                  b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe")
@@ -79,7 +96,7 @@ def source_inventory(root, commit):
             if not entry.isfile() or name not in expected or name in seen:
                 raise ValueError(f"unexpected Git archive member: {name}")
             seen.add(name)
-            if PurePosixPath(name).parts[0] in EXCLUDED_ROOTS:
+            if PurePosixPath(name).parts[0] in EXCLUDED_ROOTS or name in EXCLUDED_FILES:
                 excluded.append(name)
                 continue
             if name in {"PACKAGE.json", "SHA256SUMS"}:
@@ -197,7 +214,9 @@ def build(args):
         package = {"format": "zil-source/1", "schema_version": 2, "source": source_record,
                    "scope": "Git-tracked source, tests, fixtures, configuration and documentation only",
                    "retention": {"policy": "git-source-without-evidence/1", "evidence_files_kept": 0,
-                                 "excluded_roots": sorted(EXCLUDED_ROOTS), "excluded_tracked_paths": excluded,
+                                 "excluded_roots": sorted(EXCLUDED_ROOTS),
+                                 "excluded_generated_files": sorted(EXCLUDED_FILES),
+                                 "excluded_tracked_paths": excluded,
                                  "native_outputs_included": False},
                    "companions": {"audit": {"status": "included", "file": audit_output.name,
                                               "bytes": len(audit_data), "sha256": sha(audit_data)}}}
