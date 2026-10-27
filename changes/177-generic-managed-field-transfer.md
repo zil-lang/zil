@@ -25,3 +25,7 @@ consumer03又揭示普通helper调用作为比较左值时，泛型检查器错�
 workspace01先在Analyze的3项旧精确预算样本失败。176新增callback-field入场检查实际逐个访问local/value/return根，三份旧样本分别增加101、4、1次；测试按此可数访问增量保留N/N−1门。默认Limits、产品预算和生产付费逻辑不变，没有把阈值调到通过。
 
 数组兼容路径仅保留已有普通非owned-State泛型合同；新owned-State模板的非Copy数组元素转交需要另立indexed moved/refill符号协议，现仍明确Unsupported。引用数组也保持关闭，新增未实例化模板正反边界分别测试，不能把旧普通路径宣传成新的完整State数组证明。
+
+后续非作者原样对照发现完整赋值 `p=relay(p)` 在RHS消费p之后缺少重新标live。修复在RHS求值与same检查成功后才恢复完整目标，同时清除该owner旧field slot；字段赋值仍只补一个slot。原普通函数与State<F>往返、部分旧State整值替换、RHS重复消费反例共同验证，原失败保留。
+
+workspace02完整执行1607项，其中1605通过、2项Verify旧形状拒绝理由过时：具体Closure字段现须先查真实ClosureId，shared Package地址形状现须先拒绝owner/address不匹配。保留原始畸形候选逐字操作，移出旧非Copy集合、改用精确Verify类别/code/message的raw与Wire拒绝；不放宽Verify或改生产语义。
