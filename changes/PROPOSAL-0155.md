@@ -1,0 +1,3 @@
+# 155 Mutable Managed local replacement
+
+Normative source: _zil_design.md §§7–9. Previously Unsupported for local Managed assignment. Proposed accepted form evaluates and stages RHS before conditional old cleanup, then consumes preparation into the same lexical slot. An RHS propagated error cleans actual temporaries and preserves old lifetime until its normal error-path cleanup. Existing independent Verify must reject live old descriptors/views crossing replacement. No hidden allocation, RC, generation or new opcode. Captured Managed replacement remains outside this slice until capture commit/recovery is specified.
