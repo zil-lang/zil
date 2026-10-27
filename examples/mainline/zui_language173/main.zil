@@ -7,7 +7,8 @@ import callbacks
 extern "C" fn getchar() -> i32;
 
 fn main() -> void!i32 {
-    let input = unsafe { getchar() }
+    var input = 0
+    unsafe { input = getchar() }
     if input < 48 || input > 52 { return 9 }
     let controller = model.Controller { count: input - 48 }
     let count = controller.read()
