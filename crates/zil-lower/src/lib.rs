@@ -94,6 +94,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !ty.is_shared_resource_head_address()
+                && !ty.is_shared_package_address()
                 && !resource_type(ty, &module.resources)
                 && !package_type(ty, &module.resources)
                 && !error_type(ty, &module.resources)

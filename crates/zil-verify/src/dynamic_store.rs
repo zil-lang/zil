@@ -224,6 +224,7 @@ pub(super) fn check_instruction(
     }
     let (store, extra) = match instruction.kind {
         InstructionKind::OwnedStoreReserve { store, capacity } => (store, Some(capacity)),
+        InstructionKind::OwnedStoreBorrow { store, index } => (store, Some(index)),
         InstructionKind::OwnedStorePush { store, value } => (store, Some(value)),
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
@@ -242,6 +243,15 @@ pub(super) fn check_instruction(
                 return Err(bad("Store capacity must be i64"));
             }
             Type::Bool
+        }
+        InstructionKind::OwnedStoreBorrow { .. } => {
+            if value_type(function, extra.expect("element index"), span)? != &Type::I64 {
+                return Err(bad("Store element index must be i64"));
+            }
+            Type::Address {
+                mutable: false,
+                inner: Box::new(element.clone()),
+            }
         }
         InstructionKind::OwnedStorePush { .. } => {
             if value_type(function, extra.expect("push element"), span)? != element {
@@ -272,7 +282,8 @@ pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
         | InstructionKind::OwnedStorePush { store, .. }
         | InstructionKind::OwnedStorePop { store } => Some((store, true)),
         InstructionKind::OwnedStoreLen { store }
-        | InstructionKind::OwnedStoreCapacity { store } => Some((store, false)),
+        | InstructionKind::OwnedStoreCapacity { store }
+        | InstructionKind::OwnedStoreBorrow { store, .. } => Some((store, false)),
         _ => None,
     }
 }

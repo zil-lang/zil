@@ -210,7 +210,8 @@ impl FunctionEmitter<'_> {
             | InstructionKind::OwnedStorePush { store, .. }
             | InstructionKind::OwnedStorePop { store }
             | InstructionKind::OwnedStoreLen { store }
-            | InstructionKind::OwnedStoreCapacity { store } => store,
+            | InstructionKind::OwnedStoreCapacity { store }
+            | InstructionKind::OwnedStoreBorrow { store, .. } => store,
             _ => unreachable!("Store instruction dispatch"),
         };
         let Type::Desc(payload) = self.value_type(store)? else {
@@ -228,6 +229,43 @@ impl FunctionEmitter<'_> {
                     value(output),
                     value(store),
                     value(capacity)
+                ));
+            }
+            InstructionKind::OwnedStoreBorrow { index, .. } => {
+                let Type::OwnedStore { element } = payload.as_ref() else {
+                    unreachable!("verified Store payload");
+                };
+                let element_type = llvm_type(element)?;
+                let length_ptr = self.temp();
+                let length = self.temp();
+                let valid = self.temp();
+                self.line(format!(
+                    "  {length_ptr} = getelementptr {{ ptr, i64, i64 }}, ptr {}, i32 0, i32 1",
+                    value(store)
+                ));
+                self.line(format!("  {length} = load i64, ptr {length_ptr}, align 8"));
+                // Unsigned comparison also rejects negative i64 indices.
+                self.line(format!(
+                    "  {valid} = icmp ult i64 {}, {length}",
+                    value(index)
+                ));
+                let continuation = self.continuation;
+                self.continuation += 1;
+                self.line(format!(
+                    "  br i1 {valid}, label %store.element.ok.{continuation}, label %zil.trap"
+                ));
+                self.line(format!("store.element.ok.{continuation}:"));
+                let data_ptr = self.temp();
+                let data = self.temp();
+                self.line(format!(
+                    "  {data_ptr} = getelementptr {{ ptr, i64, i64 }}, ptr {}, i32 0, i32 0",
+                    value(store)
+                ));
+                self.line(format!("  {data} = load ptr, ptr {data_ptr}, align 8"));
+                self.line(format!(
+                    "  {} = getelementptr {element_type}, ptr {data}, i64 {}",
+                    value(output),
+                    value(index)
                 ));
             }
             InstructionKind::OwnedStorePush { value: item, .. } => {

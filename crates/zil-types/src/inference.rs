@@ -1026,7 +1026,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.bind(variable, payload, span)?;
             Ok(Term::Resource(variable, matches!(ty, Type::Managed(_))))
         } else if let Type::Address { mutable, inner } = ty {
-            if !inner.is_address_pointee() && !ty.is_shared_resource_head_address() {
+            if !inner.is_address_pointee()
+                && !ty.is_shared_resource_head_address()
+                && !ty.is_shared_package_address()
+            {
                 return Err(unsupported(span, "nested reference signature"));
             }
             self.bind(variable, inner, span)?;
@@ -1151,7 +1154,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 Type::Address {
                     mutable: wanted,
                     inner,
-                } if (inner.is_address_pointee() || ty.is_shared_resource_head_address())
+                } if (inner.is_address_pointee()
+                    || ty.is_shared_resource_head_address()
+                    || ty.is_shared_package_address())
                     && (*mutable || !wanted) =>
                 {
                     self.bind(*variable, inner, span)
@@ -1952,7 +1957,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     self.expression_index += 1;
                     let arity = match name {
                         "store_new" => 0,
-                        "store_reserve" | "store_push" => 2,
+                        "store_reserve" | "store_push" | "store_at" => 2,
                         _ => 1,
                     };
                     if arguments.len() != arity {
@@ -1990,8 +1995,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         ));
                     };
                     validate_type(&element, 0, span, self.budget)?;
-                    if name == "store_reserve" || name == "store_push" {
-                        let wanted = if name == "store_reserve" {
+                    if matches!(name, "store_reserve" | "store_push" | "store_at") {
+                        let wanted = if matches!(name, "store_reserve" | "store_at") {
                             Type::I64
                         } else {
                             (*element).clone()

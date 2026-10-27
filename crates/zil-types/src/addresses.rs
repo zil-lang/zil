@@ -236,6 +236,7 @@ impl Builder<'_, '_> {
                 let result = self.expr(operand, None)?;
                 if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee())
                     && !result.1.is_shared_resource_head_address()
+                    && !result.1.is_shared_package_address()
                 {
                     return Err(error(
                         "E-OPERATOR-TYPE",
@@ -251,6 +252,12 @@ impl Builder<'_, '_> {
                     unreachable!()
                 };
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
+                if matches!(inner.as_ref(), Type::Package { .. }) && !field.is_copy_value() {
+                    return Err(unsupported(
+                        e.span,
+                        "Store element windows only project finite Copy fields",
+                    ));
+                }
                 let ty = Type::Address {
                     mutable,
                     inner: Box::new(field),
@@ -398,7 +405,9 @@ impl Builder<'_, '_> {
         }
     }
     fn projection_base(&mut self, object: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
-        if matches!(self.known_type(object), Some(Type::Address { .. })) {
+        if matches!(self.known_type(object), Some(Type::Address { .. }))
+            || dynamic_store::borrow_expression(object)
+        {
             self.expr(object, None)
         } else {
             self.address_place(object, mutable)
@@ -415,6 +424,7 @@ impl Builder<'_, '_> {
             } => true,
             CoreExprKind::Member { object, .. } | CoreExprKind::Index { object, .. } => {
                 matches!(self.known_type(object), Some(Type::Address { .. }))
+                    || dynamic_store::borrow_expression(object)
                     || self.indirect_place(object)
             }
             _ => false,
