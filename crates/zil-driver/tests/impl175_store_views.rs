@@ -316,7 +316,7 @@ fn element_read_respects_actual_package_field_visibility() {
     let files = [
         (
             "main",
-            "import model fn read(x:&model.P)->i32=>x.secret fn main()->i32=>0",
+            "import model; fn read(x:&model.P)->i32=>x.secret; fn main()->i32=>0",
         ),
         (
             "model",

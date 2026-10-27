@@ -16,3 +16,5 @@ pub fn make(code: i32) -> Fault!Item {
         metadata: Metadata { code: code, coordinates: [code, code + 1] }
     }
 }
+
+pub fn emit(code: i32) { unsafe { putchar(code) } }
