@@ -27,6 +27,12 @@ pub(crate) fn check_type_for(
     }
     match element.as_ref() {
         Type::Package { .. } => {
+            if packages::has_callable_fields(element) {
+                return Err(unsupported(
+                    "callback State arrays require a separate nested-field protocol",
+                    span,
+                ));
+            }
             let element_work = if packages::has_array_fields(element) {
                 packages::layout_work(element, budget)?
             } else {

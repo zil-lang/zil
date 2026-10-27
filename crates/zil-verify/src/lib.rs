@@ -1041,13 +1041,6 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
-        InstructionKind::BorrowPackageField { .. } => {
-            return Err(Diagnostic::unsupported(
-                Phase::Verify,
-                "State field/window semantics are not yet implemented",
-                span,
-            ));
-        }
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
         | InstructionKind::OwnedStorePush { .. }
@@ -1074,7 +1067,8 @@ fn check_instruction(
         | InstructionKind::TakePackageField { .. }
         | InstructionKind::DropPackageField { .. }
         | InstructionKind::StorePackageField { .. }
-        | InstructionKind::DropPackage { .. } => {
+        | InstructionKind::DropPackage { .. }
+        | InstructionKind::BorrowPackageField { .. } => {
             packages::check_instruction(module, function, instruction, budget)?
         }
         InstructionKind::MakeOwnedArray { .. }

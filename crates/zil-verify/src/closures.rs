@@ -83,7 +83,7 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            if packages::has_array_fields(ty) {
+            if packages::has_array_fields(ty) || packages::has_callable_fields(ty) {
                 return Err(unsupported(
                     "Package capture with owning array fields requires a retained nested-field protocol",
                     None,
@@ -303,8 +303,14 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
                     .ok_or_else(|| limit("closure array expansion overflow"))?;
                 types.push((element, count));
             }
-            // Other containers do not admit Closure elements in this slice;
-            // their own type checks retain the precise rejection boundary.
+            Type::Package { fields, .. } => {
+                budget.spend(fields.len())?;
+                types.extend(fields.iter().map(|(_, field)| (field, count)));
+            }
+            Type::ErrorUnion { error, result } => {
+                budget.spend(2)?;
+                types.extend([(error.as_ref(), count), (result.as_ref(), count)]);
+            }
             _ => {}
         }
     }

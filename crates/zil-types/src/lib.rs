@@ -7,6 +7,7 @@ use zil_ir::*;
 mod addresses;
 mod aggregates;
 mod byte_buffer;
+mod callable_fields;
 mod closures;
 mod conditions;
 mod dynamic_store;
@@ -151,6 +152,7 @@ fn signatures(
             ));
         }
         if !(f.callable_return.is_some()
+            || callable_fields::template(f)
             || f.return_type.is_copy_value()
             || f.return_type.is_scalar_or_address()
             || packages::supported(&f.return_type)
@@ -1592,7 +1594,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                     if hints.is_empty() {
                         hints = self.sequence_hints(value);
                     }
-                    let (id, ty) = self.expr(v, hints.get(name))?;
+                    let (id, ty) = if hints
+                        .get(name)
+                        .is_some_and(|ty| matches!(ty, Type::Closure(_)))
+                    {
+                        self.owned_array_input(v, hints.get(name))?
+                    } else {
+                        self.expr(v, hints.get(name))?
+                    };
                     let l = self.local(name, ty, false, v.span)?;
                     self.sequenced_values.insert(l);
                     self.store(l, id, v.span)?

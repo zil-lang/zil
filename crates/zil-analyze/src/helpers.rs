@@ -128,6 +128,17 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             function.parameters.len().saturating_add(1),
             "helper parameter envelope",
         )?;
+        if function.callable_contract.is_none()
+            && candidates.len() == 1
+            && function.environment.is_none()
+            && function.foreign.is_none()
+            && let Type::Closure(id) = function.locals[candidates[0].0 as usize].ty
+            && matches!(&function.return_type,Type::Package{fields,..}
+                if fields.iter().any(|(_,ty)| *ty==Type::Closure(id)))
+        {
+            callable_fields::self_contained(module, id, budget)?;
+            continue;
+        }
         let claim = function
             .callable_contract
             .as_ref()
