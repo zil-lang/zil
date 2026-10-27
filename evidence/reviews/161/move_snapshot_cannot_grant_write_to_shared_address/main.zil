@@ -1,0 +1,1 @@
+fn main()->i32{var x=1;let a=&x;let f=move()=>{let g=move()=>{*a=2;return *a};return g()};return f()}
