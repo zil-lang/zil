@@ -1,0 +1,12 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review174-root/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.67s
+     Running tests/review174_store_fields.rs (/workspace/scratch/39be3faa4442/targets/review174-root/debug/deps/review174_store_fields-ca2b3c1871df7c8d)
+
+running 4 tests
+test old_field_description_cannot_be_revived_by_refilling_same_slot ... ok
+test raw_wire_cannot_consume_one_store_twice_into_two_equal_typed_fields ... ok
+test unrelated_field_description_survives_left_take_and_refill_with_empty_head_drop ... ok
+test failed_capacity_request_keeps_field_prefix_and_pop_error_carrier_cleanup ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+

@@ -1,0 +1,36 @@
+{
+  "reviewer": "/root",
+  "implementation_commit": "9a878f2f91aae4efd4b851eeb8979cacc21ffdd1",
+  "source_clean": true,
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl174_store_fields",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/review174-root",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/review174-root/author-replay/cases"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "start": 1793115693.7402077,
+  "end": 1793115713.9542265,
+  "log_sha256": "76642f78c6b5e3bb8d54a2669f92bc7b09d81b9b59f7ef99bec305f7857cecb5",
+  "test_groups": [
+    [
+      "13",
+      "0",
+      "0"
+    ]
+  ]
+}

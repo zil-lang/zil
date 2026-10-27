@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "task": "174",
+  "reviewer": "/root",
+  "implementation_author": "/root/store_field174",
+  "implementation_commit": "9a878f2f91aae4efd4b851eeb8979cacc21ffdd1",
+  "author_delivery_commit": "da8311baf7d6b506c6dd28e4c50d9cf2a18a8211",
+  "test_commit": "015fa5b8d85d20ce4a7a36bc634a8f987b16efc1",
+  "verdict": "Pass",
+  "scope": [
+    "Direct Managed<OwnedStore<complete Item>> Package fields",
+    "Take/refill/replacement and whole State carriers",
+    "Canonical sealed Store definition discovery",
+    "Recursive LLVM cleanup of Store prefixes",
+    "Independent Analyze and Verify responsibility reconstruction"
+  ],
+  "observations": {
+    "author_replay_tests": 13,
+    "independent_tests": 4,
+    "independent_native_executions": 4,
+    "independent_raw_wire_rejections": 2,
+    "independent_source_rejections": 1
+  },
+  "independent_cases": [
+    {
+      "case": "distinct field root",
+      "expected": "eAeBZeDeCeE; exit0 at O0/O2",
+      "result": "Pass"
+    },
+    {
+      "case": "negative reserve keeps field prefix, popped owned item exits through error carrier",
+      "expected": "eBZeAeC; exit1 at O0/O2",
+      "result": "Pass"
+    },
+    {
+      "case": "taken and refilled slot does not revive old Desc",
+      "expected": "Analyze SafeReject E-ANALYZE-IR invalidates a description required later",
+      "result": "Pass"
+    },
+    {
+      "case": "same Managed Store SSA consumed into two same-typed fields",
+      "expected": "raw and Wire Verify SafeReject E-VERIFY-RESOURCE managed SSA value was not available exactly once",
+      "result": "Pass"
+    }
+  ],
+  "preserved_failures": [
+    {
+      "receipt": "independent01/command.json",
+      "classification": "review test compile error: Managed uses tuple representation",
+      "executed_tests": 0,
+      "resolution": "correct review fixture only; independent02 repeats four real tests"
+    }
+  ],
+  "limitations": [
+    "Linux x64 native only",
+    "No Store-bearing Package capture admission",
+    "No recursive Store element or owned-array Store leaf admission",
+    "No ZUI product execution; parent B0 remains Doing"
+  ],
+  "evidence": [
+    "author-replay/command.json",
+    "independent01/command.json",
+    "independent02/command.json"
+  ]
+}
