@@ -84,10 +84,8 @@ pub(super) fn check_function(
                     .functions
                     .get(callee.0 as usize)
                     .ok_or_else(|| bad("factory calls an absent function"))?;
-                if target.callable_return_contract.is_some() {
-                    return Err(bad(
-                        "recursive or forwarded callable factories are not implemented",
-                    ));
+                if target.callable_return_contract.as_ref().is_some_and(|c| c.closure == contract.closure) {
+                    creations += 1;
                 }
             }
             let result_type = instruction
@@ -104,7 +102,7 @@ pub(super) fn check_function(
                     InstructionKind::MakeClosure { closure, .. } if closure == contract.closure => {
                         creations += 1
                     }
-                    InstructionKind::Load(_) | InstructionKind::TakeLocal { .. } => {}
+                    InstructionKind::Load(_) | InstructionKind::TakeLocal { .. } | InstructionKind::Call { .. } => {}
                     _ => {
                         return Err(bad(
                             "factory result is not derived from its concrete environment",
@@ -123,9 +121,9 @@ pub(super) fn check_function(
             returns += 1;
         }
     }
-    if creations != 1 || returns == 0 {
+    if creations == 0 || returns == 0 {
         return Err(bad(
-            "callable factory requires one environment creation site and a returned identity",
+            "callable factory requires a grounded environment creation or forwarding site and a returned identity",
         ));
     }
     Ok(())
