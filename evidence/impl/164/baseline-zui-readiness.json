@@ -1,0 +1,166 @@
+{
+  "scope": "headless queue + imported methods/trait + captured owning local reset",
+  "status": "CoreConsumerPass_FullZuiNotReady",
+  "native": [
+    {
+      "opt": "O0",
+      "native_executions": 2,
+      "events_per_execution": 16384,
+      "full_byte_checks_per_execution": 16384,
+      "probe": {
+        "alloc_calls": 16,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 14336
+      },
+      "pass": true
+    },
+    {
+      "opt": "O2",
+      "native_executions": 2,
+      "events_per_execution": 16384,
+      "full_byte_checks_per_execution": 16384,
+      "probe": {
+        "alloc_calls": 16,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 14336
+      },
+      "pass": true
+    }
+  ],
+  "gaps": [
+    {
+      "capability": "nested-owning-callback",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "nested closure inference is not implemented in C1",
+          "span": {
+            "file": 0,
+            "start": 72,
+            "end": 88
+          },
+          "notes": []
+        }
+      ],
+      "language_gap": true
+    },
+    {
+      "capability": "owned-array-elements",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Desc(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] }), found Managed(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] })",
+          "span": {
+            "file": 0,
+            "start": 46,
+            "end": 52
+          },
+          "notes": []
+        }
+      ],
+      "language_gap": true
+    },
+    {
+      "capability": "owned-error-result",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values",
+          "span": {
+            "file": 0,
+            "start": 13,
+            "end": 79
+          },
+          "notes": []
+        }
+      ],
+      "language_gap": true
+    },
+    {
+      "capability": "generic-trait-bound",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic bound, lifetime or const parameter requires its semantic solver",
+          "span": {
+            "file": 0,
+            "start": 95,
+            "end": 101
+          },
+          "notes": []
+        }
+      ],
+      "language_gap": true
+    },
+    {
+      "capability": "owning-method-receiver",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "addresses to resource or package heads are not implemented",
+          "span": {
+            "file": 0,
+            "start": 19,
+            "end": 29
+          },
+          "notes": []
+        }
+      ],
+      "language_gap": true
+    },
+    {
+      "capability": "array-of-capturing-callbacks",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "array element requires a Copy value",
+          "span": {
+            "file": 0,
+            "start": 101,
+            "end": 118
+          },
+          "notes": []
+        }
+      ],
+      "language_gap": true
+    }
+  ],
+  "not_run": [
+    "actual window/GPU backend",
+    "cross-thread callback cancellation",
+    "dynamic retained graph with owning generic components"
+  ],
+  "not_claimed": "No universal Vec<T>, nested owning callbacks, complete trait solver, or full language safety proof"
+}
