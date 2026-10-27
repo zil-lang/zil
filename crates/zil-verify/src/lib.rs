@@ -319,21 +319,11 @@ fn check_module(
     closures::check_definitions(module, limits, &mut budget)?;
     foreign::check_declarations(module, &mut budget)?;
     let mut names = BTreeSet::new();
-    let mut returned_environments = BTreeSet::new();
     let (mut block_count, mut instruction_count, mut local_count, mut value_count) =
         (0usize, 0usize, 0usize, 0usize);
     for (index, function) in module.functions.iter().enumerate() {
         helpers::check_claim_shape(function, limits, &mut budget)?;
         retained::check_claim(module, function, limits, &mut budget)?;
-        if let Some(c) = &function.callable_return_contract
-            && !returned_environments.insert(c.closure)
-        {
-            return Err(reject(
-                "E-VERIFY-CALLABLE-CONTRACT",
-                Some(function.span),
-                "different opaque factory definitions require distinct hidden environment identities",
-            ));
-        }
         budget.spend(function.name.len().saturating_add(1))?;
         if function.id.0 as usize != index {
             return Err(reject(
@@ -995,7 +985,8 @@ fn check_instruction(
         | InstructionKind::DropPackage { .. } => {
             packages::check_instruction(module, function, instruction, budget)?
         }
-        InstructionKind::DescribeCapture { .. }
+        InstructionKind::BorrowCapture { .. }
+        | InstructionKind::DescribeCapture { .. }
         | InstructionKind::TakeCapture { .. }
         | InstructionKind::CallClosureShared { .. }
         | InstructionKind::CallClosureOnce { .. }
@@ -1665,7 +1656,10 @@ fn check_instruction(
                     "capture index is outside the entry environment",
                 )
             })?;
-            if matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+            if matches!(
+                ty,
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+            ) {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
                     span,
@@ -2014,6 +2008,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::DropManaged { .. }
         | InstructionKind::DropPackage { .. }
         | InstructionKind::ReadCapture { .. }
+        | InstructionKind::BorrowCapture { .. }
         | InstructionKind::DescribeCapture { .. }
         | InstructionKind::TakeCapture { .. }
         | InstructionKind::DropClosure { .. }

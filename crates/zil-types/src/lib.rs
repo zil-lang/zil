@@ -230,30 +230,52 @@ pub fn check(
     let mut work = limits.max_analysis_steps;
     let mut graph = BTreeMap::new();
     let mut factory_functions = BTreeMap::new();
-    for f in core.functions.iter().filter(|f| f.callable_return.is_some()) {
+    for f in core
+        .functions
+        .iter()
+        .filter(|f| f.callable_return.is_some())
+    {
         let id = signatures[&f.name].id;
-        let dependencies = retained::dependencies(f, &signatures, None, &mut work, limits)
-            .map_err(|e| vec![e])?;
+        let dependencies =
+            retained::dependencies(f, &signatures, None, &mut work, limits).map_err(|e| vec![e])?;
         graph.insert(id, (f.span, dependencies));
         factory_functions.insert(id, f);
     }
     let factory_order = retained::order(graph, &mut work).map_err(|e| vec![e])?;
-    let ordered = factory_order.into_iter().map(|id| factory_functions[&id]).chain(
-        core.functions.iter().filter(|f| f.callable_parameter.is_none() && f.callable_return.is_none()),
-    );
+    let ordered = factory_order
+        .into_iter()
+        .map(|id| factory_functions[&id])
+        .chain(
+            core.functions
+                .iter()
+                .filter(|f| f.callable_parameter.is_none() && f.callable_return.is_none()),
+        );
     for f in ordered {
-        match Builder::new(f, signatures[&f.name].id, &signatures, limits, &mut closure_state)
-            .and_then(|mut b| {
-                b.enums = Some(&enum_types);
-                b.finish(&f.body)
-            })
-        {
+        match Builder::new(
+            f,
+            signatures[&f.name].id,
+            &signatures,
+            limits,
+            &mut closure_state,
+        )
+        .and_then(|mut b| {
+            b.enums = Some(&enum_types);
+            b.finish(&f.body)
+        }) {
             Ok(typed) => {
                 if f.callable_return.is_some() {
-                    signatures.get_mut(&f.name).expect("declared factory").result = typed.return_type.clone();
+                    signatures
+                        .get_mut(&f.name)
+                        .expect("declared factory")
+                        .result = typed.return_type.clone();
                     helpers::resolve_factory_result(
-                        &mut closure_state, core.module_id, &f.name, &typed.return_type, f.span,
-                    ).map_err(|e| vec![e])?;
+                        &mut closure_state,
+                        core.module_id,
+                        &f.name,
+                        &typed.return_type,
+                        f.span,
+                    )
+                    .map_err(|e| vec![e])?;
                 }
                 functions.push(typed);
             }
@@ -301,6 +323,7 @@ struct Builder<'a, 'c> {
     written_captures: BTreeMap<LocalId, u32>,
     address_written_captures: BTreeMap<LocalId, u32>,
     managed_captures: BTreeMap<LocalId, (u32, Type)>,
+    closure_captures: BTreeMap<LocalId, (u32, Type)>,
     package_captures: BTreeMap<LocalId, u32>,
     temporary_locals: std::collections::BTreeSet<LocalId>,
     unsafe_regions: Vec<u32>,
@@ -370,6 +393,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             written_captures: BTreeMap::new(),
             address_written_captures: BTreeMap::new(),
             managed_captures: BTreeMap::new(),
+            closure_captures: BTreeMap::new(),
             package_captures: BTreeMap::new(),
             temporary_locals: std::collections::BTreeSet::new(),
             unsafe_regions: Vec::new(),
@@ -1729,6 +1753,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                             .get(local)
                             .cloned()
                             .or_else(|| self.managed_captures.get(local).map(|(_, ty)| ty.clone()))
+                            .or_else(|| self.closure_captures.get(local).map(|(_, ty)| ty.clone()))
                             .unwrap_or_else(|| self.function.locals[local.0 as usize].ty.clone()),
                     ),
                 );
@@ -1804,7 +1829,19 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut values = Vec::new();
         for capture in captures {
             let stored = capture.stored_type();
-            let value = if matches!(capture.ty, Type::Managed(_)) {
+            let value = if let Some((index, _)) =
+                self.closure_captures.get(&capture.source).cloned()
+            {
+                let instruction = if capture.moved {
+                    InstructionKind::TakeCapture { index }
+                } else {
+                    InstructionKind::BorrowCapture {
+                        index,
+                        mutable: capture.written,
+                    }
+                };
+                self.value(instruction, stored.clone(), capture.span)?
+            } else if matches!(capture.ty, Type::Managed(_)) {
                 let kind = if let Some((index, _)) = self.managed_captures.get(&capture.source) {
                     if matches!(stored, Type::Managed(_)) {
                         InstructionKind::TakeCapture { index: *index }
@@ -1942,6 +1979,29 @@ impl<'a, 'c> Builder<'a, 'c> {
             if matches!(stored, Type::Package { .. }) {
                 continue;
             }
+            if let Type::Closure(child) = &stored {
+                let mutable = capture.written
+                    && builder.closures.pending[child.0 as usize].callable_kind()
+                        != CallableKind::FnOnce;
+                let address = Type::Address {
+                    mutable,
+                    inner: Box::new(stored.clone()),
+                };
+                let local = builder.local(&capture.name, address.clone(), false, capture.span)?;
+                let value = builder.value(
+                    InstructionKind::BorrowCapture {
+                        index: index as u32,
+                        mutable,
+                    },
+                    address,
+                    capture.span,
+                )?;
+                builder.store(local, value, capture.span)?;
+                builder
+                    .closure_captures
+                    .insert(local, (index as u32, stored));
+                continue;
+            }
             if let Type::Managed(payload) = &stored {
                 // The hidden environment keeps the carrier. Each activation
                 // receives a descriptor into that live field, never a copy or
@@ -1994,13 +2054,21 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<(ValueId, Type)> {
         // Evaluate the callee once, before any argument, even for a conditional
         // or hygienic Sequence expression that produces a closure value.
-        let existing_place = match &callee.kind {
+        let mut existing_place = match &callee.kind {
             CoreExprKind::Name(name) => self.lookup(name),
             _ => None,
         };
         // An owning environment is not a Copy callee value. Shared and
         // Exclusive invocation borrow the actual local; Consume transfers it.
-        let (mut callee_value, ty) = if let Some(local) = existing_place
+        let captured_once = existing_place.and_then(|local| self.closure_captures.get(&local).cloned())
+            .filter(|(_, ty)| matches!(ty, Type::Closure(id) if self.closures.pending[id.0 as usize].callable_kind() == CallableKind::FnOnce));
+        let (mut callee_value, ty) = if let Some((index, ty)) = captured_once {
+            existing_place = None;
+            (
+                Some(self.value(InstructionKind::TakeCapture { index }, ty.clone(), span)?),
+                ty,
+            )
+        } else if let Some(local) = existing_place
             && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {

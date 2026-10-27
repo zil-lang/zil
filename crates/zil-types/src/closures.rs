@@ -77,7 +77,7 @@ impl Pending {
         self.captures.iter().any(|capture| {
             matches!(
                 capture.stored_type(),
-                Type::Managed(_) | Type::Package { .. }
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
             )
         })
     }
@@ -199,6 +199,7 @@ impl State {
                 signatures,
                 imports,
                 resource_writes: &self.resource_writes,
+                closures: &self.pending,
             },
             &self.limits,
             &mut self.work_left,
@@ -220,6 +221,9 @@ impl State {
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         for capture in &checker.captures {
+            if let Type::Closure(id) = capture.stored_type() {
+                retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
+            }
             if matches!(capture.stored_type(), Type::Desc(inner) if *inner == Type::ByteBuffer) {
                 return Err(unsupported(
                     capture.span,
@@ -1023,20 +1027,30 @@ enum LocalType {
     Scalar(Variable),
     Address(Variable, bool),
     Resource(Variable, bool),
+    Closure(ClosureId, Option<bool>),
     SliceLength,
 }
 impl LocalType {
     fn scalar(self, span: Span) -> R<Variable> {
         match self {
             Self::Scalar(variable) => Ok(variable),
-            Self::Address(..) | Self::Resource(..) | Self::SliceLength => Err(unsupported(
-                span,
-                "address/resource cannot be used in a Copy closure signature or operation",
-            )),
+            Self::Address(..) | Self::Resource(..) | Self::Closure(..) | Self::SliceLength => {
+                Err(unsupported(
+                    span,
+                    "address/resource cannot be used in a Copy closure signature or operation",
+                ))
+            }
         }
     }
     fn bind(self, graph: &mut Graph, ty: &Type, span: Span) -> R<()> {
         match (self, ty) {
+            (Self::Closure(actual, None), Type::Closure(expected)) if actual == *expected => Ok(()),
+            (Self::Closure(actual, Some(available)), Type::Address { mutable, inner })
+                if matches!(inner.as_ref(), Type::Closure(expected) if actual == *expected)
+                    && (available || !mutable) =>
+            {
+                Ok(())
+            }
             (Self::Scalar(variable), _) => graph.bind(variable, ty, span),
             (Self::Resource(variable, _), Type::Desc(payload))
             | (Self::Resource(variable, true), Type::Managed(payload)) => {
@@ -1064,6 +1078,7 @@ impl LocalType {
     }
     fn unify(self, other: Self, graph: &mut Graph, span: Span) -> R<()> {
         match (self, other) {
+            (Self::Closure(a, am), Self::Closure(b, bm)) if a == b && am == bm => Ok(()),
             (Self::Scalar(a), Self::Scalar(b)) => graph.unify(a, b, span),
             (Self::Address(a, am), Self::Address(b, bm)) if am == bm => graph.unify(a, b, span),
             (Self::Resource(a, am), Self::Resource(b, bm)) if am == bm => graph.unify(a, b, span),
@@ -1077,11 +1092,13 @@ impl LocalType {
 }
 
 struct Functions<'a> {
+    closures: &'a [Pending],
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     resource_writes: &'a resource_effects::Writes,
 }
 struct InferBuilder<'a, 'b> {
+    closures: &'a [Pending],
     resource_writes: &'a resource_effects::Writes,
     graph: Graph,
     parameters: Vec<Variable>,
@@ -1128,6 +1145,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             graph.bind(result, ty, input.span)?;
         }
         let mut this = Self {
+            closures: functions.closures,
             resource_writes: functions.resource_writes,
             graph,
             parameters: vec![],
@@ -1225,8 +1243,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         // outer position. Managed/Package captures instead change ownership at
         // creation, even if the nested environment is never invoked.
         let write = write && !(self.nested_moves != 0 && ty.is_copy_value());
-        let nested_owned =
-            self.nested_moves != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. });
+        let nested_owned = self.nested_moves != 0
+            && matches!(
+                ty,
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+            );
         let nested_writeback =
             write && self.nested_depth != 0 && self.move_capture && ty.is_copy_value();
         if nested_owned && matches!(ty, Type::Package { .. }) {
@@ -1241,7 +1262,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         // Package slots may be restored after the nested creation. Their flow
         // classification below decides FnMut/FnOnce at each actual exit.
-        let nested_consumed = nested_owned && matches!(ty, Type::Managed(_));
+        let nested_consumed = nested_owned && matches!(ty, Type::Managed(_) | Type::Closure(_));
         if self.nested_moves != 0 && matches!(ty, Type::Address { mutable: true, .. }) {
             return Err(unsupported(
                 span,
@@ -1253,6 +1274,35 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 span,
                 "rebinding a captured address requires a nested address window",
             ));
+        }
+        if let Type::Closure(id) = ty {
+            let moved = self.move_capture || nested_owned;
+            if let Some(variable) = self.captured_variables.get(local) {
+                let capture = self
+                    .captures
+                    .iter_mut()
+                    .find(|c| c.source == *local)
+                    .expect("capture");
+                capture.written |= write;
+                capture.moved |= nested_owned;
+                capture.borrowed &= !nested_owned;
+                capture.consumed |= nested_consumed;
+                return Ok(*variable);
+            }
+            let value = LocalType::Closure(*id, None);
+            self.captures.push(Capture {
+                name: name.into(),
+                source: *local,
+                ty: ty.clone(),
+                borrowed: !moved,
+                written: write,
+                address_written: false,
+                moved,
+                consumed: nested_consumed,
+                span,
+            });
+            self.captured_variables.insert(*local, value);
+            return Ok(value);
         }
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
@@ -1326,6 +1376,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         return Err(unsupported(statement.span, "uninitialized closure binding"));
                     };
                     let variable = self.expr_expected(expression, ty.as_ref(), depth + 1)?;
+                    self.transferred_closure(expression, variable);
                     if let Some(ty) = ty {
                         variable.bind(&mut self.graph, ty, statement.span)?;
                     }
@@ -1350,6 +1401,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         _ => None,
                     };
                     let value_type = self.expr_expected(value, hint.as_ref(), depth + 1)?;
+                    self.transferred_closure(value, value_type);
                     target_type.unify(value_type, &mut self.graph, value.span)?;
                 }
                 CoreStatementKind::Expression(expression) => {
@@ -1469,7 +1521,34 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.scopes.pop();
         Ok(())
     }
+    fn name_if_capture_written(&mut self, expression: &CoreExpr) {
+        if let CoreExprKind::Name(name) = &expression.kind
+            && self.lookup(name).is_none()
+            && let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name)
+        {
+            capture.written = true;
+        }
+    }
+    fn transferred_closure(&mut self, expression: &CoreExpr, term: LocalType) {
+        if matches!(term, LocalType::Closure(_, None))
+            && let CoreExprKind::Name(name) = &expression.kind
+            && self.lookup(name).is_none()
+            && let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name)
+        {
+            capture.moved = true;
+            capture.borrowed = false;
+            capture.consumed = true;
+        }
+    }
     fn known(&mut self, ty: &Type, span: Span) -> R<LocalType> {
+        if let Type::Closure(id) = ty {
+            return Ok(LocalType::Closure(*id, None));
+        }
+        if let Type::Address { mutable, inner } = ty
+            && let Type::Closure(id) = inner.as_ref()
+        {
+            return Ok(LocalType::Closure(*id, Some(*mutable)));
+        }
         let variable = self.graph.fresh(VALUE, false);
         if let Type::Managed(payload) | Type::Desc(payload) = ty {
             if !resources::supported(ty) {
@@ -1875,6 +1954,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     ) {
                         return Err(unsupported(span, "shared borrow requires a place"));
                     }
+                    if let LocalType::Closure(id, None) = value {
+                        if *op == UnaryOp::BorrowMut {
+                            self.name_if_capture_written(operand);
+                        }
+                        return Ok(LocalType::Closure(id, Some(*op == UnaryOp::BorrowMut)));
+                    }
                     if matches!(value, LocalType::Address(..)) {
                         return Err(unsupported(
                             span,
@@ -2031,6 +2116,71 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                             ));
                         }
                         return self.known(&Type::I64, span);
+                    }
+                    if let LocalType::Closure(id, permission) = callee_type {
+                        let pending = self.closures.get(id.0 as usize).ok_or_else(|| {
+                            error(
+                                "E-CLOSURE-INFERENCE",
+                                span,
+                                "concrete captured closure is absent",
+                            )
+                        })?;
+                        let kind = pending.callable_kind();
+                        if permission.is_some()
+                            && (kind == CallableKind::FnOnce
+                                || (kind == CallableKind::FnMut && permission == Some(false)))
+                        {
+                            return Err(error(
+                                "E-CLOSURE-MODE",
+                                span,
+                                "borrowed closure lacks its call permission",
+                            ));
+                        }
+                        if arguments.len() != pending.inference.arity() {
+                            return Err(error(
+                                "E-CALL-ARITY",
+                                span,
+                                "captured callback argument count differs",
+                            ));
+                        }
+                        let parameters = (0..arguments.len())
+                            .map(|i| pending.inference.parameter(i))
+                            .collect::<R<Vec<_>>>()?;
+                        let result = pending.inference.result()?.ok_or_else(|| {
+                            error(
+                                "E-CLOSURE-INFERENCE",
+                                span,
+                                "captured closure result is unresolved",
+                            )
+                        })?;
+                        if let CoreExprKind::Name(name) = &callee.kind
+                            && self.lookup(name).is_none()
+                            && let Some(capture) = self
+                                .captures
+                                .iter_mut()
+                                .find(|capture| capture.name == *name)
+                        {
+                            if kind == CallableKind::FnOnce {
+                                capture.moved = true;
+                                capture.borrowed = false;
+                                capture.consumed = true;
+                            } else if kind == CallableKind::FnMut {
+                                capture.written = true;
+                            }
+                        }
+                        for (argument, parameter) in arguments.iter().zip(parameters) {
+                            let parameter = parameter.ok_or_else(|| {
+                                error(
+                                    "E-CLOSURE-INFERENCE",
+                                    span,
+                                    "captured closure parameter is unresolved",
+                                )
+                            })?;
+                            let value =
+                                self.expr_expected(argument, Some(&parameter), depth + 1)?;
+                            value.bind(&mut self.graph, &parameter, argument.span)?;
+                        }
+                        return self.known(&result, span);
                     }
                     let callee_type = callee_type.scalar(callee.span)?;
                     let mut parameters = Vec::new();
