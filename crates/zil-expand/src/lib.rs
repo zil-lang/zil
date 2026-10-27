@@ -8,6 +8,7 @@ mod generics;
 mod mapping;
 mod modules;
 mod receivers;
+mod static_traits;
 mod records;
 mod resources;
 
@@ -315,6 +316,8 @@ fn expand_inner_project(
         declarations: BTreeMap::new(),
         default_helpers: BTreeMap::new(),
         traits: BTreeMap::new(),
+        static_traits: BTreeSet::new(),
+        static_trait_impls: BTreeSet::new(),
         source_map: SourceMap::new(module.id),
         node_maps: BTreeMap::new(),
         markers: BTreeMap::new(),
@@ -331,13 +334,17 @@ fn expand_inner_project(
             s::ItemKind::Aggregate(a) => {
                 e.declarations.entry(a.name.clone()).or_insert(a);
             }
-            s::ItemKind::Trait(t) => {
-                e.traits.entry(t.name.clone()).or_insert(t);
-            }
+            s::ItemKind::Trait(_) => {}
             _ => {}
         }
     }
+    for item in &module.items {
+        if let s::ItemKind::Trait(t) = &item.kind {
+            e.traits.entry(t.name.clone()).or_insert(t);
+        }
+    }
     e.collect_resource_drops(module);
+    e.collect_static_traits(module, limits);
     // A public default is a declaration: check its body even when a particular
     // consumer explicitly supplies that field. Private/local defaults retain
     // their existing lazy lowering.
@@ -392,6 +399,8 @@ struct Expander<'a> {
     declarations: BTreeMap<String, &'a s::Aggregate>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
+    static_traits: BTreeSet<String>,
+    static_trait_impls: BTreeSet<Span>,
     source_map: SourceMap,
     node_maps: BTreeMap<NodeId, SourceMapId>,
     markers: BTreeMap<Span, SourceMapId>,
@@ -491,7 +500,7 @@ impl Expander<'_> {
                 if self.resource_drop(i) {
                     return;
                 }
-                if i.trait_type.is_some() {
+                if i.trait_type.is_some() && !self.static_trait_impls.contains(&item.span) {
                     self.unsupported("trait implementation resolution", item.span)
                 }
                 let name = type_path(&i.target).unwrap_or_else(|| "$unsupported".into());
@@ -512,7 +521,11 @@ impl Expander<'_> {
             s::ItemKind::Const(_) => self.unsupported("module constant evaluation", item.span),
             s::ItemKind::TypeAlias(_) => self.unsupported("type aliases", item.span),
             s::ItemKind::Enum(declaration) => self.enum_declaration(declaration, item.span),
-            s::ItemKind::Trait(_) => self.unsupported("trait declarations", item.span),
+            s::ItemKind::Trait(t) => {
+                if !self.static_traits.contains(&t.name) {
+                    self.unsupported("trait declarations outside the finite local subset", item.span);
+                }
+            }
             s::ItemKind::Extern { abi, function } => {
                 self.foreign(abi, function, item.public, prefix, host)
             }
