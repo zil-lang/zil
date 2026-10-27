@@ -1119,7 +1119,11 @@ impl<'a> Writer<'a> {
                     self.u32(element.0)?;
                 }
             }
-            InstructionKind::ProjectOwnedArrayField { local, index, field } => {
+            InstructionKind::ProjectOwnedArrayField {
+                local,
+                index,
+                field,
+            } => {
                 self.u8(73)?;
                 self.u32(local.0)?;
                 self.u32(*index)?;
@@ -1135,7 +1139,11 @@ impl<'a> Writer<'a> {
                 self.u32(local.0)?;
                 self.u32(*index)?;
             }
-            InstructionKind::StoreOwnedArrayElement { local, index, value } => {
+            InstructionKind::StoreOwnedArrayElement {
+                local,
+                index,
+                value,
+            } => {
                 self.u8(76)?;
                 self.u32(local.0)?;
                 self.u32(*index)?;
@@ -1145,7 +1153,11 @@ impl<'a> Writer<'a> {
                 self.u8(77)?;
                 self.u32(local.0)?;
             }
-            InstructionKind::BorrowOwnedArrayElement { local, index, mutable } => {
+            InstructionKind::BorrowOwnedArrayElement {
+                local,
+                index,
+                mutable,
+            } => {
                 self.u8(79)?;
                 self.u32(local.0)?;
                 self.u32(*index)?;
@@ -2305,3 +2317,6 @@ impl<'a> Reader<'a> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod owned_carrier_tests;
