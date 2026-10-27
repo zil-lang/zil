@@ -1,0 +1,42 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.75s
+     Running tests/impl155_managed_replace.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl155_managed_replace-bd513d7d7440f883)
+
+running 12 tests
+test independent_verify_rejects_omitted_or_invalid_slot_cleanup ... ok
+test live_old_views_descriptors_and_annotation_mismatch_are_rejected ... ok
+test give_and_refill_keep_single_obligation ... ok
+test last_use_of_old_descriptor_before_replacement_is_allowed ... ok
+test nested_owning_closure_transfers_the_replacement_slot_once ... ok
+test byte_buffer_can_be_replaced_and_refilled ... ok
+test lexical_and_closure_shadowing_do_not_rewrite_unrelated_bindings ... ok
+test replacement_keeps_slot_order_and_disposes_old_value_once ... ok
+test propagated_rhs_error_preserves_old_slot_until_error_cleanup ... ok
+test owning_fnmut_can_replace_captured_buffer_without_manual_package ... ok
+test replacement_through_branches_and_loops_uses_one_slot ... ok
+test untouched_mutable_resources_keep_borrowed_capture_compatibility ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+
+     Running tests/impl161_nested_closures.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl161_nested_closures-20120c609671266b)
+
+running 15 tests
+test nested_closure_function_and_depth_budgets_remain_enforced ... ok
+test capturing_a_callable_environment_and_function_pointer_captures_remain_rejected ... ok
+test independent_verify_rejects_forged_shared_kind_and_second_capture_transfer ... ok
+test nested_move_transfers_outer_owned_capture_once ... ok
+test inner_move_promotes_an_outer_nonmove_managed_capture ... ok
+test activation_local_managed_owner_moves_into_inner_environment ... ok
+test inner_unused_environment_and_outer_unused_environment_drop_once ... ok
+test nested_transfer_and_shared_alias_misuse_are_rejected ... ok
+test inner_borrowed_writes_persist_in_outer_owned_copy_capture ... ok
+test nested_error_exit_cleans_only_actual_remaining_owners ... ok
+test nested_owning_buffer_replacement_cleans_real_slots ... ok
+test nested_move_snapshot_is_distinct_from_borrowed_writeback ... ok
+test nested_signatures_infer_across_three_lexical_layers ... ok
+test nested_shadowed_parameters_and_locals_do_not_capture_outer_names ... ok
+test nested_package_move_and_inner_refill_keep_distinct_responsibilities ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+

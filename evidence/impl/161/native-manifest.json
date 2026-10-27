@@ -1,0 +1,821 @@
+{
+  "implementation_commit": "f3570f1ea07440ed8f0c23903248ead78cf5f789",
+  "runs": [
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-0",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-0/.zil-driver-3235-8/.zil-build-3235-0/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-0/.zil-driver-3235-8/.zil-build-3235-0/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "b573c60fad3bd5516674c6c7adfa2d3beb9404c199918d3215db339659690a91",
+        "main.zil": "0e365d7e0f5f00ce4a3c99ae100337891cf38350ea0682bf80744b41a7a888e9",
+        "phases/candidate.txt": "4eddad5f0a0735b67118faf49c852260bdf73cd0325402ce76e27a5f567d566e",
+        "phases/core.txt": "cb3050a59287bd1ed996fd5d57f62c06fe8b4a00384db86cbed60fcb7e35bc39",
+        "phases/ct-core.txt": "372c90da37ccfc509038bb664ff8039cba511176439f941371db95d8568187a5",
+        "phases/lir.txt": "e5bda5d6788a71023f57c4d888bf67b453f5263a22543f41b8dc3beaf5b1f1bd",
+        "phases/llvm.ll": "e9e8874b5b0ca5b94a7ca92c951ce2357558ff260a00d069e9380d43d9dc546e",
+        "phases/source-map.txt": "70f9e5dde9087dd5c0fbc249d16a26d929492e29ff7a1f25706e7fc4d087fe63",
+        "phases/syntax.txt": "4cc5c4be40a10cc3765aa4683192345b53ff92bdb59858eb60f60ee77881ac4d",
+        "phases/typed.txt": "76671d9949f61baf8d5249af76164cb9013237e7b227e2b37db5767c5e36b1d4",
+        "phases/verified.txt": "60903be62b1b7a2f2275209aee8c816108ed8fbc351cc1ba116138f756f53f0b",
+        "program": "e814b9fd2c076c06763189f68e3c7c3fd7f1de17b6443ae170449b07733b7fe7",
+        "program.ll": "e9e8874b5b0ca5b94a7ca92c951ce2357558ff260a00d069e9380d43d9dc546e",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "58bb119c35513a451d24dc20ef0e9031ec85b35bfc919d263e7e5d9868909cb5"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-1",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-1/.zil-driver-3235-18/.zil-build-3235-1/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-1/.zil-driver-3235-18/.zil-build-3235-1/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "f62abff4497ec2094daf13704e5f2c9941c7d443cead0a4f5a76201834fe6823",
+        "main.zil": "0e365d7e0f5f00ce4a3c99ae100337891cf38350ea0682bf80744b41a7a888e9",
+        "phases/candidate.txt": "4eddad5f0a0735b67118faf49c852260bdf73cd0325402ce76e27a5f567d566e",
+        "phases/core.txt": "cb3050a59287bd1ed996fd5d57f62c06fe8b4a00384db86cbed60fcb7e35bc39",
+        "phases/ct-core.txt": "372c90da37ccfc509038bb664ff8039cba511176439f941371db95d8568187a5",
+        "phases/lir.txt": "e5bda5d6788a71023f57c4d888bf67b453f5263a22543f41b8dc3beaf5b1f1bd",
+        "phases/llvm.ll": "e9e8874b5b0ca5b94a7ca92c951ce2357558ff260a00d069e9380d43d9dc546e",
+        "phases/source-map.txt": "70f9e5dde9087dd5c0fbc249d16a26d929492e29ff7a1f25706e7fc4d087fe63",
+        "phases/syntax.txt": "4cc5c4be40a10cc3765aa4683192345b53ff92bdb59858eb60f60ee77881ac4d",
+        "phases/typed.txt": "76671d9949f61baf8d5249af76164cb9013237e7b227e2b37db5767c5e36b1d4",
+        "phases/verified.txt": "60903be62b1b7a2f2275209aee8c816108ed8fbc351cc1ba116138f756f53f0b",
+        "program": "1b3ca0a84d4763436019353937d4440bc8c33cab8576cb804af9ffa56ccce9b4",
+        "program.ll": "e9e8874b5b0ca5b94a7ca92c951ce2357558ff260a00d069e9380d43d9dc546e",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "58bb119c35513a451d24dc20ef0e9031ec85b35bfc919d263e7e5d9868909cb5"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-10",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-10/.zil-driver-3235-108/.zil-build-3235-10/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-10/.zil-driver-3235-108/.zil-build-3235-10/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "b8067c4a2f3941d8688d5c07daaf5070688c8323cca5fc885cffe41a7b7f416c",
+        "main.zil": "34ab3bc08a3188824ffa8cd22e3bb78604ccc2eaab5dce10bdf71497c7613763",
+        "phases/candidate.txt": "f8e5a88b71b60f8c0675bce7a354545d3476b26eda8ae960ca67d71902f91b83",
+        "phases/core.txt": "5b84700e0d7ec199f31bd0734e838073962a72f42784e3c9c9da31f5e7b2a57d",
+        "phases/ct-core.txt": "6b1ae4b2eeca93b4dd07cf81add8cdefaa4524fce5c81ccc94379c45c6d24170",
+        "phases/lir.txt": "edafc78c0b0d499ce1ba23f2eeec480904edc24174d7db0f98a063ea6847864a",
+        "phases/llvm.ll": "1ea71e95dd03ddd7fe684249d8d55bfe6df6ec12ddac965b1cc7b8c40d748acf",
+        "phases/source-map.txt": "b5a2db047b0ea147d6ed97b9300196d185c4cdaa16a00bda77974a60f36398a6",
+        "phases/syntax.txt": "9b6345185086a216617c23d3795e6e495fdd4141c434356acef4738e997a92f1",
+        "phases/typed.txt": "44c9353d3c1263bbf59bc3213f7623a903d17d3a9b9876201f0b74fcfc23c21e",
+        "phases/verified.txt": "1029d0e82c9a45e1de05129d84b34d17ca4db61e38a780cf1b4b65e2e4e7672c",
+        "program": "42bc5da97923aed96a85bd7eb47dd0afbc74d17d02cb190a494b98f96106e7df",
+        "program.ll": "1ea71e95dd03ddd7fe684249d8d55bfe6df6ec12ddac965b1cc7b8c40d748acf",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-11",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-11/.zil-driver-3235-118/.zil-build-3235-11/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-11/.zil-driver-3235-118/.zil-build-3235-11/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "b8078b52ccb52e10d54135f9238a148b2b4b73bf9d9a88dfa794e8f6e72cace6",
+        "main.zil": "34ab3bc08a3188824ffa8cd22e3bb78604ccc2eaab5dce10bdf71497c7613763",
+        "phases/candidate.txt": "f8e5a88b71b60f8c0675bce7a354545d3476b26eda8ae960ca67d71902f91b83",
+        "phases/core.txt": "5b84700e0d7ec199f31bd0734e838073962a72f42784e3c9c9da31f5e7b2a57d",
+        "phases/ct-core.txt": "6b1ae4b2eeca93b4dd07cf81add8cdefaa4524fce5c81ccc94379c45c6d24170",
+        "phases/lir.txt": "edafc78c0b0d499ce1ba23f2eeec480904edc24174d7db0f98a063ea6847864a",
+        "phases/llvm.ll": "1ea71e95dd03ddd7fe684249d8d55bfe6df6ec12ddac965b1cc7b8c40d748acf",
+        "phases/source-map.txt": "b5a2db047b0ea147d6ed97b9300196d185c4cdaa16a00bda77974a60f36398a6",
+        "phases/syntax.txt": "9b6345185086a216617c23d3795e6e495fdd4141c434356acef4738e997a92f1",
+        "phases/typed.txt": "44c9353d3c1263bbf59bc3213f7623a903d17d3a9b9876201f0b74fcfc23c21e",
+        "phases/verified.txt": "1029d0e82c9a45e1de05129d84b34d17ca4db61e38a780cf1b4b65e2e4e7672c",
+        "program": "a40c8eb45704d3415da8d32bf642805f52902f1cdcdf888a7b3ef170f0267939",
+        "program.ll": "1ea71e95dd03ddd7fe684249d8d55bfe6df6ec12ddac965b1cc7b8c40d748acf",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-12",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-12/.zil-driver-3235-128/.zil-build-3235-12/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-12/.zil-driver-3235-128/.zil-build-3235-12/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "4f4be90074b84299c37f01c51477b1e981d69c8bb227e5af0b5f520e5b8e17e1",
+        "main.zil": "0294766a1f53ef0cff05583d883dca5f2dadaa2aacbd8c8ff0fb3dec8943a151",
+        "phases/candidate.txt": "bd382668c2966e14fdb07b761a585d596b6492fa0413e8482fb15d4ac775d45c",
+        "phases/core.txt": "7dbe02c7fa070a667b1f3a337ad4c25aa6b387398a6b7faf8197675acc194553",
+        "phases/ct-core.txt": "d7086af3888ba98b07430416b06f0a82edf183fbc6e76a3cdec0aca1ca8f7e05",
+        "phases/lir.txt": "491d9e49315424e50615d83f43bd6c1a8862859cfd8af0da04524fc2e7c7f623",
+        "phases/llvm.ll": "5e8662d3289ca598560c5a578e2aaf12e4e64251b5026a7f67b4f51782c9edd3",
+        "phases/source-map.txt": "b05d740c8c05593f6f315266372828b4b746f8c10623f4e8e9694f1a90458652",
+        "phases/syntax.txt": "c8b632a871ca141f8a707a04ce8720cbd7481a40506aac3abf12834a49db7321",
+        "phases/typed.txt": "a55435beb7c315faeda62869c6004ed195d138876e39c4974bd9b7ca7f47ff4a",
+        "phases/verified.txt": "70ed32f7353372b75127bd87e609e6a0f1ab27a7747a0b3a41be602aa943f7e8",
+        "program": "ff11f2424282298c01eaf6f48a02184199cba5d63333825699ee449c365c4590",
+        "program.ll": "5e8662d3289ca598560c5a578e2aaf12e4e64251b5026a7f67b4f51782c9edd3",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-13",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-13/.zil-driver-3235-138/.zil-build-3235-13/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-13/.zil-driver-3235-138/.zil-build-3235-13/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "a0da77f16694ceff0651e2849e96d841cfbc48051a77455d17ec9608cea0e5f2",
+        "main.zil": "0294766a1f53ef0cff05583d883dca5f2dadaa2aacbd8c8ff0fb3dec8943a151",
+        "phases/candidate.txt": "bd382668c2966e14fdb07b761a585d596b6492fa0413e8482fb15d4ac775d45c",
+        "phases/core.txt": "7dbe02c7fa070a667b1f3a337ad4c25aa6b387398a6b7faf8197675acc194553",
+        "phases/ct-core.txt": "d7086af3888ba98b07430416b06f0a82edf183fbc6e76a3cdec0aca1ca8f7e05",
+        "phases/lir.txt": "491d9e49315424e50615d83f43bd6c1a8862859cfd8af0da04524fc2e7c7f623",
+        "phases/llvm.ll": "5e8662d3289ca598560c5a578e2aaf12e4e64251b5026a7f67b4f51782c9edd3",
+        "phases/source-map.txt": "b05d740c8c05593f6f315266372828b4b746f8c10623f4e8e9694f1a90458652",
+        "phases/syntax.txt": "c8b632a871ca141f8a707a04ce8720cbd7481a40506aac3abf12834a49db7321",
+        "phases/typed.txt": "a55435beb7c315faeda62869c6004ed195d138876e39c4974bd9b7ca7f47ff4a",
+        "phases/verified.txt": "70ed32f7353372b75127bd87e609e6a0f1ab27a7747a0b3a41be602aa943f7e8",
+        "program": "8ef3c33c6bf35d9581c5047c4885f6d529bee996ed2f73209cafed9af32bda74",
+        "program.ll": "5e8662d3289ca598560c5a578e2aaf12e4e64251b5026a7f67b4f51782c9edd3",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-14",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-14/.zil-driver-3235-148/.zil-build-3235-14/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-14/.zil-driver-3235-148/.zil-build-3235-14/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "36db313caa62a430f8a9e5ae408d24dbf9bdf2e4d84521b1d2aba2a781387466",
+        "main.zil": "cd0d60ef7d15e3c5d615a84f32c3f8a829374286ff57ad4455a746459bcd6b69",
+        "phases/candidate.txt": "5ee63fd9a51eef5bcbcce31840ad7072a1d0bf289b12b8d496686e5026923e2e",
+        "phases/core.txt": "f28117f9b4f7f78f369082d07d8a8eadef753692db4e085ae5eaf124f9119dd1",
+        "phases/ct-core.txt": "f5fbf99b5d54c293d7737029679059ecd2e5a02a12aec3eb28dfd0f2f272fd08",
+        "phases/lir.txt": "8185b17bc21cafa565ec14bd303f4f6349e535e629e55b44332f445eb5da8e7d",
+        "phases/llvm.ll": "f421537460f59ef35036539738c59ea4404f2da1ffdaf65fd878662ee614b846",
+        "phases/source-map.txt": "79b6efdcfbd6ae3c749597e0f452afe0807a30919f01f78b510da863c3116873",
+        "phases/syntax.txt": "58dcb2fea6028fc9c9e109832ae248dba4ad5cb961ec0700dea340a70a94456e",
+        "phases/typed.txt": "a5f7759b0fee6b037cbc2b87bf1409f969e77fdfb045d643543a241ef1e7ccae",
+        "phases/verified.txt": "0de529477aa9208e919c45c079ec085c7757d85d0b501fd630e3ec309475e304",
+        "program": "50a5157fc47657aba50e193bdf031fc8408140991713803b6f11a242abab738d",
+        "program.ll": "f421537460f59ef35036539738c59ea4404f2da1ffdaf65fd878662ee614b846",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-15",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-15/.zil-driver-3235-158/.zil-build-3235-15/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-15/.zil-driver-3235-158/.zil-build-3235-15/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "ebc99f027e08844dfd736eda6630737935c5c7a3960f20afd772a83fd597e43a",
+        "main.zil": "cd0d60ef7d15e3c5d615a84f32c3f8a829374286ff57ad4455a746459bcd6b69",
+        "phases/candidate.txt": "5ee63fd9a51eef5bcbcce31840ad7072a1d0bf289b12b8d496686e5026923e2e",
+        "phases/core.txt": "f28117f9b4f7f78f369082d07d8a8eadef753692db4e085ae5eaf124f9119dd1",
+        "phases/ct-core.txt": "f5fbf99b5d54c293d7737029679059ecd2e5a02a12aec3eb28dfd0f2f272fd08",
+        "phases/lir.txt": "8185b17bc21cafa565ec14bd303f4f6349e535e629e55b44332f445eb5da8e7d",
+        "phases/llvm.ll": "f421537460f59ef35036539738c59ea4404f2da1ffdaf65fd878662ee614b846",
+        "phases/source-map.txt": "79b6efdcfbd6ae3c749597e0f452afe0807a30919f01f78b510da863c3116873",
+        "phases/syntax.txt": "58dcb2fea6028fc9c9e109832ae248dba4ad5cb961ec0700dea340a70a94456e",
+        "phases/typed.txt": "a5f7759b0fee6b037cbc2b87bf1409f969e77fdfb045d643543a241ef1e7ccae",
+        "phases/verified.txt": "0de529477aa9208e919c45c079ec085c7757d85d0b501fd630e3ec309475e304",
+        "program": "6b3fc170a4a831915b5eed5f73e0a0e355b1b384e86fd262052245c278ea08dd",
+        "program.ll": "f421537460f59ef35036539738c59ea4404f2da1ffdaf65fd878662ee614b846",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-16",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-16/.zil-driver-3235-168/.zil-build-3235-16/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-16/.zil-driver-3235-168/.zil-build-3235-16/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "c0ef514510e7668ba04cd8370a94b37b878f872a49ee7cd350b54b41506a1eb7",
+        "main.zil": "1e876236908c1763021a71e5e056e4940e69e2573397f1d7dc5837973a7fdc7a",
+        "phases/candidate.txt": "ee470184d69091fb8d5271af6cb99ea14a93999e1bfe2a0f04a991217f300248",
+        "phases/core.txt": "9ca24fac89861695c70a87324fa8f6e178f66fa341633cc13d5f03e2643050ef",
+        "phases/ct-core.txt": "1190889ce9daee6125c77b723bddfb938a08a645fba4752923f928d80f23a048",
+        "phases/lir.txt": "7947ab808735f345d2ee1f2e84d56e984a6e165220b3562f8b8fb3da711168f0",
+        "phases/llvm.ll": "aa90289477e7ee9933e1de8a3083b9d7178685b39a74afe4ea1e1203abf24548",
+        "phases/source-map.txt": "e04940e0c5b85209786909e729b8fe93558cdead7d58cce228ee610fc00a3d3c",
+        "phases/syntax.txt": "0499fc20649d8ec65d02c0d2c7a226c0608f7b09717ed36ad4a9efc4e219de8f",
+        "phases/typed.txt": "60ae5e97a3ad959b91a3ef093804b9f6dbb024665d766cb550ecab3686fc74ad",
+        "phases/verified.txt": "425b35a81f00efc2f5dca3f73dd570bc99fc586cbed581774560c1657ab2d22e",
+        "program": "43c782b5d80fbf100932cd60c11a580624be4571eafed180b97205c285671b9f",
+        "program.ll": "aa90289477e7ee9933e1de8a3083b9d7178685b39a74afe4ea1e1203abf24548",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "ccfa9dbd1fffc8a4babd154092a2e87b520baaf45851250aae3f892725342ac2"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-17",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-17/.zil-driver-3235-178/.zil-build-3235-17/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-17/.zil-driver-3235-178/.zil-build-3235-17/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "8d28f9f95946c84e8394faa6a5d581e28d37107bcb1496c506a5066e355bfe02",
+        "main.zil": "1e876236908c1763021a71e5e056e4940e69e2573397f1d7dc5837973a7fdc7a",
+        "phases/candidate.txt": "ee470184d69091fb8d5271af6cb99ea14a93999e1bfe2a0f04a991217f300248",
+        "phases/core.txt": "9ca24fac89861695c70a87324fa8f6e178f66fa341633cc13d5f03e2643050ef",
+        "phases/ct-core.txt": "1190889ce9daee6125c77b723bddfb938a08a645fba4752923f928d80f23a048",
+        "phases/lir.txt": "7947ab808735f345d2ee1f2e84d56e984a6e165220b3562f8b8fb3da711168f0",
+        "phases/llvm.ll": "aa90289477e7ee9933e1de8a3083b9d7178685b39a74afe4ea1e1203abf24548",
+        "phases/source-map.txt": "e04940e0c5b85209786909e729b8fe93558cdead7d58cce228ee610fc00a3d3c",
+        "phases/syntax.txt": "0499fc20649d8ec65d02c0d2c7a226c0608f7b09717ed36ad4a9efc4e219de8f",
+        "phases/typed.txt": "60ae5e97a3ad959b91a3ef093804b9f6dbb024665d766cb550ecab3686fc74ad",
+        "phases/verified.txt": "425b35a81f00efc2f5dca3f73dd570bc99fc586cbed581774560c1657ab2d22e",
+        "program": "f48cbd8a046ee08d0a120f8a829fe1ad6853df0e62c9c610ed99dd77ee176b36",
+        "program.ll": "aa90289477e7ee9933e1de8a3083b9d7178685b39a74afe4ea1e1203abf24548",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "ccfa9dbd1fffc8a4babd154092a2e87b520baaf45851250aae3f892725342ac2"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-18",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-18/.zil-driver-3235-188/.zil-build-3235-18/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-18/.zil-driver-3235-188/.zil-build-3235-18/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "ee7e739e7b45b15e0aa1eb0e972c7c19a7bd575827068ecb8a581189afd4b7d1",
+        "main.zil": "384fe160fc1fab50e067f6193f9c34fc73a869323a4607462ef23fc169caae66",
+        "phases/candidate.txt": "977c6b6da2a6c15d0ef3e7e871f12cd1c85490dce5eed75ea6c2e050a3fe685d",
+        "phases/core.txt": "5496d7721eaf5cf6e6da5bb19bba5bc4d7b7ed1afb3db127f6dbea536db3fa3b",
+        "phases/ct-core.txt": "651b190b25e6cbfc69ca762b1cfcc9f0ec873efafe7a9a714bced6027dd560bd",
+        "phases/lir.txt": "5b5031538bf37a085dadf47c4438645703847247ba060cc4437858f6db99f692",
+        "phases/llvm.ll": "79a5458f54ad03a8af9f93dde26121f0d1deafa9202507a0c9d4b4a7863a646c",
+        "phases/source-map.txt": "61facc8e0bdb4c76ff0e753a78e22d92f50ef14cf78148c77668db10fec639f9",
+        "phases/syntax.txt": "267dd5d8bcb2aedd2df8e7dcb9091c7a23d838bb7b7af93ecebf00fbe1a65908",
+        "phases/typed.txt": "b820ce87698315e7f062cac05e990b7ecf3ff268afd1cad8230c7641dbb51b14",
+        "phases/verified.txt": "cd5ff784cd5ccf30f315dd714832547184f159b4647e8716e244c60c46a170b4",
+        "program": "b5ff2121157161c39148a960931be5acbbfdff48c4f508205c810d9c3ac53c2a",
+        "program.ll": "79a5458f54ad03a8af9f93dde26121f0d1deafa9202507a0c9d4b4a7863a646c",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-19",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-19/.zil-driver-3235-198/.zil-build-3235-19/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-19/.zil-driver-3235-198/.zil-build-3235-19/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "465a6a9eec5ca951d7b0a7b7e9c0428a593fa908d4522319a09efe98dd7c4052",
+        "main.zil": "384fe160fc1fab50e067f6193f9c34fc73a869323a4607462ef23fc169caae66",
+        "phases/candidate.txt": "977c6b6da2a6c15d0ef3e7e871f12cd1c85490dce5eed75ea6c2e050a3fe685d",
+        "phases/core.txt": "5496d7721eaf5cf6e6da5bb19bba5bc4d7b7ed1afb3db127f6dbea536db3fa3b",
+        "phases/ct-core.txt": "651b190b25e6cbfc69ca762b1cfcc9f0ec873efafe7a9a714bced6027dd560bd",
+        "phases/lir.txt": "5b5031538bf37a085dadf47c4438645703847247ba060cc4437858f6db99f692",
+        "phases/llvm.ll": "79a5458f54ad03a8af9f93dde26121f0d1deafa9202507a0c9d4b4a7863a646c",
+        "phases/source-map.txt": "61facc8e0bdb4c76ff0e753a78e22d92f50ef14cf78148c77668db10fec639f9",
+        "phases/syntax.txt": "267dd5d8bcb2aedd2df8e7dcb9091c7a23d838bb7b7af93ecebf00fbe1a65908",
+        "phases/typed.txt": "b820ce87698315e7f062cac05e990b7ecf3ff268afd1cad8230c7641dbb51b14",
+        "phases/verified.txt": "cd5ff784cd5ccf30f315dd714832547184f159b4647e8716e244c60c46a170b4",
+        "program": "e02536513288ec663cfaf435171ceef6fd81567e24b6c51eb852f4200f9d6049",
+        "program.ll": "79a5458f54ad03a8af9f93dde26121f0d1deafa9202507a0c9d4b4a7863a646c",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-2",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-2/.zil-driver-3235-28/.zil-build-3235-2/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-2/.zil-driver-3235-28/.zil-build-3235-2/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "ea6712f4fba82ac2001b55ca8e001acc4cfe590f4c8abbc2c051f42e797967b2",
+        "main.zil": "c10262022cb9391bdd210f0cfb722f073a9f393abb4e35387dd7b18cf33511f1",
+        "phases/candidate.txt": "d774ca5000712589536a3a6b4032fbdcbe9d4b4150dd38094fbcb60e1d163ebf",
+        "phases/core.txt": "0d7fb5eb246849e1370f702f51d845c24287b56a169daa98e3b2caa74e2d9478",
+        "phases/ct-core.txt": "515cfb22c1d847205478d0a2ea57c9c40e622c7bb025ddbc12beef8b07731a12",
+        "phases/lir.txt": "8ed65627a3210ffa1ee157421c6ed2af14c351a5a2b14ac4c3c774616de0fcb9",
+        "phases/llvm.ll": "4538bf40db15ea002924148ec408a314e1f30c8b9d012192a9a81fa9917da23b",
+        "phases/source-map.txt": "ba5b0f583402d46d9dd485f34a0db3f596d2975f6eba0ffcdef06f410a140f48",
+        "phases/syntax.txt": "a320b05aa033ee990e23e76dccfd82fcb9723eeb67cbecb92be7357c0688fe53",
+        "phases/typed.txt": "4818353e8f2bbfe2be816af9f4433e8024177fbf3da7aec6a6b4d1edd8f269d4",
+        "phases/verified.txt": "fcb5d39944b312e247a67010cfdd1f49df1f69dc186bc0f910ff695c2940fdba",
+        "program": "0f45bd75c74e9aa0ce72648345bc9f8a7ecdf9f18818f772db175c822fb423df",
+        "program.ll": "4538bf40db15ea002924148ec408a314e1f30c8b9d012192a9a81fa9917da23b",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-20",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-20/.zil-driver-3235-208/.zil-build-3235-20/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-20/.zil-driver-3235-208/.zil-build-3235-20/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "aebd5cd1939805e9404d2a49bdd51b021dd9f85eb5d07adfebac4f6b607b2bc7",
+        "main.zil": "6ad578fbfefd55c9f4a16c515dace6a5f3654828c21610b680c420c89874935b",
+        "phases/candidate.txt": "3b8fe9f3a7c4534056c51e833ac05d7c2f1ecffab6208431d257cfb7801382cf",
+        "phases/core.txt": "d49edb608713dcb488154e70180d24039c3afe9fcf5b30fe2e6b12b2c286ec05",
+        "phases/ct-core.txt": "6edb8dcde2ae8772228345cbdb2b1e77ac63961cbce20099b79d7807874896a3",
+        "phases/lir.txt": "621bd85705d76b901e71a1f0ee3d6feb9440faba9de3d0d4dd2d2f373c158c8b",
+        "phases/llvm.ll": "a51c0f1791f90c50be5f911e2bc2826291bf7deabf4290108c638cdf492f12cc",
+        "phases/source-map.txt": "d294a99bb650557867a0cf0238e72a92b8c424c14ebd0ec49c9cfc6dfe5ec6e6",
+        "phases/syntax.txt": "17a728b0aea849d32d26d8bef5cc011d2855460af18e1e9681c5f3cb11dad47f",
+        "phases/typed.txt": "7e246f8f3f3a52b36c9d84a842ac9b4a22b1e294948039d1f3ca27833e557329",
+        "phases/verified.txt": "bcaaac7833929d15f4dd8e41a57aaa4915d1945f8e33a1f8fd10916412861d4f",
+        "program": "346f1732842e37ee1dbd8d7cb2160e4c599b6fa92f8534c6a45bdf979ff0de04",
+        "program.ll": "a51c0f1791f90c50be5f911e2bc2826291bf7deabf4290108c638cdf492f12cc",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-21",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-21/.zil-driver-3235-218/.zil-build-3235-21/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-21/.zil-driver-3235-218/.zil-build-3235-21/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "d0fd43f5153650ab546b9a7baa1eaccb50ab3a17768dccc05d500290034f6111",
+        "main.zil": "6ad578fbfefd55c9f4a16c515dace6a5f3654828c21610b680c420c89874935b",
+        "phases/candidate.txt": "3b8fe9f3a7c4534056c51e833ac05d7c2f1ecffab6208431d257cfb7801382cf",
+        "phases/core.txt": "d49edb608713dcb488154e70180d24039c3afe9fcf5b30fe2e6b12b2c286ec05",
+        "phases/ct-core.txt": "6edb8dcde2ae8772228345cbdb2b1e77ac63961cbce20099b79d7807874896a3",
+        "phases/lir.txt": "621bd85705d76b901e71a1f0ee3d6feb9440faba9de3d0d4dd2d2f373c158c8b",
+        "phases/llvm.ll": "a51c0f1791f90c50be5f911e2bc2826291bf7deabf4290108c638cdf492f12cc",
+        "phases/source-map.txt": "d294a99bb650557867a0cf0238e72a92b8c424c14ebd0ec49c9cfc6dfe5ec6e6",
+        "phases/syntax.txt": "17a728b0aea849d32d26d8bef5cc011d2855460af18e1e9681c5f3cb11dad47f",
+        "phases/typed.txt": "7e246f8f3f3a52b36c9d84a842ac9b4a22b1e294948039d1f3ca27833e557329",
+        "phases/verified.txt": "bcaaac7833929d15f4dd8e41a57aaa4915d1945f8e33a1f8fd10916412861d4f",
+        "program": "8f6333623108eeb41e78ba6013cdaae3577135a82d54bd5b077ecde9e75f1f5c",
+        "program.ll": "a51c0f1791f90c50be5f911e2bc2826291bf7deabf4290108c638cdf492f12cc",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-22",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-22/.zil-driver-3235-228/.zil-build-3235-22/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-22/.zil-driver-3235-228/.zil-build-3235-22/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "6639468e340cf118155f0e1d1a740a30ffedf79550728761bbad2bb426211f9d",
+        "main.zil": "8f09207ee1cb81b7c62688be15d15c9761c00015d7587f0a472c73b6cd860e7d",
+        "phases/candidate.txt": "07530512a5d3f973d072acc9836d7cd1a4baa74ba52ba9d4ce346d4415c79b3c",
+        "phases/core.txt": "5b954aefc7850240a0a55c6d03fb83fa93e49d537775d8d8ed3cab25ed769526",
+        "phases/ct-core.txt": "97a53a1b926502c955381ca380f5a3360f8e6e03bcb39955efdcf3946faea539",
+        "phases/lir.txt": "61ecfab22b63576e011b90ca23732405d89b9bab6a21a560aaf57e0184b8cbdf",
+        "phases/llvm.ll": "b1340c3806603fa7376094867eb0354edf196ee8d99bbe2502a2fcfb48c4e20b",
+        "phases/source-map.txt": "5068dbbfa30218b08d78b30d3c55f680f97e998d609b190dd267fbc1d8232b3e",
+        "phases/syntax.txt": "8d1d28ef0d1b90648045de75f347d52b7de95fe79b021d5e802cc19b953e22ea",
+        "phases/typed.txt": "81985e853e5110345ae29acab3fe70dc7d5f20687324eed38dd209228fe915db",
+        "phases/verified.txt": "af38a4f23b0c859d5d1c372ac17ee04496199aa8960223e3fe60f079abd92e5c",
+        "program": "a666adbb5e65ab8206c7e09c6d19ee7646c314e6870996b91404688ecec1d7f2",
+        "program.ll": "b1340c3806603fa7376094867eb0354edf196ee8d99bbe2502a2fcfb48c4e20b",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-23",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-23/.zil-driver-3235-238/.zil-build-3235-23/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-23/.zil-driver-3235-238/.zil-build-3235-23/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "b27b7d0b44eb48e6626efaf032ecc2b31bcc262cb8e41ead876458f8e4e1f6d2",
+        "main.zil": "8f09207ee1cb81b7c62688be15d15c9761c00015d7587f0a472c73b6cd860e7d",
+        "phases/candidate.txt": "07530512a5d3f973d072acc9836d7cd1a4baa74ba52ba9d4ce346d4415c79b3c",
+        "phases/core.txt": "5b954aefc7850240a0a55c6d03fb83fa93e49d537775d8d8ed3cab25ed769526",
+        "phases/ct-core.txt": "97a53a1b926502c955381ca380f5a3360f8e6e03bcb39955efdcf3946faea539",
+        "phases/lir.txt": "61ecfab22b63576e011b90ca23732405d89b9bab6a21a560aaf57e0184b8cbdf",
+        "phases/llvm.ll": "b1340c3806603fa7376094867eb0354edf196ee8d99bbe2502a2fcfb48c4e20b",
+        "phases/source-map.txt": "5068dbbfa30218b08d78b30d3c55f680f97e998d609b190dd267fbc1d8232b3e",
+        "phases/syntax.txt": "8d1d28ef0d1b90648045de75f347d52b7de95fe79b021d5e802cc19b953e22ea",
+        "phases/typed.txt": "81985e853e5110345ae29acab3fe70dc7d5f20687324eed38dd209228fe915db",
+        "phases/verified.txt": "af38a4f23b0c859d5d1c372ac17ee04496199aa8960223e3fe60f079abd92e5c",
+        "program": "f7ec3e2e04bed756d71c492fece491591557e0e5f9aa30afb88894b47c8545d4",
+        "program.ll": "b1340c3806603fa7376094867eb0354edf196ee8d99bbe2502a2fcfb48c4e20b",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-3",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-3/.zil-driver-3235-38/.zil-build-3235-3/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-3/.zil-driver-3235-38/.zil-build-3235-3/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "98c64ca83a815e23a5e936c7eb70ccd9d0af3840183b1382e5ffe8a79dad4c2a",
+        "main.zil": "c10262022cb9391bdd210f0cfb722f073a9f393abb4e35387dd7b18cf33511f1",
+        "phases/candidate.txt": "d774ca5000712589536a3a6b4032fbdcbe9d4b4150dd38094fbcb60e1d163ebf",
+        "phases/core.txt": "0d7fb5eb246849e1370f702f51d845c24287b56a169daa98e3b2caa74e2d9478",
+        "phases/ct-core.txt": "515cfb22c1d847205478d0a2ea57c9c40e622c7bb025ddbc12beef8b07731a12",
+        "phases/lir.txt": "8ed65627a3210ffa1ee157421c6ed2af14c351a5a2b14ac4c3c774616de0fcb9",
+        "phases/llvm.ll": "4538bf40db15ea002924148ec408a314e1f30c8b9d012192a9a81fa9917da23b",
+        "phases/source-map.txt": "ba5b0f583402d46d9dd485f34a0db3f596d2975f6eba0ffcdef06f410a140f48",
+        "phases/syntax.txt": "a320b05aa033ee990e23e76dccfd82fcb9723eeb67cbecb92be7357c0688fe53",
+        "phases/typed.txt": "4818353e8f2bbfe2be816af9f4433e8024177fbf3da7aec6a6b4d1edd8f269d4",
+        "phases/verified.txt": "fcb5d39944b312e247a67010cfdd1f49df1f69dc186bc0f910ff695c2940fdba",
+        "program": "0d247ee39ef6df948f40ee722f1b52fac373683c66c36569f42eb02096cc5b15",
+        "program.ll": "4538bf40db15ea002924148ec408a314e1f30c8b9d012192a9a81fa9917da23b",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-4",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-4/.zil-driver-3235-48/.zil-build-3235-4/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-4/.zil-driver-3235-48/.zil-build-3235-4/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "018eb9e070ed53c5abf297f0345ec3b5c90b150f68dd98920098f780c14e2094",
+        "main.zil": "4a188ca704c2cafd8bf4ce92f763b0e854a73c19b03f399ef2bd5d6f8e0ba344",
+        "phases/candidate.txt": "35480088961b5aacb69ee0d364c30a491cbfff5ae0a664e8b684cfd73b686237",
+        "phases/core.txt": "f3b2392d475cd34f7e2e7fa88d7ec25c1ef988a4bbb8e7c05d9133506ea2e251",
+        "phases/ct-core.txt": "bd352228102860d9da5ba5ea063b2bcd235281f2048fced8b6a6fb3fd0a47f86",
+        "phases/lir.txt": "368ebb9ba15de1668a5b46326756204036b35970a04f0768d7ced734c4cfe4c3",
+        "phases/llvm.ll": "1f839ba2976a279110677fb6106276ec23dcf79a9d351e1950f6acbd1e997fd4",
+        "phases/source-map.txt": "0f78fe02686817b303d8d7fed64c427308ba4df38c0893c0a64542b42c8e9e5b",
+        "phases/syntax.txt": "6aeeebfb0152014a30fb84e43a4565ff2ce864140d73f93781df52520298ca22",
+        "phases/typed.txt": "def80002e2411e1977da2a1c295b056a1cf6e0d985d7d28809168c7d4e8be290",
+        "phases/verified.txt": "daf9490b296aa679f63ab55dee7eed1da6314a6489f77057b895b880110fd17a",
+        "program": "ff11f2424282298c01eaf6f48a02184199cba5d63333825699ee449c365c4590",
+        "program.ll": "1f839ba2976a279110677fb6106276ec23dcf79a9d351e1950f6acbd1e997fd4",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-5",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-5/.zil-driver-3235-58/.zil-build-3235-5/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-5/.zil-driver-3235-58/.zil-build-3235-5/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "25dbd2ce86208efe4dab18d5edde160cd36ffc69bf3ef8b6b20eee1f59f5b241",
+        "main.zil": "4a188ca704c2cafd8bf4ce92f763b0e854a73c19b03f399ef2bd5d6f8e0ba344",
+        "phases/candidate.txt": "35480088961b5aacb69ee0d364c30a491cbfff5ae0a664e8b684cfd73b686237",
+        "phases/core.txt": "f3b2392d475cd34f7e2e7fa88d7ec25c1ef988a4bbb8e7c05d9133506ea2e251",
+        "phases/ct-core.txt": "bd352228102860d9da5ba5ea063b2bcd235281f2048fced8b6a6fb3fd0a47f86",
+        "phases/lir.txt": "368ebb9ba15de1668a5b46326756204036b35970a04f0768d7ced734c4cfe4c3",
+        "phases/llvm.ll": "1f839ba2976a279110677fb6106276ec23dcf79a9d351e1950f6acbd1e997fd4",
+        "phases/source-map.txt": "0f78fe02686817b303d8d7fed64c427308ba4df38c0893c0a64542b42c8e9e5b",
+        "phases/syntax.txt": "6aeeebfb0152014a30fb84e43a4565ff2ce864140d73f93781df52520298ca22",
+        "phases/typed.txt": "def80002e2411e1977da2a1c295b056a1cf6e0d985d7d28809168c7d4e8be290",
+        "phases/verified.txt": "daf9490b296aa679f63ab55dee7eed1da6314a6489f77057b895b880110fd17a",
+        "program": "8ef3c33c6bf35d9581c5047c4885f6d529bee996ed2f73209cafed9af32bda74",
+        "program.ll": "1f839ba2976a279110677fb6106276ec23dcf79a9d351e1950f6acbd1e997fd4",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-6",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-6/.zil-driver-3235-68/.zil-build-3235-6/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-6/.zil-driver-3235-68/.zil-build-3235-6/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "75425ef8517aad84469a4fbfa400564893172340a943b579c0fb95f6a07c8de6",
+        "main.zil": "79d1fd2532c49b9646f5f81c2c388a531fe921f889b8407e204ce181a7d83c60",
+        "phases/candidate.txt": "d0beccf4493091e4efa452b3118ca3aa0dca061102d69f7f45bf1cd3faf0293a",
+        "phases/core.txt": "77b21cbb3163e1991f1d5da5948be9a2664bfa44510b15763602f4841a1d9345",
+        "phases/ct-core.txt": "589fa8a1e1dfd6a8f1228aa6b7e668563422435346cf43a22fc5428a368785a5",
+        "phases/lir.txt": "b558df0d73c2707cc18e9a11402e8d6cd42fa80535cfad62d46478a718a0ca6b",
+        "phases/llvm.ll": "0bfa1e01691e017352c166ebe1e0203c901b150541e680b57a206e41e2f6a0db",
+        "phases/source-map.txt": "a08db670b482f6ce2b99fe2e27d0a94ddc5d34ef42804e4799f8f40eea615cc6",
+        "phases/syntax.txt": "b12e84b70eba17642009ff09a880bdd53bdf353f63da104f2acad12e6e6c2f07",
+        "phases/typed.txt": "b9bba52f41e940a43f2f064de9cd5b4e4c83718ca722362dee340fc5fcc72410",
+        "phases/verified.txt": "a44536451d480e395ce60dcfbeb17fd0c7538034218995a00a881a11870f63c1",
+        "program": "61355f6be7b474830f81bcf42fef71fa0ce22e80bd1c4b1c8881dd20041215ee",
+        "program.ll": "0bfa1e01691e017352c166ebe1e0203c901b150541e680b57a206e41e2f6a0db",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-7",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-7/.zil-driver-3235-78/.zil-build-3235-7/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-7/.zil-driver-3235-78/.zil-build-3235-7/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "5dfc26b2b496d5ed0f678c0bdbba6808705c8b35c458f9c45d688fa0b7f77135",
+        "main.zil": "79d1fd2532c49b9646f5f81c2c388a531fe921f889b8407e204ce181a7d83c60",
+        "phases/candidate.txt": "d0beccf4493091e4efa452b3118ca3aa0dca061102d69f7f45bf1cd3faf0293a",
+        "phases/core.txt": "77b21cbb3163e1991f1d5da5948be9a2664bfa44510b15763602f4841a1d9345",
+        "phases/ct-core.txt": "589fa8a1e1dfd6a8f1228aa6b7e668563422435346cf43a22fc5428a368785a5",
+        "phases/lir.txt": "b558df0d73c2707cc18e9a11402e8d6cd42fa80535cfad62d46478a718a0ca6b",
+        "phases/llvm.ll": "0bfa1e01691e017352c166ebe1e0203c901b150541e680b57a206e41e2f6a0db",
+        "phases/source-map.txt": "a08db670b482f6ce2b99fe2e27d0a94ddc5d34ef42804e4799f8f40eea615cc6",
+        "phases/syntax.txt": "b12e84b70eba17642009ff09a880bdd53bdf353f63da104f2acad12e6e6c2f07",
+        "phases/typed.txt": "b9bba52f41e940a43f2f064de9cd5b4e4c83718ca722362dee340fc5fcc72410",
+        "phases/verified.txt": "a44536451d480e395ce60dcfbeb17fd0c7538034218995a00a881a11870f63c1",
+        "program": "c9622c47d442c619b3e49e75c2afe0729efb795cd5b10eb6264592a61942ba1b",
+        "program.ll": "0bfa1e01691e017352c166ebe1e0203c901b150541e680b57a206e41e2f6a0db",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-8",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O0",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-8/.zil-driver-3235-88/.zil-build-3235-8/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-8/.zil-driver-3235-88/.zil-build-3235-8/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "35523c54404d1b4bcee6f66fd70b0cb7de3dce5068926e1c0deb84c347b0c127",
+        "main.zil": "5a00038bc5412a9b1a433cc70b69737f656bafc5a5dcfb421b190a546c48f38d",
+        "phases/candidate.txt": "293cac4bec69a4e215fcfaeb87840c270f904e7245b659e10f81069e22df2b4e",
+        "phases/core.txt": "fb16abe9dff61833c480775abb6160c419cc17aabff936b813373d18a58de977",
+        "phases/ct-core.txt": "42fa8945e69597ac8e15292fd7456fe7e4c08dc1729e6d321a46b8735a8a2360",
+        "phases/lir.txt": "bb90db9f388b54d0b48c89ba6e7ddf0e39ad157b3af737cc5a193cb0d3013f76",
+        "phases/llvm.ll": "b97cce59ea3e357de756bc9d739305f0ab58a50632fdee1ce63160666e5d046b",
+        "phases/source-map.txt": "60eb72cb78678ba250370959215346afbfcd771d70b694aca6d007c254a96b06",
+        "phases/syntax.txt": "3fe48444e06eeb9fd58b2dac00a74c18791ea00a05125312dca3abfdc6882dc1",
+        "phases/typed.txt": "f34672645b36a8106a9d47b2835130dbec505a4730ae1c2bb681cf33ef057cf0",
+        "phases/verified.txt": "3f4b3580ab500d97956c924f787b9e752434fe7c6ece4fc6caaf1ef52f1ac77f",
+        "program": "8c9791de0fdb4a0bb2b07a5cb25d99c7a2e1870330cd42dc9f5df3b09982708c",
+        "program.ll": "b97cce59ea3e357de756bc9d739305f0ab58a50632fdee1ce63160666e5d046b",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+      }
+    },
+    {
+      "directory": "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-9",
+      "status": "Success",
+      "verification_runs": 1,
+      "commands": [
+        [
+          "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+          "--target=x86_64-unknown-linux-gnu",
+          "-x",
+          "ir",
+          "-O2",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-9/.zil-driver-3235-98/.zil-build-3235-9/module.ll",
+          "-o",
+          "/workspace/scratch/39be3faa4442/run-logs/161-regression-native/nested161-3235-9/.zil-driver-3235-98/.zil-build-3235-9/program"
+        ]
+      ],
+      "files": {
+        "compile.json": "0c8ba551e72eaba8fd7bb6b36a652cf2a0d379575478a0c941b38d70eaa824c4",
+        "main.zil": "5a00038bc5412a9b1a433cc70b69737f656bafc5a5dcfb421b190a546c48f38d",
+        "phases/candidate.txt": "293cac4bec69a4e215fcfaeb87840c270f904e7245b659e10f81069e22df2b4e",
+        "phases/core.txt": "fb16abe9dff61833c480775abb6160c419cc17aabff936b813373d18a58de977",
+        "phases/ct-core.txt": "42fa8945e69597ac8e15292fd7456fe7e4c08dc1729e6d321a46b8735a8a2360",
+        "phases/lir.txt": "bb90db9f388b54d0b48c89ba6e7ddf0e39ad157b3af737cc5a193cb0d3013f76",
+        "phases/llvm.ll": "b97cce59ea3e357de756bc9d739305f0ab58a50632fdee1ce63160666e5d046b",
+        "phases/source-map.txt": "60eb72cb78678ba250370959215346afbfcd771d70b694aca6d007c254a96b06",
+        "phases/syntax.txt": "3fe48444e06eeb9fd58b2dac00a74c18791ea00a05125312dca3abfdc6882dc1",
+        "phases/typed.txt": "f34672645b36a8106a9d47b2835130dbec505a4730ae1c2bb681cf33ef057cf0",
+        "phases/verified.txt": "3f4b3580ab500d97956c924f787b9e752434fe7c6ece4fc6caaf1ef52f1ac77f",
+        "program": "5505722fa7fd16869b1e79dbfe38925f4985dcf94e2a905a855880d845d1431c",
+        "program.ll": "b97cce59ea3e357de756bc9d739305f0ab58a50632fdee1ce63160666e5d046b",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+      }
+    }
+  ]
+}

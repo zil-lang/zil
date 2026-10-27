@@ -1,0 +1,24 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.96s
+     Running tests/impl161_nested_closures.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl161_nested_closures-20120c609671266b)
+
+running 16 tests
+test nested_closure_function_and_depth_budgets_remain_enforced ... ok
+test capturing_a_callable_environment_and_function_pointer_captures_remain_rejected ... ok
+test independent_verify_rejects_forged_shared_kind_and_second_capture_transfer ... ok
+test inner_unused_environment_and_outer_unused_environment_drop_once ... ok
+test inner_move_promotes_an_outer_nonmove_managed_capture ... ok
+test activation_local_managed_owner_moves_into_inner_environment ... ok
+test inner_borrowed_writes_persist_in_outer_owned_copy_capture ... ok
+test nested_move_snapshot_is_distinct_from_borrowed_writeback ... ok
+test nested_transfer_and_shared_alias_misuse_are_rejected ... ok
+test nested_move_transfers_outer_owned_capture_once ... ok
+test nested_error_exit_cleans_only_actual_remaining_owners ... ok
+test nested_owning_buffer_replacement_cleans_real_slots ... ok
+test nested_signatures_infer_across_three_lexical_layers ... ok
+test nested_shadowed_parameters_and_locals_do_not_capture_outer_names ... ok
+test nested_package_move_and_inner_refill_keep_distinct_responsibilities ... ok
+test outer_package_refill_after_nested_move_keeps_fnmut ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+
