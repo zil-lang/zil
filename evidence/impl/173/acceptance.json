@@ -75,5 +75,22 @@
   "parent_B0": "Doing",
   "performance_claim": "No new comparative compiler/runtime/memory result",
   "packaging_and_cold_recovery": "Recorded separately after final source freeze; not preclaimed here",
-  "acceptance_scope": "Limited 170-173 language implementation, exact-source tests and independent reviews only. Full language and product gates remain unmet/not run."
+  "acceptance_scope": "Limited 170-173 language implementation, exact-source tests and independent reviews only. Full language and product gates remain unmet/not run.",
+  "historical_project_gates": {
+    "handoff": {
+      "status": "Fail",
+      "receipt": "final/handoff02/command.json",
+      "errors": 1152,
+      "warnings": 0,
+      "current_170_173_errors": 0,
+      "source_commit": "d1869bbe9367f37f10e5aa6bb7be568e2f275601"
+    },
+    "plan": {
+      "status": "Fail",
+      "receipt": "final/check-plan-selftest/command.json",
+      "errors": 28,
+      "scope": "Unmodified historical B0, T01-T09, W1-W4 task spec_hash/normative_hash metadata"
+    },
+    "basis": "These historical failures are retained. They do not become Pass through the limited 170-173 acceptance."
+  }
 }
