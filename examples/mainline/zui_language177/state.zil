@@ -10,12 +10,22 @@ pub package State<F> {
     pub ready: bool
 }
 
+package Batch {
+    manages items: Store<model.Item>
+    ready: bool
+    sum: i32
+}
+
+fn prepare(count: i32, start: i32) -> Batch {
+    let items = collection.empty()
+    let ready = collection.fill(items, count, start)
+    let total = collection.sum(items)
+    return Batch { items: give items, ready: ready, sum: total }
+}
+
 pub fn create<F: FnMut() -> i32>(callback: F, count: i32) -> State<F> {
-    let ticket = model.Ticket { code: 90 }
-    let children: Store<model.Item> = collection.empty()
-    let ready = collection.fill(children, count, 68)
-    let total = collection.sum(children)
-    return State::<F> { ticket: give ticket, children: give children, callback: callback, hits: 0, sum: total, ready: ready }
+    let prepared = prepare(count, 68)
+    return State::<F> { ticket: model.Ticket { code: 90 }, children: give prepared.items, callback: callback, hits: 0, sum: prepared.sum, ready: prepared.ready }
 }
 
 pub fn tick<G: FnMut() -> i32>(state: State<G>) -> State<G> {
@@ -27,13 +37,13 @@ pub fn tick<G: FnMut() -> i32>(state: State<G>) -> State<G> {
 
 pub fn replace_children<F: FnMut() -> i32>(state: State<F>, count: i32) -> State<F> {
     var next = state
-    let replacement: Store<model.Item> = collection.empty()
-    if !collection.fill(replacement, count, 77) {
+    let replacement = prepare(count, 77)
+    if !replacement.ready {
         next.ready = false
         next.sum = collection.sum(next.children)
         return next
     }
-    next.children = give replacement
+    next.children = give replacement.items
     next.sum = collection.sum(next.children)
     next.ready = true
     return next
