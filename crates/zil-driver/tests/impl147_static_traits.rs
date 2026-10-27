@@ -138,12 +138,17 @@ fn unsupported_solver_features_are_not_invented_by_lowering_to_functions() {
     for src in [
         "trait Read<T>{fn read(self:&Self)->T;}fn main(){}",
         "trait Read{fn read(self:&Self)->i32{return 1}}fn main(){}",
-        "trait Read{fn read(self:&Self)->i32;}resource C{x:i32}impl Read for C{fn read()->i32=>.x}fn main(){}",
         "trait A{fn f(self:&Self)->i32;}trait B{fn f(self:&Self)->i32;}struct C{x:i32}impl A for C{fn f()->i32=>1}impl B for C{fn f()->i32=>2}fn main(){}",
     ] {
         let r = compile(src);
         assert_eq!(r.status, ResultCategory::Unsupported, "{}", r.to_json());
     }
+    // 171 implements this exact original resource shared-head declaration.
+    let r = compile(
+        "trait Read{fn read(self:&Self)->i32;}resource C{x:i32}impl Read for C{fn read()->i32=>.x}fn main(){}",
+    );
+    assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+    assert_eq!(r.verification_runs, 1);
 }
 #[test]
 fn ordinary_ownership_checks_still_reject_trait_method_escape() {

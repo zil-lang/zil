@@ -305,7 +305,7 @@ fn copy_fields_cannot_be_taken_or_dropped_as_managed_values() {
         }
         rejected(
             module(b.finish(None, CleanupExitKind::Return)),
-            "requires a manages field",
+            "requires an owning field",
         );
     }
 }
