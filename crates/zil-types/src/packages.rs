@@ -24,6 +24,7 @@ pub(super) fn supported(ty: &Type) -> bool {
         if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
         && fields.iter().all(|(_, t)| t.is_copy_value()
             || array_field_supported(t)
+            || matches!(t, Type::Closure(_))
             || matches!(t, Type::Managed(_) if resources::supported(t) && !dynamic_store::is_carrier(t))))
 }
 

@@ -50,9 +50,9 @@ impl<'a> Visibility<'a> {
             return Ok(());
         };
         self.spend(name.len(), span)?;
-        let Some((owner, fields)) = self.records.get(name) else {
-            return Ok(());
-        };
+        let record = self.records.get(name).or_else(|| self.records.iter()
+            .find(|(key,_)| callable_fields::nominal_base(key)==callable_fields::nominal_base(name)).map(|(_,record)|record));
+        let Some((owner, fields)) = record else {return Ok(())};
         if *owner == module {
             return Ok(());
         }
@@ -290,6 +290,7 @@ fn resolve_indexed(
         }
     }
     let mut resolver = Resolver {
+        callable_names: core.functions.iter().filter_map(|f| f.callable_parameter.as_ref().map(|b| b.generic_name.clone())).chain(project.iter().flat_map(|m| m.functions.iter()).filter_map(|f| f.callable_parameter.as_ref().map(|b| b.generic_name.clone()))).collect(),
         declarations,
         enum_declarations,
         owners,
@@ -371,6 +372,7 @@ fn resolve_indexed(
     Ok(core)
 }
 struct Resolver<'a> {
+    callable_names: BTreeSet<String>,
     declarations: BTreeMap<String, &'a CoreAggregate>,
     enum_declarations: BTreeMap<String, &'a CoreEnum>,
     owners: BTreeMap<String, u32>,
@@ -501,6 +503,8 @@ impl Resolver<'_> {
                     for f in &d.fields {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
+                            || (d.kind == AggregateKind::Package && !f.manages && d.name.starts_with("$generic_")
+                                && matches!(&ty, Type::Named(name) if self.callable_names.contains(name)))
                             || (d.kind == AggregateKind::Package
                                 && !f.manages
                                 && packages::array_field_supported(&ty))
