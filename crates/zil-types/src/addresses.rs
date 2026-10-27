@@ -37,6 +37,13 @@ impl Builder<'_, '_> {
             && let Some(local) = self.lookup(name)
             && !self.borrowed_captures.contains_key(&local)
         {
+            if self.closure_slots.contains_key(&local) {
+                let ty = Type::Closure(self.closure_slots[&local]);
+                if let Some(expected) = expected {
+                    self.same(&ty, expected, e.span)?;
+                }
+                return self.take_closure_slot(local, e.span);
+            }
             if let Some((index, ty)) = self.closure_captures.get(&local).cloned() {
                 if let Some(expected) = expected {
                     self.same(&ty, expected, e.span)?;
@@ -146,6 +153,9 @@ impl Builder<'_, '_> {
                     error("E-UNKNOWN-NAME", e.span, format!("unknown value {name}"))
                 })?;
                 let decl = self.function.locals[local.0 as usize].clone();
+                if self.closure_slots.contains_key(&local) {
+                    return self.borrow_closure_slot(local, mutable, e.span);
+                }
                 if let Some((index, inner)) = self.closure_captures.get(&local).cloned() {
                     let available = matches!(decl.ty, Type::Address { mutable: true, .. });
                     if mutable && !available {

@@ -26,8 +26,11 @@ pub(crate) fn check_type_for(
         ));
     }
     match element.as_ref() {
-        Type::Package { fields, .. } => {
-            budget.spend((*length as usize).saturating_mul(fields.len().saturating_add(1)))?;
+        Type::Package { .. } => {
+            let work = closures::type_layout_work(element, budget)?
+                .checked_mul(*length as usize)
+                .ok_or_else(|| limit("owning array layout expansion overflow"))?;
+            budget.spend(work)?;
             packages::check_type_for(module, element, span, budget)
         }
         Type::Closure(id) => {

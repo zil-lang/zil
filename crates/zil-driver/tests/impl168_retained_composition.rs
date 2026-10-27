@@ -194,6 +194,72 @@ fn failed_replacement_keeps_original_slot_responsibility() {
     );
     native(&project(&[("main", &source)]), "replace-error", "A", 1);
 }
+
+#[test]
+fn persistent_slot_preserves_cleanup_birth_under_later_guard() {
+    run(
+        &format!(
+            "{DROP}{SHARED}fn main()->i32{{var f=make(65);let guard=R{{code:90}};f=make(66);return f()-66}}"
+        ),
+        "slot-guard",
+        "AZB",
+    );
+    run(
+        &format!(
+            "{DROP}{MUTABLE}fn main()->i32{{var f=make(65);let guard=R{{code:90}};f=make(66);return f()-67}}"
+        ),
+        "slot-mut-guard",
+        "AZC",
+    );
+}
+
+#[test]
+fn consumed_persistent_slot_can_be_refilled_without_rebirth() {
+    run(
+        &format!(
+            "{DROP}{ONCE}fn main()->i32{{var f=make(65);let guard=R{{code:90}};let first=f();f=make(66);return first-65}}"
+        ),
+        "slot-refill-cleanup",
+        "AZB",
+    );
+    run(
+        &format!(
+            "{DROP}{ONCE}fn main()->i32{{var f=make(65);let guard=R{{code:90}};let first=f();f=make(66);return first+f()-131}}"
+        ),
+        "slot-refill-call",
+        "ABZ",
+    );
+}
+
+#[test]
+fn persistent_slot_move_capture_transfers_the_actual_element() {
+    run(
+        &format!(
+            "{DROP}{SHARED}fn wrap()->impl Fn()->i32{{var f=make(65);f=make(66);return move ()=>f()}}fn main()->i32{{let f=wrap();return f()-66}}"
+        ),
+        "slot-move-capture",
+        "AB",
+    );
+    let text = format!(
+        "{DROP}enum E{{Fail}}fn fail()->E!i32{{return E.Fail}}{SHARED}fn main()->E!i32{{var f=make(65);let guard=R{{code:90}};f=make(fail()?);return f()}}"
+    );
+    native(
+        &project(&[("main", &text)]),
+        "slot-failed-rhs-guard",
+        "ZA",
+        1,
+    );
+}
+
+#[test]
+fn persistent_slot_cannot_replace_a_still_borrowed_element() {
+    rejected(
+        &format!(
+            "{DROP}{SHARED}fn main()->i32{{var f=make(65);let old=&f;f=make(66);return old()}}"
+        ),
+        "E-BORROW-CONFLICT",
+    );
+}
 #[test]
 fn owned_shared_subenvironment_is_borrowed_and_dropped_recursively() {
     run(
@@ -499,6 +565,157 @@ fn independent_raw_and_wire_bound_repeated_child_layout_expansion() {
     }
 }
 
+fn bounded_raw_and_wire(module: zil_ir::TypedModule, mut plan: zil_ir::CandidatePlan) {
+    plan.module_fingerprint = module.fingerprint();
+    let limits = Limits {
+        max_analysis_steps: 100_000,
+        ..Limits::default()
+    };
+    let target = TargetProfile::default();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    for outcome in [
+        zil_verify::verify_module(module, plan, &target, &limits),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits),
+    ] {
+        let errors = outcome.expect_err("expanded wide leaf work escaped the selected bound");
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Verify && d.category == ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+    }
+}
+
+fn wide_leaf(width: usize) -> Type {
+    Type::Record {
+        name: "WideCopyLeaf".into(),
+        fields: (0..width).map(|i| (format!("f{i}"), Type::I32)).collect(),
+    }
+}
+
+#[test]
+fn independent_raw_and_wire_charge_wide_leaf_inside_closure_dag() {
+    use zil_ir::{ClosureId, FunctionId, Instruction, LocalDecl, LocalId};
+    let (mut module, mut plan) = checked_module(
+        "fn make()->impl Fn()->i32{return ()=>42}fn main()->i32{let f=make();return f()-42}",
+    );
+    let prototype = module.closures[0].clone();
+    let entry = module.functions[prototype.function.0 as usize].clone();
+    let entry_plan = plan
+        .functions
+        .iter()
+        .find(|p| p.function == entry.id)
+        .unwrap()
+        .clone();
+    for index in 1..=10 {
+        let mut definition = prototype.clone();
+        definition.id = ClosureId(index);
+        definition.function = FunctionId(module.functions.len() as u32);
+        definition.captures = if index == 1 {
+            vec![wide_leaf(512)]
+        } else {
+            vec![Type::Closure(ClosureId(index - 1)); 2]
+        };
+        let mut function = entry.clone();
+        function.id = definition.function;
+        function.name = format!("$wide{index}");
+        function.environment = Some(definition.id);
+        let mut function_plan = entry_plan.clone();
+        function_plan.function = function.id;
+        module.functions.push(function);
+        plan.functions.push(function_plan);
+        module.closures.push(definition);
+    }
+    let main = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let local = LocalId(main.locals.len() as u32);
+    main.locals.push(LocalDecl {
+        id: local,
+        name: "$wide168".into(),
+        ty: Type::Closure(ClosureId(10)),
+        mutable: true,
+        span: main.span,
+    });
+    let at = main.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ScopeEnter { .. }))
+        .unwrap()
+        + 1;
+    main.blocks[0].instructions.splice(
+        at..at,
+        [
+            InstructionKind::StorageLive(local),
+            InstructionKind::DropClosure { local },
+            InstructionKind::StorageDead(local),
+        ]
+        .map(|kind| Instruction {
+            result: None,
+            kind,
+            span: main.span,
+        }),
+    );
+    bounded_raw_and_wire(module, plan);
+}
+
+#[test]
+fn independent_raw_and_wire_charge_wide_package_array_elements() {
+    use zil_ir::{Instruction, LocalDecl, LocalId};
+    let (mut module, plan) = checked_module(
+        "resource R{n:i32}impl Drop for R{fn drop(self:Self){}}fn take(give r:R){}fn main()->i32{return 0}",
+    );
+    let package = Type::Package {
+        name: "BudgetPackage".into(),
+        fields: vec![
+            (
+                "owned".into(),
+                Type::Managed(Box::new(module.resources[0].payload.clone())),
+            ),
+            ("wide".into(), wide_leaf(2048)),
+        ],
+    };
+    let main = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let local = LocalId(main.locals.len() as u32);
+    main.locals.push(LocalDecl {
+        id: local,
+        name: "$array168".into(),
+        ty: Type::Array {
+            element: Box::new(package),
+            length: 128,
+        },
+        mutable: true,
+        span: main.span,
+    });
+    let at = main.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ScopeEnter { .. }))
+        .unwrap()
+        + 1;
+    main.blocks[0].instructions.splice(
+        at..at,
+        [
+            InstructionKind::StorageLive(local),
+            InstructionKind::DropOwnedArray { local },
+            InstructionKind::StorageDead(local),
+        ]
+        .map(|kind| Instruction {
+            result: None,
+            kind,
+            span: main.span,
+        }),
+    );
+    bounded_raw_and_wire(module, plan);
+}
+
 #[test]
 fn forwarding_keeps_exact_mutable_and_consuming_factory_kinds() {
     run(
@@ -547,14 +764,14 @@ fn independent_ownership_checks_run_without_nominal_resources() {
         .find(|b| {
             b.instructions
                 .iter()
-                .any(|i| matches!(i.kind, InstructionKind::DropClosure { .. }))
+                .any(|i| matches!(i.kind, InstructionKind::DropOwnedArrayElement { .. }))
         })
         .unwrap();
     let position = block
         .instructions
         .iter()
-        .position(|i| matches!(i.kind, InstructionKind::DropClosure { .. }))
+        .position(|i| matches!(i.kind, InstructionKind::DropOwnedArrayElement { .. }))
         .unwrap();
     block.instructions.remove(position);
-    raw_rejected(module, plan, "outstanding resource responsibility");
+    raw_rejected(module, plan, "outstanding element responsibility");
 }

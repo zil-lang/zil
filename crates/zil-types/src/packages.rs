@@ -57,6 +57,11 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<()> {
         let Type::Closure(root) = element else {
+            if matches!(element, Type::Package { .. }) {
+                let work = inference::type_snapshot_work(element, span, self.limits)?;
+                self.closures
+                    .snapshot(work.saturating_mul(length as usize), span)?;
+            }
             return Ok(());
         };
         let mut pending = vec![*root];
@@ -74,18 +79,19 @@ impl Builder<'_, '_> {
                 })?
                 .captures
                 .len();
-            // Walk occurrences, not only distinct IDs: an inline child DAG can
-            // expand repeatedly. Charge the array multiplicity before cloning.
-            self.closures.snapshot(
-                count.saturating_add(1).saturating_mul(length as usize),
-                span,
-            )?;
-            let captures = self.closures.pending[id.0 as usize]
-                .captures
-                .iter()
-                .map(closures::Capture::stored_type)
-                .collect::<Vec<_>>();
-            for capture in captures {
+            // Walk occurrences, not only distinct IDs. Charge each full type
+            // subtree at array multiplicity before stored_type clones it.
+            self.closures
+                .snapshot(count.saturating_add(length as usize), span)?;
+            for index in 0..count {
+                let work = inference::type_snapshot_work(
+                    &self.closures.pending[id.0 as usize].captures[index].ty,
+                    span,
+                    self.limits,
+                )?;
+                self.closures
+                    .snapshot(work.saturating_mul(length as usize), span)?;
+                let capture = self.closures.pending[id.0 as usize].captures[index].stored_type();
                 match capture {
                     Type::Closure(child) => pending.push(child),
                     Type::Managed(_) | Type::Package { .. } => {}

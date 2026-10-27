@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 mod methods;
 mod package_effects;
 mod patterns;
+mod slots;
 
 #[derive(Clone)]
 pub(super) struct Capture {

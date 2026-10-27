@@ -1016,12 +1016,6 @@ impl Builder<'_, '_> {
                         "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
                     ));
                 }
-                if let Type::Array { element, length } = &ty
-                    && let Type::Package { fields, .. } = element.as_ref()
-                {
-                    self.closures
-                        .snapshot((*length as usize).saturating_mul(fields.len()), e.span)?;
-                }
                 let fields = self.commit_arguments(staged, e.span)?;
                 Ok((
                     self.value(
