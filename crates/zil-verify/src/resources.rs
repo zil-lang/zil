@@ -1038,6 +1038,14 @@ impl Transfer<'_> {
                         state.fresh[field] = INPUT;
                     }
                 }
+                InstructionKind::BorrowLocal { local }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
+                {
+                    let debt = slots.managed_local[local.0 as usize].expect("typed managed head");
+                    if validate && state.debt[debt] != LIVE {
+                        return Err(bad(span, "head address requires a live managed position"));
+                    }
+                }
                 InstructionKind::DescribeLocal { local } => {
                     let index =
                         slots.managed_local[local.0 as usize].expect("typed managed description");

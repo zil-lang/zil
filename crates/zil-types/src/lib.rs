@@ -131,6 +131,21 @@ fn signatures(
                 format!("function {} is declared twice", f.name),
             ))
         }
+        if f.return_type.is_shared_resource_head_address()
+            || (matches!(f.return_type, Type::Address { .. })
+                && (f
+                    .parameters
+                    .iter()
+                    .any(|p| p.ty.is_shared_resource_head_address())
+                    || f.receiver
+                        .as_ref()
+                        .is_some_and(|r| r.ty.is_shared_resource_head_address())))
+        {
+            errors.push(unsupported(
+                f.span,
+                "resource-head windows are synchronous inputs; returning a head or a window derived from a head input is not implemented",
+            ));
+        }
         if !(f.callable_return.is_some()
             || f.return_type.is_copy_value()
             || f.return_type.is_scalar_or_address()
@@ -189,7 +204,8 @@ fn signatures(
                     | PassingMode::Borrow
                     | PassingMode::BorrowMut
             ) && !(p.mode == PassingMode::Borrow
-                && matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee()))
+                && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+                    || p.ty.is_shared_resource_head_address()))
                 && !(p.mode == PassingMode::BorrowMut
                     && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee()))
                 && !(p.mode == PassingMode::Give && matches!(p.ty, Type::Managed(_)))
@@ -1695,7 +1711,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 operand,
             } => self
                 .known_type(operand)
-                .filter(Type::is_address_pointee)
+                .filter(|ty| ty.is_address_pointee()
+                    || (*op == UnaryOp::Borrow && matches!(ty, Type::Managed(payload)
+                        if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())))
                 .map(|inner| Type::Address {
                     mutable: *op == UnaryOp::BorrowMut,
                     inner: Box::new(inner),

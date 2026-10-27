@@ -654,6 +654,9 @@ fn check_function_signature_type(
     budget: &mut Budget,
 ) -> Check<()> {
     match ty {
+        Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+            resources::check_type_for(module, inner, span, budget)
+        }
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_type_for(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
@@ -677,6 +680,9 @@ fn check_local_type(
             span,
             "local closure type references an absent environment",
         )),
+        Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+            resources::check_type_for(module, inner, span, budget)
+        }
         Type::Address { inner, .. } => match inner.as_ref() {
             Type::Closure(id) => closures::definition(module, *id, span).map(|_| ()),
             _ => slices::check_pointee(inner, span),
@@ -745,6 +751,19 @@ fn check_function(
             return Err(fail("E-VERIFY-PARAMETER", "duplicate parameter local"));
         }
         *p = true;
+    }
+    if function.return_type.is_shared_resource_head_address()
+        || (matches!(function.return_type, Type::Address { .. })
+            && function.parameters.iter().any(|local| {
+                function.locals[local.0 as usize]
+                    .ty
+                    .is_shared_resource_head_address()
+            }))
+    {
+        return Err(unsupported(
+            "resource-head windows are synchronous inputs; head-derived returns require a separate contract",
+            Some(function.span),
+        ));
     }
     let mut predecessors = vec![Vec::<usize>::new(); n];
     let mut successors = vec![Vec::<usize>::new(); n];
@@ -1172,6 +1191,9 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if matches!(inner, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
+            {
+                resources::check_type_for(module, inner, span, budget)?;
             } else {
                 check_type(inner, span)?;
             }
@@ -1253,7 +1275,14 @@ fn check_instruction(
                     "field projection requires a shared address",
                 ));
             };
-            let field = match inner.as_ref() {
+            let projected = match inner.as_ref() {
+                Type::Managed(payload) if !*mutable => {
+                    resources::check_type_for(module, inner, span, budget)?;
+                    payload.as_ref()
+                }
+                other => other,
+            };
+            let field = match projected {
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
                 _ => None,
