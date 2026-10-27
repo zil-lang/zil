@@ -614,13 +614,17 @@ pub(super) fn check(
                     InstructionKind::CallClosure { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::CallClosureBorrowed { callee, .. }
-                        if captures_descriptors(module, &f.values[callee.0 as usize]) =>
+                        if captures_descriptors(module, &f.values[callee.0 as usize], budget)? =>
                     {
                         Some(&facts.values[callee.0 as usize])
                     }
                     InstructionKind::CallClosureShared { callee, .. }
                     | InstructionKind::CallClosureMut { callee, .. }
-                        if captures_descriptors(module, &f.locals[callee.0 as usize].ty) =>
+                        if captures_descriptors(
+                            module,
+                            &f.locals[callee.0 as usize].ty,
+                            budget,
+                        )? =>
                     {
                         descriptor_locals.get(callee)
                     }
@@ -643,7 +647,7 @@ pub(super) fn check(
                     budget.spend(1)?;
                     let argument = arguments[*parameter as usize];
                     let own = if head_windows
-                        && captures_descriptors(module, &f.values[argument.0 as usize])
+                        && captures_descriptors(module, &f.values[argument.0 as usize], budget)?
                     {
                         &flow.values[argument.0 as usize]
                     } else {

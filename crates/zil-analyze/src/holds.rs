@@ -70,23 +70,36 @@ fn infer(
 ) -> CompileResult<Vec<ValueHold>> {
     let v = f.values.len();
     budget.spend(v, "dense Hold candidate")?;
-    let captured_address = |ty: &Type| match ty {
-        Type::Closure(id) => module.closures.get(id.0 as usize).is_some_and(|c| {
-            c.captures.iter().any(|t| {
-                matches!(t, Type::Address { .. }) || (head_windows && matches!(t, Type::Desc(_)))
-            })
-        }),
-        _ => false,
+    let captured_address = |ty: &Type, budget: &mut Budget| -> CompileResult<bool> {
+        let Type::Closure(id) = ty else {
+            return Ok(false);
+        };
+        let Some(closure) = module.closures.get(id.0 as usize) else {
+            return Ok(false);
+        };
+        if head_windows {
+            budget.spend(closure.captures.len(), "head descriptor capture scan")?;
+        }
+        Ok(closure.captures.iter().any(|ty| {
+            matches!(ty, Type::Address { .. }) || (head_windows && matches!(ty, Type::Desc(_)))
+        }))
     };
-    if !f
+    let mut has_sources = f
         .values
         .iter()
-        .any(|ty| matches!(ty, Type::Address { .. }) || tracked_desc(ty, head_windows))
-        && !f
-            .parameters
-            .iter()
-            .any(|p| captured_address(&f.locals[p.0 as usize].ty))
-    {
+        .any(|ty| matches!(ty, Type::Address { .. }) || tracked_desc(ty, head_windows));
+    if !has_sources {
+        if head_windows {
+            budget.spend(f.parameters.len(), "head incoming source scan")?;
+        }
+        for local in &f.parameters {
+            if captured_address(&f.locals[local.0 as usize].ty, budget)? {
+                has_sources = true;
+                break;
+            }
+        }
+    }
+    if !has_sources {
         return Ok((0..v)
             .map(|i| ValueHold {
                 value: ValueId(i as u32),
@@ -110,7 +123,7 @@ fn infer(
                 for (index, local) in f.parameters.iter().enumerate() {
                     if matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
                         || tracked_desc(&f.locals[local.0 as usize].ty, head_windows)
-                        || captured_address(&f.locals[local.0 as usize].ty)
+                        || captured_address(&f.locals[local.0 as usize].ty, budget)?
                     {
                         state.insert(*local, Roots::from([Root::Parameter(index as u32)]));
                     }

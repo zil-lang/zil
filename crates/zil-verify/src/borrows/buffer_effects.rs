@@ -47,7 +47,8 @@ pub(super) fn infer(
                 // available here, publish a conservative write to its roots.
                 for (parameter, local) in function.parameters.iter().enumerate() {
                     budget.spend(1)?;
-                    if captures_descriptors(module, &function.locals[local.0 as usize].ty) {
+                    if captures_descriptors(module, &function.locals[local.0 as usize].ty, budget)?
+                    {
                         changed |= add_effect(&mut effects[index], parameter as u32, true, budget)?;
                     }
                 }
