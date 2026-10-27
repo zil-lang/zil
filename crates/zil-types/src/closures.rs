@@ -222,6 +222,12 @@ impl State {
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         for capture in &checker.captures {
+            if packages::has_array_fields(&capture.stored_type()) {
+                return Err(unsupported(
+                    capture.span,
+                    "Package capture with owning array fields requires a retained nested-field protocol",
+                ));
+            }
             if packages::owned_array_supported(&capture.stored_type()) {
                 return Err(unsupported(
                     capture.span,

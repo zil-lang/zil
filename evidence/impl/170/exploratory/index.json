@@ -1,0 +1,26 @@
+[
+  {
+    "path": "evidence/impl/170/exploratory/test170-first.log",
+    "sha256": "58186db6a0f96f7b3a74a40d6ff4c5c601bdc83402ad824409d877178f038cca",
+    "classification": "ExploratoryDirtySource_MissingAnalyzeAdmission",
+    "source_identity": "uncommitted intermediate; not an acceptance run"
+  },
+  {
+    "path": "evidence/impl/170/exploratory/test170-second.log",
+    "sha256": "21f3c22d009e8a08314b2f124492d8222464cb32d14d9ebc7d9e7058c96a527b",
+    "classification": "ExploratoryDirtySource_DiagnosticAssertions",
+    "source_identity": "uncommitted intermediate; not an acceptance run"
+  },
+  {
+    "path": "evidence/impl/170/exploratory/test170-third.log",
+    "sha256": "0fe020ac79aaf6159fa26a43560bb99af79a0dc97ba4b0956ed8d8f328732ed0",
+    "classification": "ExploratoryDirtySource_DiagnosticAssertion",
+    "source_identity": "uncommitted intermediate; not an acceptance run"
+  },
+  {
+    "path": "evidence/impl/170/exploratory/test170-fourth.log",
+    "sha256": "33c918d072f22c022a9e05b73668e63912a3ac913bafb9a36473edbb26720d4e",
+    "classification": "CacheInfrastructureMissingRlib",
+    "source_identity": "uncommitted intermediate; not an acceptance run"
+  }
+]
