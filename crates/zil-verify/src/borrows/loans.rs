@@ -158,6 +158,7 @@ fn reconstruct(
                             }
                         }
                         InstructionKind::ByteBufferBorrow { .. }
+                        | InstructionKind::OwnedStoreBorrow { .. }
                         | InstructionKind::BorrowOwnedArrayElement { .. } => {
                             row.insert(id);
                         }
