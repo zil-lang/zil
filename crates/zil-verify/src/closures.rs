@@ -26,6 +26,7 @@ pub(super) fn check_definitions(
     {
         return Err(limit("closure count exceeds the function bound"));
     }
+    check_layouts(module, limits, budget)?;
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
@@ -70,6 +71,9 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
+            if let Type::Closure(id) = ty {
+                self_contained(module, *id, budget)?;
+            }
             if byte_buffers::is_desc(ty) {
                 return Err(unsupported(
                     "borrowed byte storage captures are outside the finite profile",
@@ -82,7 +86,7 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            check_function_signature_type(module, ty, None, budget)?;
+            check_local_type(ty, None, module, budget)?;
         }
         if closure.kind == CallableKind::Fn
             && closure
@@ -153,6 +157,161 @@ pub(super) fn check_definitions(
     Ok(())
 }
 
+/// Inline fields must form a finite layout before any backend sizing or
+/// alignment recursion. A raw ClosureId is not evidence of acyclicity.
+fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> Check<()> {
+    budget.spend(module.closures.len().saturating_mul(3))?;
+    let mut state = vec![0u8; module.closures.len()];
+    let mut heights = vec![0usize; module.closures.len()];
+    let mut expanded = vec![0usize; module.closures.len()];
+    for root in 0..state.len() {
+        let mut stack = vec![(ClosureId(root as u32), false, 0usize)];
+        while let Some((id, exit, depth)) = stack.pop() {
+            budget.spend(1)?;
+            let definition = definition(module, id, None)?;
+            if depth > limits.max_call_depth {
+                return Err(limit("closure layout depth exceeds selected bound"));
+            }
+            if exit {
+                budget.spend(definition.captures.len())?;
+                let height = definition
+                    .captures
+                    .iter()
+                    .filter_map(|ty| {
+                        if let Type::Closure(child) = ty {
+                            Some(heights[child.0 as usize] + 1)
+                        } else {
+                            None
+                        }
+                    })
+                    .max()
+                    .unwrap_or(0);
+                if height > limits.max_call_depth {
+                    return Err(limit("closure layout depth exceeds selected bound"));
+                }
+                let mut work = 1usize;
+                for ty in &definition.captures {
+                    let field = if let Type::Closure(child) = ty {
+                        expanded[child.0 as usize]
+                    } else {
+                        1
+                    };
+                    work = work
+                        .checked_add(field)
+                        .ok_or_else(|| limit("closure layout expansion overflow"))?;
+                }
+                budget
+                    .spend(work)
+                    .map_err(|_| limit("closure layout expansion budget exceeded"))?;
+                expanded[id.0 as usize] = work;
+                heights[id.0 as usize] = height;
+                state[id.0 as usize] = 2;
+                continue;
+            }
+            match state[id.0 as usize] {
+                2 => continue,
+                1 => {
+                    return Err(reject(
+                        "E-VERIFY-CLOSURE-LAYOUT",
+                        None,
+                        "recursive inline closure environment layout",
+                    ));
+                }
+                _ => {}
+            }
+            state[id.0 as usize] = 1;
+            stack.push((id, true, depth));
+            budget.spend(definition.captures.len())?;
+            for ty in &definition.captures {
+                if let Type::Closure(child) = ty {
+                    stack.push((*child, false, depth + 1));
+                }
+            }
+        }
+    }
+    // Each local/value instance can require another machine layout/cleanup
+    // traversal. Charge expanded work, including array multiplicity, rather
+    // than granting a large DAG a cheap ClosureId at every use site.
+    let instances = module
+        .functions
+        .iter()
+        .try_fold(0usize, |count, function| {
+            count
+                .checked_add(function.locals.len())
+                .and_then(|count| count.checked_add(function.values.len()))
+                .and_then(|count| count.checked_add(1))
+        })
+        .ok_or_else(|| limit("closure instance table size overflow"))?;
+    budget.spend(instances)?;
+    let mut types = module
+        .functions
+        .iter()
+        .flat_map(|f| {
+            f.locals
+                .iter()
+                .map(|local| &local.ty)
+                .chain(&f.values)
+                .chain(std::iter::once(&f.return_type))
+        })
+        .map(|ty| (ty, 1usize))
+        .collect::<Vec<_>>();
+    while let Some((ty, count)) = types.pop() {
+        budget.spend(1)?;
+        match ty {
+            Type::Closure(id) => {
+                definition(module, *id, None)?;
+                let work = count
+                    .checked_mul(expanded[id.0 as usize])
+                    .ok_or_else(|| limit("closure instance expansion overflow"))?;
+                budget
+                    .spend(work)
+                    .map_err(|_| limit("closure instance expansion budget exceeded"))?;
+            }
+            Type::Array { element, length } => {
+                let count = count
+                    .checked_mul(*length as usize)
+                    .ok_or_else(|| limit("closure array expansion overflow"))?;
+                types.push((element, count));
+            }
+            // Other containers do not admit Closure elements in this slice;
+            // their own type checks retain the precise rejection boundary.
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn self_contained(
+    module: &TypedModule,
+    root: ClosureId,
+    budget: &mut Budget,
+) -> Check<()> {
+    let mut visited = std::collections::BTreeSet::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        budget.spend(1)?;
+        if !visited.insert(id) {
+            continue;
+        }
+        let definition = definition(module, id, None)?;
+        budget.spend(definition.captures.len())?;
+        for ty in &definition.captures {
+            match ty {
+                Type::Closure(child) => pending.push(*child),
+                Type::Managed(_) | Type::Package { .. } => {}
+                ty if ty.is_copy_value() => {}
+                _ => {
+                    return Err(unsupported(
+                        "owned nested closure capture requires a self-contained environment",
+                        None,
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// A unique carrier is required for owned resource fields and for a consuming
 /// entry. This is a representation classification, not proof of responsibility.
 pub(super) fn owned_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
@@ -162,10 +321,12 @@ pub(super) fn owned_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
     let definition = definition(module, *id, None)?;
     budget.spend(definition.captures.len().saturating_add(1))?;
     Ok(definition.kind == CallableKind::FnOnce
-        || definition
-            .captures
-            .iter()
-            .any(|ty| matches!(ty, Type::Managed(_) | Type::Package { .. })))
+        || definition.captures.iter().any(|ty| {
+            matches!(
+                ty,
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+            )
+        }))
 }
 
 pub(super) fn check_resource_instruction(
@@ -176,6 +337,34 @@ pub(super) fn check_resource_instruction(
 ) -> Check<Option<Type>> {
     let span = Some(instruction.span);
     match &instruction.kind {
+        InstructionKind::BorrowCapture { index, mutable } => {
+            let environment = function.environment.ok_or_else(|| {
+                reject(
+                    "E-VERIFY-CAPTURE",
+                    span,
+                    "capture borrow requires an entry environment",
+                )
+            })?;
+            let definition = definition(module, environment, span)?;
+            let Some(ty @ Type::Closure(_)) = definition.captures.get(*index as usize) else {
+                return Err(reject(
+                    "E-VERIFY-CAPTURE",
+                    span,
+                    "capture borrow requires an actual inline closure field",
+                ));
+            };
+            if *mutable && definition.kind == CallableKind::Fn {
+                return Err(reject(
+                    "E-VERIFY-CLOSURE-CALL",
+                    span,
+                    "exclusive capture borrow requires an exclusive or consuming entry",
+                ));
+            }
+            Ok(Some(Type::Address {
+                mutable: *mutable,
+                inner: Box::new(ty.clone()),
+            }))
+        }
         InstructionKind::DescribeCapture { index } | InstructionKind::TakeCapture { index } => {
             let environment = function.environment.ok_or_else(|| {
                 reject(
@@ -185,14 +374,21 @@ pub(super) fn check_resource_instruction(
                 )
             })?;
             let definition = definition(module, environment, span)?;
-            let Some(Type::Managed(inner)) = definition.captures.get(*index as usize) else {
+            let Some(ty) = definition.captures.get(*index as usize) else {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
                     span,
-                    "resource capture operation requires an actual Managed field",
+                    "owned capture index is outside the environment",
                 ));
             };
             if matches!(instruction.kind, InstructionKind::TakeCapture { .. }) {
+                if !matches!(ty, Type::Managed(_) | Type::Closure(_)) {
+                    return Err(reject(
+                        "E-VERIFY-CAPTURE",
+                        span,
+                        "capture take requires an actual Managed field or owned Closure field",
+                    ));
+                }
                 if definition.kind != CallableKind::FnOnce {
                     return Err(reject(
                         "E-VERIFY-CLOSURE-CALL",
@@ -200,8 +396,15 @@ pub(super) fn check_resource_instruction(
                         "moving an owned capture requires a Consume entry",
                     ));
                 }
-                Ok(Some(Type::Managed(inner.clone())))
+                Ok(Some(ty.clone()))
             } else {
+                let Type::Managed(inner) = ty else {
+                    return Err(reject(
+                        "E-VERIFY-CAPTURE",
+                        span,
+                        "resource description requires an actual Managed field",
+                    ));
+                };
                 Ok(Some(Type::Desc(inner.clone())))
             }
         }

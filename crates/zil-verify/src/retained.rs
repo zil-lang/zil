@@ -87,6 +87,9 @@ pub(super) fn check_claim(
             cleanup.push(index as u32);
         } else if matches!(ty, Type::Managed(_)) {
             cleanup.push(index as u32);
+        } else if let Type::Closure(id) = ty {
+            closures::self_contained(module, *id, budget)?;
+            cleanup.push(index as u32);
         } else if !ty.is_copy_value() {
             return Err(unsupported(
                 "returned callable captures must be self-contained finite Copy, Managed or Package values",
@@ -115,6 +118,7 @@ pub(super) fn check_body(
     let Some(contract) = &f.callable_return_contract else {
         return Ok(());
     };
+    check_dependencies(module, f, budget)?;
     let mut creations = 0usize;
     let mut returns = 0usize;
     for (b, block) in f.blocks.iter().enumerate() {
@@ -128,15 +132,17 @@ pub(super) fn check_body(
                 InstructionKind::MakeClosure { closure, .. } if closure == contract.closure => {
                     creations += 1;
                 }
-                InstructionKind::Call { function, .. }
-                    if module.functions[function.0 as usize]
+                InstructionKind::Call { function, .. } => {
+                    let target = module.functions.get(function.0 as usize).ok_or_else(|| {
+                        bad(f, "factory call target is outside the function table")
+                    })?;
+                    if target
                         .callable_return_contract
-                        .is_some() =>
-                {
-                    return Err(unsupported(
-                        "factory result dependencies cannot be recursive or forwarded in this slice",
-                        Some(instruction.span),
-                    ));
+                        .as_ref()
+                        .is_some_and(|c| c.closure == contract.closure)
+                    {
+                        creations += 1;
+                    }
                 }
                 _ => {}
             }
@@ -145,11 +151,68 @@ pub(super) fn check_body(
             returns += 1;
         }
     }
-    if creations != 1 || returns == 0 {
+    if creations == 0 || returns == 0 {
         return Err(bad(
             f,
-            "factory requires one concrete creation site and a reachable same-type return",
+            "factory requires a concrete creation or grounded forwarding site and a reachable same-type return",
         ));
+    }
+    Ok(())
+}
+
+/// A raw producer cannot claim a finite factory identity by making factories
+/// endorse each other. This independent graph walk does not consume a Types or
+/// Analyze summary and does not recurse on the host stack.
+fn check_dependencies(
+    module: &TypedModule,
+    root: &TypedFunction,
+    budget: &mut Budget,
+) -> Check<()> {
+    let mut active = std::collections::BTreeSet::new();
+    let mut complete = std::collections::BTreeSet::new();
+    let mut pending = vec![(root.id, false)];
+    while let Some((id, exiting)) = pending.pop() {
+        budget.spend(1)?;
+        if exiting {
+            active.remove(&id);
+            complete.insert(id);
+            continue;
+        }
+        if complete.contains(&id) {
+            continue;
+        }
+        if !active.insert(id) {
+            return Err(bad(
+                root,
+                "recursive callable factory dependencies cannot establish a finite identity",
+            ));
+        }
+        pending.push((id, true));
+        let function = module
+            .functions
+            .get(id.0 as usize)
+            .ok_or_else(|| bad(root, "factory dependency is outside the function table"))?;
+        let mut dependencies = std::collections::BTreeSet::new();
+        for block in &function.blocks {
+            budget.spend(1)?;
+            for instruction in &block.instructions {
+                budget.spend(1)?;
+                if let InstructionKind::Call {
+                    function: callee, ..
+                } = instruction.kind
+                {
+                    let target = module.functions.get(callee.0 as usize).ok_or_else(|| {
+                        bad(root, "factory call target is outside the function table")
+                    })?;
+                    if target.callable_return_contract.is_some() {
+                        dependencies.insert(callee);
+                    }
+                }
+            }
+        }
+        for dependency in dependencies {
+            pending.push((dependency, false));
+        }
     }
     Ok(())
 }

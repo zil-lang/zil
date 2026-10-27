@@ -41,6 +41,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
         ) || !closure.result.is_copy_value()
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
+                    || callable_parameter_type(ty, &module.closures)
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
                     || (resource_type(ty, &module.resources)
                         && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))

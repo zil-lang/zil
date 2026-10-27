@@ -461,7 +461,16 @@ fn prepare(
 ) -> R<CoreFunction> {
     // Scalar-only functions retain their existing inference/default behavior.
     if !has_closure {
-        return Ok(function.clone());
+        let dependencies = retained::dependencies(
+            function,
+            signatures,
+            imports,
+            &mut budget.work,
+            budget.limits,
+        )?;
+        if dependencies.is_empty() {
+            return Ok(function.clone());
+        }
     }
     let mut solver = Solver::new(function, signatures, imports, enums, budget)?;
     solver.block(&function.body, 0)?;
@@ -872,6 +881,10 @@ struct Solver<'a, 'b, 'c> {
     owner: Option<usize>,
     ordinary_result: Type,
     ordinary_callable_return: Option<CoreCallableReturn>,
+    // Source-visible opaque identity belongs to the factory definition, even
+    // when its hidden environment is forwarded by another factory.
+    factory_terms: BTreeMap<FunctionId, usize>,
+    ordinary_return_identity: Option<usize>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     enums: &'a BTreeMap<String, Type>,
@@ -910,6 +923,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             owner: None,
             ordinary_result: function.return_type.clone(),
             ordinary_callable_return: function.callable_return.clone(),
+            factory_terms: BTreeMap::new(),
+            ordinary_return_identity: None,
             signatures,
             imports,
             enums,
@@ -921,12 +936,54 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             closure_expressions: BTreeMap::new(),
             callable_hint: None,
         };
-        for parameter in &function.parameters {
-            let term = this.known_term(&parameter.ty, parameter.span)?;
+        for (index, parameter) in function.parameters.iter().enumerate() {
+            let term = if let Some(bound) = function
+                .callable_parameter
+                .as_ref()
+                .filter(|bound| bound.index as usize == index)
+            {
+                let ty = Type::Opaque {
+                    identity: function.id,
+                    hidden: Box::new(Type::FunctionPointer {
+                        parameters: bound.parameters.clone(),
+                        result: Box::new(bound.result.clone()),
+                    }),
+                };
+                let Term::Closure(id) = this.known_term(&ty, parameter.span)? else {
+                    unreachable!()
+                };
+                match helpers::parameter_mode(&parameter.ty, &bound.generic_name) {
+                    Some(Some(mutable)) => Term::ClosureAddress(id, mutable),
+                    Some(None) => Term::Closure(id),
+                    None => {
+                        return Err(unsupported(
+                            parameter.span,
+                            "invalid callable helper parameter",
+                        ));
+                    }
+                }
+            } else {
+                this.known_term(&parameter.ty, parameter.span)?
+            };
             this.insert(&parameter.name, term, false, parameter.span)?;
         }
         Ok(this)
     }
+    fn known_result(&mut self, signature: &Signature, span: Span) -> R<Term> {
+        if matches!(signature.result, Type::Opaque { .. }) {
+            if let Some(id) = self.factory_terms.get(&signature.id) {
+                return Ok(Term::Closure(*id));
+            }
+            let term = self.known_term(&signature.result, span)?;
+            if let Term::Closure(id) = term {
+                self.factory_terms.insert(signature.id, id);
+            }
+            Ok(term)
+        } else {
+            self.known_term(&signature.result, span)
+        }
+    }
+
     fn known_term(&mut self, ty: &Type, span: Span) -> R<Term> {
         if let Type::Opaque { hidden, .. } = ty {
             let Type::FunctionPointer { parameters, result } = hidden.as_ref() else {
@@ -1375,6 +1432,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 "opaque callable return requires a closure environment",
                             ));
                         };
+                        if self
+                            .ordinary_return_identity
+                            .is_some_and(|previous| previous != id)
+                        {
+                            return Err(error(
+                                "E-TYPE-MISMATCH",
+                                e.span,
+                                "all opaque callable returns require the same source-visible concrete identity",
+                            ));
+                        }
+                        self.ordinary_return_identity = Some(id);
                         let parameters = self.closures[id].parameters.clone();
                         if parameters.len() != bound.parameters.len() {
                             return Err(error(
@@ -1925,7 +1993,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 self.bind_term(&value, ty, argument.span)?;
                             }
                         }
-                        return self.known_term(&signature.result, span);
+                        return self.known_result(&signature, span);
                     }
                     Term::SliceLength => {
                         if !arguments.is_empty() {
@@ -1960,9 +2028,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 self.bind_term(&value, ty, argument.span)?;
                             }
                         }
-                        return self.known_term(&signature.result, span);
+                        return self.known_result(&signature, span);
                     }
-                    Term::Closure(id) => {
+                    Term::Closure(id) | Term::ClosureAddress(id, _) => {
                         self.budget.work(self.closures[id].parameters.len(), span)?;
                         (
                             self.closures[id].parameters.clone(),

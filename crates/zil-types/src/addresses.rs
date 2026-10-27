@@ -16,6 +16,7 @@ impl Builder<'_, '_> {
                         Type::Address { mutable: true, .. }
                             | Type::Managed(_)
                             | Type::Package { .. }
+                            | Type::Closure(_)
                     )
                 }),
             _ => false,
@@ -36,6 +37,15 @@ impl Builder<'_, '_> {
             && let Some(local) = self.lookup(name)
             && !self.borrowed_captures.contains_key(&local)
         {
+            if let Some((index, ty)) = self.closure_captures.get(&local).cloned() {
+                if let Some(expected) = expected {
+                    self.same(&ty, expected, e.span)?;
+                }
+                return Ok((
+                    self.value(InstructionKind::TakeCapture { index }, ty.clone(), e.span)?,
+                    ty,
+                ));
+            }
             let ty = self.function.locals[local.0 as usize].ty.clone();
             // A hygienic Sequence only preserves the value already evaluated
             // for a pipeline/spread. A fresh or explicitly given owner must
@@ -136,6 +146,28 @@ impl Builder<'_, '_> {
                     error("E-UNKNOWN-NAME", e.span, format!("unknown value {name}"))
                 })?;
                 let decl = self.function.locals[local.0 as usize].clone();
+                if let Some((index, inner)) = self.closure_captures.get(&local).cloned() {
+                    let available = matches!(decl.ty, Type::Address { mutable: true, .. });
+                    if mutable && !available {
+                        return Err(error(
+                            "E-IMMUTABLE-ASSIGNMENT",
+                            e.span,
+                            "captured closure has no exclusive access",
+                        ));
+                    }
+                    let ty = Type::Address {
+                        mutable,
+                        inner: Box::new(inner),
+                    };
+                    return Ok((
+                        self.value(
+                            InstructionKind::BorrowCapture { index, mutable },
+                            ty.clone(),
+                            e.span,
+                        )?,
+                        ty,
+                    ));
+                }
                 if self.borrowed_captures.contains_key(&local) {
                     let Type::Address {
                         mutable: available, ..

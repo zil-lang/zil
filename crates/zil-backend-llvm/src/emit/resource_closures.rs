@@ -3,10 +3,12 @@
 use super::*;
 
 pub(super) fn owns(definition: &ClosureDefinition) -> bool {
-    definition
-        .captures
-        .iter()
-        .any(|ty| matches!(ty, Type::Managed(_) | Type::Package { .. }))
+    definition.captures.iter().any(|ty| {
+        matches!(
+            ty,
+            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+        )
+    })
 }
 
 pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
@@ -17,7 +19,7 @@ pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
 /// Package groups are shell followed by direct Managed fields in field order.
 pub(super) fn flag_count(ty: &Type) -> usize {
     match ty {
-        Type::Managed(_) => 1,
+        Type::Managed(_) | Type::Closure(_) => 1,
         Type::Package { fields, .. } => {
             1 + fields
                 .iter()
@@ -74,6 +76,13 @@ pub(super) fn drop_functions(
                         ));
                     }
                 }
+                Type::Closure(child) => {
+                    if owns(&closures[child.0 as usize]) {
+                        text.push_str(&format!(
+                            "  %child.{index} = getelementptr {env}, ptr %env, i32 0, i32 {index}\n  call void @zil.closure.drop.{}(ptr %child.{index})\n", child.0
+                        ));
+                    }
+                }
                 Type::Package { fields, .. } => {
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
@@ -112,6 +121,21 @@ pub(super) fn drop_functions(
 }
 
 impl FunctionEmitter<'_> {
+    pub(super) fn borrow_capture(
+        &mut self,
+        instruction: &Instruction,
+        index: u32,
+    ) -> CompileResult<()> {
+        let environment = self.function.environment.expect("verified environment");
+        let env = environment_type(environment);
+        let result = instruction.result.expect("verified capture borrow");
+        self.line(format!(
+            "  {} = getelementptr {env}, ptr %env, i32 0, i32 {index}",
+            value(result)
+        ));
+        Ok(())
+    }
+
     /// Establish pointer names once in the machine entry block. Lexical
     /// Bind/End do not copy the package or initialize/clear its physical flags.
     pub(super) fn package_capture_storage(
