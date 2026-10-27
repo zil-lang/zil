@@ -1,0 +1,1 @@
+struct Row{n:i32}impl Row{fn store_at(self:Self)->i32=>.n;}fn main()->i32{let row=Row{n:0};return row.store_at()}
