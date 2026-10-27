@@ -297,6 +297,49 @@ fn descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls() {
 }
 
 #[test]
+fn descriptor_only_helper_exports_its_internal_callback_effect_across_modules() {
+    let model = r#"extern "C" fn putchar(x:i32)->i32;
+pub resource R{code:i32;pub n:i32}
+impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
+pub fn make(code:i32)->R contract{result(create)}{return R{code:code,n:42}}"#;
+    let writer = "import model;fn hidden(d:model.R){let f=()=>{d.n=43};f()}pub fn relay(d:model.R){hidden(d)}";
+    let report = check(&[
+        (
+            "main",
+            "import model;import writer;fn main()->i32{let r=model.make(65);let p=&r;writer.relay(r);return p.n}",
+        ),
+        ("model", model),
+        ("writer", writer),
+    ]);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{}",
+        report.to_json()
+    );
+    native(
+        &[
+            (
+                "main",
+                "import model;import writer;fn main()->i32{let r=model.make(65);let other=model.make(66);let p=&r;writer.relay(other);return p.n+other.n-85}",
+            ),
+            ("model", model),
+            ("writer", writer),
+        ],
+        b"BA",
+        0,
+    );
+}
+
+#[test]
 fn failed_argument_preparation_ends_head_window_and_cleans_owner_once() {
     let source = format!(
         "{RESOURCE}enum E{{Fail}} impl R{{fn combine(self:&Self,value:i32)->i32=>.n+value}} fn fail()->E!i32=>E.Fail;fn main()->E!i32{{let r=R{{code:65,n:42}};return r.combine(fail()?)}}"
