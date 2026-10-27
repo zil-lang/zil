@@ -338,3 +338,48 @@ fn owning_state_indexed_package_transfer_waits_for_its_own_symbolic_slot_protoco
         report.to_json()
     );
 }
+
+#[test]
+fn complete_local_assignment_restores_liveness_after_rhs_transfer() {
+    native(
+        &[(
+            "main",
+            r#"resource R{n:i32}package P{manages r:R;n:i32}fn make()->P=>P{r:R{n:1},n:41};fn relay(p:P)->P=>p;fn read<T>()->i32{var p=make();p=relay(p);return p.n}fn main()->i32=>read::<i32>()-41;"#,
+        )],
+        b"",
+        0,
+    );
+
+    let source = format!(
+        "{MODEL} fn relay<F:FnMut()->i32>(state:State<F>)->State<F>{{return state}} fn update<G:FnMut()->i32>(state:State<G>)->State<G>{{var next=state;(next)=relay(next);return next}} fn main()->i32{{let state=update(pack(make()));return state.hits}}"
+    );
+    native(&[("main", &source)], b"ZA", 0);
+    let source = format!(
+        "{MODEL} fn combine(a:Batch,b:Batch)->Batch{{return a}} fn unused<F:FnMut()->i32>(state:State<F>)->State<F>{{var b=batch();b=combine(b,b);return state}} fn main()->i32=>0"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Expand
+                && d.code == "E-GENERIC-ARGUMENT"
+                && d.message.contains("used after move")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn complete_state_replacement_clears_old_field_slots_after_rhs_is_ready() {
+    let source = format!(
+        "{MODEL} fn replace<F:FnMut()->i32>(state:State<F>,other:State<F>)->State<F>{{var next=state;let old=give next.items;next=other;return next}} fn main()->i32{{let state=replace(pack(make()),pack(make()));return state.hits}}"
+    );
+    native(&[("main", &source)], b"ZAZA", 0);
+}

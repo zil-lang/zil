@@ -1370,7 +1370,24 @@ impl Check<'_, '_, '_> {
                     }
                     let actual = self.expr(value, state, Some(&ty), false)?;
                     same(&actual, &ty, value.span, self.budget)?;
-                    if let Some(slot) = self.existing_field_slot(target, state)? {
+                    let mut whole = target;
+                    while let ExprKind::Group(inner) = &whole.kind {
+                        self.budget.node(whole.span, 0)?;
+                        whole = inner;
+                    }
+                    if let ExprKind::Name(name) = &whole.kind {
+                        let local = state.locals[name].id;
+                        // Restore only after the complete RHS succeeded. A
+                        // move from this very target during RHS evaluation is
+                        // still checked, including repeated argument uses.
+                        state.moved.remove(&local);
+                        for ((owner, _), slot) in &self.package_slots {
+                            self.budget.node(target.span, 0)?;
+                            if *owner == local {
+                                state.moved.remove(slot);
+                            }
+                        }
+                    } else if let Some(slot) = self.existing_field_slot(target, state)? {
                         state.moved.remove(&slot);
                     }
                 }
