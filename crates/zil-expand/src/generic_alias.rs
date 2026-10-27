@@ -216,7 +216,9 @@ impl Resolver<'_, '_> {
                     *ty = self.instantiate(&path[0], args, variables, ty.span, depth)?;
                     return Ok(());
                 }
-                let arity = if variables.contains(&path[0])
+                let arity = if path[0] == "Store" {
+                    1
+                } else if variables.contains(&path[0])
                     || matches!(
                         path[0].as_str(),
                         "u8" | "u16"
@@ -227,7 +229,8 @@ impl Resolver<'_, '_> {
                             | "c_handle"
                             | "c_wstr"
                             | "ByteBuffer"
-                    ) {
+                    )
+                {
                     0
                 } else {
                     *self

@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 19;
+pub const WIRE_VERSION: u32 = 20;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -382,6 +382,10 @@ impl<'a> Writer<'a> {
             Type::U8 => self.u8(18),
             Type::U16 => self.u8(19),
             Type::ByteBuffer => self.u8(24),
+            Type::OwnedStore { element } => {
+                self.u8(25)?;
+                self.ty(element, depth + 1)
+            }
             Type::ForeignHandle => self.u8(20),
             Type::CWideString => self.u8(21),
             Type::ForeignCallback { parameters, result } => {
@@ -719,6 +723,32 @@ impl<'a> Writer<'a> {
     fn instruction(&mut self, instruction: &Instruction) -> WireResult<()> {
         self.optional_value(instruction.result)?;
         match &instruction.kind {
+            InstructionKind::OwnedStoreNew { element } => {
+                self.u8(80)?;
+                self.ty(element, 0)?;
+            }
+            InstructionKind::OwnedStoreReserve { store, capacity } => {
+                self.u8(81)?;
+                self.u32(store.0)?;
+                self.u32(capacity.0)?;
+            }
+            InstructionKind::OwnedStorePush { store, value } => {
+                self.u8(82)?;
+                self.u32(store.0)?;
+                self.u32(value.0)?;
+            }
+            InstructionKind::OwnedStorePop { store } => {
+                self.u8(83)?;
+                self.u32(store.0)?;
+            }
+            InstructionKind::OwnedStoreLen { store } => {
+                self.u8(84)?;
+                self.u32(store.0)?;
+            }
+            InstructionKind::OwnedStoreCapacity { store } => {
+                self.u8(85)?;
+                self.u32(store.0)?;
+            }
             InstructionKind::MakePackage { fields } => {
                 self.u8(49)?;
                 self.count(fields.len(), self.limits.max_values)?;
@@ -1462,6 +1492,9 @@ impl<'a> Reader<'a> {
                 length: self.u32()?,
             },
             24 => Type::ByteBuffer,
+            25 => Type::OwnedStore {
+                element: Box::new(self.ty(depth + 1)?),
+            },
             23 => Type::Slice {
                 element: Box::new(self.ty(depth + 1)?),
             },
@@ -1839,6 +1872,26 @@ impl<'a> Reader<'a> {
     fn instruction(&mut self) -> WireResult<Instruction> {
         let result = self.optional_value()?;
         let kind = match self.u8()? {
+            80 => InstructionKind::OwnedStoreNew {
+                element: self.ty(0)?,
+            },
+            81 => InstructionKind::OwnedStoreReserve {
+                store: ValueId(self.u32()?),
+                capacity: ValueId(self.u32()?),
+            },
+            82 => InstructionKind::OwnedStorePush {
+                store: ValueId(self.u32()?),
+                value: ValueId(self.u32()?),
+            },
+            83 => InstructionKind::OwnedStorePop {
+                store: ValueId(self.u32()?),
+            },
+            84 => InstructionKind::OwnedStoreLen {
+                store: ValueId(self.u32()?),
+            },
+            85 => InstructionKind::OwnedStoreCapacity {
+                store: ValueId(self.u32()?),
+            },
             0 => InstructionKind::Constant(self.constant()?),
             1 => InstructionKind::Load(LocalId(self.u32()?)),
             2 => InstructionKind::Store {
