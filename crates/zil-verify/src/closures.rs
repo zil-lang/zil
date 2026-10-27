@@ -59,6 +59,9 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            if dynamic_store::is_carrier(ty) {
+                return Err(unsupported("Store capture requires a separate retained storage profile", None));
+            }
             if resources::arrays::is_owned_type(ty) {
                 return Err(unsupported(
                     "owned array capture requires a separate retained array protocol",
@@ -296,6 +299,7 @@ pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
         match ty {
             Type::Array { element, .. }
             | Type::Slice { element }
+            | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
             | Type::Desc(element)

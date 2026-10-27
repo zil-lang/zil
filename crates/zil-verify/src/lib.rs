@@ -428,7 +428,7 @@ fn check_module(
                     InstructionKind::MakeClosure { captures, .. } => {
                         budget.spend(captures.len())?
                     }
-                    InstructionKind::ConvertInteger { target, .. } => {
+                    InstructionKind::OwnedStoreNew { element: target } | InstructionKind::ConvertInteger { target, .. } => {
                         // This embedded raw type is not necessarily one of the
                         // function value types. Bound it before fingerprinting.
                         check_type_shape(target, &module.target, limits, &mut budget)?;
@@ -534,7 +534,7 @@ fn check_type_shape(
                     }
                 }
             }
-            Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+            Type::OwnedStore { element: inner } | Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
                 pending.push((inner, depth + 1));
             }
             Type::ErrorUnion { error, result } => {
@@ -992,6 +992,11 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::OwnedStoreNew { .. } | InstructionKind::OwnedStoreReserve { .. }
+        | InstructionKind::OwnedStorePush { .. } | InstructionKind::OwnedStorePop { .. }
+        | InstructionKind::OwnedStoreLen { .. } | InstructionKind::OwnedStoreCapacity { .. } => {
+            dynamic_store::check_instruction(module, function, instruction, budget)?
+        }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferReserve { .. }
         | InstructionKind::ByteBufferTruncate { .. }

@@ -43,6 +43,7 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
         budget.spend(2)?;
         match ty {
             Type::Array { element, .. }
+            | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
             | Type::Desc(element) => pending.push(element),
@@ -93,6 +94,9 @@ pub(super) fn check_type_for(
             span,
         ));
     };
+    if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
+        return dynamic_store::check_carrier(module, ty, span, budget);
+    }
     if inner.as_ref() == &Type::ByteBuffer {
         return byte_buffers::check_carrier(module, ty, span, budget);
     }
@@ -142,6 +146,12 @@ pub(super) fn check_definitions(
     for resource in &module.resources {
         budget.spend(resource.name.len().saturating_add(1))?;
         check_type_shape(&resource.payload, &module.target, limits, budget)?;
+        if dynamic_store::check_definition(module, resource, budget)? {
+            if !names.insert(&resource.name) {
+                return Err(reject("E-VERIFY-STORE", None, "Store definition must be unique"));
+            }
+            continue;
+        }
         if resource.payload == Type::ByteBuffer || resource.name == byte_buffers::NAME {
             byte_buffers::target(&module.target, None)?;
             if resource.name != byte_buffers::NAME

@@ -560,6 +560,11 @@ impl FunctionEmitter<'_> {
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
         match &instruction.kind {
+            InstructionKind::OwnedStoreNew { .. } | InstructionKind::OwnedStoreReserve { .. }
+            | InstructionKind::OwnedStorePush { .. } | InstructionKind::OwnedStorePop { .. }
+            | InstructionKind::OwnedStoreLen { .. } | InstructionKind::OwnedStoreCapacity { .. } => {
+                self.dynamic_store_instruction(instruction)?;
+            }
             InstructionKind::ByteBufferNew
             | InstructionKind::ByteBufferReserve { .. }
             | InstructionKind::ByteBufferTruncate { .. }
@@ -1622,7 +1627,7 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
         Type::I64 => Ok("i64".into()),
         Type::U8 => Ok("i8".into()),
         Type::U16 => Ok("i16".into()),
-        Type::ByteBuffer => Ok("{ ptr, i64, i64 }".into()),
+        Type::ByteBuffer | Type::OwnedStore { .. } => Ok("{ ptr, i64, i64 }".into()),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok("ptr".into()),
         Type::Array { element, length } => {
             Ok(format!("[{length} x {}]", aggregate_field_type(element)?))
@@ -1661,13 +1666,13 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
         }
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok("ptr".into())
         }
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             llvm_type(payload)
         }
@@ -1701,7 +1706,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
-        Type::ByteBuffer => Ok(8),
+        Type::ByteBuffer | Type::OwnedStore { .. } => Ok(8),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
         Type::I32 => Ok(4),
         Type::I64 => Ok(8),
@@ -1713,13 +1718,13 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         }
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok(8)
         }
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             alignment(payload, closures)
         }

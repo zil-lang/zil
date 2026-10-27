@@ -97,6 +97,7 @@ impl Budget {
             }
             Type::Array { element, .. }
             | Type::Slice { element }
+            | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
             | Type::Desc(element)
@@ -200,7 +201,7 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
                 Some(span),
             )])
         }
-    } else if matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+    } else if crate::dynamic_store::is_carrier(ty) || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
             if **inner == Type::ByteBuffer
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
@@ -255,7 +256,7 @@ pub(super) fn preflight(
                         .iter()
                         .flat_map(|b| b.instructions.iter())
                         .filter_map(|i| {
-                            if let InstructionKind::ConvertInteger { target, .. } = &i.kind {
+                            if let InstructionKind::OwnedStoreNew { element: target } | InstructionKind::ConvertInteger { target, .. } = &i.kind {
                                 Some(target)
                             } else {
                                 None
@@ -282,7 +283,7 @@ pub(super) fn preflight(
                     budget.input(*length as usize, "array type size")?;
                     pending.push((element, depth + 1));
                 }
-                Type::Slice { element } => pending.push((element, depth + 1)),
+                Type::Slice { element } | Type::OwnedStore { element } => pending.push((element, depth + 1)),
                 Type::Tuple(fields) => {
                     budget.input(fields.len(), "aggregate type shape")?;
                     for t in fields {

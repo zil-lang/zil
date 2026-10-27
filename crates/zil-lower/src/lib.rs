@@ -119,6 +119,9 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
 
 fn resource_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     if matches!(ty, Type::Managed(payload) | Type::Desc(payload)
+        if matches!(payload.as_ref(), Type::OwnedStore { .. })
+        && resources.iter().any(|r| r.payload == **payload && r.teardown.is_none())) { return true; }
+    if matches!(ty, Type::Managed(payload) | Type::Desc(payload)
         if payload.as_ref() == &Type::ByteBuffer
         && resources.iter().any(|r| r.name == zil_ir::BYTE_BUFFER_RESOURCE_NAME
             && r.payload == Type::ByteBuffer && r.teardown.is_none()))

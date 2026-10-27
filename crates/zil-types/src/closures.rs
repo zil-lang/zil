@@ -222,6 +222,9 @@ impl State {
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         for capture in &checker.captures {
+            if dynamic_store::is_carrier(&capture.stored_type()) {
+                return Err(unsupported(capture.span, "Store capture requires a separate retained storage profile"));
+            }
             if packages::owned_array_supported(&capture.stored_type()) {
                 return Err(unsupported(
                     capture.span,
@@ -438,6 +441,7 @@ impl Graph {
             }
             Type::Array { element, .. }
             | Type::Slice { element }
+            | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
             | Type::Desc(element)
@@ -526,7 +530,7 @@ impl Graph {
             Type::ForeignHandle => HANDLE,
             Type::I32 => I32,
             Type::I64 => I64,
-            ty if *ty == Type::ByteBuffer
+            ty if *ty == Type::ByteBuffer || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
                 || packages::supported(ty)
                 || packages::owned_array_supported(ty)

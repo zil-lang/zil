@@ -141,6 +141,9 @@ pub(super) fn check_type_for(
                 "package fields must have unique nonempty names",
             ));
         }
+        if dynamic_store::is_carrier(field) {
+            return Err(unsupported("Store fields require a separate owning composition profile", span));
+        }
         if byte_buffers::is_desc(field) {
             return Err(unsupported(
                 "borrowed byte storage package fields are outside the finite profile",
