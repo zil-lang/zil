@@ -18,6 +18,8 @@ mod bytes;
 pub(super) mod callable;
 #[path = "generic_enum.rs"]
 mod enums;
+#[path = "generic_trait_bounds.rs"]
+mod trait_bounds;
 
 pub(super) fn specialize<'a>(
     module: &'a Module,
@@ -71,6 +73,7 @@ struct Engine<'a> {
     templates: BTreeMap<String, &'a Item>,
     enums: BTreeMap<String, &'a EnumDecl>,
     nominals: BTreeMap<String, &'a Item>,
+    traits: trait_bounds::Index<'a>,
     return_type: Option<TypeRef>,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     instances: BTreeMap<(String, Vec<String>), String>,
@@ -118,8 +121,11 @@ impl<'a> Engine<'a> {
         limits: &'a Limits,
         pattern_types: &'a BTreeMap<String, TypeRef>,
     ) -> R<Self> {
+        let mut budget = Budget::new(limits);
+        let traits = trait_bounds::Index::new(module, &mut budget)?;
         let mut engine = Self {
             pattern_types,
+            traits,
             templates: BTreeMap::new(),
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
@@ -129,7 +135,7 @@ impl<'a> Engine<'a> {
             instance_types: BTreeMap::new(),
             pending: VecDeque::new(),
             limits,
-            budget: Budget::new(limits),
+            budget,
         };
         let mut source_names = BTreeSet::new();
         for item in &module.items {
@@ -184,7 +190,10 @@ impl<'a> Engine<'a> {
                     return Err(error(parameter.span, "duplicate type parameter"));
                 }
                 match &parameter.kind {
-                    GenericParamKind::Type(bounds) if bounds.is_empty() || callable.is_some() => {}
+                    GenericParamKind::Type(bounds)
+                        if bounds.is_empty()
+                            || callable.is_some()
+                            || matches!(item.kind, ItemKind::Function(_)) => {}
                     _ => {
                         return Err(unsupported(
                             parameter.span,
@@ -209,6 +218,7 @@ impl<'a> Engine<'a> {
                     &engine.enums,
                     &engine.signatures,
                     engine.pattern_types,
+                    &engine.traits,
                     &mut engine.budget,
                 )?;
             }
@@ -326,6 +336,14 @@ impl<'a> Engine<'a> {
             .zip(arguments)
             .map(|(p, ty)| (p.name.clone(), ty))
             .collect();
+        self.traits.check_arguments(
+            parameters,
+            &substitution,
+            &trait_bounds::Bounds::new(),
+            &BTreeSet::new(),
+            &mut self.budget,
+            span,
+        )?;
         self.budget.substituted_item(item, &substitution)?;
         let mut instance = item.clone();
         substitute_item(&mut instance, &substitution)?;
