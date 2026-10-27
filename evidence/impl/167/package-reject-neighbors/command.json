@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-verify",
+    "package_cannot_hide_inside_copy_containers_or_indirect_signatures",
+    "-j2",
+    "--",
+    "--test-threads=1"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt167",
+  "source_commit": "02040876a7f56f14b2058b91f6277b9db86ec393",
+  "crates_tree": "2f7c79feb7bafdf826bf3ce5d31beff1df9da232",
+  "source_status": "",
+  "start": 1793101683.2639,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "9605243a4bdbe0d7d625ca08ad885b58dae5820da287917431a995b6e3a28f54",
+  "end": 1793101683.3453107,
+  "seconds": 0.08141064643859863,
+  "tests": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 7
+  },
+  "ending_crates_tree": "2f7c79feb7bafdf826bf3ce5d31beff1df9da232",
+  "ending_source_status": ""
+}
