@@ -61,6 +61,12 @@ pub(super) fn drop_functions(
             ));
             match ty {
                 Type::Managed(payload) => {
+                    if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                        return unsupported(
+                            "Store capture requires a separate retained storage profile",
+                            None,
+                        );
+                    }
                     let resource = resources
                         .iter()
                         .find(|resource| &resource.payload == payload.as_ref())
@@ -87,6 +93,12 @@ pub(super) fn drop_functions(
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
                         let Type::Managed(payload) = ty else { continue };
+                        if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                            return unsupported(
+                                "Store fields require a separate owning composition profile",
+                                None,
+                            );
+                        }
                         let resource = resources
                             .iter()
                             .find(|resource| &resource.payload == payload.as_ref())

@@ -20,7 +20,7 @@ pub fn drain(value: Store<model.Item>) -> void!i32 {
     var sum: i32 = 0
     while store_len(value) > 0 {
         let item = storage.tail(value)?
-        sum += item.code
+        sum += model.checked_code(item)?
     }
     return sum
 }
