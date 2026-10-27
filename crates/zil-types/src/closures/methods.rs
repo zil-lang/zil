@@ -29,13 +29,13 @@ impl InferBuilder<'_, '_> {
         let Type::Record { name, fields } = nominal else {
             return Ok(None);
         };
+        self.graph.reserve_type(nominal, 0, span)?;
         if !nominal.is_copy_value() || fields.iter().any(|(name, _)| name == member) {
             return Ok(None);
         }
         let Some((_, short_name)) = name.split_once(':') else {
             return Ok(None);
         };
-        self.graph.reserve_type(nominal, 0, span)?;
         let Some(signature) = self
             .signatures
             .get(&format!("{short_name}.{member}"))
