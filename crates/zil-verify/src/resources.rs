@@ -309,7 +309,7 @@ impl Slots {
                 (Type::Managed(_) | Type::Package { .. }, true) | (Type::Desc(_), false)
             ) || (managed
                 && matches!(ty, Type::Array { element, length }
-                    if *length > 0 && matches!(element.as_ref(), Type::Package { .. })))
+                    if *length > 0 && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))))
                 || matches!(ty, Type::Closure(id) if if managed {
                     owned_closures[id.0 as usize]
                 } else { borrowed_closures[id.0 as usize] })
@@ -338,9 +338,13 @@ impl Slots {
                 package_declarations.push((local, fields));
             }
             if let Type::Array { element, length } = &declaration.ty
-                && let Type::Package { fields, .. } = element.as_ref()
+                && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
             {
-                budget.spend((*length as usize).saturating_mul(fields.len().saturating_add(1)))?;
+                let width = match element.as_ref() {
+                    Type::Package { fields, .. } => fields.len().saturating_add(1),
+                    _ => 1,
+                };
+                budget.spend((*length as usize).saturating_mul(width))?;
                 array_declarations.push((local, *length));
             }
         }
@@ -837,6 +841,17 @@ impl Transfer<'_> {
                         self.consume(state, value, span, validate)?;
                     }
                     fresh_result = Some(INPUT);
+                }
+                InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
+                    self.package_shell(state, *local, span, validate)?;
+                    let element = slots.package_fields[local.0 as usize][*index as usize]
+                        .expect("independently checked callback array element");
+                    if validate && state.debt[element] != LIVE {
+                        return Err(bad(
+                            span,
+                            "callback array borrow requires a live element on every path",
+                        ));
+                    }
                 }
                 InstructionKind::ProjectOwnedArrayField { local, index, .. } => {
                     self.package_shell(state, *local, span, validate)?;
@@ -1781,6 +1796,15 @@ pub(super) fn check_module(
                         Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
                     )
                 });
+        }
+        for function in &module.functions {
+            budget.spend(function.locals.len().saturating_add(function.values.len()))?;
+            owning_entry |= function
+                .locals
+                .iter()
+                .map(|l| &l.ty)
+                .chain(&function.values)
+                .any(arrays::is_owned_type);
         }
         if !owning_entry {
             return Ok(());

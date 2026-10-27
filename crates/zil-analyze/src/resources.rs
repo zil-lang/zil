@@ -136,7 +136,8 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             description: false,
         },
         Type::Array { element, length }
-            if *length > 0 && matches!(element.as_ref(), Type::Package { .. }) =>
+            if *length > 0
+                && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_)) =>
         {
             Shape {
                 owned: true,
@@ -217,14 +218,13 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             }
         }
         if let (Place::Local(local), Type::Array { element, length }) = (place, ty)
-            && let Type::Package { fields, .. } = element.as_ref()
+            && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
         {
-            budget.product(
-                *length as usize,
-                fields.len().saturating_add(1),
-                1,
-                "owning array element shapes",
-            )?;
+            let width = match element.as_ref() {
+                Type::Package { fields, .. } => fields.len().saturating_add(1),
+                _ => 1,
+            };
+            budget.product(*length as usize, width, 1, "owning array element shapes")?;
             for index in 0..*length {
                 budget.lookup(result.len(), "owning array element shape insertion")?;
                 result.insert(
@@ -580,7 +580,7 @@ fn package_transition(
     let (fields, count) = match f.locals.get(local.0 as usize).map(|l| &l.ty) {
         Some(Type::Package { fields, .. }) => (Some(fields), fields.len()),
         Some(Type::Array { element, length })
-            if matches!(element.as_ref(), Type::Package { .. }) =>
+            if matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_)) =>
         {
             (None, *length as usize)
         }
@@ -929,7 +929,7 @@ impl Flow<'_> {
                         return Err(error("owning array construction requires an array result"));
                     };
                     if *length == 0
-                        || !matches!(element.as_ref(), Type::Package { .. })
+                        || !matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
                         || elements.len() != *length as usize
                     {
                         return Err(error(
@@ -953,7 +953,8 @@ impl Flow<'_> {
                 InstructionKind::ProjectOwnedArrayField { local, index, .. }
                 | InstructionKind::TakeOwnedArrayElement { local, index }
                 | InstructionKind::DropOwnedArrayElement { local, index }
-                | InstructionKind::StoreOwnedArrayElement { local, index, .. } => {
+                | InstructionKind::StoreOwnedArrayElement { local, index, .. }
+                | InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
                     let Some(decl) = f.locals.get(local.0 as usize) else {
                         return Err(error("owning array operation requires a declared local"));
                     };
@@ -962,8 +963,14 @@ impl Flow<'_> {
                             "owning array element operation requires an array local",
                         ));
                     };
-                    let Type::Package { fields, .. } = element.as_ref() else {
-                        return Err(error("owning array element requires a Package"));
+                    let fields = match element.as_ref() {
+                        Type::Package { fields, .. } => Some(fields),
+                        Type::Closure(_) => None,
+                        _ => {
+                            return Err(error(
+                                "owning array element requires a Package or concrete Closure",
+                            ));
+                        }
                     };
                     if *index >= *length {
                         return Err(error(
@@ -988,7 +995,9 @@ impl Flow<'_> {
                     let result = i.result.and_then(|v| f.values.get(v.0 as usize));
                     match i.kind {
                         InstructionKind::ProjectOwnedArrayField { field, .. } => {
-                            let Some((_, ty)) = fields.get(field as usize) else {
+                            let Some((_, ty)) =
+                                fields.and_then(|fields| fields.get(field as usize))
+                            else {
                                 return Err(error(
                                     "owning array Package field is outside its declaration",
                                 ));
@@ -1019,6 +1028,21 @@ impl Flow<'_> {
                                     }]),
                                     ..Fact::default()
                                 });
+                            }
+                        }
+                        InstructionKind::BorrowOwnedArrayElement { mutable, .. } => {
+                            if !matches!(element.as_ref(), Type::Closure(_))
+                                || (mutable && !decl.mutable)
+                                || !matches!(result, Some(Type::Address { mutable: actual, inner }) if *actual == mutable && inner == element)
+                            {
+                                return Err(error(
+                                    "callback array borrow requires the exact element address and permission",
+                                ));
+                            }
+                            if check && !exact(&fact, Life::Available) {
+                                return Err(error(
+                                    "callback array borrow requires a live element on every path",
+                                ));
                             }
                         }
                         InstructionKind::TakeOwnedArrayElement { .. } => {
@@ -1469,7 +1493,7 @@ impl Flow<'_> {
                         && !matches!(
                             f.locals.get(local.0 as usize).map(|l| &l.ty),
                             Some(Type::Array { element, length })
-                                if *length > 0 && matches!(element.as_ref(), Type::Package { .. })
+                                if *length > 0 && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
                         )
                     {
                         return Err(error("DropOwnedArray requires a finite owning array local"));
@@ -2126,6 +2150,14 @@ pub(super) fn check_module(
                         Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
                     )
                 });
+        }
+        for function in &module.functions {
+            budget.spend(
+                function.locals.len().saturating_add(function.values.len()),
+                "owning array presence",
+            )?;
+            owning_entry |= function.locals.iter().map(|l| &l.ty).chain(&function.values)
+                .any(|ty| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))));
         }
         if !owning_entry {
             return Ok(());

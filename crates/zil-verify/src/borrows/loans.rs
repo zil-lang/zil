@@ -135,7 +135,8 @@ fn reconstruct(
                                 }
                             }
                         }
-                        InstructionKind::ByteBufferBorrow { .. } => {
+                        InstructionKind::ByteBufferBorrow { .. }
+                        | InstructionKind::BorrowOwnedArrayElement { .. } => {
                             row.insert(id);
                         }
                         InstructionKind::BorrowCapture { .. }
@@ -344,7 +345,11 @@ fn check_pairs(
 }
 fn consumers(kind: &InstructionKind) -> impl Iterator<Item = &ValueId> {
     let (callee, values): (Option<&ValueId>, &[ValueId]) = match kind {
-        InstructionKind::Store { value, .. } => (None, std::slice::from_ref(value)),
+        InstructionKind::Store { value, .. }
+        | InstructionKind::StoreOwnedArrayElement { value, .. } => {
+            (None, std::slice::from_ref(value))
+        }
+        InstructionKind::MakeOwnedArray { elements } => (None, elements),
         InstructionKind::CallClosureOnce { callee, arguments } => (Some(callee), arguments),
         InstructionKind::Call { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
@@ -368,7 +373,32 @@ fn ownership(
     let v = f.values.len();
     reserve(budget, &[n, v, 2])?;
     budget.spend(v.saturating_mul(2))?;
-    let affine: Vec<_> = f.values.iter().map(|t| affine_type(module, t)).collect();
+    let mut affine: Vec<_> = f.values.iter().map(|t| affine_type(module, t)).collect();
+    // Owning-array publication consumes even a resource-free concrete callback.
+    // This is a move obligation, not a fabricated resource cleanup obligation.
+    // Preserve the established ordinary closure Copy profile outside this lane.
+    for instruction in f.blocks.iter().flat_map(|block| &block.instructions) {
+        budget.spend(1)?;
+        let elements: &[ValueId] = match &instruction.kind {
+            InstructionKind::MakeOwnedArray { elements } => elements,
+            InstructionKind::StoreOwnedArrayElement { value, .. } => std::slice::from_ref(value),
+            _ => &[],
+        };
+        budget.spend(elements.len())?;
+        for value in elements {
+            if matches!(f.values[value.0 as usize], Type::Closure(_)) {
+                affine[value.0 as usize] = true;
+            }
+        }
+        if matches!(
+            instruction.kind,
+            InstructionKind::TakeOwnedArrayElement { .. }
+        ) && let Some(value) = instruction.result
+            && matches!(f.values[value.0 as usize], Type::Closure(_))
+        {
+            affine[value.0 as usize] = true;
+        }
+    }
     let mut view = vec![false; v];
     for block in &f.blocks {
         for instruction in &block.instructions {
@@ -486,15 +516,13 @@ pub(super) fn check(
     effects: &[Effects],
     budget: &mut Budget,
 ) -> Check<Apart> {
-    if !f
-        .locals
-        .iter()
-        .any(|l| affine_type(module, &l.ty) || byte_buffers::is_carrier(&l.ty))
-        && !f
-            .values
-            .iter()
-            .any(|t| affine_type(module, t) || byte_buffers::is_carrier(t))
-    {
+    if !f.locals.iter().any(|l| {
+        affine_type(module, &l.ty)
+            || byte_buffers::is_carrier(&l.ty)
+            || resources::arrays::is_owned_type(&l.ty)
+    }) && !f.values.iter().any(|t| {
+        affine_type(module, t) || byte_buffers::is_carrier(t) || resources::arrays::is_owned_type(t)
+    }) {
         return Ok(Apart::new());
     }
     let apart = RefCell::new(Apart::new());
@@ -591,6 +619,9 @@ pub(super) fn check(
                         matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. }),
                         budget,
                     )?;
+                }
+                InstructionKind::BorrowOwnedArrayElement { local, mutable, .. } => {
+                    access.check(&empty, &[Root::Local(*local)], *mutable, budget)?;
                 }
                 InstructionKind::Store { local, .. }
                 | InstructionKind::StorageLive(local)

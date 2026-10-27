@@ -348,6 +348,7 @@ fn check(
             if let InstructionKind::Load(local)
             | InstructionKind::TakeLocal { local }
             | InstructionKind::BorrowLocalMut { local }
+            | InstructionKind::BorrowOwnedArrayElement { local, .. }
             | InstructionKind::Store { local, .. }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::CallClosureMut { callee: local, .. }
@@ -553,6 +554,9 @@ fn reconstruct(
                         }
                         InstructionKind::ByteBufferBorrow { buffer, .. } => {
                             roots_join(&mut row, &values[buffer.0 as usize], budget)?;
+                        }
+                        InstructionKind::BorrowOwnedArrayElement { local, .. } => {
+                            row.push(Root::Local(*local));
                         }
                         InstructionKind::BorrowLocal { local }
                         | InstructionKind::BorrowLocalMut { local } => {
