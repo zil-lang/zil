@@ -8,8 +8,8 @@
     "task_root": ".task",
     "current_is_main": true
   },
-  "current_head": "ceeea10d7f7642adfc1f44c9abe0692ec3ad4867",
-  "main_head": "ceeea10d7f7642adfc1f44c9abe0692ec3ad4867",
+  "current_head": "3d32f35d5cf503b428d06852677fd4e281c8aec8",
+  "main_head": "3d32f35d5cf503b428d06852677fd4e281c8aec8",
   "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
   "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
   "worktrees": [
@@ -25,7 +25,7 @@
     },
     {
       "branch": "refs/heads/main",
-      "head": "ceeea10d7f7642adfc1f44c9abe0692ec3ad4867",
+      "head": "3d32f35d5cf503b428d06852677fd4e281c8aec8",
       "is_main": true
     },
     {
@@ -7163,7 +7163,7 @@
       "path": ".task/impl/174.md",
       "status": "已合入",
       "baseline": "81b480be45643be9fddd3955f118c1439e195507",
-      "record_sha256": "f9908198f91d4c5d1eb29ecec1fd704fb378d2234322f4a225bcb7e289005d15",
+      "record_sha256": "e2cbd31d71589b84a2b35421cb1d7105bea83569369c429ad1a1133502bbe7ee",
       "committed": true,
       "evidence": [
         {
@@ -7216,7 +7216,14 @@
         "reviewer": "/root",
         "verdict": "Pass",
         "implementation_commit": "9a878f2f91aae4efd4b851eeb8979cacc21ffdd1",
-        "evidence": []
+        "evidence": [
+          {
+            "path": "evidence/reviews/174/REVIEW.json",
+            "sha256": "e9a12e18bc4ca982339760b976e2e426b196d1833d268ff4a8722b7bc7f271a0",
+            "location": "main",
+            "passing": true
+          }
+        ]
       }
     },
     {
@@ -7224,26 +7231,20 @@
       "path": ".task/impl/175.md",
       "status": "已合入",
       "baseline": "81b480be45643be9fddd3955f118c1439e195507",
-      "record_sha256": "37dfc4114ada1c96a312b839a81d9fabdea43b0995285923947ef2c0d82b2fd6",
+      "record_sha256": "cea4e178a34bc884e63f5b2889420c2313b0affc4a71af8c7f776b2ab99e932d",
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/175/author-result.json",
-          "sha256": "a9a6cdc28a217e91913b818af5175d2cdea96bac7588e0e005ac178b733cf90e",
+          "path": "evidence/impl/177/acceptance-handoff.json",
+          "sha256": "dc5f29c300b68a5a797535a60f7867d21823ab738f70865cf8f18a400f6514b3",
           "location": "main",
-          "passing": false
+          "passing": true
         },
         {
           "path": "evidence/reviews/175/REVIEW.json",
           "sha256": "fef1fce773e6e277549c27dc297757fc06fa087c9e086df71413b3c0c7fadb39",
           "location": "main",
           "passing": true
-        },
-        {
-          "path": "evidence/impl/177/acceptance.json",
-          "sha256": "6718e2c096c9e5713ca35c00cac121416e6b664d0af76b9755b6537e4d419dc0",
-          "location": "main",
-          "passing": false
         }
       ],
       "specification": {
@@ -7288,7 +7289,14 @@
         "reviewer": "/root/callback_field176",
         "verdict": "Pass",
         "implementation_commit": "579d49a76ad2aaef8b1c007289255dd1c4c7a54f",
-        "evidence": []
+        "evidence": [
+          {
+            "path": "evidence/reviews/175/REVIEW.json",
+            "sha256": "fef1fce773e6e277549c27dc297757fc06fa087c9e086df71413b3c0c7fadb39",
+            "location": "main",
+            "passing": true
+          }
+        ]
       }
     },
     {
@@ -7296,26 +7304,20 @@
       "path": ".task/impl/176.md",
       "status": "已合入",
       "baseline": "81b480be45643be9fddd3955f118c1439e195507",
-      "record_sha256": "6eab2686193b0273c6eaeb68d53287fe637ce4fa2353f0fcb0f48f17d61072a7",
+      "record_sha256": "10034475f00d8965bcaa9e441b1f918d80061689a5c54894084abdf5d23a87f8",
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/176/SUMMARY.json",
-          "sha256": "b4d5c9fe8cfb020b8af9435f884183f78f49f1ddb20368d1a5dd7a69a26c9d43",
+          "path": "evidence/impl/177/acceptance-handoff.json",
+          "sha256": "dc5f29c300b68a5a797535a60f7867d21823ab738f70865cf8f18a400f6514b3",
           "location": "main",
-          "passing": false
+          "passing": true
         },
         {
           "path": "evidence/reviews/176/REVIEW.json",
           "sha256": "2f83c8593aed81b1ea8f296fd3674fca3a0ba872348ce00ddcf2936cd3aa30c1",
           "location": "main",
           "passing": true
-        },
-        {
-          "path": "evidence/impl/177/acceptance.json",
-          "sha256": "6718e2c096c9e5713ca35c00cac121416e6b664d0af76b9755b6537e4d419dc0",
-          "location": "main",
-          "passing": false
         }
       ],
       "specification": {
@@ -7384,7 +7386,14 @@
         "reviewer": "/root/store_view175",
         "verdict": "Pass",
         "implementation_commit": "dfd9ca572b3d9d04a0b3a142e75df98cd1896b29",
-        "evidence": []
+        "evidence": [
+          {
+            "path": "evidence/reviews/176/REVIEW.json",
+            "sha256": "2f83c8593aed81b1ea8f296fd3674fca3a0ba872348ce00ddcf2936cd3aa30c1",
+            "location": "main",
+            "passing": true
+          }
+        ]
       }
     },
     {
@@ -7392,14 +7401,14 @@
       "path": ".task/impl/177.md",
       "status": "已合入",
       "baseline": "81b480be45643be9fddd3955f118c1439e195507",
-      "record_sha256": "231afda0f5e7d07b47b0dcff344aeb484853ba6619366b9f7e6367ad757337ca",
+      "record_sha256": "8aac70a314a3490b571ad4181e6dce8b04e0c6f876b7ef3261bc40a9c947b5dd",
       "committed": true,
       "evidence": [
         {
-          "path": "evidence/impl/177/acceptance.json",
-          "sha256": "6718e2c096c9e5713ca35c00cac121416e6b664d0af76b9755b6537e4d419dc0",
+          "path": "evidence/impl/177/acceptance-handoff.json",
+          "sha256": "dc5f29c300b68a5a797535a60f7867d21823ab738f70865cf8f18a400f6514b3",
           "location": "main",
-          "passing": false
+          "passing": true
         },
         {
           "path": "evidence/reviews/177/composition/REVIEW.json",
@@ -7461,7 +7470,14 @@
         "reviewer": "/root/store_field174",
         "verdict": "Pass",
         "implementation_commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
-        "evidence": []
+        "evidence": [
+          {
+            "path": "evidence/reviews/177/composition/REVIEW.json",
+            "sha256": "7a6b55f3c2f30c1be83cdb910e3cbec9f175c455d84aceef9e8d8e6eb5eb5074",
+            "location": "main",
+            "passing": true
+          }
+        ]
       }
     }
   ],
@@ -12178,42 +12194,6 @@
     {
       "id": "165",
       "reason": "Task specification snapshot differs from its implementation commit."
-    },
-    {
-      "id": "174",
-      "reason": "Evidence references are missing."
-    },
-    {
-      "id": "175",
-      "reason": "Evidence has no passing outcome: evidence/impl/175/author-result.json"
-    },
-    {
-      "id": "175",
-      "reason": "Evidence has no passing outcome: evidence/impl/177/acceptance.json"
-    },
-    {
-      "id": "175",
-      "reason": "Evidence references are missing."
-    },
-    {
-      "id": "176",
-      "reason": "Evidence has no passing outcome: evidence/impl/176/SUMMARY.json"
-    },
-    {
-      "id": "176",
-      "reason": "Evidence has no passing outcome: evidence/impl/177/acceptance.json"
-    },
-    {
-      "id": "176",
-      "reason": "Evidence references are missing."
-    },
-    {
-      "id": "177",
-      "reason": "Evidence has no passing outcome: evidence/impl/177/acceptance.json"
-    },
-    {
-      "id": "177",
-      "reason": "Evidence references are missing."
     }
   ]
 }
