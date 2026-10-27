@@ -232,8 +232,7 @@ fn check_package_type(
                 "package fields must have unique nonempty names",
             ));
         }
-        if dynamic_store::is_carrier(field)
-            && (!matches!(field, Type::Managed(_)) || !array_fields)
+        if dynamic_store::is_carrier(field) && (!matches!(field, Type::Managed(_)) || !array_fields)
         {
             return Err(unsupported(
                 "Store fields require direct manages ownership outside owning array fields",

@@ -140,7 +140,10 @@ pub(super) fn add_definitions(
                         work = work.checked_sub(fields.len()).ok_or_else(exhausted)?;
                         pending.extend(fields.iter().map(|(_, field)| field));
                     }
-                    Type::Array { element, .. } | Type::Opaque { hidden: element, .. } => {
+                    Type::Array { element, .. }
+                    | Type::Opaque {
+                        hidden: element, ..
+                    } => {
                         work = work.checked_sub(1).ok_or_else(exhausted)?;
                         pending.push(element);
                     }

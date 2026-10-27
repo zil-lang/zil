@@ -90,7 +90,9 @@ pub(super) fn add_definition(
                     }
                     Type::OwnedStore { element }
                     | Type::Array { element, .. }
-                    | Type::Opaque { hidden: element, .. } => {
+                    | Type::Opaque {
+                        hidden: element, ..
+                    } => {
                         work = work.checked_sub(1).ok_or_else(limit)?;
                         pending.push(element);
                     }
