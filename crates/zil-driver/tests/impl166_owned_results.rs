@@ -403,7 +403,7 @@ fn source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode() {
             ResultCategory::Unsupported,
             Phase::Types,
             "E-UNSUPPORTED",
-            "finite Copy type",
+            "capture requires a finite Copy value",
         ),
         (
             "fn make()->E!P=>P{r:R{n:1}};fn main(){let u=#(make())}",

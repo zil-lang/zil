@@ -489,7 +489,7 @@ fn projections_reject_owning_copy_wrong_kind_index_and_local() {
                 index: 0,
             },
             owned(),
-            "cannot copy a manages field",
+            "cannot copy an owning field",
         ),
         (
             InstructionKind::DescribePackageField {
