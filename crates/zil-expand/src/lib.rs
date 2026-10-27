@@ -8,9 +8,9 @@ mod generics;
 mod mapping;
 mod modules;
 mod receivers;
-mod static_traits;
 mod records;
 mod resources;
+mod static_traits;
 
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{
@@ -523,7 +523,10 @@ impl Expander<'_> {
             s::ItemKind::Enum(declaration) => self.enum_declaration(declaration, item.span),
             s::ItemKind::Trait(t) => {
                 if !self.static_traits.contains(&t.name) {
-                    self.unsupported("trait declarations outside the finite local subset", item.span);
+                    self.unsupported(
+                        "trait declarations outside the finite local subset",
+                        item.span,
+                    );
                 }
             }
             s::ItemKind::Extern { abi, function } => {
