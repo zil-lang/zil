@@ -168,6 +168,14 @@ fn copy_child_address_keeps_a_live_window_through_local_callback() {
     native(&[("main", &source)], b"AB", 0);
 }
 
+#[test]
+fn failed_argument_preparation_ends_element_window_and_cleans_prefix_once() {
+    let source = format!(
+        "{PACKAGE}enum E{{Fail}}fn combine(view:&P,value:i32)->i32=>view.n+value;fn fail()->E!i32=>E.Fail;fn main()->E!i32{{{SETUP}return combine(store_at(s,0),fail()?)}}"
+    );
+    native(&[("main", &source)], b"AB", 1);
+}
+
 fn reject_source(
     source: &str,
     category: ResultCategory,
@@ -562,6 +570,68 @@ fn raw_and_wire_reject_write_retargeted_behind_an_active_window() {
     };
     call.kind = I::OwnedStoreReserve { store, capacity };
     reject_candidate("retargeted-write", module, plan, "E-BORROW-CONFLICT", "");
+}
+
+#[test]
+fn raw_and_wire_reject_container_drop_during_an_active_element_window() {
+    use zil_ir::{InstructionKind as I, Type};
+    let source =
+        format!("{PACKAGE}fn main()->i32{{{SETUP}let view=store_at(s,0);return read(view)}}");
+    let (mut module, plan) = candidate(&source);
+    let f = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let local = f
+        .locals
+        .iter()
+        .find(|l| {
+            matches!(&l.ty, Type::Managed(inner)
+        if matches!(inner.as_ref(), Type::OwnedStore { .. }))
+        })
+        .unwrap()
+        .id;
+    let (block, position) = f
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(b, block)| {
+            block
+                .instructions
+                .iter()
+                .position(|i| {
+                    matches!(i.kind,
+            I::DropManaged { local: actual } if actual == local)
+                })
+                .map(|i| (b, i))
+        })
+        .unwrap();
+    // Move the actual cleanup, instead of manufacturing another responsibility.
+    let drop = f.blocks[block].instructions.remove(position);
+    let block = f
+        .blocks
+        .iter_mut()
+        .find(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::OwnedStoreBorrow { .. }))
+        })
+        .unwrap();
+    let position = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::OwnedStoreBorrow { .. }))
+        .unwrap();
+    block.instructions.insert(position + 1, drop);
+    reject_candidate(
+        "early-container-drop",
+        module,
+        plan,
+        "E-BORROW-CONFLICT",
+        "",
+    );
 }
 
 #[test]
