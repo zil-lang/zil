@@ -221,7 +221,7 @@ fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
         _ => false,
     }
 }
-fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
+fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>, nominals: &BTreeMap<String, &Item>) -> bool {
     match &group(ty).kind {
         TypeKind::Reference { mutable: false, .. }
         | TypeKind::Function { .. }
@@ -230,7 +230,11 @@ fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
         // Opaque callable bounds expose an invocation interface, not Copy.
         // In particular an unused template must not duplicate a FnOnce owner.
         TypeKind::Impl(_) => false,
-        TypeKind::Tuple(ts) => ts.iter().all(|t| known_copy(t, vars)),
+        TypeKind::Tuple(ts) => ts.iter().all(|t| known_copy(t, vars, nominals)),
+        TypeKind::Array { element, .. } => known_copy(element, vars, nominals),
+        TypeKind::Named { path, .. } if matches!(nominals.get(&path.join(".")), Some(Item { kind: ItemKind::Aggregate(a), .. }) if a.kind == AggregateKind::Package) => {
+            false
+        }
         _ => !dependent(ty, vars),
     }
 }
@@ -571,7 +575,9 @@ impl Check<'_, '_, '_> {
                     .as_ref()
                     .is_some_and(|bound| bound.owned_state)
                     && self.package_local(e, state).is_some();
-                if !borrowing && (!known_copy(&ty, &self.variables) || owning_package) {
+                if !borrowing
+                    && (!known_copy(&ty, &self.variables, self.nominals) || owning_package)
+                {
                     for ((owner, _), field) in &self.package_slots {
                         self.budget.node(e.span, 0)?;
                         if *owner == id && state.moved.contains(field) {
@@ -716,7 +722,7 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Index { .. } => {
                 let (ty, _) = self.place(e, state)?;
-                if !borrowing && !known_copy(&ty, &self.variables) {
+                if !borrowing && !known_copy(&ty, &self.variables, self.nominals) {
                     return Err(needs_bound());
                 }
                 Ok(ty)
@@ -767,7 +773,7 @@ impl Check<'_, '_, '_> {
                 let TypeKind::Reference { inner, .. } = &group(&ty).kind else {
                     return Err(error(e.span, "dereference requires an address"));
                 };
-                if !borrowing && !known_copy(inner, &self.variables) {
+                if !borrowing && !known_copy(inner, &self.variables, self.nominals) {
                     return Err(needs_bound());
                 }
                 Ok(*inner.clone())

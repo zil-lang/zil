@@ -224,3 +224,28 @@ fn direct_store_builtin_in_parametric_body_remains_a_separate_closed_protocol() 
         report.to_json()
     );
 }
+
+#[test]
+fn borrowed_concrete_package_cannot_be_copied_into_a_local_give_capability() {
+    let source = format!(
+        "{MODEL} fn unused<F:FnMut()->i32>(callback:F,b:&Batch)->State<F>{{let alias=*b;return State::<F>{{r:R{{code:90}},items:give alias.items,callback:callback,hits:0}}}} fn main()->i32=>0"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Expand
+                && d.code == "E-UNSUPPORTED"
+                && d.message.contains("requires a declared bound")),
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+}
