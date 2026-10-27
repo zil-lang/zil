@@ -1,0 +1,169 @@
+{
+  "task": "165",
+  "status": "LimitedValidationPassed_IndependentReviewPending",
+  "implementation_author": "/root/trait_bounds",
+  "dispatch_commit": "7f14d1de646e8455a4a096f47958ed33f6a6ef32",
+  "proposal_commit": "1faa357",
+  "tested_source_commit": "4c6213a77bd7b8561b4fed7a5e11c37c80363670",
+  "crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+  "recorded_at_utc": "2026-10-27T10:46:54.845088+00:00",
+  "production_source_changed": false,
+  "production_equivalence_check": {
+    "command": [
+      "git",
+      "diff",
+      "--quiet",
+      "7f14d1de646e8455a4a096f47958ed33f6a6ef32",
+      "4c6213a77bd7b8561b4fed7a5e11c37c80363670",
+      "--",
+      "crates",
+      ":(exclude)crates/zil-expand/tests/generics.rs"
+    ],
+    "exit_code": 0
+  },
+  "migrated_test_contracts": [
+    "Unused registered inline attribute: exactly one Expand/Unsupported/E-UNSUPPORTED unexecuted-generic-declaration-attribute diagnostic and valid source span.",
+    "Unused unknown Copy, unknown MissingRead, and struct-only Read bounds: exactly one Expand/SafeReject/E-GENERIC-ARGUMENT diagnostic with exact nominal-trait message and bound-token source span.",
+    "Unused ordinary declared Read bound with a symbolic value.read() body: successful expansion, no Unsupported, only ordinary sample entry retained, valid source map."
+  ],
+  "validation": {
+    "targeted": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--test",
+        "generics",
+        "--test",
+        "attributes",
+        "--test",
+        "impl094_generic_places"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt165",
+      "source_commit": "4c6213a77bd7b8561b4fed7a5e11c37c80363670",
+      "crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "source_status": "",
+      "start": 1793097942.6779869,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "0ef068cf42f1bfd4250effcae90b4ebf5e57a80f2873e3470cd3c27a30fd43e3",
+      "end": 1793097951.317435,
+      "seconds": 8.639448165893555,
+      "tests": {
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 3
+      },
+      "ending_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "ending_source_status": ""
+    },
+    "clippy": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--test",
+        "generics",
+        "--test",
+        "attributes",
+        "--test",
+        "impl094_generic_places",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt165",
+      "source_commit": "4c6213a77bd7b8561b4fed7a5e11c37c80363670",
+      "crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "source_status": "",
+      "start": 1793097960.111199,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "739ad206c08254a22207e107a9863762cc319151d80b97edeba7ac7afbe9b124",
+      "end": 1793097963.032017,
+      "seconds": 2.9208180904388428,
+      "ending_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "ending_source_status": ""
+    },
+    "fmt": {
+      "command": [
+        "cargo",
+        "fmt",
+        "-p",
+        "zil-expand",
+        "--",
+        "--check"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt165",
+      "source_commit": "4c6213a77bd7b8561b4fed7a5e11c37c80363670",
+      "crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "source_status": "",
+      "start": 1793097948.9805305,
+      "status": "Pass",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "end": 1793097949.3174639,
+      "seconds": 0.3369333744049072,
+      "ending_crates_tree": "b3c6ea961e3e3b29021a83b7880f4e2c54407cb0",
+      "ending_source_status": ""
+    }
+  },
+  "original_failure": {
+    "results": "original-workspace-failure.json",
+    "generics_log_excerpt": "original-workspace-failure.log",
+    "full_log_original_path": "/workspace/scratch/39be3faa4442/run-logs/164-workspace/output.log",
+    "full_log_sha256": "c6983dd4ca7fb2f2bbc3e4a05453518d7d0db49768c9543c6fe6f1c9f98b3d93",
+    "passed": 1381,
+    "failed": 1,
+    "retained": true
+  },
+  "baseline_diagnostics": {
+    "results": "baseline-probes/results.json",
+    "compiler_built_at": "712a9602797891083fe3f549381e1e12ab34dd02",
+    "crates_identical_to_dispatch": true,
+    "note": "Actual pre-migration CLI observations; these are checks, not new native runs. The test candidate is separately compiled and tested in targets/165."
+  },
+  "rust_four_goals": {
+    "safety": "No permission, ownership, Verify, or rejection acceptance behavior changes. Exact diagnostic checks retain both negative boundaries.",
+    "performance": "No production or allocation change; no speed claim or performance run.",
+    "productivity": "Separates an obsolete unsupported-bound expectation from precise undeclared-trait diagnostics.",
+    "abstraction": "Regression now accepts the already-implemented unused nominal bound with its symbolic method body; this migration adds no language capability."
+  },
+  "practical_improvement": "The stale blanket E-UNSUPPORTED expectation is replaced by independently distinguishable supported, undeclared-trait and unexecuted-attribute contracts.",
+  "limits": [
+    "Only the authorized generics test file, proposal and evidence changed.",
+    "No full-workspace run by the implementation author; root reruns that gate.",
+    "No B0, complete-language or ZUI readiness state is upgraded."
+  ],
+  "artifacts_sha256": {
+    "baseline-probes/declared-copy-bound.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-probes/declared-copy-bound.stdout.json": "3485ec3ad2167c3bdc2d159b420d5c71c4dc12b32044278fc9d15ffc0644905b",
+    "baseline-probes/declared-copy-bound.zil": "c431276abec6d1b93e79759ea42bb13a78f113e4ab548fe86bb1e58e0b3b8da5",
+    "baseline-probes/declared-read-bound.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-probes/declared-read-bound.stdout.json": "a2b6b28e711e2d3c8859335dcf369e4f53b78438ccc600b1d49c72775ac52258",
+    "baseline-probes/declared-read-bound.zil": "7f4f837aafbe4e644d08018d8666b7ee70624c9fcf7fc51ec2cb98d29e84d912",
+    "baseline-probes/results.json": "5b2c883e3a1a7e4b06908fec13f7990167da471361032c5d589fd7c71d5cd7a3",
+    "baseline-probes/unknown-copy-bound.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-probes/unknown-copy-bound.stdout.json": "3d8c57c4a0032186bcf3d725f03cf6f5c6387da95633000a8cd4e1d5bbe0776b",
+    "baseline-probes/unknown-copy-bound.zil": "bb5136414c0ade7ae7738f358eea5ff04bb0380873c7eae8e958007e28fad015",
+    "baseline-probes/unused-attribute.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-probes/unused-attribute.stdout.json": "32e424c4b64825e06289b4d6de40688beb24eecd3562d8b444dcbacfc51364eb",
+    "baseline-probes/unused-attribute.zil": "e9d8a764b00e133af989ec867908155ae2851cbdbd639d021c2cc2aa86f70356",
+    "clippy-command.json": "46b557f5b3a0171696f0e6246e1decd69b425232b3d11553b716b7367f6f6f3e",
+    "clippy.log": "739ad206c08254a22207e107a9863762cc319151d80b97edeba7ac7afbe9b124",
+    "fmt-command.json": "12f02ce1d7357021f32d27eb4700b445a876ca61819b129e7bec3e22f1975732",
+    "fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "original-workspace-failure.json": "c42980db34a612745f117c6d6516d32b1a9d83f950a197404ae1ab065667f293",
+    "original-workspace-failure.log": "277aac8fde9037c179c365d7c77d30808f7bafda5452653e12d57b3c909896c7",
+    "targeted-command.json": "d3ff6771a41416ef24d074031d0980105d878f991bf3aab958fac12a7c101ab6",
+    "targeted.log": "0ef068cf42f1bfd4250effcae90b4ebf5e57a80f2873e3470cd3c27a30fd43e3"
+  },
+  "test_source_sha256": "0f22d0070e049e655fd08db47e3ae63c3234f43fa8e951c3e94d3d2e099472c9"
+}
