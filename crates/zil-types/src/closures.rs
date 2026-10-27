@@ -228,6 +228,12 @@ impl State {
                     "Store capture requires a separate retained storage profile",
                 ));
             }
+            if packages::has_array_fields(&capture.stored_type()) {
+                return Err(unsupported(
+                    capture.span,
+                    "Package capture with owning array fields requires a retained nested-field protocol",
+                ));
+            }
             if packages::owned_array_supported(&capture.stored_type()) {
                 return Err(unsupported(
                     capture.span,

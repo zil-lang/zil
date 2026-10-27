@@ -379,7 +379,7 @@ impl Slots {
             package_fields[local] = fields
                 .iter()
                 .map(|(_, ty)| {
-                    if matches!(ty, Type::Managed(_)) {
+                    if packages::owned_field(ty) {
                         let next = debt_count;
                         debt_count += 1;
                         Some(next)
