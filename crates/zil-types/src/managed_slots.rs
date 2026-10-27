@@ -385,10 +385,10 @@ impl BindingScan {
                     .insert(name.clone(), mutable.then(|| (s.id, s.span, name.clone())));
             }
             CoreStatementKind::Assign { target, value } => {
-                if let CoreExprKind::Name(n) = &target.kind {
-                    if let Some(Some(site)) = self.scopes.iter().rev().find_map(|m| m.get(n)) {
-                        self.marked.insert(site.clone());
-                    }
+                if let CoreExprKind::Name(n) = &target.kind
+                    && let Some(Some(site)) = self.scopes.iter().rev().find_map(|m| m.get(n))
+                {
+                    self.marked.insert(site.clone());
                 }
                 self.expr(target, d + 1)?;
                 self.expr(value, d + 1)?;
