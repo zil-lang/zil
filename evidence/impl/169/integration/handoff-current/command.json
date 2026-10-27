@@ -1,0 +1,19 @@
+{
+  "command": [
+    "node",
+    "tools/handoff.mjs",
+    "--check"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/compose159",
+  "source_commit": "b6b36af4a18bdf18fed8ddc7a934854796e9e812",
+  "crates_tree": "162b46a99cc3ed908b25fc3d91226862fdd2de6d",
+  "source_status": "",
+  "start": 1793103112.4208543,
+  "status": "Fail",
+  "exit_code": 1,
+  "log_sha256": "74b1bb6e2f12a13b3cd0ce8c05222ae965900c5f224755d458bb69af66ab7e10",
+  "end": 1793103119.0982342,
+  "seconds": 6.677379846572876,
+  "ending_crates_tree": "162b46a99cc3ed908b25fc3d91226862fdd2de6d",
+  "ending_source_status": ""
+}
