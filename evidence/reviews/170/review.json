@@ -1,0 +1,184 @@
+{
+  "reviewer": "/root",
+  "verdict": "Pass",
+  "implementation_commit": "ec233ed4bcb827c0a9388f3641ffb410bc4effb6",
+  "implementation_author": "/root/package_fields",
+  "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "normative_hash": "27af69406a93986d1577d3138530af516d591e9a747ca9337c2e0b12c26d6c7b",
+  "review_tests_commit": "814a57936d8052964bcedd78a4e760d32bcfd0ec",
+  "review_only_diff": [
+    "crates/zil-driver/tests/review173_package_fields.rs"
+  ],
+  "author_suite_rerun": {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl170_package_fields",
+      "--offline",
+      "-j2"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review170",
+    "source_commit": "ec233ed4bcb827c0a9388f3641ffb410bc4effb6",
+    "crates_tree": "ece945459bd9e3a0732b6d804e327f0a9afcaeca",
+    "source_status": "",
+    "start": 1793109779.4891126,
+    "status": "Pass",
+    "exit_code": 0,
+    "log_sha256": "13a6064b7cf134486de24a951992c674509dd4ed826f7f0f4566a9629f5153f7",
+    "end": 1793109814.8476403,
+    "seconds": 35.35852766036987,
+    "tests": {
+      "passed": 16,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 1
+    },
+    "ending_crates_tree": "ece945459bd9e3a0732b6d804e327f0a9afcaeca",
+    "ending_source_status": ""
+  },
+  "independent_tests": {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "zil-driver",
+      "--test",
+      "review173_package_fields",
+      "--offline",
+      "-j2"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review170",
+    "source_commit": "814a57936d8052964bcedd78a4e760d32bcfd0ec",
+    "crates_tree": "eee234b7888484a860479e00ef8f5dfcc0de71af",
+    "source_status": "",
+    "start": 1793109967.266039,
+    "status": "Pass",
+    "exit_code": 0,
+    "log_sha256": "040770f5e518ea26762d8a06ef4ccbab4440a8628ed2f66d4de0feae7517cde6",
+    "end": 1793109968.6204464,
+    "seconds": 1.354407548904419,
+    "tests": {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 1
+    },
+    "ending_crates_tree": "eee234b7888484a860479e00ef8f5dfcc0de71af",
+    "ending_source_status": ""
+  },
+  "native": [
+    {
+      "case_directory": "review173-fields-88-0",
+      "compile_status": "Success",
+      "verification_runs": 1,
+      "sources": {
+        "main.zil": "d00ba77513c18f923be06dd92ffb2bff7a80321409d053128716d927c0b91a5c"
+      },
+      "stdout": "AAA",
+      "stderr": "",
+      "program_sha256": "7b861c03170e7ccb785aa8b02317dd2deacc0ded3ece5ba538f2c3ee44c2cc79",
+      "llvm_sha256": "9a657697105d791966ad9926fc661bb7946920f4843655b193ea24b4dc21f3af"
+    },
+    {
+      "case_directory": "review173-fields-88-3",
+      "compile_status": "Success",
+      "verification_runs": 1,
+      "sources": {
+        "main.zil": "dc473967bae7df729f32131a69ffb328397826de7ad6287cea3d6a57cbb93555"
+      },
+      "stdout": "AAAA",
+      "stderr": "",
+      "program_sha256": "cb8b29c48cbabddff3b831b57a4c0b374724db429ebaf7f2a2f1c4a00605ff24",
+      "llvm_sha256": "c84a6374d336ea8ebed9f2e28c6a50f1d58375a3bcf9174a226b3ec9beb1729c"
+    },
+    {
+      "case_directory": "review173-fields-88-4",
+      "compile_status": "Success",
+      "verification_runs": 1,
+      "sources": {
+        "main.zil": "dc473967bae7df729f32131a69ffb328397826de7ad6287cea3d6a57cbb93555"
+      },
+      "stdout": "AAAA",
+      "stderr": "",
+      "program_sha256": "d4c74111b90be54016278ef685a314335cd38a9317c41cde54a6f38b596ecc35",
+      "llvm_sha256": "c84a6374d336ea8ebed9f2e28c6a50f1d58375a3bcf9174a226b3ec9beb1729c"
+    },
+    {
+      "case_directory": "review173-fields-88-5",
+      "compile_status": "Success",
+      "verification_runs": 1,
+      "sources": {
+        "main.zil": "d00ba77513c18f923be06dd92ffb2bff7a80321409d053128716d927c0b91a5c"
+      },
+      "stdout": "AAA",
+      "stderr": "",
+      "program_sha256": "6efb17f8775af9c6b551c6541c96ca8f9dd3888d6e9fedc72b1393e31a1a7a85",
+      "llvm_sha256": "9a657697105d791966ad9926fc661bb7946920f4843655b193ea24b4dc21f3af"
+    }
+  ],
+  "negative": [
+    {
+      "case_directory": "review173-fields-88-1",
+      "compile_status": "SafeReject",
+      "verification_runs": 1,
+      "sources": {
+        "main.zil": "dcb9ee28b02cce42b4b7f934a2b0e26f57be9b15d3260b994cfd10472a0ff9b3"
+      },
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use",
+          "span": {
+            "file": 0,
+            "start": 341,
+            "end": 342
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case_directory": "review173-fields-88-2",
+      "compile_status": "SafeReject",
+      "verification_runs": 0,
+      "sources": {
+        "main.zil": "2174b8becf827b151d5a209667c8f46fead195441a3527c9a0f3e5c2644de326",
+        "model.zil": "9fb08f27b5a4ee8a9833ae715fc375968f1c1f9cd8650cd4d489c172e7e1227f"
+      },
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-FIELD-PRIVATE",
+          "message": "record field is private to its declaring module",
+          "span": {
+            "file": 0,
+            "start": 48,
+            "end": 55
+          },
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "findings": [
+    "Full parent field flags cover complete arrays; Make/Take/Store transitions retain affine inputs and complete ABI boundaries.",
+    "LLVM uses exact field/index paths and ascending element order; flags settle before user teardown; zero-size addresses do not merge responsibility.",
+    "Independent raw shape/layout traversal multiplies owning array field occurrences, with prior capture rules explicitly closed.",
+    "Private fields remain Types E-FIELD-PRIVATE; future-live child ByteBuffer window blocks whole-array refill at Verify E-BORROW-CONFLICT."
+  ],
+  "prior_failure": {
+    "path": "evidence/reviews/170/independent-01/command.json",
+    "reason": "Two reviewer assertions used guessed diagnostic IDs; source was already correctly rejected at the intended privacy and live-window gates. Corrected exact IDs and pinned phases, no production/source-case change."
+  },
+  "limits": [
+    "Review is the finite170 shape, not full language safety proof.",
+    "Store field/capture exclusion must remain explicit when172 is integrated.",
+    "Windows and product/Rust performance gates not run."
+  ]
+}

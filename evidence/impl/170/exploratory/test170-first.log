@@ -1,0 +1,122 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-lower)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-ct)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt170/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 30.38s
+     Running tests/impl170_package_fields.rs (/workspace/scratch/39be3faa4442/targets/170/debug/deps/impl170_package_fields-e9c245f71c32c4fa)
+
+running 12 tests
+test incomplete_and_reused_field_carriers_are_rejected ... FAILED
+test missing_parent_field_cleans_remaining_fields_and_moved_array_once ... FAILED
+test raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields ... FAILED
+test raw_and_wire_owning_field_cannot_hide_in_capture_metadata ... FAILED
+test failed_preparation_cleans_only_actual_temporaries_and_keeps_the_old_field ... FAILED
+test arrays_and_both_error_union_payloads_recursively_clean_fields ... FAILED
+test field_take_local_element_refill_and_parent_refill_are_exact ... FAILED
+test nested_partial_places_and_retained_parent_captures_remain_explicitly_closed ... ok
+test replacing_a_complete_array_field_cleans_the_old_field_first ... FAILED
+test complete_fields_construct_return_and_drop_in_declaration_order ... FAILED
+test repeated_take_refill_preserves_parent_cleanup_position ... FAILED
+test public_field_roundtrip_crosses_nominal_module_boundaries ... FAILED
+
+failures:
+
+---- incomplete_and_reused_field_carriers_are_rejected stdout ----
+
+thread 'incomplete_and_reused_field_carriers_are_rejected' (1408) panicked at crates/zil-driver/tests/impl170_package_fields.rs:334:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"package requires finite Copy fields and at least one explicit Managed resource","span":{"file":0,"start":276,"end":367},"notes":[]}],"artifacts":{"core":"/tmp/package-fields170-1403-5/phases/core.txt","ct-core":"/tmp/package-fields170-1403-5/phases/ct-core.txt","interfaces":"/tmp/package-fields170-1403-5/phases/interfaces.txt","source-map":"/tmp/package-fields170-1403-5/phases/source-map.txt","syntax":"/tmp/package-fields170-1403-5/phases/syntax.txt","typed":"/tmp/package-fields170-1403-5/phases/typed.txt"},"input_fingerprint":"f59dc9417d35d3226896a2efdd7c6dffe8e9165efdda4efbed1630c8832a1454","seconds":0.021343324,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"27673adec040b64a0c2db2908b71a833d4fa4891705ee1d813f9216a65ca8c06","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: Unsupported
+ right: SafeReject
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- missing_parent_field_cleans_remaining_fields_and_moved_array_once stdout ----
+
+thread 'missing_parent_field_cleans_remaining_fields_and_moved_array_once' (1409) panicked at crates/zil-driver/tests/impl170_package_fields.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"package requires finite Copy fields and at least one explicit Managed resource","span":{"file":0,"start":276,"end":367},"notes":[]}],"artifacts":{"core":"/tmp/package-fields170-1403-1/phases/core.txt","ct-core":"/tmp/package-fields170-1403-1/phases/ct-core.txt","interfaces":"/tmp/package-fields170-1403-1/phases/interfaces.txt","source-map":"/tmp/package-fields170-1403-1/phases/source-map.txt","syntax":"/tmp/package-fields170-1403-1/phases/syntax.txt","typed":"/tmp/package-fields170-1403-1/phases/typed.txt"},"input_fingerprint":"8949a525dc537711ee630d84b15f277f668607934b7b4224eecf28089e30898a","seconds":0.025249881,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"fd16f43c1a2ac3973af906934fb35c8111075bb0174c3c4733f5e0e44e818caf","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: Unsupported
+ right: Success
+
+---- raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields stdout ----
+
+thread 'raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields' (1412) panicked at crates/zil-driver/tests/impl170_package_fields.rs:109:55:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Analyze, category: Unsupported, code: "E-UNSUPPORTED", message: "package requires finite Copy fields and at least one explicit Managed resource", span: Some(Span { file: FileId(0), start: 276, end: 367 }), notes: [] }]
+
+---- raw_and_wire_owning_field_cannot_hide_in_capture_metadata stdout ----
+
+thread 'raw_and_wire_owning_field_cannot_hide_in_capture_metadata' (1413) panicked at crates/zil-driver/tests/impl170_package_fields.rs:109:55:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Analyze, category: Unsupported, code: "E-UNSUPPORTED", message: "package requires finite Copy fields and at least one explicit Managed resource", span: Some(Span { file: FileId(0), start: 276, end: 367 }), notes: [] }]
+
+---- failed_preparation_cleans_only_actual_temporaries_and_keeps_the_old_field stdout ----
+
+thread 'failed_preparation_cleans_only_actual_temporaries_and_keeps_the_old_field' (1406) panicked at crates/zil-driver/tests/impl170_package_fields.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"package requires finite Copy fields and at least one explicit Managed resource","span":{"file":0,"start":276,"end":367},"notes":[]}],"artifacts":{"core":"/tmp/package-fields170-1403-2/phases/core.txt","ct-core":"/tmp/package-fields170-1403-2/phases/ct-core.txt","interfaces":"/tmp/package-fields170-1403-2/phases/interfaces.txt","source-map":"/tmp/package-fields170-1403-2/phases/source-map.txt","syntax":"/tmp/package-fields170-1403-2/phases/syntax.txt","typed":"/tmp/package-fields170-1403-2/phases/typed.txt"},"input_fingerprint":"502bb0aa51095481945191a2b4d98f7221c89e80e69b85294f0169fa815d5ce9","seconds":0.029412057,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"6fdfbc2c8cec438289eff8c942401473dbd0c7c022c4b022273bbb35565ec407","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: Unsupported
+ right: Success
+
+---- arrays_and_both_error_union_payloads_recursively_clean_fields stdout ----
+
+thread 'arrays_and_both_error_union_payloads_recursively_clean_fields' (1404) panicked at crates/zil-driver/tests/impl170_package_fields.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"package requires finite Copy fields and at least one explicit Managed resource","span":{"file":0,"start":276,"end":367},"notes":[]}],"artifacts":{"core":"/tmp/package-fields170-1403-0/phases/core.txt","ct-core":"/tmp/package-fields170-1403-0/phases/ct-core.txt","interfaces":"/tmp/package-fields170-1403-0/phases/interfaces.txt","source-map":"/tmp/package-fields170-1403-0/phases/source-map.txt","syntax":"/tmp/package-fields170-1403-0/phases/syntax.txt","typed":"/tmp/package-fields170-1403-0/phases/typed.txt"},"input_fingerprint":"8f24d843674a7620a8838e6cdcf45204867f4e3c395a4b34f9f03564d5256758","seconds":0.032407404,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"fffc5f9ab1e327a5544d488eecaff910aaf430e8d910e6ea0ac7bb2c8506a181","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: Unsupported
+ right: Success
+
+---- field_take_local_element_refill_and_parent_refill_are_exact stdout ----
+
+thread 'field_take_local_element_refill_and_parent_refill_are_exact' (1407) panicked at crates/zil-driver/tests/impl170_package_fields.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"package requires finite Copy fields and at least one explicit Managed resource","span":{"file":0,"start":276,"end":367},"notes":[]}],"artifacts":{"core":"/tmp/package-fields170-1403-3/phases/core.txt","ct-core":"/tmp/package-fields170-1403-3/phases/ct-core.txt","interfaces":"/tmp/package-fields170-1403-3/phases/interfaces.txt","source-map":"/tmp/package-fields170-1403-3/phases/source-map.txt","syntax":"/tmp/package-fields170-1403-3/phases/syntax.txt","typed":"/tmp/package-fields170-1403-3/phases/typed.txt"},"input_fingerprint":"972122dad0a8229fb6a82001755f5ddde9ba08ea7c17d715be3fb5dc559e31d4","seconds":0.033509711,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"8ffffd553c8637b573ba5e34238463c8aad7718549755fa2d9db8adc68f179c2","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: Unsupported
+ right: Success
+
+---- replacing_a_complete_array_field_cleans_the_old_field_first stdout ----
+
+thread 'replacing_a_complete_array_field_cleans_the_old_field_first' (1415) panicked at crates/zil-driver/tests/impl170_package_fields.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"package requires finite Copy fields and at least one explicit Managed resource","span":{"file":0,"start":276,"end":367},"notes":[]}],"artifacts":{"core":"/tmp/package-fields170-1403-10/phases/core.txt","ct-core":"/tmp/package-fields170-1403-10/phases/ct-core.txt","interfaces":"/tmp/package-fields170-1403-10/phases/interfaces.txt","source-map":"/tmp/package-fields170-1403-10/phases/source-map.txt","syntax":"/tmp/package-fields170-1403-10/phases/syntax.txt","typed":"/tmp/package-fields170-1403-10/phases/typed.txt"},"input_fingerprint":"b0702ee8a66765c6580bb933e75d3a798bf723ab373dec3cf6cded21e71f3314","seconds":0.016447373,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"7e4ae23a1ce1a1659e837383b9213d9d86bc9e40ff7fa604c2226b2db042cc43","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: Unsupported
+ right: Success
+
+---- complete_fields_construct_return_and_drop_in_declaration_order stdout ----
+
+thread 'complete_fields_construct_return_and_drop_in_declaration_order' (1405) panicked at crates/zil-driver/tests/impl170_package_fields.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"package requires finite Copy fields and at least one explicit Managed resource","span":{"file":0,"start":276,"end":367},"notes":[]}],"artifacts":{"core":"/tmp/package-fields170-1403-6/phases/core.txt","ct-core":"/tmp/package-fields170-1403-6/phases/ct-core.txt","interfaces":"/tmp/package-fields170-1403-6/phases/interfaces.txt","source-map":"/tmp/package-fields170-1403-6/phases/source-map.txt","syntax":"/tmp/package-fields170-1403-6/phases/syntax.txt","typed":"/tmp/package-fields170-1403-6/phases/typed.txt"},"input_fingerprint":"33ca5dfc06db4a5be00c07451d0640fa3df342e908c6e05a18a11e517d1b1fb7","seconds":0.046965446,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"9297ec0c100e46495ad051949c4094a070b738e2161b9d6fcacacdb9be9c6ed4","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: Unsupported
+ right: Success
+
+---- repeated_take_refill_preserves_parent_cleanup_position stdout ----
+
+thread 'repeated_take_refill_preserves_parent_cleanup_position' (1414) panicked at crates/zil-driver/tests/impl170_package_fields.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"package requires finite Copy fields and at least one explicit Managed resource","span":{"file":0,"start":276,"end":367},"notes":[]}],"artifacts":{"core":"/tmp/package-fields170-1403-9/phases/core.txt","ct-core":"/tmp/package-fields170-1403-9/phases/ct-core.txt","interfaces":"/tmp/package-fields170-1403-9/phases/interfaces.txt","source-map":"/tmp/package-fields170-1403-9/phases/source-map.txt","syntax":"/tmp/package-fields170-1403-9/phases/syntax.txt","typed":"/tmp/package-fields170-1403-9/phases/typed.txt"},"input_fingerprint":"479c578b6c99657a795cca6d4461ab99695bd0b7258e5fadcadfe1d7d49617ce","seconds":0.024376614,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"db6effe9fd29c97c91cf7528eb78deef6c29ba2b7f68ed52632685bef0aff14e","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: Unsupported
+ right: Success
+
+---- public_field_roundtrip_crosses_nominal_module_boundaries stdout ----
+
+thread 'public_field_roundtrip_crosses_nominal_module_boundaries' (1411) panicked at crates/zil-driver/tests/impl170_package_fields.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"package requires finite Copy fields and at least one explicit Managed resource","span":{"file":0,"start":57,"end":69},"notes":[]}],"artifacts":{"core":"/tmp/package-fields170-1403-4/phases/core.txt","ct-core":"/tmp/package-fields170-1403-4/phases/ct-core.txt","interfaces":"/tmp/package-fields170-1403-4/phases/interfaces.txt","source-map":"/tmp/package-fields170-1403-4/phases/source-map.txt","syntax":"/tmp/package-fields170-1403-4/phases/syntax.txt","typed":"/tmp/package-fields170-1403-4/phases/typed.txt"},"input_fingerprint":"946b2bbbd5b8881816718439f591da91986c96a9d059994f537bbfa5bad7624e","seconds":0.050921861,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"model.zil","2":"flow.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"68c187beb9d756a3978ee1e0b034b1e8638891e23f503c7784d4d2c99b85de57","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]},{"module":1,"signature_fingerprint":"a558290fb64f54b414382937eb37bbafe3cb5ff7af633a704d66fb096f9ca865","implementation_fingerprint":"32b5edd2c841ea14b97afe23bd535d5acd67efd62aca1ef6ab47b6370e6d4cc0","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":["item","make"]},{"module":2,"signature_fingerprint":"c0a471c611bbca7f405ee263787b8a6126ccfd4a8a4c192aea6bde3116be2bd6","implementation_fingerprint":"fa3c90493560f2d31d4467143b703e81b75148622bbea9c7dd36c47fdac2db97","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":["relay"]}]}
+  left: Unsupported
+ right: Success
+
+
+failures:
+    arrays_and_both_error_union_payloads_recursively_clean_fields
+    complete_fields_construct_return_and_drop_in_declaration_order
+    failed_preparation_cleans_only_actual_temporaries_and_keeps_the_old_field
+    field_take_local_element_refill_and_parent_refill_are_exact
+    incomplete_and_reused_field_carriers_are_rejected
+    missing_parent_field_cleans_remaining_fields_and_moved_array_once
+    public_field_roundtrip_crosses_nominal_module_boundaries
+    raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields
+    raw_and_wire_owning_field_cannot_hide_in_capture_metadata
+    repeated_take_refill_preserves_parent_cleanup_position
+    replacing_a_complete_array_field_cleans_the_old_field_first
+
+test result: FAILED. 1 passed; 11 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p zil-driver --test impl170_package_fields`

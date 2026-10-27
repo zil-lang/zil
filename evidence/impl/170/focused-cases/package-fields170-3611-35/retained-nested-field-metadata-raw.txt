@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "Package capture with owning array fields requires a retained nested-field protocol",
+        span: None,
+        notes: [],
+    },
+]

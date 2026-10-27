@@ -1,0 +1,1 @@
+resource R{code:i32}package Item{manages r:R}pub package State{manages r:R;items:[Item;2]}pub fn make()->State=>State{r:R{code:0},items:[Item{r:R{code:1}},Item{r:R{code:2}}]}
