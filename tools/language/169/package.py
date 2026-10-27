@@ -106,18 +106,32 @@ def snapshot_history(root, directory, commit):
                    check=True, capture_output=True)
     # Preserve visible detached worktree commits without changing the source repo.
     worktrees = {"main": commit}
+    prior_refs = dict(row.split(" ", 1) for row in
+                      git(mirror, "for-each-ref", "--format=%(refname) %(objectname)").splitlines())
+    detached_refs = []
     for block in git(root, "worktree", "list", "--porcelain").split("\n\n"):
         records = dict(line.split(" ", 1) if " " in line else (line, "")
                        for line in block.splitlines())
         revision = records.get("HEAD")
         if not revision:
             continue
+        if Path(records["worktree"]).resolve() == root:
+            if revision != commit:
+                raise ValueError("source worktree HEAD changed while preparing recovery history")
+            continue  # The source worktree already has the reserved main alias.
         name = Path(records["worktree"]).name
         safe_name(name)
-        if name != "main":
-            worktrees[name] = revision
+        if name in worktrees:
+            raise ValueError(f"duplicate or reserved recovery worktree alias: {name}")
+        worktrees[name] = revision
         if "detached" in records:
-            git(mirror, "update-ref", f"refs/heads/recovery/{name}", revision)
+            ref = f"refs/heads/recovery/{name}"
+            if ref in prior_refs and prior_refs[ref] != revision:
+                raise ValueError(f"recovery ref already names another commit: {ref}")
+            detached_refs.append((ref, revision))
+    # Validate the complete alias set before mutating even the private mirror.
+    for ref, revision in detached_refs:
+        git(mirror, "update-ref", ref, revision)
     refs = dict(row.split(" ", 1) for row in
                 git(mirror, "for-each-ref", "--format=%(refname) %(objectname)").splitlines())
     if refs.get("refs/heads/main") != commit:
