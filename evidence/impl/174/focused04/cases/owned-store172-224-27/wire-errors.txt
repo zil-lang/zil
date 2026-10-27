@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-RESOURCE",
+        message: "Managed positions require DescribeLocal or TakeLocal, never copying Load",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 366,
+                end: 372,
+            },
+        ),
+        notes: [],
+    },
+]
