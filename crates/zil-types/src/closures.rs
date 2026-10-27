@@ -1,6 +1,7 @@
 //! Local Copy aggregate, resource and shared-address closures. Inference variables are private compiler state, never
 //! forged `Type::Unsupported` values in the public IR.
 use super::*;
+use std::collections::BTreeSet;
 mod methods;
 mod package_effects;
 mod patterns;
@@ -210,6 +211,7 @@ impl State {
             input.body,
             input.parameters,
             &mut checker.captures,
+            &checker.nested_package_moves,
             &self.limits,
             checker.work_left,
         )?;
@@ -1094,6 +1096,12 @@ struct InferBuilder<'a, 'b> {
     imports: Option<&'a program::Imports<'a>>,
     enums: Option<&'a BTreeMap<String, Type>>,
     move_capture: bool,
+    // A move boundary copies an ordinary Copy capture but transfers an owned
+    // carrier. This belongs to capture inference, not to the safety proof.
+    nested_moves: usize,
+    nested_depth: usize,
+    nested_root: Option<zil_base::NodeId>,
+    nested_package_moves: BTreeMap<zil_base::NodeId, BTreeSet<String>>,
     has_return: bool,
     limits: &'a Limits,
     work_left: &'b mut usize,
@@ -1134,6 +1142,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             imports: functions.imports,
             enums: None,
             move_capture: input.move_capture,
+            nested_moves: 0,
+            nested_depth: 0,
+            nested_root: None,
+            nested_package_moves: BTreeMap::new(),
             has_return: false,
             limits,
             work_left,
@@ -1209,6 +1221,33 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 format!("unknown value {name}"),
             ));
         };
+        // A write behind a nested move changes that inner snapshot, not the
+        // outer position. Managed/Package captures instead change ownership at
+        // creation, even if the nested environment is never invoked.
+        let write = write && !(self.nested_moves != 0 && ty.is_copy_value());
+        let nested_owned =
+            self.nested_moves != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. });
+        let nested_writeback =
+            write && self.nested_depth != 0 && self.move_capture && ty.is_copy_value();
+        if nested_owned && matches!(ty, Type::Package { .. }) {
+            *self.work_left = self
+                .work_left
+                .checked_sub(name.len().saturating_add(1))
+                .ok_or_else(|| limit("nested Package capture budget exceeded", span))?;
+            self.nested_package_moves
+                .entry(self.nested_root.expect("nested move root"))
+                .or_default()
+                .insert(name.into());
+        }
+        // Package slots may be restored after the nested creation. Their flow
+        // classification below decides FnMut/FnOnce at each actual exit.
+        let nested_consumed = nested_owned && matches!(ty, Type::Managed(_));
+        if self.nested_moves != 0 && matches!(ty, Type::Address { mutable: true, .. }) {
+            return Err(unsupported(
+                span,
+                "moving a captured exclusive address into a nested environment requires an explicit transfer contract",
+            ));
+        }
         if write && matches!(ty, Type::Address { .. }) {
             return Err(unsupported(
                 span,
@@ -1218,7 +1257,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
             ty @ Type::Package { .. } if packages::supported(ty) => {
-                if !self.move_capture {
+                if !self.move_capture && !nested_owned {
                     return Err(unsupported(span, "Package capture requires explicit move"));
                 }
                 (ty, None)
@@ -1237,13 +1276,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
         };
         if let Some(variable) = self.captured_variables.get(local) {
-            if write {
-                self.captures
-                    .iter_mut()
-                    .find(|c| c.source == *local)
-                    .expect("capture index")
-                    .written = true;
-            }
+            let capture = self
+                .captures
+                .iter_mut()
+                .find(|c| c.source == *local)
+                .expect("capture index");
+            capture.written |= write;
+            capture.address_written |= nested_writeback;
+            capture.moved |= nested_owned;
+            capture.consumed |= nested_consumed;
             return Ok(*variable);
         }
         let variable = self.graph.fresh(VALUE, false);
@@ -1254,9 +1295,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             ty: ty.clone(),
             borrowed: !self.move_capture && address.is_none() && ty.is_copy_value(),
             written: write,
-            address_written: false,
-            moved: self.move_capture,
-            consumed: false,
+            address_written: nested_writeback,
+            moved: self.move_capture || nested_owned,
+            consumed: nested_consumed,
             span,
         });
         let value = if matches!(ty, Type::Managed(_) | Type::Desc(_)) {
@@ -1596,7 +1637,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 } else if let Some((local, ty)) = self.outer.get(name).cloned() {
                     if ty.is_copy_value() {
                         self.name(name, true, expression.span)?;
-                        if self.move_capture {
+                        if self.move_capture && self.nested_moves == 0 {
                             for capture in &mut self.captures {
                                 *self.work_left =
                                     self.work_left.checked_sub(1).ok_or_else(|| {
@@ -2141,15 +2182,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 Ok(result)
             }
             CoreExprKind::Closure {
+                move_capture,
                 parameters,
                 return_type,
-                ..
+                body,
             } => {
-                // Source inference has resolved contextual fn literals. This
-                // private graph collects only their signature; Builder still
-                // checks the entire nested body and its capture set when it
-                // constructs the actual ordinary entry. No verified artifact
-                // or capture permission is produced here.
+                // Source inference has resolved each nested signature. Visit
+                // its body as well so free paths cross every enclosing layer.
+                // The graph uses a private callable signature only; Builder
+                // still creates the actual environment and ordinary entry.
                 let Some(result) = return_type else {
                     return Err(unsupported(
                         span,
@@ -2157,7 +2198,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     ));
                 };
                 let mut types = Vec::with_capacity(parameters.len());
+                let outer_result = self.result;
+                let outer_has_return = self.has_return;
+                self.result = self.graph.fresh(VALUE, false);
+                self.graph.bind(self.result, result, span)?;
+                self.has_return = false;
+                self.scopes.push(BTreeMap::new());
                 for parameter in parameters {
+                    self.visit(depth + 1, parameter.span)?;
                     let Some(ty) = &parameter.ty else {
                         return Err(unsupported(
                             parameter.span,
@@ -2166,7 +2214,23 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     };
                     self.graph.reserve_type(ty, 0, parameter.span)?;
                     types.push(ty.clone());
+                    let value = self.known(ty, parameter.span)?;
+                    self.scopes
+                        .last_mut()
+                        .expect("nested parameter scope")
+                        .insert(parameter.name.clone(), value);
                 }
+                self.nested_moves += usize::from(*move_capture);
+                self.nested_depth += 1;
+                let outer_nested_root = self.nested_root;
+                self.nested_root = self.nested_root.or(Some(expression.id));
+                self.block(body, depth + 1)?;
+                self.nested_root = outer_nested_root;
+                self.nested_depth -= 1;
+                self.nested_moves -= usize::from(*move_capture);
+                self.scopes.pop();
+                self.result = outer_result;
+                self.has_return = outer_has_return;
                 self.graph.reserve_type(result, 0, span)?;
                 self.known(
                     &Type::FunctionPointer {

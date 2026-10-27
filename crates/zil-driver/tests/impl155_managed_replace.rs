@@ -130,17 +130,10 @@ fn last_use_of_old_descriptor_before_replacement_is_allowed() {
     );
 }
 #[test]
-fn nested_owning_closure_remains_an_explicit_existing_language_gap() {
-    let r = compile(
+fn nested_owning_closure_transfers_the_replacement_slot_once() {
+    native(
         "resource R{n:i32} fn main()->i32{var a=R{n:1};var f=move()->i32=>{var g=move()->i32=>{a=R{n:3};return a.n};return g()};return f()-3}",
-    );
-    assert_eq!(r.status, ResultCategory::Unsupported, "{}", r.to_json());
-    assert!(
-        r.diagnostics
-            .iter()
-            .any(|d| d.message.contains("nested closure inference")),
-        "{}",
-        r.to_json()
+        b"",
     );
 }
 #[test]
