@@ -153,7 +153,8 @@ fn infer(
                             .ok_or_else(|| bad("projection address outside table"))?;
                         extend(&mut found, source, budget)?;
                     }
-                    InstructionKind::ReadCapture { index } => {
+                    InstructionKind::BorrowCapture { index, .. }
+                    | InstructionKind::ReadCapture { index } => {
                         let ty = instruction
                             .result
                             .and_then(|id| f.values.get(id.0 as usize));

@@ -280,10 +280,12 @@ impl Slots {
             budget.spend(closure.captures.len().saturating_mul(2))?;
             owned_closures.push(
                 closure.kind == CallableKind::FnOnce
-                    || closure
-                        .captures
-                        .iter()
-                        .any(|ty| matches!(ty, Type::Managed(_) | Type::Package { .. })),
+                    || closure.captures.iter().any(|ty| {
+                        matches!(
+                            ty,
+                            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                        )
+                    }),
             );
             borrowed_closures.push(
                 closure
@@ -364,7 +366,7 @@ impl Slots {
             .iter()
             .enumerate()
             .map(|(index, ty)| {
-                if matches!(ty, Type::Managed(_)) {
+                if matches!(ty, Type::Managed(_) | Type::Closure(_)) {
                     let next = debt_count;
                     debt_count += 1;
                     Some(next)
@@ -903,6 +905,13 @@ impl Transfer<'_> {
                         [instruction.result.expect("description result").0 as usize]
                         .expect("description row");
                     state.desc[row] = BTreeSet::from([Root::Local(*local)]);
+                }
+                InstructionKind::BorrowCapture { index, .. } => {
+                    let debt =
+                        slots.capture_debt[*index as usize].expect("typed owned closure capture");
+                    if validate && state.debt[debt] != LIVE {
+                        return Err(bad(span, "borrow reads a transferred captured closure"));
+                    }
                 }
                 InstructionKind::DescribeCapture { index } => {
                     let debt = slots.capture_debt[*index as usize].expect("typed owned capture");
@@ -1648,13 +1657,21 @@ pub(super) fn check_module(
     budget: &mut Budget,
 ) -> Check<()> {
     budget.spend(module.closures.len())?;
-    if module.resources.is_empty()
-        && !module
-            .closures
-            .iter()
-            .any(|c| c.kind == CallableKind::FnOnce)
-    {
-        return Ok(());
+    if module.resources.is_empty() {
+        let mut owning_entry = false;
+        for closure in &module.closures {
+            budget.spend(closure.captures.len())?;
+            owning_entry |= closure.kind == CallableKind::FnOnce
+                || closure.captures.iter().any(|ty| {
+                    matches!(
+                        ty,
+                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                    )
+                });
+        }
+        if !owning_entry {
+            return Ok(());
+        }
     }
     // Effects are inferred from executable writes and actual description origins,
     // including forwarding and closures. An empty candidate is never authority.

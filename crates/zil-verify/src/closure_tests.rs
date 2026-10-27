@@ -399,7 +399,6 @@ fn closure_proof_rejects_false_call_permissions_resources_and_unsupported_kinds(
     for ty in [
         Type::Managed(Box::new(Type::I32)),
         Type::Desc(Box::new(Type::I32)),
-        Type::Closure(ClosureId(0)),
     ] {
         let (mut module, plan) = candidate();
         module.closures[0].captures[0] = ty;
@@ -408,6 +407,11 @@ fn closure_proof_rejects_false_call_permissions_resources_and_unsupported_kinds(
             ResultCategory::Unsupported
         );
     }
+    let (mut module, plan) = candidate();
+    module.closures[0].captures[0] = Type::Closure(ClosureId(0));
+    let diagnostic = check(module, plan).unwrap_err().remove(0);
+    assert_eq!(diagnostic.category, ResultCategory::SafeReject);
+    assert_eq!(diagnostic.code, "E-VERIFY-CLOSURE-LAYOUT");
     rejected(
         |module| {
             module.closures[0].captures[0] = Type::Address {

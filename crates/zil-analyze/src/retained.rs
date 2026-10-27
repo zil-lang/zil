@@ -49,7 +49,7 @@ pub(super) fn check_function(
     let mut cleanup = Vec::new();
     for (index, ty) in definition.captures.iter().enumerate() {
         if matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
-            || matches!(ty, Type::Package { .. })
+            || matches!(ty, Type::Package { .. } | Type::Closure(_))
         {
             cleanup.push(index as u32);
         } else if !ty.is_copy_value() {
@@ -84,7 +84,11 @@ pub(super) fn check_function(
                     .functions
                     .get(callee.0 as usize)
                     .ok_or_else(|| bad("factory calls an absent function"))?;
-                if target.callable_return_contract.as_ref().is_some_and(|c| c.closure == contract.closure) {
+                if target
+                    .callable_return_contract
+                    .as_ref()
+                    .is_some_and(|c| c.closure == contract.closure)
+                {
                     creations += 1;
                 }
             }
@@ -102,7 +106,9 @@ pub(super) fn check_function(
                     InstructionKind::MakeClosure { closure, .. } if closure == contract.closure => {
                         creations += 1
                     }
-                    InstructionKind::Load(_) | InstructionKind::TakeLocal { .. } | InstructionKind::Call { .. } => {}
+                    InstructionKind::Load(_)
+                    | InstructionKind::TakeLocal { .. }
+                    | InstructionKind::Call { .. } => {}
                     _ => {
                         return Err(bad(
                             "factory result is not derived from its concrete environment",

@@ -138,7 +138,8 @@ fn reconstruct(
                         InstructionKind::ByteBufferBorrow { .. } => {
                             row.insert(id);
                         }
-                        InstructionKind::ReadCapture { .. }
+                        InstructionKind::BorrowCapture { .. }
+                        | InstructionKind::ReadCapture { .. }
                             if matches!(f.values[id], Type::Address { .. }) =>
                         {
                             row.insert(id);
@@ -634,7 +635,7 @@ pub(super) fn check(
                         budget,
                     )?;
                 }
-                InstructionKind::ReadCapture { .. } => {
+                InstructionKind::BorrowCapture { .. } | InstructionKind::ReadCapture { .. } => {
                     if let Some(result) = instruction.result {
                         access.check(
                             &empty,
@@ -672,6 +673,7 @@ pub(super) fn check(
                 InstructionKind::TakeCapture { index }
                     if instruction.result.is_some_and(|value| {
                         byte_buffers::is_owned(&f.values[value.0 as usize])
+                            || matches!(f.values[value.0 as usize], Type::Closure(_))
                     }) =>
                 {
                     access.check(&empty, &[Root::Capture(*index)], true, budget)?;

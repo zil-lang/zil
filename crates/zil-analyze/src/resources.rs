@@ -159,9 +159,12 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             budget.spend(c.captures.len(), "resource environment classification")?;
             Shape {
                 owned: c.kind == CallableKind::FnOnce
-                    || c.captures
-                        .iter()
-                        .any(|t| matches!(t, Type::Managed(_) | Type::Package { .. })),
+                    || c.captures.iter().any(|t| {
+                        matches!(
+                            t,
+                            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                        )
+                    }),
                 description: c.captures.iter().any(|t| matches!(t, Type::Desc(_))),
             }
         }
@@ -211,7 +214,10 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             .ok_or_else(|| error("absent entry environment"))?;
         for (index, ty) in c.captures.iter().enumerate() {
             budget.spend(1, "resource capture shape")?;
-            if matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+            if matches!(
+                ty,
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+            ) {
                 budget.lookup(result.len(), "resource capture insertion")?;
                 result.insert(
                     Place::Capture(index as u32),
@@ -315,6 +321,7 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
         | InstructionKind::DescribePackageField { .. }
         | InstructionKind::TakePackageField { .. }
         | InstructionKind::DropPackageField { .. }
+        | InstructionKind::BorrowCapture { .. }
         | InstructionKind::DescribeCapture { .. }
         | InstructionKind::TakeCapture { .. }
         | InstructionKind::ReadCapture { .. }
@@ -1023,6 +1030,12 @@ impl Flow<'_> {
                         ..Fact::default()
                     });
                 }
+                InstructionKind::BorrowCapture { index, .. } => {
+                    let fact = copied(state, Place::Capture(*index), budget)?;
+                    if check && !exact(&fact, Life::Available) {
+                        return Err(error("cannot borrow a moved captured closure environment"));
+                    }
+                }
                 InstructionKind::DescribeCapture { index } => {
                     if f.environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))
@@ -1074,7 +1087,10 @@ impl Flow<'_> {
                         .captures
                         .get(*index as usize)
                         .ok_or_else(|| error("capture index is absent"))?;
-                    if matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+                    if matches!(
+                        ty,
+                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                    ) {
                         return Err(error(
                             "ReadCapture cannot copy an owned Managed or Package field",
                         ));
@@ -1852,10 +1868,12 @@ pub(super) fn check_module(
         for closure in &module.closures {
             budget.spend(closure.captures.len(), "resource capture presence")?;
             owning_entry |= closure.kind == CallableKind::FnOnce
-                || closure
-                    .captures
-                    .iter()
-                    .any(|ty| matches!(ty, Type::Managed(_) | Type::Package { .. }));
+                || closure.captures.iter().any(|ty| {
+                    matches!(
+                        ty,
+                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                    )
+                });
         }
         if !owning_entry {
             return Ok(());
