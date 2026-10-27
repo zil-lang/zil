@@ -13,6 +13,36 @@ pub(super) fn access(kind: &InstructionKind, head_windows: bool) -> Option<(Valu
     }
 }
 
+/// A borrowed descriptor environment can write any captured root. Reconstruct
+/// the same concrete roots both for a call's local loan check and for exporting
+/// effects from a head-free helper to its caller.
+pub(super) fn callback_roots<'a>(
+    module: &TypedModule,
+    function: &TypedFunction,
+    kind: &InstructionKind,
+    values: &'a [Roots],
+    locals: &'a State,
+    budget: &mut Budget,
+) -> Check<Option<&'a Roots>> {
+    Ok(match kind {
+        InstructionKind::CallClosure { callee, .. }
+        | InstructionKind::CallClosureOnce { callee, .. }
+        | InstructionKind::CallClosureBorrowed { callee, .. }
+            if captures_descriptors(module, &function.values[callee.0 as usize], budget)? =>
+        {
+            Some(&values[callee.0 as usize])
+        }
+        InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. }
+            if captures_descriptors(module, &function.locals[callee.0 as usize].ty, budget)? =>
+        {
+            lookup(budget, locals.len())?;
+            locals.get(callee)
+        }
+        _ => None,
+    })
+}
+
 fn add_effect(row: &mut Effects, parameter: u32, write: bool, budget: &mut Budget) -> Check<bool> {
     budget.spend(row.len().saturating_add(1))?;
     match row.get_mut(&parameter) {
@@ -53,11 +83,26 @@ pub(super) fn infer(
                     }
                 }
             }
-            for (block, reachable) in function.blocks.iter().zip(&graphs[index].reachable) {
+            for (block_index, (block, reachable)) in function
+                .blocks
+                .iter()
+                .zip(&graphs[index].reachable)
+                .enumerate()
+            {
                 budget.spend(1)?;
                 if !reachable {
                     continue;
                 }
+                let mut descriptor_locals = if head_windows {
+                    if let Some(input) = facts[index].inputs.get(block_index) {
+                        state_cost(input, budget)?;
+                        input.clone()
+                    } else {
+                        State::new()
+                    }
+                } else {
+                    State::new()
+                };
                 for instruction in &block.instructions {
                     budget.spend(1)?;
                     if let Some((buffer, write)) = access(&instruction.kind, head_windows) {
@@ -66,6 +111,24 @@ pub(super) fn infer(
                             if let Root::Parameter(parameter) = root {
                                 changed |=
                                     add_effect(&mut effects[index], *parameter, write, budget)?;
+                            }
+                        }
+                    }
+                    if head_windows
+                        && let Some(roots) = callback_roots(
+                            module,
+                            function,
+                            &instruction.kind,
+                            &facts[index].values,
+                            &descriptor_locals,
+                            budget,
+                        )?
+                    {
+                        for root in roots {
+                            budget.spend(1)?;
+                            if let Root::Parameter(parameter) = root {
+                                changed |=
+                                    add_effect(&mut effects[index], *parameter, true, budget)?;
                             }
                         }
                     }
@@ -86,6 +149,14 @@ pub(super) fn infer(
                                 }
                             }
                         }
+                    }
+                    if head_windows {
+                        local_transfer(
+                            &mut descriptor_locals,
+                            &instruction.kind,
+                            &facts[index].values,
+                            budget,
+                        )?;
                     }
                 }
             }
