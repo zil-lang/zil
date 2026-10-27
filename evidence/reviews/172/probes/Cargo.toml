@@ -1,0 +1,16 @@
+[package]
+name = "review172-independent"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+zil-base = { path = "../../../../crates/zil-base" }
+zil-driver = { path = "../../../../crates/zil-driver" }
+zil-syntax = { path = "../../../../crates/zil-syntax" }
+zil-expand = { path = "../../../../crates/zil-expand" }
+zil-types = { path = "../../../../crates/zil-types" }
+zil-analyze = { path = "../../../../crates/zil-analyze" }
+zil-verify = { path = "../../../../crates/zil-verify" }
+zil-ir = { path = "../../../../crates/zil-ir" }
