@@ -157,6 +157,18 @@ fn scalar(ty: &Type, span: Span) -> CompileResult<()> {
     }
 }
 
+fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+    if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
+    && fields.iter().all(|(_, t)| {
+        t.is_copy_value()
+            || matches!(t, Type::Managed(p) if **p == Type::ByteBuffer
+                || (matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value()))
+            || (arrays && matches!(t, Type::Array { element, length }
+                if *length > 0 && package_fields_supported(element, false)))
+    }))
+}
+
 fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
     if let Type::ErrorUnion { error, result } = ty {
         for payload in [error.as_ref(), result.as_ref()] {
@@ -184,19 +196,13 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
             return Err(bad("borrowed environment references an absent closure"));
         }
         Ok(())
-    } else if let Type::Package { fields, .. } = ty {
-        if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
-            && fields.iter().all(|(_, t)| {
-                t.is_copy_value()
-                    || matches!(t, Type::Managed(p) if **p == Type::ByteBuffer
-                    || (matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value()))
-            })
-        {
+    } else if matches!(ty, Type::Package { .. }) {
+        if package_fields_supported(ty, true) {
             Ok(())
         } else {
             Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "package requires finite Copy fields and at least one explicit Managed resource",
+                "package requires finite Copy/complete array fields and at least one explicit Managed resource",
                 Some(span),
             )])
         }
