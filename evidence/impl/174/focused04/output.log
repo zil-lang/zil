@@ -1,0 +1,48 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt174/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt174/crates/zil-types)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt174/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt174/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt174/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt174/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 9.01s
+     Running tests/impl172_owned_store.rs (/workspace/scratch/39be3faa4442/targets/174-v21/debug/deps/impl172_owned_store-46f517749f5328ff)
+
+running 16 tests
+test empty_context_and_factory_own_a_real_allocation_free_head ... ok
+test empty_pop_propagates_unit_error_without_an_element_obligation ... ok
+test exact_verify_budget_boundary_and_untrusted_constructor_metadata_are_bounded ... ok
+test full_push_returns_the_uninserted_package_to_native_error_cleanup ... ok
+test original_package_store_field_declaration_is_now_supported ... ok
+test raw_wire_actual_inline_size_product_is_bounded ... ok
+test raw_wire_constructor_depth_is_bounded_before_identity ... ok
+test negative_and_overflow_capacity_requests_preserve_populated_prefix ... ok
+test raw_wire_reject_forged_heads_bad_elements_and_double_transfer ... ok
+test raw_wire_store_composition_boundaries_and_head_access_are_independently_checked ... ok
+test raw_wire_store_is_not_byte_storage_and_pop_result_keeps_cleanup_debt ... ok
+test reserved_prefix_push_pop_and_drop_transfer_each_package_once ... ok
+test source_guards_reject_missing_context_and_capture ... ok
+test source_neighbours_preserve_transfer_and_nested_composition_boundaries ... ok
+test whole_give_roundtrip_preserves_ascending_prefix_cleanup ... ok
+test runtime_count_crosses_four_modules_then_drains_real_prefix ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.73s
+
+     Running tests/impl174_store_fields.rs (/workspace/scratch/39be3faa4442/targets/174-v21/debug/deps/impl174_store_fields-8eef8171035c8a9f)
+
+running 13 tests
+test complete_store_fields_construct_move_and_drop_prefix_in_field_order ... ok
+test raw_wire_reconstruct_sealed_store_definition_even_for_state_only_signature ... ok
+test raw_wire_reject_double_take_unpaid_replace_and_wrong_field_projection ... ok
+test raw_wire_store_bearing_capture_remains_closed ... ok
+test replacing_store_field_drops_old_prefix_before_new_publication ... ok
+test sealed_definitions_are_discovered_from_state_only_signatures ... ok
+test cross_module_state_owns_runtime_replacement_and_partial_exit ... ok
+test source_rejects_borrowed_store_fields_and_unsupported_nested_storage ... ok
+test store_field_raw_and_wire_budget_has_an_exact_boundary ... ok
+test source_rejects_missing_field_double_take_and_old_description_retargeting ... ok
+test taken_store_field_early_error_cleans_only_live_shell_fields ... ok
+test store_state_in_owned_error_and_fixed_array_recursively_cleans_prefix ... ok
+test whole_field_take_refill_and_state_transfer_have_one_responsibility ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.42s
+
