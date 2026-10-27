@@ -1,0 +1,4072 @@
+[
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "b7aa87bdb6e1c4b2a90c7b32f91cf231f9ec667d3f13119237d318aba6a556c5"
+      }
+    ],
+    "input_fingerprint": "de822a6bf4fe5febff7fdec5789ecdcf73b047427f29cdcd426e8f845f96eb06",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/.zil-driver-117-21/.zil-build-117-1/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/.zil-driver-117-21/.zil-build-117-1/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/phases/candidate.txt",
+        "sha256": "9b7f86190552c677780b523f4cfcb9b4a1377466f28262b0276ffa3139765b20"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/phases/core.txt",
+        "sha256": "0ed0afd94b27109b2c725d813a1a80b42f057f68a6b6c5c7cd66f3d10996af5e"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/phases/ct-core.txt",
+        "sha256": "0ed0afd94b27109b2c725d813a1a80b42f057f68a6b6c5c7cd66f3d10996af5e"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/program",
+        "sha256": "2a7a8d54753fc3a12b673111e0c616ddbc68bcb8085401c7e1f5870fe1ef200c"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/phases/interfaces.txt",
+        "sha256": "cc86bdb147d434ec7c156aea399264427c0403013fbb500ef5e4b75bbfe62bc8"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/phases/lir.txt",
+        "sha256": "c1bc0cf03fed142589ebb110a9a02c8220db4cd2037434f4096b4f44922cc38e"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/program.ll",
+        "sha256": "dfdbad7fed06ce73096dfab865fa14a3ea721a31a55a6ce358fe93d6e76ae1b7"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/phases/source-map.txt",
+        "sha256": "969dd57232069030513988959f9dc4cf35734deceabbcbd819dc7f9538471e99"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/phases/syntax.txt",
+        "sha256": "a055c4b26b4533bdcde9e0e1b4db2a8b2331bae043cca439b298c7ebc8b23d6b"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/phases/typed.txt",
+        "sha256": "94fa53062caccbf2efe896cc911ee66cc27e3d10a20643af3f541cbb62f5bfc1"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/phases/verified.txt",
+        "sha256": "ee87409cebe99cc5bab4fb4eaa5459e30b59b1c84a9e1ae0d793ecf53c18120a"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-0/phases/verified-interfaces.txt",
+        "sha256": "10761ff50812d67b19e857665c4fea36c4c154fda05e1b5c0c977d3ca8078400"
+      }
+    },
+    "binary_sha256": "2a7a8d54753fc3a12b673111e0c616ddbc68bcb8085401c7e1f5870fe1ef200c",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "da954a18a8b9d2aba865f174e8080beac5dd7ecc7374f440995c3a1058c0b977"
+      }
+    ],
+    "input_fingerprint": "c677cce90b1576df38f5b67704ea8737e781c55a2bece19b93eadb791aa799db",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/.zil-driver-117-14/.zil-build-117-0/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/.zil-driver-117-14/.zil-build-117-0/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/phases/candidate.txt",
+        "sha256": "da3e5cc49abb00f9675c731ae0cd34ff74ff1e3e52fb507ef67976a218448ea5"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/phases/core.txt",
+        "sha256": "c45c639678b25369735cfed6bcfe7c762b459320655934d2d9e35691fedc7cde"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/phases/ct-core.txt",
+        "sha256": "b145fe27c05925886fcb83ebea35fdd76f7d09a16c168757c136c2fc8f2e1149"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/program",
+        "sha256": "ffebebcf21a2acbd9d1f1beec66e312b3a77f6702e5a76c7aa3e0fab69d2f67d"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/phases/interfaces.txt",
+        "sha256": "0ef06cb720db36d3df5b8906ad9c834775be447c9f1bec297b01ca96a1872976"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/phases/lir.txt",
+        "sha256": "93b901a8026026a900f2dbe81dacbc5c66af89e8579d1116ad2db93e574f3c51"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/program.ll",
+        "sha256": "a56f30f8b72d332f211f977c67b18946a0eaccd02fccea09415027002a775014"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/phases/source-map.txt",
+        "sha256": "360251d884fa22d000cf81be30977430dfa17da09c2760c9d31d8870d95624ea"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/phases/syntax.txt",
+        "sha256": "4750dec004c428c0c2fcc31969f68b53f833c4d9e01fcf9f361c0f40ef53bd58"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/phases/typed.txt",
+        "sha256": "9b9e0ec09f894fe32936a0769352741294dc82bf9a4708a05ce49f4e31051112"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/phases/verified.txt",
+        "sha256": "e5e4741eb3a0439006c7f9ec83524c75e49f310f918bd674f6012731add7a069"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-1/phases/verified-interfaces.txt",
+        "sha256": "ca523559cde1fe35e9026a23e2a54a4fbbf1a2654d7ba66760a0ee652d42a7fa"
+      }
+    },
+    "binary_sha256": "ffebebcf21a2acbd9d1f1beec66e312b3a77f6702e5a76c7aa3e0fab69d2f67d",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-10",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-RECEIVER-METHOD-VALUE",
+        "message": "instance method value requires an explicit closure",
+        "span": {
+          "file": 0,
+          "start": 91,
+          "end": 97
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "38f1eebfd59428b31df478aa0d41a327dddcd3f20c8e03ca2161aa0f39884433"
+      }
+    ],
+    "input_fingerprint": "a0c719ed194ffddb2ca72b749e2551987fe3184cc91ade3d8f7b00973f5a23bf",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-10/phases/core.txt",
+        "sha256": "c36bf9164640658c6f9791b91b875f99d718a81eec80d830c297d331a2d2de7e"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-10/phases/ct-core.txt",
+        "sha256": "c36bf9164640658c6f9791b91b875f99d718a81eec80d830c297d331a2d2de7e"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-10/phases/source-map.txt",
+        "sha256": "e66c462986df6290b225fb7e57334959307fa35f86e244e4be2a7ad840c35c7b"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-10/phases/syntax.txt",
+        "sha256": "a8562bc412375c21ced0080fc458fcfbd298b8ccf30d78fd0f6c0f5f32cea253"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "0d8a06cc041160107b765115f9a8415f689abcbeff18a18fa25a976f696f0a2c"
+      }
+    ],
+    "input_fingerprint": "62427862f7ad35797c27902876f859c447dc4ac07475b7f2ebae1016dbcc6c21",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/.zil-driver-117-101/.zil-build-117-4/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/.zil-driver-117-101/.zil-build-117-4/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/phases/candidate.txt",
+        "sha256": "173bae7449ac264fddbda245cda26f7d2ceb37b0587c7bda60d3ed69c957eece"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/phases/core.txt",
+        "sha256": "7edb87743bc7cada1118f6bd6be359dda7bf9871e2e7912c455c700c2b091aa7"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/phases/ct-core.txt",
+        "sha256": "2691fd6e916eaaca5b67d8cdfa01dcced6c0caccf0124699e76531549fbbb033"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/program",
+        "sha256": "6e2da50659213f34716649b6f3cf7bcaf26a087e0754e10c65c895c60c6b3188"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/phases/interfaces.txt",
+        "sha256": "006c30ba6c47f165fdad45665c13991e96864cf0a5725f37f4764a4dde686388"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/phases/lir.txt",
+        "sha256": "317bc4df2c6f51fd2b209fa9cd6452281e6609e59f38d8baaa47d2bd465face4"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/program.ll",
+        "sha256": "887dd4dbd3094a82dc6f40c85595341b6f85f442a8edcec10f05314ebf3c8ea1"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/phases/source-map.txt",
+        "sha256": "efcf9954c9e68c49572bef9fc855570ce3556d74d933e0032df82f05fe36ba32"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/phases/syntax.txt",
+        "sha256": "6a27d9598e16494653affbf86507aeee1fcb6b7bd995ecd672214b1c2d7337ff"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/phases/typed.txt",
+        "sha256": "d7cc3bcb3bf05ff187daf10cf47ec0b1dd7d32d2c038b0b60f9d89411e4beb06"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/phases/verified.txt",
+        "sha256": "bc15b2901b820e836986581bedb082c471b8289c05fe9ed057e1725cfd612c05"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-11/phases/verified-interfaces.txt",
+        "sha256": "5e80c531ca69712c218fd3c4ca5054212e70e770b9c3d16d1bad041904129e13"
+      }
+    },
+    "binary_sha256": "6e2da50659213f34716649b6f3cf7bcaf26a087e0754e10c65c895c60c6b3188",
+    "stdout": "A",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "957ce09ce303e4dce62e7775214f793c7567c98780af3295057ad751c14510f4"
+      }
+    ],
+    "input_fingerprint": "08e18654c8090ed479441e7a4d66b8cfb6d7b15467d761f1ee5ff8d64b243293",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/.zil-driver-117-106/.zil-build-117-5/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/.zil-driver-117-106/.zil-build-117-5/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/phases/candidate.txt",
+        "sha256": "e58074d70ccedf06cb12e02a4a052f1d95a021215e00a3df8eb6631ce9aa9a08"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/phases/core.txt",
+        "sha256": "45688204f4bbf8d140d2ecf169e66b00098f8fdc97ee037497372de18037dc3e"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/phases/ct-core.txt",
+        "sha256": "a868af38956e24c3d476ba77af0045b08dd0699f72c80765db0e5622a6cf5f8a"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/program",
+        "sha256": "0a8cd7344ea28d63fe3d7febac508417fe412689f9a68e50b0706888480e39f7"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/phases/interfaces.txt",
+        "sha256": "186ccb416e9f649adbe1f4df296ed7bf0597c0a1ab963a754946773758076d7d"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/phases/lir.txt",
+        "sha256": "abfb3170841e9f1b40fe27e41101e9685ee804515fc45f8e3e179f83bbbde197"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/program.ll",
+        "sha256": "96d07755fb520b5de84adf9ad45ddc778f25b6373fe5587f73b0567fcc2da2f8"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/phases/source-map.txt",
+        "sha256": "33a729a9e7f697d842b1d46fd347052b2840c5f37b5279739809b0f7cbeec42b"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/phases/syntax.txt",
+        "sha256": "61faff004047875ba91d12d459116ff15e886c24a52aac8a0f0c7611c242d5aa"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/phases/typed.txt",
+        "sha256": "243d65d51d3f8ad7b0d848557e47f97cbce98c8bf0d8219971328f4c7f5fc68d"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/phases/verified.txt",
+        "sha256": "37e76485afa4206ea3e938cfa77dc40cdec3346d7c471ad4f1c48aa54299947d"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-12/phases/verified-interfaces.txt",
+        "sha256": "e1720da24147a2c0e4f1f6d8a83deb272df70eefb3366e146cae6402eaecbda3"
+      }
+    },
+    "binary_sha256": "0a8cd7344ea28d63fe3d7febac508417fe412689f9a68e50b0706888480e39f7",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "957ce09ce303e4dce62e7775214f793c7567c98780af3295057ad751c14510f4"
+      }
+    ],
+    "input_fingerprint": "08e18654c8090ed479441e7a4d66b8cfb6d7b15467d761f1ee5ff8d64b243293",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/.zil-driver-117-130/.zil-build-117-7/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/.zil-driver-117-130/.zil-build-117-7/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/phases/candidate.txt",
+        "sha256": "e58074d70ccedf06cb12e02a4a052f1d95a021215e00a3df8eb6631ce9aa9a08"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/phases/core.txt",
+        "sha256": "45688204f4bbf8d140d2ecf169e66b00098f8fdc97ee037497372de18037dc3e"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/phases/ct-core.txt",
+        "sha256": "a868af38956e24c3d476ba77af0045b08dd0699f72c80765db0e5622a6cf5f8a"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/program",
+        "sha256": "76c391abb1d3f96fa888c46dd8ddc65502c3c6abb7631d3e6bf3c855847afdfc"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/phases/interfaces.txt",
+        "sha256": "186ccb416e9f649adbe1f4df296ed7bf0597c0a1ab963a754946773758076d7d"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/phases/lir.txt",
+        "sha256": "abfb3170841e9f1b40fe27e41101e9685ee804515fc45f8e3e179f83bbbde197"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/program.ll",
+        "sha256": "96d07755fb520b5de84adf9ad45ddc778f25b6373fe5587f73b0567fcc2da2f8"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/phases/source-map.txt",
+        "sha256": "33a729a9e7f697d842b1d46fd347052b2840c5f37b5279739809b0f7cbeec42b"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/phases/syntax.txt",
+        "sha256": "61faff004047875ba91d12d459116ff15e886c24a52aac8a0f0c7611c242d5aa"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/phases/typed.txt",
+        "sha256": "243d65d51d3f8ad7b0d848557e47f97cbce98c8bf0d8219971328f4c7f5fc68d"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/phases/verified.txt",
+        "sha256": "37e76485afa4206ea3e938cfa77dc40cdec3346d7c471ad4f1c48aa54299947d"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-13/phases/verified-interfaces.txt",
+        "sha256": "e1720da24147a2c0e4f1f6d8a83deb272df70eefb3366e146cae6402eaecbda3"
+      }
+    },
+    "binary_sha256": "76c391abb1d3f96fa888c46dd8ddc65502c3c6abb7631d3e6bf3c855847afdfc",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "0d8a06cc041160107b765115f9a8415f689abcbeff18a18fa25a976f696f0a2c"
+      }
+    ],
+    "input_fingerprint": "62427862f7ad35797c27902876f859c447dc4ac07475b7f2ebae1016dbcc6c21",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/.zil-driver-117-122/.zil-build-117-6/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/.zil-driver-117-122/.zil-build-117-6/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/phases/candidate.txt",
+        "sha256": "173bae7449ac264fddbda245cda26f7d2ceb37b0587c7bda60d3ed69c957eece"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/phases/core.txt",
+        "sha256": "7edb87743bc7cada1118f6bd6be359dda7bf9871e2e7912c455c700c2b091aa7"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/phases/ct-core.txt",
+        "sha256": "2691fd6e916eaaca5b67d8cdfa01dcced6c0caccf0124699e76531549fbbb033"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/program",
+        "sha256": "dfc1d7ecbe0b335bf78325ee9ac6784b5fa2a309cf66551f35a6ea5a6ca0eee8"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/phases/interfaces.txt",
+        "sha256": "006c30ba6c47f165fdad45665c13991e96864cf0a5725f37f4764a4dde686388"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/phases/lir.txt",
+        "sha256": "317bc4df2c6f51fd2b209fa9cd6452281e6609e59f38d8baaa47d2bd465face4"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/program.ll",
+        "sha256": "887dd4dbd3094a82dc6f40c85595341b6f85f442a8edcec10f05314ebf3c8ea1"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/phases/source-map.txt",
+        "sha256": "efcf9954c9e68c49572bef9fc855570ce3556d74d933e0032df82f05fe36ba32"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/phases/syntax.txt",
+        "sha256": "6a27d9598e16494653affbf86507aeee1fcb6b7bd995ecd672214b1c2d7337ff"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/phases/typed.txt",
+        "sha256": "d7cc3bcb3bf05ff187daf10cf47ec0b1dd7d32d2c038b0b60f9d89411e4beb06"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/phases/verified.txt",
+        "sha256": "bc15b2901b820e836986581bedb082c471b8289c05fe9ed057e1725cfd612c05"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-14/phases/verified-interfaces.txt",
+        "sha256": "5e80c531ca69712c218fd3c4ca5054212e70e770b9c3d16d1bad041904129e13"
+      }
+    },
+    "binary_sha256": "dfc1d7ecbe0b335bf78325ee9ac6784b5fa2a309cf66551f35a6ea5a6ca0eee8",
+    "stdout": "A",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "31e5bf5917e96bba6d1abea8b7db64f958cf03f4d9ddcdfd1878844e5ada9f1a"
+      }
+    ],
+    "input_fingerprint": "ddcf6a8815167e99ff80b1a1e7875e9df141d916f8fc9d60aaa511a097e62fd1",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/.zil-driver-117-145/.zil-build-117-8/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/.zil-driver-117-145/.zil-build-117-8/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/phases/candidate.txt",
+        "sha256": "81f8cae5076926ed5ac0a6847a57df237ac33246f766fdf23a528ac73dfb6e01"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/phases/core.txt",
+        "sha256": "8ab089e3c3f0f39989ac9749200e669608d2e7ad75c23b8b3f16e6c908f519ad"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/phases/ct-core.txt",
+        "sha256": "8ab089e3c3f0f39989ac9749200e669608d2e7ad75c23b8b3f16e6c908f519ad"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/program",
+        "sha256": "0f3abfae6c06a1c269f2d6441876725be36d68f9b9324566ce76988370cba145"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/phases/interfaces.txt",
+        "sha256": "eb2c67681b271886270c39b3f61c01631aa1f9d6dd8b0a456a92d9f0c948aa94"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/phases/lir.txt",
+        "sha256": "2c984697cc2af85615fd6984aae149dd37caad27d3cc7615eebed078f32c49a5"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/program.ll",
+        "sha256": "eb9bb0409d948e0a0685a5c6259fdcc135e9cf47c6d2f5b22a40edb68e457999"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/phases/source-map.txt",
+        "sha256": "6905cd78ea3b02f804c7d3cbc1bc4af69558812e69e2782ca665416fb3466770"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/phases/syntax.txt",
+        "sha256": "efeb8ac840a92f32510b3d105b009e29f295ed3b5ebe23ade30d4e361165e72e"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/phases/typed.txt",
+        "sha256": "447c39b3c005001ef22419a82ceb1d9b37249d1de9d42944be7ed843ffe059f7"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/phases/verified.txt",
+        "sha256": "416cef6d912079e0e8a2939c3569b7d27eb20d98f525ac3036b0eeff306818d5"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-15/phases/verified-interfaces.txt",
+        "sha256": "e8f922adefbfa83280dd272a6dcdbf27200931a39918496af0444fa2cca1cbb7"
+      }
+    },
+    "binary_sha256": "0f3abfae6c06a1c269f2d6441876725be36d68f9b9324566ce76988370cba145",
+    "stdout": "B",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "b51fe6ad349bd423d36adf6384197a543d21d3600b73f79b1f4a0a552c3284c5"
+      }
+    ],
+    "input_fingerprint": "7261cd7771a7b66c26f1773731dd2f4c443b6af8311021814cc25b631a6396c0",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/.zil-driver-117-154/.zil-build-117-9/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/.zil-driver-117-154/.zil-build-117-9/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/phases/candidate.txt",
+        "sha256": "026f1db9dae765ffb2901ed71bd66448d69e9a2d13ccc2e54ca6f30fb68741a0"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/phases/core.txt",
+        "sha256": "f6dd025e5fcf59d41ed3c6872ae7cf6029f424ed88169b727178cceec21690a3"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/phases/ct-core.txt",
+        "sha256": "c1162b53fe770b75a1ad1cd1164fd0991902ced563132a261adee2bc77d25df4"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/program",
+        "sha256": "7328a45342e0fdc231c18296bba7bf15ac31b2a6632fdd8919d837170ea47d01"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/phases/interfaces.txt",
+        "sha256": "97a976e9ec7fb8e6cae8fb27577bb9c1a732a51de35f6627f729dd9fc8eb4645"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/phases/lir.txt",
+        "sha256": "cbe7386e7f4f0a26eddaca145604f885372d7e0b4da2c89a20542474e6609e52"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/program.ll",
+        "sha256": "50e8beec32bb574b5f37d7ff7f6dcb63bd815282831a59a6beb64da2a11d93e1"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/phases/source-map.txt",
+        "sha256": "70df674b6a003ec66d598616045d994f75e872ae6531b338c045abb0e2971a48"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/phases/syntax.txt",
+        "sha256": "fd65428488200bb124155238f5a0557c025d071b3bd79caf2ebbc7ace818f1aa"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/phases/typed.txt",
+        "sha256": "2cfe69e235b9a36031d0c5b7f2b74f347ce6c37566b211ca2a6d1170f769e458"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/phases/verified.txt",
+        "sha256": "757dfd6439cd774879fcf24669f6b4d2a6c482e90d2e2589f1339c064a31ce27"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-16/phases/verified-interfaces.txt",
+        "sha256": "a294c86d42f5c0c0f207713ff59d361e166d99e658f8d589c1a1148bed997dc5"
+      }
+    },
+    "binary_sha256": "7328a45342e0fdc231c18296bba7bf15ac31b2a6632fdd8919d837170ea47d01",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "31e5bf5917e96bba6d1abea8b7db64f958cf03f4d9ddcdfd1878844e5ada9f1a"
+      }
+    ],
+    "input_fingerprint": "ddcf6a8815167e99ff80b1a1e7875e9df141d916f8fc9d60aaa511a097e62fd1",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/.zil-driver-117-166/.zil-build-117-10/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/.zil-driver-117-166/.zil-build-117-10/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/phases/candidate.txt",
+        "sha256": "81f8cae5076926ed5ac0a6847a57df237ac33246f766fdf23a528ac73dfb6e01"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/phases/core.txt",
+        "sha256": "8ab089e3c3f0f39989ac9749200e669608d2e7ad75c23b8b3f16e6c908f519ad"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/phases/ct-core.txt",
+        "sha256": "8ab089e3c3f0f39989ac9749200e669608d2e7ad75c23b8b3f16e6c908f519ad"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/program",
+        "sha256": "92fc30193c74740848f455a9cc79f01a596303ba0da8919778d7b932c35e739c"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/phases/interfaces.txt",
+        "sha256": "eb2c67681b271886270c39b3f61c01631aa1f9d6dd8b0a456a92d9f0c948aa94"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/phases/lir.txt",
+        "sha256": "2c984697cc2af85615fd6984aae149dd37caad27d3cc7615eebed078f32c49a5"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/program.ll",
+        "sha256": "eb9bb0409d948e0a0685a5c6259fdcc135e9cf47c6d2f5b22a40edb68e457999"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/phases/source-map.txt",
+        "sha256": "6905cd78ea3b02f804c7d3cbc1bc4af69558812e69e2782ca665416fb3466770"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/phases/syntax.txt",
+        "sha256": "efeb8ac840a92f32510b3d105b009e29f295ed3b5ebe23ade30d4e361165e72e"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/phases/typed.txt",
+        "sha256": "447c39b3c005001ef22419a82ceb1d9b37249d1de9d42944be7ed843ffe059f7"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/phases/verified.txt",
+        "sha256": "416cef6d912079e0e8a2939c3569b7d27eb20d98f525ac3036b0eeff306818d5"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-17/phases/verified-interfaces.txt",
+        "sha256": "e8f922adefbfa83280dd272a6dcdbf27200931a39918496af0444fa2cca1cbb7"
+      }
+    },
+    "binary_sha256": "92fc30193c74740848f455a9cc79f01a596303ba0da8919778d7b932c35e739c",
+    "stdout": "B",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "b51fe6ad349bd423d36adf6384197a543d21d3600b73f79b1f4a0a552c3284c5"
+      }
+    ],
+    "input_fingerprint": "7261cd7771a7b66c26f1773731dd2f4c443b6af8311021814cc25b631a6396c0",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/.zil-driver-117-178/.zil-build-117-11/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/.zil-driver-117-178/.zil-build-117-11/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/phases/candidate.txt",
+        "sha256": "026f1db9dae765ffb2901ed71bd66448d69e9a2d13ccc2e54ca6f30fb68741a0"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/phases/core.txt",
+        "sha256": "f6dd025e5fcf59d41ed3c6872ae7cf6029f424ed88169b727178cceec21690a3"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/phases/ct-core.txt",
+        "sha256": "c1162b53fe770b75a1ad1cd1164fd0991902ced563132a261adee2bc77d25df4"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/program",
+        "sha256": "18fd25658e8b85d6ad07ec8ee3e9f8c8072e64efb9cc88478ca21b76d33d3880"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/phases/interfaces.txt",
+        "sha256": "97a976e9ec7fb8e6cae8fb27577bb9c1a732a51de35f6627f729dd9fc8eb4645"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/phases/lir.txt",
+        "sha256": "cbe7386e7f4f0a26eddaca145604f885372d7e0b4da2c89a20542474e6609e52"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/program.ll",
+        "sha256": "50e8beec32bb574b5f37d7ff7f6dcb63bd815282831a59a6beb64da2a11d93e1"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/phases/source-map.txt",
+        "sha256": "70df674b6a003ec66d598616045d994f75e872ae6531b338c045abb0e2971a48"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/phases/syntax.txt",
+        "sha256": "fd65428488200bb124155238f5a0557c025d071b3bd79caf2ebbc7ace818f1aa"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/phases/typed.txt",
+        "sha256": "2cfe69e235b9a36031d0c5b7f2b74f347ce6c37566b211ca2a6d1170f769e458"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/phases/verified.txt",
+        "sha256": "757dfd6439cd774879fcf24669f6b4d2a6c482e90d2e2589f1339c064a31ce27"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-18/phases/verified-interfaces.txt",
+        "sha256": "a294c86d42f5c0c0f207713ff59d361e166d99e658f8d589c1a1148bed997dc5"
+      }
+    },
+    "binary_sha256": "18fd25658e8b85d6ad07ec8ee3e9f8c8072e64efb9cc88478ca21b76d33d3880",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "5247478b43e816b485c55b5976675056b4e848b5095bd895668e31dacdfcb409"
+      }
+    ],
+    "input_fingerprint": "46bd1a979f04e61c365f658a5937007c948d499919d0f6c39f555e7fa8f70d30",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/.zil-driver-117-190/.zil-build-117-12/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/.zil-driver-117-190/.zil-build-117-12/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/phases/candidate.txt",
+        "sha256": "00c0fcbedbe211407aa6dba412e00ebb6c16a60a7c86e1d5efa27fabea203e31"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/phases/core.txt",
+        "sha256": "bb49ec3491472430dacc51707c253cb9dfe70f039b30f55b756e06c8fc3b7f4a"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/phases/ct-core.txt",
+        "sha256": "bb49ec3491472430dacc51707c253cb9dfe70f039b30f55b756e06c8fc3b7f4a"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/program",
+        "sha256": "f58ac9d869b8fd4071fd815403f7a11beb21cb25d7f0e0080df3bf994e7bde8b"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/phases/interfaces.txt",
+        "sha256": "594b9ffa6ad9c0058e74508d0e0e2f9149fc31ee4beb0bd5d503f938d4595040"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/phases/lir.txt",
+        "sha256": "0faef37627cd13366b5312e03c9fd72730bf7af218e5153800c2099c6a3f6258"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/program.ll",
+        "sha256": "a8f868e3be1bb7a3ce095a0f06d8b2d9f9710232e79a72261756336d4b69a46c"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/phases/source-map.txt",
+        "sha256": "f4a6c5f1c8e66038a13b136ef83470765b2bae978f94b72730de08f4d9fd7c6b"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/phases/syntax.txt",
+        "sha256": "9563569cca66c53e6635a1eefef5b50ca6f7a15a4be0025147ca032093b7386e"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/phases/typed.txt",
+        "sha256": "5537cf5ebf46c8056fcdc97416f19a507c594d804640a56d170817be7b315257"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/phases/verified.txt",
+        "sha256": "c4dab50a46a79c3029fafa945aa101b3e499e88f1a3de7b2f06559b76beff06a"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-19/phases/verified-interfaces.txt",
+        "sha256": "31e6bad69b11e1cf05b11bd02433e1113c3dd0fb8bcd98110b9b9659e3d7c4a4"
+      }
+    },
+    "binary_sha256": "f58ac9d869b8fd4071fd815403f7a11beb21cb25d7f0e0080df3bf994e7bde8b",
+    "stdout": "ACB",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "da954a18a8b9d2aba865f174e8080beac5dd7ecc7374f440995c3a1058c0b977"
+      }
+    ],
+    "input_fingerprint": "c677cce90b1576df38f5b67704ea8737e781c55a2bece19b93eadb791aa799db",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/.zil-driver-117-33/.zil-build-117-2/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/.zil-driver-117-33/.zil-build-117-2/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/phases/candidate.txt",
+        "sha256": "da3e5cc49abb00f9675c731ae0cd34ff74ff1e3e52fb507ef67976a218448ea5"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/phases/core.txt",
+        "sha256": "c45c639678b25369735cfed6bcfe7c762b459320655934d2d9e35691fedc7cde"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/phases/ct-core.txt",
+        "sha256": "b145fe27c05925886fcb83ebea35fdd76f7d09a16c168757c136c2fc8f2e1149"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/program",
+        "sha256": "3c4fbf73ae7f4e946ecd3f9d4d76673aa40892d61abf2b43c217ad9f52d2f42f"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/phases/interfaces.txt",
+        "sha256": "0ef06cb720db36d3df5b8906ad9c834775be447c9f1bec297b01ca96a1872976"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/phases/lir.txt",
+        "sha256": "93b901a8026026a900f2dbe81dacbc5c66af89e8579d1116ad2db93e574f3c51"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/program.ll",
+        "sha256": "a56f30f8b72d332f211f977c67b18946a0eaccd02fccea09415027002a775014"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/phases/source-map.txt",
+        "sha256": "360251d884fa22d000cf81be30977430dfa17da09c2760c9d31d8870d95624ea"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/phases/syntax.txt",
+        "sha256": "4750dec004c428c0c2fcc31969f68b53f833c4d9e01fcf9f361c0f40ef53bd58"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/phases/typed.txt",
+        "sha256": "9b9e0ec09f894fe32936a0769352741294dc82bf9a4708a05ce49f4e31051112"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/phases/verified.txt",
+        "sha256": "e5e4741eb3a0439006c7f9ec83524c75e49f310f918bd674f6012731add7a069"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-2/phases/verified-interfaces.txt",
+        "sha256": "ca523559cde1fe35e9026a23e2a54a4fbbf1a2654d7ba66760a0ee652d42a7fa"
+      }
+    },
+    "binary_sha256": "3c4fbf73ae7f4e946ecd3f9d4d76673aa40892d61abf2b43c217ad9f52d2f42f",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "3255a289b9578f0f2d1ee74e17166df73ad0bbd9117b7519200e60428ca4a9bc"
+      },
+      {
+        "file": "model.zil",
+        "sha256": "2b2840b9055fa605c6c811f465245a2efb82e7e7758e845296679d24edfba963"
+      },
+      {
+        "file": "other.zil",
+        "sha256": "f234e3b2ccb47477b827ce45b6cb6d3f689261cfecf42928f599da5e145260f2"
+      }
+    ],
+    "input_fingerprint": "49914df53cfd47a31fe17fd37170551d8d0f0ef528576e19e967c2d8140f4362",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/.zil-driver-117-202/.zil-build-117-13/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/.zil-driver-117-202/.zil-build-117-13/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/phases/candidate.txt",
+        "sha256": "41530d56005eb79cc8f309961af907d8f3f10f96f95bf3c414cfc2e4bfcecf9d"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/phases/core.txt",
+        "sha256": "ea45797e45a4d69f478a4b676d75146c37cea1fdd929008c313d6312c580f15f"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/phases/ct-core.txt",
+        "sha256": "ea45797e45a4d69f478a4b676d75146c37cea1fdd929008c313d6312c580f15f"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/program",
+        "sha256": "1eaaaaf9a0fa8f003f17eed589fb24a66f556ef64e155956c59cf4593a4a2af7"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/phases/interfaces.txt",
+        "sha256": "d4ea2daa396bb6d6e9abd2c50d5dddf6d7eed0438b321c3beedade454cf02b8f"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/phases/lir.txt",
+        "sha256": "406cec3704ec0e4677fd9fad91b3cd07b05d0acb3d1b2adeebd70c2cd2fd8c13"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/program.ll",
+        "sha256": "75045906900adde80db27d19da3cea1ec8de9c30f638411e2ed443704380a6f3"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/phases/source-map.txt",
+        "sha256": "fb6aa871958b853514e54d1e922f05b8db5b60ba8959da6eff62a6436edd2a8c"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/phases/syntax.txt",
+        "sha256": "7ce6df2a9321ac9efc558bbe653f6c4dbf1eb795eb9d0d768bb20578f05c7176"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/phases/typed.txt",
+        "sha256": "f73ea1170af3bcab54ab208bc02b996fa7501bf33fadc568c362f2954842ff39"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/phases/verified.txt",
+        "sha256": "38b0b27d74771f85ca171e0e552570e796ba5609ac8e5c9d2f484dfbc9d287dc"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-20/phases/verified-interfaces.txt",
+        "sha256": "2464f4888da69b5c683d4b7b9c0d83f21c7fecd4401947d3064557d76d012bd5"
+      }
+    },
+    "binary_sha256": "1eaaaaf9a0fa8f003f17eed589fb24a66f556ef64e155956c59cf4593a4a2af7",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "5247478b43e816b485c55b5976675056b4e848b5095bd895668e31dacdfcb409"
+      }
+    ],
+    "input_fingerprint": "46bd1a979f04e61c365f658a5937007c948d499919d0f6c39f555e7fa8f70d30",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/.zil-driver-117-214/.zil-build-117-14/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/.zil-driver-117-214/.zil-build-117-14/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/phases/candidate.txt",
+        "sha256": "00c0fcbedbe211407aa6dba412e00ebb6c16a60a7c86e1d5efa27fabea203e31"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/phases/core.txt",
+        "sha256": "bb49ec3491472430dacc51707c253cb9dfe70f039b30f55b756e06c8fc3b7f4a"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/phases/ct-core.txt",
+        "sha256": "bb49ec3491472430dacc51707c253cb9dfe70f039b30f55b756e06c8fc3b7f4a"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/program",
+        "sha256": "2be441fa5cc3cc8d196a9b9674559ab96eed7e958620672a7e8b115d3b3c5463"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/phases/interfaces.txt",
+        "sha256": "594b9ffa6ad9c0058e74508d0e0e2f9149fc31ee4beb0bd5d503f938d4595040"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/phases/lir.txt",
+        "sha256": "0faef37627cd13366b5312e03c9fd72730bf7af218e5153800c2099c6a3f6258"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/program.ll",
+        "sha256": "a8f868e3be1bb7a3ce095a0f06d8b2d9f9710232e79a72261756336d4b69a46c"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/phases/source-map.txt",
+        "sha256": "f4a6c5f1c8e66038a13b136ef83470765b2bae978f94b72730de08f4d9fd7c6b"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/phases/syntax.txt",
+        "sha256": "9563569cca66c53e6635a1eefef5b50ca6f7a15a4be0025147ca032093b7386e"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/phases/typed.txt",
+        "sha256": "5537cf5ebf46c8056fcdc97416f19a507c594d804640a56d170817be7b315257"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/phases/verified.txt",
+        "sha256": "c4dab50a46a79c3029fafa945aa101b3e499e88f1a3de7b2f06559b76beff06a"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-21/phases/verified-interfaces.txt",
+        "sha256": "31e6bad69b11e1cf05b11bd02433e1113c3dd0fb8bcd98110b9b9659e3d7c4a4"
+      }
+    },
+    "binary_sha256": "2be441fa5cc3cc8d196a9b9674559ab96eed7e958620672a7e8b115d3b3c5463",
+    "stdout": "ACB",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "3255a289b9578f0f2d1ee74e17166df73ad0bbd9117b7519200e60428ca4a9bc"
+      },
+      {
+        "file": "model.zil",
+        "sha256": "2b2840b9055fa605c6c811f465245a2efb82e7e7758e845296679d24edfba963"
+      },
+      {
+        "file": "other.zil",
+        "sha256": "f234e3b2ccb47477b827ce45b6cb6d3f689261cfecf42928f599da5e145260f2"
+      }
+    ],
+    "input_fingerprint": "49914df53cfd47a31fe17fd37170551d8d0f0ef528576e19e967c2d8140f4362",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/.zil-driver-117-226/.zil-build-117-15/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/.zil-driver-117-226/.zil-build-117-15/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/phases/candidate.txt",
+        "sha256": "41530d56005eb79cc8f309961af907d8f3f10f96f95bf3c414cfc2e4bfcecf9d"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/phases/core.txt",
+        "sha256": "ea45797e45a4d69f478a4b676d75146c37cea1fdd929008c313d6312c580f15f"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/phases/ct-core.txt",
+        "sha256": "ea45797e45a4d69f478a4b676d75146c37cea1fdd929008c313d6312c580f15f"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/program",
+        "sha256": "53ca261700a8b14a9d065202d91b9e98a3bfcf920b6c8e975cafbc4c78b38da2"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/phases/interfaces.txt",
+        "sha256": "d4ea2daa396bb6d6e9abd2c50d5dddf6d7eed0438b321c3beedade454cf02b8f"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/phases/lir.txt",
+        "sha256": "406cec3704ec0e4677fd9fad91b3cd07b05d0acb3d1b2adeebd70c2cd2fd8c13"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/program.ll",
+        "sha256": "75045906900adde80db27d19da3cea1ec8de9c30f638411e2ed443704380a6f3"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/phases/source-map.txt",
+        "sha256": "fb6aa871958b853514e54d1e922f05b8db5b60ba8959da6eff62a6436edd2a8c"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/phases/syntax.txt",
+        "sha256": "7ce6df2a9321ac9efc558bbe653f6c4dbf1eb795eb9d0d768bb20578f05c7176"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/phases/typed.txt",
+        "sha256": "f73ea1170af3bcab54ab208bc02b996fa7501bf33fadc568c362f2954842ff39"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/phases/verified.txt",
+        "sha256": "38b0b27d74771f85ca171e0e552570e796ba5609ac8e5c9d2f484dfbc9d287dc"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-22/phases/verified-interfaces.txt",
+        "sha256": "2464f4888da69b5c683d4b7b9c0d83f21c7fecd4401947d3064557d76d012bd5"
+      }
+    },
+    "binary_sha256": "53ca261700a8b14a9d065202d91b9e98a3bfcf920b6c8e975cafbc4c78b38da2",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "2aa0ab2adf86923cc4448509f7c2a6db3b13f194b90f8df61cb035184b9a2c65"
+      }
+    ],
+    "input_fingerprint": "94672c249235b051ea95b348eb7ebd6016298740a721ae25d956b132dc3ade52",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/.zil-driver-117-242/.zil-build-117-16/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/.zil-driver-117-242/.zil-build-117-16/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/phases/candidate.txt",
+        "sha256": "d2e7e54d86bfc45cae63ae27f5986b42eef041e6a19f627b8a4752f627e5c39f"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/phases/core.txt",
+        "sha256": "c011bbed78b98900b8d51f3aee0ca8f86d26981c160a63a13160753e93522079"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/phases/ct-core.txt",
+        "sha256": "c011bbed78b98900b8d51f3aee0ca8f86d26981c160a63a13160753e93522079"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/program",
+        "sha256": "c206ff8546f757493ac96d2b652d628ea664320fa4387e8daa8ad502958f2aa1"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/phases/interfaces.txt",
+        "sha256": "08386004199d14e14349963c0cf723ace5c72b232ac57c9d6172fafdf8d9657a"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/phases/lir.txt",
+        "sha256": "52d0866747da0ff474fceac590ac1010ddfc437d9c8fc135557490bbadfabc0f"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/program.ll",
+        "sha256": "3bf0393387bd9846bbef55f003631684e2b8496919cfc0ad020df1e933578f1d"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/phases/source-map.txt",
+        "sha256": "9a659b09204b2a868cdfa5542df2ec3e3822f396b19483bc3217b3e7c7f0d494"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/phases/syntax.txt",
+        "sha256": "e8a276ef6e90bc18028cdd5b2b1dd621869c8be7553c5c088a0ab145cceb83f4"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/phases/typed.txt",
+        "sha256": "70536d0271b48761e9dfba9a0191d5f6fabd1f08a0e4932a8eb5ac013ac35f65"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/phases/verified.txt",
+        "sha256": "0a0c2d4677ec9fe328e8683113bfe690a40d6a90d80cc75ef0879da8758e5e3a"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-23/phases/verified-interfaces.txt",
+        "sha256": "4413807d4632805c00ba282e665715e0c9b27c97dbc188fe0262d1f7a6ca809c"
+      }
+    },
+    "binary_sha256": "c206ff8546f757493ac96d2b652d628ea664320fa4387e8daa8ad502958f2aa1",
+    "stdout": "BA",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "392515f3cff23d2f889a76c371c05f47497b10a772661a942b8915f37312f59b"
+      }
+    ],
+    "input_fingerprint": "0636b5820029ff3f79b034aa4f3ba7f246b315e62dd72ffcdca092d1185516e1",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/.zil-driver-117-250/.zil-build-117-17/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/.zil-driver-117-250/.zil-build-117-17/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/phases/candidate.txt",
+        "sha256": "d27ab7efb208351c611dc37372ac4f8c12f6944d8e153c2a4487e7d79062f75e"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/phases/core.txt",
+        "sha256": "ff4b9abea81e7308be973239dbb2b486248f12d4d55ab1ca7118fc7f134c0775"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/phases/ct-core.txt",
+        "sha256": "a1f260727d3d767296e6214a1c44bbc0a4a975182927ed9e21718be3bc6d52ba"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/program",
+        "sha256": "98a7aa916b67bbcbf469a641dfeb139049cd2f8a857d9dba6c19046ef0f9d8c3"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/phases/interfaces.txt",
+        "sha256": "44440348898695bc75f838e8008db8aafb7c602d3681c9dac6e2de798cb72d61"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/phases/lir.txt",
+        "sha256": "447907027053d9615a1c9f176c311750f0924e9e31a81fef00a60d5b1ab7542d"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/program.ll",
+        "sha256": "5b983469a2cf4b9b02f812d05b6393c800a19d6fa67b8077f7315618f5fa1c7e"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/phases/source-map.txt",
+        "sha256": "4d5ab4187bff87554379ee9438573ee018c965fb538ea54c9e7bca7451bf57d6"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/phases/syntax.txt",
+        "sha256": "88f41e28c34b48694ca07d27a71100cb51b951cc946d8114732780bdd9e0e999"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/phases/typed.txt",
+        "sha256": "03048148448ce8c6455df829ec92e11aded0e46be42c333a92f4314384ddbfe2"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/phases/verified.txt",
+        "sha256": "600331c9f1d7dc84551e90ee9958ae58b75112f99e0fdd3e3898b72e30591176"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-24/phases/verified-interfaces.txt",
+        "sha256": "62d5fe833ab32f2ac984b17e63c4ea6c0f691f4db12d0d06a69284ca28fa4c48"
+      }
+    },
+    "binary_sha256": "98a7aa916b67bbcbf469a641dfeb139049cd2f8a857d9dba6c19046ef0f9d8c3",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "2aa0ab2adf86923cc4448509f7c2a6db3b13f194b90f8df61cb035184b9a2c65"
+      }
+    ],
+    "input_fingerprint": "94672c249235b051ea95b348eb7ebd6016298740a721ae25d956b132dc3ade52",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/.zil-driver-117-265/.zil-build-117-18/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/.zil-driver-117-265/.zil-build-117-18/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/phases/candidate.txt",
+        "sha256": "d2e7e54d86bfc45cae63ae27f5986b42eef041e6a19f627b8a4752f627e5c39f"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/phases/core.txt",
+        "sha256": "c011bbed78b98900b8d51f3aee0ca8f86d26981c160a63a13160753e93522079"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/phases/ct-core.txt",
+        "sha256": "c011bbed78b98900b8d51f3aee0ca8f86d26981c160a63a13160753e93522079"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/program",
+        "sha256": "1e264de06a6215a3b1c0adb5aa64f3c7d055f795ac72262a6ee2ddfe6a83aa5b"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/phases/interfaces.txt",
+        "sha256": "08386004199d14e14349963c0cf723ace5c72b232ac57c9d6172fafdf8d9657a"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/phases/lir.txt",
+        "sha256": "52d0866747da0ff474fceac590ac1010ddfc437d9c8fc135557490bbadfabc0f"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/program.ll",
+        "sha256": "3bf0393387bd9846bbef55f003631684e2b8496919cfc0ad020df1e933578f1d"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/phases/source-map.txt",
+        "sha256": "9a659b09204b2a868cdfa5542df2ec3e3822f396b19483bc3217b3e7c7f0d494"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/phases/syntax.txt",
+        "sha256": "e8a276ef6e90bc18028cdd5b2b1dd621869c8be7553c5c088a0ab145cceb83f4"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/phases/typed.txt",
+        "sha256": "70536d0271b48761e9dfba9a0191d5f6fabd1f08a0e4932a8eb5ac013ac35f65"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/phases/verified.txt",
+        "sha256": "0a0c2d4677ec9fe328e8683113bfe690a40d6a90d80cc75ef0879da8758e5e3a"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-25/phases/verified-interfaces.txt",
+        "sha256": "4413807d4632805c00ba282e665715e0c9b27c97dbc188fe0262d1f7a6ca809c"
+      }
+    },
+    "binary_sha256": "1e264de06a6215a3b1c0adb5aa64f3c7d055f795ac72262a6ee2ddfe6a83aa5b",
+    "stdout": "BA",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "392515f3cff23d2f889a76c371c05f47497b10a772661a942b8915f37312f59b"
+      }
+    ],
+    "input_fingerprint": "0636b5820029ff3f79b034aa4f3ba7f246b315e62dd72ffcdca092d1185516e1",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/.zil-driver-117-274/.zil-build-117-19/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/.zil-driver-117-274/.zil-build-117-19/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/phases/candidate.txt",
+        "sha256": "d27ab7efb208351c611dc37372ac4f8c12f6944d8e153c2a4487e7d79062f75e"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/phases/core.txt",
+        "sha256": "ff4b9abea81e7308be973239dbb2b486248f12d4d55ab1ca7118fc7f134c0775"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/phases/ct-core.txt",
+        "sha256": "a1f260727d3d767296e6214a1c44bbc0a4a975182927ed9e21718be3bc6d52ba"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/program",
+        "sha256": "4f5ca244b250b2570b1a5fdd63fa832fa80d502383e3cd7cbe06767e8add4546"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/phases/interfaces.txt",
+        "sha256": "44440348898695bc75f838e8008db8aafb7c602d3681c9dac6e2de798cb72d61"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/phases/lir.txt",
+        "sha256": "447907027053d9615a1c9f176c311750f0924e9e31a81fef00a60d5b1ab7542d"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/program.ll",
+        "sha256": "5b983469a2cf4b9b02f812d05b6393c800a19d6fa67b8077f7315618f5fa1c7e"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/phases/source-map.txt",
+        "sha256": "4d5ab4187bff87554379ee9438573ee018c965fb538ea54c9e7bca7451bf57d6"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/phases/syntax.txt",
+        "sha256": "88f41e28c34b48694ca07d27a71100cb51b951cc946d8114732780bdd9e0e999"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/phases/typed.txt",
+        "sha256": "03048148448ce8c6455df829ec92e11aded0e46be42c333a92f4314384ddbfe2"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/phases/verified.txt",
+        "sha256": "600331c9f1d7dc84551e90ee9958ae58b75112f99e0fdd3e3898b72e30591176"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-26/phases/verified-interfaces.txt",
+        "sha256": "62d5fe833ab32f2ac984b17e63c4ea6c0f691f4db12d0d06a69284ca28fa4c48"
+      }
+    },
+    "binary_sha256": "4f5ca244b250b2570b1a5fdd63fa832fa80d502383e3cd7cbe06767e8add4546",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-27",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "expected Managed(Record { name: \"@module0:$module0_R\", fields: [(\"code\", I32)] }), found Desc(Record { name: \"@module0:$module0_R\", fields: [(\"code\", I32)] })",
+        "span": {
+          "file": 0,
+          "start": 272,
+          "end": 273
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "eeb6f81f873916a1557a14f10c10c17da984d97ee3b956359399ccf296eabb54"
+      }
+    ],
+    "input_fingerprint": "4e654a16cfa0a049c8584e82e2906d8cef8c9566d4089ffa9bdcef404afd5f5d",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-27/phases/core.txt",
+        "sha256": "2ddabbbcfcc331961e38b769e38b7ea6f09ebe858c3cd4eb5cbab82b30e2f0dd"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-27/phases/ct-core.txt",
+        "sha256": "2ddabbbcfcc331961e38b769e38b7ea6f09ebe858c3cd4eb5cbab82b30e2f0dd"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-27/phases/source-map.txt",
+        "sha256": "fe10d586616af38b357de93c86d332998da7b7f16431a252d6d04bed49a16e06"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-27/phases/syntax.txt",
+        "sha256": "ce67a09028b55467ac1743d9528df024aa0b73b72a0f7ee6436e39071d43cec3"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-28",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-GIVE-DESCRIPTOR",
+        "message": "a descriptor does not own the resource carrier",
+        "span": {
+          "file": 0,
+          "start": 281,
+          "end": 287
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "1d2d41caaf2e65931943afddb805ae422ee1dbbc9a5f4708ae3dbc5ddcca53fa"
+      }
+    ],
+    "input_fingerprint": "d774462e09295360011026b27ad84924abed48d2cb816c6394e64dd40bf82636",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-28/phases/core.txt",
+        "sha256": "08fd994bafef440fd10a1ca66072d932a682eff9a1803a48f73ca883148027f1"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-28/phases/ct-core.txt",
+        "sha256": "08fd994bafef440fd10a1ca66072d932a682eff9a1803a48f73ca883148027f1"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-28/phases/source-map.txt",
+        "sha256": "ff37979851adcbe175d74548b4c13094118199c66b2e5cdd3e62a2d335677248"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-28/phases/syntax.txt",
+        "sha256": "8a02e527cf8d68985e40ad0d83251edb4e6e51b2aff06194f59531f35c6e78c7"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-29",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: head transition invalidates a description required later",
+        "span": null,
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "81af84eeb2d49871dc2199c7cd0128370edcb9ff7a40586705ed8a68b02af85b"
+      }
+    ],
+    "input_fingerprint": "cfffa1a8778f63e7cc54e76feb3911d7d7ce29b44f5c836ac1d8d853fd25ca40",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-29/phases/core.txt",
+        "sha256": "71f00ac0f047f0d780bb0a7745375f88fa56e3387a46479cc7bc30a9be7984e1"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-29/phases/ct-core.txt",
+        "sha256": "71f00ac0f047f0d780bb0a7745375f88fa56e3387a46479cc7bc30a9be7984e1"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-29/phases/interfaces.txt",
+        "sha256": "dd4d914a1e21453d08b64987be065c7d6db1e08593edf628d523f539c973a8a6"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-29/phases/source-map.txt",
+        "sha256": "3cc2fb05304d761bbf0185a1ded1b6c82c573fa26e5dfb3aed3e5e1b19c74a22"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-29/phases/syntax.txt",
+        "sha256": "7fa1f6bb8f52dde24123fffdb36dd6f9a4089afebf8878ca646e4acb37cf7c60"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-29/phases/typed.txt",
+        "sha256": "d479a7ee1a6a672cc12b5fa1b18c4e832cfef914dbc552018ee491f63eb824bc"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "b7aa87bdb6e1c4b2a90c7b32f91cf231f9ec667d3f13119237d318aba6a556c5"
+      }
+    ],
+    "input_fingerprint": "de822a6bf4fe5febff7fdec5789ecdcf73b047427f29cdcd426e8f845f96eb06",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/.zil-driver-117-45/.zil-build-117-3/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/.zil-driver-117-45/.zil-build-117-3/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/phases/candidate.txt",
+        "sha256": "9b7f86190552c677780b523f4cfcb9b4a1377466f28262b0276ffa3139765b20"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/phases/core.txt",
+        "sha256": "0ed0afd94b27109b2c725d813a1a80b42f057f68a6b6c5c7cd66f3d10996af5e"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/phases/ct-core.txt",
+        "sha256": "0ed0afd94b27109b2c725d813a1a80b42f057f68a6b6c5c7cd66f3d10996af5e"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/program",
+        "sha256": "fc5fc158d283ecdca361026a90d0355c1e7396b6cc46056201aea5c73dcb3530"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/phases/interfaces.txt",
+        "sha256": "cc86bdb147d434ec7c156aea399264427c0403013fbb500ef5e4b75bbfe62bc8"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/phases/lir.txt",
+        "sha256": "c1bc0cf03fed142589ebb110a9a02c8220db4cd2037434f4096b4f44922cc38e"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/program.ll",
+        "sha256": "dfdbad7fed06ce73096dfab865fa14a3ea721a31a55a6ce358fe93d6e76ae1b7"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/phases/source-map.txt",
+        "sha256": "969dd57232069030513988959f9dc4cf35734deceabbcbd819dc7f9538471e99"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/phases/syntax.txt",
+        "sha256": "a055c4b26b4533bdcde9e0e1b4db2a8b2331bae043cca439b298c7ebc8b23d6b"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/phases/typed.txt",
+        "sha256": "94fa53062caccbf2efe896cc911ee66cc27e3d10a20643af3f541cbb62f5bfc1"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/phases/verified.txt",
+        "sha256": "ee87409cebe99cc5bab4fb4eaa5459e30b59b1c84a9e1ae0d793ecf53c18120a"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-3/phases/verified-interfaces.txt",
+        "sha256": "10761ff50812d67b19e857665c4fea36c4c154fda05e1b5c0c977d3ca8078400"
+      }
+    },
+    "binary_sha256": "fc5fc158d283ecdca361026a90d0355c1e7396b6cc46056201aea5c73dcb3530",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-30",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 1 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 291,
+          "end": 297
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "625f9ef34efacf03e61a78bb1437d9cb9b0b31e20553a1594c35f5e26a804f1f"
+      }
+    ],
+    "input_fingerprint": "77671cae13bcf15f783819a3a33a77df1dfa682a6452e3a223f3daabcc6f95b3",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-30/phases/core.txt",
+        "sha256": "1314f1842d2080b214d883bfa09ebf1c29eedacde555cdbbd33ce21434a1bc01"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-30/phases/ct-core.txt",
+        "sha256": "1314f1842d2080b214d883bfa09ebf1c29eedacde555cdbbd33ce21434a1bc01"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-30/phases/interfaces.txt",
+        "sha256": "dbbf4bf3d6f38f5ced330172b2e9bc772e8c240f46885b9ffaf1dc56e349e489"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-30/phases/source-map.txt",
+        "sha256": "6efc1215a44732ab275a9cc55b355fa8941f2fd6f0903b314744ffc6e221e203"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-30/phases/syntax.txt",
+        "sha256": "c9b3227b4e6b19c47c348351017134bf39e2fd93e4b0ce07592eeeaaabcec75e"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-30/phases/typed.txt",
+        "sha256": "8e94763cae4d73f0fb597b474c06fec9820e687badb07218a3d7af01fb22f3c6"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-31",
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "addresses to resource or package heads are not implemented",
+        "span": {
+          "file": 0,
+          "start": 19,
+          "end": 29
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "a299701c52efbbfd9d6fa36f51e412495fd03ccb3a6e07e769a9df6f900cf14e"
+      }
+    ],
+    "input_fingerprint": "00da6c034dd8298e9a488b93f75be03a38b502243525e0748668f2116f6dec05",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-31/phases/core.txt",
+        "sha256": "f52c2d9f1dbbd79577159b7ba75ceb325cf9ffd83382a5736998fd3566429f64"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-31/phases/ct-core.txt",
+        "sha256": "f52c2d9f1dbbd79577159b7ba75ceb325cf9ffd83382a5736998fd3566429f64"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-31/phases/source-map.txt",
+        "sha256": "785754e496c7f6979fe7529fd9bf414367d51a6cdecae2cc98c821ea16fb1a5c"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-31/phases/syntax.txt",
+        "sha256": "11cb1aad56b9a3c5b337ce27b668120b7ba959b6f559a32a3c410ab5f156fde7"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "9d0d0ae4e834963a98003edf7e808faf48942b2100c98a1d2adcca31bc9eb28c"
+      }
+    ],
+    "input_fingerprint": "d7a076e33aba2ecae07a7587c9811ff84b91912765d2a37eddd077458f16c7ac",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/.zil-driver-117-315/.zil-build-117-20/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/.zil-driver-117-315/.zil-build-117-20/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/phases/candidate.txt",
+        "sha256": "eab567be9242d221005b9a410b1908d87f5e3c34f97403dfa08dbd227e37ba79"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/phases/core.txt",
+        "sha256": "84bdac3df43d46627c6e8e5d4b94da8f2fe7c61b38b3f4165444ad9f03fd8585"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/phases/ct-core.txt",
+        "sha256": "84bdac3df43d46627c6e8e5d4b94da8f2fe7c61b38b3f4165444ad9f03fd8585"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/program",
+        "sha256": "797dbd5d98c2d9118df21c808cab42860fa6d943c346db826fe8076484162560"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/phases/interfaces.txt",
+        "sha256": "13669455156f8edb4a682047a4207c735f947212d54a33c6579d2b180575eedf"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/phases/lir.txt",
+        "sha256": "70c4d840cb7a3c36be7f0724060bce3d1d3714726c0d6a8ffc1f0c705a6deab1"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/program.ll",
+        "sha256": "08a573f89956b568c83ba12997ce047d2dbd104aabc9668834c4575bed006045"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/phases/source-map.txt",
+        "sha256": "2c65e91a447b51b81faca59be9250b3a1792c7627bc25ac545f4a1090d8dc470"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/phases/syntax.txt",
+        "sha256": "4ab617b567add14a735aa3a6d423ff084ea5fa8715789e2699418a9d719b27e4"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/phases/typed.txt",
+        "sha256": "31258d057cd1b0c875d24593d84e77100608d056716a6f5ec814a6f49c2699a4"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/phases/verified.txt",
+        "sha256": "dd15f9dd27560a1190202aaffdfcd016032936b409f66aa1475dbc78dedfb105"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-32/phases/verified-interfaces.txt",
+        "sha256": "e21e8f39e6fe47c4145311f0ff1fee5c278efed47f1b781c8f152cf912e68393"
+      }
+    },
+    "binary_sha256": "797dbd5d98c2d9118df21c808cab42860fa6d943c346db826fe8076484162560",
+    "stdout": "A",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "9ba90a1b8861b04337e13ec0410604566e177d69a933d4479de67f040b086eb9"
+      }
+    ],
+    "input_fingerprint": "8228e488a8f3b719db75b315437e4c9547c99fde1b1b252173509ca1ad75580d",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/.zil-driver-117-322/.zil-build-117-21/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/.zil-driver-117-322/.zil-build-117-21/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/phases/candidate.txt",
+        "sha256": "f53dafa5f0cbbf3824fcc3afa2c2a9aef7db228797ec9e5be3c0039e826133ef"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/phases/core.txt",
+        "sha256": "0cbed77f6f51f46ee204a4145172b648d60476bbc8f2d1e53807494772ec2cbe"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/phases/ct-core.txt",
+        "sha256": "38c73bf63af9f3d869b0104d0cce2767feb770f1cf79441a53cb4d63429ba269"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/program",
+        "sha256": "9c65937546d30064cbbc254ca055fe48385f13f36587bb0994611e36416f9e1b"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/phases/interfaces.txt",
+        "sha256": "1fbcb3db03d5261a736287f371ce02ca43f56583d9f66c071a11a8981cfa5aa1"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/phases/lir.txt",
+        "sha256": "ecff18e4cb2d7ddf6c92c52b695504557b6f0c3f603ca6d45807d409313f0f29"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/program.ll",
+        "sha256": "fb2d09b17eb1c04476fae45b955330bc1a6f1f6a1cdb9f483516478ff823cd9e"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/phases/source-map.txt",
+        "sha256": "a07d603e2d053dc8cf29e17070b2504a49fd84eafb80bb4a949d20aaa6cfff8b"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/phases/syntax.txt",
+        "sha256": "37e2a0bfca63b8cd8e60808a3b7219b75427cf5d77b0fcf31ce331fb211703c6"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/phases/typed.txt",
+        "sha256": "ff57d06770f0620b4c0ac98aa65a64e2b59b2e6cec9f42a71b154a124b5e0a3f"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/phases/verified.txt",
+        "sha256": "852fe8acff8d7780387bdcbaa360e14db157594379741486a14d5d5221100a12"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-33/phases/verified-interfaces.txt",
+        "sha256": "32af44a13a6e7cad6130f4f8406ddf1b456826877c7294db9ed99853254b4f14"
+      }
+    },
+    "binary_sha256": "9c65937546d30064cbbc254ca055fe48385f13f36587bb0994611e36416f9e1b",
+    "stdout": "AB",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "9ba90a1b8861b04337e13ec0410604566e177d69a933d4479de67f040b086eb9"
+      }
+    ],
+    "input_fingerprint": "8228e488a8f3b719db75b315437e4c9547c99fde1b1b252173509ca1ad75580d",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/.zil-driver-117-342/.zil-build-117-22/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/.zil-driver-117-342/.zil-build-117-22/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/phases/candidate.txt",
+        "sha256": "f53dafa5f0cbbf3824fcc3afa2c2a9aef7db228797ec9e5be3c0039e826133ef"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/phases/core.txt",
+        "sha256": "0cbed77f6f51f46ee204a4145172b648d60476bbc8f2d1e53807494772ec2cbe"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/phases/ct-core.txt",
+        "sha256": "38c73bf63af9f3d869b0104d0cce2767feb770f1cf79441a53cb4d63429ba269"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/program",
+        "sha256": "52754fb9b9e3807feef96f1d3906c447a01a73811fa4c3cbe0c85efd25daf608"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/phases/interfaces.txt",
+        "sha256": "1fbcb3db03d5261a736287f371ce02ca43f56583d9f66c071a11a8981cfa5aa1"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/phases/lir.txt",
+        "sha256": "ecff18e4cb2d7ddf6c92c52b695504557b6f0c3f603ca6d45807d409313f0f29"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/program.ll",
+        "sha256": "fb2d09b17eb1c04476fae45b955330bc1a6f1f6a1cdb9f483516478ff823cd9e"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/phases/source-map.txt",
+        "sha256": "a07d603e2d053dc8cf29e17070b2504a49fd84eafb80bb4a949d20aaa6cfff8b"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/phases/syntax.txt",
+        "sha256": "37e2a0bfca63b8cd8e60808a3b7219b75427cf5d77b0fcf31ce331fb211703c6"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/phases/typed.txt",
+        "sha256": "ff57d06770f0620b4c0ac98aa65a64e2b59b2e6cec9f42a71b154a124b5e0a3f"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/phases/verified.txt",
+        "sha256": "852fe8acff8d7780387bdcbaa360e14db157594379741486a14d5d5221100a12"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-34/phases/verified-interfaces.txt",
+        "sha256": "32af44a13a6e7cad6130f4f8406ddf1b456826877c7294db9ed99853254b4f14"
+      }
+    },
+    "binary_sha256": "52754fb9b9e3807feef96f1d3906c447a01a73811fa4c3cbe0c85efd25daf608",
+    "stdout": "AB",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "9d0d0ae4e834963a98003edf7e808faf48942b2100c98a1d2adcca31bc9eb28c"
+      }
+    ],
+    "input_fingerprint": "d7a076e33aba2ecae07a7587c9811ff84b91912765d2a37eddd077458f16c7ac",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/.zil-driver-117-346/.zil-build-117-23/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/.zil-driver-117-346/.zil-build-117-23/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/phases/candidate.txt",
+        "sha256": "eab567be9242d221005b9a410b1908d87f5e3c34f97403dfa08dbd227e37ba79"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/phases/core.txt",
+        "sha256": "84bdac3df43d46627c6e8e5d4b94da8f2fe7c61b38b3f4165444ad9f03fd8585"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/phases/ct-core.txt",
+        "sha256": "84bdac3df43d46627c6e8e5d4b94da8f2fe7c61b38b3f4165444ad9f03fd8585"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/program",
+        "sha256": "6cd986384b85687e8ea7a0d50775c85bc95117fbcc61bba4f6b2e4c6959af89a"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/phases/interfaces.txt",
+        "sha256": "13669455156f8edb4a682047a4207c735f947212d54a33c6579d2b180575eedf"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/phases/lir.txt",
+        "sha256": "70c4d840cb7a3c36be7f0724060bce3d1d3714726c0d6a8ffc1f0c705a6deab1"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/program.ll",
+        "sha256": "08a573f89956b568c83ba12997ce047d2dbd104aabc9668834c4575bed006045"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/phases/source-map.txt",
+        "sha256": "2c65e91a447b51b81faca59be9250b3a1792c7627bc25ac545f4a1090d8dc470"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/phases/syntax.txt",
+        "sha256": "4ab617b567add14a735aa3a6d423ff084ea5fa8715789e2699418a9d719b27e4"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/phases/typed.txt",
+        "sha256": "31258d057cd1b0c875d24593d84e77100608d056716a6f5ec814a6f49c2699a4"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/phases/verified.txt",
+        "sha256": "dd15f9dd27560a1190202aaffdfcd016032936b409f66aa1475dbc78dedfb105"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-35/phases/verified-interfaces.txt",
+        "sha256": "e21e8f39e6fe47c4145311f0ff1fee5c278efed47f1b781c8f152cf912e68393"
+      }
+    },
+    "binary_sha256": "6cd986384b85687e8ea7a0d50775c85bc95117fbcc61bba4f6b2e4c6959af89a",
+    "stdout": "A",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "96baaf59f74f5f8d0ea04b8c2bb7ed5d1a52b74ebcdf2213c5935409aee67fdf"
+      }
+    ],
+    "input_fingerprint": "2e908bafbca0c03fc8f30f09ae4059427096f9e293e25ddc3aaef64a1a686589",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/.zil-driver-117-363/.zil-build-117-24/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/.zil-driver-117-363/.zil-build-117-24/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/phases/candidate.txt",
+        "sha256": "6248a7e0feb1c40ee416079ccc4de273f1c519de0a6596bf6abaa05a70d256a4"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/phases/core.txt",
+        "sha256": "91ccc94bcdad53b02e46867f6bc912778af98e8d833a763d4707fa6780d5ee79"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/phases/ct-core.txt",
+        "sha256": "91ccc94bcdad53b02e46867f6bc912778af98e8d833a763d4707fa6780d5ee79"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/program",
+        "sha256": "fb9fbc152e9b89f4df06dd11f848218f047ca17107b8d5586c12582a5d0eb7e8"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/phases/interfaces.txt",
+        "sha256": "118a914ac310620809aaf5a9f29b021d44d2c95bebbe22894c6dfa8a3dfcb3b0"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/phases/lir.txt",
+        "sha256": "8b17256fcb927ffd9868b04f61e348aa195dc0d3d0415ee31512c56fb5372f35"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/program.ll",
+        "sha256": "e0eb3d543126e0fe747f9dacc74e1cf354f69465a4151cfd2636d7056608f574"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/phases/source-map.txt",
+        "sha256": "878d5fc9b7d2c9eecc91236f2c7f8fd291b9917c369abd64c718f8d9fad033de"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/phases/syntax.txt",
+        "sha256": "6d4edeefb839ff89fcc6557a3cf0572f663fda72f679c6f52b6dd50c178332f8"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/phases/typed.txt",
+        "sha256": "76a104c2bc3db722ba740929da1686de043578b427e40d9bb0f85aaad40df2b3"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/phases/verified.txt",
+        "sha256": "ea64cf2da35f8224901e189ff2e9d3627c4b020e559278d8971f8ace1f53a5f8"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-36/phases/verified-interfaces.txt",
+        "sha256": "f46f68a38409ef0303f0b81da9c06007290c86904a69e4df2e073cd7b38a65a2"
+      }
+    },
+    "binary_sha256": "fb9fbc152e9b89f4df06dd11f848218f047ca17107b8d5586c12582a5d0eb7e8",
+    "stdout": "AB",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "ef5ffb846a5ff35a1aa017e2f8ccd5f097d81288ca1ea147751804183b247c10"
+      }
+    ],
+    "input_fingerprint": "f9db0d2789c1c7049cef790b1207a6fd146f0909334ec30a23ec3c7ec64f8946",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/.zil-driver-117-370/.zil-build-117-25/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/.zil-driver-117-370/.zil-build-117-25/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/phases/candidate.txt",
+        "sha256": "145fb723351d6a21b73dc2e89e992500b1c68097b7afe93c9bc3b6ad56809d75"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/phases/core.txt",
+        "sha256": "678c7db3d025fe0aa747b3bdfea6a7a64d77f62cfd7146ca082297ed770febfd"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/phases/ct-core.txt",
+        "sha256": "eb28d6862d3ed81db8ce126be7b732b9171273213e5a4a57a1963287618e1dcc"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/program",
+        "sha256": "20a743e7fa4437aca08a55e160e433e7317d957429c6817f3354f73e700f4241"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/phases/interfaces.txt",
+        "sha256": "f6b78c480776b51eaba7daa4c6fd81334b29fd0892c7032f6e6e8ab7f152cdf1"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/phases/lir.txt",
+        "sha256": "c7ae52e45c72107f796a0b64274ed010b3e3a1ebd41d4900955b28f580185ca1"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/program.ll",
+        "sha256": "0d257bd6ba8883646143058086ff75a370d9c8373b3da07ed8e1cb7411c1d304"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/phases/source-map.txt",
+        "sha256": "44913ca64e6f55bc2d35279077b63e3a07c2c2b2a89f4369f17c5fae60c9027d"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/phases/syntax.txt",
+        "sha256": "d37c9d9e2514988a047e0e77e7f8ee01d982dba614985c108110ffd68fd5d80a"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/phases/typed.txt",
+        "sha256": "72113505010d04de10ac99b06fa21180af33e62ae59ea8750e91bdbd8b820ac4"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/phases/verified.txt",
+        "sha256": "ea9e1da9209fc91de14a0bc41ea17be4a2cf2cda6bf790a1cb605ada1a425631"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-37/phases/verified-interfaces.txt",
+        "sha256": "7c06cb9435262b5f971d5deb37b6aab56ee9d4db7f42128ba45928eedb7b070a"
+      }
+    },
+    "binary_sha256": "20a743e7fa4437aca08a55e160e433e7317d957429c6817f3354f73e700f4241",
+    "stdout": "A",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "96baaf59f74f5f8d0ea04b8c2bb7ed5d1a52b74ebcdf2213c5935409aee67fdf"
+      }
+    ],
+    "input_fingerprint": "2e908bafbca0c03fc8f30f09ae4059427096f9e293e25ddc3aaef64a1a686589",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/.zil-driver-117-385/.zil-build-117-26/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/.zil-driver-117-385/.zil-build-117-26/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/phases/candidate.txt",
+        "sha256": "6248a7e0feb1c40ee416079ccc4de273f1c519de0a6596bf6abaa05a70d256a4"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/phases/core.txt",
+        "sha256": "91ccc94bcdad53b02e46867f6bc912778af98e8d833a763d4707fa6780d5ee79"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/phases/ct-core.txt",
+        "sha256": "91ccc94bcdad53b02e46867f6bc912778af98e8d833a763d4707fa6780d5ee79"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/program",
+        "sha256": "5b95a61701517205f082f6baadff556d6bad6278da7fe50d4950d213787fdc4f"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/phases/interfaces.txt",
+        "sha256": "118a914ac310620809aaf5a9f29b021d44d2c95bebbe22894c6dfa8a3dfcb3b0"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/phases/lir.txt",
+        "sha256": "8b17256fcb927ffd9868b04f61e348aa195dc0d3d0415ee31512c56fb5372f35"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/program.ll",
+        "sha256": "e0eb3d543126e0fe747f9dacc74e1cf354f69465a4151cfd2636d7056608f574"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/phases/source-map.txt",
+        "sha256": "878d5fc9b7d2c9eecc91236f2c7f8fd291b9917c369abd64c718f8d9fad033de"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/phases/syntax.txt",
+        "sha256": "6d4edeefb839ff89fcc6557a3cf0572f663fda72f679c6f52b6dd50c178332f8"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/phases/typed.txt",
+        "sha256": "76a104c2bc3db722ba740929da1686de043578b427e40d9bb0f85aaad40df2b3"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/phases/verified.txt",
+        "sha256": "ea64cf2da35f8224901e189ff2e9d3627c4b020e559278d8971f8ace1f53a5f8"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-38/phases/verified-interfaces.txt",
+        "sha256": "f46f68a38409ef0303f0b81da9c06007290c86904a69e4df2e073cd7b38a65a2"
+      }
+    },
+    "binary_sha256": "5b95a61701517205f082f6baadff556d6bad6278da7fe50d4950d213787fdc4f",
+    "stdout": "AB",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "ef5ffb846a5ff35a1aa017e2f8ccd5f097d81288ca1ea147751804183b247c10"
+      }
+    ],
+    "input_fingerprint": "f9db0d2789c1c7049cef790b1207a6fd146f0909334ec30a23ec3c7ec64f8946",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/.zil-driver-117-394/.zil-build-117-27/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/.zil-driver-117-394/.zil-build-117-27/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/phases/candidate.txt",
+        "sha256": "145fb723351d6a21b73dc2e89e992500b1c68097b7afe93c9bc3b6ad56809d75"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/phases/core.txt",
+        "sha256": "678c7db3d025fe0aa747b3bdfea6a7a64d77f62cfd7146ca082297ed770febfd"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/phases/ct-core.txt",
+        "sha256": "eb28d6862d3ed81db8ce126be7b732b9171273213e5a4a57a1963287618e1dcc"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/program",
+        "sha256": "461dd7d49d91f22d5b6494a4a6cdfb0fc8c77874b7c42f77a0d3c96ab2f44e14"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/phases/interfaces.txt",
+        "sha256": "f6b78c480776b51eaba7daa4c6fd81334b29fd0892c7032f6e6e8ab7f152cdf1"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/phases/lir.txt",
+        "sha256": "c7ae52e45c72107f796a0b64274ed010b3e3a1ebd41d4900955b28f580185ca1"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/program.ll",
+        "sha256": "0d257bd6ba8883646143058086ff75a370d9c8373b3da07ed8e1cb7411c1d304"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/phases/source-map.txt",
+        "sha256": "44913ca64e6f55bc2d35279077b63e3a07c2c2b2a89f4369f17c5fae60c9027d"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/phases/syntax.txt",
+        "sha256": "d37c9d9e2514988a047e0e77e7f8ee01d982dba614985c108110ffd68fd5d80a"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/phases/typed.txt",
+        "sha256": "72113505010d04de10ac99b06fa21180af33e62ae59ea8750e91bdbd8b820ac4"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/phases/verified.txt",
+        "sha256": "ea9e1da9209fc91de14a0bc41ea17be4a2cf2cda6bf790a1cb605ada1a425631"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-39/phases/verified-interfaces.txt",
+        "sha256": "7c06cb9435262b5f971d5deb37b6aab56ee9d4db7f42128ba45928eedb7b070a"
+      }
+    },
+    "binary_sha256": "461dd7d49d91f22d5b6494a4a6cdfb0fc8c77874b7c42f77a0d3c96ab2f44e14",
+    "stdout": "A",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-4",
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "access overlaps an active address window without its delegated authority",
+        "span": {
+          "file": 0,
+          "start": 189,
+          "end": 197
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "38c217ce89cf0ffc62bafaeff405094d3359315cfa9db342f02f981456cdf1a6"
+      }
+    ],
+    "input_fingerprint": "65c1693e38764c225d5c8479b5d78bad2dd54e1d15338b96b5330ed7edee4a88",
+    "verification_runs": 1,
+    "commands": [],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-4/phases/candidate.txt",
+        "sha256": "91410f590c56c9a204dbd3b3d248a87a0548a345178978d050b85d98d04fe772"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-4/phases/core.txt",
+        "sha256": "e3f4980cd82209cc5cd6b2b5d905c4f33e6cb77d342a77f5afa9f6ede7467180"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-4/phases/ct-core.txt",
+        "sha256": "e3f4980cd82209cc5cd6b2b5d905c4f33e6cb77d342a77f5afa9f6ede7467180"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-4/phases/interfaces.txt",
+        "sha256": "0bee18081382103f5520c27dfd8a5933f12bea63c0fa84dd2fb585ce93654e36"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-4/phases/source-map.txt",
+        "sha256": "3082a054cfcba135600ba79698b85c074d08a82d1b4351322693211a44b914fd"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-4/phases/syntax.txt",
+        "sha256": "4f092aef868fc6d51600e3fd0750d25c761c7e054e664fe479d435b8c7f2ba1d"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-4/phases/typed.txt",
+        "sha256": "3640cf0344eebcebb1356cf994bf2f7d497adc6ae7c6e8b37bd9d48069f0938c"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-40",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-UNKNOWN-FIELD",
+        "message": "unknown field read",
+        "span": {
+          "file": 0,
+          "start": 42,
+          "end": 48
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "730fbaeff0e2c479a14d5231ec2f314e2a6aa1c9f1e3347c74278c66e409994f"
+      },
+      {
+        "file": "model.zil",
+        "sha256": "45edf86251e7c2611ad6d0743625d0534f25f089df791f3301c9fd3a8e63d618"
+      }
+    ],
+    "input_fingerprint": "3808697a02001f6d90efa5ad91f63b2c3aa66e0c61cba28ab7bb680c2f55daa1",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-40/phases/core.txt",
+        "sha256": "d65aab645065138939ceed1a48a9eb05c45356c22114d82064275d4793cbfa3c"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-40/phases/ct-core.txt",
+        "sha256": "d65aab645065138939ceed1a48a9eb05c45356c22114d82064275d4793cbfa3c"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-40/phases/source-map.txt",
+        "sha256": "bfa3ab4284f1ba06cf12d8569b949f5e8fee2a5ab39bd44728d2e3d0999e7a1d"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-40/phases/syntax.txt",
+        "sha256": "2133bfdbc5b610dd746c3626e0a5a908c7c9ba848b1d1b8b79eaaa3216369b98"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-41",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-UNKNOWN-FIELD",
+        "message": "unknown field read",
+        "span": {
+          "file": 0,
+          "start": 42,
+          "end": 48
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "730fbaeff0e2c479a14d5231ec2f314e2a6aa1c9f1e3347c74278c66e409994f"
+      },
+      {
+        "file": "model.zil",
+        "sha256": "af9618c8f6e481bda7c6a71ddae407b1bae6e41abadc94c0ebb5889941cc7a75"
+      }
+    ],
+    "input_fingerprint": "8f5a820959afc60226dd812f21be1f0b064d52e5d03a76fbf7d9da45efda036c",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-41/phases/core.txt",
+        "sha256": "3e7648a8df5199af76d2bacaa674fbf2f2458a3cbc4c111317d5be75b4ee83c1"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-41/phases/ct-core.txt",
+        "sha256": "3e7648a8df5199af76d2bacaa674fbf2f2458a3cbc4c111317d5be75b4ee83c1"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-41/phases/source-map.txt",
+        "sha256": "02e99b3a996cfbe65d0b7346712fb81da5d6db964af03a6ead42fee5ff75a8af"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-41/phases/syntax.txt",
+        "sha256": "e5573ed3f0d8fb8e728eab9aefb939f0cde5ee65f72201a1f7ea5db8f3ba4c5b"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-42",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-UNKNOWN-FIELD",
+        "message": "unknown field drop",
+        "span": {
+          "file": 0,
+          "start": 42,
+          "end": 48
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "d828eae4d30306982419a2b1b1cba98f04ab389bf6e81df21c481ae5f6fda038"
+      },
+      {
+        "file": "model.zil",
+        "sha256": "d2190a22f5eb8ad1bd50f3f8019ffece4d77bb8acecc9599d9ebfc7f4b719e71"
+      }
+    ],
+    "input_fingerprint": "d9edb707582b16d1393ce6c2fe641845bea3205f4f23fd2c8465c918f084c5d7",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-42/phases/core.txt",
+        "sha256": "60d2ec404923ffa81d834d605b8b67c05b6f1b6d2661abc8d472afe014995d64"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-42/phases/ct-core.txt",
+        "sha256": "60d2ec404923ffa81d834d605b8b67c05b6f1b6d2661abc8d472afe014995d64"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-42/phases/source-map.txt",
+        "sha256": "a1db42485ecf21d8756368f2bbbe4c5b6938ed00bcdeefcb0daf09165d3ecb60"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-42/phases/syntax.txt",
+        "sha256": "27cd47ffea1dc260d17b0a4f7b087a75202713c0fd1b862d304246ea825981fa"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-43",
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "opaque callable kind adaptation is not implemented; declared and actual Fn/FnMut/FnOnce kinds must match",
+        "span": {
+          "file": 0,
+          "start": 279,
+          "end": 353
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "038be67228b86b288dd26f7afef75dc94a0f8dcf7dd4ba52c949287828db01b6"
+      }
+    ],
+    "input_fingerprint": "61bf105751baa602dc9610862dd10caba7539bff713fd473d7810dfe81186308",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-43/phases/core.txt",
+        "sha256": "8bac29098d5ecd26d197f73738cffbc2b9bf9db48b27f402377b62bdca45249f"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-43/phases/ct-core.txt",
+        "sha256": "ca05d36def02121e643ad3db039f7558d2a2a99d68c0b42c485db2b7f1bf1267"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-43/phases/source-map.txt",
+        "sha256": "7ef4bb92969fe8a9032b7c34f9df7ac2d1cf499dbf8bea5541112af757fc5986"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-43/phases/syntax.txt",
+        "sha256": "ed82a71e04e40db758f873da892cba6758ea9027d81eb0ae746640ca77bf4e43"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-44",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-UNKNOWN-FIELD",
+        "message": "unknown field read",
+        "span": {
+          "file": 0,
+          "start": 42,
+          "end": 48
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "730fbaeff0e2c479a14d5231ec2f314e2a6aa1c9f1e3347c74278c66e409994f"
+      },
+      {
+        "file": "model.zil",
+        "sha256": "c5dc2b32d9e09f3798ecff6a4b009a9a4cae69f2a7521d8183ae4a90acf3e4a3"
+      }
+    ],
+    "input_fingerprint": "dc6aa466fba9496490e192c09ec5c2b689d3b8a86233ac9dba509d3c2aac2ac2",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-44/phases/core.txt",
+        "sha256": "fd46d4a1ae29cfc25a0945fa1c15a64d7a86fb4622bb29eefa7b8a94832d7069"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-44/phases/ct-core.txt",
+        "sha256": "fd46d4a1ae29cfc25a0945fa1c15a64d7a86fb4622bb29eefa7b8a94832d7069"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-44/phases/source-map.txt",
+        "sha256": "524f473a5ae98260da316e9a57894e88a8af08e16652d200b59e3e5741c9c51a"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-44/phases/syntax.txt",
+        "sha256": "c89545754de206e3dccc1352e5843de994b573ddfe8dad0b6e6956807b6bfb0e"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "33364865a95cb2c96bd2e4a104aa5bb113f5187c2638a8f0868f12d192e0515f"
+      },
+      {
+        "file": "model.zil",
+        "sha256": "c87b5192c48d602d6658edd949766cb3c7f01c3fb068727d7ffded2d556d6ff2"
+      }
+    ],
+    "input_fingerprint": "4c0fa574f8eb4320a33192844c8944e1ff01f6af776d13aab04e1e799acad2ef",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/.zil-driver-117-431/.zil-build-117-28/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/.zil-driver-117-431/.zil-build-117-28/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/phases/candidate.txt",
+        "sha256": "d976a9e6b3b705811d7e454d3facf0674bd20d42a441f273c08862add1b1aaeb"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/phases/core.txt",
+        "sha256": "4669ae2360fe15ce3f4ea4dbc214d8a2351798fecefd98462c1cd64aecc60602"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/phases/ct-core.txt",
+        "sha256": "821bf5ca8d9423575d621ef264eb62b7aceaf36ba455553438659bceae861108"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/program",
+        "sha256": "94d6d8bcc2b59e41b8562c6467e5ea5f4c6539434db68c7928281c4915d2fe09"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/phases/interfaces.txt",
+        "sha256": "2b7f8d7c8f5494b91c66e0c46b5d6e2686ed60a2cd8716697cea6a63d8aa2540"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/phases/lir.txt",
+        "sha256": "79d3810033f0e94c8472868a7446a5bbc06a6e0dba8a034f8b017cc98b631af9"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/program.ll",
+        "sha256": "fe5148a5aedd6513fda540951e1a5c556603c6775782a78e6eeed6956e9641df"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/phases/source-map.txt",
+        "sha256": "6e163a73b63c32ed27ed5a900eebd45d8a493545e95f5ad56952d9efab5d6338"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/phases/syntax.txt",
+        "sha256": "aa03f794f32f8717f25d2232544120ff508171920c448a24630fcb6c1e2f2c65"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/phases/typed.txt",
+        "sha256": "a9f02d6429a5d25ce5dd3bcd80fb6a3f00360a46eaa48b27976b489c794bc3d3"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/phases/verified.txt",
+        "sha256": "58f93404e73afe038756564139a27d8e6f86f48e7ff7b1ff5f6261c6d60a1d86"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-45/phases/verified-interfaces.txt",
+        "sha256": "211a7c29110225ed761180dde3317e97e77d8530cff11ca0691011941cdb9b2d"
+      }
+    },
+    "binary_sha256": "94d6d8bcc2b59e41b8562c6467e5ea5f4c6539434db68c7928281c4915d2fe09",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "3cbc5ac0dc02f4ec124408b63024333d232d43b8d1eb56f940312d227c578037"
+      }
+    ],
+    "input_fingerprint": "ad5e6bd3cba8a83d7bf99a2aa87753f26b76e0fad429d157fbe9d4eea9b90ef7",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/.zil-driver-117-438/.zil-build-117-29/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/.zil-driver-117-438/.zil-build-117-29/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/phases/candidate.txt",
+        "sha256": "b1871f8a6e97d504d91ed1f3c973312b6f45135727370868ad8de9f7a89f1da2"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/phases/core.txt",
+        "sha256": "8cb86938ccd430251d0905fd3a94fa33bbe1f790fac7e877d075015bcb18a0dd"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/phases/ct-core.txt",
+        "sha256": "8cb86938ccd430251d0905fd3a94fa33bbe1f790fac7e877d075015bcb18a0dd"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/program",
+        "sha256": "4fb9dc7e7791958d6832617c9a0b19d221a5debac88d550c0c262a7407bbfb9a"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/phases/interfaces.txt",
+        "sha256": "e290ccb79d76b9f99e65de01b00660463c317b90e897ba5f5bdded0d7a8a5d95"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/phases/lir.txt",
+        "sha256": "723a06a06f91b43f86716e34f8546c0e04080b949d54d77eea24b0934294a0cf"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/program.ll",
+        "sha256": "f45f8c3f81596d6d4861974d967d4a770ce48eabd7b2aed06ddc66bb6268000e"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/phases/source-map.txt",
+        "sha256": "d8da7a50633d0bbc38fe39988fcacc0643c9c3728d7f032aad9c9a7013255fea"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/phases/syntax.txt",
+        "sha256": "b0b23aa521ba1cd1a42f37df7163495fd252aa2591002fc99e164c883b1f5dfb"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/phases/typed.txt",
+        "sha256": "713d4a14b9cb959d7549a8d85d3164f074f7b8e4b56eb5a381fe26c7667d7fde"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/phases/verified.txt",
+        "sha256": "8c1c2c8bf6f78618654d20ab547325baabd75fe1409576cf7765636b1e53877e"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-47/phases/verified-interfaces.txt",
+        "sha256": "729997c0d8572b8096aff65db74b16bf04e2558595942f1ef8f74fd653cab7ca"
+      }
+    },
+    "binary_sha256": "4fb9dc7e7791958d6832617c9a0b19d221a5debac88d550c0c262a7407bbfb9a",
+    "stdout": "A",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "33364865a95cb2c96bd2e4a104aa5bb113f5187c2638a8f0868f12d192e0515f"
+      },
+      {
+        "file": "model.zil",
+        "sha256": "c87b5192c48d602d6658edd949766cb3c7f01c3fb068727d7ffded2d556d6ff2"
+      }
+    ],
+    "input_fingerprint": "4c0fa574f8eb4320a33192844c8944e1ff01f6af776d13aab04e1e799acad2ef",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/.zil-driver-117-455/.zil-build-117-30/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/.zil-driver-117-455/.zil-build-117-30/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/phases/candidate.txt",
+        "sha256": "d976a9e6b3b705811d7e454d3facf0674bd20d42a441f273c08862add1b1aaeb"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/phases/core.txt",
+        "sha256": "4669ae2360fe15ce3f4ea4dbc214d8a2351798fecefd98462c1cd64aecc60602"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/phases/ct-core.txt",
+        "sha256": "821bf5ca8d9423575d621ef264eb62b7aceaf36ba455553438659bceae861108"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/program",
+        "sha256": "b561a9fbdc04e0f244cd97dec4417f6196928019ebacde2a2f535cf7a7586033"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/phases/interfaces.txt",
+        "sha256": "2b7f8d7c8f5494b91c66e0c46b5d6e2686ed60a2cd8716697cea6a63d8aa2540"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/phases/lir.txt",
+        "sha256": "79d3810033f0e94c8472868a7446a5bbc06a6e0dba8a034f8b017cc98b631af9"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/program.ll",
+        "sha256": "fe5148a5aedd6513fda540951e1a5c556603c6775782a78e6eeed6956e9641df"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/phases/source-map.txt",
+        "sha256": "6e163a73b63c32ed27ed5a900eebd45d8a493545e95f5ad56952d9efab5d6338"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/phases/syntax.txt",
+        "sha256": "aa03f794f32f8717f25d2232544120ff508171920c448a24630fcb6c1e2f2c65"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/phases/typed.txt",
+        "sha256": "a9f02d6429a5d25ce5dd3bcd80fb6a3f00360a46eaa48b27976b489c794bc3d3"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/phases/verified.txt",
+        "sha256": "58f93404e73afe038756564139a27d8e6f86f48e7ff7b1ff5f6261c6d60a1d86"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-48/phases/verified-interfaces.txt",
+        "sha256": "211a7c29110225ed761180dde3317e97e77d8530cff11ca0691011941cdb9b2d"
+      }
+    },
+    "binary_sha256": "b561a9fbdc04e0f244cd97dec4417f6196928019ebacde2a2f535cf7a7586033",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "3cbc5ac0dc02f4ec124408b63024333d232d43b8d1eb56f940312d227c578037"
+      }
+    ],
+    "input_fingerprint": "ad5e6bd3cba8a83d7bf99a2aa87753f26b76e0fad429d157fbe9d4eea9b90ef7",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/.zil-driver-117-462/.zil-build-117-31/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/.zil-driver-117-462/.zil-build-117-31/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/phases/candidate.txt",
+        "sha256": "b1871f8a6e97d504d91ed1f3c973312b6f45135727370868ad8de9f7a89f1da2"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/phases/core.txt",
+        "sha256": "8cb86938ccd430251d0905fd3a94fa33bbe1f790fac7e877d075015bcb18a0dd"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/phases/ct-core.txt",
+        "sha256": "8cb86938ccd430251d0905fd3a94fa33bbe1f790fac7e877d075015bcb18a0dd"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/program",
+        "sha256": "25b4754e195e86df0946ed739dca73dba5d0e618351822e714f40adc94f25892"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/phases/interfaces.txt",
+        "sha256": "e290ccb79d76b9f99e65de01b00660463c317b90e897ba5f5bdded0d7a8a5d95"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/phases/lir.txt",
+        "sha256": "723a06a06f91b43f86716e34f8546c0e04080b949d54d77eea24b0934294a0cf"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/program.ll",
+        "sha256": "f45f8c3f81596d6d4861974d967d4a770ce48eabd7b2aed06ddc66bb6268000e"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/phases/source-map.txt",
+        "sha256": "d8da7a50633d0bbc38fe39988fcacc0643c9c3728d7f032aad9c9a7013255fea"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/phases/syntax.txt",
+        "sha256": "b0b23aa521ba1cd1a42f37df7163495fd252aa2591002fc99e164c883b1f5dfb"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/phases/typed.txt",
+        "sha256": "713d4a14b9cb959d7549a8d85d3164f074f7b8e4b56eb5a381fe26c7667d7fde"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/phases/verified.txt",
+        "sha256": "8c1c2c8bf6f78618654d20ab547325baabd75fe1409576cf7765636b1e53877e"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-49/phases/verified-interfaces.txt",
+        "sha256": "729997c0d8572b8096aff65db74b16bf04e2558595942f1ef8f74fd653cab7ca"
+      }
+    },
+    "binary_sha256": "25b4754e195e86df0946ed739dca73dba5d0e618351822e714f40adc94f25892",
+    "stdout": "A",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-5",
+    "status": "SafeReject",
+    "phase": "verify",
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use",
+        "span": {
+          "file": 0,
+          "start": 190,
+          "end": 196
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "f2d56324cb52a6ebf8b92efac1a8acf6dd21035bfe2bc878967afeda92b1191c"
+      }
+    ],
+    "input_fingerprint": "c35075fba2a142a1476bd0992290da3507b373fb95014b1db5a3e503d1569ab1",
+    "verification_runs": 1,
+    "commands": [],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-5/phases/candidate.txt",
+        "sha256": "5793695e17193bd5dde9676d3dfdecd55391b17d6eeef25cfe1d331489de8690"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-5/phases/core.txt",
+        "sha256": "5747feeb99f432335e716c7a2ff7164cff009d82dc827f8453b3e4d29f63c2d8"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-5/phases/ct-core.txt",
+        "sha256": "5747feeb99f432335e716c7a2ff7164cff009d82dc827f8453b3e4d29f63c2d8"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-5/phases/interfaces.txt",
+        "sha256": "0085c071e839234a9255eff8473dbe973d90f0649a55876e409390b2cb05d9fc"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-5/phases/source-map.txt",
+        "sha256": "a6ce0687f751d68019a0f48924209d500c05cb7965f9d68a79ca88ef461281a9"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-5/phases/syntax.txt",
+        "sha256": "a588b817532522d85d535690aba30ade330d54fd757dd80dcbf3beb6ec1b116a"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-5/phases/typed.txt",
+        "sha256": "f911150d755753b5d9d0f39f9e11f0e5cdbc87fa9c716557639d952b88274d9e"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "961468d7cfe45c25f0fbb06d36353ad3e83a18a89983a691665cc0f46e2c5d87"
+      }
+    ],
+    "input_fingerprint": "e7598ccc40d7db4d5f57c2bdb7b177779c681e41effd53be5a0c714ab6d6a530",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/.zil-driver-117-476/.zil-build-117-32/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/.zil-driver-117-476/.zil-build-117-32/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/phases/candidate.txt",
+        "sha256": "3e59276459db92252550feaa5d59b8bd8a84b42355a023121905486c1c40b7ec"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/phases/core.txt",
+        "sha256": "bd2cd7427356b4f2fa725befd53a9c7ac5af87872780c1461235fb8f6a5b0513"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/phases/ct-core.txt",
+        "sha256": "484e1c8e50d118e60ee4d6697fecad754f5878a64791c421581b6b8c9490b427"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/program",
+        "sha256": "3c98b09aa106fa78b1a2227a78fc9bb4c5c373ccdc8e41937e12f37d50011343"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/phases/interfaces.txt",
+        "sha256": "af157424b4cb75ed2dd1781628b0bc07b7a794f41eb2a57f655987c9cbeff4f4"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/phases/lir.txt",
+        "sha256": "cb4cd2993c7bd9ffcee52eb915bec6bf4ac690002a487ee40445b4124fef87cb"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/program.ll",
+        "sha256": "5f72fe970cce34b60d58310a00c473b4f2445daab356921345874138d982c62b"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/phases/source-map.txt",
+        "sha256": "d50f23a80c0a4fa3d387cb61a251adcd62d7a7ac3008139ef09808d46baa4dad"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/phases/syntax.txt",
+        "sha256": "384bfa6885ef222a35eddba132dea1b510dcfd637a8ad88ddf2c349f545524bb"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/phases/typed.txt",
+        "sha256": "6b1a89b2f69821b6f50df3143b6396e452d2234ffb4cfce5932279674d675c9a"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/phases/verified.txt",
+        "sha256": "28bfbc2ff3f37d657d0f5941d1ec17d5eba01d29d74aaf9c75846a3cf14d9aac"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-50/phases/verified-interfaces.txt",
+        "sha256": "256867605893a7adef3f8ef1378606364691fecd47eda96e68591d56c2a5d8b0"
+      }
+    },
+    "binary_sha256": "3c98b09aa106fa78b1a2227a78fc9bb4c5c373ccdc8e41937e12f37d50011343",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "593f2bac6c6802315aeea0778aac386d02d51b3cc520dc09217026bd4d97263a"
+      }
+    ],
+    "input_fingerprint": "31e837dbee1a49dce787d2cf7a85c20f7ec9094872c53bc913374956bd838c81",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/.zil-driver-117-486/.zil-build-117-33/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/.zil-driver-117-486/.zil-build-117-33/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/phases/candidate.txt",
+        "sha256": "c39a272cb92ada9534eb3e1e85bfea89349af163ee4bdcc4e5b7dd6b1f9450e8"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/phases/core.txt",
+        "sha256": "2b9764913ee695d02af11b12be85697bfaeae6c8039d8fab5810a2f9cce99e6b"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/phases/ct-core.txt",
+        "sha256": "8995a3ecd5a8d0332df7cd194933c069569d1184a2b01f38f2b3ec3f0e0f0195"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/program",
+        "sha256": "bf4f6c9af7f0012ef9f8589a36fcea54290181a14d94fbb3a1e5d0ec04228630"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/phases/interfaces.txt",
+        "sha256": "6024c88e5f515a27af70210019cebd3f717b718e3c0e36caf3089b87c71793a1"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/phases/lir.txt",
+        "sha256": "b34792805b1467adfff702581d11a39887872a8f2c8055b9f8d925f880c1515a"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/program.ll",
+        "sha256": "c3b61a8184487332429fd0322b3168ec2772c8f881f33c234f9550881df699fa"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/phases/source-map.txt",
+        "sha256": "02af0fbfed32ecd60cc637207289573001f8b7642d17c85e7190b0bb79ac65bf"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/phases/syntax.txt",
+        "sha256": "634834edc95a0a78143f48e275d4da0a944eeb46d8c7747f6cf9286d28c4b5c2"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/phases/typed.txt",
+        "sha256": "205b13c0037415b9cb2d47627dbef8fcf0bc0de3db4c88c55fd4da5fecec01f2"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/phases/verified.txt",
+        "sha256": "1071a54b5b6f57a2232babc6471bc8296f5fd90ab73c91881c965e8f05b4f9bc"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-51/phases/verified-interfaces.txt",
+        "sha256": "25d7237718d74cb49c8112246a4f5880ecdec80a6c8483ad97b5b97fc3b1a975"
+      }
+    },
+    "binary_sha256": "bf4f6c9af7f0012ef9f8589a36fcea54290181a14d94fbb3a1e5d0ec04228630",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "961468d7cfe45c25f0fbb06d36353ad3e83a18a89983a691665cc0f46e2c5d87"
+      }
+    ],
+    "input_fingerprint": "e7598ccc40d7db4d5f57c2bdb7b177779c681e41effd53be5a0c714ab6d6a530",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/.zil-driver-117-498/.zil-build-117-34/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/.zil-driver-117-498/.zil-build-117-34/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/phases/candidate.txt",
+        "sha256": "3e59276459db92252550feaa5d59b8bd8a84b42355a023121905486c1c40b7ec"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/phases/core.txt",
+        "sha256": "bd2cd7427356b4f2fa725befd53a9c7ac5af87872780c1461235fb8f6a5b0513"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/phases/ct-core.txt",
+        "sha256": "484e1c8e50d118e60ee4d6697fecad754f5878a64791c421581b6b8c9490b427"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/program",
+        "sha256": "f88d07b9ff10ed34b85842d22135022fe0c511d1791df4d43e93a9e2fb2ed6d0"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/phases/interfaces.txt",
+        "sha256": "af157424b4cb75ed2dd1781628b0bc07b7a794f41eb2a57f655987c9cbeff4f4"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/phases/lir.txt",
+        "sha256": "cb4cd2993c7bd9ffcee52eb915bec6bf4ac690002a487ee40445b4124fef87cb"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/program.ll",
+        "sha256": "5f72fe970cce34b60d58310a00c473b4f2445daab356921345874138d982c62b"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/phases/source-map.txt",
+        "sha256": "d50f23a80c0a4fa3d387cb61a251adcd62d7a7ac3008139ef09808d46baa4dad"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/phases/syntax.txt",
+        "sha256": "384bfa6885ef222a35eddba132dea1b510dcfd637a8ad88ddf2c349f545524bb"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/phases/typed.txt",
+        "sha256": "6b1a89b2f69821b6f50df3143b6396e452d2234ffb4cfce5932279674d675c9a"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/phases/verified.txt",
+        "sha256": "28bfbc2ff3f37d657d0f5941d1ec17d5eba01d29d74aaf9c75846a3cf14d9aac"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-52/phases/verified-interfaces.txt",
+        "sha256": "256867605893a7adef3f8ef1378606364691fecd47eda96e68591d56c2a5d8b0"
+      }
+    },
+    "binary_sha256": "f88d07b9ff10ed34b85842d22135022fe0c511d1791df4d43e93a9e2fb2ed6d0",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "593f2bac6c6802315aeea0778aac386d02d51b3cc520dc09217026bd4d97263a"
+      }
+    ],
+    "input_fingerprint": "31e837dbee1a49dce787d2cf7a85c20f7ec9094872c53bc913374956bd838c81",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/.zil-driver-117-510/.zil-build-117-35/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/.zil-driver-117-510/.zil-build-117-35/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/phases/candidate.txt",
+        "sha256": "c39a272cb92ada9534eb3e1e85bfea89349af163ee4bdcc4e5b7dd6b1f9450e8"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/phases/core.txt",
+        "sha256": "2b9764913ee695d02af11b12be85697bfaeae6c8039d8fab5810a2f9cce99e6b"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/phases/ct-core.txt",
+        "sha256": "8995a3ecd5a8d0332df7cd194933c069569d1184a2b01f38f2b3ec3f0e0f0195"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/program",
+        "sha256": "33d11acdd3892d457a2d6522294ab5c3b3e419fca330e2724eeb9ec13aa7a665"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/phases/interfaces.txt",
+        "sha256": "6024c88e5f515a27af70210019cebd3f717b718e3c0e36caf3089b87c71793a1"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/phases/lir.txt",
+        "sha256": "b34792805b1467adfff702581d11a39887872a8f2c8055b9f8d925f880c1515a"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/program.ll",
+        "sha256": "c3b61a8184487332429fd0322b3168ec2772c8f881f33c234f9550881df699fa"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/phases/source-map.txt",
+        "sha256": "02af0fbfed32ecd60cc637207289573001f8b7642d17c85e7190b0bb79ac65bf"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/phases/syntax.txt",
+        "sha256": "634834edc95a0a78143f48e275d4da0a944eeb46d8c7747f6cf9286d28c4b5c2"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/phases/typed.txt",
+        "sha256": "205b13c0037415b9cb2d47627dbef8fcf0bc0de3db4c88c55fd4da5fecec01f2"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/phases/verified.txt",
+        "sha256": "1071a54b5b6f57a2232babc6471bc8296f5fd90ab73c91881c965e8f05b4f9bc"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-53/phases/verified-interfaces.txt",
+        "sha256": "25d7237718d74cb49c8112246a4f5880ecdec80a6c8483ad97b5b97fc3b1a975"
+      }
+    },
+    "binary_sha256": "33d11acdd3892d457a2d6522294ab5c3b3e419fca330e2724eeb9ec13aa7a665",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "f340600fe0f7d39be6c94d228bf07f3f50f7ce11e50929e9f58ea50b08f23cfd"
+      }
+    ],
+    "input_fingerprint": "60da456686a267a8d47da03d518a5ad607754b4e38fcb82d17c5cbee5d6971e8",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/.zil-driver-117-522/.zil-build-117-36/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/.zil-driver-117-522/.zil-build-117-36/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/phases/candidate.txt",
+        "sha256": "28fd8409201e6d9ee4c70132500b6c6784bb0b4bb6098861e9d3c7eb3334319a"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/phases/core.txt",
+        "sha256": "ff0da035a62cc9b87936b854e5fc3442941f8b624050f4f71dbde90bbbff5065"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/phases/ct-core.txt",
+        "sha256": "af967da4fe216fe156dd012b5ebc2e7c620c7a0976f240ad2a68a544e19135dc"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/program",
+        "sha256": "1a95edf80c052be00c427a0a96cf3043281bf373fd55ebf5a4cf55527addbd63"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/phases/interfaces.txt",
+        "sha256": "ddab9cc929a520012570e7be9bb9c2ed3dddca3f33364312c71503260c720404"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/phases/lir.txt",
+        "sha256": "f0e990aeafa782d47c8da6147236ead2fd5b04761544e929bed9d306a62e1d59"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/program.ll",
+        "sha256": "09d9484f272b00467f947c3bc4d9c83604f1d3509d715ddde20029329e9ac516"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/phases/source-map.txt",
+        "sha256": "1c06f9112c6f29f37bacf4805e28951121556b68171d8c4372ecd751c4938f53"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/phases/syntax.txt",
+        "sha256": "8c37f7c2d72383e8180ed9e45a035b7bfdf199d6d9662867dbc3b1356af385bf"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/phases/typed.txt",
+        "sha256": "ce402a7e605a1ad58f8c4304ed0f9b2f0e73d51955a71190a807b439a42e73da"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/phases/verified.txt",
+        "sha256": "984d01f64bdabe2c94399f4d725c817afcaaeec362e22c2ef620c7bb2db2a378"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-54/phases/verified-interfaces.txt",
+        "sha256": "e9f1046ba4977bdf0bad6bbd2b5ef760f42639cbfb2a9a1f4ae87bc5a4d257a7"
+      }
+    },
+    "binary_sha256": "1a95edf80c052be00c427a0a96cf3043281bf373fd55ebf5a4cf55527addbd63",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "99dcb8367180889ceb9dd4b6cdb59d1c196db2890cc180f251683700327db40a"
+      }
+    ],
+    "input_fingerprint": "c3a8e57ce43f4bea9c1e546832fd409e1dfca133309217a6c5e8cb72a6c2e194",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O0",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/.zil-driver-117-534/.zil-build-117-37/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/.zil-driver-117-534/.zil-build-117-37/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/phases/candidate.txt",
+        "sha256": "fd258ad58576eda68dfb6ef2f3607d03042fbc2c6225084032702465ad67a81a"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/phases/core.txt",
+        "sha256": "eb616d7f89a9831b2af378c91a558814f16d39b3221ca7c79e80b77269aaa532"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/phases/ct-core.txt",
+        "sha256": "144a5414021b270a5f35f40591fd3f894da372b3d53d57721ae855679b675804"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/program",
+        "sha256": "e4d289e95500273436c412cececc801ee0305cdb9f47687ed3d8c51efbb77aa7"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/phases/interfaces.txt",
+        "sha256": "cd21ac1c29d9add35fd5f33b47d8b7779d849cc1a700044c24ed52e90b32d02d"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/phases/lir.txt",
+        "sha256": "c1b2385a322003ea34554928e082cba9e0f55f5eeaed1ff6166577b0d2256185"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/program.ll",
+        "sha256": "c61f7afb2ebeb5172313cb1bb8a6573f8cd4e87f439b35bea046c6e0aa114041"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/phases/source-map.txt",
+        "sha256": "61798a7b23d371ec84c6648a26ab51a89e1a5a4bd5676d7f00bc4574facefadf"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/phases/syntax.txt",
+        "sha256": "2ae5b32e1cc75c888e6b7d68630e4d47314090190a1bda557e46bcb2b2d11dcc"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/phases/typed.txt",
+        "sha256": "673e38aeb69901d1f571b39d6a00f9096e2366f054b74d80020cf62f13e9183d"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/phases/verified.txt",
+        "sha256": "86d3834683acc62eb89e236193e01527ead0bd121a6d30963db4c40643ccf781"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-55/phases/verified-interfaces.txt",
+        "sha256": "f261b9cb824a586978a7bf5f46bc8e76baa424bf811a0101db95782ce997ea8c"
+      }
+    },
+    "binary_sha256": "e4d289e95500273436c412cececc801ee0305cdb9f47687ed3d8c51efbb77aa7",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "f340600fe0f7d39be6c94d228bf07f3f50f7ce11e50929e9f58ea50b08f23cfd"
+      }
+    ],
+    "input_fingerprint": "60da456686a267a8d47da03d518a5ad607754b4e38fcb82d17c5cbee5d6971e8",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/.zil-driver-117-546/.zil-build-117-38/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/.zil-driver-117-546/.zil-build-117-38/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/phases/candidate.txt",
+        "sha256": "28fd8409201e6d9ee4c70132500b6c6784bb0b4bb6098861e9d3c7eb3334319a"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/phases/core.txt",
+        "sha256": "ff0da035a62cc9b87936b854e5fc3442941f8b624050f4f71dbde90bbbff5065"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/phases/ct-core.txt",
+        "sha256": "af967da4fe216fe156dd012b5ebc2e7c620c7a0976f240ad2a68a544e19135dc"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/program",
+        "sha256": "4879f7b9a4fb3c1d70e2140862f81064fd758849bb1754adfeda255dd0deca47"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/phases/interfaces.txt",
+        "sha256": "ddab9cc929a520012570e7be9bb9c2ed3dddca3f33364312c71503260c720404"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/phases/lir.txt",
+        "sha256": "f0e990aeafa782d47c8da6147236ead2fd5b04761544e929bed9d306a62e1d59"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/program.ll",
+        "sha256": "09d9484f272b00467f947c3bc4d9c83604f1d3509d715ddde20029329e9ac516"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/phases/source-map.txt",
+        "sha256": "1c06f9112c6f29f37bacf4805e28951121556b68171d8c4372ecd751c4938f53"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/phases/syntax.txt",
+        "sha256": "8c37f7c2d72383e8180ed9e45a035b7bfdf199d6d9662867dbc3b1356af385bf"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/phases/typed.txt",
+        "sha256": "ce402a7e605a1ad58f8c4304ed0f9b2f0e73d51955a71190a807b439a42e73da"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/phases/verified.txt",
+        "sha256": "984d01f64bdabe2c94399f4d725c817afcaaeec362e22c2ef620c7bb2db2a378"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-56/phases/verified-interfaces.txt",
+        "sha256": "e9f1046ba4977bdf0bad6bbd2b5ef760f42639cbfb2a9a1f4ae87bc5a4d257a7"
+      }
+    },
+    "binary_sha256": "4879f7b9a4fb3c1d70e2140862f81064fd758849bb1754adfeda255dd0deca47",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57",
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "99dcb8367180889ceb9dd4b6cdb59d1c196db2890cc180f251683700327db40a"
+      }
+    ],
+    "input_fingerprint": "c3a8e57ce43f4bea9c1e546832fd409e1dfca133309217a6c5e8cb72a6c2e194",
+    "verification_runs": 1,
+    "commands": [
+      [
+        "/workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "--target=x86_64-unknown-linux-gnu",
+        "-x",
+        "ir",
+        "-O2",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/.zil-driver-117-558/.zil-build-117-39/module.ll",
+        "-o",
+        "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/.zil-driver-117-558/.zil-build-117-39/program"
+      ]
+    ],
+    "artifacts": {
+      "candidate": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/phases/candidate.txt",
+        "sha256": "fd258ad58576eda68dfb6ef2f3607d03042fbc2c6225084032702465ad67a81a"
+      },
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/phases/core.txt",
+        "sha256": "eb616d7f89a9831b2af378c91a558814f16d39b3221ca7c79e80b77269aaa532"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/phases/ct-core.txt",
+        "sha256": "144a5414021b270a5f35f40591fd3f894da372b3d53d57721ae855679b675804"
+      },
+      "executable": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/program",
+        "sha256": "484ad8512397f174d0ed7c35437dd6d09bbba96d23e7db16acb468bbe491e172"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/phases/interfaces.txt",
+        "sha256": "cd21ac1c29d9add35fd5f33b47d8b7779d849cc1a700044c24ed52e90b32d02d"
+      },
+      "lir": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/phases/lir.txt",
+        "sha256": "c1b2385a322003ea34554928e082cba9e0f55f5eeaed1ff6166577b0d2256185"
+      },
+      "llvm": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/program.ll",
+        "sha256": "c61f7afb2ebeb5172313cb1bb8a6573f8cd4e87f439b35bea046c6e0aa114041"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/phases/source-map.txt",
+        "sha256": "61798a7b23d371ec84c6648a26ab51a89e1a5a4bd5676d7f00bc4574facefadf"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/phases/syntax.txt",
+        "sha256": "2ae5b32e1cc75c888e6b7d68630e4d47314090190a1bda557e46bcb2b2d11dcc"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/phases/typed.txt",
+        "sha256": "673e38aeb69901d1f571b39d6a00f9096e2366f054b74d80020cf62f13e9183d"
+      },
+      "verified": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/phases/verified.txt",
+        "sha256": "86d3834683acc62eb89e236193e01527ead0bd121a6d30963db4c40643ccf781"
+      },
+      "verified-interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-57/phases/verified-interfaces.txt",
+        "sha256": "f261b9cb824a586978a7bf5f46bc8e76baa424bf811a0101db95782ce997ea8c"
+      }
+    },
+    "binary_sha256": "484ad8512397f174d0ed7c35437dd6d09bbba96d23e7db16acb468bbe491e172",
+    "stdout": "",
+    "stderr": "",
+    "harness_checked_exit_and_stdout": true
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-6",
+    "status": "SafeReject",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "resource descriptor/carrier mode differs from the expected type",
+        "span": {
+          "file": 0,
+          "start": 100,
+          "end": 101
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "391b1e06fc07ffb3a3bd6613b31e756b70b23fbc7c3365b2d3eb5719c0c0edec"
+      }
+    ],
+    "input_fingerprint": "b6ad78d83366a5d04ca3e9296a0b62faab7b2f18cd013ff50db6fedd8d627267",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-6/phases/core.txt",
+        "sha256": "6335fbd5b73a4375bc4e95e2e92ca4eb806f335f478afe601fbecf61647aa783"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-6/phases/source-map.txt",
+        "sha256": "a7ef95ba1ee943917aa4cffe029e835832b523d6b9820baa6145c8f6db4a623b"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-6/phases/syntax.txt",
+        "sha256": "31724e80b373460457b01f919f920f96517e230f3cd1d7ddf721a0384c149425"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-7",
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "opaque callable kind adaptation is not implemented; declared and actual Fn/FnMut/FnOnce kinds must match",
+        "span": {
+          "file": 0,
+          "start": 88,
+          "end": 123
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "939cf38b2647d38bcca27957d3f0be0e1ad4fd2d743bfc878ecdf1af2d965d6b"
+      }
+    ],
+    "input_fingerprint": "97d43fcb1fe6d628ac9b38a1ac1cb99d62e25b3aa2f6ed3a6b81d11a6d109c2a",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-7/phases/core.txt",
+        "sha256": "272dfe91e841b2748004af7d02e4ff36feb75d85c0535f7aa7a67e9b40bef2c7"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-7/phases/ct-core.txt",
+        "sha256": "c1ec5c783a8c84e36d6c133807df6a244ac14ee830994de00046b0ad33bbb114"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-7/phases/source-map.txt",
+        "sha256": "80d853223c8f7c67dd66cf9d0579ee8d70e1d8539af9e8588ec9151658d59272"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-7/phases/syntax.txt",
+        "sha256": "b9bdebf8f7085f83ecad8d25b28aafc2c5d97fc52b7b666c3587d3d040faf53b"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-8",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 2 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 133,
+          "end": 136
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "9f6e75d89a494a3ba4e670f2292adc95d303f87bc4526ba69cd7145ed70fccf1"
+      }
+    ],
+    "input_fingerprint": "3ed4a36c0e9fed83ae2386112c2cee9bf255d3ae851ed7903a6891356b39bd23",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-8/phases/core.txt",
+        "sha256": "8b640d20386ab954d4168949705d37a5b5c768d8a6fc33e70d70a6714f3cc82d"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-8/phases/ct-core.txt",
+        "sha256": "ea916c7bef813f71d150a76acfec146e41359eadeac68a7ef7865b9d26668447"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-8/phases/interfaces.txt",
+        "sha256": "6c3a47744af05eaad91ff254d5f4f03295bff95fb9ef836229047d92170cfc34"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-8/phases/source-map.txt",
+        "sha256": "1354143aec5ab72b37a2152b116aeb9a5b606f5606002fc316874094a29df4f2"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-8/phases/syntax.txt",
+        "sha256": "55f473a90936607ed3009c0a9a11a6b141fe65d2d73851c2e68828554b897b34"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-8/phases/typed.txt",
+        "sha256": "73088b05a1a11011fc2da0cb70f999ca1ca088b50640b7c92367f9ec66e083f0"
+      }
+    }
+  },
+  {
+    "directory": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-9",
+    "status": "SafeReject",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 3 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 132,
+          "end": 133
+        },
+        "notes": []
+      }
+    ],
+    "source_files": [
+      {
+        "file": "main.zil",
+        "sha256": "1283a7b9271c0e7c1c23058ff2118770b92d42d7481932cf4f08d5d384f702a3"
+      }
+    ],
+    "input_fingerprint": "3795d2ba28d380a1b12f2e4b08ef9aef6bd96e221fb2ca745f26bf9e7d0efa0f",
+    "verification_runs": 0,
+    "commands": [],
+    "artifacts": {
+      "core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-9/phases/core.txt",
+        "sha256": "32f6c14d0887839e91e50fce664f4c46ee02cebff669d2d4dd34a15debbd96f5"
+      },
+      "ct-core": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-9/phases/ct-core.txt",
+        "sha256": "32f6c14d0887839e91e50fce664f4c46ee02cebff669d2d4dd34a15debbd96f5"
+      },
+      "interfaces": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-9/phases/interfaces.txt",
+        "sha256": "129eee857c6a8938a7c63e7b40e8d0397d0e18d421215782e96fd1025ef172cd"
+      },
+      "source-map": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-9/phases/source-map.txt",
+        "sha256": "add63f975eff31deabdb54051de4f607232e59a188d9e914b9ad3db79a588ca0"
+      },
+      "syntax": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-9/phases/syntax.txt",
+        "sha256": "2712d1b1ac91e07572df7dcf105ab5f34c85f10632a585c4282d415110d18aa3"
+      },
+      "typed": {
+        "path": "/workspace/scratch/39be3faa4442/evidence163/candidate/resource-methods163-117-9/phases/typed.txt",
+        "sha256": "9e31e7ba64d365682ab3a0af189da7246b1da07d76cac08c13693e6c8a866f2f"
+      }
+    }
+  }
+]
