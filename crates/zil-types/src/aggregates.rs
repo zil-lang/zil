@@ -626,6 +626,11 @@ impl Resolver<'_> {
                     {
                         Type::Managed(payload)
                     }
+                    Type::Package { .. }
+                        if !*mutable && dynamic_store::supported_element(&inner) =>
+                    {
+                        inner
+                    }
                     Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
                         return Err(unsupported(
                             span,
@@ -1095,7 +1100,9 @@ impl Builder<'_, '_> {
                         ty,
                     ));
                 }
-                if matches!(self.known_type(object), Some(Type::Address { .. })) {
+                if matches!(self.known_type(object), Some(Type::Address { .. }))
+                    || dynamic_store::borrow_expression(object)
+                {
                     let (address, ty) = self.borrow_place(e)?;
                     let Type::Address { inner, .. } = ty else {
                         unreachable!()
@@ -1279,7 +1286,9 @@ impl Builder<'_, '_> {
                         "instance method value requires an explicit closure",
                     ));
                 }
-                if matches!(self.known_type(object), Some(Type::Address { .. })) {
+                if matches!(self.known_type(object), Some(Type::Address { .. }))
+                    || dynamic_store::borrow_expression(object)
+                {
                     let (address, ty) = self.borrow_place(e)?;
                     let Type::Address { inner, .. } = ty else {
                         unreachable!()

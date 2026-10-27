@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "tools/language/175/consumer.py",
+    "--repo",
+    "/workspace/scratch/39be3faa4442/zil-restored/wt175",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets/175/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/run-logs/175/consumer01"
+  ],
+  "source_commit": "1e5352cd89d97c252f1f5e74c9a1fbcd5862568d",
+  "crates_tree": "a5ccae6cfb949fcb5cf4b75645a884e384b72ea5",
+  "source_status": "",
+  "start": 1793115170.8933895,
+  "exit_code": 0,
+  "status": "Pass",
+  "end": 1793115172.2455783,
+  "log_sha256": "92e2d768214e5670831218d1b941e2c79adabff0efbb98b58c26ccb95029bad2"
+}

@@ -9,7 +9,7 @@ pub(super) fn access(kind: &InstructionKind, head_windows: bool) -> Option<(Valu
     match kind {
         InstructionKind::ReadDesc { desc, .. } if head_windows => Some((*desc, false)),
         InstructionKind::WriteDesc { desc, .. } if head_windows => Some((*desc, true)),
-        _ => byte_buffers::access(kind),
+        _ => byte_buffers::access(kind).or_else(|| dynamic_store::access(kind)),
     }
 }
 
