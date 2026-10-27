@@ -148,7 +148,7 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     };
     fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
         && fields.iter().all(|(_, ty)| {
-            ty.is_copy_value() || matches!(ty, Type::Managed(payload) if !matches!(payload.as_ref(), Type::OwnedStore { .. }) && resource_type(ty, resources))
+            ty.is_copy_value() || matches!(ty, Type::Closure(_)) || matches!(ty, Type::Managed(payload) if !matches!(payload.as_ref(), Type::OwnedStore { .. }) && resource_type(ty, resources))
                 || matches!(ty, Type::Array { element, length } if *length > 0 && package_type(element, resources) && !package_array_fields(element))
         })
 }

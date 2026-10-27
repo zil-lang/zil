@@ -115,8 +115,12 @@ pub(super) fn capture_views(
 }
 
 pub(super) fn owned_field(ty: &Type) -> bool {
-    matches!(ty, Type::Managed(_))
+    matches!(ty, Type::Managed(_) | Type::Closure(_))
         || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+}
+
+pub(super) fn has_callable_fields(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| matches!(ty, Type::Closure(_))))
 }
 
 pub(super) fn has_array_fields(ty: &Type) -> bool {
@@ -242,6 +246,15 @@ fn check_package_type(
         if matches!(field, Type::Managed(_)) {
             resources::check_type_for(module, field, span, budget)?;
             owns = true;
+        } else if let Type::Closure(id) = field {
+            if !array_fields {
+                return Err(unsupported(
+                    "callback State cannot nest inside an owning array field",
+                    span,
+                ));
+            }
+            closures::definition(module, *id, span)?;
+            closures::self_contained(module, *id, budget)?;
         } else if let Type::Array { element, length } = field
             && matches!(element.as_ref(), Type::Package { .. })
         {
@@ -329,7 +342,8 @@ pub(super) fn check_instruction(
         | InstructionKind::DescribePackageField { local, index }
         | InstructionKind::TakePackageField { local, index }
         | InstructionKind::DropPackageField { local, index }
-        | InstructionKind::StorePackageField { local, index, .. } => {
+        | InstructionKind::StorePackageField { local, index, .. }
+        | InstructionKind::BorrowPackageField { local, index, .. } => {
             let Type::Package { fields, .. } = local_type(function, *local, span)? else {
                 return Err(bad("package projection requires a package local"));
             };
@@ -338,6 +352,25 @@ pub(super) fn check_instruction(
                 .ok_or_else(|| bad("package field index is outside its declaration"))?;
             resources::charge_payload(ty, budget)?;
             match &instruction.kind {
+                InstructionKind::BorrowPackageField { mutable, .. } => {
+                    let Type::Closure(id) = ty else {
+                        return Err(bad(
+                            "callback field borrow requires an exact concrete Closure field",
+                        ));
+                    };
+                    closures::self_contained(module, *id, budget)?;
+                    if *mutable && !function.locals[local.0 as usize].mutable {
+                        return Err(reject(
+                            "E-VERIFY-MUTABILITY",
+                            span,
+                            "exclusive callback field borrow requires mutable State storage",
+                        ));
+                    }
+                    Ok(Some(Type::Address {
+                        mutable: *mutable,
+                        inner: Box::new(ty.clone()),
+                    }))
+                }
                 InstructionKind::DescribePackageField { .. } => {
                     let Type::Managed(inner) = ty else {
                         return Err(bad("package description requires a manages field"));

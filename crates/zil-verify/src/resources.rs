@@ -886,7 +886,8 @@ impl Transfer<'_> {
                     }
                     fresh_result = Some(INPUT);
                 }
-                InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
+                InstructionKind::BorrowOwnedArrayElement { local, index, .. }
+                | InstructionKind::BorrowPackageField { local, index, .. } => {
                     self.package_shell(state, *local, span, validate)?;
                     let element = slots.package_fields[local.0 as usize][*index as usize]
                         .expect("independently checked callback array element");

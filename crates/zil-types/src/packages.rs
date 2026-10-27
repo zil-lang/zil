@@ -31,7 +31,7 @@ pub(super) fn supported(ty: &Type) -> bool {
 /// A separate predicate prevents existing nominal Package operations from
 /// accidentally accepting an array merely because it owns resources.
 pub(super) fn owned_array_supported(ty: &Type) -> bool {
-    matches!(ty, Type::Array { element, length } if *length > 0 && (supported(element) || matches!(element.as_ref(), Type::Closure(_))))
+    matches!(ty, Type::Array { element, length } if *length > 0 && ((supported(element) && !callable_fields::has_fields(element)) || matches!(element.as_ref(), Type::Closure(_))))
 }
 
 pub(super) fn projection_type(ty: Type) -> Type {
@@ -266,19 +266,25 @@ impl Builder<'_, '_> {
         }
         // Resolve the static local and field before evaluating RHS. A real
         // temporary holds its new obligation until old-field cleanup commits.
-        let (value, actual) = self.transfer_expr(rhs, Some(&ty))?;
-        self.same(&actual, &ty, rhs.span)?;
-        let value = if matches!(ty, Type::Managed(_)) || array_field_supported(&ty) {
-            let prepared = self.stage_argument(value, &ty, rhs.span)?;
-            self.emit(
-                InstructionKind::DropPackageField { local, index },
-                None,
-                target.span,
-            )?;
-            self.commit_arguments(vec![prepared], rhs.span)?[0]
+        let (value, actual) = if matches!(ty, Type::Closure(_)) {
+            self.check_owned_array_closure(&ty, 1, rhs.span)?;
+            self.owned_array_input(rhs, Some(&ty))?
         } else {
-            value
+            self.transfer_expr(rhs, Some(&ty))?
         };
+        self.same(&actual, &ty, rhs.span)?;
+        let value =
+            if matches!(ty, Type::Managed(_) | Type::Closure(_)) || array_field_supported(&ty) {
+                let prepared = self.stage_argument(value, &ty, rhs.span)?;
+                self.emit(
+                    InstructionKind::DropPackageField { local, index },
+                    None,
+                    target.span,
+                )?;
+                self.commit_arguments(vec![prepared], rhs.span)?[0]
+            } else {
+                value
+            };
         self.emit(
             InstructionKind::StorePackageField {
                 local,
@@ -342,7 +348,7 @@ impl Builder<'_, '_> {
         let (index, field) = aggregates::field(&ty, member, span)?;
         let kind = if matches!(field, Type::Managed(_)) {
             InstructionKind::DescribePackageField { local, index }
-        } else if array_field_supported(&field) {
+        } else if array_field_supported(&field) || matches!(field, Type::Closure(_)) {
             InstructionKind::TakePackageField { local, index }
         } else {
             InstructionKind::ReadPackageField { local, index }

@@ -246,6 +246,32 @@ impl Builder<'_, '_> {
                 Ok(result)
             }
             CoreExprKind::Member { object, member } => {
+                if let Some((local, index, field @ Type::Closure(_))) = self.package_place(e)? {
+                    if mutable && !self.function.locals[local.0 as usize].mutable {
+                        return Err(error(
+                            "E-IMMUTABLE-ASSIGNMENT",
+                            e.span,
+                            "exclusive callback field borrow requires a mutable State",
+                        ));
+                    }
+                    self.check_owned_array_closure(&field, 1, e.span)?;
+                    let ty = Type::Address {
+                        mutable,
+                        inner: Box::new(field),
+                    };
+                    return Ok((
+                        self.value(
+                            InstructionKind::BorrowPackageField {
+                                local,
+                                index,
+                                mutable,
+                            },
+                            ty.clone(),
+                            e.span,
+                        )?,
+                        ty,
+                    ));
+                }
                 let (address, ty) = self.projection_base(object, mutable)?;
                 let Type::Address { mutable, inner } = ty else {
                     unreachable!()

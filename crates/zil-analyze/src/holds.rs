@@ -183,7 +183,8 @@ fn infer(
                             .ok_or_else(|| bad("ByteBuffer source outside table"))?;
                         extend(&mut found, source, budget)?;
                     }
-                    InstructionKind::BorrowOwnedArrayElement { local, .. } => {
+                    InstructionKind::BorrowOwnedArrayElement { local, .. }
+                    | InstructionKind::BorrowPackageField { local, .. } => {
                         found.insert(Root::Local(*local));
                     }
                     InstructionKind::BorrowLocal { local }
