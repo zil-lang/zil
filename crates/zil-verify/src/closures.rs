@@ -58,6 +58,12 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            if errors::owned(ty) {
+                return Err(unsupported(
+                    "owning error-union captures are outside the finite closure profile",
+                    None,
+                ));
+            }
             if byte_buffers::is_desc(ty) {
                 return Err(unsupported(
                     "borrowed byte storage captures are outside the finite profile",

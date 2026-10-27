@@ -65,8 +65,8 @@ pub(super) fn add_definition(
         )
     };
     for function in functions {
-        // Reserve the flat scan first, and each Package's direct fields before
-        // visiting them. Nested owning aggregates are outside this profile.
+        // Reserve roots first and child visits before growing the worklist.
+        // An error result can be the only mention of its Package's byte owner.
         let amount = function
             .values
             .len()
@@ -81,11 +81,20 @@ pub(super) fn add_definition(
             .chain(function.locals.iter().map(|l| &l.ty))
             .chain(std::iter::once(&function.return_type))
         {
-            if let Type::Package { fields, .. } = ty {
-                work = work.checked_sub(fields.len()).ok_or_else(limit)?;
-                found |= fields.iter().any(|(_, ty)| resource(ty));
-            } else {
-                found |= resource(ty);
+            let mut pending = vec![ty];
+            while let Some(ty) = pending.pop() {
+                match ty {
+                    Type::Package { fields, .. } => {
+                        work = work.checked_sub(fields.len()).ok_or_else(limit)?;
+                        pending.extend(fields.iter().map(|(_, ty)| ty));
+                    }
+                    Type::ErrorUnion { error, result } => {
+                        work = work.checked_sub(2).ok_or_else(limit)?;
+                        pending.push(error);
+                        pending.push(result);
+                    }
+                    _ => found |= resource(ty),
+                }
             }
         }
         if !found {

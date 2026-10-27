@@ -226,6 +226,7 @@ fn analyze_budgeted(
                     InstructionKind::StorageLive(local)
                     | InstructionKind::StorageDead(local)
                     | InstructionKind::DropManaged { local }
+                    | InstructionKind::DropErrorUnion { local }
                     | InstructionKind::DropPackage { local }
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::DropClosure { local } => {
@@ -292,6 +293,7 @@ fn transfer(
             }
             InstructionKind::TakeLocal { local }
             | InstructionKind::DropManaged { local }
+            | InstructionKind::DropErrorUnion { local }
             | InstructionKind::DropPackage { local }
             | InstructionKind::EndPackageCapture { local, .. }
             | InstructionKind::DropClosure { local }

@@ -51,6 +51,7 @@ mod closures;
 mod ct_program;
 #[cfg(test)]
 mod error_scope_tests;
+mod errors;
 mod foreign;
 #[cfg(test)]
 mod helper_tests;
@@ -658,6 +659,7 @@ fn check_function_signature_type(
     match ty {
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_type_for(module, ty, span, budget),
+        Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
         _ => check_signature_type(ty, span),
     }
 }
@@ -681,6 +683,7 @@ fn check_local_type(
         },
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_type_for(module, ty, span, budget),
+        Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
         _ => check_type(ty, span),
     }
 }
@@ -882,6 +885,16 @@ fn check_function(
                 budget.spend(1)?;
                 check_use(operand, b, i, &definitions, &dominators, instruction.span)?;
             }
+            if matches!(instruction.kind, InstructionKind::TakeErrorUnion { .. }) {
+                errors::check_take_tag(
+                    function,
+                    b,
+                    instruction,
+                    &predecessors,
+                    &definitions,
+                    budget,
+                )?;
+            }
             match instruction.kind {
                 InstructionKind::Load(local)
                 | InstructionKind::DescribeLocal { local }
@@ -910,6 +923,7 @@ fn check_function(
                 InstructionKind::TakeLocal { local }
                 | InstructionKind::DropManaged { local }
                 | InstructionKind::DropClosure { local }
+                | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::EndPackageCapture { local, .. }
                 | InstructionKind::StorageLive(local)
@@ -1007,6 +1021,9 @@ fn check_instruction(
         | InstructionKind::UnsafeExit { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => None,
+        InstructionKind::TakeErrorUnion { .. } | InstructionKind::DropErrorUnion { .. } => {
+            errors::check_instruction(function, instruction)?
+        }
         InstructionKind::MakeErrorUnion { is_error, value } => {
             let result = instruction.result.ok_or_else(|| {
                 reject(
@@ -1044,13 +1061,21 @@ fn check_instruction(
             Some(Type::Bool)
         }
         InstructionKind::ReadErrorUnion { value, is_error } => {
-            let Type::ErrorUnion { error, result } = value_type(function, *value, span)? else {
+            let source = value_type(function, *value, span)?;
+            let Type::ErrorUnion { error, result } = source else {
                 return Err(reject(
                     "E-VERIFY-ERROR",
                     span,
                     "ReadErrorUnion requires an error-union value",
                 ));
             };
+            if !source.is_copy_value() {
+                return Err(reject(
+                    "E-VERIFY-ERROR",
+                    span,
+                    "an owned error union requires consuming TakeErrorUnion, never ReadErrorUnion",
+                ));
+            }
             // The ordinary backend checks the active tag before projection.
             // A failed projection is a defined trap, never error propagation.
             Some(if *is_error {
@@ -1072,6 +1097,13 @@ fn check_instruction(
         )?),
         InstructionKind::Load(local) => {
             let ty = local_type(function, *local, span)?;
+            if errors::owned(ty) {
+                return Err(reject(
+                    "E-VERIFY-ERROR",
+                    span,
+                    "an owned error union requires TakeLocal, never copying Load",
+                ));
+            }
             if matches!(ty, Type::Package { .. }) {
                 return Err(reject(
                     "E-VERIFY-PACKAGE",
@@ -1094,6 +1126,7 @@ fn check_instruction(
                 && !matches!(ty, Type::Closure(_))
                 && !matches!(ty, Type::Managed(_))
                 && !matches!(ty, Type::Package { .. })
+                && !errors::owned(ty)
                 && !closures::owned_type(module, ty, budget)?
             {
                 return Err(reject(
@@ -2013,6 +2046,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::DropPackageField { .. }
         | InstructionKind::DropManaged { .. }
         | InstructionKind::DropPackage { .. }
+        | InstructionKind::DropErrorUnion { .. }
         | InstructionKind::ReadCapture { .. }
         | InstructionKind::DescribeCapture { .. }
         | InstructionKind::TakeCapture { .. }
@@ -2070,7 +2104,8 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::ReadVariant { value, .. }
         | InstructionKind::MakeErrorUnion { value, .. }
         | InstructionKind::ErrorTag { value }
-        | InstructionKind::ReadErrorUnion { value, .. } => ([Some(*value), None], &[]),
+        | InstructionKind::ReadErrorUnion { value, .. }
+        | InstructionKind::TakeErrorUnion { value, .. } => ([Some(*value), None], &[]),
         InstructionKind::ExtractIndex { aggregate, index } => {
             ([Some(*aggregate), Some(*index)], &[])
         }
@@ -2179,6 +2214,7 @@ fn initialization(
                 InstructionKind::TakeLocal { local }
                 | InstructionKind::DropManaged { local }
                 | InstructionKind::DropClosure { local }
+                | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::EndPackageCapture { local, .. }
                 | InstructionKind::StorageLive(local)
@@ -2219,6 +2255,7 @@ fn initialization(
                     InstructionKind::TakeLocal { local }
                     | InstructionKind::DropManaged { local }
                     | InstructionKind::DropClosure { local }
+                    | InstructionKind::DropErrorUnion { local }
                     | InstructionKind::DropPackage { local }
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::StorageLive(local)

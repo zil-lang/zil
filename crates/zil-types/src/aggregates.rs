@@ -594,10 +594,12 @@ impl Resolver<'_> {
             } => {
                 let failure = self.ty(failure, depth + 1, span)?;
                 let result = self.ty(result, depth + 1, span)?;
-                if !failure.is_copy_value() || !result.is_copy_value() {
+                if !(failure.is_copy_value() || packages::supported(&failure))
+                    || !(result.is_copy_value() || packages::supported(&result))
+                {
                     return Err(unsupported(
                         span,
-                        "error union payloads require finite Copy values",
+                        "error union payloads require finite Copy values or complete owned Packages",
                     ));
                 }
                 Type::ErrorUnion {

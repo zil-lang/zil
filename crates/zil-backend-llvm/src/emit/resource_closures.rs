@@ -159,6 +159,7 @@ impl FunctionEmitter<'_> {
     pub(super) fn owns_resource(&self, ty: &Type) -> bool {
         match ty {
             Type::Managed(_) | Type::Package { .. } => true,
+            Type::ErrorUnion { .. } => errors::owned(ty),
             Type::Closure(id) => self.closures.get(id).is_some_and(|definition| {
                 owns(definition) || definition.kind == CallableKind::FnOnce
             }),

@@ -370,14 +370,6 @@ fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
             name: "Hidden".into(),
             variants: vec![("P".into(), vec![package()])],
         },
-        Type::ErrorUnion {
-            error: Box::new(Type::I32),
-            result: Box::new(package()),
-        },
-        Type::ErrorUnion {
-            error: Box::new(package()),
-            result: Box::new(Type::I32),
-        },
         Type::Address {
             mutable: false,
             inner: Box::new(package()),
@@ -394,6 +386,36 @@ fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
         let mut m = plain();
         m.functions[0].locals[0].ty = ty;
         rejected(m, "non-Copy type");
+    }
+}
+
+#[test]
+fn owning_error_union_local_relabeling_still_requires_actual_injection() {
+    for ty in [
+        Type::ErrorUnion {
+            error: Box::new(Type::I32),
+            result: Box::new(package()),
+        },
+        Type::ErrorUnion {
+            error: Box::new(package()),
+            result: Box::new(Type::I32),
+        },
+    ] {
+        let mut m = plain();
+        // Both finite types are admitted by 166. Merely relabeling storage
+        // cannot stand in for MakeErrorUnion or its consuming payload transfer.
+        m.functions[0].locals[0].ty = ty;
+        let (raw, wire) = check_both(m);
+        for result in [raw, wire] {
+            let errors = result.unwrap_err();
+            assert!(
+                errors.iter().any(|d| d.phase == Phase::Verify
+                    && d.category == zil_base::ResultCategory::SafeReject
+                    && d.code == "E-VERIFY-TYPE"
+                    && d.message == "stored value does not match local type"),
+                "{errors:?}"
+            );
+        }
     }
 }
 
