@@ -194,7 +194,7 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
                     let field = if let Type::Closure(child) = ty {
                         expanded[child.0 as usize]
                     } else {
-                        1
+                        type_layout_work(ty, budget)?
                     };
                     work = work
                         .checked_add(field)
@@ -279,6 +279,58 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
         }
     }
     Ok(())
+}
+
+/// Size the actual bounded type tree used by inline layout predicates, type
+/// rendering and alignment. Pointer shapes still carry a checked pointee tree;
+/// only explicit Closure fields are expanded through the separate DAG above.
+/// Array repetition is charged by the owning-array caller, not by Copy arrays.
+pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
+    let mut pending = vec![ty];
+    let mut work = 0usize;
+    while let Some(ty) = pending.pop() {
+        budget.spend(1)?;
+        work = work
+            .checked_add(1)
+            .ok_or_else(|| limit("inline type layout work overflow"))?;
+        match ty {
+            Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::Address { inner: element, .. }
+            | Type::Managed(element)
+            | Type::Desc(element)
+            | Type::Opaque {
+                hidden: element, ..
+            } => pending.push(element),
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| ty));
+            }
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len())?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                budget.spend(2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                budget.spend(parameters.len().saturating_add(1))?;
+                pending.extend(parameters);
+                pending.push(result);
+            }
+            _ => {}
+        }
+    }
+    Ok(work)
 }
 
 pub(super) fn self_contained(

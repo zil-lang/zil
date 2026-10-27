@@ -329,6 +329,7 @@ struct Builder<'a, 'c> {
     address_written_captures: BTreeMap<LocalId, u32>,
     managed_captures: BTreeMap<LocalId, (u32, Type)>,
     closure_captures: BTreeMap<LocalId, (u32, Type)>,
+    closure_slots: BTreeMap<LocalId, ClosureId>,
     package_captures: BTreeMap<LocalId, u32>,
     temporary_locals: std::collections::BTreeSet<LocalId>,
     unsafe_regions: Vec<u32>,
@@ -399,6 +400,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             address_written_captures: BTreeMap::new(),
             managed_captures: BTreeMap::new(),
             closure_captures: BTreeMap::new(),
+            closure_slots: BTreeMap::new(),
             package_captures: BTreeMap::new(),
             temporary_locals: std::collections::BTreeSet::new(),
             unsafe_regions: Vec::new(),
@@ -803,6 +805,15 @@ impl<'a, 'c> Builder<'a, 'c> {
                 {
                     return self.managed_slot(name, t, v, s.span);
                 }
+                if *mutable
+                    && self.owned_closure(&t)
+                    && self
+                        .managed_rebindings
+                        .contains(&(s.id, s.span, name.clone()))
+                    && let Type::Closure(id) = t
+                {
+                    return self.closure_slot(name, id, v, s.span);
+                }
                 let local = self.local(name, t, *mutable, s.span)?;
                 self.store(local, v, s.span)?;
             }
@@ -827,6 +838,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )
                 })?;
                 let d = self.function.locals[l.0 as usize].clone();
+                if self.closure_slots.contains_key(&l) {
+                    return self.assign_closure_slot(l, value, s.span);
+                }
                 if matches!(d.ty, Type::Managed(_)) {
                     return Err(unsupported(
                         s.span,
@@ -848,12 +862,6 @@ impl<'a, 'c> Builder<'a, 'c> {
                 }
                 let (v, t) = self.transfer_expr(value, Some(&d.ty))?;
                 self.same(&t, &d.ty, value.span)?;
-                // The new environment is complete before the previous value
-                // is released. A failing RHS leaves the old slot responsible;
-                // existing borrow checks reject replacement under a live loan.
-                if self.owned_closure(&d.ty) {
-                    self.drop_owned_local(l, s.span)?;
-                }
                 self.store(l, v, s.span)?;
             }
             CoreStatementKind::Expression(e) => {
@@ -1216,6 +1224,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             CoreExprKind::Unit => self.constant(Constant::Unit, e.span)?,
             CoreExprKind::Name(name) => {
                 if let Some(local) = self.lookup(name) {
+                    if self.closure_slots.contains_key(&local) {
+                        return self.take_closure_slot(local, e.span);
+                    }
                     let ty = self.function.locals[local.0 as usize].ty.clone();
                     if let Type::Managed(payload) = ty {
                         let desc = Type::Desc(payload);
@@ -1610,6 +1621,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     self.borrowed_captures
                         .get(&id)
                         .cloned()
+                        .or_else(|| self.closure_slots.get(&id).copied().map(Type::Closure))
                         .unwrap_or_else(|| self.function.locals[id.0 as usize].ty.clone())
                 })
                 .or_else(|| self.signatures.get(name).and_then(Signature::pointer_type)),
@@ -1718,10 +1730,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 {
                     return Some(signature.result.clone());
                 }
-                if let CoreExprKind::Name(name) = &callee.kind
-                    && let Some(local) = self.lookup(name)
-                    && let Type::Closure(id) = self.function.locals[local.0 as usize].ty
-                {
+                if let Some(Type::Closure(id)) = self.known_type(callee) {
                     return self.closures.pending[id.0 as usize]
                         .inference
                         .result()
@@ -1768,6 +1777,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                             .cloned()
                             .or_else(|| self.managed_captures.get(local).map(|(_, ty)| ty.clone()))
                             .or_else(|| self.closure_captures.get(local).map(|(_, ty)| ty.clone()))
+                            .or_else(|| self.closure_slots.get(local).copied().map(Type::Closure))
                             .unwrap_or_else(|| self.function.locals[local.0 as usize].ty.clone()),
                     ),
                 );
@@ -1843,9 +1853,14 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut values = Vec::new();
         for capture in captures {
             let stored = capture.stored_type();
-            let value = if let Some((index, _)) =
-                self.closure_captures.get(&capture.source).cloned()
-            {
+            let value = if self.closure_slots.contains_key(&capture.source) {
+                if capture.moved {
+                    self.take_closure_slot(capture.source, capture.span)?.0
+                } else {
+                    self.borrow_closure_slot(capture.source, capture.written, capture.span)?
+                        .0
+                }
+            } else if let Some((index, _)) = self.closure_captures.get(&capture.source).cloned() {
                 let instruction = if capture.moved {
                     InstructionKind::TakeCapture { index }
                 } else {
@@ -2072,6 +2087,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             CoreExprKind::Name(name) => self.lookup(name),
             _ => None,
         };
+        let mut borrowed_callee = None;
         // An owning environment is not a Copy callee value. Shared and
         // Exclusive invocation borrow the actual local; Consume transfers it.
         let captured_once = existing_place.and_then(|local| self.closure_captures.get(&local).cloned())
@@ -2082,6 +2098,21 @@ impl<'a, 'c> Builder<'a, 'c> {
                 Some(self.value(InstructionKind::TakeCapture { index }, ty.clone(), span)?),
                 ty,
             )
+        } else if let Some(local) = existing_place
+            && let Some(id) = self.closure_slots.get(&local).copied()
+        {
+            existing_place = None;
+            let kind = self.closures.pending[id.0 as usize].callable_kind();
+            if kind == CallableKind::FnOnce {
+                let (value, ty) = self.take_closure_slot(local, span)?;
+                (Some(value), ty)
+            } else {
+                borrowed_callee = Some(
+                    self.borrow_closure_slot(local, kind == CallableKind::FnMut, span)?
+                        .0,
+                );
+                (None, Type::Closure(id))
+            }
         } else if let Some(local) = existing_place
             && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
@@ -2132,8 +2163,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 span,
             )?);
         }
-        let call_place = if kind == CallableKind::FnMut
-            || (kind == CallableKind::Fn && owns_resources)
+        let call_place = if borrowed_callee.is_none()
+            && (kind == CallableKind::FnMut || (kind == CallableKind::Fn && owns_resources))
         {
             let local = if let Some(local) = existing_place {
                 if kind == CallableKind::FnMut && !self.function.locals[local.0 as usize].mutable {
@@ -2215,23 +2246,31 @@ impl<'a, 'c> Builder<'a, 'c> {
             .inference
             .result()?
             .expect("resolved closure");
-        let instruction = match kind {
-            CallableKind::FnOnce => InstructionKind::CallClosureOnce {
-                callee: callee_value.expect("consumed environment"),
+        let instruction = if let Some(callee) = borrowed_callee {
+            InstructionKind::CallClosureBorrowed {
+                callee,
+                kind,
                 arguments: values,
-            },
-            CallableKind::FnMut => InstructionKind::CallClosureMut {
-                callee: call_place.expect("exclusive environment"),
-                arguments: values,
-            },
-            CallableKind::Fn if owns_resources => InstructionKind::CallClosureShared {
-                callee: call_place.expect("shared environment"),
-                arguments: values,
-            },
-            _ => InstructionKind::CallClosure {
-                callee: callee_value.expect("Copy environment"),
-                arguments: values,
-            },
+            }
+        } else {
+            match kind {
+                CallableKind::FnOnce => InstructionKind::CallClosureOnce {
+                    callee: callee_value.expect("consumed environment"),
+                    arguments: values,
+                },
+                CallableKind::FnMut => InstructionKind::CallClosureMut {
+                    callee: call_place.expect("exclusive environment"),
+                    arguments: values,
+                },
+                CallableKind::Fn if owns_resources => InstructionKind::CallClosureShared {
+                    callee: call_place.expect("shared environment"),
+                    arguments: values,
+                },
+                _ => InstructionKind::CallClosure {
+                    callee: callee_value.expect("Copy environment"),
+                    arguments: values,
+                },
+            }
         };
         if result == Type::Unit {
             self.emit(instruction, None, span)?;
