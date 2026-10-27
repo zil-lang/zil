@@ -1,0 +1,484 @@
+[
+  {
+    "case": "cycle128x8",
+    "variant": "A",
+    "seconds": 0.07913852000001498,
+    "rc": 0,
+    "result": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {},
+      "input_fingerprint": "6351445d656694389fddc6e178442b39fa4dd2fa855a70360013489ac2ab2523",
+      "seconds": 0.075152545,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/mnt/data/zil-next/scale146/inputs/cycle128x8/main.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+          "implementation_fingerprint": "97d99cb8af5277984d00f4b618d6ff73f3ceccd4fd73a2aaeb7edc59a9b26be3",
+          "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    }
+  },
+  {
+    "case": "cycle128x8",
+    "variant": "B",
+    "seconds": 0.07818940000004204,
+    "rc": 0,
+    "result": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {},
+      "input_fingerprint": "6351445d656694389fddc6e178442b39fa4dd2fa855a70360013489ac2ab2523",
+      "seconds": 0.07402711,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/mnt/data/zil-next/scale146/inputs/cycle128x8/main.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+          "implementation_fingerprint": "97d99cb8af5277984d00f4b618d6ff73f3ceccd4fd73a2aaeb7edc59a9b26be3",
+          "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    }
+  },
+  {
+    "case": "cycle512x8",
+    "variant": "A",
+    "seconds": 0.29883101099994747,
+    "rc": 0,
+    "result": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {},
+      "input_fingerprint": "81085079a28c28f8a5f163156510810d502c753534c15875c4fb9fea9f387d69",
+      "seconds": 0.287903589,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/mnt/data/zil-next/scale146/inputs/cycle512x8/main.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+          "implementation_fingerprint": "7518ea417afa83189836ac2b4992603f94672c7c1d85ba9c7ab6c2a403150e03",
+          "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    }
+  },
+  {
+    "case": "cycle512x8",
+    "variant": "B",
+    "seconds": 0.3086181730000135,
+    "rc": 0,
+    "result": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {},
+      "input_fingerprint": "81085079a28c28f8a5f163156510810d502c753534c15875c4fb9fea9f387d69",
+      "seconds": 0.297715994,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/mnt/data/zil-next/scale146/inputs/cycle512x8/main.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+          "implementation_fingerprint": "7518ea417afa83189836ac2b4992603f94672c7c1d85ba9c7ab6c2a403150e03",
+          "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    }
+  },
+  {
+    "case": "cycle1024x8",
+    "variant": "A",
+    "seconds": 0.5016266689999611,
+    "rc": 4,
+    "result": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource state clone",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "91a6e22798e8f47df1c7756748359b6521382549f7cd3a421b142a6e853ebea6",
+      "seconds": 0.483327893,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/mnt/data/zil-next/scale146/inputs/cycle1024x8/main.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+          "implementation_fingerprint": "ddcd3bc53dc643c1740ec384a67a28adaa754998120385ac85eaca09d56a3f65",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    }
+  },
+  {
+    "case": "cycle1024x8",
+    "variant": "B",
+    "seconds": 0.5025800949999848,
+    "rc": 4,
+    "result": {
+      "status": "ResourceLimit",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "ResourceLimit",
+          "code": "E-RESOURCE-LIMIT",
+          "message": "analysis budget exceeded during resource update",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "91a6e22798e8f47df1c7756748359b6521382549f7cd3a421b142a6e853ebea6",
+      "seconds": 0.483053354,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/mnt/data/zil-next/scale146/inputs/cycle1024x8/main.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+          "implementation_fingerprint": "ddcd3bc53dc643c1740ec384a67a28adaa754998120385ac85eaca09d56a3f65",
+          "contract_fingerprint": null,
+          "result_origins": null,
+          "callable_contracts": null,
+          "callable_returns": null,
+          "exports": []
+        }
+      ]
+    }
+  },
+  {
+    "case": "captured-reverse2048",
+    "variant": "A",
+    "seconds": 0.2798126190000403,
+    "rc": 0,
+    "result": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {},
+      "input_fingerprint": "a386745b00e221772133124104d1b461c6a8e4ed1788e6ee225ddc406a5e4447",
+      "seconds": 0.26835596,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/mnt/data/zil-next/scale146/inputs/captured-reverse2048/main.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+          "implementation_fingerprint": "bb000d8ff5d1854d70aeacb05f73e091866946e5ba5cc6a554b77611336f83fe",
+          "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    }
+  },
+  {
+    "case": "captured-reverse2048",
+    "variant": "B",
+    "seconds": 0.2805159629999707,
+    "rc": 0,
+    "result": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {},
+      "input_fingerprint": "a386745b00e221772133124104d1b461c6a8e4ed1788e6ee225ddc406a5e4447",
+      "seconds": 0.268102784,
+      "cache_hit": false,
+      "commands": [],
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/mnt/data/zil-next/scale146/inputs/captured-reverse2048/main.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942",
+          "implementation_fingerprint": "bb000d8ff5d1854d70aeacb05f73e091866946e5ba5cc6a554b77611336f83fe",
+          "contract_fingerprint": "c0f31bb398235149c5de7af444c5a0d6530ccd5f58b8c0be6a96d3430aac3623",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    }
+  }
+]

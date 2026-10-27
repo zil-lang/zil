@@ -1,0 +1,80 @@
+{
+  "graph146-facts-test-v2": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-analyze",
+      "--lib",
+      "--",
+      "--nocapture"
+    ],
+    "cwd": "/mnt/data/zil-next/graph146",
+    "target": "target-graph146",
+    "exit_code": 0,
+    "seconds": 2.4187495708465576,
+    "test_summaries": [
+      "test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s"
+    ]
+  },
+  "graph146-clippy": {
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-analyze",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "cwd": "/mnt/data/zil-next/graph146",
+    "target": "target-graph146",
+    "exit_code": 0,
+    "seconds": 1.1729557514190674,
+    "test_summaries": []
+  },
+  "graph146-regressions": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl121_callable_nominals",
+      "--test",
+      "impl125_factory_helpers",
+      "--test",
+      "impl126_helper_sequences",
+      "--test",
+      "impl127_local_factory",
+      "--test",
+      "impl137_truncate",
+      "--test",
+      "impl139_owned_text",
+      "--test",
+      "impl142_record_vector",
+      "--",
+      "--test-threads=1"
+    ],
+    "cwd": "/mnt/data/zil-next/graph146",
+    "target": "target-graph146",
+    "exit_code": 0,
+    "seconds": 21.66202425956726,
+    "test_summaries": [
+      "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.10s",
+      "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.62s",
+      "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.91s",
+      "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.44s",
+      "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s",
+      "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.56s",
+      "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.00s"
+    ]
+  }
+}

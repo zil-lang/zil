@@ -2,7 +2,9 @@
 //! code or produce trusted permission certificates. It uses sparse named cells
 //! and explicit sets of possible lifecycle states, independently of Verify.
 use super::*;
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+mod summary_graph;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Place {
@@ -605,6 +607,7 @@ struct Flow<'a> {
     after: &'a [Vec<Live>],
     effects: &'a [Effect],
     views: &'a BTreeMap<LocalId, u32>,
+    dependencies: Option<&'a summary_graph::Dependencies>,
 }
 impl Flow<'_> {
     fn package_source(
@@ -1347,22 +1350,42 @@ impl Flow<'_> {
                         // Concrete helper callers consume only their public
                         // envelope. Legacy private summaries belong to ordinary
                         // functions; even looking one up here is unnecessary.
-                        let summary = self
-                            .effects
-                            .get(function.0 as usize)
-                            .ok_or_else(|| error("missing callee effect"))?;
-                        for parameter in &summary.arguments {
-                            budget.spend(1, "callee resource effect substitution")?;
-                            let value = arguments
-                                .get(*parameter as usize)
-                                .ok_or_else(|| error("missing callee argument"))?;
-                            record_write(
-                                &copied(state, Place::Value(*value), budget)?.sources,
-                                effect,
-                                shared,
-                                check,
-                                budget,
-                            )?;
+                        if let Some(dependencies) = self.dependencies {
+                            // Effects influence only writes, never origin/lifetime
+                            // state when check=false. Extract each substitution
+                            // once rather than replaying the body on every fact.
+                            for (parameter, value) in arguments.iter().enumerate() {
+                                budget.spend(1, "resource summary argument scan")?;
+                                if self.shapes.contains_key(&Place::Value(*value)) {
+                                    let sources =
+                                        copied(state, Place::Value(*value), budget)?.sources;
+                                    dependencies.connect(
+                                        function.0 as usize,
+                                        summary_graph::Kind::Argument(parameter as u32),
+                                        f.id.0 as usize,
+                                        &sources,
+                                        budget,
+                                    )?;
+                                }
+                            }
+                        } else {
+                            let summary = self
+                                .effects
+                                .get(function.0 as usize)
+                                .ok_or_else(|| error("missing callee effect"))?;
+                            for parameter in &summary.arguments {
+                                budget.spend(1, "callee resource effect substitution")?;
+                                let value = arguments
+                                    .get(*parameter as usize)
+                                    .ok_or_else(|| error("missing callee argument"))?;
+                                record_write(
+                                    &copied(state, Place::Value(*value), budget)?.sources,
+                                    effect,
+                                    shared,
+                                    check,
+                                    budget,
+                                )?;
+                            }
                         }
                     }
                     for value in arguments {
@@ -1448,12 +1471,22 @@ impl Flow<'_> {
                                 live_sources(state, &fact, budget)?;
                             }
                         }
-                        let summary = self
-                            .effects
-                            .get(definition.function.0 as usize)
-                            .ok_or_else(|| error("absent environment entry"))?;
-                        if !summary.borrowed_fields.is_empty() {
-                            record_write(&fact.sources, effect, shared, check, budget)?;
+                        if let Some(dependencies) = self.dependencies {
+                            dependencies.connect(
+                                definition.function.0 as usize,
+                                summary_graph::Kind::AnyBorrowed,
+                                f.id.0 as usize,
+                                &fact.sources,
+                                budget,
+                            )?;
+                        } else {
+                            let summary = self
+                                .effects
+                                .get(definition.function.0 as usize)
+                                .ok_or_else(|| error("absent environment entry"))?;
+                            if !summary.borrowed_fields.is_empty() {
+                                record_write(&fact.sources, effect, shared, check, budget)?;
+                            }
                         }
                     }
                     if let InstructionKind::CallClosureOnce { callee, .. } = i.kind {
@@ -1505,6 +1538,17 @@ fn analyze_function(
     effects: &[Effect],
     check: bool,
     budget: &mut Budget,
+) -> CompileResult<Effect> {
+    analyze_function_with_dependencies(module, f, reachable, effects, check, budget, None)
+}
+fn analyze_function_with_dependencies(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    effects: &[Effect],
+    check: bool,
+    budget: &mut Budget,
+    dependencies: Option<&summary_graph::Dependencies>,
 ) -> CompileResult<Effect> {
     if f.foreign.is_some() {
         return Ok(Effect::default());
@@ -1584,6 +1628,7 @@ fn analyze_function(
         after: &after,
         effects,
         views: &views,
+        dependencies,
     };
     let mut effect = Effect::default();
     while let Some(b) = stack.pop() {
@@ -1720,6 +1765,17 @@ fn grow_effect(target: &mut Effect, found: Effect, budget: &mut Budget) -> Compi
 }
 
 fn infer_effects(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
+    if module.functions.len() >= 32 {
+        summary_graph::solve(module, graphs, budget)
+    } else {
+        infer_effects_frontier(module, graphs, budget)
+    }
+}
+fn infer_effects_frontier(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     budget: &mut Budget,
@@ -1896,6 +1952,7 @@ fn analyze_function_eager_reference(
         after: &after,
         effects,
         views: &views,
+        dependencies: None,
     };
     let mut effect = Effect::default();
     while let Some(b) = stack.pop() {
