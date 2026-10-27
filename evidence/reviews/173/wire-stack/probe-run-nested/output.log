@@ -1,0 +1,57 @@
+   Compiling review173-wire-probes v0.1.0 (/workspace/scratch/39be3faa4442/run-logs/review173-wire170/probes)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.75s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/review173-wire170/debug/deps/review173_wire_probes-0906958583927ada)
+
+running 3 tests
+legacy fixture 0: bytes=162, exact nodes=3
+legacy fixture 1: bytes=162, exact nodes=3
+legacy fixture 2: bytes=162, exact nodes=3
+legacy fixture 3: bytes=162, exact nodes=3
+legacy fixture 4: bytes=168, exact nodes=7
+legacy fixture 5: bytes=175, exact nodes=3
+legacy fixture 6: bytes=164, exact nodes=4
+legacy fixture 7: bytes=163, exact nodes=4
+legacy fixture 8: bytes=163, exact nodes=4
+legacy fixture 9: bytes=174, exact nodes=9
+legacy fixture 10: bytes=166, exact nodes=3
+legacy fixture 11: bytes=171, exact nodes=4
+legacy fixture 12: bytes=187, exact nodes=3
+legacy fixture 13: bytes=184, exact nodes=7
+legacy fixture 14: bytes=167, exact nodes=4
+test invalid_tags_counts_booleans_and_utf8_keep_precise_wire_failures ... ok
+legacy fixture 15: bytes=198, exact nodes=13
+128 KiB stack, 255 Tuple layers: Pass
+legacy fixture 16: bytes=164, exact nodes=5
+legacy fixture 17: bytes=242, exact nodes=14
+legacy fixture 18: bytes=162, exact nodes=3
+legacy fixture 19: bytes=162, exact nodes=3
+legacy fixture 20: bytes=162, exact nodes=3
+legacy fixture 21: bytes=162, exact nodes=3
+legacy fixture 22: bytes=169, exact nodes=8
+legacy fixture 23: bytes=163, exact nodes=4
+legacy fixture 24: bytes=162, exact nodes=3
+legacy fixture 25: bytes=243, exact nodes=15
+legacy fixture 26: bytes=166, exact nodes=3
+legacy fixture 27: bytes=182, exact nodes=3
+legacy fixture 28: bytes=183, exact nodes=3
+legacy fixture 29: bytes=180, exact nodes=3
+legacy fixture 30: bytes=202, exact nodes=5
+legacy fixture 31: bytes=167, exact nodes=4
+legacy fixture 32: bytes=167, exact nodes=4
+legacy fixture 33: bytes=165, exact nodes=5
+128 KiB stack, 256 Tuple layers: ResourceLimit
+128 KiB stack, 258 Tuple layers: ResourceLimit
+legacy fixture 34: bytes=357, exact nodes=28
+test deep_writer_and_manual_wire_reader_are_bounded_on_a_128k_stack ... ok
+legacy fixture 35: bytes=950, exact nodes=184
+independent truncated type records rejected: 1442
+test every_type_tag_and_empty_container_preserves_legacy_bytes_and_exact_node_charge ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests review173_wire_probes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
