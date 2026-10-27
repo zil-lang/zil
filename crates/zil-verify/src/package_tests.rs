@@ -338,7 +338,6 @@ fn package_fields_reject_noncopy_and_nested_owners() {
             mutable: false,
             inner: Box::new(Type::I32),
         },
-        Type::Closure(ClosureId(0)),
         Type::Tuple(vec![owned()]),
         Type::ErrorUnion {
             error: Box::new(Type::I32),
@@ -366,10 +365,6 @@ fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
             name: "Hidden".into(),
             variants: vec![("P".into(), vec![package()])],
         },
-        Type::Address {
-            mutable: false,
-            inner: Box::new(package()),
-        },
         Type::FunctionPointer {
             parameters: vec![package()],
             result: Box::new(Type::Unit),
@@ -382,6 +377,49 @@ fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
         let mut m = plain();
         m.functions[0].locals[0].ty = ty;
         rejected(m, "non-Copy type");
+    }
+}
+
+#[test]
+fn callable_package_field_relabel_requires_a_real_closure_definition() {
+    let mut m = plain();
+    let Type::Package { fields, .. } = &mut m.functions[0].locals[0].ty else {
+        unreachable!()
+    };
+    fields[2].1 = Type::Closure(ClosureId(0));
+    // Schema21 admits a concrete callable field shape, never an absent ID.
+    let (raw, wire) = check_both(m);
+    for result in [raw, wire] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == zil_base::ResultCategory::SafeReject
+                && d.code == "E-VERIFY-CLOSURE"
+                && d.message == "closure identity is outside the definition table"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn shared_package_window_relabel_cannot_turn_a_stored_owner_into_an_address() {
+    let mut m = plain();
+    m.functions[0].locals[0].ty = Type::Address {
+        mutable: false,
+        inner: Box::new(package()),
+    };
+    // Schema21 admits a shared window shape; this unchanged forged Store
+    // still attempts to publish an owning Package into address-typed storage.
+    let (raw, wire) = check_both(m);
+    for result in [raw, wire] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == zil_base::ResultCategory::SafeReject
+                && d.code == "E-VERIFY-TYPE"
+                && d.message == "stored value does not match local type"),
+            "{errors:?}"
+        );
     }
 }
 
