@@ -225,59 +225,43 @@ pub fn check(
         resource_effects::single(core, &signatures, limits).map_err(|e| vec![e])?;
     helpers::install_single(core, &signatures, &enum_types, &mut closure_state, limits)
         .map_err(|e| vec![e])?;
-    // Resolve all opaque factory identities before checking their ordinary
-    // callers. Declaration order never changes caller-visible signatures.
-    for factories in [true, false] {
-        if !factories && !closure_state.helper_tables.is_empty() {
-            for f in core
-                .functions
-                .iter()
-                .filter(|f| f.callable_return.is_some())
-            {
-                helpers::resolve_factory_result(
-                    &mut closure_state,
-                    core.module_id,
-                    &f.name,
-                    &signatures[&f.name].result,
-                    f.span,
-                )
-                .map_err(|e| vec![e])?;
-            }
-        }
-        for f in core
-            .functions
-            .iter()
-            .filter(|f| f.callable_parameter.is_none() && f.callable_return.is_some() == factories)
-        {
-            match Builder::new(
-                f,
-                signatures[&f.name].id,
-                &signatures,
-                limits,
-                &mut closure_state,
-            )
+    // Ground each opaque result before its dependents, independent of source
+    // declaration order. Concrete environments still use ordinary direct calls.
+    let mut work = limits.max_analysis_steps;
+    let mut graph = BTreeMap::new();
+    let mut factory_functions = BTreeMap::new();
+    for f in core.functions.iter().filter(|f| f.callable_return.is_some()) {
+        let id = signatures[&f.name].id;
+        let dependencies = retained::dependencies(f, &signatures, None, &mut work, limits)
+            .map_err(|e| vec![e])?;
+        graph.insert(id, (f.span, dependencies));
+        factory_functions.insert(id, f);
+    }
+    let factory_order = retained::order(graph, &mut work).map_err(|e| vec![e])?;
+    let ordered = factory_order.into_iter().map(|id| factory_functions[&id]).chain(
+        core.functions.iter().filter(|f| f.callable_parameter.is_none() && f.callable_return.is_none()),
+    );
+    for f in ordered {
+        match Builder::new(f, signatures[&f.name].id, &signatures, limits, &mut closure_state)
             .and_then(|mut b| {
                 b.enums = Some(&enum_types);
                 b.finish(&f.body)
-            }) {
-                Ok(typed) => {
-                    if factories {
-                        signatures
-                            .get_mut(&f.name)
-                            .expect("declared factory")
-                            .result = typed.return_type.clone();
-                    }
-                    functions.push(typed);
+            })
+        {
+            Ok(typed) => {
+                if f.callable_return.is_some() {
+                    signatures.get_mut(&f.name).expect("declared factory").result = typed.return_type.clone();
+                    helpers::resolve_factory_result(
+                        &mut closure_state, core.module_id, &f.name, &typed.return_type, f.span,
+                    ).map_err(|e| vec![e])?;
                 }
-                Err(e) => errors.push(e),
+                functions.push(typed);
             }
+            Err(e) => errors.push(e),
         }
         if !errors.is_empty() {
             return Err(errors);
         }
-    }
-    if !errors.is_empty() {
-        return Err(errors);
     }
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
@@ -829,6 +813,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                 }
                 let (v, t) = self.transfer_expr(value, Some(&d.ty))?;
                 self.same(&t, &d.ty, value.span)?;
+                // The new environment is complete before the previous value
+                // is released. A failing RHS leaves the old slot responsible;
+                // existing borrow checks reject replacement under a live loan.
+                if self.owned_closure(&d.ty) {
+                    self.drop_owned_local(l, s.span)?;
+                }
                 self.store(l, v, s.span)?;
             }
             CoreStatementKind::Expression(e) => {
@@ -1412,15 +1402,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                     return self.call_closure(callee, arguments, expected, e.span);
                 }
                 let signature = self.resolve_callee(callee)?.clone();
-                // A checked nonescaping helper is an ordinary call in a factory.
-                // Its prepass snapshot cannot resolve an indirect opaque dependency.
                 if signature.callable_return.is_some()
-                    && (self.factory_bound.is_some()
-                        || matches!(signature.result, Type::Opaque { .. }))
+                    && matches!(signature.result, Type::Opaque { .. })
                 {
                     return Err(unsupported(
                         e.span,
-                        "recursive or forwarded callable factories are not implemented",
+                        "callable factory result identity has not been resolved",
                     ));
                 }
                 if signature.callable.is_some() {

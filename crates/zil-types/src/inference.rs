@@ -871,6 +871,10 @@ struct Solver<'a, 'b, 'c> {
     owner: Option<usize>,
     ordinary_result: Type,
     ordinary_callable_return: Option<CoreCallableReturn>,
+    // Source-visible opaque identity belongs to the factory definition, even
+    // when its hidden environment is forwarded by another factory.
+    factory_terms: BTreeMap<FunctionId, usize>,
+    ordinary_return_identity: Option<usize>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     enums: &'a BTreeMap<String, Type>,
@@ -909,6 +913,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             owner: None,
             ordinary_result: function.return_type.clone(),
             ordinary_callable_return: function.callable_return.clone(),
+            factory_terms: BTreeMap::new(),
+            ordinary_return_identity: None,
             signatures,
             imports,
             enums,
@@ -926,6 +932,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         Ok(this)
     }
+    fn known_result(&mut self, signature: &Signature, span: Span) -> R<Term> {
+        if matches!(signature.result, Type::Opaque { .. }) {
+            if let Some(id) = self.factory_terms.get(&signature.id) {
+                return Ok(Term::Closure(*id));
+            }
+            let term = self.known_term(&signature.result, span)?;
+            if let Term::Closure(id) = term {
+                self.factory_terms.insert(signature.id, id);
+            }
+            Ok(term)
+        } else {
+            self.known_term(&signature.result, span)
+        }
+    }
+
     fn known_term(&mut self, ty: &Type, span: Span) -> R<Term> {
         if let Type::Opaque { hidden, .. } = ty {
             let Type::FunctionPointer { parameters, result } = hidden.as_ref() else {
@@ -1374,6 +1395,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 "opaque callable return requires a closure environment",
                             ));
                         };
+                        if self.ordinary_return_identity.is_some_and(|previous| previous != id) {
+                            return Err(error(
+                                "E-TYPE-MISMATCH",
+                                e.span,
+                                "all opaque callable returns require the same source-visible concrete identity",
+                            ));
+                        }
+                        self.ordinary_return_identity = Some(id);
                         let parameters = self.closures[id].parameters.clone();
                         if parameters.len() != bound.parameters.len() {
                             return Err(error(
@@ -1924,7 +1953,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 self.bind_term(&value, ty, argument.span)?;
                             }
                         }
-                        return self.known_term(&signature.result, span);
+                        return self.known_result(&signature, span);
                     }
                     Term::SliceLength => {
                         if !arguments.is_empty() {
@@ -1959,7 +1988,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 self.bind_term(&value, ty, argument.span)?;
                             }
                         }
-                        return self.known_term(&signature.result, span);
+                        return self.known_result(&signature, span);
                     }
                     Term::Closure(id) => {
                         self.budget.work(self.closures[id].parameters.len(), span)?;
