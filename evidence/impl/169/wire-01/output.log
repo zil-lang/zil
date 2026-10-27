@@ -1,0 +1,17 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/compose159/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/compose159/crates/zil-ir)
+error[E0608]: cannot index into a value of type `Diagnostic`
+   --> crates/zil-ir/src/wire/owned_carrier_tests.rs:240:30
+    |
+240 |                 .unwrap_err()[0]
+    |                              ^^^
+
+error[E0608]: cannot index into a value of type `Diagnostic`
+   --> crates/zil-ir/src/wire/owned_carrier_tests.rs:271:26
+    |
+271 |             .unwrap_err()[0]
+    |                          ^^^
+
+For more information about this error, try `rustc --explain E0608`.
+error: could not compile `zil-ir` (lib test) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
