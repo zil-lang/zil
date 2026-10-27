@@ -338,7 +338,15 @@ fn resolve_indexed(
             }
         }
         if let Some(r) = &mut f.receiver {
-            r.ty = resolver.ty(&r.ty, 0, f.span).map_err(|e| vec![e])?;
+            let raw = if r.mode == PassingMode::Give {
+                Type::Managed(Box::new(r.ty.clone()))
+            } else {
+                r.ty.clone()
+            };
+            r.ty = resolver.ty(&raw, 0, f.span).map_err(|e| vec![e])?;
+            if matches!(r.ty, Type::Desc(_)) {
+                r.mode = PassingMode::Describe;
+            }
         }
         resolver.block(&mut f.body, 0).map_err(|e| vec![e])?;
     }
@@ -868,6 +876,28 @@ pub(super) fn resolve_method<'a>(
         .filter(|s| s.public && s.receiver.is_some() && !s.cleanup)
 }
 
+/// One concrete nominal receiver, including the sealed builtin resource.
+/// ByteBuffer inherent methods are local: it has no user defining module from
+/// which to infer an imported extension. No global same-name search is used.
+pub(super) fn resolve_type_method<'a>(
+    ty: &Type,
+    member: &str,
+    local: &'a BTreeMap<String, Signature>,
+    imports: Option<&program::Imports<'a>>,
+) -> Option<&'a Signature> {
+    match ty {
+        Type::Record { name, fields } | Type::Package { name, fields }
+            if !fields.iter().any(|(field, _)| field == member) =>
+        {
+            resolve_method(name, member, local, imports)
+        }
+        Type::ByteBuffer => local
+            .get(&format!("ByteBuffer.{member}"))
+            .filter(|s| s.receiver.is_some() && !s.cleanup),
+        _ => None,
+    }
+}
+
 impl Builder<'_, '_> {
     pub(super) fn method_signature(&self, object: &CoreExpr, member: &str) -> Option<&Signature> {
         let ty = self.known_type(object)?;
@@ -875,13 +905,7 @@ impl Builder<'_, '_> {
             Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => *inner,
             other => other,
         };
-        let (Type::Record { name, fields } | Type::Package { name, fields }) = ty else {
-            return None;
-        };
-        if fields.iter().any(|(name, _)| name == member) {
-            return None;
-        }
-        resolve_method(&name, member, self.signatures, self.imports)
+        resolve_type_method(&ty, member, self.signatures, self.imports)
     }
     pub(super) fn method_call(
         &mut self,
@@ -899,21 +923,22 @@ impl Builder<'_, '_> {
             ));
         }
         let receiver = &signature.parameters[0];
-        let first = if matches!(receiver, Type::Address { .. })
+        let (first, actual) = if matches!(receiver, Type::Address { .. })
             && !matches!(self.known_type(object), Some(Type::Address { .. }))
         {
             let (value, ty) = self.borrow_place_mode(
                 object,
                 matches!(receiver, Type::Address { mutable: true, .. }),
             )?;
-            self.same(&ty, receiver, object.span)?;
-            value
+            (value, ty)
         } else {
-            self.argument_expr(object, receiver)?.0
+            self.argument_expr(object, receiver)?
         };
+        self.same(&actual, receiver, object.span)?;
         let mut arguments = vec![self.stage_argument(first, receiver, object.span)?];
         for (arg, ty) in args.iter().zip(&signature.parameters[1..]) {
             let (value, actual) = self.argument_expr(arg, ty)?;
+            self.same(&actual, ty, arg.span)?;
             arguments.push(self.stage_argument(value, &actual, arg.span)?);
         }
         let arguments = self.commit_arguments(arguments, span)?;

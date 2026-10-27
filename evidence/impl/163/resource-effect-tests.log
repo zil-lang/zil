@@ -1,0 +1,19 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-types)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.44s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/163/debug/deps/zil_types-a54470832ded7f32)
+
+running 11 tests
+test resource_effects::worklist_tests::disabled_dependency_collection_is_zero_sized ... ok
+test resource_effects::worklist_tests::empty_worklist_and_seedless_cycles_have_no_effects ... ok
+test resource_effects::worklist_tests::direct_byte_primitives_foreign_and_unknown_calls_remain_seeds ... ok
+test resource_effects::worklist_tests::every_current_core_variant_preserves_origin_support_and_transfer ... ok
+test resource_effects::worklist_tests::every_two_node_transfer_and_summary_assignment_matches_local_relation ... ok
+test resource_effects::worklist_tests::exhaustive_three_node_graphs_and_seeds_match_sweeps ... ok
+test resource_effects::worklist_tests::larger_mixed_graphs_and_function_order_permutations_match ... ok
+test resource_effects::worklist_tests::shadowed_calls_remain_conservative_and_imports_register_real_ids ... ok
+test resource_effects::worklist_tests::small_dispatch_preserves_every_old_budget_boundary ... ok
+test resource_effects::worklist_tests::worklist_every_failure_prefix_and_recovery ... ok
+test resource_effects::worklist_tests::forward_and_reverse_chain_growth_is_measured_without_time_claims ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.34s
+

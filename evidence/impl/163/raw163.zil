@@ -1,0 +1,1 @@
+resource R{n:i32}impl R{fn add(self:Self){.n+=1}}fn main(){let r=R{n:0};var f=move()=>r.add();f()}

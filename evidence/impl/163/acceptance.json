@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "slice": "163",
+  "generated_at": "2026-10-27T18:36:25.692150+08:00",
+  "production_baseline": "e9a604c80d56027a5fb6c28bcb8b58f9c9e84a7b",
+  "dispatch": "19e5fa4188d0b65929d640618f3d2a098aee9473",
+  "implementation_commit": "e21a3b95912843e7ffff0b4c3bee23e582066b55",
+  "implementation_author": "/root/source_inventory",
+  "status": "TargetedPass_IndependentReviewPending",
+  "public_export_dependency": {
+    "original_commit": "ba33a4640e105ed0676e78890c4254cb3c36319b",
+    "cherry_pick": "70169e1",
+    "author": "/root",
+    "reviewer": "/root/source_inventory",
+    "review_scope": "Source export guards plus private nominal/private method/Drop-hidden source counterexamples and imported Package/resource native execution"
+  },
+  "tests": [
+    {
+      "command": "cargo test -p zil-driver --test impl163_resource_methods -- --test-threads=2",
+      "passed": 25,
+      "failed": 0,
+      "evidence": "targeted-tests.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl163_resource_methods --test impl151_closure_methods --test impl156_module_methods --test impl099_owned_bytes --test impl155_managed_replace -- --test-threads=2",
+      "passed": 58,
+      "failed": 0,
+      "breakdown": {
+        "impl163_previous_24_test_set": 24,
+        "impl099": 7,
+        "impl151": 7,
+        "impl155": 12,
+        "impl156": 8
+      },
+      "evidence": "regressions.log",
+      "note": "Same final production bytes; final test source adds the separately executed worklist native case and strengthens raw rejection assertion."
+    },
+    {
+      "command": "cargo test -p zil-types resource_effects -- --test-threads=2",
+      "passed": 11,
+      "failed": 0,
+      "evidence": "resource-effect-tests.log"
+    },
+    {
+      "command": "cargo clippy -p zil-types -p zil-driver --test impl163_resource_methods -- -D warnings",
+      "exit_code": 0,
+      "evidence": "clippy.log"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "source_cases": {
+    "native_runs": 40,
+    "native_optimizations": [
+      "O0",
+      "O2"
+    ],
+    "checked_rejections": 17,
+    "counts": [
+      {
+        "status": "SafeReject",
+        "phase": "analyze",
+        "count": 4
+      },
+      {
+        "status": "SafeReject",
+        "phase": "types",
+        "count": 8
+      },
+      {
+        "status": "SafeReject",
+        "phase": "verify",
+        "count": 2
+      },
+      {
+        "status": "Success",
+        "phase": "link",
+        "count": 40
+      },
+      {
+        "status": "Unsupported",
+        "phase": "types",
+        "count": 3
+      }
+    ],
+    "matrix": "source-cases.json"
+  },
+  "independent_boundary_controls": {
+    "authentic_typed_candidate_verified": true,
+    "forged_owned_writer_relabelled_Fn": {
+      "raw": "E-VERIFY-RESOURCE",
+      "wire": "E-VERIFY-RESOURCE",
+      "forged_fingerprint_refreshed": true,
+      "wire_sha256": "11713ec9421bbd0c1c39a7b648655f92faa1ba4c4d00c445945709937aa05ff9"
+    },
+    "byte_window_conflicts": "Two source cases explicitly require Verify/E-BORROW-CONFLICT."
+  },
+  "failure_history": {
+    "baseline_12_tests": {
+      "passed": 7,
+      "failed": 5,
+      "log": "baseline-failures.log",
+      "scope": "Untouched production baseline plus the initial 12-test source harness; not the final 25-test set."
+    },
+    "package_refill_pre_fix": {
+      "failed": 1,
+      "code": "E-UNSUPPORTED",
+      "log": "refill-before-fix.log",
+      "compiler_state": "Uncommitted intermediate implementation before precise Package slot-flow correction; not claimed as a committed revision."
+    }
+  },
+  "limitations": [
+    "The original resource &Self receiver probe remains Unsupported; no implicit rewrite to Desc.",
+    "ByteBuffer inherent methods resolve only in their declaring local module; imported extension lookup is not introduced.",
+    "The inherited finite Package and resource payload restrictions remain.",
+    "No new compilation-speed measurements or Rust runtime/memory/product superiority claim.",
+    "Full workspace integration and final independent review belong to the integrator."
+  ],
+  "four_targets": {
+    "memory_safety": "Existing independent Verify is exercised, including source conflicts and forged raw/wire controls; no complete soundness theorem claimed.",
+    "runtime_memory": "Existing direct Call/Describe/Take/Drop representation reused; no performance measurement.",
+    "expression_maintenance": "Resource methods now compose with owned callbacks, explicit transfers, imported public owners and repeatable Package refills.",
+    "compile_cost": "No speed claim; bounded effect work and old small-input budget regression tests retained.",
+    "product_breakthrough": "Not established by this slice."
+  },
+  "large_artifacts_directory": "/workspace/scratch/39be3faa4442/evidence163",
+  "files": [
+    {
+      "file": "baseline-failures.log",
+      "bytes": 9387,
+      "sha256": "045fd3bfefd2253f3f8c5c11b6eee267f3707d41814e7dc7f42d121886200c10"
+    },
+    {
+      "file": "clippy.log",
+      "bytes": 174,
+      "sha256": "281769fb12cb701bec914097b235a6a89f39c3c9096347d0fac96f38f3c467cf"
+    },
+    {
+      "file": "forged-candidate.bin",
+      "bytes": 2444,
+      "sha256": "11713ec9421bbd0c1c39a7b648655f92faa1ba4c4d00c445945709937aa05ff9"
+    },
+    {
+      "file": "raw-errors.txt",
+      "bytes": 429,
+      "sha256": "bdf33870cdd833ca823a6e2e183ba233ab87af0fa56b5233c8b90311cff5d33c"
+    },
+    {
+      "file": "raw163.zil",
+      "bytes": 98,
+      "sha256": "e410489313d1528bdb198e45e6b860e785e1653fdca7bed1773267634e944cba"
+    },
+    {
+      "file": "refill-before-fix.log",
+      "bytes": 2379,
+      "sha256": "d94f523c03b20727f957770acf989f85ac637d9db9ccd42005b341ebc66e4e7a"
+    },
+    {
+      "file": "regressions.log",
+      "bytes": 5904,
+      "sha256": "0f96896c3084aedabf9d9c5daa7e230a2d8ebdd0643421ea301476797c2bd8a1"
+    },
+    {
+      "file": "resource-effect-tests.log",
+      "bytes": 1539,
+      "sha256": "3f4e191e9d7e4ef3ce16b74d09bd64f8f7753a2c283d22672b10395372e503db"
+    },
+    {
+      "file": "source-cases.json",
+      "bytes": 191932,
+      "sha256": "d2314574a2f0a1f3451859670fdf83564f5ac7d9ee046ec1b4d397b79db41255"
+    },
+    {
+      "file": "targeted-tests.log",
+      "bytes": 2402,
+      "sha256": "dcfbce66d9b1abaf656b84ba3cdd63fa11c4837dcc3fd6aa444e0238559291ef"
+    },
+    {
+      "file": "toolchain.json",
+      "bytes": 1006,
+      "sha256": "ce6ec022d2c518d58fd1a9235590fbbe5955cc8a8c46854c6e2035ca0c1e2ab0"
+    },
+    {
+      "file": "wire-errors.txt",
+      "bytes": 429,
+      "sha256": "bdf33870cdd833ca823a6e2e183ba233ab87af0fa56b5233c8b90311cff5d33c"
+    }
+  ]
+}

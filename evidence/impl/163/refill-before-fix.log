@@ -1,0 +1,25 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt163/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.93s
+     Running tests/impl163_resource_methods.rs (/workspace/scratch/39be3faa4442/targets/163/debug/deps/impl163_resource_methods-9de33583a6fbc4e1)
+
+running 1 test
+test consuming_and_refilling_a_package_method_receiver_remains_fnmut ... FAILED
+
+failures:
+
+---- consuming_and_refilling_a_package_method_receiver_remains_fnmut stdout ----
+
+thread 'consuming_and_refilling_a_package_method_receiver_remains_fnmut' (411) panicked at crates/zil-driver/tests/impl163_resource_methods.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"opaque callable kind adaptation is not implemented; declared and actual Fn/FnMut/FnOnce kinds must match","span":{"file":0,"start":127,"end":183},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/evidence163/refill-before-fix/resource-methods163-410-0/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/evidence163/refill-before-fix/resource-methods163-410-0/phases/ct-core.txt","source-map":"/workspace/scratch/39be3faa4442/evidence163/refill-before-fix/resource-methods163-410-0/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/evidence163/refill-before-fix/resource-methods163-410-0/phases/syntax.txt"},"input_fingerprint":"08e18654c8090ed479441e7a4d66b8cfb6d7b15467d761f1ee5ff8d64b243293","seconds":0.028894673,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    consuming_and_refilling_a_package_method_receiver_remains_fnmut
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p zil-driver --test impl163_resource_methods`
