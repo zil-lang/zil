@@ -536,6 +536,10 @@ impl Graph {
                 || ty.is_copy_value()
                 || packages::supported(ty)
                 || packages::owned_array_supported(ty)
+                // This is only a pointee constraint node for a shared head.
+                // It does not make a Managed value Copy or grant a capture.
+                || matches!(ty, Type::Managed(payload)
+                    if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || matches!(ty, Type::Slice { element } if element.is_copy_value()) =>
             {
                 AGGREGATE
@@ -1076,7 +1080,9 @@ impl LocalType {
                     mutable: wanted,
                     inner,
                 },
-            ) if inner.is_address_pointee() && (mutable || !wanted) => {
+            ) if (inner.is_address_pointee() || ty.is_shared_resource_head_address())
+                && (mutable || !wanted) =>
+            {
                 graph.bind(variable, inner, span)
             }
             (Self::Address(..), Type::Address { .. }) => Err(unsupported(
@@ -1253,6 +1259,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 format!("unknown value {name}"),
             ));
         };
+        if ty.is_shared_resource_head_address() {
+            return Err(unsupported(
+                span,
+                "resource-head address capture requires a separate retained head-window contract",
+            ));
+        }
         // A write behind a nested move changes that inner snapshot, not the
         // outer position. Managed/Package captures instead change ownership at
         // creation, even if the nested environment is never invoked.

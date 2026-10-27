@@ -1,0 +1,46 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-lower)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-ct)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-driver)
+warning: unused imports: `Limits` and `TargetProfile`
+ --> crates/zil-driver/tests/impl171_resource_heads.rs:9:24
+  |
+9 | use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
+  |                        ^^^^^^                                        ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zil-driver` (test "impl171_resource_heads") generated 1 warning (run `cargo fix --test "impl171_resource_heads" -p zil-driver` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.50s
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/39be3faa4442/targets/171/debug/deps/impl171_resource_heads-6091d532739031ba)
+
+running 8 tests
+test original_159_resource_address_receiver_probe_is_unchanged_and_now_supported ... ok
+test unrelated_owned_callback_and_shared_head_compose ... FAILED
+test descriptor_capturing_callbacks_cannot_write_under_a_live_head ... ok
+test active_head_prevents_write_move_replacement_and_old_address_revival ... ok
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... ok
+test last_use_then_descriptor_write_is_allowed ... ok
+test actual_head_trait_and_inherent_methods_and_plain_parameters ... ok
+test descriptor_and_head_parameters_do_not_assume_distinct_origins ... ok
+
+failures:
+
+---- unrelated_owned_callback_and_shared_head_compose stdout ----
+
+thread 'unrelated_owned_callback_and_shared_head_compose' (924) panicked at crates/zil-driver/tests/impl171_resource_heads.rs:87:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"closure values cannot escape through scalar signatures, captures or scalar operations","span":{"file":0,"start":359,"end":361},"notes":[]}],"artifacts":{"core":"/tmp/resource-heads171-916-6/phases/core.txt","source-map":"/tmp/resource-heads171-916-6/phases/source-map.txt","syntax":"/tmp/resource-heads171-916-6/phases/syntax.txt"},"input_fingerprint":"4bee484c2860d839a0ccd6079c457719b750cb1a060f56004562601b565558b1","seconds":0.036629953,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    unrelated_owned_callback_and_shared_head_compose
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+
+error: test failed, to rerun pass `-p zil-driver --test impl171_resource_heads`

@@ -59,6 +59,12 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            if ty.is_shared_resource_head_address() {
+                return Err(unsupported(
+                    "resource-head address capture requires a separate retained head-window contract",
+                    None,
+                ));
+            }
             if packages::has_array_fields(ty) {
                 return Err(unsupported(
                     "Package capture with owning array fields requires a retained nested-field protocol",

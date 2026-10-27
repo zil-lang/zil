@@ -1,0 +1,29 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-verify)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.68s
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/39be3faa4442/targets/171-final-fresh/debug/deps/impl171_resource_heads-3c55f1b37cf8f614)
+
+running 17 tests
+test descriptor_capturing_callbacks_cannot_write_under_a_live_head ... ok
+test active_head_prevents_write_move_replacement_and_old_address_revival ... ok
+test head_metadata_work_has_an_exact_finite_budget_boundary ... ok
+test desc_only_imported_helpers_export_writes_into_caller_head_window ... ok
+test descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls ... ok
+test descriptor_callback_cannot_use_a_captured_field_address_as_write_permission ... ok
+test original_159_resource_address_receiver_probe_is_unchanged_and_now_supported ... ok
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... ok
+test raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head ... ok
+test descriptor_only_helper_exports_its_internal_callback_effect_across_modules ... ok
+test resource_trait_nonshared_receivers_and_head_indirect_calls_stay_closed ... ok
+test failed_argument_preparation_ends_head_window_and_cleans_owner_once ... ok
+test actual_head_trait_and_inherent_methods_and_plain_parameters ... ok
+test last_use_then_descriptor_write_is_allowed ... ok
+test unrelated_owned_callback_and_shared_head_compose ... ok
+test imported_heads_keep_nominal_identity_visibility_and_actual_storage ... ok
+test descriptor_and_head_parameters_do_not_assume_distinct_origins ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+

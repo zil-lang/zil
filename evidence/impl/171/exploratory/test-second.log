@@ -1,0 +1,24 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt171/crates/zil-expand)
+error[E0027]: pattern does not mention field `lifetime`
+   --> crates/zil-expand/src/static_traits.rs:240:57
+    |
+240 |                         && matches!(&parameter.ty.kind, s::TypeKind::Reference { mutable: false, inner }
+    |                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing field `lifetime`
+    |
+help: include the missing field in the pattern
+    |
+240 |                         && matches!(&parameter.ty.kind, s::TypeKind::Reference { mutable: false, inner, lifetime }
+    |                                                                                                       ++++++++++
+help: if you don't care about this missing field, you can explicitly ignore it
+    |
+240 |                         && matches!(&parameter.ty.kind, s::TypeKind::Reference { mutable: false, inner, lifetime: _ }
+    |                                                                                                       +++++++++++++
+help: or always ignore missing fields here
+    |
+240 |                         && matches!(&parameter.ty.kind, s::TypeKind::Reference { mutable: false, inner, .. }
+    |                                                                                                       ++++
+
+For more information about this error, try `rustc --explain E0027`.
+error: could not compile `zil-expand` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
