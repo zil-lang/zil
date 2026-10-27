@@ -246,7 +246,7 @@ impl<'a> Engine<'a> {
                 if a.fields.iter().any(|field| !field.attributes.is_empty()) {
                     return Err(unsupported(item.span, "unexecuted generic field attribute"));
                 }
-                if a.kind != AggregateKind::Struct || !a.methods.is_empty() {
+                if !matches!(a.kind, AggregateKind::Struct | AggregateKind::Package) || !a.methods.is_empty() {
                     return Err(unsupported(
                         item.span,
                         "generic resource or methods require capability resolution",

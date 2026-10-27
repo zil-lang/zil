@@ -7,6 +7,7 @@ use zil_ir::*;
 mod addresses;
 mod aggregates;
 mod byte_buffer;
+mod callable_fields;
 mod closures;
 mod conditions;
 mod dynamic_store;

@@ -10,9 +10,10 @@ pub(crate) struct CallableTemplate {
     pub kind: CallableKind,
     pub parameters: Vec<TypeRef>,
     pub result: TypeRef,
+    pub owned_state: bool,
 }
 
-fn refers(ty: &TypeRef, name: &str) -> bool {
+pub(crate) fn refers(ty: &TypeRef, name: &str) -> bool {
     match &ty.kind {
         TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
             path.as_slice() == [name]
@@ -35,6 +36,14 @@ fn refers(ty: &TypeRef, name: &str) -> bool {
         TypeKind::Error { error, result } => refers(error, name) || refers(result, name),
         _ => false,
     }
+}
+
+/// A nominal container carrying F is resolved to a real Package by Types.
+/// This is syntax classification only, never an owning admission proof.
+pub(crate) fn state_type(ty: &TypeRef, name: &str) -> bool {
+    matches!(&grouped(ty).kind, TypeKind::Named { path, args }
+        if path.as_slice() != [name] && matches!(args.as_slice(),[GenericArg::Type(t)]
+            if matches!(&grouped(t).kind, TypeKind::Named{path,args} if path.as_slice()==[name] && args.is_empty())) )
 }
 
 pub(crate) fn parameter_mode(ty: &TypeRef, name: &str) -> Option<Option<bool>> {
@@ -134,14 +143,16 @@ pub(crate) fn template(function: &Function) -> R<Option<CallableTemplate>> {
             "recursive callable signature is not implemented",
         ));
     }
+    let owned_state = function.return_type.as_ref().is_some_and(|t| state_type(t, &parameter.name))
+        || function.params.iter().any(|p| state_type(&p.ty, &parameter.name));
     let mut index = None;
     for (i, input) in function.params.iter().enumerate() {
         if refers(&input.ty, &parameter.name) {
-            if index.is_some() || parameter_mode(&input.ty, &parameter.name).is_none() || input.give
+            if index.is_some() || (parameter_mode(&input.ty, &parameter.name).is_none() && !state_type(&input.ty, &parameter.name)) || input.give
             {
                 return Err(unsupported(
                     input.span,
-                    "callable parameter must occur once as F, &F or &mut F",
+                    "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
                 ));
             }
             index = Some(i);
@@ -150,7 +161,7 @@ pub(crate) fn template(function: &Function) -> R<Option<CallableTemplate>> {
     if function
         .return_type
         .as_ref()
-        .is_some_and(|t| refers(t, &parameter.name))
+        .is_some_and(|t| refers(t, &parameter.name) && !state_type(t, &parameter.name))
     {
         return Err(unsupported(
             function.span,
@@ -163,10 +174,9 @@ pub(crate) fn template(function: &Function) -> R<Option<CallableTemplate>> {
             "callable bound requires a concrete environment parameter",
         )
     })?;
-    let mode = parameter_mode(&function.params[index].ty, &parameter.name)
-        .expect("validated callable parameter");
+    let mode = parameter_mode(&function.params[index].ty, &parameter.name).unwrap_or(None);
     match (kind, mode) {
-        (CallableKind::FnMut, None) => {
+        (CallableKind::FnMut, None) if !owned_state => {
             return Err(unsupported(
                 function.params[index].span,
                 "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
@@ -186,5 +196,6 @@ pub(crate) fn template(function: &Function) -> R<Option<CallableTemplate>> {
         kind,
         parameters: parameters.clone(),
         result: result.clone(),
+        owned_state,
     }))
 }

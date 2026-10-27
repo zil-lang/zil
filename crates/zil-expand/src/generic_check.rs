@@ -471,6 +471,55 @@ impl Check<'_, '_, '_> {
                     kind: TypeKind::Tuple(fields),
                 })
             }
+            ExprKind::Record { ty: Some(constructor), base: None, fields } => {
+                let (name, args) = match &constructor.kind {
+                    ExprKind::Name(name) => (name.clone(), vec![]),
+                    ExprKind::TypeApply { callee, arguments } => {
+                        let ExprKind::Name(name) = &callee.kind else {
+                            return Err(unsupported(e.span, "generic record constructor needs a nominal type"));
+                        };
+                        (name.clone(), arguments.clone())
+                    }
+                    _ => return Err(unsupported(e.span, "generic record constructor needs a nominal type")),
+                };
+                let Some(Item { kind: ItemKind::Aggregate(declaration), .. }) = self.nominals.get(&name) else {
+                    return Err(error(e.span, "unknown nominal record constructor"));
+                };
+                if declaration.generics.len() != args.len() {
+                    return Err(error(e.span, "generic record constructor arity mismatch"));
+                }
+                let mut substitutions = BTreeMap::new();
+                for (parameter, argument) in declaration.generics.iter().zip(&args) {
+                    let GenericArg::Type(ty) = argument else {
+                        return Err(unsupported(e.span, "constant generic record constructor"));
+                    };
+                    self.budget.ty(ty)?;
+                    substitutions.insert(parameter.name.clone(), ty.clone());
+                }
+                let mut seen = BTreeSet::new();
+                for field in fields {
+                    if !seen.insert(&field.name) {
+                        return Err(error(field.span, "duplicate generic record field"));
+                    }
+                    let declared = declaration.fields.iter().find(|f| f.name == field.name)
+                        .ok_or_else(|| error(field.span, "unknown generic record field"))?;
+                    if !declared.public && declared.span.file != field.span.file {
+                        return Err(Diagnostic::error(Phase::Expand, "E-FIELD-PRIVATE", Some(field.span), "record field is private to its declaring module"));
+                    }
+                    let want = substituted_type(&declared.ty, &substitutions, self.budget)?;
+                    let actual = if let Some(value) = &field.value {
+                        self.expr(value, state, Some(&want), false)?
+                    } else {
+                        let local = Expr { span: field.span, kind: ExprKind::Name(field.name.clone()) };
+                        self.expr(&local, state, Some(&want), false)?
+                    };
+                    same(&actual, &want, field.span, self.budget)?;
+                }
+                if seen.len() != declaration.fields.len() {
+                    return Err(error(e.span, "missing generic record field"));
+                }
+                Ok(TypeRef { span:e.span, kind:TypeKind::Named {path:vec![name], args} })
+            }
             ExprKind::Array(values) => {
                 let mut element = expected
                     .and_then(|ty| match &group(ty).kind {
@@ -781,7 +830,7 @@ impl Check<'_, '_, '_> {
                     match kind {
                         zil_ir::CallableKind::Fn => {}
                         zil_ir::CallableKind::FnMut if mode == Some(true) => {}
-                        zil_ir::CallableKind::FnMut if factory_local && local.mutable => {}
+                        zil_ir::CallableKind::FnMut if local.mutable && (factory_local || bound.owned_state) => {}
                         zil_ir::CallableKind::FnMut if factory_local => {
                             return Err(error(
                                 e.span,
