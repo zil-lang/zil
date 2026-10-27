@@ -246,7 +246,9 @@ impl<'a> Engine<'a> {
                 if a.fields.iter().any(|field| !field.attributes.is_empty()) {
                     return Err(unsupported(item.span, "unexecuted generic field attribute"));
                 }
-                if a.kind != AggregateKind::Struct || !a.methods.is_empty() {
+                if !matches!(a.kind, AggregateKind::Struct | AggregateKind::Package)
+                    || !a.methods.is_empty()
+                {
                     return Err(unsupported(
                         item.span,
                         "generic resource or methods require capability resolution",
@@ -826,7 +828,7 @@ impl<'a> Engine<'a> {
                         let ItemKind::Function(function) = &template.kind else {
                             return Err(error(e.span, "aggregate template is not a callable"));
                         };
-                        if callable::template(function)?.is_some() {
+                        if let Some(callable) = callable::template(function)? {
                             if explicit.is_some() {
                                 return Err(unsupported(
                                     e.span,
@@ -835,6 +837,17 @@ impl<'a> Engine<'a> {
                             }
                             if function.params.len() != actual.len() {
                                 return Err(error(e.span, "callable helper arity mismatch"));
+                            }
+                            if callable.owned_state
+                                && let (Some(hints), Some(result)) = (&hints, &function.return_type)
+                                && let Some(mut result) = hints.symbolic_result(
+                                    result,
+                                    &callable.generic_name,
+                                    &mut self.budget,
+                                )?
+                            {
+                                self.ty(&mut result, depth + 1)?;
+                                return Ok(Some(result));
                             }
                             return self.signature_result(&target);
                         }

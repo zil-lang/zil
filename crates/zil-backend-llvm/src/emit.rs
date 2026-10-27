@@ -565,13 +565,6 @@ impl FunctionEmitter<'_> {
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
         match &instruction.kind {
-            InstructionKind::BorrowPackageField { .. } => {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Codegen,
-                    "State field/window semantics are not yet implemented",
-                    Some(instruction.span),
-                )]);
-            }
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
             | InstructionKind::OwnedStorePush { .. }
@@ -589,6 +582,9 @@ impl FunctionEmitter<'_> {
             | InstructionKind::ByteBufferCapacity { .. }
             | InstructionKind::ByteBufferBorrow { .. } => {
                 self.byte_buffer_instruction(instruction)?
+            }
+            InstructionKind::BorrowPackageField { local, index, .. } => {
+                self.borrow_package_field(instruction, *local, *index)?;
             }
             InstructionKind::ReadPackageField { local, index } => {
                 self.read_package_field(instruction, *local, *index)?
