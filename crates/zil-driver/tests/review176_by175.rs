@@ -299,6 +299,8 @@ fn pure()->impl Fn()->i32{return ()=>7}
     let source =
         format!("{common}fn main()->i32{{let s=pack(once());let f=s.callback;return f()-7}}");
     native("once-single-consumption", &[("main", &source)], b"", 0);
+    let source = format!("{common}fn main()->i32{{let f=pure();let g=f;return f()+g()-14}}");
+    native("pure-ordinary-copy-control", &[("main", &source)], b"", 0);
 }
 
 #[test]
@@ -345,6 +347,19 @@ fn independent_raw_and_wire_check_real_field_and_call_permission() {
                 }
             }
             _ => unreachable!(),
+        }
+        if variant == 2 {
+            // Preserve a wholly shared reborrow chain, so the actual FnMut
+            // call must check permission instead of an earlier upgrade.
+            for instruction in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                if let I::ReborrowAddress { mutable, .. } = &mut instruction.kind {
+                    *mutable = false;
+                    let result = instruction.result.unwrap();
+                    if let Type::Address { mutable, .. } = &mut f.values[result.0 as usize] {
+                        *mutable = false;
+                    }
+                }
+            }
         }
         raw_reject(
             [
