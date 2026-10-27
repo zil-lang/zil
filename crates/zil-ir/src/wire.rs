@@ -2373,3 +2373,6 @@ mod tests;
 
 #[cfg(test)]
 mod owned_carrier_tests;
+
+#[cfg(test)]
+mod store_tests;
