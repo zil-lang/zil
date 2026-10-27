@@ -556,5 +556,5 @@ fn independent_ownership_checks_run_without_nominal_resources() {
         .position(|i| matches!(i.kind, InstructionKind::DropClosure { .. }))
         .unwrap();
     block.instructions.remove(position);
-    raw_rejected(module, plan, "unpaid");
+    raw_rejected(module, plan, "outstanding resource responsibility");
 }
