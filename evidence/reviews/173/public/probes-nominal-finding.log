@@ -1,0 +1,34 @@
+   Compiling review173-public-probes v0.1.0 (/workspace/scratch/39be3faa4442/run-logs/review173-public170/probes)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.14s
+     Running unittests src/lib.rs (targets/review173-public170/debug/deps/review173_public_probes-9f64f98f4f9a71be)
+
+running 4 tests
+INCORRECTLY ACCEPTED type Store=i32;fn consume(x:Store)->i32=>x;fn main(){}; function parameters: [[I32], []]
+INCORRECTLY ACCEPTED struct Store{x:i32} fn main(){}; function parameters: [[]]
+INCORRECTLY ACCEPTED enum Store{A}fn main(){}; function parameters: [[]]
+test source_store_type_shape_is_exact ... ok
+INCORRECTLY ACCEPTED resource Store{x:i32}fn main(){}; function parameters: [[]]
+INCORRECTLY ACCEPTED fn f<Store>(x:Store)->Store{return x;}fn main(){}; function parameters: [[]]
+INCORRECTLY ACCEPTED type Identity<Store>=Store;fn main(){}; function parameters: [[]]
+INCORRECTLY ACCEPTED struct Wrapper<Store>{x:Store}fn main(){}; function parameters: [[]]
+
+thread 'reserved_store_type_names_survive_erased_declarations' (95) panicked at src/lib.rs:128:5:
+reserved Store declarations escaped: ["type Store=i32;fn consume(x:Store)->i32=>x;fn main(){}", "struct Store{x:i32} fn main(){}", "enum Store{A}fn main(){}", "resource Store{x:i32}fn main(){}", "fn f<Store>(x:Store)->Store{return x;}fn main(){}", "type Identity<Store>=Store;fn main(){}", "struct Wrapper<Store>{x:Store}fn main(){}"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test source_reservation_function_and_member_scope ... ok
+test reserved_store_type_names_survive_erased_declarations ... FAILED
+wide=false raw: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "aggregate type nesting exceeds verification limit", span: None, notes: [] }]
+wide=false wire: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "candidate wire type nesting quota exceeded", span: None, notes: [] }]
+wide=true raw: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "independent verification work budget exhausted", span: None, notes: [] }]
+wide=true wire: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "independent verification work budget exhausted", span: None, notes: [] }]
+small-stale: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-PLAN-IDENTITY", message: "candidate plan is bound to different module or target bytes", span: None, notes: [] }]; small-bound: [Diagnostic { phase: Verify, category: Unsupported, code: "E-UNSUPPORTED", message: "owned store operations await their independent checker", span: Some(Span { file: FileId(2), start: 4, end: 8 }), notes: [] }]
+test independently_bound_embedded_new_metadata_precedes_identity_and_rejection ... ok
+
+failures:
+
+failures:
+    reserved_store_type_names_survive_erased_declarations
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `--lib`
