@@ -774,6 +774,16 @@ pub enum InstructionKind {
         value: ValueId,
         is_error: bool,
     },
+    /// Consume the complete non-Copy union and select its guarded active payload.
+    /// The tag assertion grants no authority: Verify reconstructs branch guards.
+    TakeErrorUnion {
+        value: ValueId,
+        is_error: bool,
+    },
+    /// Conditionally discharge the active owned payload of a local error union.
+    DropErrorUnion {
+        local: LocalId,
+    },
     /// Construct a complete owned resource header; result is Managed<payload>.
     MakeManaged {
         fields: Vec<ValueId>,
@@ -1576,6 +1586,15 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             b.push(48);
             encode_u32(b, value.0);
             b.push(u8::from(*is_error));
+        }
+        InstructionKind::TakeErrorUnion { value, is_error } => {
+            b.push(70);
+            encode_u32(b, value.0);
+            b.push(u8::from(*is_error));
+        }
+        InstructionKind::DropErrorUnion { local } => {
+            b.push(71);
+            encode_u32(b, local.0);
         }
         InstructionKind::MakeManaged { fields } => {
             b.push(34);

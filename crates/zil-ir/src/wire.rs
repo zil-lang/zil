@@ -1116,6 +1116,15 @@ impl<'a> Writer<'a> {
                 self.u32(value.0)?;
                 self.boolean(*is_error)?;
             }
+            InstructionKind::TakeErrorUnion { value, is_error } => {
+                self.u8(70)?;
+                self.u32(value.0)?;
+                self.boolean(*is_error)?;
+            }
+            InstructionKind::DropErrorUnion { local } => {
+                self.u8(71)?;
+                self.u32(local.0)?;
+            }
             InstructionKind::Unsupported(feature) => {
                 self.u8(255)?;
                 self.text(feature)?;
@@ -2046,6 +2055,13 @@ impl<'a> Reader<'a> {
             48 => InstructionKind::ReadErrorUnion {
                 value: ValueId(self.u32()?),
                 is_error: self.boolean()?,
+            },
+            70 => InstructionKind::TakeErrorUnion {
+                value: ValueId(self.u32()?),
+                is_error: self.boolean()?,
+            },
+            71 => InstructionKind::DropErrorUnion {
+                local: LocalId(self.u32()?),
             },
             49 => {
                 let count = self.count(self.limits.max_values, 4)?;
