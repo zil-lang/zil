@@ -94,6 +94,11 @@ fn native(files: &[(&str, &str)], stdout: &[u8], exit: i32) {
         let output = Command::new(&executable).output().unwrap();
         fs::write(dir.join("stdout"), &output.stdout).unwrap();
         fs::write(dir.join("stderr"), &output.stderr).unwrap();
+        fs::write(dir.join("native.json"), format!(
+            "{{\"optimization\":\"{optimization:?}\",\"exit_code\":{},\"stdout\":{:?},\"stderr\":{:?}}}\n",
+            output.status.code().map_or("null".into(), |code|code.to_string()),
+            String::from_utf8_lossy(&output.stdout),String::from_utf8_lossy(&output.stderr)
+        )).unwrap();
         assert_eq!(output.status.code(), Some(exit), "{output:?}");
         assert_eq!(output.stdout, stdout);
     }
@@ -245,22 +250,58 @@ fn descriptor_and_head_parameters_do_not_assume_distinct_origins() {
 
 #[test]
 fn descriptor_capturing_callbacks_cannot_write_under_a_live_head() {
-    for make_call in [
-        "let d=r;let f=()=>write(d,43);f()",
-        "let d=r;let f=()=>write(d,43);let g=move()=>f();g()",
+    for (make_call, expected) in [
+        (
+            "let d=r;let f=()=>write(d,43);f()",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "let d=r;let f=()=>write(d,43);let g=move()=>f();g()",
+            ResultCategory::Unsupported,
+        ),
     ] {
         let source = format!(
             "{RESOURCE}fn main()->i32{{let r=R{{code:65,n:42}};let p=&r;{make_call};return p.n}}"
         );
         let report = check(&[("main", &source)]);
-        assert_ne!(
-            report.status,
-            ResultCategory::Success,
-            "{}",
-            report.to_json()
-        );
+        assert_eq!(report.status, expected, "{}", report.to_json());
         assert_ne!(report.phase, zil_base::Phase::Parse, "{}", report.to_json());
     }
+}
+
+#[test]
+fn descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls() {
+    let prefix = format!("{RESOURCE}fn apply<F:Fn()->i32>(f:&F)->i32{{return f()}}");
+    let source = format!(
+        "{prefix}fn main()->i32{{let r=R{{code:65,n:42}};let d=r;let f=()=>{{write(d,43);return 0}};let p=&r;apply(&f);return p.n}}"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{}",
+        report.to_json()
+    );
+    let independent = format!(
+        "{prefix}fn main()->i32{{let r=R{{code:65,n:42}};let other=R{{code:66,n:1}};let d=other;let f=()=>{{write(d,2);return 0}};let p=&r;let shared=&f;apply(shared);apply(shared);return p.n+other.n-44}}"
+    );
+    native(&[("main", &independent)], b"BA", 0);
+}
+
+#[test]
+fn failed_argument_preparation_ends_head_window_and_cleans_owner_once() {
+    let source = format!(
+        "{RESOURCE}enum E{{Fail}} impl R{{fn combine(self:&Self,value:i32)->i32=>.n+value}} fn fail()->E!i32=>E.Fail;fn main()->E!i32{{let r=R{{code:65,n:42}};return r.combine(fail()?)}}"
+    );
+    native(&[("main", &source)], b"A", 1);
 }
 
 #[test]
@@ -563,6 +604,7 @@ fn raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head() {
             span,
         }];
         if revive {
+            function.locals[head.0.0 as usize].mutable = true;
             let mut make = block
                 .instructions
                 .iter()

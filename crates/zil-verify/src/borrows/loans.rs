@@ -641,12 +641,15 @@ pub(super) fn check(
             {
                 for (parameter, write) in &effects[callee.0 as usize] {
                     budget.spend(1)?;
-                    access.check(
-                        &empty,
-                        &facts.values[arguments[*parameter as usize].0 as usize],
-                        *write,
-                        budget,
-                    )?;
+                    let argument = arguments[*parameter as usize];
+                    let own = if head_windows
+                        && captures_descriptors(module, &f.values[argument.0 as usize])
+                    {
+                        &flow.values[argument.0 as usize]
+                    } else {
+                        &empty
+                    };
+                    access.check(own, &facts.values[argument.0 as usize], *write, budget)?;
                 }
             }
             match &instruction.kind {
