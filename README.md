@@ -1,8 +1,15 @@
-# ZIL — 语言主线 166–169（2026-10-27）
+# ZIL — 语言主线 170–173（2026-10-27）
 
-本轮语言入口见 [166–169 实施报告](docs/LANGUAGE-169.md)：有限 Package 错误载荷、固定拥有型数组、具体闭包转发/再捕获及稳定替换槽。当前内部 schema/raw wire 为 **19**；完整语言 NotSatisfied、产品 NotRun、B0 Doing。源码包按 Git 跟踪内容导出，执行产物和证据在主包之外；见 [交付与恢复](docs/DELIVERY.md)。实际验收以本轮报告与精确提交的收据为准。
+本轮入口见 [170–173 实施报告](docs/LANGUAGE-173.md)：Package拥有数组字段、真实共享资源头、有限动态拥有前缀Store，以及三者与保存回调/拥有错误的实际组合。内部 schema/raw Wire 为 **20**；完整 workspace **1526项通过**，Clippy与格式检查通过，三入口组合完成44次原生执行。完整语言 NotSatisfied、产品 NotRun、B0 Doing。源码包不放执行产物或证据；见 [交付与恢复](docs/DELIVERY.md)和[下一批ZUI语言前置](docs/NEXT-LANGUAGE-174.md)。
 
-以下保留各轮历史介绍与原受测数字，旧文中的“当前”“本轮”和 schema 版本属于其对应历史检查点，不代表 166–169 的能力或验收身份。
+```sh
+cargo build --offline --locked -p zil-cli
+python3 tools/language/173/consumer.py --repo . --cli target/debug/zil --out out/language173-new-run
+```
+
+每次使用新的输出目录，消费者运行真实O0/O2及分配失败检查；它不代表完整GUI或产品验收。现有Store首片为Linux x64，字段/捕获、元素借片及Win64支持仍有明确边界。
+
+此前 [166–169报告](docs/LANGUAGE-169.md)和以下介绍均保留各自历史身份、schema及受测数字，不代表本轮当前能力。
 
 ## draft23 施工恢复检查点（2026-10-26，历史）
 
