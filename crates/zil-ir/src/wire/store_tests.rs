@@ -46,7 +46,7 @@ fn store_raw_ops_have_fixed_tags_and_reject_every_truncated_prefix() {
             );
         }
         let mut changed = writer.output;
-        changed[5] = 86;
+        changed[5] = 88;
         assert_eq!(
             Reader::new(&changed, &limits)
                 .unwrap()
@@ -146,17 +146,17 @@ fn store_type_has_distinct_tag_and_nested_metadata_is_bounded_both_ways() {
 }
 
 #[test]
-fn schema20_wire_rejects_all_old_versions_and_next_unknown_version() {
+fn schema21_wire_rejects_all_old_versions_and_next_unknown_version() {
     let limits = Limits::default();
     let mut writer = Writer::new(&limits);
     writer.header(MODULE_MAGIC).unwrap();
-    assert_eq!(WIRE_VERSION, 20);
-    assert_eq!(SCHEMA_VERSION, 20);
+    assert_eq!(WIRE_VERSION, 21);
+    assert_eq!(SCHEMA_VERSION, 21);
     Reader::new(&writer.output, &limits)
         .unwrap()
         .header(MODULE_MAGIC)
         .unwrap();
-    for version in (0u32..20).chain([21, u32::MAX]) {
+    for version in (0u32..21).chain([22, u32::MAX]) {
         let mut bytes = writer.output.clone();
         bytes[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
