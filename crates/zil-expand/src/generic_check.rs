@@ -819,7 +819,22 @@ impl Check<'_, '_, '_> {
                 Ok(ty)
             }
             ExprKind::Binary { op, left, right } => {
-                let lhs = self.expr(left, state, expected, false)?;
+                // A comparison produces bool; that result hint is not the
+                // operand type of an ordinary helper call on its left.
+                let operand_hint = if matches!(
+                    op,
+                    BinaryOp::Equal
+                        | BinaryOp::NotEqual
+                        | BinaryOp::Less
+                        | BinaryOp::LessEqual
+                        | BinaryOp::Greater
+                        | BinaryOp::GreaterEqual
+                ) {
+                    None
+                } else {
+                    expected
+                };
+                let lhs = self.expr(left, state, operand_hint, false)?;
                 let rhs = self.expr(right, state, Some(&lhs), false)?;
                 if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
                     return Err(needs_bound());

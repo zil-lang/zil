@@ -249,3 +249,33 @@ fn borrowed_concrete_package_cannot_be_copied_into_a_local_give_capability() {
     );
     assert_eq!(report.verification_runs, 0);
 }
+
+#[test]
+fn generic_comparison_result_hint_does_not_retype_a_concrete_helper_operand() {
+    let prefix =
+        format!("{MODEL} fn count(items:Store<Item>)->i32{{return i32(store_len(items))}}");
+    let source = format!(
+        "{prefix} fn inspect<F:FnMut()->i32>(state:State<F>)->i32{{if count(state.items)!=1{{return 3}} return state.hits}} fn main()->i32{{return inspect(pack(make()))}}"
+    );
+    native(&[("main", &source)], b"ZA", 0);
+    let source = format!(
+        "{prefix} fn unused<F:FnMut()->i32>(state:State<F>)->i32{{if count(state.items)!=true{{return 3}} return 0}} fn main()->i32=>0"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Expand
+                && d.code == "E-GENERIC-ARGUMENT"
+                && d.message.contains("generic body types must agree")),
+        "{}",
+        report.to_json()
+    );
+}
