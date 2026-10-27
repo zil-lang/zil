@@ -31,6 +31,10 @@ fn has_sources(module: &TypedModule, ty: &Type, head_windows: bool) -> bool {
 }
 
 fn head_windows(module: &TypedModule, budget: &mut Budget) -> Check<bool> {
+    // Nominal resource admission already rejected any undeclared raw head.
+    if module.resources.is_empty() {
+        return Ok(false);
+    }
     for function in &module.functions {
         budget.spend(
             function

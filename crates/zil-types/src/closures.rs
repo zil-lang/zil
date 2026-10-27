@@ -530,6 +530,10 @@ impl Graph {
                 || ty.is_copy_value()
                 || packages::supported(ty)
                 || packages::owned_array_supported(ty)
+                // This is only a pointee constraint node for a shared head.
+                // It does not make a Managed value Copy or grant a capture.
+                || matches!(ty, Type::Managed(payload)
+                    if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || matches!(ty, Type::Slice { element } if element.is_copy_value()) =>
             {
                 AGGREGATE
@@ -1070,7 +1074,9 @@ impl LocalType {
                     mutable: wanted,
                     inner,
                 },
-            ) if inner.is_address_pointee() && (mutable || !wanted) => {
+            ) if (inner.is_address_pointee() || ty.is_shared_resource_head_address())
+                && (mutable || !wanted) =>
+            {
                 graph.bind(variable, inner, span)
             }
             (Self::Address(..), Type::Address { .. }) => Err(unsupported(

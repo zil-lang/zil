@@ -22,6 +22,9 @@ fn tracked_desc(ty: &Type, head_windows: bool) -> bool {
 // A module may use the head only in its caller. Desc-only callees still need
 // grounded effects, so enable the lane once for the complete actual module.
 fn head_windows(module: &TypedModule, budget: &mut Budget) -> CompileResult<bool> {
+    if module.resources.is_empty() {
+        return Ok(false);
+    }
     for function in &module.functions {
         budget.spend(
             function
