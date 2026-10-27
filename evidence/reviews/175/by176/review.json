@@ -1,0 +1,79 @@
+{
+  "reviewer": "/root/callback_field176",
+  "author": "/root/store_view175",
+  "verdict": "Pass",
+  "reviewed_delivery_commit": "579d49a76ad2aaef8b1c007289255dd1c4c7a54f",
+  "reviewed_production_commit": "fd69ff6c7cbbc95fcd395d5dbe11fb3c3c85790d",
+  "reviewed_production_crates_tree": "6937ecf38b4bf300df400ec462772b60b30ea73a",
+  "inherited_174_production": "9a878f2f91aae4efd4b851eeb8979cacc21ffdd1",
+  "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+  "schema_wire": 21,
+  "review_worktree": "/workspace/scratch/39be3faa4442/zil-restored/review175-by176",
+  "production_files_modified": [],
+  "review_test": "crates/zil-driver/tests/review175_by176.rs",
+  "review_test_sha256": "d6b3d9ef79de4de43460b5d364897e8083f914fdba207a99df510aa1210f14a4",
+  "toolchain": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "clang": "Ubuntu clang version 17.0.6 (++20240501091250+6009708b4367-1~exp1~20240501211359.8)"
+  },
+  "tests": {
+    "author_replay": {
+      "passed": 20,
+      "failed": 0,
+      "log": "commands/review175-by176-test02.log"
+    },
+    "independent_final": {
+      "passed": 4,
+      "failed": 0,
+      "log": "commands/review175-by176-test04.log"
+    },
+    "independent_native_success": 6,
+    "independent_native_signal_4_trap": 4,
+    "independent_source_rejects": 4,
+    "independent_raw_mutations": 2,
+    "independent_raw_and_wire_rejects": 4
+  },
+  "blocking_findings": [],
+  "prior_attempts": [
+    {
+      "attempt": 1,
+      "status": "review-harness Rust import failure",
+      "tests_executed": 0
+    },
+    {
+      "attempt": 2,
+      "status": "author replay passed; independent 3/4 passed; unsafe expression was invalid fixture syntax"
+    },
+    {
+      "attempt": 3,
+      "status": "independent 4/4 passed with corrected syntax"
+    },
+    {
+      "attempt": 4,
+      "status": "independent 4/4 passed; final replay records actual stdin and raw source"
+    }
+  ],
+  "scope": [
+    "175 delta relative to inherited 174",
+    "actual len less than capacity, signed negative index, O0/O2",
+    "Copy array subfield address through scalar identity helper",
+    "distinct Store fields versus actual parameter alias",
+    "active child window versus whole State transfer and field replacement",
+    "raw Borrow SSA source retarget with unchanged coarse parent Hold",
+    "raw early parent TakeLocal with the later window read intact"
+  ],
+  "not_claimed": [
+    "whole-workspace acceptance",
+    "176 integration; root owns 177 combined acceptance",
+    "mutable or escaping Store windows",
+    "general Store element shapes",
+    "relative Rust compile/runtime/memory performance",
+    "full language or product readiness"
+  ],
+  "states_preserved": {
+    "B0": "Doing",
+    "full_language": "NotSatisfied",
+    "products": "NotRun"
+  },
+  "created_utc": "2026-10-27T15:58:34.605593+00:00"
+}
