@@ -1,0 +1,1 @@
+trait Identity{fn own(self:Self)->Self;}struct C{n:i32}impl Identity for C{fn own()->Self{return self}}fn relay<T:Identity>(x:T)->T=>x.own();fn main()->i32{let c=relay(C{n:42});return c.n-42}

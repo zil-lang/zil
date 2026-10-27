@@ -1,0 +1,1 @@
+trait Peek{fn get(self:&Self)->&i32;}struct C{n:i32}impl Peek for C{fn get()->&i32{return &.n}}fn read<T:Peek>(x:&T)->&i32=>x.get();fn main()->i32{let c=C{n:42};return *read(&c)-42}

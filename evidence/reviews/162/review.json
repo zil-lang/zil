@@ -1,0 +1,299 @@
+{
+  "source_commit": "76fc53ddd53c51df724a59e5e40299b79d4acf81",
+  "cli_sha256": "b2ab9d3a627421f422cab235d54a83ffc127fb447b999e41a425cef84beb08a0",
+  "reviewer": "/root",
+  "cases": [
+    {
+      "name": "borrowed_result",
+      "expected": "Success",
+      "status": "Success",
+      "phase": "verify",
+      "passed": true,
+      "source_sha256": "6554f3e045ed6370542bfc36d6ae510155c1c227737b3ae7b69249081726a5a9",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review162-root/borrowed_result/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "seconds": 0.011274576187133789,
+      "diagnostics": [],
+      "native": [
+        {
+          "optimization": "O0",
+          "exit_code": 0,
+          "passed": true,
+          "command": [
+            "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+            "build",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/borrowed_result/main.zil",
+            "--opt",
+            "O0",
+            "-o",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/borrowed_result/O0",
+            "--emit-dir",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/borrowed_result/O0-phases",
+            "--json"
+          ]
+        },
+        {
+          "optimization": "O2",
+          "exit_code": 0,
+          "passed": true,
+          "command": [
+            "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+            "build",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/borrowed_result/main.zil",
+            "--opt",
+            "O2",
+            "-o",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/borrowed_result/O2",
+            "--emit-dir",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/borrowed_result/O2-phases",
+            "--json"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "self_result",
+      "expected": "Success",
+      "status": "Success",
+      "phase": "verify",
+      "passed": true,
+      "source_sha256": "0f210194296fb516b2a8047373b6750f7680319ae9b2d81009e3687ea759f7c6",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review162-root/self_result/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "seconds": 0.014720678329467773,
+      "diagnostics": [],
+      "native": [
+        {
+          "optimization": "O0",
+          "exit_code": 0,
+          "passed": true,
+          "command": [
+            "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+            "build",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/self_result/main.zil",
+            "--opt",
+            "O0",
+            "-o",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/self_result/O0",
+            "--emit-dir",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/self_result/O0-phases",
+            "--json"
+          ]
+        },
+        {
+          "optimization": "O2",
+          "exit_code": 0,
+          "passed": true,
+          "command": [
+            "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+            "build",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/self_result/main.zil",
+            "--opt",
+            "O2",
+            "-o",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/self_result/O2",
+            "--emit-dir",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/self_result/O2-phases",
+            "--json"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "three_level_mutation",
+      "expected": "Success",
+      "status": "Success",
+      "phase": "verify",
+      "passed": true,
+      "source_sha256": "5d807d2902df850739b4153ac3a8b10f460c6ed5b523c66696c0818ebe53840f",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review162-root/three_level_mutation/main.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015353679656982422,
+      "diagnostics": [],
+      "native": [
+        {
+          "optimization": "O0",
+          "exit_code": 0,
+          "passed": true,
+          "command": [
+            "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+            "build",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/three_level_mutation/main.zil",
+            "--opt",
+            "O0",
+            "-o",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/three_level_mutation/O0",
+            "--emit-dir",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/three_level_mutation/O0-phases",
+            "--json"
+          ]
+        },
+        {
+          "optimization": "O2",
+          "exit_code": 0,
+          "passed": true,
+          "command": [
+            "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+            "build",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/three_level_mutation/main.zil",
+            "--opt",
+            "O2",
+            "-o",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/three_level_mutation/O2",
+            "--emit-dir",
+            "/workspace/scratch/39be3faa4442/run-logs/review162-root/three_level_mutation/O2-phases",
+            "--json"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unused_return_mismatch",
+      "expected": "SafeReject",
+      "status": "SafeReject",
+      "phase": "expand",
+      "passed": true,
+      "source_sha256": "26998f2bd3daacfac511ffad2e2ccf3ed86c4e077ee45b79491845f71976189a",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review162-root/unused_return_mismatch/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "seconds": 0.0062408447265625,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic body types must agree before concrete instantiation",
+          "span": {
+            "file": 0,
+            "start": 67,
+            "end": 74
+          },
+          "notes": []
+        }
+      ],
+      "native": []
+    },
+    {
+      "name": "symbolic_self_mismatch",
+      "expected": "SafeReject",
+      "status": "SafeReject",
+      "phase": "expand",
+      "passed": true,
+      "source_sha256": "fa28058108e7dd9f728f4d9115c9e3ea4e434225805b9c65ea7ecdb0d14fff85",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review162-root/symbolic_self_mismatch/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "seconds": 0.004773378372192383,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic body types must agree before concrete instantiation",
+          "span": {
+            "file": 0,
+            "start": 103,
+            "end": 104
+          },
+          "notes": []
+        }
+      ],
+      "native": []
+    },
+    {
+      "name": "duplicate_bound",
+      "expected": "SafeReject",
+      "status": "SafeReject",
+      "phase": "expand",
+      "passed": true,
+      "source_sha256": "b2c33ae5ba424c1b91815c82de0db24f7526a3a0aa5a3fbfec527fed5316a39f",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review162-root/duplicate_bound/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "seconds": 0.005104541778564453,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "duplicate nominal trait bound",
+          "span": {
+            "file": 0,
+            "start": 53,
+            "end": 57
+          },
+          "notes": []
+        }
+      ],
+      "native": []
+    },
+    {
+      "name": "impl_evidence_not_method_spelling",
+      "expected": "SafeReject",
+      "status": "SafeReject",
+      "phase": "expand",
+      "passed": true,
+      "source_sha256": "71505e0e549e9a7d2bcf320a8f2c01b2530310f21afbc6bcf79f3780ce678eb1",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review162/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/review162-root/impl_evidence_not_method_spelling/main.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "seconds": 0.004910945892333984,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "type $module0_C does not satisfy nominal trait bound $module0_Peek",
+          "span": {
+            "file": 0,
+            "start": 155,
+            "end": 165
+          },
+          "notes": []
+        }
+      ],
+      "native": []
+    }
+  ],
+  "implementation_commit": "ee2e8b04de7829491f8168eb54ccceedab72f57d",
+  "verdict": "Pass",
+  "scope": "Finite static nominal trait bounds; no schema/ABI/Verify solver changes",
+  "production_bytes_equal_to_tested_commit": true,
+  "native_executions": 6,
+  "limitations": [
+    "No generic traits, associated types, where clauses, dyn or new foreign-trait impl support",
+    "Full integrated workspace is a separate gate"
+  ]
+}
