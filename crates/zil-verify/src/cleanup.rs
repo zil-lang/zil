@@ -79,6 +79,7 @@ fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
         | InstructionKind::DropOwnedArrayElement { local, .. }
         | InstructionKind::StoreOwnedArrayElement { local, .. }
         | InstructionKind::BorrowOwnedArrayElement { local, .. }
+        | InstructionKind::BorrowPackageField { local, .. }
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropClosure { local }
         | InstructionKind::DropErrorUnion { local }
@@ -139,6 +140,7 @@ pub(super) fn check_function(
                 | InstructionKind::StoreOwnedArrayElement { .. }
                 | InstructionKind::DropOwnedArray { .. }
                 | InstructionKind::BorrowOwnedArrayElement { .. }
+                | InstructionKind::BorrowPackageField { .. }
                 | InstructionKind::MakeErrorUnion { .. }
                 | InstructionKind::ErrorTag { .. }
                 | InstructionKind::ReadErrorUnion { .. } => required = true,
