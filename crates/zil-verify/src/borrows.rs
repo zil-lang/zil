@@ -25,7 +25,18 @@ fn captures_descriptors(module: &TypedModule, ty: &Type, budget: &mut Budget) ->
     };
     let captures = &module.closures[id.0 as usize].captures;
     budget.spend(captures.len())?;
-    Ok(captures.iter().any(|ty| matches!(ty, Type::Desc(_))))
+    let (mut descriptor, mut address) = (false, false);
+    for ty in captures {
+        descriptor |= matches!(ty, Type::Desc(_));
+        address |= matches!(ty, Type::Address { .. });
+    }
+    if descriptor && address {
+        return Err(unsupported(
+            "mixed descriptor/address callback captures with resource-head windows require a per-capture effect contract",
+            None,
+        ));
+    }
+    Ok(descriptor)
 }
 
 fn has_sources(
