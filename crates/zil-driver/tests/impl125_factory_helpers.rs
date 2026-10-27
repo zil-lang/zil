@@ -114,6 +114,29 @@ fn success(report: &CompileReport) {
     assert_eq!(report.verification_runs, 1, "{}", report.to_json());
 }
 fn native(input: &ProjectSources, label: &str, expected: &str, code: i32) {
+    native_checked(input, label, expected, code, |report| {
+        let factory = report
+            .scalar_interfaces
+            .iter()
+            .find(|i| i.module == ModuleId(2))
+            .unwrap();
+        assert_eq!(factory.callable_returns.as_ref().unwrap().len(), 1);
+        let helper = report
+            .scalar_interfaces
+            .iter()
+            .find(|i| i.module == ModuleId(1))
+            .unwrap();
+        assert!(!helper.callable_contracts.as_ref().unwrap().is_empty());
+    });
+}
+
+fn native_checked(
+    input: &ProjectSources,
+    label: &str,
+    expected: &str,
+    code: i32,
+    check: impl Fn(&CompileReport),
+) {
     for opt in [Optimization::O0, Optimization::O2] {
         let case = Case::new(&format!("{label}-{opt:?}"));
         let report = compile(input, &case, Some(opt));
@@ -130,18 +153,7 @@ fn native(input: &ProjectSources, label: &str, expected: &str, code: i32) {
         assert_eq!(output.status.code(), Some(code), "{label}: {output:?}");
         assert_eq!(output.stdout, expected.as_bytes(), "{label}: {output:?}");
         assert!(output.stderr.is_empty(), "{label}: {output:?}");
-        let factory = report
-            .scalar_interfaces
-            .iter()
-            .find(|i| i.module == ModuleId(2))
-            .unwrap();
-        assert_eq!(factory.callable_returns.as_ref().unwrap().len(), 1);
-        let helper = report
-            .scalar_interfaces
-            .iter()
-            .find(|i| i.module == ModuleId(1))
-            .unwrap();
-        assert!(!helper.callable_contracts.as_ref().unwrap().is_empty());
+        check(&report);
     }
 }
 
@@ -313,6 +325,18 @@ fn helper_factory_dependencies_resolve_in_either_order_but_reject_cycles() {
         let case = Case::new(label);
         let report = compile(&project(&[("main", &source)]), &case, None);
         success(&report);
+        // The public single-module Types entry uses the same dependency rule.
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "order.zil", &source);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = zil_expand::expand(&unit, &syntax).unwrap();
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let module = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&module, &limits).unwrap();
+        zil_verify::verify_module(module, plan, &target, &limits).unwrap();
+        let executable =
+            format!("{source}fn main()->i32{{let f=make();if f()!=42{{return 1}}return 0}}");
+        native_checked(&project(&[("main", &executable)]), label, "", 0, |_| {});
     }
     let recursive = "fn apply<F:Fn()->i64>(f:&F)->i64{let dependent=make();return f()}fn make()->impl Fn()->i64{let init=()=>42;let n=apply(&init);return move ()=>n}fn value()->i64{return 0}";
     let case = Case::new("indirect-recursive");
@@ -332,6 +356,77 @@ fn helper_factory_dependencies_resolve_in_either_order_but_reject_cycles() {
     let ordinary = format!("{other}{helper}fn value()->i64{{let init=()=>42;return apply(&init)}}");
     let case = Case::new("ordinary-helper-after-prepass");
     success(&compile(&project(&[("main", &ordinary)]), &case, None));
+}
+
+#[test]
+fn raw_core_helper_factory_dependencies_respect_parameter_shadowing() {
+    // A false edge to the global `other` would make a spurious factory cycle.
+    // Generic expansion has additional source restrictions for same-name
+    // aliases. Exercise the public untrusted Core entry without widening them.
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "shadow-core.zil",
+        "fn apply<F:Fn()->i64>(f:&F)->i64{return f()}fn make()->impl Fn()->i64{let init=()=>42;let n=apply(&init);return move ()=>n}fn other()->impl Fn()->i64{return move ()=>7}fn value()->i64{return 0}",
+    );
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let mut core = zil_expand::expand(&source, &syntax).unwrap();
+    let helper = core
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "apply")
+        .unwrap();
+    helper.parameters[0].name = "other".into();
+    let zil_ir::CoreStatementKind::Return(Some(expression)) = &mut helper.body.statements[0].kind
+    else {
+        panic!("helper return")
+    };
+    let zil_ir::CoreExprKind::Call { callee, .. } = &mut expression.kind else {
+        panic!("helper invocation")
+    };
+    callee.kind = zil_ir::CoreExprKind::Name("other".into());
+    let other = core
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "other")
+        .unwrap();
+    let zil_ir::CoreStatementKind::Return(Some(expression)) = &mut other.body.statements[0].kind
+    else {
+        panic!("factory return")
+    };
+    expression.kind = zil_ir::CoreExprKind::Call {
+        callee: Box::new(zil_ir::CoreExpr {
+            id: zil_base::NodeId(u32::MAX),
+            kind: zil_ir::CoreExprKind::Name("make".into()),
+            span: expression.span,
+        }),
+        arguments: vec![],
+    };
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module, plan, &target, &limits).unwrap();
+}
+
+#[test]
+fn helper_factory_dependencies_use_definition_module_and_imports() {
+    let input = project(&[
+        (
+            "main",
+            "import factory\nfn main()->i32{let f=factory.make();if f()!=42{return 1}return 0}",
+        ),
+        (
+            "factory",
+            "import helpers\npub fn make()->impl Fn()->i64{let init=()=>42;let n=helpers.apply(&init);return move ()=>n}fn other()->impl Fn()->i64{return move ()=>99}",
+        ),
+        (
+            "helpers",
+            "import dep\npub fn apply<F:Fn()->i64>(f:&F)->i64{let independent=other();let imported=dep.other();return f()}fn other()->impl Fn()->i64{return move ()=>7}",
+        ),
+        ("dep", "pub fn other()->impl Fn()->i64{return move ()=>7}"),
+    ]);
+    native_checked(&input, "helper-definition-context", "", 0, |_| {});
 }
 
 #[test]
