@@ -29,3 +29,5 @@ workspace01先在Analyze的3项旧精确预算样本失败。176新增callback-f
 后续非作者原样对照发现完整赋值 `p=relay(p)` 在RHS消费p之后缺少重新标live。修复在RHS求值与same检查成功后才恢复完整目标，同时清除该owner旧field slot；字段赋值仍只补一个slot。原普通函数与State<F>往返、部分旧State整值替换、RHS重复消费反例共同验证，原失败保留。
 
 workspace02完整执行1607项，其中1605通过、2项Verify旧形状拒绝理由过时：具体Closure字段现须先查真实ClosureId，shared Package地址形状现须先拒绝owner/address不匹配。保留原始畸形候选逐字操作，移出旧非Copy集合、改用精确Verify类别/code/message的raw与Wire拒绝；不放宽Verify或改生产语义。
+
+whole-assignment附加探索最初错误期待partial旧State被自动清理：先因两个环境输入超出现有单环境合同而拒绝；收窄输入后独立Analyze仍以unpaid resource拒绝。保留focused08/09两个真实失败，原始partial覆盖源码转为精确负例；本轮只恢复RHS已经消费旧完整值的p=relay(p)，不宣称整壳覆盖会自动结清剩余字段责任。

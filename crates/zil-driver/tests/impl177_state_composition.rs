@@ -377,9 +377,26 @@ fn complete_local_assignment_restores_liveness_after_rhs_transfer() {
 }
 
 #[test]
-fn complete_state_replacement_clears_old_field_slots_after_rhs_is_ready() {
+fn partial_state_whole_overwrite_still_requires_actual_old_debt_cleanup() {
     let source = format!(
-        "{MODEL} fn replace<F:FnMut()->i32>(state:State<F>,other:State<F>)->State<F>{{var next=state;let old=give next.items;next=other;return next}} fn main()->i32{{let state=replace(pack(make()),pack(make()));return state.hits}}"
+        "{MODEL} fn replace<F:FnMut()->i32>(state:State<F>)->State<F>{{var next=state;let old=give next.items;let callback=next.callback;next=pack(callback);return next}} fn main()->i32{{let state=replace(pack(make()));return state.hits}}"
     );
-    native(&[("main", &source)], b"ZAZA", 0);
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Analyze
+                && d.code == "E-ANALYZE-IR"
+                && d.message.contains("store overwrites an unpaid resource")),
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
 }
