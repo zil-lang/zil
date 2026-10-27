@@ -782,6 +782,37 @@ pub enum InstructionKind {
     MakePackage {
         fields: Vec<ValueId>,
     },
+    /// Atomically consume prepared homogeneous owned elements into an array.
+    MakeOwnedArray {
+        elements: Vec<ValueId>,
+    },
+    /// Read a Copy Package field or describe its Managed field at a static slot.
+    /// This projection retains the owning array and its element responsibility.
+    ProjectOwnedArrayField {
+        local: LocalId,
+        index: u32,
+        field: u32,
+    },
+    /// Transfer one complete live element, retaining the array's local shell.
+    TakeOwnedArrayElement {
+        local: LocalId,
+        index: u32,
+    },
+    /// Conditionally discharge one owned element before a prepared replacement.
+    DropOwnedArrayElement {
+        local: LocalId,
+        index: u32,
+    },
+    /// Consume a prepared element into an empty slot of a mutable array local.
+    StoreOwnedArrayElement {
+        local: LocalId,
+        index: u32,
+        value: ValueId,
+    },
+    /// Conditionally discharge live elements in ascending index order.
+    DropOwnedArray {
+        local: LocalId,
+    },
     /// Read a Copy field without loading or moving its owning package.
     ReadPackageField {
         local: LocalId,
@@ -1509,6 +1540,39 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             for field in fields {
                 encode_u32(b, field.0);
             }
+        }
+        InstructionKind::MakeOwnedArray { elements } => {
+            b.push(72);
+            encode_len(b, elements.len());
+            for element in elements {
+                encode_u32(b, element.0);
+            }
+        }
+        InstructionKind::ProjectOwnedArrayField { local, index, field } => {
+            b.push(73);
+            encode_u32(b, local.0);
+            encode_u32(b, *index);
+            encode_u32(b, *field);
+        }
+        InstructionKind::TakeOwnedArrayElement { local, index } => {
+            b.push(74);
+            encode_u32(b, local.0);
+            encode_u32(b, *index);
+        }
+        InstructionKind::DropOwnedArrayElement { local, index } => {
+            b.push(75);
+            encode_u32(b, local.0);
+            encode_u32(b, *index);
+        }
+        InstructionKind::StoreOwnedArrayElement { local, index, value } => {
+            b.push(76);
+            encode_u32(b, local.0);
+            encode_u32(b, *index);
+            encode_u32(b, value.0);
+        }
+        InstructionKind::DropOwnedArray { local } => {
+            b.push(77);
+            encode_u32(b, local.0);
         }
         InstructionKind::ReadPackageField { local, index } => {
             b.push(50);
