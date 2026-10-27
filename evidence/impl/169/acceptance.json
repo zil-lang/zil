@@ -126,10 +126,11 @@
   ],
   "historical_results": {
     "handoff_status": "Fail",
-    "latest_checked_commit": "b6b36af4a18bdf18fed8ddc7a934854796e9e812",
+    "latest_checked_commit": "248b275214fbab97d3d1671f386b818d5d8a0159",
     "errors": 1152,
-    "receipt": "evidence/impl/169/integration/handoff-current/command.json",
-    "note": "Inherited historical task snapshots, missing original baseline/evidence and prior governance records are not rewritten; this is not a language regression gate. A final post-metadata check is recorded separately."
+    "receipt": "evidence/impl/169/integration/handoff-final/command.json",
+    "note": "Inherited historical task snapshots, missing original baseline/evidence and prior governance records are not rewritten. Current 166–169 task records have no handoff errors; global historical status remains Fail.",
+    "current_166_169_errors": []
   },
   "retained_failed_runs": [
     "evidence/impl/169/integration/final-workspace-01/command.json",
