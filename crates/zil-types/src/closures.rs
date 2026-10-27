@@ -221,6 +221,12 @@ impl State {
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         for capture in &checker.captures {
+            if packages::owned_array_supported(&capture.stored_type()) {
+                return Err(unsupported(
+                    capture.span,
+                    "owned array capture requires a separate retained array protocol",
+                ));
+            }
             if let Type::Closure(id) = capture.stored_type() {
                 retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
             }
