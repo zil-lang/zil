@@ -77,6 +77,12 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
+            if packages::has_store_fields(ty) {
+                return Err(unsupported(
+                    "Package capture with Store fields requires a retained storage protocol",
+                    None,
+                ));
+            }
             if packages::has_array_fields(ty) {
                 return Err(unsupported(
                     "Package capture with owning array fields requires a retained nested-field protocol",

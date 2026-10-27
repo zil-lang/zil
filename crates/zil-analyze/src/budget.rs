@@ -164,6 +164,7 @@ fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
     && fields.iter().all(|(_, t)| {
         t.is_copy_value()
             || matches!(t, Type::Managed(p) if **p == Type::ByteBuffer
+                || (arrays && matches!(p.as_ref(), Type::OwnedStore { .. }))
                 || (matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value()))
             || (arrays && matches!(t, Type::Array { element, length }
                 if *length > 0 && package_fields_supported(element, false)))
