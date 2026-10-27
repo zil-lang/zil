@@ -1,0 +1,11 @@
+[package]
+name="review173-public-probes"
+version="0.1.0"
+edition="2024"
+[dependencies]
+zil-base={path="/workspace/scratch/39be3faa4442/zil-restored/review173-public170/crates/zil-base"}
+zil-ir={path="/workspace/scratch/39be3faa4442/zil-restored/review173-public170/crates/zil-ir"}
+zil-verify={path="/workspace/scratch/39be3faa4442/zil-restored/review173-public170/crates/zil-verify"}
+zil-expand={path="/workspace/scratch/39be3faa4442/zil-restored/review173-public170/crates/zil-expand"}
+zil-syntax={path="/workspace/scratch/39be3faa4442/zil-restored/review173-public170/crates/zil-syntax"}
+[workspace]

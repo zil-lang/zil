@@ -1,0 +1,26 @@
+   Compiling review173-public-probes v0.1.0 (/workspace/scratch/39be3faa4442/run-logs/review173-public170/probes)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.80s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/review173-public170/debug/deps/review173_public_probes-9f64f98f4f9a71be)
+
+running 2 tests
+reserved source: [Diagnostic { phase: Expand, category: SafeReject, code: "E-OWNED-STORE-NAME", message: "Store and bare owned storage primitives cannot be rebound", span: Some(Span { file: FileId(0), start: 0, end: 17 }), notes: [] }]
+
+thread 'source_reservation_keeps_member_names_legal' (94) panicked at src/lib.rs:104:37:
+called `Result::unwrap_err()` on an `Ok` value: CoreModule { schema_version: 20, module_id: ModuleId(0), source_fingerprint: Fingerprint([94, 38, 210, 4, 20, 19, 139, 2, 235, 90, 10, 224, 7, 125, 18, 190, 223, 7, 94, 116, 122, 140, 230, 226, 40, 141, 170, 255, 53, 175, 229, 248]), functions: [CoreFunction { callable_return: None, id: NodeId(1), name: "main", callable_parameter: None, foreign: None, parameters: [], return_type: Unit, result_mode: Infer, body: CoreBlock { statements: [], span: Span { file: FileId(0), start: 29, end: 31 } }, receiver: None, span: Span { file: FileId(0), start: 20, end: 31 } }], aggregates: [CoreAggregate { id: NodeId(0), name: "Store", kind: Struct, teardown: None, fields: [CoreField { name: "x", ty: I32, public: false, manages: false, span: Span { file: FileId(0), start: 13, end: 18 } }], span: Span { file: FileId(0), start: 0, end: 19 } }], enums: [], unsupported: [] }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test source_reservation_keeps_member_names_legal ... FAILED
+wide=false raw: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "aggregate type nesting exceeds verification limit", span: None, notes: [] }]
+wide=false wire: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "candidate wire type nesting quota exceeded", span: None, notes: [] }]
+wide=true raw: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "independent verification work budget exhausted", span: None, notes: [] }]
+wide=true wire: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "independent verification work budget exhausted", span: None, notes: [] }]
+small-stale: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-PLAN-IDENTITY", message: "candidate plan is bound to different module or target bytes", span: None, notes: [] }]; small-bound: [Diagnostic { phase: Verify, category: Unsupported, code: "E-UNSUPPORTED", message: "owned store operations await their independent checker", span: Some(Span { file: FileId(2), start: 4, end: 8 }), notes: [] }]
+test independently_bound_embedded_new_metadata_precedes_identity_and_rejection ... ok
+
+failures:
+
+failures:
+    source_reservation_keeps_member_names_legal
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `--lib`

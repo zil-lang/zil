@@ -1,0 +1,30 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-ir",
+    "-p",
+    "zil-expand",
+    "--offline",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review173-public170",
+  "source_commit": "38516c4f30a488639e0bd04ab3726acf08310b62",
+  "crates_tree": "840c189fe9dafea6b1ef760d38c6ed8d063becde",
+  "source_status": "",
+  "start": 1793109864.8482966,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "1dd9ca116231ef57d1194ee49467ea2ad128bea534e89495d7d65865746fcf5a",
+  "end": 1793109883.147644,
+  "seconds": 18.299347400665283,
+  "tests": {
+    "passed": 59,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 13
+  },
+  "ending_crates_tree": "840c189fe9dafea6b1ef760d38c6ed8d063becde",
+  "ending_source_status": ""
+}
