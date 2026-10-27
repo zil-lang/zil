@@ -1571,7 +1571,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
                 encode_u32(b, element.0);
             }
         }
-        InstructionKind::ProjectOwnedArrayField { local, index, field } => {
+        InstructionKind::ProjectOwnedArrayField {
+            local,
+            index,
+            field,
+        } => {
             b.push(73);
             encode_u32(b, local.0);
             encode_u32(b, *index);
@@ -1587,7 +1591,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             encode_u32(b, local.0);
             encode_u32(b, *index);
         }
-        InstructionKind::StoreOwnedArrayElement { local, index, value } => {
+        InstructionKind::StoreOwnedArrayElement {
+            local,
+            index,
+            value,
+        } => {
             b.push(76);
             encode_u32(b, local.0);
             encode_u32(b, *index);
@@ -1597,7 +1605,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             b.push(77);
             encode_u32(b, local.0);
         }
-        InstructionKind::BorrowOwnedArrayElement { local, index, mutable } => {
+        InstructionKind::BorrowOwnedArrayElement {
+            local,
+            index,
+            mutable,
+        } => {
             b.push(79);
             encode_u32(b, local.0);
             encode_u32(b, *index);
