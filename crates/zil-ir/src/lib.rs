@@ -823,6 +823,13 @@ pub enum InstructionKind {
     DropOwnedArray {
         local: LocalId,
     },
+    /// Borrow one concrete Closure element at its actual static array slot.
+    /// The owning array and element retain all cleanup responsibilities.
+    BorrowOwnedArrayElement {
+        local: LocalId,
+        index: u32,
+        mutable: bool,
+    },
     /// Read a Copy field without loading or moving its owning package.
     ReadPackageField {
         local: LocalId,
@@ -1589,6 +1596,12 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
         InstructionKind::DropOwnedArray { local } => {
             b.push(77);
             encode_u32(b, local.0);
+        }
+        InstructionKind::BorrowOwnedArrayElement { local, index, mutable } => {
+            b.push(79);
+            encode_u32(b, local.0);
+            encode_u32(b, *index);
+            b.push(u8::from(*mutable));
         }
         InstructionKind::ReadPackageField { local, index } => {
             b.push(50);

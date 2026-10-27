@@ -1145,6 +1145,12 @@ impl<'a> Writer<'a> {
                 self.u8(77)?;
                 self.u32(local.0)?;
             }
+            InstructionKind::BorrowOwnedArrayElement { local, index, mutable } => {
+                self.u8(79)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+                self.boolean(*mutable)?;
+            }
             InstructionKind::ErrorTag { value } => {
                 self.u8(47)?;
                 self.u32(value.0)?;
@@ -2133,6 +2139,11 @@ impl<'a> Reader<'a> {
             },
             77 => InstructionKind::DropOwnedArray {
                 local: LocalId(self.u32()?),
+            },
+            79 => InstructionKind::BorrowOwnedArrayElement {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+                mutable: self.boolean()?,
             },
             49 => {
                 let count = self.count(self.limits.max_values, 4)?;
