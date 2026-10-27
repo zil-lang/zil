@@ -560,6 +560,18 @@ impl FunctionEmitter<'_> {
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
         match &instruction.kind {
+            InstructionKind::OwnedStoreNew { .. }
+            | InstructionKind::OwnedStoreReserve { .. }
+            | InstructionKind::OwnedStorePush { .. }
+            | InstructionKind::OwnedStorePop { .. }
+            | InstructionKind::OwnedStoreLen { .. }
+            | InstructionKind::OwnedStoreCapacity { .. } => {
+                return invalid(
+                    "E-CODEGEN-INSTRUCTION",
+                    "owned store operations await their checked lowering",
+                    Some(instruction.span),
+                );
+            }
             InstructionKind::ByteBufferNew
             | InstructionKind::ByteBufferReserve { .. }
             | InstructionKind::ByteBufferTruncate { .. }

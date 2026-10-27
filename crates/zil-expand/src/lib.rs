@@ -41,11 +41,33 @@ fn byte_buffer_name(name: &str) -> bool {
             | "bytes_view_mut"
     )
 }
+fn owned_store_name(name: &str) -> bool {
+    matches!(
+        name,
+        "Store"
+            | "store_new"
+            | "store_reserve"
+            | "store_push"
+            | "store_pop"
+            | "store_len"
+            | "store_capacity"
+    )
+}
 fn primitive_name(name: &str) -> bool {
-    integer_name(name) || foreign_constructor_name(name) || byte_buffer_name(name)
+    integer_name(name)
+        || foreign_constructor_name(name)
+        || byte_buffer_name(name)
+        || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if byte_buffer_name(name) {
+    if owned_store_name(name) {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-OWNED-STORE-NAME",
+            Some(span),
+            "Store and bare owned storage primitives cannot be rebound",
+        )
+    } else if byte_buffer_name(name) {
         Diagnostic::error(
             Phase::Expand,
             "E-BYTE-BUFFER-NAME",
@@ -1021,6 +1043,15 @@ impl Expander<'_> {
 }
 pub fn type_ref(t: &s::TypeRef) -> Type {
     match &t.kind {
+        s::TypeKind::Named { path, args } if path.as_slice() == ["Store"] => {
+            if let [s::GenericArg::Type(element)] = args.as_slice() {
+                Type::Desc(Box::new(Type::OwnedStore {
+                    element: Box::new(type_ref(element)),
+                }))
+            } else {
+                Type::Unsupported("Store requires exactly one element type".into())
+            }
+        }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Ref"] && args.len() == 1 => {
             match &args[0] {
                 s::GenericArg::Type(inner) => Type::Desc(Box::new(type_ref(inner))),

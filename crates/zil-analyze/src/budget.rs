@@ -96,6 +96,7 @@ impl Budget {
                 }
             }
             Type::Array { element, .. }
+            | Type::OwnedStore { element }
             | Type::Slice { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
@@ -260,12 +261,10 @@ pub(super) fn preflight(
                     f.blocks
                         .iter()
                         .flat_map(|b| b.instructions.iter())
-                        .filter_map(|i| {
-                            if let InstructionKind::ConvertInteger { target, .. } = &i.kind {
-                                Some(target)
-                            } else {
-                                None
-                            }
+                        .filter_map(|i| match &i.kind {
+                            InstructionKind::ConvertInteger { target, .. } => Some(target),
+                            InstructionKind::OwnedStoreNew { element } => Some(element),
+                            _ => None,
                         }),
                 )
         })
@@ -288,7 +287,9 @@ pub(super) fn preflight(
                     budget.input(*length as usize, "array type size")?;
                     pending.push((element, depth + 1));
                 }
-                Type::Slice { element } => pending.push((element, depth + 1)),
+                Type::Slice { element } | Type::OwnedStore { element } => {
+                    pending.push((element, depth + 1));
+                }
                 Type::Tuple(fields) => {
                     budget.input(fields.len(), "aggregate type shape")?;
                     for t in fields {
