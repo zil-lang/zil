@@ -52,7 +52,9 @@ pub(super) fn normalize(module: &Module, limits: &Limits) -> R<Option<Normalized
                 if !parameters.insert(parameter.name.as_str()) {
                     return Err(error(parameter.span, "duplicate alias type parameter"));
                 }
-                if super::super::byte_buffer_name(&parameter.name) {
+                if super::super::byte_buffer_name(&parameter.name)
+                    || super::super::owned_store_name(&parameter.name)
+                {
                     return Err(super::super::primitive_name_error(
                         &parameter.name,
                         parameter.span,

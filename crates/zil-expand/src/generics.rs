@@ -35,12 +35,14 @@ pub(super) fn specialize<'a>(
             ItemKind::Trait(t) => Some(t.name.as_str()),
             _ => None,
         };
-        if let Some(name) = declared.filter(|n| super::byte_buffer_name(n)) {
+        if let Some(name) =
+            declared.filter(|n| super::byte_buffer_name(n) || super::owned_store_name(n))
+        {
             return Err(vec![super::primitive_name_error(name, item.span)]);
         }
         for param in params(item) {
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
-            if super::byte_buffer_name(&param.name) {
+            if super::byte_buffer_name(&param.name) || super::owned_store_name(&param.name) {
                 return Err(vec![super::primitive_name_error(&param.name, param.span)]);
             }
         }
