@@ -361,7 +361,7 @@ fn source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode() {
             ResultCategory::SafeReject,
             Phase::Analyze,
             "E-ANALYZE-IR",
-            "every Managed field live",
+            "every owned element or field live",
         ),
         (
             "fn main()->i32{let p=P{r:R{n:1}};let old=p.r;let u:E!P=p;return old.n}",
