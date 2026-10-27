@@ -1,7 +1,19 @@
-//! Finite Copy error unions and synchronous propagation. The operand is one
+//! Finite Copy/complete-Package error unions and synchronous propagation. The operand is one
 //! SSA value; cleanup on the failure edge never mutates the success-edge
 //! builder state or turns a recoverable failure into a trap.
 use super::*;
+
+pub(super) fn owned(ty: &Type) -> bool {
+    matches!(ty, Type::ErrorUnion { error, result }
+        if matches!(error.as_ref(), Type::Package { .. })
+            || matches!(result.as_ref(), Type::Package { .. }))
+}
+
+pub(super) fn supported(ty: &Type) -> bool {
+    matches!(ty, Type::ErrorUnion { error, result }
+        if (error.is_copy_value() || packages::supported(error))
+            && (result.is_copy_value() || packages::supported(result)))
+}
 
 pub(super) fn injection(actual: &Type, union: &Type, span: Span) -> R<Option<bool>> {
     if actual == union {
@@ -74,6 +86,7 @@ impl Builder<'_, '_> {
             ));
         };
         let (value, ty) = self.expr(operand, None)?;
+        let consuming = owned(&ty);
         let Type::ErrorUnion {
             error: failure,
             result,
@@ -102,9 +115,16 @@ impl Builder<'_, '_> {
         });
         self.current = Some(failed);
         let payload = self.value(
-            InstructionKind::ReadErrorUnion {
-                value,
-                is_error: true,
+            if consuming {
+                InstructionKind::TakeErrorUnion {
+                    value,
+                    is_error: true,
+                }
+            } else {
+                InstructionKind::ReadErrorUnion {
+                    value,
+                    is_error: true,
+                }
             },
             *failure,
             span,
@@ -124,9 +144,16 @@ impl Builder<'_, '_> {
         self.terminate(Terminator::Return(Some(propagated)));
         self.current = Some(succeeded);
         let value = self.value(
-            InstructionKind::ReadErrorUnion {
-                value,
-                is_error: false,
+            if consuming {
+                InstructionKind::TakeErrorUnion {
+                    value,
+                    is_error: false,
+                }
+            } else {
+                InstructionKind::ReadErrorUnion {
+                    value,
+                    is_error: false,
+                }
             },
             *result.clone(),
             span,

@@ -158,7 +158,16 @@ fn scalar(ty: &Type, span: Span) -> CompileResult<()> {
 }
 
 fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
-    if let Type::Closure(id) = ty {
+    if let Type::ErrorUnion { error, result } = ty {
+        for payload in [error.as_ref(), result.as_ref()] {
+            if matches!(payload, Type::Package { .. }) {
+                local_value(payload, span, module)?;
+            } else {
+                scalar(payload, span)?;
+            }
+        }
+        Ok(())
+    } else if let Type::Closure(id) = ty {
         if id.0 as usize >= module.closures.len() {
             return Err(bad("closure type references an absent environment"));
         }
@@ -332,10 +341,11 @@ pub(super) fn preflight(
         for ty in &closure.captures {
             if ty.is_slice_address()
                 || matches!(ty, Type::Desc(inner) if **inner == Type::ByteBuffer)
+                || super::resources::owned_error(ty)
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
-                    "slice and borrowed byte storage captures are not implemented",
+                    "slice, borrowed byte storage and owned error-union captures are not implemented",
                     None,
                 )]);
             }
@@ -406,7 +416,8 @@ pub(super) fn preflight(
         }
         budget.input(1, "return type preflight")?;
         local_value(&function.return_type, function.span, module)?;
-        let mut package = matches!(function.return_type, Type::Package { .. });
+        let mut package = matches!(function.return_type, Type::Package { .. })
+            || super::resources::owned_error(&function.return_type);
         budget.input(function.parameters.len(), "parameter preflight")?;
         for parameter in &function.parameters {
             if parameter.0 as usize >= function.locals.len() {
@@ -428,12 +439,13 @@ pub(super) fn preflight(
             budget.input(1, "local type preflight")?;
             budget.input(local.name.len(), "local metadata")?;
             local_value(&local.ty, local.span, module)?;
-            package |= matches!(local.ty, Type::Package { .. });
+            package |= matches!(local.ty, Type::Package { .. })
+                || super::resources::owned_error(&local.ty);
         }
         for ty in &function.values {
             budget.input(1, "value type preflight")?;
             local_value(ty, function.span, module)?;
-            package |= matches!(ty, Type::Package { .. });
+            package |= matches!(ty, Type::Package { .. }) || super::resources::owned_error(ty);
         }
         for block in &function.blocks {
             instructions = count(
@@ -466,6 +478,7 @@ pub(super) fn preflight(
                     | InstructionKind::BindPackageCapture { local, .. }
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::DropManaged { local }
+                    | InstructionKind::DropErrorUnion { local }
                     | InstructionKind::DropPackage { local }
                     | InstructionKind::DropClosure { local }
                     | InstructionKind::CallClosureMut { callee: local, .. }

@@ -4,6 +4,7 @@ impl Builder<'_, '_> {
     pub(super) fn affine_type(&self, ty: &Type) -> bool {
         match ty {
             Type::Package { .. } => true,
+            Type::ErrorUnion { .. } => errors::owned(ty),
             Type::Address { mutable: true, .. } => true,
             Type::Closure(id) => self.closures.pending[id.0 as usize]
                 .captures
@@ -24,6 +25,12 @@ impl Builder<'_, '_> {
         e: &CoreExpr,
         expected: Option<&Type>,
     ) -> R<(ValueId, Type)> {
+        // An owned ordinary Value may inject into one union arm. Comparing its
+        // unwrapped type against the whole union before injection would reject
+        // a named Package even though a constructor of the same type works.
+        if matches!(expected, Some(Type::ErrorUnion { .. })) {
+            return self.expr(e, expected);
+        }
         if let CoreExprKind::Name(name) = &e.kind
             && let Some(local) = self.lookup(name)
             && !self.borrowed_captures.contains_key(&local)

@@ -50,7 +50,9 @@ impl Builder<'_, '_> {
         matches!(ty, Type::Closure(id) if self.closures.pending[id.0 as usize].owns_resources())
     }
     pub(super) fn has_cleanup(&self, ty: &Type) -> bool {
-        matches!(ty, Type::Managed(_) | Type::Package { .. }) || self.owned_closure(ty)
+        matches!(ty, Type::Managed(_) | Type::Package { .. })
+            || errors::owned(ty)
+            || self.owned_closure(ty)
     }
     pub(super) fn drop_owned_local(&mut self, local: LocalId, span: Span) -> R<()> {
         let ty = &self.function.locals[local.0 as usize].ty;
@@ -58,6 +60,8 @@ impl Builder<'_, '_> {
             Some(InstructionKind::DropManaged { local })
         } else if matches!(ty, Type::Package { .. }) {
             Some(InstructionKind::DropPackage { local })
+        } else if errors::owned(ty) {
+            Some(InstructionKind::DropErrorUnion { local })
         } else if self.owned_closure(ty) {
             Some(InstructionKind::DropClosure { local })
         } else {
@@ -188,7 +192,10 @@ impl Builder<'_, '_> {
     pub(super) fn discard_resource(&mut self, value: ValueId, ty: Type, span: Span) -> R<()> {
         if matches!(ty, Type::Managed(_)) {
             self.resource_descriptor(value, ty, span)?;
-        } else if matches!(ty, Type::Package { .. }) || self.owned_closure(&ty) {
+        } else if matches!(ty, Type::Package { .. })
+            || errors::owned(&ty)
+            || self.owned_closure(&ty)
+        {
             let local = self.temp(ty, span)?;
             self.store(local, value, span)?;
         }
