@@ -1,0 +1,56 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-driver)
+warning: unused import: `Limits`
+ --> crates/zil-driver/tests/impl176_callable_fields.rs:3:24
+  |
+3 | use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
+  |                        ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zil-driver` (test "impl176_callable_fields") generated 1 warning (run `cargo fix --test "impl176_callable_fields" -p zil-driver` to apply 1 suggestion)
+    Finished `test` profile [unoptimized] target(s) in 6.83s
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets/176/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+
+running 7 tests
+
+thread 'different_source_opaque_factories_and_moved_fields_are_rejected' (114) panicked at crates/zil-driver/tests/impl176_callable_fields.rs:100:9:
+assertion `left == right` failed: var state=pack(owned(65),84);state.callback=forward(66);return 0: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"this generic type argument needs additional type resolution","span":{"file":0,"start":537,"end":554},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-112-0/phases/syntax.txt"},"input_fingerprint":"b28deeb696b2338e77c5a35a09f3a28ba27a04545331449c10ab67a9c7a96736","seconds":0.007381431,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: SafeReject
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test different_source_opaque_factories_and_moved_fields_are_rejected ... FAILED
+
+thread 'public_state_generic_api_preserves_identity_across_modules_and_composition' (118) panicked at crates/zil-driver/tests/impl176_callable_fields.rs:30:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"conflicting generic argument constraints","span":{"file":1,"start":615,"end":626},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-112-3/phases/syntax.txt"},"input_fingerprint":"e3001c2f823a28d13b06f6c1f124d0278c9d03b98d66137636993affa42ba3b7","seconds":0.012893027,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"model.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+test public_state_generic_api_preserves_identity_across_modules_and_composition ... FAILED
+
+thread 'failed_preparation_keeps_old_field_and_unwinds_prepared_argument' (115) panicked at crates/zil-driver/tests/impl176_callable_fields.rs:30:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"this generic type argument needs additional type resolution","span":{"file":0,"start":537,"end":554},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-112-1/phases/syntax.txt"},"input_fingerprint":"a77d71e74b4a09589f394f8bb10849193cbb8d669fda3447a8b7a940f1a1ee4b","seconds":0.016012358,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test failed_preparation_keeps_old_field_and_unwinds_prepared_argument ... FAILED
+
+thread 'field_take_refill_replace_and_nested_cleanup_preserve_one_environment' (116) panicked at crates/zil-driver/tests/impl176_callable_fields.rs:30:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"this generic type argument needs additional type resolution","span":{"file":0,"start":537,"end":554},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-112-2/phases/syntax.txt"},"input_fingerprint":"46868409bcf188fb277db3d47f828bfea1c8fb61f78f8a86f05cf6a51e3899b9","seconds":0.0171,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test field_take_refill_replace_and_nested_cleanup_preserve_one_environment ... FAILED
+test borrowed_environments_cannot_enter_retained_state ... ok
+test fnonce_take_consumes_and_partial_state_exit_cleans_only_remaining_fields ... ok
+test whole_state_parameters_and_results_keep_original_fnmut_environment ... ok
+
+failures:
+
+failures:
+    different_source_opaque_factories_and_moved_fields_are_rejected
+    failed_preparation_keeps_old_field_and_unwinds_prepared_argument
+    field_take_refill_replace_and_nested_cleanup_preserve_one_environment
+    public_state_generic_api_preserves_identity_across_modules_and_composition
+
+test result: FAILED. 3 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+error: test failed, to rerun pass `-p zil-driver --test impl176_callable_fields`

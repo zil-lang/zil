@@ -1,0 +1,55 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-driver)
+warning: unused import: `Limits`
+ --> crates/zil-driver/tests/impl176_callable_fields.rs:3:24
+  |
+3 | use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
+  |                        ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zil-driver` (test "impl176_callable_fields") generated 1 warning (run `cargo fix --test "impl176_callable_fields" -p zil-driver` to apply 1 suggestion)
+    Finished `test` profile [unoptimized] target(s) in 5.86s
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets/176/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+
+running 7 tests
+
+thread 'failed_preparation_keeps_old_field_and_unwinds_prepared_argument' (86) panicked at crates/zil-driver/tests/impl176_callable_fields.rs:30:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":559,"end":567},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":633,"end":641},"notes":[]}],"artifacts":{},"input_fingerprint":"5689aae06dcc3ed555e2d83b14749f24d617b2bc2f6f3e8f28563c92d8242073","seconds":0.002621336,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'field_take_refill_replace_and_nested_cleanup_preserve_one_environment' (87) panicked at crates/zil-driver/tests/impl176_callable_fields.rs:30:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":559,"end":567},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":633,"end":641},"notes":[]}],"artifacts":{},"input_fingerprint":"4cc8baee7b1a2ed0475bf3b928992fc4e53fce7f2d4bf4597641304c9da7e9e7","seconds":0.002528105,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+test field_take_refill_replace_and_nested_cleanup_preserve_one_environment ... FAILED
+test failed_preparation_keeps_old_field_and_unwinds_prepared_argument ... FAILED
+
+thread 'public_state_generic_api_preserves_identity_across_modules_and_composition' (89) panicked at crates/zil-driver/tests/impl176_callable_fields.rs:30:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"generic trait bound requires a concrete nominal trait","span":{"file":1,"start":347,"end":359},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-83-4/phases/syntax.txt"},"input_fingerprint":"e3001c2f823a28d13b06f6c1f124d0278c9d03b98d66137636993affa42ba3b7","seconds":0.011274419,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"model.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test public_state_generic_api_preserves_identity_across_modules_and_composition ... FAILED
+test different_source_opaque_factories_and_moved_fields_are_rejected ... ok
+test borrowed_environments_cannot_enter_retained_state ... ok
+
+thread 'fnonce_take_consumes_and_partial_state_exit_cleans_only_remaining_fields' (88) panicked at crates/zil-driver/tests/impl176_callable_fields.rs:30:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"analyze","diagnostics":[{"phase":"analyze","category":"SafeReject","code":"E-ANALYZE-IR","message":"resource closure: Load cannot copy an owned carrier","span":null,"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-83-2/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-83-2/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-83-2/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-83-2/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-83-2/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/176-tests/callable-fields176-83-2/phases/typed.txt"},"input_fingerprint":"2da85c6c5f8de6bd431b5ca96e04d622697b0c5d8a6649726e642d2f5c497734","seconds":0.043617698,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"de144b3aa822889e7fd1c30f83ce90c013a4ce6a0e3405c7c5f37917bdb12302","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: SafeReject
+ right: Success
+test fnonce_take_consumes_and_partial_state_exit_cleans_only_remaining_fields ... FAILED
+test whole_state_parameters_and_results_keep_original_fnmut_environment ... ok
+
+failures:
+
+failures:
+    failed_preparation_keeps_old_field_and_unwinds_prepared_argument
+    field_take_refill_replace_and_nested_cleanup_preserve_one_environment
+    fnonce_take_consumes_and_partial_state_exit_cleans_only_remaining_fields
+    public_state_generic_api_preserves_identity_across_modules_and_composition
+
+test result: FAILED. 3 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+
+error: test failed, to rerun pass `-p zil-driver --test impl176_callable_fields`
