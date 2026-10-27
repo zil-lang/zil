@@ -1,0 +1,132 @@
+{
+  "task": "161",
+  "implementation_author": "/root/nested_closures",
+  "implementation_commit": "f3570f1ea07440ed8f0c23903248ead78cf5f789",
+  "production_baseline": "e9a604c80d56027a5fb6c28bcb8b58f9c9e84a7b",
+  "proposal_commit": "39b3de7",
+  "status": "AuthorBoundedTestsPass_IndependentReviewPending",
+  "toolchain": {
+    "rust": "1.99.1",
+    "clang": "17.0.6",
+    "prior159_clang": "17.0.0",
+    "target": "x86_64-unknown-linux-gnu",
+    "profile": "debug compiler; generated native O0 and O2"
+  },
+  "commands": [
+    {
+      "command": "cargo test --locked --offline -p zil-types --lib",
+      "status": "Pass"
+    },
+    {
+      "command": "cargo test --locked --offline -p zil-driver --test impl161_nested_closures --test impl155_managed_replace --test closures_frontend --test closures_native --test borrowed_closures --test impl051 --test impl053 --test impl077_package_captures --test impl079_package_captures --test impl070_retained --test impl064 --test impl065_helpers --test impl125_factory_helpers --test impl126_helper_sequences --test impl127_local_factory --test impl151_closure_methods --test impl156_module_methods -- --test-threads=1",
+      "status": "Pass"
+    },
+    {
+      "command": "cargo clippy --locked --offline -p zil-types -p zil-driver --test impl161_nested_closures --test impl155_managed_replace -- -D warnings",
+      "status": "Pass"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "status": "Pass"
+    }
+  ],
+  "counts": {
+    "161-types.log": {
+      "groups": 1,
+      "passed": 17,
+      "failed": 0,
+      "ignored": 0
+    },
+    "161-regression.log": {
+      "groups": 17,
+      "passed": 157,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "new_tests": 16,
+  "new_native_executions": 24,
+  "native_all_verified_once": true,
+  "raw_wire_controls": {
+    "malicious_shapes": 2,
+    "routes_per_shape": 2,
+    "cases": [
+      "forged outer Fn while TakeCapture remains",
+      "second fresh-SSA TakeCapture of the same field"
+    ],
+    "positive_source_and_original_candidate_verified": true
+  },
+  "source_sha256": {
+    "crates/zil-driver/tests/impl155_managed_replace.rs": "b60defa2cb415b7b26a4257b8ad07450bddd9467598899f2e5faec56d28ed5a3",
+    "crates/zil-driver/tests/impl161_nested_closures.rs": "23d3d2f0c7c881010fcdaab5a636eff9caf7444fe9750b7efa1b9a3f27a36e78",
+    "crates/zil-types/src/closures.rs": "236a985a3039b0cb8351b7679a348ee3ef28df3f9e6013ef686d12f98decf920",
+    "crates/zil-types/src/closures/package_effects.rs": "542eae5857331950de69f299232b10ed511c0f70eb8a467f7ca91bd83243d66e",
+    "crates/zil-types/src/inference.rs": "cd8e1a248201dd9c163c22ce12039764b3c1eddee1017a66bd702b0edc72c3df",
+    "crates/zil-types/src/lib.rs": "db32b930b6cdfe03f0ee81c6b1c882267ece9a8ba0407de9091a33b749b862d5"
+  },
+  "logs": [
+    {
+      "path": "evidence/impl/161/161-first.log",
+      "sha256": "431e07971431f43c11b83f9d9162246752a8b16f377ccbbb2fe4148fda94ab36",
+      "bytes": 2005
+    },
+    {
+      "path": "evidence/impl/161/161-second.log",
+      "sha256": "3ca51a01350aff37d8d37b781b40d63e611d7883fcb711dbeb2a01e5fbaac960",
+      "bytes": 2690
+    },
+    {
+      "path": "evidence/impl/161/161-third.log",
+      "sha256": "aaf56a480e89ffccb23a8df34acc9a76d20cab611c139f0a2273f94e65ff39a4",
+      "bytes": 617
+    },
+    {
+      "path": "evidence/impl/161/161-fourth.log",
+      "sha256": "f7a27b9755049b089ba8307e62edc9ed92c377cf4844b55ba55fe9205c221610",
+      "bytes": 604
+    },
+    {
+      "path": "evidence/impl/161/161-fifth.log",
+      "sha256": "9f636accf86d4087cce7cedc359a17bf3540379af82d0d9a9d01dd1648cdcb9e",
+      "bytes": 5958
+    },
+    {
+      "path": "evidence/impl/161/161-sixth.log",
+      "sha256": "d456b2e46ff87e1a0f1f063a57c92c4ebf551ea52ced94ba9f8d2cf447e73e14",
+      "bytes": 1570
+    },
+    {
+      "path": "evidence/impl/161/161-driver-cache-reset.log",
+      "sha256": "8d8414ec17a156963fbdc432024d5736228128f858677aa4b0daeebd956906cb",
+      "bytes": 39
+    },
+    {
+      "path": "evidence/impl/161/161-types.log",
+      "sha256": "028d54096eec2f9d20af5ecda6f71461cba6afd35f33b717aa01264b0bf5814a",
+      "bytes": 1857
+    },
+    {
+      "path": "evidence/impl/161/161-regression.log",
+      "sha256": "746fa204bd9fa253de8493e5504eac698f9b72d786be6d596752dc6a97a5c751",
+      "bytes": 16219
+    },
+    {
+      "path": "evidence/impl/161/161-clippy.log",
+      "sha256": "45bd5ed0c601c090a3425017c225966ef4c7c68fa70965fca3eb79bce189c513",
+      "bytes": 1278
+    }
+  ],
+  "failures_preserved": [
+    "161-third: missing BTreeSet import during intermediate development",
+    "161-fourth/fifth: stale local zil-driver build metadata E0463; clean -p zil-driver repaired local cache, no source workaround"
+  ],
+  "not_claimed": [
+    "closure values captured as environment fields",
+    "general closure-returning-closure signatures",
+    "owning callback collections",
+    "nested move of an already captured mutable address",
+    "full language safety proof",
+    "Rust runtime/memory/compiler performance parity",
+    "workspace-wide or formal product acceptance"
+  ]
+}

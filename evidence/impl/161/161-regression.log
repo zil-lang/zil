@@ -1,0 +1,262 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt161/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.55s
+     Running tests/borrowed_closures.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/borrowed_closures-68fcbf75d5400be1)
+
+running 13 tests
+test borrowed_and_move_environments_keep_distinct_semantics ... ok
+test branch_and_shadowed_local_have_distinct_places ... ok
+test conflicting_writes_include_alias_copies_and_loop_backedges ... ok
+test exclusive_capture_calls_require_mutable_environments_and_escape_stays_closed ... ok
+test loop_local_storage_restarts_and_control_exits_end_it ... ok
+test one_shared_root_with_many_unrelated_locals_and_blocks_fits_default_budget ... ok
+test ordinary_capture_and_all_copies_end_at_last_use ... ok
+test parameter_address_has_distinct_native_stack_instances ... ok
+test raw_address_access_requires_real_address_type ... ok
+test raw_dead_storage_and_reactivation_cannot_hide_a_live_reference ... ok
+test raw_hold_rows_bind_every_value_and_external_capture ... ok
+test short_circuit_loop_temps_and_rhs_last_use_preserve_storage ... ok
+test unit_address_has_real_storage_and_unit_abi_is_erased ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.83s
+
+     Running tests/closures_frontend.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/closures_frontend-e56e523270879e6c)
+
+running 22 tests
+test c014_01_first_call_resolves_identity_and_repeated_calls_keep_one_environment ... ok
+test c014_02_known_i64_capture_constrains_unannotated_parameter_and_literals ... ok
+test c014_03_parameter_and_inner_binding_shadow_outer_capture_candidates ... ok
+test c014_04_capture_identity_and_source_order_survive_later_shadowing ... ok
+test c014_05_local_copy_assignment_and_pending_capture_are_concrete_values ... ok
+test c014_06_rejects_ambiguous_conflicting_and_mutating_closures ... ok
+test c014_07_body_call_signature_and_boolean_constraints_infer_without_call_defaults ... ok
+test c014_08_synthetic_functions_share_graph_budgets ... ok
+test c014_09_closure_body_resolves_imports_without_exporting_environment_functions ... ok
+test c014_10_ct_parameter_shadowing_does_not_use_outer_i64_hint ... ok
+test c014_11_captureless_unit_closure_and_scalar_control_flow_are_supported ... ok
+test c014_12_callee_is_evaluated_once_before_arguments ... ok
+test c014_13_real_native_pending_capture_copy_and_i64_inference ... ok
+test c014_14_known_later_argument_constrains_earlier_unsuffixed_literal ... ok
+test c014_15_whole_function_constraints_are_preserved_and_call_order_independent ... ok
+test c014_16_ct_uses_solved_context_before_verified_evaluation ... ok
+test c014_17_explicit_types_still_conflict_and_return_annotations_constrain ... ok
+test c014_18_lexical_capture_identity_does_not_follow_later_bindings ... ok
+test c014_19_ct_unit_equality_remains_available_without_runtime_admission ... ok
+test c014_20_raw_type_and_metadata_budgets_precede_recursive_cloning ... ok
+test c014_21_budget_preflight_visits_tail_after_first_closure_and_charges_names ... ok
+test c014_22_synthetic_function_budget_is_global_and_checked_before_ct ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.53s
+
+     Running tests/closures_native.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/closures_native-0f5465c4d07e8e71)
+
+running 3 tests
+test move_snapshot_survives_outer_mutation_local_copy_and_later_shadowing ... ok
+test runtime_parameters_create_distinct_environments_at_the_same_source_site ... ok
+test unit_capture_and_empty_unit_result_work_through_the_source_pipeline ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/impl051.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl051-fee92a822ebdf723)
+
+running 16 tests
+test closure051_01_resource_and_unrelated_copy_closure_coexist_native ... ok
+test closure051_02_resource_context_keeps_i64_array_literals ... ok
+test closure051_03_descriptor_reads_each_call_and_target_write_is_shared_native ... ok
+test closure051_04_owned_shared_can_repeat_and_environment_transfer_is_unique_native ... ok
+test closure051_05_owned_mutation_through_descriptor_alias_is_exclusive_native ... ok
+test closure051_06_body_give_owns_at_creation_and_conditional_consume_cleans_rest_native ... ok
+test closure051_07_uncalled_owned_environments_clean_in_capture_order_native ... ok
+test closure051_08_early_return_loop_exits_and_temporary_environments_cleanup_native ... ok
+test closure051_09_owned_write_requires_mutable_closure_position ... ok
+test closure051_10_descriptor_capture_cannot_acquire_give_authority ... ok
+test closure051_11_source_move_and_capture_liveness_are_independently_rejected ... ok
+test closure051_12_pure_helper_stays_shared_and_recursive_write_helper_is_exclusive_native ... ok
+test closure051_13_mixed_address_and_owner_capture_ends_loan_after_once_native ... ok
+test closure051_14_owned_environment_moves_through_both_conditional_edges_native ... ok
+test closure051_15_shared_owned_entry_cleans_its_fresh_resource_each_call_native ... ok
+test closure051_16_mutating_a_copy_payload_snapshot_keeps_owned_call_shared_native ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.15s
+
+     Running tests/impl053.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl053-a50ef4d7bbdb7f6f)
+
+running 1 test
+test resource_closures_match_rust_at_o0_and_o2 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+
+     Running tests/impl064.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl064-c56e3c834c6bdd80)
+
+running 2 tests
+test helper064_native_owned_borrowed_adapted_and_error_paths_match_rust ... ok
+test helper064_public_field_view_survives_two_calls_and_whole_package_move ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.45s
+
+     Running tests/impl065_helpers.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl065_helpers-2c13678c1d26a2fa)
+
+running 17 tests
+test helper065_analyze_reconstructs_hold_and_call_paths ... ok
+test helper065_copy_error_callbacks_are_instantiated_and_verified ... ok
+test helper065_cross_module_interfaces_include_actual_environment_layout ... ok
+test helper065_error_callback_stops_trace_and_late_argument_is_guarded ... ok
+test helper065_generic_body_reads_known_resource_field ... ok
+test helper065_helper_does_not_extend_resource_or_address_lifetimes ... ok
+test helper065_instances_are_cached_and_new_identities_are_bounded ... ok
+test helper065_mutable_borrow_updates_actual_environment ... ok
+test helper065_mutable_target_loan_ends_after_owned_zero_or_one_call ... ok
+test helper065_nearest_callable_admission_rejections ... ok
+test helper065_owned_environment_shared_borrow_and_reuse ... ok
+test helper065_owned_fn_can_adapt_to_borrowed_fnmut_then_be_reused ... ok
+test helper065_raw_callable_metadata_is_bounded_before_instantiation ... ok
+test helper065_same_name_in_distinct_modules_keeps_definition_identity ... ok
+test helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces ... ok
+test helper065_shared_and_copy_arguments ... ok
+test helper065_value_condition_and_consume_adaptation ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests/impl070_retained.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl070_retained-aaa16ee79461a73a)
+
+running 1 test
+test retained070_native_factories_survive_return_move_events_and_cleanup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.88s
+
+     Running tests/impl077_package_captures.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl077_package_captures-9d185fead1da06e2)
+
+running 11 tests
+test captures077_analyze_rebuilds_binding_and_activation_boundaries ... ok
+test captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut ... ok
+test captures077_copy_payload_and_descriptor_helper_writes_are_fnmut ... ok
+test captures077_error_edges_choose_once_only_when_responsibility_is_missing ... ok
+test captures077_factory_owns_package_and_shared_calls_do_not_copy_it ... ok
+test captures077_loop_break_continue_and_lexical_shadowing_preserve_slots ... ok
+test captures077_nearest_source_rejections_do_not_weaken_other_modes ... ok
+test captures077_partial_whole_and_early_return_use_once ... ok
+test captures077_refill_after_take_and_conditional_take_is_repeatable ... ok
+test captures077_repeatable_restoration_is_a_return_obligation_not_a_trap_obligation ... ok
+test captures077_type_and_analyze_work_limits_fail_closed_at_exact_boundary ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running tests/impl079_package_captures.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl079_package_captures-cfab31eea85176ce)
+
+running 4 tests
+test captures079_complete_and_partial_env_exits_match_exact_fixed_cleanup_order ... ok
+test captures079_real_fd_ownership_survives_return_replacement_and_repeated_calls ... ok
+test captures079_returned_component_repeats_updates_without_losing_environment_flags ... ok
+test captures079_views_are_not_ct_capabilities_or_forgeable_lir_authority ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.01s
+
+     Running tests/impl125_factory_helpers.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl125_factory_helpers-9090f9b404eddbd0)
+
+running 11 tests
+test checked_in_component_prepares_warms_and_retains_two_owned_handlers ... ok
+test consuming_initialization_and_consumed_or_unused_returned_handler ... ok
+test helper_private_factory_lookup_is_unresolved_until_all_factories_finish ... ok
+test helper_warms_the_returned_handler_and_two_instances_remain_independent ... ok
+test independent_raw_and_wire_checks_reject_both_helper_and_factory_forgery ... ok
+test initializer_error_value_and_returned_environment_cleanup_are_preserved ... ok
+test invalid_escape_modes_and_factory_dependencies_stay_rejected ... ok
+test module_local_factory_and_helper_names_keep_definition_identity ... ok
+test mutable_preparation_then_retained_component_events ... ok
+test new_composition_still_pays_types_and_verify_budgets ... ok
+test shared_initialization_helper_then_owned_snapshot_handler ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.35s
+
+     Running tests/impl126_helper_sequences.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl126_helper_sequences-010aacf365a3e9d9)
+
+running 5 tests
+test consumed_and_cyclic_nearest_neighbors_still_reject ... ok
+test four_module_event_batch_preserves_success_error_and_cleanup ... ok
+test new_sequences_still_pay_three_independent_budgets ... ok
+test nine_distinct_exits_keep_complete_public_sequences ... ok
+test three_four_sixteen_calls_update_actual_mutable_state ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.53s
+
+     Running tests/impl127_local_factory.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl127_local_factory-1e2c7dbed511e67a)
+
+running 8 tests
+test different_local_kind_does_not_change_parameter_bound ... ok
+test four_modules_clean_called_unused_and_error_environments ... ok
+test local_invocations_pay_each_independent_phase_budget ... ok
+test parameter_alias_retains_parameter_origin ... ok
+test same_factory_same_hidden_identity_has_one_parameter_invocation ... ok
+test same_mutable_factory_instances_keep_independent_state ... ok
+test two_owned_same_factory_once_instances_each_consume_once ... ok
+test unused_templates_still_check_opaque_consumption_and_mutability ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.24s
+
+     Running tests/impl151_closure_methods.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl151_closure_methods-d5d8a077a8724262)
+
+running 7 tests
+test by_value_and_slice_len_and_function_fields_preserve_existing_resolution ... ok
+test immutable_positions_and_shared_aliases_cannot_gain_mutable_receiver_permission ... ok
+test method_arity_and_signature_mismatch_remain_rejected ... ok
+test methods_on_nested_copy_fields_and_borrowed_capture_keep_writeback ... ok
+test mutable_receiver_writes_persist_across_owned_callback_calls_and_early_returns ... ok
+test nonmove_method_mutation_updates_actual_outer_record ... ok
+test read_trait_and_inherent_methods_work_inside_shared_and_move_closures ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.66s
+
+     Running tests/impl155_managed_replace.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl155_managed_replace-bd513d7d7440f883)
+
+running 12 tests
+test byte_buffer_can_be_replaced_and_refilled ... ok
+test give_and_refill_keep_single_obligation ... ok
+test independent_verify_rejects_omitted_or_invalid_slot_cleanup ... ok
+test last_use_of_old_descriptor_before_replacement_is_allowed ... ok
+test lexical_and_closure_shadowing_do_not_rewrite_unrelated_bindings ... ok
+test live_old_views_descriptors_and_annotation_mismatch_are_rejected ... ok
+test nested_owning_closure_transfers_the_replacement_slot_once ... ok
+test owning_fnmut_can_replace_captured_buffer_without_manual_package ... ok
+test propagated_rhs_error_preserves_old_slot_until_error_cleanup ... ok
+test replacement_keeps_slot_order_and_disposes_old_value_once ... ok
+test replacement_through_branches_and_loops_uses_one_slot ... ok
+test untouched_mutable_resources_keep_borrowed_capture_compatibility ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.83s
+
+     Running tests/impl156_module_methods.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl156_module_methods-5b3ca47a50f15a54)
+
+running 8 tests
+test different_modules_with_same_spelling_keep_exact_nominal_owner ... ok
+test field_callable_precedence_is_not_reinterpreted_as_method ... ok
+test imported_methods_work_inside_returned_owned_and_nonmove_closures ... ok
+test imported_methods_work_on_locals_and_borrowed_receivers ... ok
+test inline_declared_public_methods_and_private_fields_compose ... ok
+test private_methods_fields_and_incorrect_permissions_remain_rejected ... ok
+test private_trait_and_private_nominal_do_not_leak_through_returned_values ... ok
+test public_trait_methods_from_defining_module_use_checked_signatures ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.79s
+
+     Running tests/impl161_nested_closures.rs (/workspace/scratch/39be3faa4442/targets/161/debug/deps/impl161_nested_closures-20120c609671266b)
+
+running 16 tests
+test activation_local_managed_owner_moves_into_inner_environment ... ok
+test capturing_a_callable_environment_and_function_pointer_captures_remain_rejected ... ok
+test independent_verify_rejects_forged_shared_kind_and_second_capture_transfer ... ok
+test inner_borrowed_writes_persist_in_outer_owned_copy_capture ... ok
+test inner_move_promotes_an_outer_nonmove_managed_capture ... ok
+test inner_unused_environment_and_outer_unused_environment_drop_once ... ok
+test nested_closure_function_and_depth_budgets_remain_enforced ... ok
+test nested_error_exit_cleans_only_actual_remaining_owners ... ok
+test nested_move_snapshot_is_distinct_from_borrowed_writeback ... ok
+test nested_move_transfers_outer_owned_capture_once ... ok
+test nested_owning_buffer_replacement_cleans_real_slots ... ok
+test nested_package_move_and_inner_refill_keep_distinct_responsibilities ... ok
+test nested_shadowed_parameters_and_locals_do_not_capture_outer_names ... ok
+test nested_signatures_infer_across_three_lexical_layers ... ok
+test nested_transfer_and_shared_alias_misuse_are_rejected ... ok
+test outer_package_refill_after_nested_move_keeps_fnmut ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.26s
+

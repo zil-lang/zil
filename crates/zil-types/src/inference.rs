@@ -2299,12 +2299,6 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         "closure and expected function pointer have different arity",
                     ));
                 }
-                if self.owner.is_some() && pointer.is_none() {
-                    return Err(unsupported(
-                        span,
-                        "nested closure inference is not implemented in C1",
-                    ));
-                }
                 let result = self.fresh(VALUE, false, span)?;
                 if let Some(ty) = return_type {
                     self.bind(result, ty, span)?;
