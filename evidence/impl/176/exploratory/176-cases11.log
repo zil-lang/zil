@@ -1,0 +1,26 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-driver)
+warning: unused import: `Limits`
+ --> crates/zil-driver/tests/impl176_callable_fields.rs:3:24
+  |
+3 | use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
+  |                        ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zil-driver` (test "impl176_callable_fields") generated 1 warning (run `cargo fix --test "impl176_callable_fields" -p zil-driver` to apply 1 suggestion)
+    Finished `test` profile [unoptimized] target(s) in 11.10s
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets/176/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+
+running 7 tests
+test borrowed_environments_cannot_enter_retained_state ... ok
+test different_source_opaque_factories_and_moved_fields_are_rejected ... ok
+test fnonce_take_consumes_and_partial_state_exit_cleans_only_remaining_fields ... ok
+test public_state_generic_api_preserves_identity_across_modules_and_composition ... ok
+test whole_state_parameters_and_results_keep_original_fnmut_environment ... ok
+test failed_preparation_keeps_old_field_and_unwinds_prepared_argument ... ok
+test field_take_refill_replace_and_nested_cleanup_preserve_one_environment ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
+

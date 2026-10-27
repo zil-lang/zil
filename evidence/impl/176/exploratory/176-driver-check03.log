@@ -1,0 +1,26 @@
+    Checking zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-base)
+    Checking zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-ir)
+    Checking zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-syntax)
+    Checking zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-db)
+    Checking zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-verify)
+    Checking zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-expand)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-backend-llvm)
+    Checking zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-lower)
+    Checking zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-ct)
+warning: unreachable pattern
+   --> crates/zil-backend-llvm/src/emit.rs:592:13
+    |
+567 | /             InstructionKind::OwnedStoreBorrow { .. }
+568 | |             | InstructionKind::BorrowPackageField { .. } => {
+    | |________________________________________________________- matches all the relevant values
+...
+592 |               InstructionKind::BorrowPackageField { local, index, .. } => {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zil-backend-llvm` (lib) generated 1 warning
+    Checking zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-analyze)
+    Checking zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-types)
+    Checking zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-driver)
+    Finished `dev` profile [unoptimized] target(s) in 5.13s

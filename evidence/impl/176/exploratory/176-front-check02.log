@@ -1,0 +1,12 @@
+    Checking zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-expand)
+    Checking zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt176/crates/zil-types)
+warning: function `has_fields` is never used
+  --> crates/zil-types/src/callable_fields.rs:28:15
+   |
+28 | pub(super) fn has_fields(ty: &Type) -> bool {
+   |               ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zil-types` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized] target(s) in 3.97s
