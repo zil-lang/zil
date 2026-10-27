@@ -147,7 +147,7 @@ fn private_owned_array_field_is_not_exposed_by_take() {
         report
             .diagnostics
             .iter()
-            .any(|d| d.code == "E-MODULE-PRIVATE"),
+            .any(|d| d.code == "E-FIELD-PRIVATE" && d.phase == zil_base::Phase::Types),
         "{}",
         report.to_json()
     );
@@ -173,7 +173,7 @@ fn main()->i32{var s=State{r:R{code:1},items:[item(),item()]};let a=s.items;let 
         report
             .diagnostics
             .iter()
-            .any(|d| d.code == "E-HOLD-CONFLICT"),
+            .any(|d| d.code == "E-BORROW-CONFLICT" && d.phase == zil_base::Phase::Verify),
         "{}",
         report.to_json()
     );
