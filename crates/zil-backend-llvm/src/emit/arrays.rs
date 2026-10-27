@@ -4,7 +4,7 @@ use super::*;
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     matches!(ty, Type::Array { element, length }
-        if *length > 0 && packages::supported_type(element, resources))
+        if *length > 0 && (packages::supported_type(element, resources) || matches!(element.as_ref(), Type::Closure(_))))
 }
 
 impl FunctionEmitter<'_> {
@@ -182,18 +182,41 @@ impl FunctionEmitter<'_> {
                 self.line(format!("  br label %array.done.{label}"));
                 self.line(format!("array.done.{label}:"));
             }
-            InstructionKind::BorrowOwnedArrayElement { .. } => {
-                return unsupported(
-                    "owning array closure borrowing is outside the Package-only slice",
-                    Some(instruction.span),
-                );
+            InstructionKind::BorrowOwnedArrayElement { index, .. } => {
+                if !matches!(element, Type::Closure(_)) {
+                    return invalid(
+                        "E-CODEGEN-CFG",
+                        "callback array borrow requires a concrete closure",
+                        Some(instruction.span),
+                    );
+                }
+                self.line(format!(
+                    "  {} = getelementptr {array}, ptr %local.{}, i32 0, i32 {index}",
+                    value(result(instruction)?),
+                    local.0
+                ));
             }
             _ => unreachable!("owning array local operation"),
         }
         Ok(())
     }
 
-    fn owned_array_teardowns(&self, element: &Type) -> CompileResult<Vec<(usize, String)>> {
+    fn owned_array_teardowns(&self, element: &Type) -> CompileResult<Vec<(Option<usize>, String)>> {
+        if let Type::Closure(id) = element {
+            let definition = self.closures.get(id).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    Phase::Codegen,
+                    "E-CODEGEN-CFG",
+                    Some(self.function.span),
+                    "callback array environment is absent",
+                )]
+            })?;
+            return Ok(if resource_closures::owns(definition) {
+                vec![(None, format!("zil.closure.drop.{}", id.0))]
+            } else {
+                vec![]
+            });
+        }
         let Type::Package { fields, .. } = element else {
             return invalid(
                 "E-CODEGEN-CFG",
@@ -222,7 +245,7 @@ impl FunctionEmitter<'_> {
                     definition.teardown.map(symbol)
                 };
                 if let Some(teardown) = teardown {
-                    teardowns.push((field, teardown));
+                    teardowns.push((Some(field), teardown));
                 }
             }
         }
@@ -234,7 +257,7 @@ impl FunctionEmitter<'_> {
         local: LocalId,
         index: u32,
         array: &str,
-        teardowns: &[(usize, String)],
+        teardowns: &[(Option<usize>, String)],
     ) -> CompileResult<()> {
         let flag = self.temp();
         let label = self.continuation;
@@ -255,7 +278,11 @@ impl FunctionEmitter<'_> {
         ));
         for (field, teardown) in teardowns {
             let pointer = self.temp();
-            self.line(format!("  {pointer} = getelementptr {array}, ptr %local.{}, i32 0, i32 {index}, i32 {field}", local.0));
+            let field = field.map_or_else(String::new, |field| format!(", i32 {field}"));
+            self.line(format!(
+                "  {pointer} = getelementptr {array}, ptr %local.{}, i32 0, i32 {index}{field}",
+                local.0
+            ));
             self.line(format!("  call void @{teardown}(ptr {pointer})"));
         }
         self.line(format!("  br label %array.element.done.{label}"));

@@ -988,7 +988,7 @@ impl Builder<'_, '_> {
                 self.closures.snapshot(items.len(), e.span)?;
                 let mut staged = Vec::new();
                 for v in items {
-                    let (id, t) = self.transfer_expr(v, element.as_ref())?;
+                    let (id, t) = self.owned_array_input(v, element.as_ref())?;
                     if element.is_none() {
                         element = Some(t.clone());
                     }
@@ -1007,10 +1007,13 @@ impl Builder<'_, '_> {
                     length,
                 };
                 let owned = packages::owned_array_supported(&ty);
+                if let Type::Array { element, length } = &ty {
+                    self.check_owned_array_closure(element, *length, e.span)?;
+                }
                 if !owned && !ty.is_copy_value() {
                     return Err(unsupported(
                         e.span,
-                        "array elements require finite Copy values or a nonempty homogeneous Package array",
+                        "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
                     ));
                 }
                 if let Type::Array { element, length } = &ty
