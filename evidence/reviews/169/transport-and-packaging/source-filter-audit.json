@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/nested_closures",
+  "status": "RequiresFilterFix",
+  "audited_commit": "e6ca373af16bbecab4e3c4c3033a235cf5084cd3",
+  "existing_root_filter_kept_files": 2504,
+  "additional_excluded_files": 13,
+  "additional_excluded_bytes": 556693,
+  "recommended_exact_file_filter": [
+    {
+      "path": "data/handoff.json",
+      "category": "generated_handoff_check_snapshot",
+      "bytes": 224988,
+      "sha256": "e8de91d9cf05781db48847ea3f079be6dc984e282751fa52ad486f29f210ad62",
+      "git_blob": "5066d211fbf5ed60fe3ca1eabd1ba152ee7b856f"
+    },
+    {
+      "path": "docs/IMPL147-RESULT.json",
+      "category": "execution_test_receipts",
+      "bytes": 2279,
+      "sha256": "309d939f20e2c4f34f3de158380f06725388ca7bd9738d44e7330c4d509294d5",
+      "git_blob": "d06c1445548fd3e725e4fea2b797f7d91b90ac5b"
+    },
+    {
+      "path": "docs/IMPL148-RESULT.json",
+      "category": "execution_test_receipts",
+      "bytes": 406,
+      "sha256": "99d31eb8f3b30b45369d3c5cdbd9d74468d634b4fb2b3a0e52c52c50cac54614",
+      "git_blob": "d3835543347a71cb742a0cae77597a673d853be1"
+    },
+    {
+      "path": "docs/research/123/growth.png",
+      "category": "figures_rendered_from_executed_benchmark_data",
+      "bytes": 133741,
+      "sha256": "311e3b08f4c13b20ad7ee35633e5f82382d8bc49814f2a1e1355dfbd58210726",
+      "git_blob": "4356451ae28ddacbe653ea0b91eacd0df5b89d43"
+    },
+    {
+      "path": "docs/research/123/growth.svg",
+      "category": "figures_rendered_from_executed_benchmark_data",
+      "bytes": 107618,
+      "sha256": "6a0f6066338cad7690cd346d83cfa676d16fd8209713c03855ac6c50122d6bf7",
+      "git_blob": "524d485ea2a19e6c63c8fd932da6afb785c4ddf7"
+    },
+    {
+      "path": "docs/research/146/NATIVE.json",
+      "category": "execution_test_receipts",
+      "bytes": 249,
+      "sha256": "dc53469a8da2418ee7396035974b5a07596d00ae21e9d6a45653fc8f2bb37dcf",
+      "git_blob": "82e13d1cd61e598727bd118312c3eabfccbeb853"
+    },
+    {
+      "path": "docs/research/146/RESULT.json",
+      "category": "measured_experiment_results_and_recomputation",
+      "bytes": 34406,
+      "sha256": "cc9924f28414fe567bdc92ed2f32b04510ff94b0770c98ef34b62316eb95a46f",
+      "git_blob": "bd5632f089e2a99bbf81ba7ab0a38c9e0dd13da2"
+    },
+    {
+      "path": "docs/research/146/TESTS.json",
+      "category": "execution_test_receipts",
+      "bytes": 2244,
+      "sha256": "896196ee48bb6ae3f349a5f35ad0ffab1ee26f63a7670330d760d9786298d560",
+      "git_blob": "10775f130ae7a3ff1b88b83dee451707e2afa714"
+    },
+    {
+      "path": "docs/research/146/preparation-cache-screen.json",
+      "category": "measured_experiment_results_and_recomputation",
+      "bytes": 13286,
+      "sha256": "3dfe34a205c85ada9a03fe0f2e2ff8338e053e71ba37c5b8a978c0c42f275378",
+      "git_blob": "7a65a45d967a419d91b02fe2e5322d54574539a3"
+    },
+    {
+      "path": "docs/research/150/arithmetic-audit.json",
+      "category": "measured_experiment_results_and_recomputation",
+      "bytes": 1067,
+      "sha256": "b14cb3a48e01c9478b1ad1c0f31f2170b36b684c7bf7e4b0d8f20a68f0f771e7",
+      "git_blob": "83a64d86afd8908070b84d47b3a6e78c391a73cf"
+    },
+    {
+      "path": "docs/research/150/native-summary.json",
+      "category": "execution_test_receipts",
+      "bytes": 249,
+      "sha256": "85a96ba86efc226cb0113d97424715add0c38eb1c0aaf61ef1dedb7a738b8962",
+      "git_blob": "871050e04cd49a38779229e81f6b32cf7f5b2c0a"
+    },
+    {
+      "path": "docs/research/150/summary-primary.json",
+      "category": "measured_experiment_results_and_recomputation",
+      "bytes": 34545,
+      "sha256": "45ac55671165554136179c22757a389fd1b1ff3050b566f7d7ae721731c0bad0",
+      "git_blob": "3a2fcb6c11fa8aede9adf7c36377e23c949d2c85"
+    },
+    {
+      "path": "docs/research/150/summary-secondary.json",
+      "category": "measured_experiment_results_and_recomputation",
+      "bytes": 1615,
+      "sha256": "33805980c0750d9fc02a0353691cd6d17e28193bedaf1a87a8abfc1be6db7fcd",
+      "git_blob": "f8b63a54cd439e776996a460d85011ca64da6b46"
+    }
+  ],
+  "remaining_source_files": 2491,
+  "preserved_json_count": 66,
+  "preserved_json_paths": [
+    "benches/rust-parity/109/provenance.json",
+    "conformance/closure.json",
+    "conformance/index.json",
+    "conformance/pipe.json",
+    "conformance/receiver.json",
+    "conformance/record.json",
+    "conformance/script.json",
+    "data/designer-data.json",
+    "data/designer-docs.json",
+    "data/input-hashes.json",
+    "data/normative-inputs.json",
+    "data/original-atlas.json",
+    "data/prior-goals.json",
+    "data/prior-variables.json",
+    "data/provenance.json",
+    "data/requirement-coverage.json",
+    "data/requirement-index.json",
+    "data/task-index.json",
+    "design-candidates/018-candidate.json",
+    "policy/dependencies.json",
+    "spec/attributes.json",
+    "spec/diagnostics.json",
+    "spec/interfaces.json",
+    "tests/cases/PLAN-B0-001.json",
+    "tests/cases/PLAN-B0-002.json",
+    "tests/cases/PLAN-B0-003.json",
+    "tests/cases/PLAN-B0-004.json",
+    "tests/cases/PLAN-B0-005.json",
+    "tests/cases/PLAN-T01-001.json",
+    "tests/cases/PLAN-T01-002.json",
+    "tests/cases/PLAN-T01-003.json",
+    "tests/cases/PLAN-T01-004.json",
+    "tests/cases/PLAN-T01-005.json",
+    "tests/cases/PLAN-T04-002.json",
+    "tests/cases/PLAN-T04-003.json",
+    "tests/cases/PLAN-T04-004.json",
+    "tests/cases/PLAN-T05-003.json",
+    "tests/cases/PLAN-T05-004.json",
+    "tests/integration/scalar-cases.json",
+    "tests/perf/impl046/contract.json",
+    "tests/perf/impl068/cases.json",
+    "tests/perf/impl080/cases.json",
+    "tests/perf/impl084/cases.json",
+    "tools/product/104/contract.json",
+    "tools/product/104/memory-contract.json",
+    "tools/product/108/contract.json",
+    "tools/product/108/reference-provenance.json",
+    "tools/product/108/reference104/contract.json",
+    "tools/product/108/reference104/memory-contract.json",
+    "tools/product/109/contract.json",
+    "tools/product/109/reference104/contract.json",
+    "tools/product/109/reference104/memory-contract.json",
+    "tools/product/109/tool-provenance.json",
+    "tools/research/059/cases.json",
+    "tools/research/063/cases.json",
+    "tools/research/067/cases.json",
+    "tools/research/071/cases.json",
+    "tools/research/076/cases.json",
+    "tools/roam/vendor-manifest.json",
+    "tools/roam/vendor/corpus/counter.json",
+    "tools/roam/vendor/corpus/signals.json",
+    "tools/roam/vendor/package.json",
+    "tools/roam/vendor/tsconfig.json",
+    "tools/toolchain-profile.json",
+    "validation/product-gates.json",
+    "validation/task-test-plans.json"
+  ],
+  "preserve_reasoning": {
+    "conformance_and_tests": "Declarative case inputs, expected diagnostics, future fixture requirements and benchmark contracts are source/test inputs, not evidence of running them.",
+    "spec_policy_validation": "Normative registries, constraints, toolchain selection and compiler dependency policy must remain.",
+    "data_indexes": "Specification/design provenance and requirement/task mappings are source navigation metadata; only the generated data/handoff execution snapshot is excluded.",
+    "tools_provenance_and_vendor_manifests": "Hashes and declared mapping of source inputs are retained; they are not process/native/measurement result records.",
+    "design_candidates": "018-candidate.json primarily binds a source patch and preserves an explicit user design decision, analogous to task/changes metadata; retain it despite its historical test-count annotation.",
+    "markdown_and_sources": "Narrative research conclusions, implementation notes, plans, .zil/.rs/.c programs, generation scripts, candidate patches and documentation are retained; no suffix-wide deletion.",
+    "plots": "tools/research/123/plot.py explicitly reads evidence/impl/123/results/growth.json and writes the two proposed excluded figures."
+  },
+  "implementation_recommendation": [
+    "Add an explicit exact EXCLUDED_FILES set of these 13 paths alongside existing excluded roots.",
+    "Record the configured exact list and actually excluded tracked paths in PACKAGE.json; keep all retained blobs byte-identical.",
+    "Do not mutate or remove any Git objects; the unchanged all-history bundle preserves these historical receipts and figures.",
+    "Selected compact evidence may be put in the companion audit ZIP by its existing explicit receipt mechanism; no native outputs."
+  ],
+  "followup_verification": "Compare old and new source_inventory on one frozen commit: old_kept - new_kept must equal these exact 13 paths, new_kept - old_kept empty, every retained byte/mode equal, declared test fixtures retained. No second whole-history cold restore required.",
+  "prior_review_boundary": "Prior review.json establishes wire tests, archive integrity and history restoration. It did not classify execution receipts stored outside the named evidence root; this finding keeps semantic source-only compliance pending until the exact filter is applied."
+}

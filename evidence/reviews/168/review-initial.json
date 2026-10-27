@@ -1,0 +1,216 @@
+{
+  "task": "168",
+  "reviewer": "/root/trait_bounds",
+  "author": "/root/nested_closures",
+  "status": "ChangesRequested",
+  "tested_commit": "da49a4271fb2941eb7d2b6aa118ccd7ead5db7d5",
+  "delivery_commit": "c5b04a51f04f848c0b17966deb60101c214e099d",
+  "crates_tree": "1e0b84b81a791d3c38ba3e30f913b2ca64df7438",
+  "source_worktree_clean": true,
+  "independent_target": "targets/review168",
+  "author_specialized_reexecuted": {
+    "passed": 20,
+    "failed": 0,
+    "ignored": 0,
+    "source_log_sha256": "436f5d269f59db471eb5f8b059cba8ec82e6eaa14235140f18837a94ba9913c7"
+  },
+  "independent_source_controls": [
+    {
+      "case": "borrowed_child_move",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/review168/independent/borrowed_child_move/main.zil",
+      "source_sha256": "5f88dcdc55590fd12b14319e8bbefabf61e4b67e735c73c89f09937043760b9a",
+      "report_sha256": "d20e8c4c7ac8337ec9b1e70020bd0d5e468f8597ad75af6a4a9ef8517080a21c",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape"
+        }
+      ]
+    },
+    {
+      "case": "child_move_while_borrowed",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/review168/independent/child_move_while_borrowed/main.zil",
+      "source_sha256": "c4368ee74da625b98da667c9b6225f3d2c8f143952188ea9ce71438aea4f710c",
+      "report_sha256": "98d804619b8a531df580e833575415eab0f3711e3d09b89b1b80b751004f6947",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use"
+        }
+      ]
+    },
+    {
+      "case": "exclusive_child_alias",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/review168/independent/exclusive_child_alias/main.zil",
+      "source_sha256": "316629b461461c3a337bf7549fa6ea7aa68612a1da82770458a7dc022d2516ab",
+      "report_sha256": "fa4ec6cd44a4f15ce39aae8a56de7ec610f5f68c001dfd587c4fe1f73281c488",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-CLOSURE-MODE",
+          "message": "borrowed closure lacks its call permission"
+        }
+      ]
+    },
+    {
+      "case": "exclusive_child_last_use",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/review168/independent/exclusive_child_last_use/main.zil",
+      "source_sha256": "814018d6a7ac82b808c2446e3815f19f9752c3d70aba552c608a2cfb759cacc2",
+      "report_sha256": "9d7bc14eb4e13f4d7479bc172d753ef2a02c91bac6a9e7985be49c146e320151",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": []
+    },
+    {
+      "case": "exclusive_child_overlap",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/review168/independent/exclusive_child_overlap/main.zil",
+      "source_sha256": "1c4ccc9fc0f9c2f9270f34beec7aba0f1468feaf1fba2476b9525210cf7ce3e0",
+      "report_sha256": "4a0d6e6c31e4997b72aca4f1d2476c980b259cbf55bee0e61798460950867a7d",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority"
+        }
+      ]
+    },
+    {
+      "case": "once_branch_reuse",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/review168/independent/once_branch_reuse/main.zil",
+      "source_sha256": "898ef8aa41ccf6e362959e151067a3b832cdab100af9e54584eb35553059eb11",
+      "report_sha256": "cfeb46581cdd079aab86616694f4f37ed77a6ad36a988aaca6ab20fe5404bd31",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-UNINITIALIZED",
+          "message": "local 1 is not initialized on every incoming path"
+        }
+      ]
+    },
+    {
+      "case": "opaque_capture_assignment",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/review168/independent/opaque_capture_assignment/main.zil",
+      "source_sha256": "ce96f48b881cfd6847b4ccf72cb465ff2a146fb44527b23b8fffe37624851d28",
+      "report_sha256": "b34ba44f3bbae882bcf9c5494146598b16dfaf00ba72890d94fc42d548ddd013",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-TYPE-MISMATCH",
+          "message": "different closure expressions have different concrete types"
+        }
+      ]
+    },
+    {
+      "case": "replacement_later_guard",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/review168/independent/replacement_later_guard/main.zil",
+      "source_sha256": "75bf1bd42419a8a19dd8d5de4892827432596f81f1ccd0a5a192fd70dbfec0fa",
+      "report_sha256": "cb1c185ce665a2019694f970993d0e54f2b0eff4e9a171c9f7638ceb5ef6ae9b",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: cleanup is not reverse successful initialization order"
+        }
+      ]
+    },
+    {
+      "case": "uncalled_four_level",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/review168/independent/uncalled_four_level/main.zil",
+      "source_sha256": "fde821ef0f6236aaf5753ee042f1046d3aac5a1b73f726bd9660be067c9195a1",
+      "report_sha256": "c2ed1e41815ef213f80bfff9f718153a8f12f8d064f24da4fbf25ab1a74db494",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": []
+    }
+  ],
+  "independent_native": [
+    {
+      "case": "uncalled_four_level",
+      "opt": "O0",
+      "status": "Success",
+      "verification_runs": 1,
+      "source_sha256": "fde821ef0f6236aaf5753ee042f1046d3aac5a1b73f726bd9660be067c9195a1",
+      "exit": 0,
+      "stdout": "ZA",
+      "stderr": ""
+    },
+    {
+      "case": "uncalled_four_level",
+      "opt": "O2",
+      "status": "Success",
+      "verification_runs": 1,
+      "source_sha256": "fde821ef0f6236aaf5753ee042f1046d3aac5a1b73f726bd9660be067c9195a1",
+      "exit": 0,
+      "stdout": "ZA",
+      "stderr": ""
+    },
+    {
+      "case": "exclusive_child_last_use",
+      "opt": "O0",
+      "status": "Success",
+      "verification_runs": 1,
+      "source_sha256": "814018d6a7ac82b808c2446e3815f19f9752c3d70aba552c608a2cfb759cacc2",
+      "exit": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "exclusive_child_last_use",
+      "opt": "O2",
+      "status": "Success",
+      "verification_runs": 1,
+      "source_sha256": "814018d6a7ac82b808c2446e3815f19f9752c3d70aba552c608a2cfb759cacc2",
+      "exit": 0,
+      "stdout": "A",
+      "stderr": ""
+    }
+  ],
+  "findings": [
+    {
+      "id": "R168-1",
+      "status": "AuthorConfirmed",
+      "scope": "ordinary owning local replacement",
+      "source_case": "replacement_later_guard",
+      "expected": "same-factory replacement is legal with a later live owner and preserves retained-slot cleanup order",
+      "observed": "Analyze SafeReject/E-ANALYZE-IR: cleanup is not reverse successful initialization order",
+      "cause": "Types emits DropClosure then Store on the whole owner; earlier shell is cleaned before later owner and Store records a new birth",
+      "planned_fix": "author/root selected existing owned Array<Closure,1> private retained slot, without weakening Verify order"
+    },
+    {
+      "id": "R168-2",
+      "status": "AuthorConfirmed",
+      "scope": "closure DAG expanded-layout budget",
+      "candidate_sha256": "85a8b255962b8754ce5378dd131d220caa1088bee865d54970fd99b70b85f27e",
+      "probe_source_sha256": "9eea1277aeb7b04cdd55b025599b35449a761aafcc992dfb6cf9433c5cfe4e19",
+      "parameters": {
+        "copy_record_fields": 512,
+        "double_child_layers": 10,
+        "max_analysis_steps": 100000
+      },
+      "raw": "Accepted",
+      "wire": "Accepted",
+      "actual_alignment_type_visits": 263679,
+      "cause": "each non-Closure leaf charged as1 although alignment recursively traverses Record/Package/Managed children for every expanded DAG occurrence",
+      "not_a_benchmark": true,
+      "planned_fix": "count complete leaf Type traversal weight in expanded DAG/instance accounting"
+    }
+  ],
+  "created_utc": "2026-10-27T11:47:25.615002+00:00",
+  "review_scope": [
+    "source opaque identity",
+    "BorrowCapture actual source and exclusive loans",
+    "FnOnce single consumption",
+    "recursive cleanup",
+    "layout DAG depth and expansion budget"
+  ],
+  "next": "Bind author corrective SHA and reexecute exact counterexamples; do not mark prior candidate Pass"
+}

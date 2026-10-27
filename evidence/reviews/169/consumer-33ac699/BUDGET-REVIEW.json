@@ -1,0 +1,30 @@
+{
+  "status": "Pass",
+  "scope": "Arithmetic review of root-proposed exact-budget fixture migration; not a new independent certification of reviewer-authored167 implementation",
+  "reviewer": "/root/source_inventory",
+  "source_commit": "33ac699268f0b2466a5fa79e9d53007ac54984f3",
+  "production_source": "crates/zil-analyze/src/resources.rs:2197–2220",
+  "charge": "Sum of locals.len()+values.len() for every function when resources is empty, before early non-owner return",
+  "cases": [
+    {
+      "fixture": "module(1,100,false)",
+      "additional_units": 100,
+      "old_constant": 1130,
+      "new_constant": 1230
+    },
+    {
+      "fixture": "module(2,0,true)",
+      "additional_units": 2,
+      "old_constant": 104,
+      "new_constant": 106
+    },
+    {
+      "fixture": "8-block empty CFG module(1,0,false)",
+      "additional_units": 0,
+      "old_constant": 184,
+      "new_constant": 184
+    }
+  ],
+  "unchanged": "Target text multiplier3 and required−1 rejection; no default limit or production-accounting change",
+  "execution": "Calculation checked from frozen source; root executes migrated tests."
+}

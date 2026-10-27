@@ -1,0 +1,243 @@
+{
+  "task": "168 independent review including 167 Package-array layout admission follow-up",
+  "reviewer": "/root/trait_bounds",
+  "author": "/root/nested_closures",
+  "status": "Pass",
+  "tested_commit": "febc071cae01ea328d6aa9d8595937cb03d1291e",
+  "delivery_commit": "29917111a1508bb5e219b195c15fe61a2a7ef6b6",
+  "crates_tree": "8de7e0ad93a4c99f62a9ed4865f99d8cfbde8ad2",
+  "delivery_source_equivalence": "exact crates tree; delivery diff contains only evidence/impl/168/followup files",
+  "candidate_base": "02040876a7f56f14b2058b91f6277b9db86ec393",
+  "proposal_commit": "8da89bafe8bcaacae713095844838ecf45c06733",
+  "source_mutations_by_reviewer": false,
+  "tracked_source_clean": true,
+  "untracked_document": {
+    "path": "changes/168-retained-closure-composition.md",
+    "sha256": "b66854494b3fbb9394c77b33755cf271a4b40dea33d41e4b164e41057d15065c",
+    "note": "Non-source document appeared during review; retained unchanged. All tracked files match HEAD and no untracked crates files exist. Full-tree cleanliness is not claimed."
+  },
+  "target": "targets/review168-final",
+  "incremental": false,
+  "debug_info": 0,
+  "review_scope": [
+    "source opaque declaration identity remains distinct across forwarding",
+    "BorrowCapture addresses actual child environment and requires actual delegated authority",
+    "FnOnce and owned child environments have one responsibility",
+    "persistent ordinary local callback shell preserves cleanup birth during replacement/refill",
+    "recursive child cleanup on called and uncalled paths",
+    "finite DAG and complete Type leaf work charged at every expansion and owning-array multiplicity"
+  ],
+  "reexecuted_specialized": {
+    "tests_passed": 26,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "real_native_executions": 40,
+    "all_success_reports_verification_runs": 1,
+    "source_rejection_reports": 7,
+    "log_sha256": "3d8829a17c3ef5d14c1a70bec2340824a8366dbbdc3e1a911a98b6fd88cc2998",
+    "native_receipt_sha256": "ea4bd9f5eea00361a98ee891fb38a3a678502e77d6c516f4baf412ac725b7e7e"
+  },
+  "independent_controls": {
+    "source_checks": 9,
+    "native_executions": 6,
+    "source_sha_preserved_from_initial_review": true,
+    "checks": [
+      {
+        "case": "borrowed_child_move",
+        "source_sha256": "5f88dcdc55590fd12b14319e8bbefabf61e4b67e735c73c89f09937043760b9a",
+        "status": "Unsupported",
+        "phase": "types"
+      },
+      {
+        "case": "child_move_while_borrowed",
+        "source_sha256": "c4368ee74da625b98da667c9b6225f3d2c8f143952188ea9ce71438aea4f710c",
+        "status": "SafeReject",
+        "phase": "verify"
+      },
+      {
+        "case": "exclusive_child_alias",
+        "source_sha256": "316629b461461c3a337bf7549fa6ea7aa68612a1da82770458a7dc022d2516ab",
+        "status": "SafeReject",
+        "phase": "types"
+      },
+      {
+        "case": "exclusive_child_last_use",
+        "source_sha256": "814018d6a7ac82b808c2446e3815f19f9752c3d70aba552c608a2cfb759cacc2",
+        "status": "Success",
+        "phase": "verify"
+      },
+      {
+        "case": "exclusive_child_overlap",
+        "source_sha256": "1c4ccc9fc0f9c2f9270f34beec7aba0f1468feaf1fba2476b9525210cf7ce3e0",
+        "status": "SafeReject",
+        "phase": "verify"
+      },
+      {
+        "case": "once_branch_reuse",
+        "source_sha256": "898ef8aa41ccf6e362959e151067a3b832cdab100af9e54584eb35553059eb11",
+        "status": "SafeReject",
+        "phase": "analyze"
+      },
+      {
+        "case": "opaque_capture_assignment",
+        "source_sha256": "ce96f48b881cfd6847b4ccf72cb465ff2a146fb44527b23b8fffe37624851d28",
+        "status": "SafeReject",
+        "phase": "types"
+      },
+      {
+        "case": "replacement_later_guard",
+        "source_sha256": "75bf1bd42419a8a19dd8d5de4892827432596f81f1ccd0a5a192fd70dbfec0fa",
+        "status": "Success",
+        "phase": "verify"
+      },
+      {
+        "case": "uncalled_four_level",
+        "source_sha256": "fde821ef0f6236aaf5753ee042f1046d3aac5a1b73f726bd9660be067c9195a1",
+        "status": "Success",
+        "phase": "verify"
+      }
+    ],
+    "native": [
+      {
+        "case": "exclusive_child_last_use",
+        "opt": "O0",
+        "verification_runs": 1,
+        "source_sha256": "814018d6a7ac82b808c2446e3815f19f9752c3d70aba552c608a2cfb759cacc2",
+        "exit": 0,
+        "stdout": "A",
+        "stderr": ""
+      },
+      {
+        "case": "exclusive_child_last_use",
+        "opt": "O2",
+        "verification_runs": 1,
+        "source_sha256": "814018d6a7ac82b808c2446e3815f19f9752c3d70aba552c608a2cfb759cacc2",
+        "exit": 0,
+        "stdout": "A",
+        "stderr": ""
+      },
+      {
+        "case": "replacement_later_guard",
+        "opt": "O0",
+        "verification_runs": 1,
+        "source_sha256": "75bf1bd42419a8a19dd8d5de4892827432596f81f1ccd0a5a192fd70dbfec0fa",
+        "exit": 0,
+        "stdout": "AZB",
+        "stderr": ""
+      },
+      {
+        "case": "replacement_later_guard",
+        "opt": "O2",
+        "verification_runs": 1,
+        "source_sha256": "75bf1bd42419a8a19dd8d5de4892827432596f81f1ccd0a5a192fd70dbfec0fa",
+        "exit": 0,
+        "stdout": "AZB",
+        "stderr": ""
+      },
+      {
+        "case": "uncalled_four_level",
+        "opt": "O0",
+        "verification_runs": 1,
+        "source_sha256": "fde821ef0f6236aaf5753ee042f1046d3aac5a1b73f726bd9660be067c9195a1",
+        "exit": 0,
+        "stdout": "ZA",
+        "stderr": ""
+      },
+      {
+        "case": "uncalled_four_level",
+        "opt": "O2",
+        "verification_runs": 1,
+        "source_sha256": "fde821ef0f6236aaf5753ee042f1046d3aac5a1b73f726bd9660be067c9195a1",
+        "exit": 0,
+        "stdout": "ZA",
+        "stderr": ""
+      }
+    ],
+    "receipt_sha256": "f3c39e23bc5a947e9f462aef970d6e39a0698933b7e2d0890bfb1c680e6632c6"
+  },
+  "unchanged_binary_replays": [
+    {
+      "case": "closure-wide-leaf",
+      "candidate_sha256": "85a8b255962b8754ce5378dd131d220caa1088bee865d54970fd99b70b85f27e",
+      "max_analysis_steps": 100000,
+      "before_raw": "Accepted",
+      "before_wire": "Accepted",
+      "after_raw": "Verify ResourceLimit/E-RESOURCE-LIMIT",
+      "after_wire": "Verify ResourceLimit/E-RESOURCE-LIMIT",
+      "after_message": "closure layout expansion budget exceeded",
+      "narrow_four_field_neighbor_raw": "Accepted",
+      "narrow_four_field_neighbor_wire": "Accepted"
+    },
+    {
+      "case": "Package-array-wide-leaf",
+      "candidate_sha256": "d769d0986f02c3f5ba1f7379c4e1aa567e4c7c183e4b60d922445ccca4e80d04",
+      "max_analysis_steps": 100000,
+      "before_raw": "Accepted",
+      "before_wire": "Accepted",
+      "after_raw": "Verify ResourceLimit/E-RESOURCE-LIMIT",
+      "after_wire": "Verify ResourceLimit/E-RESOURCE-LIMIT",
+      "after_message": "independent verification work budget exhausted",
+      "narrow_four_field_neighbor_raw": "Accepted",
+      "narrow_four_field_neighbor_wire": "Accepted"
+    }
+  ],
+  "resolved_findings": [
+    {
+      "id": "R168-1",
+      "problem": "owning callback replacement under a later live guard failed reverse cleanup order",
+      "resolution": "private Array<Closure,1> shell reuses real element take/borrow/drop/store; original shell birth remains fixed",
+      "independent_observation": "original source now Verify Success, O0/O2 stdout AZB exit0"
+    },
+    {
+      "id": "R168-2",
+      "problem": "inline closure DAG counted full non-Closure leaf type as one unit",
+      "resolution": "independent iterative complete Type work feeds closure expanded layout and per-instance accounting; existing limits unchanged",
+      "independent_observation": "same old binary rejects with exact Verify ResourceLimit raw/wire; narrow leaf accepted"
+    },
+    {
+      "id": "R168-3",
+      "problem": "owning Package arrays charged only direct field count, omitting wide nested Copy fields at array multiplicity",
+      "resolution": "owning-array check precharges complete element Type work times length; Types independently precharges full source layout work",
+      "independent_observation": "same old binary with actual resource Drop rejects with exact Verify ResourceLimit raw/wire; narrow leaf accepted"
+    }
+  ],
+  "preserved_failures": [
+    {
+      "path": "review-initial.json",
+      "meaning": "original 168 ChangesRequested with real source/expanded-DAG failures",
+      "sha256": "78de1c087e78a5b813dc164fc1bd28f29b89ed50c28eca0a5c4d4cf9d1b10438"
+    },
+    {
+      "path": "review-array-budget.json",
+      "meaning": "167 Package array independent acceptance counterexample and clarified expansion claim",
+      "sha256": "7817dd7f06d2d176c476942cfbb2cfcccb8653464baf22af40054664c10ce781"
+    },
+    {
+      "path": "final-specialized.log",
+      "meaning": "mixed-path reused Cargo target failed StableCrateId before executing tests; fresh independent target passed",
+      "sha256": "2f2287005bdb9a2e7fbb9375d3bb4560b9af26e841f2d7d8433a578edaf01c4e"
+    },
+    {
+      "path": "final-replay-source-precheck.log",
+      "meaning": "full-tree cleanliness precheck caught the non-source untracked proposal; changed to explicit tracked-source and untracked-crates checks, document retained",
+      "sha256": "9569e30493f36ad4fd8270bdcc93faf4120251af530ce5baa33c7f3a7154b86e"
+    }
+  ],
+  "final_logs": {
+    "final-build-cli.log": "77a1e927bf1f35a3afd645f2415934e11cb4904f852e43c48f3c55bc1871f943",
+    "final-replay-budget.log": "5fb98b9315fb142c5225a90d17717b79ca661d9ca0075f0564c6d5e9f80d46f7",
+    "final-replay-source.log": "c02231fe72fe096c831b7a3c3e660c0f37ae3f9cc534b7deaa7b273525eeceac",
+    "final-specialized-fresh.log": "3d8829a17c3ef5d14c1a70bec2340824a8366dbbdc3e1a911a98b6fd88cc2998"
+  },
+  "replay_harness_sha256": {
+    "replay-probe/src/main.rs": "c984d2038296b2e787cb0d94df7297dacd73f4df96aea6fdbc54e45baff16c92",
+    "replay-source.py": "5b64b5f1192e2bb02563d5ac56228bafabdaf9caa5924a3ede00d034da4cc54d"
+  },
+  "limits": [
+    "This review is limited to the exact 168/167 candidate above; integrated main, owned ErrorUnion composition, and full workspace are verified by root separately.",
+    "No performance claim or budget increase; initial counterexamples reason about actual admitted expansion paths, not elapsed time.",
+    "Owning capture-field replacement/refill, externally borrowed child environments escaping by move, and general callable argument/result ownership remain outside this finite slice."
+  ],
+  "completed_utc": "2026-10-27T12:01:04.583751+00:00"
+}

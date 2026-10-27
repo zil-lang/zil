@@ -1,0 +1,165 @@
+{
+  "status": "Pass",
+  "reviewer": "/root",
+  "compiler_source_commit": "33ac699268f0b2466a5fa79e9d53007ac54984f3",
+  "cli_sha256": "50226b61f59111c2200b0406940b56f150e816dfc67f045267f129b434e3b021",
+  "observations": [
+    {
+      "case": "once_move_refill_late_guard",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-final/debug/zil",
+        "build",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/once_move_refill_late_guard.zil",
+        "--json",
+        "--opt",
+        "O0",
+        "-o",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/once_move_refill_late_guard-O0"
+      ],
+      "source_sha256": "1103d42c7deedb55ee536c05fa5c6147b67399d0802518a64e1522c5094e65ab",
+      "expected": "Success",
+      "status": "Success",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "stdout": "BCADZ",
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "case": "once_move_refill_late_guard",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-final/debug/zil",
+        "build",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/once_move_refill_late_guard.zil",
+        "--json",
+        "--opt",
+        "O2",
+        "-o",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/once_move_refill_late_guard-O2"
+      ],
+      "source_sha256": "1103d42c7deedb55ee536c05fa5c6147b67399d0802518a64e1522c5094e65ab",
+      "expected": "Success",
+      "status": "Success",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "stdout": "BCADZ",
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "case": "failed_refill_late_guard",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-final/debug/zil",
+        "build",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/failed_refill_late_guard.zil",
+        "--json",
+        "--opt",
+        "O0",
+        "-o",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/failed_refill_late_guard-O0"
+      ],
+      "source_sha256": "bfe01754a5527d333431a7ab44e5819934dc4a51e57e725f4369800791aaeaa1",
+      "expected": "Success",
+      "status": "Success",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "stdout": "ZABC",
+      "exit_code": 1,
+      "stderr": ""
+    },
+    {
+      "case": "failed_refill_late_guard",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-final/debug/zil",
+        "build",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/failed_refill_late_guard.zil",
+        "--json",
+        "--opt",
+        "O2",
+        "-o",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/failed_refill_late_guard-O2"
+      ],
+      "source_sha256": "bfe01754a5527d333431a7ab44e5819934dc4a51e57e725f4369800791aaeaa1",
+      "expected": "Success",
+      "status": "Success",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "stdout": "ZABC",
+      "exit_code": 1,
+      "stderr": ""
+    },
+    {
+      "case": "partial_whole_move",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-final/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/partial_whole_move.zil",
+        "--json"
+      ],
+      "source_sha256": "99b29e73d8f927666a94d275ad0d63a56dd9f83909f6f476921e5e4441e8bd41",
+      "expected": "SafeReject",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: whole aggregate move requires every owned element or field live",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "take_consumed_element",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-final/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/take_consumed_element.zil",
+        "--json"
+      ],
+      "source_sha256": "9864ffc867060658a1e6a609e9c297b1cb79215cbb350ff2b3590e4148eedf91",
+      "expected": "SafeReject",
+      "status": "SafeReject",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: owning array take requires a live element on every path",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "capture_whole_array",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets/review169-final/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/169/review167/final-independent/capture_whole_array.zil",
+        "--json"
+      ],
+      "source_sha256": "8770b11883a82cf21e9ea48828f3d59bae97c5c89833cd3c11a3a2b80622b922",
+      "expected": "Unsupported",
+      "status": "Unsupported",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer",
+          "span": {
+            "file": 0,
+            "start": 326,
+            "end": 327
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    }
+  ]
+}

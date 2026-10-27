@@ -1,0 +1,34 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/compose159/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.09s
+     Running tests/impl125_factory_helpers.rs (/workspace/scratch/39be3faa4442/targets/169/debug/deps/impl125_factory_helpers-458f153cbbbf0c6d)
+
+running 11 tests
+test helper_factory_dependencies_resolve_in_either_order_but_reject_cycles ... FAILED
+test invalid_escape_modes_and_factory_dependencies_stay_rejected ... ok
+test independent_raw_and_wire_checks_reject_both_helper_and_factory_forgery ... ok
+test module_local_factory_and_helper_names_keep_definition_identity ... ok
+test new_composition_still_pays_types_and_verify_budgets ... ok
+test checked_in_component_prepares_warms_and_retains_two_owned_handlers ... ok
+test mutable_preparation_then_retained_component_events ... ok
+test helper_warms_the_returned_handler_and_two_instances_remain_independent ... ok
+test consuming_initialization_and_consumed_or_unused_returned_handler ... ok
+test initializer_error_value_and_returned_environment_cleanup_are_preserved ... ok
+test shared_initialization_helper_then_owned_snapshot_handler ... ok
+
+failures:
+
+---- helper_factory_dependencies_resolve_in_either_order_but_reject_cycles stdout ----
+
+thread 'helper_factory_dependencies_resolve_in_either_order_but_reject_cycles' (113) panicked at crates/zil-driver/tests/impl125_factory_helpers.rs:108:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"callable factory result identity has not been resolved","span":{"file":0,"start":126,"end":133},"notes":[]}],"artifacts":{"core":"/tmp/factory125-other-after-110-7/phases/core.txt","ct-core":"/tmp/factory125-other-after-110-7/phases/ct-core.txt","source-map":"/tmp/factory125-other-after-110-7/phases/source-map.txt","syntax":"/tmp/factory125-other-after-110-7/phases/syntax.txt"},"input_fingerprint":"a069649c23e180518b8ab114cd8a0fa955122e0aa053195295d3c6ea790cc0bf","seconds":0.013752871,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    helper_factory_dependencies_resolve_in_either_order_but_reject_cycles
+
+test result: FAILED. 10 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+error: test failed, to rerun pass `-p zil-driver --test impl125_factory_helpers`

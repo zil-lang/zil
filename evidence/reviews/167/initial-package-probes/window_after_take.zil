@@ -1,0 +1,1 @@
+package B{manages data:ByteBuffer}fn main()->i32{let data=bytes_new();bytes_reserve(data,1);bytes_push(data,7u8);var a=[B{data:give data}];let view=bytes_view(a[0].data);let old=a[0];return i32(view[0])}

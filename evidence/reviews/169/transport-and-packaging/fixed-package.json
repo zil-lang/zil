@@ -1,0 +1,17 @@
+{
+  "status": "Pass",
+  "scope": "packaging only",
+  "source_commit": "f617dd678588e91469c860cc7c54a92f1b21204c",
+  "source_files": 2503,
+  "evidence_files_in_source": 0,
+  "source": {
+    "file": "/workspace/scratch/39be3faa4442/run-logs/review169/fixed-source.zip",
+    "bytes": 4755389,
+    "sha256": "bb3b22b2670bf8808e028996e84121cd58db702b6684572fd5a47ed75a0c8ff2"
+  },
+  "audit": {
+    "file": "/workspace/scratch/39be3faa4442/run-logs/review169/fixed-audit.zip",
+    "bytes": 8037868,
+    "sha256": "a33d4bd5badad0ab4571b0ec1b2592ea27f055b2232d4ee25344fe9337cbd629"
+  }
+}

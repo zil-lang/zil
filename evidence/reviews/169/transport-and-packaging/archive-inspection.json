@@ -1,0 +1,15 @@
+{
+  "status": "Pass",
+  "source_commit": "456e66caed9384c602b913ec241302431a0873d7",
+  "source_files_verified": 2491,
+  "source_bytes": 4704949,
+  "source_sha256": "a7416b5333c67b9b6c70e77239d73f68eefa82517858f04eaec77ca3ea488bd4",
+  "audit_bytes": 7853120,
+  "audit_sha256": "1b153f88dc4a10bda630eb6808e76ea7ac8cb0700acf4556c12afec4a24e5e68",
+  "audit_files_verified": 6,
+  "source_has_evidence_or_build_output": false,
+  "history_commits": 133,
+  "history_refs": 33,
+  "worktree_heads": 19,
+  "audit_under_50MB": true
+}

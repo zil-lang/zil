@@ -1,0 +1,15 @@
+borrowed_child_move Unsupported types E-UNSUPPORTED
+child_move_while_borrowed SafeReject verify E-BORROW-CONFLICT
+exclusive_child_alias SafeReject types E-CLOSURE-MODE
+exclusive_child_last_use Success verify 
+exclusive_child_overlap SafeReject verify E-BORROW-CONFLICT
+once_branch_reuse SafeReject analyze E-UNINITIALIZED
+opaque_capture_assignment SafeReject types E-TYPE-MISMATCH
+replacement_later_guard Success verify 
+uncalled_four_level Success verify 
+exclusive_child_last_use O0 'A' exit 0
+exclusive_child_last_use O2 'A' exit 0
+replacement_later_guard O0 'AZB' exit 0
+replacement_later_guard O2 'AZB' exit 0
+uncalled_four_level O0 'ZA' exit 0
+uncalled_four_level O2 'ZA' exit 0

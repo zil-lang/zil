@@ -1,0 +1,38 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review167/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 36.73s
+     Running tests/impl167_owned_arrays.rs (/workspace/scratch/39be3faa4442/targets/review167/debug/deps/impl167_owned_arrays-57093b6aa53da9c2)
+
+running 19 tests
+test dynamic_indices_and_implicit_resource_arrays_remain_explicit_boundaries ... ok
+test old_byte_buffer_window_cannot_survive_any_array_element_replacement ... ok
+test private_array_element_fields_remain_private_across_modules ... ok
+test raw_and_wire_cannot_copy_elements_or_retake_the_same_slot ... ok
+test raw_and_wire_cannot_relabel_owned_operations_as_copy_aggregate_operations ... ok
+test raw_and_wire_check_static_bounds_and_charge_declared_array_size ... ok
+test partial_slots_and_descriptors_cannot_be_reused_after_transfer_or_replacement ... ok
+test raw_and_wire_require_cleanup_before_overwriting_and_complete_whole_moves ... ok
+test package_fields_clean_in_declaration_order_inside_each_array_element ... ok
+test construction_and_copy_projection_clean_each_element_once ... ok
+test partial_array_exit_and_branch_join_clean_only_live_elements ... ok
+test prepared_prefix_is_cleaned_in_reverse_order_on_later_error ... ok
+test byte_buffer_field_windows_use_the_actual_inline_element ... ok
+test failed_replacement_keeps_the_old_element_until_scope_cleanup ... ok
+test replacement_cleans_previous_element_before_installing_prepared_value ... ok
+test repeated_loop_refill_reinitializes_only_the_chosen_slot ... ok
+test whole_array_can_cross_modules_with_exact_public_package_identity ... ok
+test taking_and_refilling_an_element_preserves_unique_cleanup ... ok
+test whole_array_roundtrip_and_move_keep_inline_owners ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+

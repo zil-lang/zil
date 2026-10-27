@@ -1,0 +1,12 @@
+[package]
+name="independent-review168"
+version="0.0.0"
+edition="2024"
+[dependencies]
+zil-base={path="/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-base"}
+zil-ir={path="/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-ir"}
+zil-syntax={path="/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-syntax"}
+zil-expand={path="/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-expand"}
+zil-types={path="/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-types"}
+zil-analyze={path="/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-analyze"}
+zil-verify={path="/workspace/scratch/39be3faa4442/zil-restored/review168/crates/zil-verify"}

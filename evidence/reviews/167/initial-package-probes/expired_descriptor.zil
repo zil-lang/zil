@@ -1,0 +1,1 @@
+extern "C" fn putchar(x:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages r:R}fn mk(n:i32)->P{return P{r:R{n:n}}}fn relay(a:[P;2])->[P;2]{return a}fn main()->i32{var a=[mk(65),mk(66)];let stale=a[0].r;let old=a[0];a[0]=mk(67);return stale.n}

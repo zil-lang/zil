@@ -1,0 +1,236 @@
+{
+  "commit": "febc071cae01ea328d6aa9d8595937cb03d1291e",
+  "crates_tree": "8de7e0ad93a4c99f62a9ed4865f99d8cfbde8ad2",
+  "cli_sha256": "7868160ecf6ec6a07e1dc8d43f858b59584b84906b92e343c79dbecc395c1704",
+  "tracked_sources_clean": true,
+  "untracked_non_source_documents": [
+    "changes/168-retained-closure-composition.md"
+  ],
+  "checks": [
+    {
+      "case": "borrowed_child_move",
+      "source_sha256": "5f88dcdc55590fd12b14319e8bbefabf61e4b67e735c73c89f09937043760b9a",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape",
+          "span": {
+            "file": 0,
+            "start": 228,
+            "end": 229
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "report_sha256": "5f5c263a12eec5894e36bbaa805c0d8dc7eafa63669778d230144b93e9f76d68",
+      "returncode": 3
+    },
+    {
+      "case": "child_move_while_borrowed",
+      "source_sha256": "c4368ee74da625b98da667c9b6225f3d2c8f143952188ea9ce71438aea4f710c",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use",
+          "span": {
+            "file": 0,
+            "start": 250,
+            "end": 251
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 1,
+      "report_sha256": "4198c1a449b8e7573ea97b28c8b5fff9d01d92f6c4e81390087c09cc7c643e8d",
+      "returncode": 1
+    },
+    {
+      "case": "exclusive_child_alias",
+      "source_sha256": "316629b461461c3a337bf7549fa6ea7aa68612a1da82770458a7dc022d2516ab",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-CLOSURE-MODE",
+          "message": "borrowed closure lacks its call permission",
+          "span": {
+            "file": 0,
+            "start": 275,
+            "end": 278
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "report_sha256": "6fc967a586163c5ac14cd2ec1bae8a9e063937c77e5b17a5cfe01d63953ef775",
+      "returncode": 1
+    },
+    {
+      "case": "exclusive_child_last_use",
+      "source_sha256": "814018d6a7ac82b808c2446e3815f19f9752c3d70aba552c608a2cfb759cacc2",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "report_sha256": "b15e367c947e25d8e83ab2e8dc9382926f19996bb14692c47e3dde46809ab667",
+      "returncode": 0
+    },
+    {
+      "case": "exclusive_child_overlap",
+      "source_sha256": "1c4ccc9fc0f9c2f9270f34beec7aba0f1468feaf1fba2476b9525210cf7ce3e0",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 260,
+            "end": 261
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 1,
+      "report_sha256": "ab3df8676fb245508d7140ed48e7ed5932c1dc3d1b71ee05047cdadb0d4f918f",
+      "returncode": 1
+    },
+    {
+      "case": "once_branch_reuse",
+      "source_sha256": "898ef8aa41ccf6e362959e151067a3b832cdab100af9e54584eb35553059eb11",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 1 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 311,
+            "end": 318
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "report_sha256": "1f7b642763258e1be049aa66277e0d5d94d891b19b2d23f69e707f3264d4f009",
+      "returncode": 1
+    },
+    {
+      "case": "opaque_capture_assignment",
+      "source_sha256": "ce96f48b881cfd6847b4ccf72cb465ff2a146fb44527b23b8fffe37624851d28",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-TYPE-MISMATCH",
+          "message": "different closure expressions have different concrete types",
+          "span": {
+            "file": 0,
+            "start": 138,
+            "end": 148
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "report_sha256": "aea40dd1cc666b6d3692f1e94afc2f1237ca4630bc8fd2296f939420d6e72555",
+      "returncode": 1
+    },
+    {
+      "case": "replacement_later_guard",
+      "source_sha256": "75bf1bd42419a8a19dd8d5de4892827432596f81f1ccd0a5a192fd70dbfec0fa",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "report_sha256": "944f810a27ced409401e6c58cd69b4084f9bb1dce306b064120de5e74342898e",
+      "returncode": 0
+    },
+    {
+      "case": "uncalled_four_level",
+      "source_sha256": "fde821ef0f6236aaf5753ee042f1046d3aac5a1b73f726bd9660be067c9195a1",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "report_sha256": "a7d778e5ee657145e8624f50db960341cbb14d8163556c953750470d0ed313ac",
+      "returncode": 0
+    }
+  ],
+  "native": [
+    {
+      "case": "exclusive_child_last_use",
+      "opt": "O0",
+      "verification_runs": 1,
+      "source_sha256": "814018d6a7ac82b808c2446e3815f19f9752c3d70aba552c608a2cfb759cacc2",
+      "exit": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "exclusive_child_last_use",
+      "opt": "O2",
+      "verification_runs": 1,
+      "source_sha256": "814018d6a7ac82b808c2446e3815f19f9752c3d70aba552c608a2cfb759cacc2",
+      "exit": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "replacement_later_guard",
+      "opt": "O0",
+      "verification_runs": 1,
+      "source_sha256": "75bf1bd42419a8a19dd8d5de4892827432596f81f1ccd0a5a192fd70dbfec0fa",
+      "exit": 0,
+      "stdout": "AZB",
+      "stderr": ""
+    },
+    {
+      "case": "replacement_later_guard",
+      "opt": "O2",
+      "verification_runs": 1,
+      "source_sha256": "75bf1bd42419a8a19dd8d5de4892827432596f81f1ccd0a5a192fd70dbfec0fa",
+      "exit": 0,
+      "stdout": "AZB",
+      "stderr": ""
+    },
+    {
+      "case": "uncalled_four_level",
+      "opt": "O0",
+      "verification_runs": 1,
+      "source_sha256": "fde821ef0f6236aaf5753ee042f1046d3aac5a1b73f726bd9660be067c9195a1",
+      "exit": 0,
+      "stdout": "ZA",
+      "stderr": ""
+    },
+    {
+      "case": "uncalled_four_level",
+      "opt": "O2",
+      "verification_runs": 1,
+      "source_sha256": "fde821ef0f6236aaf5753ee042f1046d3aac5a1b73f726bd9660be067c9195a1",
+      "exit": 0,
+      "stdout": "ZA",
+      "stderr": ""
+    }
+  ],
+  "status": "Pass"
+}

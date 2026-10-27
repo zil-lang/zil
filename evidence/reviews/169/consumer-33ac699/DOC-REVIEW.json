@@ -1,0 +1,143 @@
+{
+  "reviewer": "/root/source_inventory",
+  "reviewed_commit": "e6ca373af16bbecab4e3c4c3033a235cf5084cd3",
+  "scope": "Current166–169 interface/catalog, delivery entry and task metadata statements; no implementation modifications",
+  "status": "CorrectionsRequired",
+  "document_sha256": {
+    ".task/impl/166.md": "ad5a51338ed234f8e07b39e7a1094276ea2a6adbf6d4441787944b89b12a7833",
+    ".task/impl/167.md": "3be255269fe25944ca8aa6ab57810079a95c0650dc09250774918925ce1b409f",
+    ".task/impl/168.md": "9b3828cb966389d2821d6db0fc3b6f74d166e13e0dfd848fe3ea9ac54f716ff0",
+    ".task/impl/169.md": "5c24be762c82f8bee32a35011ac0aa20df6dfb73aa7960e9d20558a531a20a5e",
+    "AGENTS.md": "899c389036e2771d58ef9affaf8a3170fb2b504a9ab762e92b1ab8a515c57f14",
+    "README.md": "02e29226b1ba516ac570f9616c7b46fe3a043399e48940bb1102d6119199d75e",
+    "docs/DELIVERY.md": "de97c13eddc07426481f3e676727c3bbedcf3c8782a5443a280040561ed55031",
+    "docs/LANGUAGE-QUICKSTART.md": "9c9ad0a538f82d075b8d87c8e7f5140772fd0fd851776cc016e92cb5fc65bd91",
+    "spec/interfaces.json": "86204475649218dbdcd64930fd5498aed708210bb2c11ab1f69d888a3f5d6f40"
+  },
+  "findings": [
+    {
+      "file": "spec/interfaces.json",
+      "lines": [
+        671
+      ],
+      "issue": "Current compatibility says wire/schema17 and V17, while actual base/wire/fingerprint are19.",
+      "correction": "Only19 accepted; reject0–18 and future unknowns; V19. Retain frozen historical research identities."
+    },
+    {
+      "file": "spec/interfaces.json",
+      "lines": [
+        674,
+        675,
+        781,
+        785,
+        794,
+        795
+      ],
+      "issue": "Current remaining/error/retained fields deny owned error payloads, nested concrete environments and factory forwarding now admitted by166/168; retained capture cleanup lists Managed only.",
+      "correction": "Describe finite Copy-or-complete-Package error alternatives; self-contained Copy/Managed/Package/Closure captures and exact owned cleanup indices; ordinary concrete factory forwarding. Retain broader unsupported cases."
+    },
+    {
+      "file": "spec/interfaces.json",
+      "lines": [
+        783
+      ],
+      "issue": "Claims main cleanup occurs wholly before function Return. Owned error Package is returned to native entry and then cleaned there.",
+      "correction": "Distinguish function-local cleanup beforeReturn from native entry teardown of returned owned error payload."
+    },
+    {
+      "file": "spec/interfaces.json",
+      "lines": [
+        753,
+        758,
+        769
+      ],
+      "issue": "Operation tag directory stops at68; resource/callable metadata still refer to current V13 fingerprint.",
+      "correction": "Register69–79 consistently and refer to current V19 domain without relabeling old archived identities."
+    },
+    {
+      "file": "spec/interfaces.json",
+      "lines": [
+        842,
+        856,
+        857,
+        866
+      ],
+      "issue": "Schema19 summaries omit actual guards that would be needed to safely interpret their broad shape claims.",
+      "correction": "State owned-union/owned-array capture remainsUnsupported; source array places need named locals and literal indices, concrete Closure elements are self-contained and borrowed with conservative whole-array roots."
+    },
+    {
+      "file": ".task/impl/166.md",
+      "lines": [
+        11,
+        12,
+        13
+      ],
+      "issue": "Implementation/review/evidence fields remain empty during active work.",
+      "correction": "Populate real candidate and review receipts at final closure; no prematureDone."
+    },
+    {
+      "file": ".task/impl/167.md",
+      "lines": [
+        11,
+        12,
+        13,
+        16,
+        43
+      ],
+      "issue": "Final receipt fields still empty and approved Verify closure guard/package_tests migration absent from write_set.",
+      "correction": "Record real bindings plus the two specifically authorized files."
+    },
+    {
+      "file": ".task/impl/168.md",
+      "lines": [
+        11,
+        12,
+        13,
+        16,
+        48
+      ],
+      "issue": "Final receipt fields still empty and febc071 types/aggregates.rs and types/packages.rs changes absent from write_set.",
+      "correction": "Record authorized follow-up and its exact review binding."
+    },
+    {
+      "file": ".task/impl/169.md",
+      "lines": [
+        11,
+        12,
+        13
+      ],
+      "issue": "Final implementation/review/evidence binding pending.",
+      "correction": "Bind to actual integration and independent consumer/packaging receipts after execution."
+    },
+    {
+      "file": "README.md",
+      "lines": [
+        1,
+        3,
+        5,
+        247,
+        253,
+        256,
+        258,
+        262,
+        291
+      ],
+      "issue": "Current introduction/ability table still describes draft23/1195/wire17 and denies ownership composition now implemented.",
+      "correction": "Add current169 entry and mark frozen historical report/table context, or update current assertions without relabeling old tests."
+    },
+    {
+      "file": "docs/LANGUAGE-QUICKSTART.md",
+      "lines": [
+        3,
+        132
+      ],
+      "issue": "Calls wire5 and unfinished FnOnce resource/closure recapture current.",
+      "correction": "Mark draft08 historical scope and link current169 boundaries or revise factual current assertions."
+    }
+  ],
+  "no_issue_found": [
+    "AGENTS.md current recovery entry",
+    "docs/DELIVERY.md lines3–23 source/audit separation and honest historical handoff boundary"
+  ],
+  "note": "Active task null receipt fields are expected until sealing; this report lists required finalization, not fabricated completed status."
+}
