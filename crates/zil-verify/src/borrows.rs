@@ -410,6 +410,7 @@ fn check(
                 InstructionKind::TakeCapture { index }
                     if instruction.result.is_some_and(|value| {
                         byte_buffers::is_owned(&f.values[value.0 as usize])
+                            || matches!(f.values[value.0 as usize], Type::Closure(_))
                     }) =>
                 {
                     Some(Root::Capture(index))
@@ -570,7 +571,8 @@ fn reconstruct(
                         | InstructionKind::AddressIndex { address, .. } => {
                             roots_join(&mut row, &values[address.0 as usize], budget)?;
                         }
-                        InstructionKind::ReadCapture { index }
+                        InstructionKind::BorrowCapture { index, .. }
+                        | InstructionKind::ReadCapture { index }
                             if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
                         {
                             row.push(Root::Capture(*index))

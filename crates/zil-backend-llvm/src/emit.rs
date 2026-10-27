@@ -237,7 +237,8 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
         ) || !closure.result.is_copy_value()
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
-                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+                    || matches!(ty, Type::Closure(_))
+                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     || (resources::supported_type(ty, &lir.resources)
                         && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
                     || packages::supported_type(ty, &lir.resources)
@@ -612,6 +613,9 @@ impl FunctionEmitter<'_> {
             }
             InstructionKind::DropManaged { local } => self.drop_managed(instruction, *local)?,
             InstructionKind::DropClosure { local } => self.drop_closure(instruction, *local)?,
+            InstructionKind::BorrowCapture { index, .. } => {
+                self.borrow_capture(instruction, *index)?
+            }
             InstructionKind::DescribeCapture { index } => {
                 self.describe_capture(instruction, *index)?
             }
@@ -1681,7 +1685,8 @@ fn capture_type(ty: &Type) -> CompileResult<String> {
     match ty {
         Type::Unit => Ok("i8".into()),
         _ if ty.is_copy_value()
-            || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+            || matches!(ty, Type::Closure(_))
+            || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
             || matches!(ty, Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer)
             || matches!(ty, Type::Package { .. }) =>
@@ -1739,9 +1744,11 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 )]
             })?;
             definition.captures.iter().try_fold(1, |maximum, field| {
-                // Closed Copy aggregates are finite; nested closure environments remain forbidden.
+                // Verify checked the complete inline environment DAG and depth
+                // before this recursive machine-alignment calculation.
                 if !field.is_copy_value()
-                    && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value())
+                    && !matches!(field, Type::Closure(_))
+                    && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
                     && !matches!(field,Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer)
                     && !matches!(field, Type::Package { .. })

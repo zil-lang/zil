@@ -136,8 +136,8 @@ pub(super) fn reserve_signatures(
 }
 
 /// Templates can run while opaque factories are being checked, but their lookup
-/// snapshot keeps every opaque result unresolved until that entire pass ends.
-/// Then update only the concrete result slots; no second deep table clone.
+/// snapshot is updated after each dependency-ordered factory completes.
+/// Only concrete result slots change; no second deep table clone is required.
 pub(super) fn resolve_factory_result(
     state: &mut closures::State,
     module: ModuleId,
@@ -451,13 +451,18 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        let bound = self.helper_bound.clone().ok_or_else(|| {
-            unsupported(
-                span,
-                "borrowed closure calls require a concrete helper contract",
+        let (address, ty) = if let CoreExprKind::Name(name) = &callee.kind
+            && let Some(local) = self.lookup(name)
+            && matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))
+        {
+            let ty = self.function.locals[local.0 as usize].ty.clone();
+            (
+                self.value(InstructionKind::Load(local), ty.clone(), span)?,
+                ty,
             )
-        })?;
-        let (address, ty) = self.expr(callee, None)?;
+        } else {
+            self.expr(callee, None)?
+        };
         let Type::Address { mutable, inner } = ty else {
             return Err(unsupported(
                 span,
@@ -470,17 +475,29 @@ impl Builder<'_, '_> {
                 "borrowed helper environment has no concrete identity",
             ));
         };
-        if bound.kind == CallableKind::FnOnce || (bound.kind == CallableKind::FnMut && !mutable) {
+        let parameter_bound = self
+            .helper_bound
+            .as_ref()
+            .filter(|bound| {
+                matches!(&callee.kind, CoreExprKind::Name(name)
+                if self.lookup(name) == self.function.parameters.get(bound.index as usize).copied())
+            })
+            .cloned();
+        let (kind, parameters, result) = if let Some(bound) = parameter_bound {
+            (bound.kind, bound.parameters, bound.result)
+        } else {
+            let pending = &mut self.closures.pending[id.0 as usize];
+            let (parameters, result) = pending.inference.resolve(false, span)?;
+            (pending.callable_kind(), parameters, result)
+        };
+        if kind == CallableKind::FnOnce || (kind == CallableKind::FnMut && !mutable) {
             return Err(error(
                 "E-CLOSURE-MODE",
                 span,
                 "borrowed environment lacks the requested call mode",
             ));
         }
-        if !compatible(
-            self.closures.pending[id.0 as usize].callable_kind(),
-            bound.kind,
-        ) {
+        if !compatible(self.closures.pending[id.0 as usize].callable_kind(), kind) {
             return Err(error(
                 "E-CLOSURE-MODE",
                 span,
@@ -488,9 +505,9 @@ impl Builder<'_, '_> {
             ));
         }
         if let Some(expected) = expected {
-            self.same(&bound.result, expected, span)?;
+            self.same(&result, expected, span)?;
         }
-        if arguments.len() != bound.parameters.len() {
+        if arguments.len() != parameters.len() {
             return Err(error(
                 "E-CALL-ARITY",
                 span,
@@ -498,22 +515,22 @@ impl Builder<'_, '_> {
             ));
         }
         let mut values = Vec::new();
-        for (argument, parameter) in arguments.iter().zip(&bound.parameters) {
+        for (argument, parameter) in arguments.iter().zip(&parameters) {
             let (value, actual) = self.expr(argument, Some(parameter))?;
             self.same(&actual, parameter, argument.span)?;
             values.push(value);
         }
         let instruction = InstructionKind::CallClosureBorrowed {
             callee: address,
-            kind: bound.kind,
+            kind,
             arguments: values,
         };
-        if bound.result == Type::Unit {
+        if result == Type::Unit {
             self.emit(instruction, None, span)?;
             self.constant(Constant::Unit, span)
         } else {
-            let value = self.value(instruction, bound.result.clone(), span)?;
-            Ok((value, bound.result))
+            let value = self.value(instruction, result.clone(), span)?;
+            Ok((value, result))
         }
     }
 }

@@ -2,6 +2,356 @@
 //! callable return. This module does not instantiate or inline factory bodies
 //! at call sites; direct calls retain their ordinary function identities.
 use super::*;
+use std::collections::BTreeSet;
+
+/// Schedule concrete results without speculative type checking: a failed
+/// Builder is allowed to have reserved environment identities. The borrowed
+/// walk resolves only direct calls and respects every local shadowing scope.
+pub(super) fn dependencies(
+    function: &CoreFunction,
+    signatures: &BTreeMap<String, Signature>,
+    imports: Option<&program::Imports<'_>>,
+    work: &mut usize,
+    limits: &Limits,
+) -> R<BTreeSet<FunctionId>> {
+    let mut walk = Dependencies {
+        signatures,
+        imports,
+        scopes: vec![function.parameters.iter().map(|p| p.name.clone()).collect()],
+        found: BTreeSet::new(),
+        work,
+        limits,
+    };
+    walk.block(&function.body, 0)?;
+    Ok(walk.found)
+}
+
+pub(super) fn order(
+    graph: BTreeMap<FunctionId, (Span, BTreeSet<FunctionId>)>,
+    work: &mut usize,
+) -> R<Vec<FunctionId>> {
+    let mut counts = BTreeMap::new();
+    let mut users = BTreeMap::<FunctionId, Vec<FunctionId>>::new();
+    let mut ready = BTreeSet::new();
+    for (id, (span, edges)) in &graph {
+        spend(work, edges.len().saturating_add(1), *span)?;
+        counts.insert(*id, edges.len());
+        if edges.is_empty() {
+            ready.insert(*id);
+        }
+        for edge in edges {
+            users.entry(*edge).or_default().push(*id);
+        }
+    }
+    let mut ordered = Vec::new();
+    while let Some(id) = ready.pop_first() {
+        ordered.push(id);
+        if let Some(dependents) = users.get(&id) {
+            spend(work, dependents.len(), graph[&id].0)?;
+            for dependent in dependents {
+                let count = counts.get_mut(dependent).expect("factory graph node");
+                *count -= 1;
+                if *count == 0 {
+                    ready.insert(*dependent);
+                }
+            }
+        }
+    }
+    if ordered.len() != graph.len() {
+        let (id, _) = counts
+            .iter()
+            .find(|(_, count)| **count != 0)
+            .expect("cycle");
+        return Err(unsupported(
+            graph[id].0,
+            "recursive opaque factory result dependencies have no finite concrete identity",
+        ));
+    }
+    Ok(ordered)
+}
+
+fn spend(work: &mut usize, count: usize, span: Span) -> R<()> {
+    *work = work.checked_sub(count).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "factory dependency budget exceeded",
+            Some(span),
+        )
+    })?;
+    Ok(())
+}
+
+pub(super) fn self_contained(
+    closures: &[closures::Pending],
+    root: ClosureId,
+    work: &mut usize,
+    span: Span,
+) -> R<()> {
+    let mut seen = BTreeSet::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        spend(work, 1, span)?;
+        if !seen.insert(id) {
+            continue;
+        }
+        let closure = closures.get(id.0 as usize).ok_or_else(|| {
+            error(
+                "E-CLOSURE-INFERENCE",
+                span,
+                "nested closure identity is unresolved",
+            )
+        })?;
+        spend(work, closure.captures.len(), span)?;
+        for capture in &closure.captures {
+            match capture.stored_type() {
+                Type::Closure(child) => pending.push(child),
+                Type::Managed(_) | Type::Package { .. } => {}
+                ty if ty.is_copy_value() => {}
+                _ => {
+                    return Err(unsupported(
+                        span,
+                        "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+struct Dependencies<'a, 'b> {
+    signatures: &'a BTreeMap<String, Signature>,
+    imports: Option<&'a program::Imports<'a>>,
+    scopes: Vec<BTreeSet<String>>,
+    found: BTreeSet<FunctionId>,
+    work: &'b mut usize,
+    limits: &'a Limits,
+}
+impl Dependencies<'_, '_> {
+    fn node(&mut self, depth: usize, span: Span) -> R<()> {
+        if depth > self.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "factory dependency depth exceeded",
+                Some(span),
+            ));
+        }
+        spend(self.work, 1, span)
+    }
+    fn bound(&self, name: &str) -> bool {
+        self.scopes.iter().rev().any(|scope| scope.contains(name))
+    }
+    fn bind(&mut self, name: &str, span: Span) -> R<()> {
+        spend(self.work, name.len().saturating_add(1), span)?;
+        self.scopes.last_mut().expect("scope").insert(name.into());
+        Ok(())
+    }
+    fn pattern(&mut self, pattern: &CorePattern, depth: usize) -> R<()> {
+        self.node(depth, pattern.span)?;
+        match &pattern.kind {
+            CorePatternKind::Name(name) => self.bind(name, pattern.span)?,
+            CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
+                for field in fields {
+                    self.pattern(field, depth + 1)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn patterned(&mut self, pattern: &CorePattern, body: &CoreBlock, depth: usize) -> R<()> {
+        self.scopes.push(BTreeSet::new());
+        self.pattern(pattern, depth + 1)?;
+        self.block(body, depth + 1)?;
+        self.scopes.pop();
+        Ok(())
+    }
+    fn block(&mut self, block: &CoreBlock, depth: usize) -> R<()> {
+        self.node(depth, block.span)?;
+        self.scopes.push(BTreeSet::new());
+        for statement in &block.statements {
+            self.node(depth + 1, statement.span)?;
+            match &statement.kind {
+                CoreStatementKind::Binding {
+                    name, initializer, ..
+                } => {
+                    if let Some(value) = initializer {
+                        self.expr(value, depth + 1)?;
+                    }
+                    self.bind(name, statement.span)?;
+                }
+                CoreStatementKind::Assign { target, value } => {
+                    self.expr(target, depth + 1)?;
+                    self.expr(value, depth + 1)?;
+                }
+                CoreStatementKind::Expression(e) | CoreStatementKind::Return(Some(e)) => {
+                    self.expr(e, depth + 1)?
+                }
+                CoreStatementKind::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
+                    self.expr(condition, depth + 1)?;
+                    self.block(then_body, depth + 1)?;
+                    if let Some(body) = else_body {
+                        self.block(body, depth + 1)?;
+                    }
+                }
+                CoreStatementKind::IfLet {
+                    pattern,
+                    value,
+                    then_body,
+                    else_body,
+                } => {
+                    self.expr(value, depth + 1)?;
+                    self.patterned(pattern, then_body, depth + 1)?;
+                    if let Some(body) = else_body {
+                        self.block(body, depth + 1)?;
+                    }
+                }
+                CoreStatementKind::While { condition, body } => {
+                    self.expr(condition, depth + 1)?;
+                    self.block(body, depth + 1)?;
+                }
+                CoreStatementKind::WhileLet {
+                    pattern,
+                    value,
+                    body,
+                } => {
+                    self.expr(value, depth + 1)?;
+                    self.patterned(pattern, body, depth + 1)?;
+                }
+                CoreStatementKind::ForRange {
+                    name,
+                    start,
+                    end,
+                    body,
+                } => {
+                    self.expr(start, depth + 1)?;
+                    self.expr(end, depth + 1)?;
+                    self.scopes.push(BTreeSet::new());
+                    self.bind(name, statement.span)?;
+                    self.block(body, depth + 1)?;
+                    self.scopes.pop();
+                }
+                CoreStatementKind::Match { value, arms } => {
+                    self.expr(value, depth + 1)?;
+                    for arm in arms {
+                        self.patterned(&arm.pattern, &arm.body, depth + 1)?;
+                    }
+                }
+                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+                    self.block(body, depth + 1)?
+                }
+                _ => {}
+            }
+        }
+        self.scopes.pop();
+        Ok(())
+    }
+    fn expr(&mut self, expression: &CoreExpr, depth: usize) -> R<()> {
+        self.node(depth, expression.span)?;
+        match &expression.kind {
+            CoreExprKind::Call { callee, arguments } => {
+                let signature = match &callee.kind {
+                    CoreExprKind::Name(name) if !self.bound(name) => self.signatures.get(name),
+                    CoreExprKind::Member { object, member } => {
+                        if let CoreExprKind::Name(alias) = &object.kind {
+                            if self.bound(alias) {
+                                None
+                            } else {
+                                self.imports.and_then(|imports| {
+                                    imports
+                                        .aliases
+                                        .get(alias)
+                                        .and_then(|module| imports.signatures.get(module))
+                                        .and_then(|table| table.get(member))
+                                })
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some(signature) = signature.filter(|s| s.callable_return.is_some()) {
+                    self.found.insert(signature.id);
+                }
+                self.expr(callee, depth + 1)?;
+                for argument in arguments {
+                    self.expr(argument, depth + 1)?;
+                }
+            }
+            CoreExprKind::Ascribed { value, .. }
+            | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::CompileTime(value)
+            | CoreExprKind::Try(value)
+            | CoreExprKind::Unary { operand: value, .. }
+            | CoreExprKind::Member { object: value, .. } => self.expr(value, depth + 1)?,
+            CoreExprKind::Binary { left, right, .. }
+            | CoreExprKind::Index {
+                object: left,
+                index: right,
+            } => {
+                self.expr(left, depth + 1)?;
+                self.expr(right, depth + 1)?;
+            }
+            CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
+                for field in fields {
+                    self.expr(field, depth + 1)?;
+                }
+            }
+            CoreExprKind::Slice { object, start, end } => {
+                self.expr(object, depth + 1)?;
+                for value in [start, end].into_iter().flatten() {
+                    self.expr(value, depth + 1)?;
+                }
+            }
+            CoreExprKind::Record { fields, .. } => {
+                for (_, field) in fields {
+                    self.expr(field, depth + 1)?;
+                }
+            }
+            CoreExprKind::RecordUpdate { base, fields, .. } => {
+                self.expr(base, depth + 1)?;
+                for (_, field) in fields {
+                    self.expr(field, depth + 1)?;
+                }
+            }
+            CoreExprKind::Sequence { bindings, value } => {
+                self.scopes.push(BTreeSet::new());
+                for (name, initializer) in bindings {
+                    self.expr(initializer, depth + 1)?;
+                    self.bind(name, expression.span)?;
+                }
+                self.expr(value, depth + 1)?;
+                self.scopes.pop();
+            }
+            CoreExprKind::Closure {
+                parameters, body, ..
+            } => {
+                self.scopes.push(BTreeSet::new());
+                for parameter in parameters {
+                    self.bind(&parameter.name, parameter.span)?;
+                }
+                self.block(body, depth + 1)?;
+                self.scopes.pop();
+            }
+            CoreExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                self.expr(condition, depth + 1)?;
+                self.expr(then_value, depth + 1)?;
+                self.expr(else_value, depth + 1)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
 
 pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
     let Some(bound) = &function.callable_return else {
@@ -54,12 +404,6 @@ impl Builder<'_, '_> {
                 "opaque callable return requires a closure environment",
             ));
         };
-        if (id.0 as usize) < self.first_closure {
-            return Err(unsupported(
-                span,
-                "forwarded or recursive callable factory returns are not implemented",
-            ));
-        }
         let bound = self.factory_bound.as_ref().expect("factory return").clone();
         let pending = &mut self.closures.pending[id.0 as usize];
         if pending.inference.arity() != bound.parameters.len() {
@@ -84,6 +428,7 @@ impl Builder<'_, '_> {
             let ty = capture.stored_type();
             if matches!(&ty, Type::Managed(_) if resources::supported(&ty))
                 || packages::supported(&ty)
+                || matches!(ty, Type::Closure(_))
             {
                 cleanup.push(index as u32);
             } else if !ty.is_copy_value() {

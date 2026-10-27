@@ -89,6 +89,12 @@ pub fn verify_ct_program(
             }
             for instruction in &block.instructions {
                 match instruction.kind {
+                    InstructionKind::BorrowCapture { .. } => {
+                        return Err(bad(
+                            Some(instruction.span),
+                            "runtime environment borrowing is outside the pure CT capability set",
+                        ));
+                    }
                     InstructionKind::Constant(_)
                     | InstructionKind::ScopeEnter { .. }
                     | InstructionKind::ScopeExit { .. }
