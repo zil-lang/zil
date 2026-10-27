@@ -242,7 +242,8 @@ pub fn check(
     {
         let id = signatures[&f.name].id;
         let dependencies =
-            retained::dependencies(f, &signatures, None, &mut work, limits).map_err(|e| vec![e])?;
+            retained::factory_dependencies(f, &signatures, None, &closure_state, &mut work, limits)
+                .map_err(|e| vec![e])?;
         graph.insert(id, (f.span, dependencies));
         factory_functions.insert(id, f);
     }
