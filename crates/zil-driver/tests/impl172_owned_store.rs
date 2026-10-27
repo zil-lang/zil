@@ -510,11 +510,282 @@ fn exact_verify_budget_boundary_and_untrusted_constructor_metadata_are_bounded()
     };
     let element = Type::Tuple(vec![Type::I32; constrained.max_analysis_steps + 1]);
     mutated.functions[f].blocks[b].instructions[i].kind = I::OwnedStoreNew { element };
-    let result = zil_verify::verify_module(mutated, plan, &target, &constrained).unwrap_err();
-    assert!(
-        result
-            .iter()
-            .any(|d| d.category == ResultCategory::ResourceLimit),
-        "{result:?}"
+    let bytes = zil_ir::wire::encode_module_candidate(&mutated, &plan, &default).unwrap();
+    for (route, result) in [
+        (
+            "raw",
+            zil_verify::verify_module(mutated, plan, &target, &constrained),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&bytes, &target, &constrained),
+        ),
+    ] {
+        let errors = result.unwrap_err();
+        fs::write(
+            dir.join(format!("wide-metadata-{route}.txt")),
+            format!("{errors:#?}\n"),
+        )
+        .unwrap();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn source_neighbours_preserve_transfer_and_nested_composition_boundaries() {
+    let sources = [
+        format!(
+            "{PACKAGE} fn main()->i32{{let s=empty();let moved=give s;return i32(store_len(s))}}"
+        ),
+        format!(
+            "{PACKAGE} fn bad(s:Store<P>)->Store<P> contract{{result(give)}}{{return give s}} fn main()->i32=>0"
+        ),
+        format!(
+            "{PACKAGE} fn main()->i32{{let s=empty();store_reserve(s,2);let p=make(65);store_push(s,p);store_push(s,p);return 0}}"
+        ),
+        format!(
+            "{PACKAGE} package Q{{manages r:R;n:i32}} fn main()->i32{{let s=empty();store_push(s,Q{{r:R{{code:1}},n:1}});return 0}}"
+        ),
+        format!("{PACKAGE} fn main()->i32{{let s=empty();let head=&s;return 0}}"),
+        format!("{PACKAGE} fn main()->i32{{let s=empty();let head=&mut s;return 0}}"),
+        format!("{PACKAGE} fn main()->i32{{let s=empty();return i32(s.len)}}"),
+        format!(
+            "{PACKAGE} package State{{manages r:R;items:[P;2]}} fn main()->i32{{let s:Store<State>=store_new();return 0}}"
+        ),
+        format!(
+            "{PACKAGE} package Bad{{manages s:Store<P>}} package Outer{{manages r:R;items:[Bad;2]}} fn main()->i32=>0"
+        ),
+        format!("{PACKAGE} fn bad()->void!Store<P>{{return ()}} fn main()->i32=>0"),
+        format!(
+            "{PACKAGE} fn main()->i32{{let s=empty();let callbacks=[move ()=>i32(store_len(s))];return 0}}"
+        ),
+        format!("{PACKAGE} fn main()->i32{{let store_push=1;return store_push}}"),
+        format!("{PACKAGE} fn main()->i32{{let s:Store<Store<P>>=store_new();return 0}}"),
+    ];
+    for source in sources {
+        let report = check(&source);
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report.commands.is_empty(),
+            "rejected source must not reach native compilation"
+        );
+    }
+}
+
+#[test]
+fn raw_wire_forbidden_store_composition_and_head_access_are_independently_rejected() {
+    use zil_ir::{InstructionKind as I, LocalDecl, LocalId, Type};
+    let source = format!(
+        "{PACKAGE} fn main()->i32{{let n=7;let f=move ()=>n;let s=empty();store_reserve(s,1);store_push(s,make(65));let moved=give s;return i32(store_len(moved))-1+f()-7}}"
+    );
+    let (original, plan) = candidate(&source);
+    let definition = original
+        .resources
+        .iter()
+        .find(|r| matches!(r.payload, Type::OwnedStore { .. }))
+        .unwrap();
+    let store = Type::Managed(Box::new(definition.payload.clone()));
+    let direct = Type::Package {
+        name: "@raw:BadStoreField".into(),
+        fields: vec![("owner".into(), store.clone())],
+    };
+    let resource = original
+        .resources
+        .iter()
+        .find(|r| matches!(r.payload, Type::Record { .. }))
+        .unwrap();
+    let nested = Type::Package {
+        name: "@raw:NestedBadStoreField".into(),
+        fields: vec![
+            (
+                "header".into(),
+                Type::Managed(Box::new(resource.payload.clone())),
+            ),
+            (
+                "items".into(),
+                Type::Array {
+                    element: Box::new(direct.clone()),
+                    length: 2,
+                },
+            ),
+        ],
+    };
+    for (label, ty) in [
+        ("package-store-field", direct.clone()),
+        (
+            "array-leaf-store-field",
+            Type::Array {
+                element: Box::new(direct.clone()),
+                length: 2,
+            },
+        ),
+        ("state-array-leaf-store-field", nested),
+        (
+            "error-payload-store-field",
+            Type::ErrorUnion {
+                error: Box::new(Type::Unit),
+                result: Box::new(direct.clone()),
+            },
+        ),
+    ] {
+        let mut mutated = original.clone();
+        let function = &mut mutated.functions[0];
+        let id = LocalId(function.locals.len() as u32);
+        function.locals.push(LocalDecl {
+            id,
+            name: "forged".into(),
+            ty,
+            mutable: false,
+            span: function.span,
+        });
+        reject_candidate(
+            label,
+            mutated,
+            plan.clone(),
+            "E-UNSUPPORTED",
+            "Store fields require",
+        );
+    }
+    for (label, ty, message) in [
+        ("closure-store-capture", store, "Store capture requires"),
+        (
+            "closure-package-store-capture",
+            direct,
+            "Store fields require",
+        ),
+    ] {
+        let mut mutated = original.clone();
+        mutated.closures[0].captures[0] = ty;
+        reject_candidate(label, mutated, plan.clone(), "E-UNSUPPORTED", message);
+    }
+    let take = locate(
+        &original,
+        |f, i| matches!(i.kind,I::TakeLocal{local} if matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::OwnedStore{..}))),
+    );
+    let mut mutated = original.clone();
+    let I::TakeLocal { local } = mutated.functions[take.0].blocks[take.1].instructions[take.2].kind
+    else {
+        unreachable!()
+    };
+    mutated.functions[take.0].blocks[take.1].instructions[take.2].kind = I::Load(local);
+    reject_candidate(
+        "copy-store-head",
+        mutated,
+        plan.clone(),
+        "E-VERIFY-RESOURCE",
+        "never copying Load",
+    );
+    let len = locate(&original, |_, i| matches!(i.kind, I::OwnedStoreLen { .. }));
+    let mut mutated = original.clone();
+    let I::OwnedStoreLen { store } =
+        mutated.functions[len.0].blocks[len.1].instructions[len.2].kind
+    else {
+        unreachable!()
+    };
+    mutated.functions[len.0].blocks[len.1].instructions[len.2].kind = I::ReadDesc {
+        desc: store,
+        index: 1,
+    };
+    reject_candidate(
+        "read-store-head-field",
+        mutated,
+        plan.clone(),
+        "E-VERIFY-OWNED-STORE",
+        "no ordinary readable or writable",
+    );
+    let mut mutated = original.clone();
+    mutated.functions[len.0].blocks[len.1].instructions[len.2].kind = I::OwnedStoreLen {
+        store: zil_ir::ValueId(u32::MAX),
+    };
+    reject_candidate(
+        "invalid-store-value-id",
+        mutated,
+        plan,
+        "E-VERIFY-ID",
+        "absent SSA value",
+    );
+}
+
+#[test]
+fn raw_wire_constructor_depth_and_actual_inline_size_have_independent_limits() {
+    use zil_ir::{InstructionKind as I, Type};
+    let source = format!("{PACKAGE} fn main()->i32{{let s=empty();return i32(store_len(s))}}");
+    let (original, plan) = candidate(&source);
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let mut deep = original.clone();
+    let new = locate(&deep, |_, i| matches!(i.kind, I::OwnedStoreNew { .. }));
+    let mut element = Type::I32;
+    for _ in 0..limits.max_call_depth + 2 {
+        element = Type::Tuple(vec![element]);
+    }
+    deep.functions[new.0].blocks[new.1].instructions[new.2].kind = I::OwnedStoreNew { element };
+    let wide = Limits {
+        max_call_depth: limits.max_call_depth + 10,
+        ..limits.clone()
+    };
+    let bytes = zil_ir::wire::encode_module_candidate(&deep, &plan, &wide).unwrap();
+    let dir = directory();
+    for (route, result) in [
+        (
+            "raw",
+            zil_verify::verify_module(deep, plan.clone(), &target, &limits),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&bytes, &target, &limits),
+        ),
+    ] {
+        let errors = result.unwrap_err();
+        fs::write(
+            dir.join(format!("deep-metadata-{route}.txt")),
+            format!("{errors:#?}\n"),
+        )
+        .unwrap();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+    }
+    let mut overflow = original;
+    let definition = overflow
+        .resources
+        .iter_mut()
+        .find(|r| matches!(r.payload, Type::OwnedStore { .. }))
+        .unwrap();
+    let Type::OwnedStore { element } = &mut definition.payload else {
+        unreachable!()
+    };
+    let Type::Package { fields, .. } = element.as_mut() else {
+        unreachable!()
+    };
+    let mut huge = Type::I64;
+    for _ in 0..4 {
+        huge = Type::Array {
+            element: Box::new(huge),
+            length: 1_000_000,
+        };
+    }
+    fields.push(("huge".into(), huge));
+    reject_candidate(
+        "inline-size-product-overflow",
+        overflow,
+        plan,
+        "E-RESOURCE-LIMIT",
+        "owned Store element layout exceeds target address range",
     );
 }

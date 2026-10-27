@@ -1955,6 +1955,13 @@ fn check_instruction(
                     "resource field access requires a description",
                 ));
             };
+            if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-STORE",
+                    span,
+                    "sealed Store has no ordinary readable or writable head fields",
+                ));
+            }
             let Type::Record { fields, .. } = inner.as_ref() else {
                 return Err(reject(
                     "E-VERIFY-BYTE-BUFFER",
