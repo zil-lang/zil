@@ -296,21 +296,39 @@ fn module_local_factory_and_helper_names_keep_definition_identity() {
 }
 
 #[test]
-fn helper_private_factory_lookup_is_unresolved_until_all_factories_finish() {
+fn helper_factory_dependencies_resolve_in_either_order_but_reject_cycles() {
     let helper = "fn apply<F:Fn()->i64>(f:&F)->i64{let dependent=other();return f()}";
     let make = "fn make()->impl Fn()->i64{let init=()=>42;let n=apply(&init);return move ()=>n}";
     let other = "fn other()->impl Fn()->i64{return move ()=>7}";
     for (label, source) in [
-        ("other-before", format!("{other}{helper}{make}fn value()->i64{{return 0}}")),
-        ("other-after", format!("{make}{helper}{other}fn value()->i64{{return 0}}")),
-        ("indirect-recursive", "fn apply<F:Fn()->i64>(f:&F)->i64{let dependent=make();return f()}fn make()->impl Fn()->i64{let init=()=>42;let n=apply(&init);return move ()=>n}fn value()->i64{return 0}".into()),
+        (
+            "other-before",
+            format!("{other}{helper}{make}fn value()->i64{{return 0}}"),
+        ),
+        (
+            "other-after",
+            format!("{make}{helper}{other}fn value()->i64{{return 0}}"),
+        ),
     ] {
         let case = Case::new(label);
         let report = compile(&project(&[("main", &source)]), &case, None);
-        assert_eq!(report.status, ResultCategory::Unsupported, "{}", report.to_json());
-        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
-        assert!(report.diagnostics[0].message.contains("recursive or forwarded"), "{}", report.to_json());
+        success(&report);
     }
+    let recursive = "fn apply<F:Fn()->i64>(f:&F)->i64{let dependent=make();return f()}fn make()->impl Fn()->i64{let init=()=>42;let n=apply(&init);return move ()=>n}fn value()->i64{return 0}";
+    let case = Case::new("indirect-recursive");
+    let report = compile(&project(&[("main", recursive)]), &case, None);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+    assert!(
+        report.diagnostics[0].message.contains("recursive"),
+        "{}",
+        report.to_json()
+    );
     let ordinary = format!("{other}{helper}fn value()->i64{{let init=()=>42;return apply(&init)}}");
     let case = Case::new("ordinary-helper-after-prepass");
     success(&compile(&project(&[("main", &ordinary)]), &case, None));
@@ -322,13 +340,6 @@ fn invalid_escape_modes_and_factory_dependencies_stay_rejected() {
         (
             "borrowed-result",
             "fn apply<F:Fn(i64)->i64>(f:&F,n:i64)->i64{return f(n)}fn make(n:i64)->impl Fn()->i64{let init=(x:i64)=>x;let state=apply(&init,n);return ()=>state}fn value()->i64{return 0}",
-            ResultCategory::Unsupported,
-            Phase::Types,
-            "E-UNSUPPORTED",
-        ),
-        (
-            "forwarded",
-            "fn inner()->impl Fn()->i64{return move ()=>42}fn make()->impl Fn()->i64{return inner()}fn value()->i64{return 0}",
             ResultCategory::Unsupported,
             Phase::Types,
             "E-UNSUPPORTED",
@@ -363,6 +374,11 @@ fn invalid_escape_modes_and_factory_dependencies_stay_rejected() {
         assert_eq!(report.diagnostics[0].code, code, "{}", report.to_json());
         assert!(!report.artifacts.contains_key("executable"));
     }
+    // Schema19 accepts grounded concrete factory forwarding. Recursion and
+    // borrowed escape above remain independently rejected.
+    let forwarded = "fn inner()->impl Fn()->i64{return move ()=>42}fn make()->impl Fn()->i64{return inner()}fn value()->i64{return 0}";
+    let case = Case::new("forwarded");
+    success(&compile(&project(&[("main", forwarded)]), &case, None));
 }
 
 const RAW: &str = "resource R{n:i64}fn apply<F:Fn(i64)->i64>(f:&F,n:i64)->i64{return f(n)}fn make(n:i64)->impl Fn()->i64{let init=(x:i64)=>x+2;let state=apply(&init,n);let held=R{n:state};return move ()=>held.n}fn value()->i64{let f=make(40);return f()}";
