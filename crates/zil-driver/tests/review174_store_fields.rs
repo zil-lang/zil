@@ -237,7 +237,7 @@ fn raw_wire_cannot_consume_one_store_twice_into_two_equal_typed_fields() {
         for block in &mut function.blocks {
             for inst in &mut block.instructions {
                 if let I::MakePackage { fields } = &mut inst.kind {
-                    let stores:Vec<_>=fields.iter().enumerate().filter_map(|(index,value)| matches!(&function.values[value.0 as usize],Type::Managed{payload,..} if matches!(payload.as_ref(),Type::OwnedStore{..})).then_some(index)).collect();
+                    let stores:Vec<_>=fields.iter().enumerate().filter_map(|(index,value)| matches!(&function.values[value.0 as usize],Type::Managed(payload) if matches!(payload.as_ref(),Type::OwnedStore{..})).then_some(index)).collect();
                     if stores.len() == 2 {
                         fields[stores[1]] = fields[stores[0]];
                         modified = true;
