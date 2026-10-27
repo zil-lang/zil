@@ -10,6 +10,7 @@ import hashlib
 import json
 import pathlib
 import subprocess
+import sys
 import time
 
 
@@ -66,6 +67,14 @@ def main():
                                     for path in sorted((repo / "examples/mainline/zui_language164").glob("*.zil"))},
                "baseline": args.baseline, "gaps": [], "native": []}
     write(out / "summary.json", summary)
+    def record_failure(kind, error, traceback):
+        summary.update(status="Fail", error_type=kind.__name__, error=str(error))
+        write(out / "summary.json", summary)
+        sys.__excepthook__(kind, error, traceback)
+    sys.excepthook = record_failure
+    if set(gaps) != {"nested-owning-callback", "owned-array-elements", "owned-error-result",
+                     "generic-trait-bound", "owning-method-receiver", "array-of-capturing-callbacks"}:
+        raise RuntimeError("the unchanged 159 corpus must contain all six named probes")
     required = set() if args.baseline else {"nested-owning-callback", "generic-trait-bound"}
     for name, source in gaps.items():
         path = out / (name + ".zil")
@@ -81,6 +90,8 @@ def main():
             raise RuntimeError(f"{name}: compiler/tool failure: {report}")
         if report["phase"] == "parse" or (result.returncode == 0) != (report["status"] == "Success"):
             raise RuntimeError(f"{name}: invalid probe or inconsistent compiler process result: {report}")
+        if report["status"] == "Success" and report["verification_runs"] != 1:
+            raise RuntimeError(f"{name}: a successful probe did not independently verify exactly once")
         if name in required and (report["status"] != "Success" or report["verification_runs"] != 1):
             raise RuntimeError(f"{name}: required source capability did not pass: {report}")
     if not args.baseline:
