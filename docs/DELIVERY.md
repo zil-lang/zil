@@ -6,7 +6,7 @@
 
 当前入口：
 
-此外，工具明确排除文档目录中13项历史生成收据/测量图与handoff生成快照，精确名单在 `tools/language/169/package.py` 的 `EXCLUDED_FILES`。测试输入、JSON合同、规范登记、源码与普通文档保留；不会按扩展名粗略删除所有JSON。生成快照缺失时，精简源码目录不具备历史handoff所需的完整身份，需按下述恢复方式取得Git checkout。
+此外，工具明确排除额外13项已跟踪的历史生成文件（收据、测量图及handoff快照），精确名单在 `tools/language/169/package.py` 的 `EXCLUDED_FILES`。测试输入、JSON合同、规范登记、源码与普通文档保留；不会按扩展名粗略删除所有JSON。生成快照缺失时，精简源码目录不具备历史handoff所需的完整身份，需按下述恢复方式取得Git checkout。
 
 ```sh
 python3 tools/language/169/package.py --output ../delivery/zil-language-source.zip --audit-output ../delivery/zil-language-audit.zip --receipt evidence/impl/169/wire-02/command.json --receipt evidence/impl/169/wire-02/output.log
