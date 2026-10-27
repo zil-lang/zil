@@ -32,6 +32,7 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
         budget.spend(1)?;
         match ty {
             Type::ErrorUnion { .. } | Type::Package { .. } => return Ok(true),
+            ty if resources::arrays::is_owned_type(ty) => return Ok(true),
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
                 pending.extend(fields);

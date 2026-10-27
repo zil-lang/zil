@@ -241,6 +241,33 @@ impl Builder<'_, '_> {
                 ))
             }
             CoreExprKind::Index { object, index } => {
+                if let Some((local, index, element @ Type::Closure(_))) =
+                    self.owned_array_place(e)?
+                {
+                    if mutable && !self.function.locals[local.0 as usize].mutable {
+                        return Err(error(
+                            "E-IMMUTABLE-ASSIGNMENT",
+                            e.span,
+                            "exclusive callback element borrow requires a mutable array",
+                        ));
+                    }
+                    let ty = Type::Address {
+                        mutable,
+                        inner: Box::new(element),
+                    };
+                    return Ok((
+                        self.value(
+                            InstructionKind::BorrowOwnedArrayElement {
+                                local,
+                                index,
+                                mutable,
+                            },
+                            ty.clone(),
+                            e.span,
+                        )?,
+                        ty,
+                    ));
+                }
                 let (address, ty) = self.projection_base(object, mutable)?;
                 let Type::Address { mutable, inner } = ty else {
                     unreachable!()

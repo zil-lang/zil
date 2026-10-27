@@ -12,7 +12,7 @@ pub(super) fn supported(ty: &Type) -> bool {
 /// A separate predicate prevents existing nominal Package operations from
 /// accidentally accepting an array merely because it owns resources.
 pub(super) fn owned_array_supported(ty: &Type) -> bool {
-    matches!(ty, Type::Array { element, length } if *length > 0 && supported(element))
+    matches!(ty, Type::Array { element, length } if *length > 0 && (supported(element) || matches!(element.as_ref(), Type::Closure(_))))
 }
 
 pub(super) fn projection_type(ty: Type) -> Type {
@@ -23,6 +23,85 @@ pub(super) fn projection_type(ty: Type) -> Type {
 }
 
 impl Builder<'_, '_> {
+    pub(super) fn owned_array_input(
+        &mut self,
+        expression: &CoreExpr,
+        expected: Option<&Type>,
+    ) -> R<(ValueId, Type)> {
+        // Entering a unique element slot transfers a concrete environment even
+        // when its captures carry no resource cleanup obligations.
+        if let CoreExprKind::Name(name) = &expression.kind
+            && let Some(local) = self.lookup(name)
+            && let Type::Closure(id) = self.function.locals[local.0 as usize].ty
+        {
+            let ty = Type::Closure(id);
+            if let Some(expected) = expected {
+                self.same(&ty, expected, expression.span)?;
+            }
+            return Ok((
+                self.value(
+                    InstructionKind::TakeLocal { local },
+                    ty.clone(),
+                    expression.span,
+                )?,
+                ty,
+            ));
+        }
+        self.transfer_expr(expression, expected)
+    }
+
+    pub(super) fn check_owned_array_closure(
+        &mut self,
+        element: &Type,
+        length: u32,
+        span: Span,
+    ) -> R<()> {
+        let Type::Closure(root) = element else {
+            return Ok(());
+        };
+        let mut pending = vec![*root];
+        while let Some(id) = pending.pop() {
+            let count = self
+                .closures
+                .pending
+                .get(id.0 as usize)
+                .ok_or_else(|| {
+                    error(
+                        "E-CLOSURE-INFERENCE",
+                        span,
+                        "array element closure identity is absent",
+                    )
+                })?
+                .captures
+                .len();
+            // Walk occurrences, not only distinct IDs: an inline child DAG can
+            // expand repeatedly. Charge the array multiplicity before cloning.
+            self.closures.snapshot(
+                count.saturating_add(1).saturating_mul(length as usize),
+                span,
+            )?;
+            let captures = self.closures.pending[id.0 as usize]
+                .captures
+                .iter()
+                .map(closures::Capture::stored_type)
+                .collect::<Vec<_>>();
+            for capture in captures {
+                match capture {
+                    Type::Closure(child) => pending.push(child),
+                    Type::Managed(_) | Type::Package { .. } => {}
+                    ty if ty.is_copy_value() => {}
+                    _ => {
+                        return Err(unsupported(
+                            span,
+                            "owning callback array elements require self-contained environments",
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn owned_array_place(&self, target: &CoreExpr) -> R<Option<(LocalId, u32, Type)>> {
         let CoreExprKind::Index { object, index } = &target.kind else {
             return Ok(None);
@@ -101,7 +180,7 @@ impl Builder<'_, '_> {
                 "owning array element assignment requires a mutable local shell",
             ));
         }
-        let (value, actual) = self.transfer_expr(rhs, Some(&element))?;
+        let (value, actual) = self.owned_array_input(rhs, Some(&element))?;
         self.same(&actual, &element, rhs.span)?;
         let prepared = self.stage_argument(value, &element, rhs.span)?;
         self.emit(
