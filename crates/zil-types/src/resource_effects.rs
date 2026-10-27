@@ -672,7 +672,9 @@ impl<T: Tracking> Scan<'_, '_, T> {
                     self.visit(depth + 1, callee.span)?;
                     for (index, argument) in arguments.iter().enumerate() {
                         let origins = self.expr(argument, depth + 1)?;
-                        if index == 0 && matches!(name, "store_reserve" | "store_push" | "store_pop") {
+                        if index == 0
+                            && matches!(name, "store_reserve" | "store_push" | "store_pop")
+                        {
                             self.record(origins, argument.span)?;
                         }
                     }

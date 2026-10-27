@@ -797,7 +797,31 @@ impl Flow<'_> {
                     "loop recreates an SSA carrier with an unpaid responsibility",
                 ));
             }
+            if let Some((store, true)) = dynamic_store::access(&i.kind) {
+                record_write(
+                    &copied(state, Place::Value(store), budget)?.sources,
+                    effect,
+                    shared,
+                    check,
+                    budget,
+                )?;
+            }
             match &i.kind {
+                InstructionKind::OwnedStorePush { value, .. } => {
+                    self.consume(state, *value, check, budget)?;
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Incoming]),
+                        sources: BTreeSet::new(),
+                    });
+                }
+                InstructionKind::OwnedStorePop { .. } => {
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Incoming]),
+                        sources: BTreeSet::new(),
+                    });
+                }
                 InstructionKind::MakeErrorUnion { value, .. }
                     if out_shape.is_some_and(|s| s.owned) =>
                 {
@@ -946,7 +970,9 @@ impl Flow<'_> {
                     }
                     forget_order(state, *local, budget)?;
                 }
-                InstructionKind::MakeManaged { .. } | InstructionKind::ByteBufferNew => {
+                InstructionKind::OwnedStoreNew { .. }
+                | InstructionKind::MakeManaged { .. }
+                | InstructionKind::ByteBufferNew => {
                     produced = Some(Fact {
                         life: BTreeSet::from([Life::Available]),
                         birth: BTreeSet::from([Birth::Created]),

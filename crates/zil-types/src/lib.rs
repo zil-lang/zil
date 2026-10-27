@@ -9,6 +9,7 @@ mod aggregates;
 mod byte_buffer;
 mod closures;
 mod conditions;
+mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
@@ -788,7 +789,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 // A resource annotation names the nominal type; create/give
                 // determines whether this binding holds the carrier or a description.
                 let store_constructor = matches!(&e.kind, CoreExprKind::Call { callee, .. } if dynamic_store::primitive(callee) == Some("store_new"));
-                let wanted = ty.as_ref().filter(|t| !matches!(t, Type::Desc(_)) || store_constructor);
+                let wanted = ty
+                    .as_ref()
+                    .filter(|t| !matches!(t, Type::Desc(_)) || store_constructor);
                 let (v, t) = self.transfer_expr(e, wanted)?;
                 if let Some(wanted) = ty
                     && !matches!((&t, wanted), (Type::Managed(a), Type::Desc(b)) if a == b)
@@ -1605,7 +1608,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             && let Some(name) = dynamic_store::primitive(callee)
             && let Some(first) = arguments.first()
             && let Some(ty) = self.known_type(first)
-            && let Some(element) = dynamic_store::element(&ty) {
+            && let Some(element) = dynamic_store::element(&ty)
+        {
             return Some(dynamic_store::result_type(name, element));
         }
         if let CoreExprKind::Call { callee, .. } = &e.kind

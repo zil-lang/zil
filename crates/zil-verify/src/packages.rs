@@ -142,7 +142,10 @@ pub(super) fn check_type_for(
             ));
         }
         if dynamic_store::is_carrier(field) {
-            return Err(unsupported("Store fields require a separate owning composition profile", span));
+            return Err(unsupported(
+                "Store fields require a separate owning composition profile",
+                span,
+            ));
         }
         if byte_buffers::is_desc(field) {
             return Err(unsupported(

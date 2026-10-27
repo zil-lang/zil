@@ -92,7 +92,9 @@ pub(super) fn add_definition(
                         work = work.checked_sub(1).ok_or_else(limit)?;
                         pending.push(element);
                     }
-                    Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                    Type::Managed(payload) | Type::Desc(payload)
+                        if matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
+                    {
                         work = work.checked_sub(1).ok_or_else(limit)?;
                         pending.push(payload);
                     }

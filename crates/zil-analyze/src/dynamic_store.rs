@@ -7,9 +7,11 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
 
 pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
     match *kind {
-        InstructionKind::OwnedStoreReserve { store, .. } | InstructionKind::OwnedStorePush { store, .. }
+        InstructionKind::OwnedStoreReserve { store, .. }
+        | InstructionKind::OwnedStorePush { store, .. }
         | InstructionKind::OwnedStorePop { store } => Some((store, true)),
-        InstructionKind::OwnedStoreLen { store } | InstructionKind::OwnedStoreCapacity { store } => Some((store, false)),
+        InstructionKind::OwnedStoreLen { store }
+        | InstructionKind::OwnedStoreCapacity { store } => Some((store, false)),
         _ => None,
     }
 }

@@ -49,6 +49,7 @@ mod cleanup;
 mod closure_tests;
 mod closures;
 mod ct_program;
+mod dynamic_store;
 #[cfg(test)]
 mod error_scope_tests;
 mod errors;
@@ -428,7 +429,7 @@ fn check_module(
                     InstructionKind::MakeClosure { captures, .. } => {
                         budget.spend(captures.len())?
                     }
-                    InstructionKind::OwnedStoreNew { element: target } | InstructionKind::ConvertInteger { target, .. } => {
+                    InstructionKind::ConvertInteger { target, .. } => {
                         // This embedded raw type is not necessarily one of the
                         // function value types. Bound it before fingerprinting.
                         check_type_shape(target, &module.target, limits, &mut budget)?;
@@ -540,7 +541,7 @@ fn check_type_shape(
                     }
                 }
             }
-            Type::OwnedStore { element: inner } | Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+            Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
                 pending.push((inner, depth + 1));
             }
             Type::ErrorUnion { error, result } => {
@@ -998,9 +999,12 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
-        InstructionKind::OwnedStoreNew { .. } | InstructionKind::OwnedStoreReserve { .. }
-        | InstructionKind::OwnedStorePush { .. } | InstructionKind::OwnedStorePop { .. }
-        | InstructionKind::OwnedStoreLen { .. } | InstructionKind::OwnedStoreCapacity { .. } => {
+        InstructionKind::OwnedStoreNew { .. }
+        | InstructionKind::OwnedStoreReserve { .. }
+        | InstructionKind::OwnedStorePush { .. }
+        | InstructionKind::OwnedStorePop { .. }
+        | InstructionKind::OwnedStoreLen { .. }
+        | InstructionKind::OwnedStoreCapacity { .. } => {
             dynamic_store::check_instruction(module, function, instruction, budget)?
         }
         InstructionKind::ByteBufferNew
@@ -1897,6 +1901,13 @@ fn check_instruction(
                     "resource construction cannot manufacture a borrowed description",
                 ));
             };
+            if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-STORE",
+                    span,
+                    "sealed Store cannot be assembled with MakeManaged",
+                ));
+            }
             let Type::Record {
                 fields: expected, ..
             } = inner.as_ref()

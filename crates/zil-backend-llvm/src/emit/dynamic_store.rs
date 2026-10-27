@@ -8,35 +8,77 @@ pub(super) fn is_resource(ty: &Type, definitions: &[ResourceDefinition]) -> bool
         && definitions.iter().any(|r| r.payload == **payload && r.teardown.is_none()))
 }
 
-pub(super) fn helper(payload: &Type, definitions: &[ResourceDefinition], operation: &str) -> CompileResult<String> {
-    let Some(index) = definitions.iter().position(|r| r.payload == *payload && r.teardown.is_none()) else {
-        return invalid("E-CODEGEN-CFG", "Store operation has no exact sealed resource definition", None);
+pub(super) fn helper(
+    payload: &Type,
+    definitions: &[ResourceDefinition],
+    operation: &str,
+) -> CompileResult<String> {
+    let Some(index) = definitions
+        .iter()
+        .position(|r| r.payload == *payload && r.teardown.is_none())
+    else {
+        return invalid(
+            "E-CODEGEN-CFG",
+            "Store operation has no exact sealed resource definition",
+            None,
+        );
     };
     if !matches!(payload, Type::OwnedStore { .. }) {
-        return invalid("E-CODEGEN-CFG", "Store runtime requires its sealed payload", None);
+        return invalid(
+            "E-CODEGEN-CFG",
+            "Store runtime requires its sealed payload",
+            None,
+        );
     }
     Ok(format!("zil.store.{index}.{operation}"))
 }
 
 pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
-    if !lir.resources.iter().any(|r| matches!(r.payload, Type::OwnedStore { .. })) { return Ok(String::new()); }
+    if !lir
+        .resources
+        .iter()
+        .any(|r| matches!(r.payload, Type::OwnedStore { .. }))
+    {
+        return Ok(String::new());
+    }
     if lir.target.triple != "x86_64-unknown-linux-gnu" {
         return unsupported("owned Store currently requires Linux x64 LLVM", None);
     }
-    if let Some(f) = lir.functions.iter().find(|f| f.foreign.as_ref().is_some_and(|a| a.symbol.starts_with("zil.store."))) {
-        return invalid("E-CODEGEN-FOREIGN", "foreign symbol conflicts with owned Store runtime ABI", Some(f.span));
+    if let Some(f) = lir.functions.iter().find(|f| {
+        f.foreign
+            .as_ref()
+            .is_some_and(|a| a.symbol.starts_with("zil.store."))
+    }) {
+        return invalid(
+            "E-CODEGEN-FOREIGN",
+            "foreign symbol conflicts with owned Store runtime ABI",
+            Some(f.span),
+        );
     }
     let mut output = String::new();
     for (index, resource) in lir.resources.iter().enumerate() {
-        let Type::OwnedStore { element } = &resource.payload else { continue };
+        let Type::OwnedStore { element } = &resource.payload else {
+            continue;
+        };
         let Type::Package { fields, .. } = element.as_ref() else {
-            return invalid("E-CODEGEN-CFG", "Store runtime element is not a Package", None);
+            return invalid(
+                "E-CODEGEN-CFG",
+                "Store runtime element is not a Package",
+                None,
+            );
         };
         let item = llvm_type(element)?;
         let align = alignment(element, &BTreeMap::new())?;
-        let push = llvm_type(&Type::ErrorUnion { error: element.clone(), result: Box::new(Type::Unit) })?;
-        let pop = llvm_type(&Type::ErrorUnion { error: Box::new(Type::Unit), result: element.clone() })?;
-        output.push_str(&format!(r#"
+        let push = llvm_type(&Type::ErrorUnion {
+            error: element.clone(),
+            result: Box::new(Type::Unit),
+        })?;
+        let pop = llvm_type(&Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: element.clone(),
+        })?;
+        output.push_str(&format!(
+            r#"
 define internal i1 @zil.store.{index}.reserve(ptr %head, i64 %requested) {{
 entry:
   %stride = ptrtoint ptr getelementptr ({item}, ptr null, i64 1) to i64
@@ -120,11 +162,27 @@ loop:
   br i1 %remaining, label %element, label %release
 element:
   %slot = getelementptr {item}, ptr %data, i64 %index
-"#));
+"#
+        ));
         for (field_index, (_, ty)) in fields.iter().enumerate() {
             let Type::Managed(payload) = ty else { continue };
-            let definition = lir.resources.iter().find(|r| r.payload == **payload).ok_or_else(|| vec![Diagnostic::error(Phase::Codegen, "E-CODEGEN-CFG", None, "Store element field lacks its resource definition")])?;
-            let teardown = if definition.payload == Type::ByteBuffer { Some("zil.bytes.drop".into()) } else { definition.teardown.map(symbol) };
+            let definition = lir
+                .resources
+                .iter()
+                .find(|r| r.payload == **payload)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        Phase::Codegen,
+                        "E-CODEGEN-CFG",
+                        None,
+                        "Store element field lacks its resource definition",
+                    )]
+                })?;
+            let teardown = if definition.payload == Type::ByteBuffer {
+                Some("zil.bytes.drop".into())
+            } else {
+                definition.teardown.map(symbol)
+            };
             if let Some(teardown) = teardown {
                 output.push_str(&format!("  %field.{field_index} = getelementptr {item}, ptr %slot, i32 0, i32 {field_index}\n  call void @{teardown}(ptr %field.{field_index})\n"));
             }
@@ -135,40 +193,78 @@ element:
 }
 
 impl FunctionEmitter<'_> {
-    pub(super) fn dynamic_store_instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
+    pub(super) fn dynamic_store_instruction(
+        &mut self,
+        instruction: &Instruction,
+    ) -> CompileResult<()> {
         let output = result(instruction)?;
         if matches!(instruction.kind, InstructionKind::OwnedStoreNew { .. }) {
-            self.line(format!("  {} = freeze {{ ptr, i64, i64 }} zeroinitializer", value(output)));
+            self.line(format!(
+                "  {} = freeze {{ ptr, i64, i64 }} zeroinitializer",
+                value(output)
+            ));
             return Ok(());
         }
         let store = match instruction.kind {
-            InstructionKind::OwnedStoreReserve { store, .. } | InstructionKind::OwnedStorePush { store, .. }
-            | InstructionKind::OwnedStorePop { store } | InstructionKind::OwnedStoreLen { store }
+            InstructionKind::OwnedStoreReserve { store, .. }
+            | InstructionKind::OwnedStorePush { store, .. }
+            | InstructionKind::OwnedStorePop { store }
+            | InstructionKind::OwnedStoreLen { store }
             | InstructionKind::OwnedStoreCapacity { store } => store,
             _ => unreachable!("Store instruction dispatch"),
         };
-        let Type::Desc(payload) = self.value_type(store)? else { return invalid("E-CODEGEN-CFG", "Store operation requires a description", Some(instruction.span)); };
+        let Type::Desc(payload) = self.value_type(store)? else {
+            return invalid(
+                "E-CODEGEN-CFG",
+                "Store operation requires a description",
+                Some(instruction.span),
+            );
+        };
         match instruction.kind {
             InstructionKind::OwnedStoreReserve { capacity, .. } => {
                 let callee = helper(payload, self.resources, "reserve")?;
-                self.line(format!("  {} = call i1 @{callee}(ptr {}, i64 {})", value(output), value(store), value(capacity)));
+                self.line(format!(
+                    "  {} = call i1 @{callee}(ptr {}, i64 {})",
+                    value(output),
+                    value(store),
+                    value(capacity)
+                ));
             }
             InstructionKind::OwnedStorePush { value: item, .. } => {
                 let callee = helper(payload, self.resources, "push")?;
                 let ty = llvm_type(self.value_type(item)?)?;
                 let result = llvm_type(self.value_type(output)?)?;
-                self.line(format!("  {} = call {result} @{callee}(ptr {}, {ty} {})", value(output), value(store), value(item)));
+                self.line(format!(
+                    "  {} = call {result} @{callee}(ptr {}, {ty} {})",
+                    value(output),
+                    value(store),
+                    value(item)
+                ));
             }
             InstructionKind::OwnedStorePop { .. } => {
                 let callee = helper(payload, self.resources, "pop")?;
                 let result = llvm_type(self.value_type(output)?)?;
-                self.line(format!("  {} = call {result} @{callee}(ptr {})", value(output), value(store)));
+                self.line(format!(
+                    "  {} = call {result} @{callee}(ptr {})",
+                    value(output),
+                    value(store)
+                ));
             }
             InstructionKind::OwnedStoreLen { .. } | InstructionKind::OwnedStoreCapacity { .. } => {
-                let index = if matches!(instruction.kind, InstructionKind::OwnedStoreLen { .. }) { 1 } else { 2 };
+                let index = if matches!(instruction.kind, InstructionKind::OwnedStoreLen { .. }) {
+                    1
+                } else {
+                    2
+                };
                 let pointer = self.temp();
-                self.line(format!("  {pointer} = getelementptr {{ ptr, i64, i64 }}, ptr {}, i32 0, i32 {index}", value(store)));
-                self.line(format!("  {} = load i64, ptr {pointer}, align 8", value(output)));
+                self.line(format!(
+                    "  {pointer} = getelementptr {{ ptr, i64, i64 }}, ptr {}, i32 0, i32 {index}",
+                    value(store)
+                ));
+                self.line(format!(
+                    "  {} = load i64, ptr {pointer}, align 8",
+                    value(output)
+                ));
             }
             _ => unreachable!("checked Store instruction"),
         }
