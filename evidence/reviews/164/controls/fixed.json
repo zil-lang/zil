@@ -1,0 +1,128 @@
+{
+  "scope": "Synthetic metadata-tool controls; not language tests",
+  "reviewed_code_commit": "e08ee25ff7471640708acfc2ceef83d7ba484bae",
+  "tool_sha256": {
+    "record.py": "c05fce72aaaa8eb3321b7cc87b3532c3ab6cb5ffecbf6d25e939ff148699d739",
+    "restore.py": "6660fdc694431d6d9106a6b81bb4af429279354080d4034c49ddf66ca6b1c664",
+    "readiness.py": "1149604c5b50209139176f267da35b5bedca796e744972ade70314532fd2aada"
+  },
+  "controls": [
+    {
+      "control": "synthetic_zero_tests_with_require_tests",
+      "exit_code": 1,
+      "receipt": {
+        "command": [
+          "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+          "-c",
+          "print('test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 100 filtered out; finished in 0s')"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/run-logs/review164/tool-controls-initial/tiny",
+        "source_commit": "4a49b8c0884b2ec51cf40300c9d35cea729632b5",
+        "crates_tree": "9863daa51e667acb1fa3048448c9507204df985a",
+        "source_status": "",
+        "start": 1793097245.8996449,
+        "status": "Fail",
+        "exit_code": 0,
+        "log_sha256": "b3ec19cea2f6ff5383b8ca9d94cf65d62999334bd600d616b47905dea58d4ad9",
+        "end": 1793097245.9185846,
+        "seconds": 0.018939733505249023,
+        "tests": {
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 1
+        },
+        "error": "required test run has no passing tests or contains failures",
+        "ending_crates_tree": "9863daa51e667acb1fa3048448c9507204df985a",
+        "ending_source_status": ""
+      }
+    },
+    {
+      "control": "dirty_source_rejects_before_execution",
+      "exit_code": 2,
+      "receipt": {
+        "command": [
+          "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+          "-c",
+          "from pathlib import Path;Path('crates/source.rs').write_text('changed during run\\n')"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/run-logs/review164/tool-controls-initial/tiny",
+        "source_commit": "4a49b8c0884b2ec51cf40300c9d35cea729632b5",
+        "crates_tree": "9863daa51e667acb1fa3048448c9507204df985a",
+        "source_status": "M crates/source.rs",
+        "start": 1793097246.0325348,
+        "status": "DirtySources",
+        "error": "commit crates changes before recording a validation run"
+      }
+    },
+    {
+      "control": "ordinary_exit0_command_not_requiring_tests",
+      "exit_code": 0,
+      "receipt": {
+        "command": [
+          "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+          "-c",
+          "pass"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/run-logs/review164/tool-controls-initial/tiny",
+        "source_commit": "4a49b8c0884b2ec51cf40300c9d35cea729632b5",
+        "crates_tree": "9863daa51e667acb1fa3048448c9507204df985a",
+        "source_status": "",
+        "start": 1793097246.1046758,
+        "status": "Pass",
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "end": 1793097246.127384,
+        "seconds": 0.02270817756652832,
+        "ending_crates_tree": "9863daa51e667acb1fa3048448c9507204df985a",
+        "ending_source_status": ""
+      }
+    },
+    {
+      "control": "wrong-source",
+      "exit_code": 2,
+      "expected_accept": false,
+      "stdout": "",
+      "stderr": "usage: restore.py [-h] --manifest MANIFEST --destination DESTINATION\nrestore.py: error: source_commit, main worktree and main ref must name the same nonempty source\n"
+    },
+    {
+      "control": "empty-worktrees",
+      "exit_code": 2,
+      "expected_accept": false,
+      "stdout": "",
+      "stderr": "usage: restore.py [-h] --manifest MANIFEST --destination DESTINATION\nrestore.py: error: source_commit, main worktree and main ref must name the same nonempty source\n"
+    },
+    {
+      "control": "missing-retained-ref",
+      "exit_code": 1,
+      "expected_accept": false,
+      "stdout": "",
+      "stderr": "Cloning into bare repository '/workspace/scratch/39be3faa4442/run-logs/review164/tool-controls-fixed/missing-retained-ref-restored/repository.git'...\nTraceback (most recent call last):\n  File \"/workspace/scratch/39be3faa4442/run-logs/review164/tool-controls-fixed/restore.py\", line 46, in <module>\n    raise RuntimeError(\"restored refs differ from the complete manifest\")\nRuntimeError: restored refs differ from the complete manifest\n"
+    },
+    {
+      "control": "valid-complete",
+      "exit_code": 0,
+      "expected_accept": true,
+      "stdout": "HEAD is now at 4a49b8c control fixture\n{\n  \"status\": \"Pass\",\n  \"source_commit\": \"4a49b8c0884b2ec51cf40300c9d35cea729632b5\",\n  \"destination\": \"/workspace/scratch/39be3faa4442/run-logs/review164/tool-controls-fixed/valid-complete-restored\",\n  \"worktrees\": {\n    \"main\": \"4a49b8c0884b2ec51cf40300c9d35cea729632b5\"\n  },\n  \"note\": \"Compiler toolchains and caches are installed separately; no GitHub access was used.\"\n}\n",
+      "stderr": "Cloning into bare repository '/workspace/scratch/39be3faa4442/run-logs/review164/tool-controls-fixed/valid-complete-restored/repository.git'...\nPreparing worktree (checking out 'main')\n"
+    },
+    {
+      "control": "empty_corpus_rejects_and_records_fail",
+      "exit_code": 1,
+      "summary": {
+        "status": "Fail",
+        "cli_sha256": "6618607e77db69d91ef83a621a50e44a598c056cca1992f3a2a31fcae4a67fb0",
+        "original_probe_sha256": "bb45bd78d9e4cc828c401069b7bcf12a03d43980e6048c85679755a100e60d41",
+        "source_commit": "4a49b8c0884b2ec51cf40300c9d35cea729632b5",
+        "crates_tree": "9863daa51e667acb1fa3048448c9507204df985a",
+        "consumer_sources": {},
+        "baseline": true,
+        "gaps": [],
+        "native": [],
+        "error_type": "RuntimeError",
+        "error": "the unchanged 159 corpus must contain all six named probes"
+      }
+    }
+  ],
+  "status": "Pass"
+}

@@ -1,0 +1,1 @@
+trait Read{fn read(self:&Self)->i32;}struct C{x:i32}impl Read for C{fn read()->i32=>.x}fn read<T:Read>(x:&T)->i32=>x.read();fn main(){}

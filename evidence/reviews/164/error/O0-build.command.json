@@ -1,0 +1,18 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/review164/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/run-logs/review164/error-consumer/main.zil",
+    "--opt",
+    "O0",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/review164/error712a960/O0",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/review164/error712a960/O0-phases",
+    "--json"
+  ],
+  "status": "Completed",
+  "start": 1793097586.947738,
+  "exit_code": 0,
+  "end": 1793097587.0683138
+}
