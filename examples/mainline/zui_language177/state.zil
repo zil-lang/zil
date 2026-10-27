@@ -15,7 +15,7 @@ pub fn create<F: FnMut() -> i32>(callback: F, count: i32) -> State<F> {
     let children: Store<model.Item> = store_new()
     let ready = collection.fill(children, count, 68)
     let total = collection.sum(children)
-    return State<F> { ticket: give ticket, children: give children, callback: callback, hits: 0, sum: total, ready: ready }
+    return State::<F> { ticket: give ticket, children: give children, callback: callback, hits: 0, sum: total, ready: ready }
 }
 
 pub fn tick<G: FnMut() -> i32>(state: State<G>) -> State<G> {
