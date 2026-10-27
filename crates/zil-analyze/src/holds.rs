@@ -35,7 +35,7 @@ fn head_windows(module: &TypedModule, budget: &mut Budget) -> CompileResult<bool
             "resource head window discovery",
         )?;
         if function.locals.iter().map(|l| &l.ty).chain(&function.values)
-            .any(|ty| matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
+            .any(|ty| ty.is_shared_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
             return Ok(true);
         }
     }
@@ -155,7 +155,7 @@ fn infer(
                     {
                         let root = match &f.locals[local.0 as usize].ty {
                             Type::Package { fields, .. } if fields.get(*index as usize)
-                                .is_some_and(|(_, ty)| matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer)) => Root::Field(*local, *index),
+                                .is_some_and(|(_, ty)| matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer || matches!(inner.as_ref(), Type::OwnedStore { .. }))) => Root::Field(*local, *index),
                             _ => Root::Local(*local),
                         };
                         found.insert(root);
@@ -177,7 +177,8 @@ fn infer(
                     {
                         found.insert(Root::Capture(*index));
                     }
-                    InstructionKind::ByteBufferBorrow { buffer, .. } => {
+                    InstructionKind::ByteBufferBorrow { buffer, .. }
+                    | InstructionKind::OwnedStoreBorrow { store: buffer, .. } => {
                         let source = values
                             .get(buffer.0 as usize)
                             .ok_or_else(|| bad("ByteBuffer source outside table"))?;

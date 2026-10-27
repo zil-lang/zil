@@ -210,6 +210,7 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
     } else if crate::dynamic_store::is_carrier(ty)
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
         || ty.is_shared_resource_head_address()
+        || ty.is_shared_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
             if **inner == Type::ByteBuffer
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))

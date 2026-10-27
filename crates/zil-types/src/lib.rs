@@ -132,6 +132,9 @@ fn signatures(
                 format!("function {} is declared twice", f.name),
             ))
         }
+        if f.return_type.is_shared_package_address() {
+            errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
+        }
         if f.return_type.is_shared_resource_head_address()
             || (matches!(f.return_type, Type::Address { .. })
                 && (f
@@ -206,7 +209,8 @@ fn signatures(
                     | PassingMode::BorrowMut
             ) && !(p.mode == PassingMode::Borrow
                 && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
-                    || p.ty.is_shared_resource_head_address()))
+                    || p.ty.is_shared_resource_head_address()
+                    || p.ty.is_shared_package_address()))
                 && !(p.mode == PassingMode::BorrowMut
                     && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee()))
                 && !(p.mode == PassingMode::Give && matches!(p.ty, Type::Managed(_)))
@@ -526,6 +530,28 @@ impl<'a, 'c> Builder<'a, 'c> {
                 body.span,
                 "opaque callable factory must establish one returned hidden closure type",
             ));
+        }
+        if matches!(self.function.return_type, Type::Address { .. }) {
+            self.closures.snapshot(
+                self.function
+                    .locals
+                    .len()
+                    .saturating_add(self.function.values.len()),
+                body.span,
+            )?;
+            if self
+                .function
+                .locals
+                .iter()
+                .map(|local| &local.ty)
+                .chain(&self.function.values)
+                .any(Type::is_shared_package_address)
+            {
+                return Err(unsupported(
+                    body.span,
+                    "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
+                ));
+            }
         }
         for i in self.first_closure..self.closures.pending.len() {
             self.materialize_closure(ClosureId(i as u32))?;

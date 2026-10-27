@@ -1089,7 +1089,9 @@ impl LocalType {
                     mutable: wanted,
                     inner,
                 },
-            ) if (inner.is_address_pointee() || ty.is_shared_resource_head_address())
+            ) if (inner.is_address_pointee()
+                || ty.is_shared_resource_head_address()
+                || ty.is_shared_package_address())
                 && (mutable || !wanted) =>
             {
                 graph.bind(variable, inner, span)
@@ -1268,6 +1270,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 format!("unknown value {name}"),
             ));
         };
+        if ty.is_shared_package_address() {
+            return Err(unsupported(
+                span,
+                "Store element address capture requires a separate retained element-window contract",
+            ));
+        }
         if ty.is_shared_resource_head_address() {
             return Err(unsupported(
                 span,
@@ -2061,7 +2069,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     self.visit(depth + 1, callee.span)?;
                     let arity = match name {
                         "store_new" => 0,
-                        "store_reserve" | "store_push" => 2,
+                        "store_reserve" | "store_push" | "store_at" => 2,
                         _ => 1,
                     };
                     if arguments.len() != arity {
@@ -2099,8 +2107,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         ));
                     };
                     self.graph.reserve_type(&element, 0, span)?;
-                    if name == "store_reserve" || name == "store_push" {
-                        let wanted = if name == "store_reserve" {
+                    if matches!(name, "store_reserve" | "store_push" | "store_at") {
+                        let wanted = if matches!(name, "store_reserve" | "store_at") {
                             Type::I64
                         } else {
                             (*element).clone()
