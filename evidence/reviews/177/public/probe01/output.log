@@ -1,0 +1,28 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-public174/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.02s
+     Running tests/review177_public.rs (/workspace/scratch/39be3faa4442/targets/177-review-public/debug/deps/review177_public-5a5287b1a3a86651)
+
+running 7 tests
+test new_instruction_envelopes_obey_exact_byte_node_and_instruction_limits ... ok
+test ordinary_members_longer_identifiers_and_module_qualifiers_keep_their_namespace ... ok
+test package_address_predicate_does_not_widen_copy_pointees_or_verify_authority ... ok
+test raw_and_wire_transport_never_bypass_declared_semantic_stubs_or_local_preflight ... ok
+test literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruptions ... ok
+test reserved_store_at_cannot_hide_in_unused_templates_patterns_or_closure_parameters ... FAILED
+test whole_module_fingerprints_bind_new_operands_result_presence_and_span ... ok
+
+failures:
+
+---- reserved_store_at_cannot_hide_in_unused_templates_patterns_or_closure_parameters stdout ----
+
+thread 'reserved_store_at_cannot_hide_in_unused_templates_patterns_or_closure_parameters' (95) panicked at crates/zil-driver/tests/review177_public.rs:586:9:
+resource store_at{x:i32}fn main(){}: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-NAME-DUPLICATE","message":"duplicate declaration name","span":{"file":0,"start":0,"end":24},"notes":[]}],"artifacts":{},"input_fingerprint":"45d606417758ac6091c4b1fdae3b8fd824d369a6de739bae3b768b21e18c5592","seconds":0.000394542,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    reserved_store_at_cannot_hide_in_unused_templates_patterns_or_closure_parameters
+
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-driver --test review177_public`

@@ -1,0 +1,40 @@
+{
+  "implementation_commit": "aa235a3379492221197b4686bec042c042c4e100",
+  "implementation_crates_tree": "46d33da805665d53d668067a3e4bbfe42a57d9e2",
+  "complete_review_source_commit": "061e22536784f4e568dfbcebbb8ca2086cdc54a7",
+  "portable_review_source_commit": "ab9a2f3ca409987372644e62867a773d41698db7",
+  "production_difference": "",
+  "frozen_source_sha256": "07500c9e5b4860a09e9571af14807ea9462e43d908490bab46a9336e3a03f68e",
+  "portable_source_sha256": "7a6a4ea3f3ca773e1d8ce8f3a43f9340986973119c40c69672f370218c729d6f",
+  "normative_files": {
+    "_zil_design.md": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+    "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+    "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+    "spec/diagnostics.json": "47fc86621621801c20bc7c2f10d9029308ce6d4d0b1d7c31df563ddcdf608746",
+    "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+    "spec/interfaces.json": "5d909dafa7a3a05df1d25f56c84575792f273f4a63548b585b46785584e54bfc",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+  },
+  "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+  "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "public_changed_files": [
+    "crates/zil-analyze/src/budget.rs",
+    "crates/zil-analyze/src/lib.rs",
+    "crates/zil-analyze/src/resources.rs",
+    "crates/zil-analyze/src/scopes.rs",
+    "crates/zil-backend-llvm/src/emit.rs",
+    "crates/zil-base/src/lib.rs",
+    "crates/zil-driver/tests/impl177_public.rs",
+    "crates/zil-expand/src/lib.rs",
+    "crates/zil-expand/tests/impl177_store_at_names.rs",
+    "crates/zil-ir/src/lib.rs",
+    "crates/zil-ir/src/wire.rs",
+    "crates/zil-ir/src/wire/state_field_tests.rs",
+    "crates/zil-ir/src/wire/store_tests.rs",
+    "crates/zil-types/src/names.rs",
+    "crates/zil-verify/src/cleanup.rs",
+    "crates/zil-verify/src/lib.rs",
+    "data/normative-inputs.json",
+    "spec/interfaces.json"
+  ]
+}

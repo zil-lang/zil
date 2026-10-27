@@ -1,0 +1,1 @@
+type Identity<store_at> = store_at;fn main(){}

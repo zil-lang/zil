@@ -1,0 +1,1 @@
+fn unused<T>(store_at:T)->T{return store_at}fn main(){}

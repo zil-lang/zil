@@ -1,0 +1,87 @@
+{
+  "schema": "zil-independent-public-review-v1",
+  "reviewer": "/root/store_field174",
+  "implementation_author": "/root",
+  "verdict": "Pass",
+  "status": "Pass",
+  "implementation_commit": "aa235a3379492221197b4686bec042c042c4e100",
+  "review_source_commit": "061e22536784f4e568dfbcebbb8ca2086cdc54a7",
+  "portable_review_source_commit": "ab9a2f3ca409987372644e62867a773d41698db7",
+  "scope": "Only root-authored schema/Wire21 public registration in aa235a3: tags86/87, typed fingerprint, structural shared Package address predicate, bounded transport, instruction registration and bare store_at name reservation.",
+  "scope_exclusions": [
+    "No approval of reviewer-authored174 Store field semantics.",
+    "No approval of175 Store element loans/native layout or176 callback field semantics.",
+    "No approval of177 integrated consumer or merge resolution; a later separate review is required.",
+    "No full workspace, product, ZUI readiness or Rust cost verdict."
+  ],
+  "normative_hash": "8aecd0f052b3d8eb099d19d26cd0bad56b26d3a7be91c79aca5a962a010711be",
+  "spec_hash": "c30c279a5ec0da4fec13637749df6d406daee84fbd9af9095eac88a59587e32f",
+  "blocking_findings": [],
+  "production_source_modified_by_reviewer": false,
+  "target": "/workspace/scratch/39be3faa4442/targets/177-review-public",
+  "target_was_new": true,
+  "original_suites": {
+    "ir_expand_passed": 69,
+    "driver_public_bindings_passed": 1,
+    "receipts": [
+      "original/ir-expand.json",
+      "original/public-bindings.json"
+    ]
+  },
+  "independent_full_probe": {
+    "tests": 7,
+    "passed": 7,
+    "source_commit": "061e22536784f4e568dfbcebbb8ca2086cdc54a7",
+    "receipt": "probe02/command.json",
+    "literal_instruction_envelopes": 6,
+    "module_fingerprint_mutations": 17,
+    "reserved_source_negatives": 10,
+    "ordinary_source_positives": 4,
+    "standalone_expand_declaration_cross_checks": 4,
+    "raw_wire_unsupported_pairs": 3,
+    "raw_wire_shape_only_rejection_pairs": 1,
+    "max_local_id_analyze_rejected": true
+  },
+  "budgets": {
+    "borrow_store_bytes": 647,
+    "borrow_field_bytes": 648,
+    "encode_nodes": 23,
+    "decode_nodes": 23,
+    "per_block_instructions": 10,
+    "exact_boundary": "Each N succeeds and N-1 returns ResourceLimit in real encode/decode APIs; no budget raised."
+  },
+  "portable_regression": {
+    "tests": 5,
+    "passed": 5,
+    "source_commit": "ab9a2f3ca409987372644e62867a773d41698db7",
+    "receipt": "portable03/tests.json",
+    "path": "crates/zil-driver/tests/review177_public.rs",
+    "frozen_history": "tests/frozen/177_public/review177_public.rs",
+    "frozen_history_sha256": "07500c9e5b4860a09e9571af14807ea9462e43d908490bab46a9336e3a03f68e",
+    "migration": "Only two public-only semantic-stub/shape-rejection groups removed from Cargo auto target; complete seven-group snapshot preserved byte for byte and bound to the original actual seven-group run. The other five groups were re-run, not relabeled as seven."
+  },
+  "first_failure": {
+    "receipt": "probe01/command.json",
+    "passed": 6,
+    "failed": 1,
+    "classification": "Reviewer fixture expected E-OWNED-STORE-NAME from project declaration normalization, which correctly rejects the same source earlier as Expand/E-NAME-DUPLICATE. Per-case expected codes were corrected and standalone Expand was separately checked for E-OWNED-STORE-NAME. No production change or acceptance widening.",
+    "source_commit": "2a11a3e5564144590d9086836aa7b69ecda4813c"
+  },
+  "quality": {
+    "full_snapshot_fmt": "Pass",
+    "full_snapshot_clippy": "Pass",
+    "portable_fmt": "Pass",
+    "portable_clippy": "Pass",
+    "receipts": [
+      "quality/fmt.json",
+      "quality/clippy.json",
+      "portable03/fmt.json",
+      "portable03/clippy.json"
+    ]
+  },
+  "evidence_contains_native_executables": false,
+  "wire_candidate_bin_files_are_data": true,
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_task": "B0 Doing"
+}

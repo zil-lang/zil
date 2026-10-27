@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Analyze,
+        category: SafeReject,
+        code: "E-ANALYZE-IR",
+        message: "local ID outside table",
+        span: None,
+        notes: [],
+    },
+]
