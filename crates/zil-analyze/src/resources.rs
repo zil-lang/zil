@@ -2,7 +2,9 @@
 //! code or produce trusted permission certificates. It uses sparse named cells
 //! and explicit sets of possible lifecycle states, independently of Verify.
 use super::*;
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+mod summary_graph;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Place {
@@ -605,6 +607,7 @@ struct Flow<'a> {
     after: &'a [Vec<Live>],
     effects: &'a [Effect],
     views: &'a BTreeMap<LocalId, u32>,
+    dependencies: Option<&'a summary_graph::Dependencies>,
 }
 impl Flow<'_> {
     fn package_source(
@@ -1347,22 +1350,42 @@ impl Flow<'_> {
                         // Concrete helper callers consume only their public
                         // envelope. Legacy private summaries belong to ordinary
                         // functions; even looking one up here is unnecessary.
-                        let summary = self
-                            .effects
-                            .get(function.0 as usize)
-                            .ok_or_else(|| error("missing callee effect"))?;
-                        for parameter in &summary.arguments {
-                            budget.spend(1, "callee resource effect substitution")?;
-                            let value = arguments
-                                .get(*parameter as usize)
-                                .ok_or_else(|| error("missing callee argument"))?;
-                            record_write(
-                                &copied(state, Place::Value(*value), budget)?.sources,
-                                effect,
-                                shared,
-                                check,
-                                budget,
-                            )?;
+                        if let Some(dependencies) = self.dependencies {
+                            // Effects influence only writes, never origin/lifetime
+                            // state when check=false. Extract each substitution
+                            // once rather than replaying the body on every fact.
+                            for (parameter, value) in arguments.iter().enumerate() {
+                                budget.spend(1, "resource summary argument scan")?;
+                                if self.shapes.contains_key(&Place::Value(*value)) {
+                                    let sources =
+                                        copied(state, Place::Value(*value), budget)?.sources;
+                                    dependencies.connect(
+                                        function.0 as usize,
+                                        summary_graph::Kind::Argument(parameter as u32),
+                                        f.id.0 as usize,
+                                        &sources,
+                                        budget,
+                                    )?;
+                                }
+                            }
+                        } else {
+                            let summary = self
+                                .effects
+                                .get(function.0 as usize)
+                                .ok_or_else(|| error("missing callee effect"))?;
+                            for parameter in &summary.arguments {
+                                budget.spend(1, "callee resource effect substitution")?;
+                                let value = arguments
+                                    .get(*parameter as usize)
+                                    .ok_or_else(|| error("missing callee argument"))?;
+                                record_write(
+                                    &copied(state, Place::Value(*value), budget)?.sources,
+                                    effect,
+                                    shared,
+                                    check,
+                                    budget,
+                                )?;
+                            }
                         }
                     }
                     for value in arguments {
@@ -1448,12 +1471,22 @@ impl Flow<'_> {
                                 live_sources(state, &fact, budget)?;
                             }
                         }
-                        let summary = self
-                            .effects
-                            .get(definition.function.0 as usize)
-                            .ok_or_else(|| error("absent environment entry"))?;
-                        if !summary.borrowed_fields.is_empty() {
-                            record_write(&fact.sources, effect, shared, check, budget)?;
+                        if let Some(dependencies) = self.dependencies {
+                            dependencies.connect(
+                                definition.function.0 as usize,
+                                summary_graph::Kind::AnyBorrowed,
+                                f.id.0 as usize,
+                                &fact.sources,
+                                budget,
+                            )?;
+                        } else {
+                            let summary = self
+                                .effects
+                                .get(definition.function.0 as usize)
+                                .ok_or_else(|| error("absent environment entry"))?;
+                            if !summary.borrowed_fields.is_empty() {
+                                record_write(&fact.sources, effect, shared, check, budget)?;
+                            }
                         }
                     }
                     if let InstructionKind::CallClosureOnce { callee, .. } = i.kind {
@@ -1498,117 +1531,6 @@ impl Flow<'_> {
         Ok(())
     }
 }
-// 146: cache immutable per-function preparation only on large effect frontiers.
-// This is not a safety result cache. Transfers, convergence, ordered final
-// validation and the independent verifier still execute for every request.
-struct SummaryInput {
-    shapes: Shapes,
-    initial: State,
-    views: BTreeMap<LocalId, u32>,
-}
-fn prepare_summary(
-    module: &TypedModule,
-    f: &TypedFunction,
-    budget: &mut Budget,
-) -> CompileResult<Option<SummaryInput>> {
-    if f.foreign.is_some() {
-        return Ok(None);
-    }
-    let shapes = shapes(module, f, budget)?;
-    if shapes.is_empty() {
-        return Ok(None);
-    }
-    let mut initial = State::default();
-    for (place, s) in &shapes {
-        budget.lookup(initial.cells.len(), "initial resource state")?;
-        let mut fact = Fact::default();
-        if s.owned {
-            fact.life.insert(
-                if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
-                    Life::Available
-                } else {
-                    Life::Vacant
-                },
-            );
-        }
-        if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
-            fact.birth.insert(Birth::Incoming);
-        }
-        initial.cells.insert(*place, fact);
-    }
-    for (index, local) in f.parameters.iter().enumerate() {
-        if let Some(s) = shapes.get(&Place::Local(*local)) {
-            let mut fact = Fact::default();
-            if s.owned {
-                fact.life.insert(Life::Available);
-                fact.birth.insert(Birth::Incoming);
-                for (place, old) in &initial.cells {
-                    budget.spend(1, "incoming resource order")?;
-                    if let Place::Local(older) = place
-                        && old.life.contains(&Life::Available)
-                    {
-                        initial.later.insert((*older, *local));
-                    }
-                }
-            }
-            if s.description {
-                fact.sources.insert(Source::Argument(index as u32));
-            }
-            replace(&mut initial, Place::Local(*local), fact, budget)?;
-            package_transition(f, &mut initial, *local, Life::Available, false, budget)?;
-        }
-    }
-    let mut views = BTreeMap::new();
-    if f.environment.is_some() {
-        for instruction in f.blocks[f.entry.0 as usize].instructions.iter().skip(1) {
-            let InstructionKind::BindPackageCapture { local, index } = instruction.kind else {
-                break;
-            };
-            budget.lookup(views.len(), "Package resource view mapping")?;
-            views.insert(local, index);
-        }
-    }
-    Ok(Some(SummaryInput { shapes, initial, views }))
-}
-fn summarize_prepared(
-    module: &TypedModule,
-    f: &TypedFunction,
-    effects: &[Effect],
-    prepared: &SummaryInput,
-    budget: &mut Budget,
-) -> CompileResult<Effect> {
-    budget.product(f.blocks.len(), 2, 1, "resource diagnostic CFG")?;
-    let mut input: Vec<Option<State>> = vec![None; f.blocks.len()];
-    input[f.entry.0 as usize] = Some(clone_state(&prepared.initial, budget)?);
-    let mut stack = vec![f.entry.0 as usize];
-    let mut queued = vec![false; f.blocks.len()];
-    queued[f.entry.0 as usize] = true;
-    let flow = Flow {
-        module, function: f, shapes: &prepared.shapes, after: &[], effects,
-        views: &prepared.views,
-    };
-    let mut effect = Effect::default();
-    while let Some(b) = stack.pop() {
-        queued[b] = false;
-        let mut state = clone_state(input[b].as_ref().unwrap(), budget)?;
-        flow.run(b, &mut state, &mut effect, false, budget)?;
-        for successor in next(&f.blocks[b]) {
-            budget.spend(1, "resource diagnostic edge")?;
-            let changed = if let Some(previous) = &mut input[successor] {
-                join(previous, &state, budget)?
-            } else {
-                input[successor] = Some(clone_state(&state, budget)?);
-                true
-            };
-            if changed && !queued[successor] {
-                stack.push(successor);
-                queued[successor] = true;
-            }
-        }
-    }
-    Ok(effect)
-}
-
 fn analyze_function(
     module: &TypedModule,
     f: &TypedFunction,
@@ -1616,6 +1538,17 @@ fn analyze_function(
     effects: &[Effect],
     check: bool,
     budget: &mut Budget,
+) -> CompileResult<Effect> {
+    analyze_function_with_dependencies(module, f, reachable, effects, check, budget, None)
+}
+fn analyze_function_with_dependencies(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    effects: &[Effect],
+    check: bool,
+    budget: &mut Budget,
+    dependencies: Option<&summary_graph::Dependencies>,
 ) -> CompileResult<Effect> {
     if f.foreign.is_some() {
         return Ok(Effect::default());
@@ -1695,6 +1628,7 @@ fn analyze_function(
         after: &after,
         effects,
         views: &views,
+        dependencies,
     };
     let mut effect = Effect::default();
     while let Some(b) = stack.pop() {
@@ -1835,61 +1769,36 @@ fn infer_effects(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Effect>> {
+    if module.functions.len() >= 32 {
+        summary_graph::solve(module, graphs, budget)
+    } else {
+        infer_effects_frontier(module, graphs, budget)
+    }
+}
+fn infer_effects_frontier(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
     budget.spend(module.functions.len(), "resource effect table")?;
     let mut effects = vec![Effect::default(); module.functions.len()];
     let consumers = effect_consumers(module, graphs, budget)?;
     let mut pending: VecDeque<_> = (0..module.functions.len()).collect();
     let mut queued = vec![true; module.functions.len()];
-    // Small programs keep the pre-146 allocation path. The fixed cache cap is
-    // an implementation choice, never a change to Limits or accepted semantics.
-    let use_prepared = module.functions.len() >= 32;
-    let mut prepared: Vec<Option<SummaryInput>> = if use_prepared {
-        budget.spend(module.functions.len(), "resource preparation cache headers")?;
-        std::iter::repeat_with(|| None).take(module.functions.len()).collect()
-    } else { Vec::new() };
-    let mut retained_cells = 0usize;
-    const MAX_RETAINED_CELLS: usize = 16_384;
     while let Some(index) = pending.pop_front() {
         budget.spend(1, "resource effect frontier pop")?;
         queued[index] = false;
         #[cfg(test)]
         TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
         let (_, reachable) = &graphs[index];
-        let f = &module.functions[index];
-        let found = if use_prepared {
-            if prepared[index].is_none() && retained_cells < MAX_RETAINED_CELLS {
-                if let Some(value) = prepare_summary(module, f, budget)? {
-                    let cost = value.shapes.len().saturating_add(value.initial.later.len());
-                    if cost <= MAX_RETAINED_CELLS - retained_cells {
-                        retained_cells += cost;
-                        prepared[index] = Some(value);
-                    } else {
-                        // Use the freshly constructed input once even when not retained.
-                        let found = summarize_prepared(module, f, &effects, &value, budget)?;
-                        if grow_effect(&mut effects[index], found, budget)? {
-                            budget.spend(consumers[index].len(), "resource effect notification")?;
-                            for &caller in &consumers[index] {
-                                if !queued[caller] {
-                                    budget.spend(1, "resource effect frontier push")?;
-                                    queued[caller] = true;
-                                    pending.push_back(caller);
-                                }
-                            }
-                        }
-                        continue;
-                    }
-                } else {
-                    continue;
-                }
-            }
-            if let Some(value) = &prepared[index] {
-                summarize_prepared(module, f, &effects, value, budget)?
-            } else {
-                analyze_function(module, f, reachable, &effects, false, budget)?
-            }
-        } else {
-            analyze_function(module, f, reachable, &effects, false, budget)?
-        };
+        let found = analyze_function(
+            module,
+            &module.functions[index],
+            reachable,
+            &effects,
+            false,
+            budget,
+        )?;
         if grow_effect(&mut effects[index], found, budget)? {
             budget.spend(consumers[index].len(), "resource effect notification")?;
             for &caller in &consumers[index] {
@@ -2043,6 +1952,7 @@ fn analyze_function_eager_reference(
         after: &after,
         effects,
         views: &views,
+        dependencies: None,
     };
     let mut effect = Effect::default();
     while let Some(b) = stack.pop() {

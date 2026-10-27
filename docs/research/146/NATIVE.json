@@ -1,0 +1,9 @@
+{
+  "native_builds": 36,
+  "actual_native_runs": 34,
+  "known_baseline_resource_limits": 2,
+  "artifact_comparisons": 176,
+  "controls": 12,
+  "pass": true,
+  "note": "baseline ResourceLimit is capability evidence, never a successful speed sample"
+}
