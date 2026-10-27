@@ -1,0 +1,9 @@
+{
+  "source_case": "independent-cases-02/nested-layout-1",
+  "llvm_sha256": "f27a7a69f0b75e89dd9a7d04655a2148d6caccce753e804399853c23ba82f575",
+  "actual_inline_local": "%local.5 = alloca { i32, { i8, i32, [2 x i32] } }, align 4",
+  "head": "%v.14 = getelementptr i8, ptr %local.5, i64 0",
+  "forwarding": "v14 -> v15 -> v16 zero-offset GEP -> inspect(ptr v16)",
+  "drop": "resource.live.5 false before call zil.fn.1(ptr local.5)",
+  "heap_allocating_calls_present": false
+}

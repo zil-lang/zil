@@ -1,0 +1,16 @@
+[package]
+name = "review171-package170-probes"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+zil-base = { path = "/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-base" }
+zil-driver = { path = "/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-driver" }
+zil-ir = { path = "/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-ir" }
+zil-syntax = { path = "/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-syntax" }
+zil-expand = { path = "/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-expand" }
+zil-types = { path = "/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-types" }
+zil-analyze = { path = "/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-analyze" }
+zil-verify = { path = "/workspace/scratch/39be3faa4442/zil-restored/review171-package170/crates/zil-verify" }
+
+[workspace]

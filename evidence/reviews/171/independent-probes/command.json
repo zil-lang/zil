@@ -1,0 +1,31 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--manifest-path",
+    "/workspace/scratch/39be3faa4442/run-logs/review171-package170/probes/Cargo.toml",
+    "--offline",
+    "-j2",
+    "--",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/review171-package170",
+  "source_commit": "2d5214b0a65a688f86736abdcf54625b5427ae9b",
+  "crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+  "source_status": "",
+  "start": 1793111403.1821358,
+  "status": "Fail",
+  "exit_code": 101,
+  "log_sha256": "420d280a74c74c61c26e79f68ea2248aa19b706a699992475e22bd71755a233c",
+  "end": 1793111451.6189275,
+  "seconds": 48.43679165840149,
+  "tests": {
+    "passed": 3,
+    "failed": 2,
+    "ignored": 0,
+    "groups": 1
+  },
+  "error": "required test run has no passing tests or contains failures",
+  "ending_crates_tree": "61fef030177ba55424d3619eb2b32ccfafe6b31f",
+  "ending_source_status": ""
+}
