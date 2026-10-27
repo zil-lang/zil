@@ -1312,6 +1312,18 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     self.insert(name, value, *mutable, statement.span)?;
                 }
                 CoreStatementKind::Assign { target, value } => {
+                    // A source name ordinarily reads a descriptor. Assignment
+                    // to an owning mutable binding instead constrains the new
+                    // carrier; concrete slot lowering and Verify decide safety.
+                    let owned_target = if let CoreExprKind::Name(name) = &target.kind {
+                        self.scopes
+                            .iter()
+                            .rev()
+                            .find_map(|scope| scope.get(name))
+                            .is_some_and(|b| b.mutable && matches!(b.term, Term::Resource(_, true)))
+                    } else {
+                        false
+                    };
                     let target_type = self.expr(target, depth + 1, true)?;
                     let hint = if let Term::Scalar(variable) = target_type {
                         self.graph.ty(variable)?
@@ -1319,7 +1331,22 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         None
                     };
                     let value_type = self.expr_expected(value, hint.as_ref(), depth + 1, false)?;
-                    self.unify(&target_type, &value_type, statement.span)?;
+                    if owned_target {
+                        match (&target_type, &value_type) {
+                            (Term::Resource(a, _), Term::Resource(b, true)) => {
+                                self.graph.unify(*a, *b, statement.span)?
+                            }
+                            _ => {
+                                return Err(error(
+                                    "E-TYPE-MISMATCH",
+                                    statement.span,
+                                    "managed replacement requires a new owning carrier",
+                                ));
+                            }
+                        }
+                    } else {
+                        self.unify(&target_type, &value_type, statement.span)?;
+                    }
                 }
                 CoreStatementKind::Expression(e) => {
                     self.expr(e, depth + 1, false)?;
