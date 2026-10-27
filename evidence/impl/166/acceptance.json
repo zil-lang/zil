@@ -1,0 +1,96 @@
+{
+  "task": "166",
+  "status": "AuthorChecksPassWithDeclaredSharedTestMigration",
+  "baseline": "45dbb920d444ab54a307785d068c934926cfb90c",
+  "proposal_commit": "1528cd1",
+  "implementation_commit": "dbf99ce24742f4796cb182d751e6676280666d85",
+  "test_migration_commit": "fc03263d5fd3dfad17e3c40a28e37197bfee73ff",
+  "crates_tree": "5c875cc187d689204281f7fbc8f30e4f25aad7d0",
+  "normative_hash": "56b24928b183687a9468f8b98097756243a5b6fb088aa0121f3b05fdc6f83219",
+  "schema_version": 19,
+  "shared_root_dependencies": [
+    "2adb401",
+    "f1b570a835c8e213138e7bfb42ab0cd221dd110a",
+    "b1e30daca577013aa7bc704ba7b07203d09f5b40"
+  ],
+  "author": "/root/trait_bounds",
+  "toolchain": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "1.99.1 (5f94df478 2026-08-27)",
+    "clang": "17.0.6",
+    "host": "x86_64-unknown-linux-gnu"
+  },
+  "checks": [
+    {
+      "log": "regression-driver.log",
+      "sha256": "421df55090925a368c66545c4fcb6e0c9db3c27c4754d63c93cced07bd784496",
+      "groups": 10,
+      "passed": 114,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "log": "regression-libs-final.log",
+      "sha256": "fcd9c49f643064cf926fa2b86ba620141d64456e9662dc086d27708a59e14a0d",
+      "groups": 5,
+      "passed": 297,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 1
+    },
+    {
+      "log": "regression-budget.log",
+      "sha256": "74530f6161b6c33a5a9617f12bf0010153572c709735a49cc2fda2eef6fcd4ef",
+      "groups": 1,
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "log": "regression-wire.log",
+      "sha256": "a76b26ad23b1c60df2524f8c0cf0edf8f7374171278b6c6a1795596278fd72e0",
+      "groups": 2,
+      "passed": 38,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    }
+  ],
+  "native_builds_and_runs": 22,
+  "native_optimizations": [
+    "O0",
+    "O2"
+  ],
+  "allocator_observer_runs": 4,
+  "source_rejections": 12,
+  "raw_cases": 9,
+  "wire_cases": 9,
+  "production_code_unchanged_between_code_and_test_migration": true,
+  "shared_test_migration": {
+    "filtered_exactly": "retained_tests::current_wire_accepts_current_version_and_rejects_other_versions_and_every_truncation",
+    "reason": "old test hard-codes Wire18 while shared protocol is19; parent assigned its migration to168",
+    "parent_reported_fix": "a3bf9197589b047529a626d0bdc1e1365a27e15b",
+    "not_in_this_branch": true,
+    "original_failure_preserved": "old-contract-failures.log"
+  },
+  "boundaries": [
+    "Each union arm is finite Copy or complete Package; at least one Package makes the whole union non-Copy ordinary Value",
+    "Direct Managed/Desc, addresses, owned nested unions, closures as payloads remain closed",
+    "Owned union capture and Copy callable signatures remain closed",
+    "Whole-local owning union reassignment explicitly Unsupported; retained slot is future work",
+    "Native main success remains void/i32; returned owned error is cleaned by wrapper",
+    "No default budget increases; no full-workspace or performance run by this author"
+  ],
+  "worktree": "wt166",
+  "target": "targets/166",
+  "stage_artifacts": "run-logs/166",
+  "created_utc": "2026-10-27T11:38:58.675158+00:00",
+  "lint_and_format": {
+    "clippy_libs": "Pass",
+    "clippy_driver_test": "Pass",
+    "fmt": "Pass",
+    "warnings_policy": "-D warnings"
+  }
+}
