@@ -375,6 +375,7 @@ fn expand_inner_project(
     let mut e = Expander {
         imports_resolved,
         module_id: module.id,
+        callable_work: limits.max_analysis_steps,
         project_defaults,
         generated_imports: BTreeMap::new(),
         generated_exports: Vec::new(),
@@ -456,6 +457,7 @@ fn expand_inner_project(
     })
 }
 struct Expander<'a> {
+    callable_work: usize,
     module_id: zil_base::ModuleId,
     project_defaults: Option<&'a ProjectDefaults>,
     generated_imports: BTreeMap<zil_base::ModuleId, CoreImport>,

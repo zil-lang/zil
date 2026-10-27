@@ -45,7 +45,10 @@ pub(super) fn drop_functions(
     resources: &[ResourceDefinition],
 ) -> CompileResult<String> {
     let mut text = String::new();
-    for definition in closures.iter().filter(|definition| owns(definition)) {
+    // Every concrete environment has an addressable field cleanup entry.
+    // Resource-free callbacks simply return; this preserves unique field slots
+    // without inventing a capture cleanup obligation.
+    for definition in closures {
         let env = environment_type(definition.id);
         text.push_str(&format!(
             "define internal void @zil.closure.drop.{}(ptr %env) {{\nentry:\n",

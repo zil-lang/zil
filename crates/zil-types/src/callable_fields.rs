@@ -7,21 +7,36 @@ pub(super) fn placeholder_package(ty: &Type, name: &str) -> bool {
 }
 
 pub(super) fn template(function: &CoreFunction) -> bool {
-    function.callable_parameter.as_ref().is_some_and(|bound|
+    function.callable_parameter.as_ref().is_some_and(|bound| {
         placeholder_package(&function.return_type, &bound.generic_name)
-        || function.parameters.iter().any(|p| placeholder_package(&p.ty, &bound.generic_name)))
+            || function
+                .parameters
+                .iter()
+                .any(|p| placeholder_package(&p.ty, &bound.generic_name))
+    })
 }
 
 pub(super) fn signature(signature: &Signature) -> bool {
-    signature.callable.as_ref().is_some_and(|bound|
+    signature.callable.as_ref().is_some_and(|bound| {
         placeholder_package(&signature.result, &bound.generic_name)
-        || signature.parameters.iter().any(|p| placeholder_package(p, &bound.generic_name)))
+            || signature
+                .parameters
+                .iter()
+                .any(|p| placeholder_package(p, &bound.generic_name))
+    })
 }
 
 pub(super) fn nominal_base(name: &str) -> &str {
-    if let Some((base,_))=name.rsplit_once(":closure") { return base; }
-    if name.contains("$generic_") && let Some((base,suffix))=name.rsplit_once('_')
-        && !suffix.is_empty() && suffix.bytes().all(|b| b.is_ascii_digit()) { return base; }
+    if let Some((base, _)) = name.rsplit_once(":closure") {
+        return base;
+    }
+    if name.contains("$generic_")
+        && let Some((base, suffix)) = name.rsplit_once('_')
+        && !suffix.is_empty()
+        && suffix.bytes().all(|b| b.is_ascii_digit())
+    {
+        return base;
+    }
     name
 }
 
@@ -35,22 +50,63 @@ pub(super) fn environment(pattern: &Type, actual: &Type, name: &str, span: Span)
     let mut found = None;
     let pairs: Vec<(&Type, &Type)> = match (pattern, actual) {
         (Type::Named(n), Type::Closure(_)) if n == name => vec![(pattern, actual)],
-        (Type::Package { name:a, fields:af }, Type::Package { name:b, fields:bf })
-            if nominal_base(a) == nominal_base(b) && af.len() == bf.len() => af.iter().zip(bf).map(|((an,at),(bn,bt))|
-                if an == bn {Ok((at,bt))} else {Err(error("E-TYPE-MISMATCH",span,"callable State field names differ"))}).collect::<R<_>>()?,
-        _ => return Err(error("E-TYPE-MISMATCH",span,"expected the complete callable State or its owned environment")),
+        (
+            Type::Package {
+                name: a,
+                fields: af,
+            },
+            Type::Package {
+                name: b,
+                fields: bf,
+            },
+        ) if nominal_base(a) == nominal_base(b) && af.len() == bf.len() => af
+            .iter()
+            .zip(bf)
+            .map(|((an, at), (bn, bt))| {
+                if an == bn {
+                    Ok((at, bt))
+                } else {
+                    Err(error(
+                        "E-TYPE-MISMATCH",
+                        span,
+                        "callable State field names differ",
+                    ))
+                }
+            })
+            .collect::<R<_>>()?,
+        _ => {
+            return Err(error(
+                "E-TYPE-MISMATCH",
+                span,
+                "expected the complete callable State or its owned environment",
+            ));
+        }
     };
     for (want, got) in pairs {
         if matches!(want, Type::Named(n) if n == name) {
-            let Type::Closure(id) = got else {return Err(error("E-TYPE-MISMATCH",span,"State F must be a concrete closure environment"))};
+            let Type::Closure(id) = got else {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "State F must be a concrete closure environment",
+                ));
+            };
             if found.replace(*id).is_some_and(|prior| prior != *id) {
-                return Err(error("E-TYPE-MISMATCH",span,"State fields require one concrete F identity"));
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "State fields require one concrete F identity",
+                ));
             }
         } else if want != got {
-            return Err(error("E-TYPE-MISMATCH",span,"callable State ordinary field shape differs"));
+            return Err(error(
+                "E-TYPE-MISMATCH",
+                span,
+                "callable State ordinary field shape differs",
+            ));
         }
     }
-    found.ok_or_else(|| error("E-TYPE-MISMATCH",span,"State has no concrete F field"))
+    found.ok_or_else(|| error("E-TYPE-MISMATCH", span, "State has no concrete F field"))
 }
 
 /// The complete function was charged by helper_snapshot_work before its clone;
@@ -58,56 +114,216 @@ pub(super) fn environment(pattern: &Type, actual: &Type, name: &str, span: Span)
 pub(super) fn specialize(function: &mut CoreFunction, name: &str, closure: ClosureId) {
     fn ty(t: &mut Type, name: &str, id: ClosureId) {
         match t {
-            Type::Named(n) if n == name => *t=Type::Closure(id),
-            Type::Package{name:nominal,fields} => {
-                let contains=fields.iter().any(|(_,t)| matches!(t,Type::Named(n) if n==name));
-                for (_,t) in fields {ty(t,name,id)}
-                if contains {*nominal=format!("{}:closure{}",nominal_base(nominal),id.0)}
-            },
-            Type::Record{fields,..} => for (_,t) in fields {ty(t,name,id)},
-            Type::Tuple(fields) => for t in fields {ty(t,name,id)},
-            Type::Enum{variants,..} => for (_,fields) in variants {for t in fields {ty(t,name,id)}},
-            Type::Managed(t)|Type::Desc(t)|Type::Address{inner:t,..}|Type::Opaque{hidden:t,..}
-            |Type::Array{element:t,..}|Type::Slice{element:t}|Type::OwnedStore{element:t} =>ty(t,name,id),
-            Type::ErrorUnion{error,result}=>{ty(error,name,id);ty(result,name,id)},
-            Type::FunctionPointer{parameters,result}|Type::ForeignCallback{parameters,result}=>{for p in parameters {ty(p,name,id)}ty(result,name,id)},
-            _=>{}
+            Type::Named(n) if n == name => *t = Type::Closure(id),
+            Type::Package {
+                name: nominal,
+                fields,
+            } => {
+                let contains = fields
+                    .iter()
+                    .any(|(_, t)| matches!(t,Type::Named(n) if n==name));
+                for (_, t) in fields {
+                    ty(t, name, id)
+                }
+                if contains {
+                    *nominal = format!("{}:closure{}", nominal_base(nominal), id.0)
+                }
+            }
+            Type::Record { fields, .. } => {
+                for (_, t) in fields {
+                    ty(t, name, id)
+                }
+            }
+            Type::Tuple(fields) => {
+                for t in fields {
+                    ty(t, name, id)
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    for t in fields {
+                        ty(t, name, id)
+                    }
+                }
+            }
+            Type::Managed(t)
+            | Type::Desc(t)
+            | Type::Address { inner: t, .. }
+            | Type::Opaque { hidden: t, .. }
+            | Type::Array { element: t, .. }
+            | Type::Slice { element: t }
+            | Type::OwnedStore { element: t } => ty(t, name, id),
+            Type::ErrorUnion { error, result } => {
+                ty(error, name, id);
+                ty(result, name, id)
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                for p in parameters {
+                    ty(p, name, id)
+                }
+                ty(result, name, id)
+            }
+            _ => {}
         }
     }
-    fn expr(e:&mut CoreExpr,n:&str,id:ClosureId) {
+    fn expr(e: &mut CoreExpr, n: &str, id: ClosureId) {
         match &mut e.kind {
-            CoreExprKind::Unary{operand,..}|CoreExprKind::Try(operand)=>expr(operand,n,id),
-            CoreExprKind::IntegerConvert{value,..}=>expr(value,n,id),
-            CoreExprKind::Binary{left,right,..}=>{expr(left,n,id);expr(right,n,id)},
-            CoreExprKind::Call{callee,arguments}=>{expr(callee,n,id);for a in arguments {expr(a,n,id)}},
-            CoreExprKind::Member{object,..}=>expr(object,n,id),
-            CoreExprKind::Index{object,index}=>{expr(object,n,id);expr(index,n,id)},
-            CoreExprKind::Slice{object,start,end}=>{expr(object,n,id);for a in [start,end].into_iter().flatten(){expr(a,n,id)}},
-            CoreExprKind::If{condition,then_value,else_value}=>{expr(condition,n,id);expr(then_value,n,id);expr(else_value,n,id)},
-            CoreExprKind::Tuple(fields)|CoreExprKind::Array(fields)=>for f in fields {expr(f,n,id)},
-            CoreExprKind::Record{ty:t,fields}=>{ty(t,n,id);for (_,f) in fields {expr(f,n,id)}},
-            CoreExprKind::RecordUpdate{ty:t,base,fields}=>{if let Some(t)=t{ty(t,n,id)}expr(base,n,id);for (_,f) in fields {expr(f,n,id)}},
-            CoreExprKind::Closure{parameters,return_type,body,..}=>{for p in parameters {if let Some(t)=&mut p.ty{ty(t,n,id)}}if let Some(t)=return_type{ty(t,n,id)}block(body,n,id)},
-            CoreExprKind::Sequence{bindings,value}=>{for (_,e) in bindings{expr(e,n,id)}expr(value,n,id)},
-            _=>{}
+            CoreExprKind::Unary { operand, .. } | CoreExprKind::Try(operand) => {
+                expr(operand, n, id)
+            }
+            CoreExprKind::IntegerConvert { value, .. } => expr(value, n, id),
+            CoreExprKind::Binary { left, right, .. } => {
+                expr(left, n, id);
+                expr(right, n, id)
+            }
+            CoreExprKind::Call { callee, arguments } => {
+                expr(callee, n, id);
+                for a in arguments {
+                    expr(a, n, id)
+                }
+            }
+            CoreExprKind::Member { object, .. } => expr(object, n, id),
+            CoreExprKind::Index { object, index } => {
+                expr(object, n, id);
+                expr(index, n, id)
+            }
+            CoreExprKind::Slice { object, start, end } => {
+                expr(object, n, id);
+                for a in [start, end].into_iter().flatten() {
+                    expr(a, n, id)
+                }
+            }
+            CoreExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                expr(condition, n, id);
+                expr(then_value, n, id);
+                expr(else_value, n, id)
+            }
+            CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
+                for f in fields {
+                    expr(f, n, id)
+                }
+            }
+            CoreExprKind::Record { ty: t, fields } => {
+                ty(t, n, id);
+                for (_, f) in fields {
+                    expr(f, n, id)
+                }
+            }
+            CoreExprKind::RecordUpdate {
+                ty: t,
+                base,
+                fields,
+            } => {
+                if let Some(t) = t {
+                    ty(t, n, id)
+                }
+                expr(base, n, id);
+                for (_, f) in fields {
+                    expr(f, n, id)
+                }
+            }
+            CoreExprKind::Closure {
+                parameters,
+                return_type,
+                body,
+                ..
+            } => {
+                for p in parameters {
+                    if let Some(t) = &mut p.ty {
+                        ty(t, n, id)
+                    }
+                }
+                if let Some(t) = return_type {
+                    ty(t, n, id)
+                }
+                block(body, n, id)
+            }
+            CoreExprKind::Sequence { bindings, value } => {
+                for (_, e) in bindings {
+                    expr(e, n, id)
+                }
+                expr(value, n, id)
+            }
+            _ => {}
         }
     }
-    fn block(b:&mut CoreBlock,n:&str,id:ClosureId){
-        for s in &mut b.statements {match &mut s.kind {
-            CoreStatementKind::Binding{ty:t,initializer,..}=>{if let Some(t)=t{ty(t,n,id)}if let Some(e)=initializer{expr(e,n,id)}},
-            CoreStatementKind::Assign{target,value}=>{expr(target,n,id);expr(value,n,id)},
-            CoreStatementKind::Return(Some(e))|CoreStatementKind::Expression(e)=>expr(e,n,id),
-            CoreStatementKind::If{condition,then_body,else_body}=>{expr(condition,n,id);block(then_body,n,id);if let Some(b)=else_body{block(b,n,id)}},
-            CoreStatementKind::While{condition,body}=>{expr(condition,n,id);block(body,n,id)},
-            CoreStatementKind::IfLet{value,then_body,else_body,..}=>{expr(value,n,id);block(then_body,n,id);if let Some(b)=else_body{block(b,n,id)}},
-            CoreStatementKind::WhileLet{value,body,..}=>{expr(value,n,id);block(body,n,id)},
-            CoreStatementKind::ForRange{start,end,body,..}=>{expr(start,n,id);expr(end,n,id);block(body,n,id)},
-            CoreStatementKind::Match{value,arms}=>{expr(value,n,id);for a in arms {block(&mut a.body,n,id)}},
-            CoreStatementKind::Block(b)|CoreStatementKind::Unsafe(b)=>block(b,n,id),
-            _=>{}
-        }}
+    fn block(b: &mut CoreBlock, n: &str, id: ClosureId) {
+        for s in &mut b.statements {
+            match &mut s.kind {
+                CoreStatementKind::Binding {
+                    ty: t, initializer, ..
+                } => {
+                    if let Some(t) = t {
+                        ty(t, n, id)
+                    }
+                    if let Some(e) = initializer {
+                        expr(e, n, id)
+                    }
+                }
+                CoreStatementKind::Assign { target, value } => {
+                    expr(target, n, id);
+                    expr(value, n, id)
+                }
+                CoreStatementKind::Return(Some(e)) | CoreStatementKind::Expression(e) => {
+                    expr(e, n, id)
+                }
+                CoreStatementKind::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
+                    expr(condition, n, id);
+                    block(then_body, n, id);
+                    if let Some(b) = else_body {
+                        block(b, n, id)
+                    }
+                }
+                CoreStatementKind::While { condition, body } => {
+                    expr(condition, n, id);
+                    block(body, n, id)
+                }
+                CoreStatementKind::IfLet {
+                    value,
+                    then_body,
+                    else_body,
+                    ..
+                } => {
+                    expr(value, n, id);
+                    block(then_body, n, id);
+                    if let Some(b) = else_body {
+                        block(b, n, id)
+                    }
+                }
+                CoreStatementKind::WhileLet { value, body, .. } => {
+                    expr(value, n, id);
+                    block(body, n, id)
+                }
+                CoreStatementKind::ForRange {
+                    start, end, body, ..
+                } => {
+                    expr(start, n, id);
+                    expr(end, n, id);
+                    block(body, n, id)
+                }
+                CoreStatementKind::Match { value, arms } => {
+                    expr(value, n, id);
+                    for a in arms {
+                        block(&mut a.body, n, id)
+                    }
+                }
+                CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => block(b, n, id),
+                _ => {}
+            }
+        }
     }
-    for p in &mut function.parameters {ty(&mut p.ty,name,closure)}
-    ty(&mut function.return_type,name,closure);
-    block(&mut function.body,name,closure);
+    for p in &mut function.parameters {
+        ty(&mut p.ty, name, closure)
+    }
+    ty(&mut function.return_type, name, closure);
+    block(&mut function.body, name, closure);
 }

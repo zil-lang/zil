@@ -50,9 +50,26 @@ impl<'a> Visibility<'a> {
             return Ok(());
         };
         self.spend(name.len(), span)?;
-        let record = self.records.get(name).or_else(|| self.records.iter()
-            .find(|(key,_)| callable_fields::nominal_base(key)==callable_fields::nominal_base(name)).map(|(_,record)|record));
-        let Some((owner, fields)) = record else {return Ok(())};
+        if !self.records.contains_key(name) {
+            self.spend(
+                self.records
+                    .keys()
+                    .map(|key| key.len().saturating_add(1))
+                    .sum(),
+                span,
+            )?;
+        }
+        let record = self.records.get(name).or_else(|| {
+            self.records
+                .iter()
+                .find(|(key, _)| {
+                    callable_fields::nominal_base(key) == callable_fields::nominal_base(name)
+                })
+                .map(|(_, record)| record)
+        });
+        let Some((owner, fields)) = record else {
+            return Ok(());
+        };
         if *owner == module {
             return Ok(());
         }
@@ -95,7 +112,8 @@ impl<'a> Visibility<'a> {
                     | InstructionKind::DescribePackageField { local, index }
                     | InstructionKind::TakePackageField { local, index }
                     | InstructionKind::DropPackageField { local, index }
-                    | InstructionKind::StorePackageField { local, index, .. } => function
+                    | InstructionKind::StorePackageField { local, index, .. }
+                    | InstructionKind::BorrowPackageField { local, index, .. } => function
                         .locals
                         .get(local.0 as usize)
                         .map(|local| (&local.ty, *index)),
@@ -290,7 +308,25 @@ fn resolve_indexed(
         }
     }
     let mut resolver = Resolver {
-        callable_names: core.functions.iter().filter_map(|f| f.callable_parameter.as_ref().map(|b| b.generic_name.clone())).chain(project.iter().flat_map(|m| m.functions.iter()).filter_map(|f| f.callable_parameter.as_ref().map(|b| b.generic_name.clone()))).collect(),
+        callable_names: core
+            .functions
+            .iter()
+            .filter_map(|f| {
+                f.callable_parameter
+                    .as_ref()
+                    .map(|b| b.generic_name.clone())
+            })
+            .chain(
+                project
+                    .iter()
+                    .flat_map(|m| m.functions.iter())
+                    .filter_map(|f| {
+                        f.callable_parameter
+                            .as_ref()
+                            .map(|b| b.generic_name.clone())
+                    }),
+            )
+            .collect(),
         declarations,
         enum_declarations,
         owners,
@@ -503,7 +539,9 @@ impl Resolver<'_> {
                     for f in &d.fields {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
-                            || (d.kind == AggregateKind::Package && !f.manages && d.name.starts_with("$generic_")
+                            || (d.kind == AggregateKind::Package
+                                && !f.manages
+                                && d.name.starts_with("$generic_")
                                 && matches!(&ty, Type::Named(name) if self.callable_names.contains(name)))
                             || (d.kind == AggregateKind::Package
                                 && !f.manages
@@ -1177,7 +1215,12 @@ impl Builder<'_, '_> {
                         ));
                     }
                     slots[i as usize] = Some(if matches!(ty, Type::Package { .. }) {
-                        let (prepared, actual) = self.argument_expr(value, &t)?;
+                        let (prepared, actual) = if matches!(t, Type::Closure(_)) {
+                            self.check_owned_array_closure(&t, 1, value.span)?;
+                            self.owned_array_input(value, Some(&t))?
+                        } else {
+                            self.argument_expr(value, &t)?
+                        };
                         let (prepared, guard) =
                             self.stage_argument(prepared, &actual, value.span)?;
                         guarded[i as usize] = guard;
