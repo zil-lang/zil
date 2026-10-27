@@ -1,0 +1,54 @@
+{
+  "task": "170",
+  "status": "SubmittedForIndependentReview",
+  "implementation_author": "/root/package_fields",
+  "implementation_commit": "ec233ed4bcb827c0a9388f3641ffb410bc4effb6",
+  "feature_commit": "4307c84",
+  "proposal_commit": "2701344",
+  "public_base": "e00266f2c468d512e6026e244868f233589dd4c5",
+  "crates_tree": "ece945459bd9e3a0732b6d804e327f0a9afcaeca",
+  "normative_hash": "27af69406a93986d1577d3138530af516d591e9a747ca9337c2e0b12c26d6c7b",
+  "self_tests": {
+    "focused": {
+      "passed": 116,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 11
+    },
+    "new_test_groups": 16,
+    "new_test_native_executions": 30,
+    "raw_wire_mutant_cases": 8,
+    "raw_wire_rejections": 16,
+    "source_nearest_rejections": 7,
+    "budget_boundary_receipts": {
+      "raw-budget.txt": "accepted=21689\nrejected=21688\n[\n    Diagnostic {\n        phase: Verify,\n        category: ResourceLimit,\n        code: \"E-RESOURCE-LIMIT\",\n        message: \"independent verification work budget exhausted\",\n        span: None,\n        notes: [],\n    },\n]\n",
+      "wire-budget.txt": "accepted=21689\nrejected=21688\n[\n    Diagnostic {\n        phase: Verify,\n        category: ResourceLimit,\n        code: \"E-RESOURCE-LIMIT\",\n        message: \"independent verification work budget exhausted\",\n        span: None,\n        notes: [],\n    },\n]\n"
+    },
+    "consumer_ordinary": 6,
+    "consumer_instrumented": 20,
+    "consumer_status": "Pass"
+  },
+  "closed_boundaries": [
+    "whole-field named Package array composition with direct Managed+Copy element Packages",
+    "array field parent keeps whole/live-or-missing state only",
+    "partial parent cannot cross complete ABI until refill",
+    "owning array parent captures rejected in Types and Verify",
+    "no direct state.items[index] partial paths",
+    "no dynamic array/closure-typed fields/deeper composed array fields"
+  ],
+  "evidence": [
+    "evidence/impl/170/focused-01/command.json",
+    "evidence/impl/170/build-cli-fresh/command.json",
+    "evidence/impl/170/consumer/summary.json",
+    "evidence/impl/170/focused-observations.json",
+    "evidence/impl/170/environment.json"
+  ],
+  "retained_failures": [
+    "evidence/impl/170/build-cli/command.json",
+    "evidence/impl/170/exploratory/index.json"
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "formal_parent": "B0 Doing unchanged",
+  "independent_review": "Pending"
+}

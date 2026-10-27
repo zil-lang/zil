@@ -1,0 +1,361 @@
+{
+  "status": "Pass",
+  "source_commit": "ec233ed4bcb827c0a9388f3641ffb410bc4effb6",
+  "compiler_source_commit": "ec233ed4bcb827c0a9388f3641ffb410bc4effb6",
+  "cli_sha256": "f128bd2f1d95649b73bbe3fdcca9e742e39125b913d87209ed1ab5874d33aabf",
+  "runner_sha256": "fc36caa145859083f6f65c362e4eaed686d9f6741be07b9877c6d76f81c6b50f",
+  "utility_sha256": "9dc18f4bccb99aee46afe4d1bd6c3b6f2c398f9d5d234ae137672a732ca0fb84",
+  "sources": {
+    "error_entry.zil": "9b363a13e7612d604b019b08b0182ddfdefde2df1e8fc7d2607edfff47854508",
+    "main.zil": "4d4255274ca37f857e050a7b788740de55332b5213a3ba172c04dba7dfebb31c",
+    "model.zil": "a8b43608a60155781ec09f80bea23c8f7c79e485a231c8c8745d6c13db6da180",
+    "prepare_failure.zil": "0e91fe82b2ba0da55802da67e34b41c2adc0df1c800d7063c793f5dde4743ab3",
+    "state.zil": "fc98060958e5b8c0799aadff9e52f026dacd2e9960e0485eb7c7fa5e9695bd19"
+  },
+  "observations": [
+    {
+      "case": "main",
+      "optimization": "O0",
+      "fail_at": 0,
+      "stdout": "CBAZDE",
+      "exit_code": 0,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 5
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O0",
+      "fail_at": 1,
+      "stdout": "AZ",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O0",
+      "fail_at": 2,
+      "stdout": "BAZ",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O0",
+      "fail_at": 3,
+      "stdout": "CABZ",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O0",
+      "fail_at": 4,
+      "stdout": "DAZCB",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 3
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O0",
+      "fail_at": 5,
+      "stdout": "EDAZCB",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 4
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O2",
+      "fail_at": 0,
+      "stdout": "CBAZDE",
+      "exit_code": 0,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 5
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O2",
+      "fail_at": 1,
+      "stdout": "AZ",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O2",
+      "fail_at": 2,
+      "stdout": "BAZ",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O2",
+      "fail_at": 3,
+      "stdout": "CABZ",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O2",
+      "fail_at": 4,
+      "stdout": "DAZCB",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 3
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "main",
+      "optimization": "O2",
+      "fail_at": 5,
+      "stdout": "EDAZCB",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 4
+      },
+      "llvm_sha256": "2cc70cf4a65f0b3f5fdfa8149dfa9c33e6eec5056adc0b7bbefadde18950ad6f"
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O0",
+      "fail_at": 0,
+      "stdout": "BAZ",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "4659b26bae3aa21928bae9355ca3f7a66872c5a1f04faf0ba13f43eef03a32fa"
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O0",
+      "fail_at": 2,
+      "stdout": "BAZ",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "4659b26bae3aa21928bae9355ca3f7a66872c5a1f04faf0ba13f43eef03a32fa"
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O2",
+      "fail_at": 0,
+      "stdout": "BAZ",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "4659b26bae3aa21928bae9355ca3f7a66872c5a1f04faf0ba13f43eef03a32fa"
+    },
+    {
+      "case": "prepare_failure",
+      "optimization": "O2",
+      "fail_at": 2,
+      "stdout": "BAZ",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "4659b26bae3aa21928bae9355ca3f7a66872c5a1f04faf0ba13f43eef03a32fa"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O0",
+      "fail_at": 0,
+      "stdout": "ZAB",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "ba77cfa379949243746f15ce8ae95ef3039532ca912cdd8c9de6d8f546ee1048"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O0",
+      "fail_at": 2,
+      "stdout": "ZAB",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "ba77cfa379949243746f15ce8ae95ef3039532ca912cdd8c9de6d8f546ee1048"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O2",
+      "fail_at": 0,
+      "stdout": "ZAB",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "llvm_sha256": "ba77cfa379949243746f15ce8ae95ef3039532ca912cdd8c9de6d8f546ee1048"
+    },
+    {
+      "case": "error_entry",
+      "optimization": "O2",
+      "fail_at": 2,
+      "stdout": "ZAB",
+      "exit_code": 1,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "llvm_sha256": "ba77cfa379949243746f15ce8ae95ef3039532ca912cdd8c9de6d8f546ee1048"
+    }
+  ],
+  "ordinary_executions": 6,
+  "instrumented_executions": 20,
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
