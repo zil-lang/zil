@@ -989,9 +989,15 @@ pub enum InstructionKind {
     DescribeCapture {
         index: u32,
     },
-    /// Transfer a live Managed field out of an active FnOnce environment.
+    /// Transfer a live owned field out of an active FnOnce environment.
     TakeCapture {
         index: u32,
+    },
+    /// Borrow a captured concrete closure at its actual environment address.
+    /// No responsibility moves; Verify reconstructs capture and call authority.
+    BorrowCapture {
+        index: u32,
+        mutable: bool,
     },
     /// Borrow the actual local Fn environment; never copy its owned fields.
     CallClosureShared {
@@ -1610,6 +1616,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
         InstructionKind::TakeCapture { index } => {
             b.push(40);
             encode_u32(b, *index);
+        }
+        InstructionKind::BorrowCapture { index, mutable } => {
+            b.push(78);
+            encode_u32(b, *index);
+            b.push(u8::from(*mutable));
         }
         InstructionKind::CallClosureBorrowed {
             callee,
