@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 20;
+pub const WIRE_VERSION: u32 = 21;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -760,6 +760,21 @@ impl<'a> Writer<'a> {
             InstructionKind::OwnedStoreCapacity { store } => {
                 self.u8(85)?;
                 self.u32(store.0)?;
+            }
+            InstructionKind::OwnedStoreBorrow { store, index } => {
+                self.u8(86)?;
+                self.u32(store.0)?;
+                self.u32(index.0)?;
+            }
+            InstructionKind::BorrowPackageField {
+                local,
+                index,
+                mutable,
+            } => {
+                self.u8(87)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+                self.boolean(*mutable)?;
             }
             InstructionKind::MakePackage { fields } => {
                 self.u8(49)?;
@@ -2065,6 +2080,15 @@ impl<'a> Reader<'a> {
             85 => InstructionKind::OwnedStoreCapacity {
                 store: ValueId(self.u32()?),
             },
+            86 => InstructionKind::OwnedStoreBorrow {
+                store: ValueId(self.u32()?),
+                index: ValueId(self.u32()?),
+            },
+            87 => InstructionKind::BorrowPackageField {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+                mutable: self.boolean()?,
+            },
             0 => InstructionKind::Constant(self.constant()?),
             1 => InstructionKind::Load(LocalId(self.u32()?)),
             2 => InstructionKind::Store {
@@ -2552,3 +2576,6 @@ mod store_tests;
 
 #[cfg(test)]
 mod type_stack_tests;
+
+#[cfg(test)]
+mod state_field_tests;
