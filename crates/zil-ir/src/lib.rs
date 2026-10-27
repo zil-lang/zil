@@ -112,12 +112,14 @@ impl Type {
     pub fn is_scalar_or_shared_address(&self) -> bool {
         self.is_b0_scalar()
             || self.is_shared_resource_head_address()
+            || self.is_shared_package_address()
             || matches!(self, Self::Address { mutable: false, inner } if inner.is_address_pointee())
     }
     /// One address layer; admission is not a permission proof.
     pub fn is_scalar_or_address(&self) -> bool {
         self.is_b0_scalar()
             || self.is_shared_resource_head_address()
+            || self.is_shared_package_address()
             || matches!(self, Self::Address { inner, .. } if inner.is_address_pointee())
     }
     /// Structural eligibility only; each checker separately proves sources,
@@ -133,6 +135,12 @@ impl Type {
             if matches!(inner.as_ref(), Self::Managed(payload)
                 if matches!(payload.as_ref(), Self::Record { .. })
                     && payload.is_copy_value()))
+    }
+    /// Shape only: a Store element window requires separate exact element,
+    /// provenance, initialization and loan checks. General pointees stay Copy.
+    pub fn is_shared_package_address(&self) -> bool {
+        matches!(self, Self::Address { mutable: false, inner }
+            if matches!(inner.as_ref(), Self::Package { .. }))
     }
     pub fn is_slice_address(&self) -> bool {
         matches!(self, Self::Address { inner, .. } if matches!(inner.as_ref(), Self::Slice { .. }))
@@ -770,6 +778,12 @@ pub enum InstructionKind {
     OwnedStoreCapacity {
         store: ValueId,
     },
+    /// Borrow a real initialized prefix element after a checked i64 index.
+    /// Shared only; the Store retains responsibility for the complete element.
+    OwnedStoreBorrow {
+        store: ValueId,
+        index: ValueId,
+    },
     /// New empty managed storage; no allocation and no implicit user code.
     ByteBufferNew,
     /// Absolute-capacity request; failure preserves the complete old state.
@@ -873,6 +887,13 @@ pub enum InstructionKind {
     /// Borrow one concrete Closure element at its actual static array slot.
     /// The owning array and element retain all cleanup responsibilities.
     BorrowOwnedArrayElement {
+        local: LocalId,
+        index: u32,
+        mutable: bool,
+    },
+    /// Borrow a concrete Closure at its actual initialized Package field.
+    /// The owner and field retain their cleanup responsibility.
+    BorrowPackageField {
         local: LocalId,
         index: u32,
         mutable: bool,
@@ -1310,7 +1331,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V20\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V21\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1662,6 +1683,16 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             mutable,
         } => {
             b.push(79);
+            encode_u32(b, local.0);
+            encode_u32(b, *index);
+            b.push(u8::from(*mutable));
+        }
+        InstructionKind::BorrowPackageField {
+            local,
+            index,
+            mutable,
+        } => {
+            b.push(87);
             encode_u32(b, local.0);
             encode_u32(b, *index);
             b.push(u8::from(*mutable));
@@ -2058,6 +2089,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
         InstructionKind::OwnedStoreCapacity { store } => {
             b.push(85);
             encode_u32(b, store.0);
+        }
+        InstructionKind::OwnedStoreBorrow { store, index } => {
+            b.push(86);
+            encode_u32(b, store.0);
+            encode_u32(b, index.0);
         }
         InstructionKind::ByteBufferReserve { buffer, capacity } => {
             b.push(64);
