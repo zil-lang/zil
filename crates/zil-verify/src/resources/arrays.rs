@@ -27,7 +27,12 @@ pub(crate) fn check_type_for(
     }
     match element.as_ref() {
         Type::Package { .. } => {
-            let work = closures::type_layout_work(element, budget)?
+            let element_work = if packages::has_array_fields(element) {
+                packages::layout_work(element, budget)?
+            } else {
+                closures::type_layout_work(element, budget)?
+            };
+            let work = element_work
                 .checked_mul(*length as usize)
                 .ok_or_else(|| limit("owning array layout expansion overflow"))?;
             budget.spend(work)?;
