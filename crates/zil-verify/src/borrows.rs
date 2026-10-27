@@ -11,8 +11,33 @@ use std::collections::BTreeMap;
 type Roots = Vec<Root>;
 type State = BTreeMap<LocalId, Roots>;
 
-fn has_sources(module: &TypedModule, ty: &Type) -> bool {
-    closures::holds_addresses(module, ty) || byte_buffers::is_desc(ty)
+fn tracked_desc(ty: &Type, head_windows: bool) -> bool {
+    byte_buffers::is_desc(ty) || (head_windows && matches!(ty, Type::Desc(_)))
+}
+
+fn captures_descriptors(module: &TypedModule, ty: &Type) -> bool {
+    let ty = match ty {
+        Type::Address { inner, .. } => inner.as_ref(),
+        other => other,
+    };
+    matches!(ty, Type::Closure(id) if module.closures[id.0 as usize]
+        .captures.iter().any(|ty| matches!(ty, Type::Desc(_))))
+}
+
+fn has_sources(module: &TypedModule, ty: &Type, head_windows: bool) -> bool {
+    closures::holds_addresses(module, ty) || tracked_desc(ty, head_windows)
+        || (head_windows && captures_descriptors(module, ty))
+}
+
+fn head_windows(module: &TypedModule, budget: &mut Budget) -> Check<bool> {
+    for function in &module.functions {
+        budget.spend(function.locals.len().saturating_add(function.values.len()).saturating_add(1))?;
+        if function.locals.iter().map(|local| &local.ty).chain(&function.values)
+            .any(|ty| matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn reserve(budget: &mut Budget, sizes: &[usize]) -> Check<()> {
@@ -145,6 +170,7 @@ fn check(
     plan: &FunctionPlan,
     graph: &FunctionGraph,
     facts: &Facts,
+    head_windows: bool,
     budget: &mut Budget,
 ) -> Check<()> {
     let FunctionGraph {
@@ -184,11 +210,11 @@ fn check(
         }
         budget.spend(claim.roots.len())?;
     }
-    if !f.values.iter().any(|ty| has_sources(module, ty))
+    if !f.values.iter().any(|ty| has_sources(module, ty, head_windows))
         && !f
             .parameters
             .iter()
-            .any(|id| has_sources(module, &f.locals[id.0 as usize].ty))
+            .any(|id| has_sources(module, &f.locals[id.0 as usize].ty, head_windows))
     {
         if plan.holds.iter().any(|claim| !claim.roots.is_empty()) {
             return Err(reject(
@@ -395,7 +421,7 @@ fn check(
                     Some(field_root(f, local, index))
                 }
                 InstructionKind::DropManaged { local }
-                    if byte_buffers::is_owned(&f.locals[local.0 as usize].ty) =>
+                    if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     Some(Root::Local(local))
                 }
@@ -404,7 +430,7 @@ fn check(
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
                         || errors::owned(&f.locals[local.0 as usize].ty)
                         || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
-                        || byte_buffers::is_owned(&f.locals[local.0 as usize].ty) =>
+                        || matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     Some(Root::Local(local))
                 }
@@ -474,6 +500,7 @@ fn reconstruct(
     f: &TypedFunction,
     graph: &FunctionGraph,
     summaries: &[Roots],
+    head_windows: bool,
     budget: &mut Budget,
 ) -> Check<Facts> {
     let n = f.blocks.len();
@@ -481,11 +508,11 @@ fn reconstruct(
     let predecessors = &graph.predecessors;
     let reachable = &graph.reachable;
     budget.spend(v)?;
-    if !f.values.iter().any(|ty| has_sources(module, ty))
+    if !f.values.iter().any(|ty| has_sources(module, ty, head_windows))
         && !f
             .parameters
             .iter()
-            .any(|id| has_sources(module, &f.locals[id.0 as usize].ty))
+            .any(|id| has_sources(module, &f.locals[id.0 as usize].ty, head_windows))
     {
         return Ok(Facts {
             values: vec![vec![]; v],
@@ -507,7 +534,7 @@ fn reconstruct(
             if b == f.entry.0 as usize {
                 budget.spend(f.parameters.len())?;
                 for (index, local) in f.parameters.iter().enumerate() {
-                    if has_sources(module, &f.locals[local.0 as usize].ty) {
+                    if has_sources(module, &f.locals[local.0 as usize].ty, head_windows) {
                         state.insert(*local, vec![Root::Parameter(index as u32)]);
                     }
                 }
@@ -530,19 +557,20 @@ fn reconstruct(
                     let mut row = Roots::new();
                     match &instruction.kind {
                         InstructionKind::DescribeLocal { local }
-                            if byte_buffers::is_owned(&f.locals[local.0 as usize].ty) =>
+                            if byte_buffers::is_owned(&f.locals[local.0 as usize].ty)
+                                || (head_windows && matches!(f.locals[local.0 as usize].ty, Type::Managed(_))) =>
                         {
                             row.push(Root::Local(*local));
                         }
                         InstructionKind::DescribePackageField { local, index }
-                            if byte_buffers::is_desc(&f.values[result.0 as usize]) =>
+                            if tracked_desc(&f.values[result.0 as usize], head_windows) =>
                         {
                             // Only checked independent owning byte fields receive
                             // a projection; unknown resources keep the whole root.
                             row.push(field_root(f, *local, *index));
                         }
                         InstructionKind::ProjectOwnedArrayField { local, .. }
-                            if byte_buffers::is_desc(&f.values[result.0 as usize]) =>
+                            if tracked_desc(&f.values[result.0 as usize], head_windows) =>
                         {
                             // Reconstruct from the actual local, independently
                             // of the candidate Hold rows. This deliberately
@@ -550,7 +578,7 @@ fn reconstruct(
                             row.push(Root::Local(*local));
                         }
                         InstructionKind::DescribeCapture { index }
-                            if byte_buffers::is_desc(&f.values[result.0 as usize]) =>
+                            if tracked_desc(&f.values[result.0 as usize], head_windows) =>
                         {
                             row.push(Root::Capture(*index));
                         }
@@ -577,7 +605,8 @@ fn reconstruct(
                         }
                         InstructionKind::BorrowCapture { index, .. }
                         | InstructionKind::ReadCapture { index }
-                            if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
+                            if matches!(f.values[result.0 as usize], Type::Address { .. })
+                                || (head_windows && matches!(f.values[result.0 as usize], Type::Desc(_))) =>
                         {
                             row.push(Root::Capture(*index))
                         }
@@ -635,6 +664,7 @@ fn reconstruct(
 fn reconstruct_module(
     module: &TypedModule,
     graphs: &[FunctionGraph],
+    head_windows: bool,
     budget: &mut Budget,
 ) -> Check<Vec<Facts>> {
     let count = module.functions.len();
@@ -649,7 +679,7 @@ fn reconstruct_module(
             .functions
             .iter()
             .zip(graphs)
-            .map(|(f, graph)| reconstruct(module, f, graph, &summaries, budget))
+            .map(|(f, graph)| reconstruct(module, f, graph, &summaries, head_windows, budget))
             .collect();
     }
     reserve(budget, &[count, 5])?;
@@ -701,7 +731,7 @@ fn reconstruct_module(
             #[cfg(test)]
             TEST_SOLVES.with(|n| n.set(n.get() + 1));
             let function = &module.functions[index];
-            let facts = reconstruct(module, function, &graphs[index], &summaries, budget)?;
+            let facts = reconstruct(module, function, &graphs[index], &summaries, head_windows, budget)?;
             let mut changed = false;
             if matches!(function.return_type, Type::Address { .. }) {
                 for (block, reachable) in function.blocks.iter().zip(&graphs[index].reachable) {
@@ -753,14 +783,15 @@ pub(super) fn check_module(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<()> {
-    let facts = reconstruct_module(module, graphs, budget)?;
+    let head_windows = head_windows(module, budget)?;
+    let facts = reconstruct_module(module, graphs, head_windows, budget)?;
     budget.spend(module.resources.len())?;
-    let has_buffers = module
+    let has_buffers = head_windows || module
         .resources
         .iter()
         .any(|r| r.payload == Type::ByteBuffer);
     let effects = if has_buffers {
-        buffer_effects::infer(module, graphs, &facts, budget)?
+        buffer_effects::infer(module, graphs, &facts, head_windows, budget)?
     } else {
         vec![]
     };
@@ -803,7 +834,7 @@ pub(super) fn check_module(
             for instruction in &block.instructions {
                 if let Some(value) = instruction.result
                     && (matches!(function.values[value.0 as usize], Type::Address { .. })
-                        || byte_buffers::is_desc(&function.values[value.0 as usize]))
+                        || tracked_desc(&function.values[value.0 as usize], head_windows))
                     && facts.values[value.0 as usize].is_empty()
                 {
                     return Err(reject(
@@ -814,8 +845,8 @@ pub(super) fn check_module(
                 }
             }
         }
-        check(module, function, plan, graph, facts, budget)?;
-        let required = loans::check(module, function, graph, facts, &effects, budget)?;
+        check(module, function, plan, graph, facts, head_windows, budget)?;
+        let required = loans::check(module, function, graph, facts, &effects, head_windows, budget)?;
         if has_buffers {
             apart.push(required);
         }
@@ -935,6 +966,7 @@ mod frontier_tests {
         graphs: &[FunctionGraph],
         budget: &mut Budget,
     ) -> Check<Vec<Facts>> {
+        let head_windows = head_windows(module, budget)?;
         budget.spend(module.functions.len())?;
         let mut summaries = vec![Roots::new(); module.functions.len()];
         let facts = loop {
@@ -942,7 +974,7 @@ mod frontier_tests {
             let mut all = Vec::with_capacity(module.functions.len());
             for (index, function) in module.functions.iter().enumerate() {
                 TEST_SOLVES.with(|n| n.set(n.get() + 1));
-                let facts = reconstruct(module, function, &graphs[index], &summaries, budget)?;
+                let facts = reconstruct(module, function, &graphs[index], &summaries, head_windows, budget)?;
                 if matches!(function.return_type, Type::Address { .. }) {
                     for (block, reachable) in function.blocks.iter().zip(&graphs[index].reachable) {
                         budget.spend(1)?;
@@ -994,7 +1026,7 @@ mod frontier_tests {
         let graphs = graphs(module);
         TEST_SOLVES.with(|n| n.set(0));
         let fast =
-            reconstruct_module(module, &graphs, &mut Budget::new(&Limits::default())).unwrap();
+            reconstruct_module(module, &graphs, false, &mut Budget::new(&Limits::default())).unwrap();
         let fast_visits = TEST_SOLVES.with(|n| n.get());
         TEST_SOLVES.with(|n| n.set(0));
         let reference = slow(module, &graphs, &mut Budget::new(&Limits::default())).unwrap();
@@ -1056,6 +1088,7 @@ mod frontier_tests {
         let error = reconstruct_module(
             &module,
             &graphs(&module),
+            false,
             &mut Budget::new(&Limits::default()),
         )
         .unwrap_err();
@@ -1066,7 +1099,7 @@ mod frontier_tests {
             ..Limits::default()
         };
         let error =
-            reconstruct_module(&module, &graphs(&module), &mut Budget::new(&limits)).unwrap_err();
+            reconstruct_module(&module, &graphs(&module), false, &mut Budget::new(&limits)).unwrap_err();
         assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
     }
 }

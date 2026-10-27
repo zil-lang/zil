@@ -581,15 +581,19 @@ impl Resolver<'_> {
             }
             Type::Address { mutable, inner } => {
                 let inner = self.ty(inner, depth + 1, span)?;
-                if matches!(
-                    inner,
-                    Type::Managed(_) | Type::Desc(_) | Type::Package { .. }
-                ) {
-                    return Err(unsupported(
-                        span,
-                        "addresses to resource or package heads are not implemented",
-                    ));
-                }
+                let inner = match inner {
+                    Type::Managed(payload) | Type::Desc(payload)
+                        if !*mutable
+                            && matches!(payload.as_ref(), Type::Record { .. })
+                            && payload.is_copy_value() => Type::Managed(payload),
+                    Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
+                        return Err(unsupported(
+                            span,
+                            "head addresses require a shared finite user-resource head; mutable, byte-storage and Package heads are not implemented",
+                        ));
+                    }
+                    other => other,
+                };
                 Type::Address {
                     mutable: *mutable,
                     inner: Box::new(inner),
@@ -837,6 +841,12 @@ impl Resolver<'_> {
 }
 
 pub(super) fn field(ty: &Type, name: &str, span: Span) -> R<(u32, Type)> {
+    // Address<Managed<R>> projects the actual inline payload, not a copied
+    // head or a descriptor. Other callers still decide the access operation.
+    let ty = match ty {
+        Type::Managed(payload) => payload.as_ref(),
+        other => other,
+    };
     let selected = match ty {
         Type::Tuple(fields) => name
             .parse::<usize>()
@@ -911,7 +921,11 @@ impl Builder<'_, '_> {
     pub(super) fn method_signature(&self, object: &CoreExpr, member: &str) -> Option<&Signature> {
         let ty = self.known_type(object)?;
         let ty = match ty {
-            Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => *inner,
+            Type::Address { inner, .. } => match *inner {
+                Type::Managed(payload) => *payload,
+                other => other,
+            },
+            Type::Managed(inner) | Type::Desc(inner) => *inner,
             other => other,
         };
         resolve_type_method(&ty, member, self.signatures, self.imports)
