@@ -1,0 +1,87 @@
+   Compiling zil-ide v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-ide)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-driver)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-cli)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-analyze)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-backend-llvm)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-lower)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-types)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-syntax)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-ir)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-db)
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt177/crates/zil-base)
+    Finished `test` profile [unoptimized] target(s) in 1m 00s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/177-combined/debug/deps/zil_analyze-a5dce2e7a4398044)
+
+running 23 tests
+test budget::tests::arithmetic_overflow_is_a_limit_failure ... ok
+test holds::frontier_tests::frontier_matches_full_scan_on_cycles_components_and_parameter_permutations ... ok
+test holds::frontier_tests::frontier_rejects_absent_target_and_zero_budget_without_panicking ... ok
+test resource_tests::independent_effect_fixed_point_follows_direct_and_forwarding_calls ... ok
+test resource_tests::independent_effects_distinguish_borrowed_target_and_owned_environment_writes ... ok
+test resource_tests::independent_once_state_consumes_captures_and_rejects_reuse ... ok
+test resource_tests::independent_resource_closure_flow_accepts_repeatable_and_consuming_environments ... ok
+test resource_tests::independent_resource_diagnostics_reject_copy_leaks_and_repeated_cleanup ... ok
+test resource_tests::independent_sources_reject_stale_borrowed_capture_and_repeated_consuming_ssa ... ok
+test holds::frontier_tests::frontier_rechecks_only_relevant_functions_on_reverse_chain ... ok
+test resources::frontier_tests::all_small_dependency_graphs_match_complete_reference_rows ... ok
+test resources::frontier_tests::compiled_graph_has_exact_budget_boundary_and_does_not_reuse_stale_effects ... ok
+test resources::frontier_tests::every_concrete_closure_call_has_its_entry_dependency ... ok
+test resources::frontier_tests::forward_star_disconnected_duplicate_and_recursive_effect_graphs ... ok
+test resources::frontier_tests::module_budget_boundary_and_fresh_request_are_exact ... ok
+test resources::frontier_tests::public_helper_contract_cuts_the_private_effect_dependency ... ok
+test resources::frontier_tests::reverse_chain_revisits_only_affected_predecessors ... ok
+test resources::frontier_tests::transitive_owned_write_is_rejected_after_convergence_and_borrowed_write_is_legal ... ok
+test resources::frontier_tests::unreachable_call_does_not_create_a_summary_consumer ... ok
+test tests::emits_initialized_boundary_facts ... ok
+test tests::invalid_edge_rejected_without_panic ... ok
+test tests::uninitialized_load_is_rejected ... ok
+test resources::frontier_tests::compiled_effect_constraints_cover_large_cycles_permutations_and_disconnected_components ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+
+     Running tests/budgets.rs (/workspace/scratch/39be3faa4442/targets/177-combined/debug/deps/budgets-42f48a19e85b3ab8)
+
+running 12 tests
+test call_argument_visits_are_bounded_before_fingerprinting ... ok
+test all_metadata_positions_are_bounded_before_fingerprinting ... ok
+test callable_return_metadata_is_reserved_before_fingerprinting_or_validation ... ok
+test exact_work_budget_covers_cfg_edges_and_predecessor_visits ... FAILED
+test every_type_position_rejects_unknown_semantics_before_hashing ... ok
+test exact_work_budget_includes_set_scans_across_functions ... FAILED
+test exact_work_budget_covers_instruction_visits_and_fingerprinting ... FAILED
+test initialization_facts_survive_a_branch_and_backedge ... ok
+test original_raw_reproducer_checks_each_limit_independently ... ok
+test structural_limits_accumulate_across_functions ... ok
+test unsupported_metadata_does_not_allocate_unbounded_diagnostics ... ok
+test known_recursive_aggregate_shape_obeys_selected_depth ... ok
+
+failures:
+
+---- exact_work_budget_covers_cfg_edges_and_predecessor_visits stdout ----
+
+thread 'exact_work_budget_covers_cfg_edges_and_predecessor_visits' (3217) panicked at crates/zil-analyze/tests/budgets.rs:233:38:
+exact CFG budget must suffice: [Diagnostic { phase: Analyze, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "analysis budget exceeded during callback State type occurrence", span: None, notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- exact_work_budget_includes_set_scans_across_functions stdout ----
+
+thread 'exact_work_budget_includes_set_scans_across_functions' (3219) panicked at crates/zil-analyze/tests/budgets.rs:197:38:
+exact global set budget must suffice: [Diagnostic { phase: Analyze, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "analysis budget exceeded during callback State type occurrence", span: None, notes: [] }]
+
+---- exact_work_budget_covers_instruction_visits_and_fingerprinting stdout ----
+
+thread 'exact_work_budget_covers_instruction_visits_and_fingerprinting' (3218) panicked at crates/zil-analyze/tests/budgets.rs:173:38:
+exact work budget must suffice: [Diagnostic { phase: Analyze, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "analysis budget exceeded during owning array presence", span: None, notes: [] }]
+
+
+failures:
+    exact_work_budget_covers_cfg_edges_and_predecessor_visits
+    exact_work_budget_covers_instruction_visits_and_fingerprinting
+    exact_work_budget_includes_set_scans_across_functions
+
+test result: FAILED. 9 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p zil-analyze --test budgets`

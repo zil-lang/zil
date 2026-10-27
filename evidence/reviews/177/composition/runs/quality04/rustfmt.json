@@ -1,0 +1,23 @@
+{
+  "command": [
+    "rustfmt",
+    "--edition",
+    "2024",
+    "--check",
+    "crates/zil-driver/tests/review177_composition.rs"
+  ],
+  "review_source_commit": "aef8c2e7e7d6b81e6b9dad0dac9655d380a28d68",
+  "implementation_commit": "8abc75bbc1f98450a16efde00539d753fb836551",
+  "source_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/177-review-composition",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0"
+  },
+  "start": 1793118189.6021361,
+  "end": 1793118195.023333,
+  "exit_code": 0,
+  "status": "Pass",
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/review177-composition174/continuation04/consumer/main/O2/program"
+  ],
+  "status": "Completed",
+  "start": 1793118094.4071531,
+  "stdin_hex": "32",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "3e4abe8f931e886240f3fe5653e0189c311c454e99eeead5f17666f4fd01b364",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793118094.4092286
+}

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "clang",
+    "-O0",
+    "/workspace/scratch/39be3faa4442/run-logs/177/consumer173-final01/result/prepare_failure/O0/phases/llvm.ll",
+    "/workspace/scratch/39be3faa4442/zil-restored/wt177/tools/language/173/allocator_probe.c",
+    "-Wl,--wrap=realloc",
+    "-Wl,--wrap=free",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/177/consumer173-final01/result/prepare_failure/O0/allocation-probe"
+  ],
+  "status": "Completed",
+  "start": 1793118337.789393,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "48039da247e1a8a23378c1c14be1456d540d28a2c01409ef938236f17df7f996",
+  "end": 1793118337.922439
+}

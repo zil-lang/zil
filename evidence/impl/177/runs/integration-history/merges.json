@@ -1,0 +1,37 @@
+[
+  {
+    "commit": "dfd9ca572b3d9d04a0b3a142e75df98cd1896b29",
+    "exit_code": 0,
+    "stdout": "Merge made by the 'ort' strategy.\n",
+    "stderr": "",
+    "head": "2b8e244c33da764e988ba7e6f9d21e122d8a631e"
+  },
+  {
+    "commit": "7348bd8eeef54465a3a0c4a875997e009d398cd7",
+    "exit_code": 0,
+    "stdout": "Merge made by the 'ort' strategy.\n",
+    "stderr": "",
+    "head": "20df57e737adcc1abb8e2f936d0b86ba31843c64"
+  },
+  {
+    "commit": "6f1312135f002cd23a2d1919c47fdd7c97b69364",
+    "exit_code": 0,
+    "stdout": "Merge made by the 'ort' strategy.\n",
+    "stderr": "",
+    "head": "0f2aee0f5ea4e29bdfedeb2e91731d070d7cc1f2"
+  },
+  {
+    "commit": "dbe64e4b6709d4b110815135f70798d0a7cc130d",
+    "exit_code": 0,
+    "stdout": "Merge made by the 'ort' strategy.\n",
+    "stderr": "",
+    "head": "e44b3664ee39e34b1842f7cbc275fdb75613cea6"
+  },
+  {
+    "commit": "132572d",
+    "exit_code": 0,
+    "stdout": "Merge made by the 'ort' strategy.\n",
+    "stderr": "",
+    "head": "f7110edf43281cc6202ab7b5e127870deb48b7d1"
+  }
+]

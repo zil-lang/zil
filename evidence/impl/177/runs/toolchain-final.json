@@ -1,0 +1,56 @@
+{
+  "versions": [
+    {
+      "command": [
+        "rustc",
+        "--version",
+        "--verbose"
+      ],
+      "exit_code": 0,
+      "stdout": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "cargo",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "clang",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "Ubuntu clang version 17.0.6 (++20240501091250+6009708b4367-1~exp1~20240501211359.8)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/39be3faa4442/toolchains/llvm-17.0.6/usr/lib/llvm-17/bin\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "Python 3.12.14\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "git version 2.51.1\n",
+      "stderr": ""
+    }
+  ],
+  "input_files": {
+    "Cargo.lock": "76ff89481c963f58a5006edf64c4340d871a66a2ed7c8b2fd9bf984582fe69e6",
+    "rust-toolchain.toml": "d13306be0ecda81ce779baa290ffb417380d525928477f16200884b5169cca33"
+  },
+  "profile": "offline; incremental=0; dev/test debug=0; -j2; test-threads=2",
+  "performance_measurement": false
+}

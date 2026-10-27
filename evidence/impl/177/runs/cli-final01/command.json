@@ -1,0 +1,30 @@
+{
+  "actor": "/root",
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt177",
+  "source_commit": "be6fd5cbf089072a13853cecb614abde2d05d58a",
+  "crates_tree": "7d50b48f2f4929fdc0ae8fc5f3db0a02d0c667e5",
+  "source_clean": true,
+  "command": [
+    "cargo",
+    "build",
+    "-p",
+    "zil-driver",
+    "--bin",
+    "zil",
+    "--offline",
+    "-j2"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/177-final",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/177/cli-final01/cases"
+  },
+  "start": 1793118294.905552,
+  "status": "Fail",
+  "exit_code": 101,
+  "end": 1793118295.0129707,
+  "log_sha256": "39e6c4395b438c2496b9b6bd7da05e5d1d57f9b51b039b4e0c81fb9c25f2effe",
+  "test_groups": []
+}

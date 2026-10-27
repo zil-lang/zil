@@ -1,0 +1,32 @@
+{
+  "actor": "/root",
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/wt177",
+  "source_commit": "605bed2ad33e9c99e867636bcbbbcff90da3e867",
+  "crates_tree": "9fdac9e816d6c883b746cf770ab3dafaa54212c2",
+  "source_clean": true,
+  "command": [
+    "cargo",
+    "clippy",
+    "--workspace",
+    "--all-targets",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/177-lint",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/177/clippy01/cases"
+  },
+  "start": 1793117285.2480867,
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793117307.5125296,
+  "log_sha256": "4071a3d4cbb663391283d4b81677ed2504b8c01b4001a57fc0e5dbc27b2de9cb",
+  "test_groups": []
+}

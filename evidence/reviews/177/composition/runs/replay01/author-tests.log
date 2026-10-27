@@ -1,0 +1,25 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-lower)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review177-composition174/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 17.14s
+     Running tests/impl177_state_composition.rs (/workspace/scratch/39be3faa4442/targets/177-review-composition/debug/deps/impl177_state_composition-343f8c8517143965)
+
+running 6 tests
+test borrowed_concrete_package_cannot_be_copied_into_a_local_give_capability ... ok
+test direct_store_builtin_in_parametric_body_remains_a_separate_closed_protocol ... ok
+test generic_state_takes_refills_and_calls_actual_callback_after_store_transfer ... ok
+test give_does_not_grant_ownership_to_copy_callable_or_descriptor_values ... ok
+test unused_templates_reject_missing_fields_and_concrete_batch_aliases ... ok
+test generic_comparison_result_hint_does_not_retype_a_concrete_helper_operand ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.38s
+

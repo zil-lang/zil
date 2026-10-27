@@ -1,0 +1,1 @@
+fn make(n:i32)->impl FnMut()->i32{var x=n;return move()->i32=>{x+=1;return x}}fn main(){let handlers=[make(1),make(2)]}
