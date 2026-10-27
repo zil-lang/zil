@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-MUTABILITY",
+        message: "exclusive callback field borrow requires mutable State storage",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 650,
+                end: 660,
+            },
+        ),
+        notes: [],
+    },
+]

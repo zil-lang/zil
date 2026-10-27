@@ -1,0 +1,29 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "review176_by175",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "implementation_commit": "55a59cdfcfc78dc85d9ac631e51d9105ee750c79",
+  "review_test_commit": "b9247e54e8aa4ea719bccbeb1d0bd60bea8b1b7c",
+  "source_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/review176-by175",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/review176-by175/independent-cases02"
+  },
+  "start": 1793116251.7927911,
+  "exit_code": 101,
+  "status": "Fail",
+  "end": 1793116253.670853,
+  "log_sha256": "871edfb58e491e7bdc4d815564aee999ff1f324405cd4552a08ebb8d7fceeb0b"
+}

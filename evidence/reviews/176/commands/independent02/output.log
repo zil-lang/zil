@@ -1,0 +1,28 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.88s
+     Running tests/review176_by175.rs (/workspace/scratch/39be3faa4442/targets/review176-by175/debug/deps/review176_by175-550178f70d6a70f0)
+
+running 7 tests
+test independent_failure_after_new_owned_argument_and_before_field_publication ... ok
+test independent_fnonce_double_take_call_and_no_resource_closure_uniqueness ... ok
+test independent_raw_and_wire_check_real_field_and_call_permission ... FAILED
+test independent_raw_and_wire_reject_parent_drop_with_only_field_window_remaining ... ok
+test independent_raw_and_wire_reject_pure_callback_published_twice_without_addresses ... ok
+test independently_reject_equal_layout_opaque_forwarder_and_live_parent_move ... ok
+test independent_nonzero_field_offset_and_four_module_f_g_h_state_chain ... ok
+
+failures:
+
+---- independent_raw_and_wire_check_real_field_and_call_permission stdout ----
+
+thread 'independent_raw_and_wire_check_real_field_and_call_permission' (119) panicked at crates/zil-driver/tests/review176_by175.rs:158:9:
+shared-call-upgrade/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-ADDRESS", message: "shared input cannot grant exclusive permission", span: Some(Span { file: FileId(0), start: 650, end: 660 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    independent_raw_and_wire_check_real_field_and_call_permission
+
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.89s
+
+error: test failed, to rerun pass `-p zil-driver --test review176_by175`

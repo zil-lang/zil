@@ -1,0 +1,2624 @@
+[
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-0",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3005,
+        "sha256": "1368acd010750753a4dcbebe8ec498c8fd8c363a2e97d0e8c74835079c91fb98"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 822,
+        "sha256": "476f35b7905da4a9043f245ef3ace9dc6a6226552966060f66805db253dfd6da"
+      },
+      {
+        "name": "stdout",
+        "bytes": 1,
+        "sha256": "e632b7095b0bf32c260fa4c539e9fd7b852d0de454e9be26f24d0d6f91d069d3"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "54"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-1",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1219,
+        "sha256": "95ebc5e6942c7ef88bdffc9a2fcd292aca57b3b22d1681aed75fcca3e6b42bad"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 587,
+        "sha256": "f606bc494aaf8029d67c658bad096b094be9fc7dfe853a1c3ef30cf82de7aeb4"
+      }
+    ],
+    "status": "Unsupported",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "retained callable environments cannot capture borrowed positions or descriptions",
+        "span": {
+          "file": 0,
+          "start": 580,
+          "end": 582
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-10",
+    "files": [
+      {
+        "name": "budget-boundary.txt",
+        "bytes": 107,
+        "sha256": "21a4add912000d98e06482ed53e48f5d46aad79b95291234608aef784edd92d7"
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-11",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3019,
+        "sha256": "fef30229b2de0d46b847434358bf7aacbf08fa3290c07164778209b05acaccf0"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 907,
+        "sha256": "6009205813142a46108ee774f2b261d61bfe4e224f200e2fa23401f58e55fdfd"
+      },
+      {
+        "name": "stdout",
+        "bytes": 2,
+        "sha256": "034fc48ba584fc2a8b0b40c727e4ce36b79845d7ed910c63abfb2c22e630382c"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "5441"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-12",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3019,
+        "sha256": "6b5e2f23abbb08bf21fe228d731f0b814d463a339cea222f68fb398e1c1e1539"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 907,
+        "sha256": "6009205813142a46108ee774f2b261d61bfe4e224f200e2fa23401f58e55fdfd"
+      },
+      {
+        "name": "stdout",
+        "bytes": 2,
+        "sha256": "034fc48ba584fc2a8b0b40c727e4ce36b79845d7ed910c63abfb2c22e630382c"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "5441"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-13",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3019,
+        "sha256": "5b2ff3f476a07dbf00eb7f19e8b8bce10cab6154b8a9e0ccc6f3fde9ff2512a6"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 985,
+        "sha256": "b9aafe27f286fdea5b8e93c258f8919ce10daa230f19b65fd6b2b0501c6f3c29"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "010dc250f0c736bd6e6815c0955e5d6343c0c03fdf594291350760dfb775d461"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "415442"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-14",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3021,
+        "sha256": "9e87ab6c1231171e22cada2754a6d332acbdef0795d13d1138f7ceb272739556"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 882,
+        "sha256": "cde41a68bd3c54a41ab2f24e553dea2ba3a4081139e7b4988706e51e74b2ecda"
+      },
+      {
+        "name": "stdout",
+        "bytes": 1,
+        "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "41"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-15",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3021,
+        "sha256": "d0be4f6f044f6b345b8556a98f2a9840e3bbe7a4ddbe697a801f3e929dbfb7d7"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 985,
+        "sha256": "b9aafe27f286fdea5b8e93c258f8919ce10daa230f19b65fd6b2b0501c6f3c29"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "010dc250f0c736bd6e6815c0955e5d6343c0c03fdf594291350760dfb775d461"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "415442"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-16",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3021,
+        "sha256": "be7c622c1ff44e2a90db3ead84610da7987820816fd3d617a469dd6751a52ef1"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 882,
+        "sha256": "cde41a68bd3c54a41ab2f24e553dea2ba3a4081139e7b4988706e51e74b2ecda"
+      },
+      {
+        "name": "stdout",
+        "bytes": 1,
+        "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "41"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-17",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3021,
+        "sha256": "09356b842e6bb3b081467b77ee72de3fadf9b71fa33a39ef27053e0e4f954596"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 890,
+        "sha256": "51f824b830c8b51850862d2d02187a2a1cbe11507fb3556788c5dc54875c267a"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "010dc250f0c736bd6e6815c0955e5d6343c0c03fdf594291350760dfb775d461"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "415442"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-18",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3021,
+        "sha256": "c2ff95fa6a5dcc141a563fa97d8f079ffef5ce37e15b451c3517bc8806309caf"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 890,
+        "sha256": "51f824b830c8b51850862d2d02187a2a1cbe11507fb3556788c5dc54875c267a"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "010dc250f0c736bd6e6815c0955e5d6343c0c03fdf594291350760dfb775d461"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "415442"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-19",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3023,
+        "sha256": "b6afd0d9fe6da49cba0baf2e9fce052a533a78e4d7990c4c54f1145c8abc81af"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 451,
+        "sha256": "de144b3aa822889e7fd1c30f83ce90c013a4ce6a0e3405c7c5f37917bdb12302"
+      },
+      {
+        "name": "stdout",
+        "bytes": 2,
+        "sha256": "eb5442705969dc8da5dfac8f9658dc68acdab5bb7635ba7cc551e389416ac34e"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "4154"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-2",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1027,
+        "sha256": "405385f62cbcf28f0c5f994cc863a999afb64bbeca8f68ef243da64f67c3c072"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 859,
+        "sha256": "de418bf7e0977d8c8f12a4fd7b150a9dadb580dd8902d5c2af177969d7dd0bc2"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "different closure expressions have different concrete types",
+        "span": {
+          "file": 0,
+          "start": 823,
+          "end": 850
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-20",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3022,
+        "sha256": "95b9a8090beb890b9c0056dd475c4e0da3690230d16dbc07d30f6257ed4c36b7"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 1018,
+        "sha256": "42f900af3cccfb8565714d932738d21673ae780fae6141c1e0c18713600abc98"
+      },
+      {
+        "name": "stdout",
+        "bytes": 2,
+        "sha256": "034fc48ba584fc2a8b0b40c727e4ce36b79845d7ed910c63abfb2c22e630382c"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "5441"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-21",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3023,
+        "sha256": "f52e2f1dcb530a25864ec6a24a8f5b93d4678bf682955b2161b656b1fba3a768"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 451,
+        "sha256": "de144b3aa822889e7fd1c30f83ce90c013a4ce6a0e3405c7c5f37917bdb12302"
+      },
+      {
+        "name": "stdout",
+        "bytes": 2,
+        "sha256": "eb5442705969dc8da5dfac8f9658dc68acdab5bb7635ba7cc551e389416ac34e"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "4154"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-22",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3742,
+        "sha256": "55dcd4b196d166312ce95e54303c99dd8f26f2d77c186075bed68df7fa158fa4"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 102,
+        "sha256": "1f0526b3348b794392fde66e90fc98309c17e6089dc77c106b4da9c199a5be64"
+      },
+      {
+        "name": "model.zil",
+        "bytes": 628,
+        "sha256": "cfb4b59df3c64bf752049fd55ebacf664afd10ae9126c0e19cb7d1c0b2ee6d67"
+      },
+      {
+        "name": "stdout",
+        "bytes": 1,
+        "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "41"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-23",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3023,
+        "sha256": "cc9afdc88d17b33d1b83040aff801c062284c85cbe97b7d91d8a32a5ac2b7c51"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 1018,
+        "sha256": "42f900af3cccfb8565714d932738d21673ae780fae6141c1e0c18713600abc98"
+      },
+      {
+        "name": "stdout",
+        "bytes": 2,
+        "sha256": "034fc48ba584fc2a8b0b40c727e4ce36b79845d7ed910c63abfb2c22e630382c"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "5441"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-24",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3742,
+        "sha256": "5954217349b960a29a4a893cd05f6875866d45b8014d270b726e0b0a60599858"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 102,
+        "sha256": "1f0526b3348b794392fde66e90fc98309c17e6089dc77c106b4da9c199a5be64"
+      },
+      {
+        "name": "model.zil",
+        "bytes": 628,
+        "sha256": "cfb4b59df3c64bf752049fd55ebacf664afd10ae9126c0e19cb7d1c0b2ee6d67"
+      },
+      {
+        "name": "stdout",
+        "bytes": 1,
+        "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "41"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-25",
+    "files": [
+      {
+        "name": "duplicate-pure-callback-raw.txt",
+        "bytes": 387,
+        "sha256": "068dfed7d2301af02f1602b252a47330bc52c72b6b3d791ede4ffa07f8d4fd86"
+      },
+      {
+        "name": "duplicate-pure-callback-wire.txt",
+        "bytes": 387,
+        "sha256": "068dfed7d2301af02f1602b252a47330bc52c72b6b3d791ede4ffa07f8d4fd86"
+      },
+      {
+        "name": "duplicate-pure-callback.bin",
+        "bytes": 5698,
+        "sha256": "9fd5eb7d8697e5326a1636f2af2f62423330f5b3388c3ce9a4c15ee380d9515b"
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-26",
+    "files": [
+      {
+        "name": "outside-field-raw.txt",
+        "bytes": 392,
+        "sha256": "172fad7bdc55a8f763cb33521aceeccae5055ee8cbb537114755132fec624faa"
+      },
+      {
+        "name": "outside-field-wire.txt",
+        "bytes": 392,
+        "sha256": "172fad7bdc55a8f763cb33521aceeccae5055ee8cbb537114755132fec624faa"
+      },
+      {
+        "name": "outside-field.bin",
+        "bytes": 6509,
+        "sha256": "d15123c246e6a38072ca8471722cd01d93381f0b5a2abc2224657dd1d51b28ee"
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-27",
+    "files": [
+      {
+        "name": "false-permission-raw.txt",
+        "bytes": 391,
+        "sha256": "162a63b6d546eb062a376d6541fb90c5a19f2054f8611840bcd281d917e1626d"
+      },
+      {
+        "name": "false-permission-wire.txt",
+        "bytes": 391,
+        "sha256": "162a63b6d546eb062a376d6541fb90c5a19f2054f8611840bcd281d917e1626d"
+      },
+      {
+        "name": "false-permission.bin",
+        "bytes": 6509,
+        "sha256": "23e38bffa102b0ab91571548259360ffb5014899c4495c4e20d642049f81ece3"
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-28",
+    "files": [
+      {
+        "name": "stale-address-raw.txt",
+        "bytes": 426,
+        "sha256": "788abca3e602b4bf0d815dfd9d0a37b2c6b15f8010173136069f661579f54640"
+      },
+      {
+        "name": "stale-address-wire.txt",
+        "bytes": 426,
+        "sha256": "788abca3e602b4bf0d815dfd9d0a37b2c6b15f8010173136069f661579f54640"
+      },
+      {
+        "name": "stale-address.bin",
+        "bytes": 6509,
+        "sha256": "c6198bf9a5ee0ddb735dfa2c3dd237e8904c54cd94193752de82e02cddbec646"
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-29",
+    "files": [
+      {
+        "name": "copy-field-raw.txt",
+        "bytes": 397,
+        "sha256": "8970ed0d07a4daf1247adf56fa52951e1b0c76584e2674487f08befc6d30b7bf"
+      },
+      {
+        "name": "copy-field-wire.txt",
+        "bytes": 397,
+        "sha256": "8970ed0d07a4daf1247adf56fa52951e1b0c76584e2674487f08befc6d30b7bf"
+      },
+      {
+        "name": "copy-field.bin",
+        "bytes": 6509,
+        "sha256": "c5bfa647b7fda4bb8c79c345b82df2503a3bbc779db9df0032fd8ce4d89aced3"
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-3",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1042,
+        "sha256": "783e94d06f065fddbce6868d4adf0638498bda01fa9e76ae21b1d2a5f418daf3"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 859,
+        "sha256": "fd9d8f95a8b1ebb858fac9ca31402f9f469e1842df61222ffbd7b432ed1cee5f"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "callable State requires the same nominal shape and source factory identity",
+        "span": {
+          "file": 0,
+          "start": 823,
+          "end": 850
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-30",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3022,
+        "sha256": "34607b39c4d9e3012cb4996c6c2a0c3460749e86455c5cad51214d935eea8f16"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 648,
+        "sha256": "d33f7ffe86b8fd9432e8036b0295d58782570de281cda50bd33d1c1f64679038"
+      },
+      {
+        "name": "stdout",
+        "bytes": 1,
+        "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "41"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-31",
+    "files": [
+      {
+        "name": "wrong-cleanup-raw.txt",
+        "bytes": 412,
+        "sha256": "dc64dde3fc1bd5929f5a465ddd7d1419130d48973ee5786155a5e06a2b0b9ebf"
+      },
+      {
+        "name": "wrong-cleanup-wire.txt",
+        "bytes": 412,
+        "sha256": "dc64dde3fc1bd5929f5a465ddd7d1419130d48973ee5786155a5e06a2b0b9ebf"
+      },
+      {
+        "name": "wrong-cleanup.bin",
+        "bytes": 6509,
+        "sha256": "7b3bff1c40fd8d376ea45b1b298769c47102f6c045e54d98706de9c5dc193b38"
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-32",
+    "files": [
+      {
+        "name": "load-publication-raw.txt",
+        "bytes": 435,
+        "sha256": "59d33d9cd0e4f89763174820bf99d82313287e4dc20691ed2e455739eb30abf6"
+      },
+      {
+        "name": "load-publication-wire.txt",
+        "bytes": 435,
+        "sha256": "59d33d9cd0e4f89763174820bf99d82313287e4dc20691ed2e455739eb30abf6"
+      },
+      {
+        "name": "load-publication.bin",
+        "bytes": 6509,
+        "sha256": "5a98b284a8881c6d530f7d2a79fe71383bf0026209aab5a908aa8d776dabad5d"
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-33",
+    "files": [
+      {
+        "name": "reuse-field-ssa-raw.txt",
+        "bytes": 387,
+        "sha256": "a05becd183a6cb871233b4128d06c319268d2e01a063a679b04f69ceedeb1dcf"
+      },
+      {
+        "name": "reuse-field-ssa-wire.txt",
+        "bytes": 387,
+        "sha256": "a05becd183a6cb871233b4128d06c319268d2e01a063a679b04f69ceedeb1dcf"
+      },
+      {
+        "name": "reuse-field-ssa.bin",
+        "bytes": 6509,
+        "sha256": "32eb42de9ed7129c2947c3b57442806da0bf0a5c136fc1362a0b300818d81ea9"
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-34",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3023,
+        "sha256": "009d70bcc2086d9235cf98855cefe06ade796724638d5577ab7db5850c23469b"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 648,
+        "sha256": "d33f7ffe86b8fd9432e8036b0295d58782570de281cda50bd33d1c1f64679038"
+      },
+      {
+        "name": "stdout",
+        "bytes": 1,
+        "sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "41"
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-4",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1802,
+        "sha256": "edefd405607ec0635b202d817a6693f0125618cab028ed8540d002df897b72db"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 878,
+        "sha256": "bdae4dc716e643c32e3ad7d807cde304e541c0622298228a4f99f4fcabca9a0d"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: package field take requires that field live on every path",
+        "span": null,
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-5",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1808,
+        "sha256": "8d8c0f07261b35dcef9109a29f5485f7fa9c92e6aad20b70e20f4278bf494337"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 869,
+        "sha256": "c41c3be45ce07581373af5a3345c5e460651969990c2996c46e4885bf59d148b"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: whole aggregate move requires every owned element or field live",
+        "span": null,
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-6",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 2013,
+        "sha256": "def7e28f30d70962b3d7d65f42a2ed9e6da3492baa8be4c5c6be44082f8536f4"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 883,
+        "sha256": "6dcad5242b830964cf05ba255608d64cd39e44c30d3f44e72930cb7a71bc01c1"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use",
+        "span": {
+          "file": 0,
+          "start": 848,
+          "end": 862
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-7",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1202,
+        "sha256": "4421aa0cb54d75763708910451448a3aba90df7fde448d7e5371def182a157c0"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 860,
+        "sha256": "e79a88589d9249090f5e75636e8e67c033a7464a55c4688f729008d241eea62e"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-IMMUTABLE-ASSIGNMENT",
+        "message": "exclusive callback field borrow requires a mutable State",
+        "span": {
+          "file": 0,
+          "start": 833,
+          "end": 847
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-8",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1807,
+        "sha256": "7f65178fba91179ff12fc697c013abf414bb1f8a7c489c88a5b9a6db467a6b4f"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 863,
+        "sha256": "5d746f16bdd4a5ee530da83caca432f6bf3d52986e04dd0b089fc8f31cad4a65"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 0 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 848,
+          "end": 849
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "author-replay",
+    "case": "callable-fields176-257-9",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3005,
+        "sha256": "033d36feb57efae3dcd9b41b7fe51157b82172e2050aa1bd5cfe76207dffecb0"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 822,
+        "sha256": "476f35b7905da4a9043f245ef3ace9dc6a6226552966060f66805db253dfd6da"
+      },
+      {
+        "name": "stdout",
+        "bytes": 1,
+        "sha256": "e632b7095b0bf32c260fa4c539e9fd7b852d0de454e9be26f24d0d6f91d069d3"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "stdout_hex": "54"
+  },
+  {
+    "run": "discovery01",
+    "case": "review176-different-factory-on-error-path-51-0",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 712,
+        "sha256": "40e2e52ab33770a572c3fc2543987319a8509b885cbf3805de4154438baab136"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 800,
+        "sha256": "2e0a2d17c71171d37c8139791357375142dfa10d4daa3800dad02807f25d19e9"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "lex",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "lex",
+        "category": "SafeReject",
+        "code": "E-LEX-NUMBER",
+        "message": "invalid number spelling, suffix, or separator",
+        "span": {
+          "file": 0,
+          "start": 262,
+          "end": 267
+        },
+        "notes": []
+      },
+      {
+        "phase": "lex",
+        "category": "SafeReject",
+        "code": "E-LEX-NUMBER",
+        "message": "invalid number spelling, suffix, or separator",
+        "span": {
+          "file": 0,
+          "start": 268,
+          "end": 273
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery01",
+    "case": "review176-four-module-offset-51-2",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 762,
+        "sha256": "8282fc685f12e36bfdcecf7242a36484ed71cb44daf820e1541e43faf3895aaf"
+      },
+      {
+        "name": "factory.zil",
+        "bytes": 294,
+        "sha256": "e0b7c28b3046dfeabb22828ab66a481342e10bfeb68c3353bbdc8d78e7cfa82f"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 477,
+        "sha256": "50669dd7a83d747cbc73abef75a40efe82e3b661a3c9697d632a30cc642402e2"
+      },
+      {
+        "name": "model.zil",
+        "bytes": 395,
+        "sha256": "e8acc1d0218640d6e1dd92aaaacc377815bfe60a7e4eae7964c9645c2a2bb9b6"
+      },
+      {
+        "name": "update.zil",
+        "bytes": 308,
+        "sha256": "9c905db8670ef456a0d3bd974e045115b540487bd2d6ae29a49ed3b12204a580"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "lex",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "lex",
+        "category": "SafeReject",
+        "code": "E-LEX-NUMBER",
+        "message": "invalid number spelling, suffix, or separator",
+        "span": {
+          "file": 0,
+          "start": 206,
+          "end": 211
+        },
+        "notes": []
+      },
+      {
+        "phase": "lex",
+        "category": "SafeReject",
+        "code": "E-LEX-NUMBER",
+        "message": "invalid number spelling, suffix, or separator",
+        "span": {
+          "file": 0,
+          "start": 446,
+          "end": 451
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery01",
+    "case": "review176-once-double-call-51-1",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1879,
+        "sha256": "ed3553fee83586f7951c4d7aa7d7c76af78ca56b33bf003f28c72be9a08fe73d"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 367,
+        "sha256": "ead796b94831c0e19271cc3fa82bf564b575f0e762b232486bd428b3961e3d10"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 2 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 363,
+          "end": 366
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery01",
+    "case": "review176-once-double-take-51-5",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1874,
+        "sha256": "df48d45f4a391e90e405f5d1718cf66f5aa11b3a7d3713638920fe0abd265ec1"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 376,
+        "sha256": "8958e3cc757bc488375b59faadfc3c3906514a8d7ffdea4eb10a897771ae6c70"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: package field take requires that field live on every path",
+        "span": null,
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery01",
+    "case": "review176-once-single-consumption-51-7",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3267,
+        "sha256": "0e4f9030d165504477937e6fffab3e91ba294c3b18d5caf1a4e7f598fd32e25a"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 357,
+        "sha256": "d65ef79226470a05946493a111051ce0890a1b491f1344a98ecd48d27e53d814"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 91,
+        "sha256": "fca92fca7be8538830bc157dfd667770cf5121a9438e98241114f11d7929e964"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O0\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"\", stderr: \"\" }\n",
+    "stdout_hex": ""
+  },
+  {
+    "run": "discovery01",
+    "case": "review176-once-single-consumption-51-8",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3267,
+        "sha256": "0e4b7aeefe718798e34d01c777fe4d5b82a29aa0225d83ed212b0e35ef3e9398"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 357,
+        "sha256": "d65ef79226470a05946493a111051ce0890a1b491f1344a98ecd48d27e53d814"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 91,
+        "sha256": "6ff15ab4524c8541750c353c7e8f243f7c0c2e2fba12093b0d9ea104392009f7"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O2\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"\", stderr: \"\" }\n",
+    "stdout_hex": ""
+  },
+  {
+    "run": "discovery01",
+    "case": "review176-opaque-field-51-4",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 712,
+        "sha256": "f4af280054ef284324484d319b46ca594c621a79da753751474feaa149983b72"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 667,
+        "sha256": "986684adb15c37f26fe1167e09e2b06dad1e64bb0cc4b6bcca09fc88ba7582a4"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "lex",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "lex",
+        "category": "SafeReject",
+        "code": "E-LEX-NUMBER",
+        "message": "invalid number spelling, suffix, or separator",
+        "span": {
+          "file": 0,
+          "start": 262,
+          "end": 267
+        },
+        "notes": []
+      },
+      {
+        "phase": "lex",
+        "category": "SafeReject",
+        "code": "E-LEX-NUMBER",
+        "message": "invalid number spelling, suffix, or separator",
+        "span": {
+          "file": 0,
+          "start": 268,
+          "end": 273
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery01",
+    "case": "review176-pure-double-publication-no-address-51-3",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 4191,
+        "sha256": "e38bb98c715b151b73b2754b9f9ba8729cfe3190327709b351add7989603c083"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 386,
+        "sha256": "34dda08e4fb7d12f1f8a3b5ad887228da663faf1db1e1fa824144e4cfcd5cd61"
+      },
+      {
+        "name": "wire.txt",
+        "bytes": 386,
+        "sha256": "34dda08e4fb7d12f1f8a3b5ad887228da663faf1db1e1fa824144e4cfcd5cd61"
+      }
+    ]
+  },
+  {
+    "run": "discovery01",
+    "case": "review176-pure-two-owners-51-6",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1873,
+        "sha256": "d30d7d7293b53eacdef8259b04eccd6673a95971cb51f6bdf878a5ae70cd54e1"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 358,
+        "sha256": "4579e4c76889b8b532319b7a2b18714f2f320dcc4c167a19d7624574b7291f30"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 0 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 346,
+          "end": 347
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-different-factory-on-error-path-99-0",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1108,
+        "sha256": "3e73ce72c9b11badd4a605f7750ce0fb5ef097b387bd8c101c932ad8e3106bf0"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 804,
+        "sha256": "6d5a47caf78d4080d554371b339411f7b1c577641ba058a2af5e91c1457f906d"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "different closure expressions have different concrete types",
+        "span": {
+          "file": 0,
+          "start": 756,
+          "end": 795
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-failed-rhs-prepared-owner-99-2",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3295,
+        "sha256": "a9900672e358d816cd51df8c50f97e2bf0ab1b57e5208b42949e87751a1b8019"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 457,
+        "sha256": "8857fb16d5bff4c06c6e2bfd13b70fbbc034f65a5f81c0b338de5ab9b76ab137"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 96,
+        "sha256": "9ee7d2e4299ae05cac631c231219e6c4eae3da5965b8c8eba16281aedd4699d4"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "26d545922c53b468fab4bfae5b992a0da16e881fd85cf741dd1e4af0ae80d199"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O0\nOutput { status: ExitStatus(unix_wait_status(256)), stdout: \"BAT\", stderr: \"\" }\n",
+    "stdout_hex": "424154"
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-failed-rhs-prepared-owner-99-6",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3295,
+        "sha256": "5cc7ab8cdb9627a923fcea1ccff8a8a74caef06c18ec422cd8c83e691e675ae7"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 457,
+        "sha256": "8857fb16d5bff4c06c6e2bfd13b70fbbc034f65a5f81c0b338de5ab9b76ab137"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 96,
+        "sha256": "308b8799547467fdca0afcf1ef10d383b427739ed4a912dd22b04ef204a53bc4"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "26d545922c53b468fab4bfae5b992a0da16e881fd85cf741dd1e4af0ae80d199"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O2\nOutput { status: ExitStatus(unix_wait_status(256)), stdout: \"BAT\", stderr: \"\" }\n",
+    "stdout_hex": "424154"
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-field-is-copy-data-99-9",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 7771,
+        "sha256": "ef57d4e01a01a0c65a296c473e682d8036b2dce21f13a124a79166da5985726c"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 407,
+        "sha256": "213091a34e145bc58bb5dd4167b37f37a827e6b88c1704383c6e52499b1fde4e"
+      },
+      {
+        "name": "wire.txt",
+        "bytes": 407,
+        "sha256": "213091a34e145bc58bb5dd4167b37f37a827e6b88c1704383c6e52499b1fde4e"
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-four-module-offset-99-19",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 4961,
+        "sha256": "25d0ec8fe2d79d6b0b3d2b07a5a0e2cc1373c594af9bbf61f7e3b30b56e6c29f"
+      },
+      {
+        "name": "factory.zil",
+        "bytes": 294,
+        "sha256": "e0b7c28b3046dfeabb22828ab66a481342e10bfeb68c3353bbdc8d78e7cfa82f"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 481,
+        "sha256": "e8c090a802aad96a9a23c803d41fa053edb0422f49ac4ac80df1111a48e6ecbc"
+      },
+      {
+        "name": "model.zil",
+        "bytes": 401,
+        "sha256": "babb8e3ada13c66e30c82f8719df1a9207150f2bc3654ca74012e6787fb3bdf8"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 94,
+        "sha256": "2adda1ecc0819862f3895c2f5aaa0cbe8e8e634b72621930e950c73e2b60ff6d"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "6ed063bab70bc8e7522e360ddd0e5645a1513b18b64687990684a9d36306dfe4"
+      },
+      {
+        "name": "update.zil",
+        "bytes": 308,
+        "sha256": "9c905db8670ef456a0d3bd974e045115b540487bd2d6ae29a49ed3b12204a580"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O2\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"ABT\", stderr: \"\" }\n",
+    "stdout_hex": "414254"
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-four-module-offset-99-8",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 4945,
+        "sha256": "27a65b6b68716acc5f8804960ec2c558677fd7bd932f5207ab81b869f53acf4a"
+      },
+      {
+        "name": "factory.zil",
+        "bytes": 294,
+        "sha256": "e0b7c28b3046dfeabb22828ab66a481342e10bfeb68c3353bbdc8d78e7cfa82f"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 481,
+        "sha256": "e8c090a802aad96a9a23c803d41fa053edb0422f49ac4ac80df1111a48e6ecbc"
+      },
+      {
+        "name": "model.zil",
+        "bytes": 401,
+        "sha256": "babb8e3ada13c66e30c82f8719df1a9207150f2bc3654ca74012e6787fb3bdf8"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 94,
+        "sha256": "aa10b71d0eee64601ae5c6920687aa5f6dc2988e3027442a40c8c0afbab6aea2"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "6ed063bab70bc8e7522e360ddd0e5645a1513b18b64687990684a9d36306dfe4"
+      },
+      {
+        "name": "update.zil",
+        "bytes": 308,
+        "sha256": "9c905db8670ef456a0d3bd974e045115b540487bd2d6ae29a49ed3b12204a580"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O0\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"ABT\", stderr: \"\" }\n",
+    "stdout_hex": "414254"
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-immutable-parent-99-10",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 7771,
+        "sha256": "4548b356de94ac86f4f1b25ff9fd41bcc7e9b25e53ebc5ec034ffd8c54d81fe8"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 410,
+        "sha256": "1cedaedbd579bae00030a4ea343d8b9dd8158edca4d57e8f25f91ea51508cd17"
+      },
+      {
+        "name": "wire.txt",
+        "bytes": 410,
+        "sha256": "1cedaedbd579bae00030a4ea343d8b9dd8158edca4d57e8f25f91ea51508cd17"
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-live-field-take-99-18",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 2097,
+        "sha256": "9928d5b908798e59bbf74fc21e321a3f6b43dd41f0666f70f57a12913da05f6c"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 692,
+        "sha256": "52817475a9e8fe4ab921c19acddba75a1a2c2a3933599e75b8e6b351328616ef"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use",
+        "span": {
+          "file": 0,
+          "start": 669,
+          "end": 679
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-live-parent-move-99-17",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 2104,
+        "sha256": "95c12ed3e500b6b2d39d0d7d3eeeec899cc5c01fca66371ab359053c29595130"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 690,
+        "sha256": "2627c76eaaccd64b6a91b5a38e1d703da04e755e94abddaa9f4076071745015e"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use",
+        "span": {
+          "file": 0,
+          "start": 675,
+          "end": 676
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-once-double-call-99-1",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1878,
+        "sha256": "253a1800be1d765744fd804348b1a2be2fcee3ef312fce53616c951b51a77d36"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 367,
+        "sha256": "ead796b94831c0e19271cc3fa82bf564b575f0e762b232486bd428b3961e3d10"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 2 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 363,
+          "end": 366
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-once-double-take-99-3",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1874,
+        "sha256": "366569697a444e6b7e565cefba77221ed05239e3e869060ed1a94c09acf8f295"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 376,
+        "sha256": "8958e3cc757bc488375b59faadfc3c3906514a8d7ffdea4eb10a897771ae6c70"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: package field take requires that field live on every path",
+        "span": null,
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-once-single-consumption-99-5",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3267,
+        "sha256": "798de83fbcf5700f65e1f7c84bda6e0bb317e6c7234d7b0a11851cd6cd515d24"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 357,
+        "sha256": "d65ef79226470a05946493a111051ce0890a1b491f1344a98ecd48d27e53d814"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 91,
+        "sha256": "fca92fca7be8538830bc157dfd667770cf5121a9438e98241114f11d7929e964"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O0\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"\", stderr: \"\" }\n",
+    "stdout_hex": ""
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-once-single-consumption-99-7",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3267,
+        "sha256": "bccc9e4e7622ab5131586c612d7970eb2900decafdf728042d537fd88ace7a0e"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 357,
+        "sha256": "d65ef79226470a05946493a111051ce0890a1b491f1344a98ecd48d27e53d814"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 91,
+        "sha256": "6ff15ab4524c8541750c353c7e8f243f7c0c2e2fba12093b0d9ea104392009f7"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O2\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"\", stderr: \"\" }\n",
+    "stdout_hex": ""
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-opaque-field-99-14",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1053,
+        "sha256": "b8bb26b6aef3db250046ad1b2974f492bf46d800de7bceeb96e051cd0c2a3551"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 671,
+        "sha256": "fca95e7225447037166df7b858ac68550ed4a65557599ce2b49ecc5adf3686be"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "different closure expressions have different concrete types",
+        "span": {
+          "file": 0,
+          "start": 637,
+          "end": 662
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-opaque-join-after-helper-99-16",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1105,
+        "sha256": "62d4f28670dad5df882ee1ad86a4445ebe3ddf0c6b4191cf6b2282137b270b79"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 682,
+        "sha256": "a01167cdfeeb3cfaf4c85ac3d74668d2e68552b7d02c37b4472be7d210fd049d"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "callable State requires the same nominal shape and source factory identity",
+        "span": {
+          "file": 0,
+          "start": 644,
+          "end": 673
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-opaque-whole-state-99-15",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1087,
+        "sha256": "4f87bf6e1343d843b4e0aa14104969a309d4432a415ace8bb57e30958baa9342"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 668,
+        "sha256": "6892df28770fd49e6e3cda6bd88230a08a78d656b27980314657c69bd4a9aa82"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "callable State requires the same nominal shape and source factory identity",
+        "span": {
+          "file": 0,
+          "start": 637,
+          "end": 659
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-parent-drop-live-field-99-12",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 7841,
+        "sha256": "1304feeecd5ac2b919a2af6680fb434d85dd2442564a03827d549f5076b5737a"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 425,
+        "sha256": "b58eb2c0bf611f75e9daf1892b796804f31cfa59f973c778e5c128e99f4ae5da"
+      },
+      {
+        "name": "wire.txt",
+        "bytes": 425,
+        "sha256": "b58eb2c0bf611f75e9daf1892b796804f31cfa59f973c778e5c128e99f4ae5da"
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-pure-double-publication-no-address-99-13",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 4191,
+        "sha256": "e38bb98c715b151b73b2754b9f9ba8729cfe3190327709b351add7989603c083"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 386,
+        "sha256": "34dda08e4fb7d12f1f8a3b5ad887228da663faf1db1e1fa824144e4cfcd5cd61"
+      },
+      {
+        "name": "wire.txt",
+        "bytes": 386,
+        "sha256": "34dda08e4fb7d12f1f8a3b5ad887228da663faf1db1e1fa824144e4cfcd5cd61"
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-pure-two-owners-99-4",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1873,
+        "sha256": "3009145954f6cd61e11754ab041b45e69d2fa6a5e178c47175ea77baaab2f8ff"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 358,
+        "sha256": "4579e4c76889b8b532319b7a2b18714f2f320dcc4c167a19d7624574b7291f30"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 0 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 346,
+          "end": 347
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "discovery02",
+    "case": "review176-shared-call-upgrade-99-11",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 7771,
+        "sha256": "dee7d65b7d412c836836a726e26e1755038e82ab247ebd84fd7cf1ce8ae5146f"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 391,
+        "sha256": "3df6cfeb5de29f924fad5b6464562b9b9fb3f61e71bb72a3f56a4728d42345a7"
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-different-factory-on-error-path-461-1",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1111,
+        "sha256": "b904ab4dde9ae83f391c85a14dcd0be9ecc1a8ac28aa1ae2a0516b82ccb8c821"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 804,
+        "sha256": "6d5a47caf78d4080d554371b339411f7b1c577641ba058a2af5e91c1457f906d"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "different closure expressions have different concrete types",
+        "span": {
+          "file": 0,
+          "start": 756,
+          "end": 795
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-failed-rhs-prepared-owner-461-2",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3313,
+        "sha256": "dca977e71b2bf76eec9a63fe438b62022962e7cf966a8ec718ef202ce27a1492"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 457,
+        "sha256": "8857fb16d5bff4c06c6e2bfd13b70fbbc034f65a5f81c0b338de5ab9b76ab137"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 96,
+        "sha256": "9ee7d2e4299ae05cac631c231219e6c4eae3da5965b8c8eba16281aedd4699d4"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "26d545922c53b468fab4bfae5b992a0da16e881fd85cf741dd1e4af0ae80d199"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O0\nOutput { status: ExitStatus(unix_wait_status(256)), stdout: \"BAT\", stderr: \"\" }\n",
+    "stdout_hex": "424154"
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-failed-rhs-prepared-owner-461-6",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3313,
+        "sha256": "d04e826e2bfa4fe6644a9c017ebbaaa32f3ce122b7eaefa81deb3aa941f5af28"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 457,
+        "sha256": "8857fb16d5bff4c06c6e2bfd13b70fbbc034f65a5f81c0b338de5ab9b76ab137"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 96,
+        "sha256": "308b8799547467fdca0afcf1ef10d383b427739ed4a912dd22b04ef204a53bc4"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "26d545922c53b468fab4bfae5b992a0da16e881fd85cf741dd1e4af0ae80d199"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O2\nOutput { status: ExitStatus(unix_wait_status(256)), stdout: \"BAT\", stderr: \"\" }\n",
+    "stdout_hex": "424154"
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-field-is-copy-data-461-12",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 7771,
+        "sha256": "ef57d4e01a01a0c65a296c473e682d8036b2dce21f13a124a79166da5985726c"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 407,
+        "sha256": "213091a34e145bc58bb5dd4167b37f37a827e6b88c1704383c6e52499b1fde4e"
+      },
+      {
+        "name": "wire.txt",
+        "bytes": 407,
+        "sha256": "213091a34e145bc58bb5dd4167b37f37a827e6b88c1704383c6e52499b1fde4e"
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-four-module-offset-461-11",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 4979,
+        "sha256": "1e6f3592bf5b0a4b356a35726d922707b2f8353decdef1c4c89304853fc109cf"
+      },
+      {
+        "name": "factory.zil",
+        "bytes": 294,
+        "sha256": "e0b7c28b3046dfeabb22828ab66a481342e10bfeb68c3353bbdc8d78e7cfa82f"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 481,
+        "sha256": "e8c090a802aad96a9a23c803d41fa053edb0422f49ac4ac80df1111a48e6ecbc"
+      },
+      {
+        "name": "model.zil",
+        "bytes": 401,
+        "sha256": "babb8e3ada13c66e30c82f8719df1a9207150f2bc3654ca74012e6787fb3bdf8"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 94,
+        "sha256": "2adda1ecc0819862f3895c2f5aaa0cbe8e8e634b72621930e950c73e2b60ff6d"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "6ed063bab70bc8e7522e360ddd0e5645a1513b18b64687990684a9d36306dfe4"
+      },
+      {
+        "name": "update.zil",
+        "bytes": 308,
+        "sha256": "9c905db8670ef456a0d3bd974e045115b540487bd2d6ae29a49ed3b12204a580"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O2\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"ABT\", stderr: \"\" }\n",
+    "stdout_hex": "414254"
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-four-module-offset-461-9",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 4963,
+        "sha256": "f283746153eef5b882425da9d4f0b9c360307267b28cdc91e772b40b1e1a4834"
+      },
+      {
+        "name": "factory.zil",
+        "bytes": 294,
+        "sha256": "e0b7c28b3046dfeabb22828ab66a481342e10bfeb68c3353bbdc8d78e7cfa82f"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 481,
+        "sha256": "e8c090a802aad96a9a23c803d41fa053edb0422f49ac4ac80df1111a48e6ecbc"
+      },
+      {
+        "name": "model.zil",
+        "bytes": 401,
+        "sha256": "babb8e3ada13c66e30c82f8719df1a9207150f2bc3654ca74012e6787fb3bdf8"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 94,
+        "sha256": "aa10b71d0eee64601ae5c6920687aa5f6dc2988e3027442a40c8c0afbab6aea2"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 3,
+        "sha256": "6ed063bab70bc8e7522e360ddd0e5645a1513b18b64687990684a9d36306dfe4"
+      },
+      {
+        "name": "update.zil",
+        "bytes": 308,
+        "sha256": "9c905db8670ef456a0d3bd974e045115b540487bd2d6ae29a49ed3b12204a580"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O0\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"ABT\", stderr: \"\" }\n",
+    "stdout_hex": "414254"
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-immutable-parent-461-13",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 7771,
+        "sha256": "4548b356de94ac86f4f1b25ff9fd41bcc7e9b25e53ebc5ec034ffd8c54d81fe8"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 410,
+        "sha256": "1cedaedbd579bae00030a4ea343d8b9dd8158edca4d57e8f25f91ea51508cd17"
+      },
+      {
+        "name": "wire.txt",
+        "bytes": 410,
+        "sha256": "1cedaedbd579bae00030a4ea343d8b9dd8158edca4d57e8f25f91ea51508cd17"
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-live-field-take-461-21",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 2104,
+        "sha256": "10f08ed4c844553e1f9ff6e176496b0c5099fd0e02064838e94935fd6ecc7be4"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 692,
+        "sha256": "52817475a9e8fe4ab921c19acddba75a1a2c2a3933599e75b8e6b351328616ef"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use",
+        "span": {
+          "file": 0,
+          "start": 669,
+          "end": 679
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-live-parent-move-461-20",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 2111,
+        "sha256": "233391e4875ee969e9e140412edd9ef2f46515f765dbef3c385e195d9063ae9c"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 690,
+        "sha256": "2627c76eaaccd64b6a91b5a38e1d703da04e755e94abddaa9f4076071745015e"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "verify",
+    "verification_runs": 1,
+    "diagnostics": [
+      {
+        "phase": "verify",
+        "category": "SafeReject",
+        "code": "E-BORROW-CONFLICT",
+        "message": "write or storage change overlaps a shared address still required by a later use",
+        "span": {
+          "file": 0,
+          "start": 675,
+          "end": 676
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-once-double-call-461-0",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1885,
+        "sha256": "c3df6a264bc4928169364837d6e66b4563d09282d373a31b5b2450eea4911dbb"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 367,
+        "sha256": "ead796b94831c0e19271cc3fa82bf564b575f0e762b232486bd428b3961e3d10"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 2 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 363,
+          "end": 366
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-once-double-take-461-3",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1880,
+        "sha256": "f41a0e96fd654dddbded791d71c723058454bab6fb8213bb7ef918a1fe3e69fb"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 376,
+        "sha256": "8958e3cc757bc488375b59faadfc3c3906514a8d7ffdea4eb10a897771ae6c70"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: package field take requires that field live on every path",
+        "span": null,
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-once-single-consumption-461-5",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3285,
+        "sha256": "3313e61340f27eb2759bd008ce55daa41a932981c85b66de9185ddb3013bf914"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 357,
+        "sha256": "d65ef79226470a05946493a111051ce0890a1b491f1344a98ecd48d27e53d814"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 91,
+        "sha256": "fca92fca7be8538830bc157dfd667770cf5121a9438e98241114f11d7929e964"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O0\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"\", stderr: \"\" }\n",
+    "stdout_hex": ""
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-once-single-consumption-461-7",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3285,
+        "sha256": "3503a7f2f9faae84b11300a93a12b2c0cbd989d780a3548be4117e2e6b31cf06"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 357,
+        "sha256": "d65ef79226470a05946493a111051ce0890a1b491f1344a98ecd48d27e53d814"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 91,
+        "sha256": "6ff15ab4524c8541750c353c7e8f243f7c0c2e2fba12093b0d9ea104392009f7"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O2\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"\", stderr: \"\" }\n",
+    "stdout_hex": ""
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-opaque-field-461-17",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1057,
+        "sha256": "0ad0c2eb9ef2b126d5896e1d4e24ec8bac2245c3a11d1c71b2b4b22692862cc1"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 671,
+        "sha256": "fca95e7225447037166df7b858ac68550ed4a65557599ce2b49ecc5adf3686be"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "different closure expressions have different concrete types",
+        "span": {
+          "file": 0,
+          "start": 637,
+          "end": 662
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-opaque-join-after-helper-461-19",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1108,
+        "sha256": "1110018fe2f9a6f141df4d199713114c73218128e2efa44a9b41b29c59a8802e"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 682,
+        "sha256": "a01167cdfeeb3cfaf4c85ac3d74668d2e68552b7d02c37b4472be7d210fd049d"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "callable State requires the same nominal shape and source factory identity",
+        "span": {
+          "file": 0,
+          "start": 644,
+          "end": 673
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-opaque-whole-state-461-18",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1090,
+        "sha256": "a78f949c85ba0b8fced205d057adc0e417567b24c69938fe0705b2e17c825938"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 668,
+        "sha256": "6892df28770fd49e6e3cda6bd88230a08a78d656b27980314657c69bd4a9aa82"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "types",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-TYPE-MISMATCH",
+        "message": "callable State requires the same nominal shape and source factory identity",
+        "span": {
+          "file": 0,
+          "start": 637,
+          "end": 659
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-parent-drop-live-field-461-15",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 7841,
+        "sha256": "1304feeecd5ac2b919a2af6680fb434d85dd2442564a03827d549f5076b5737a"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 425,
+        "sha256": "b58eb2c0bf611f75e9daf1892b796804f31cfa59f973c778e5c128e99f4ae5da"
+      },
+      {
+        "name": "wire.txt",
+        "bytes": 425,
+        "sha256": "b58eb2c0bf611f75e9daf1892b796804f31cfa59f973c778e5c128e99f4ae5da"
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-pure-double-publication-no-address-461-16",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 4191,
+        "sha256": "e38bb98c715b151b73b2754b9f9ba8729cfe3190327709b351add7989603c083"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 386,
+        "sha256": "34dda08e4fb7d12f1f8a3b5ad887228da663faf1db1e1fa824144e4cfcd5cd61"
+      },
+      {
+        "name": "wire.txt",
+        "bytes": 386,
+        "sha256": "34dda08e4fb7d12f1f8a3b5ad887228da663faf1db1e1fa824144e4cfcd5cd61"
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-pure-ordinary-copy-control-461-10",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3343,
+        "sha256": "1dacb70be4e09e7e2151c3f8364d4902edb8aa8362dcf781803c4927d785259a"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 347,
+        "sha256": "0fe8d5fb44a4431392116786cfa55410a8cb5ea85e80a7feb5570c762455c2fd"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 91,
+        "sha256": "6ff15ab4524c8541750c353c7e8f243f7c0c2e2fba12093b0d9ea104392009f7"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O2\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"\", stderr: \"\" }\n",
+    "stdout_hex": ""
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-pure-ordinary-copy-control-461-8",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 3327,
+        "sha256": "1842383370f6ebcb22fe63a4e6599acf7a35c91de2ab0d4bb2fc374459048bff"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 347,
+        "sha256": "0fe8d5fb44a4431392116786cfa55410a8cb5ea85e80a7feb5570c762455c2fd"
+      },
+      {
+        "name": "native.txt",
+        "bytes": 91,
+        "sha256": "fca92fca7be8538830bc157dfd667770cf5121a9438e98241114f11d7929e964"
+      },
+      {
+        "name": "stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "status": "Success",
+    "phase": "link",
+    "verification_runs": 1,
+    "diagnostics": [],
+    "native": "optimization=O0\nOutput { status: ExitStatus(unix_wait_status(0)), stdout: \"\", stderr: \"\" }\n",
+    "stdout_hex": ""
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-pure-two-owners-461-4",
+    "files": [
+      {
+        "name": "compile.json",
+        "bytes": 1879,
+        "sha256": "29aa150833fad0b242f2b8d7ad0fef26e475029e9d30567643a7bd5ce3a30cd7"
+      },
+      {
+        "name": "main.zil",
+        "bytes": 358,
+        "sha256": "4579e4c76889b8b532319b7a2b18714f2f320dcc4c167a19d7624574b7291f30"
+      }
+    ],
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-UNINITIALIZED",
+        "message": "local 0 is not initialized on every incoming path",
+        "span": {
+          "file": 0,
+          "start": 346,
+          "end": 347
+        },
+        "notes": []
+      }
+    ]
+  },
+  {
+    "run": "independent-final",
+    "case": "review176-shared-call-upgrade-461-14",
+    "files": [
+      {
+        "name": "candidate.bin",
+        "bytes": 7771,
+        "sha256": "5e361b799c2090e31d0bca029c086a79b8ae56dc03e718d78105e443f26fd8c5"
+      },
+      {
+        "name": "raw.txt",
+        "bytes": 423,
+        "sha256": "8761108dd3f5d798d206e57e8a1581fab0c214a040686e71bc213fd78fc6d5f9"
+      },
+      {
+        "name": "wire.txt",
+        "bytes": 423,
+        "sha256": "8761108dd3f5d798d206e57e8a1581fab0c214a040686e71bc213fd78fc6d5f9"
+      }
+    ]
+  }
+]

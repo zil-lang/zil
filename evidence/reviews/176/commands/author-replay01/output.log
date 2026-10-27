@@ -1,0 +1,31 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-analyze)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-lower)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-expand)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review176-by175/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 15.56s
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets/review176-by175/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+
+running 12 tests
+test borrowed_environments_cannot_enter_retained_state ... ok
+test different_source_opaque_factories_and_moved_fields_are_rejected ... ok
+test exact_raw_and_wire_budget_boundary_is_deterministic_for_nested_callback_state ... ok
+test bytebuffer_environment_survives_field_calls_and_state_transfer ... ok
+test failed_preparation_keeps_old_field_and_unwinds_prepared_argument ... ok
+test field_take_refill_replace_and_nested_cleanup_preserve_one_environment ... ok
+test fnonce_take_consumes_and_partial_state_exit_cleans_only_remaining_fields ... ok
+test generic_state_api_can_take_call_refill_and_return_complete_state ... ok
+test raw_and_wire_cannot_publish_the_same_resource_free_callback_twice ... ok
+test public_state_generic_api_preserves_identity_across_modules_and_composition ... ok
+test raw_and_wire_reconstruct_field_permission_liveness_and_unique_publication ... ok
+test whole_state_parameters_and_results_keep_original_fnmut_environment ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.99s
+

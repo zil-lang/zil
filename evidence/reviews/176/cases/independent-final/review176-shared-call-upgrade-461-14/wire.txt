@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-CLOSURE-CALL",
+        message: "borrowed closure call mode lacks its concrete entry or address permission",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 644,
+                end: 664,
+            },
+        ),
+        notes: [],
+    },
+]

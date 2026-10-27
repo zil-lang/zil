@@ -1,0 +1,34 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "review176_by175",
+    "--test",
+    "impl167_owned_arrays",
+    "--test",
+    "impl168_retained_composition",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "implementation_commit": "dfd9ca572b3d9d04a0b3a142e75df98cd1896b29",
+  "implementation_crates_tree": "0fe0f25da88ee0a22a3897544f213579899d0cde",
+  "review_test_commit": "69d20fe368f3a8b2e5dbcb2964e000edde0cf7b1",
+  "source_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/review176-by175",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/review176-by175/independent-cases03"
+  },
+  "start": 1793116325.7188544,
+  "exit_code": 0,
+  "status": "Pass",
+  "end": 1793116342.6102962,
+  "log_sha256": "347a2f50775bf565ff2dccf552c84e8d45c15728228735c1cac006f6034f84fc"
+}
