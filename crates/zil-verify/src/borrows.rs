@@ -15,19 +15,66 @@ fn tracked_desc(ty: &Type, head_windows: bool) -> bool {
     byte_buffers::is_desc(ty) || (head_windows && matches!(ty, Type::Desc(_)))
 }
 
-fn captures_descriptors(module: &TypedModule, ty: &Type) -> bool {
+fn captures_descriptors(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
     let ty = match ty {
         Type::Address { inner, .. } => inner.as_ref(),
         other => other,
     };
-    matches!(ty, Type::Closure(id) if module.closures[id.0 as usize]
-        .captures.iter().any(|ty| matches!(ty, Type::Desc(_))))
+    let Type::Closure(id) = ty else {
+        return Ok(false);
+    };
+    let captures = &module.closures[id.0 as usize].captures;
+    budget.spend(captures.len())?;
+    Ok(captures.iter().any(|ty| matches!(ty, Type::Desc(_))))
 }
 
-fn has_sources(module: &TypedModule, ty: &Type, head_windows: bool) -> bool {
-    closures::holds_addresses(module, ty)
-        || tracked_desc(ty, head_windows)
-        || (head_windows && captures_descriptors(module, ty))
+fn has_sources(
+    module: &TypedModule,
+    ty: &Type,
+    head_windows: bool,
+    budget: &mut Budget,
+) -> Check<bool> {
+    if !head_windows {
+        return Ok(closures::holds_addresses(module, ty) || tracked_desc(ty, false));
+    }
+    match ty {
+        Type::Address { .. } | Type::Desc(_) => Ok(true),
+        Type::Closure(id) => {
+            let captures = &module.closures[id.0 as usize].captures;
+            budget.spend(captures.len())?;
+            Ok(captures
+                .iter()
+                .any(|ty| matches!(ty, Type::Address { .. } | Type::Desc(_))))
+        }
+        _ => Ok(false),
+    }
+}
+
+fn function_has_sources(
+    module: &TypedModule,
+    function: &TypedFunction,
+    head_windows: bool,
+    budget: &mut Budget,
+) -> Check<bool> {
+    if head_windows {
+        budget.spend(
+            function
+                .values
+                .len()
+                .saturating_add(function.parameters.len()),
+        )?;
+    }
+    for ty in function.values.iter().chain(
+        function
+            .parameters
+            .iter()
+            .map(|id| &function.locals[id.0 as usize].ty),
+    ) {
+        if has_sources(module, ty, head_windows, budget)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn head_windows(module: &TypedModule, budget: &mut Budget) -> Check<bool> {
@@ -221,15 +268,7 @@ fn check(
         }
         budget.spend(claim.roots.len())?;
     }
-    if !f
-        .values
-        .iter()
-        .any(|ty| has_sources(module, ty, head_windows))
-        && !f
-            .parameters
-            .iter()
-            .any(|id| has_sources(module, &f.locals[id.0 as usize].ty, head_windows))
-    {
+    if !function_has_sources(module, f, head_windows, budget)? {
         if plan.holds.iter().any(|claim| !claim.roots.is_empty()) {
             return Err(reject(
                 "E-VERIFY-HOLD",
@@ -522,15 +561,7 @@ fn reconstruct(
     let predecessors = &graph.predecessors;
     let reachable = &graph.reachable;
     budget.spend(v)?;
-    if !f
-        .values
-        .iter()
-        .any(|ty| has_sources(module, ty, head_windows))
-        && !f
-            .parameters
-            .iter()
-            .any(|id| has_sources(module, &f.locals[id.0 as usize].ty, head_windows))
-    {
+    if !function_has_sources(module, f, head_windows, budget)? {
         return Ok(Facts {
             values: vec![vec![]; v],
             inputs: vec![],
@@ -551,7 +582,7 @@ fn reconstruct(
             if b == f.entry.0 as usize {
                 budget.spend(f.parameters.len())?;
                 for (index, local) in f.parameters.iter().enumerate() {
-                    if has_sources(module, &f.locals[local.0 as usize].ty, head_windows) {
+                    if has_sources(module, &f.locals[local.0 as usize].ty, head_windows, budget)? {
                         state.insert(*local, vec![Root::Parameter(index as u32)]);
                     }
                 }
