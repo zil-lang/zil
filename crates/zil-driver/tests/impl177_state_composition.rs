@@ -379,7 +379,7 @@ fn complete_local_assignment_restores_liveness_after_rhs_transfer() {
 #[test]
 fn complete_state_replacement_clears_old_field_slots_after_rhs_is_ready() {
     let source = format!(
-        "{MODEL} fn replace<F:FnMut()->i32>(state:State<F>,other:State<F>)->State<F>{{var next=state;let old=give next.items;next=other;return next}} fn main()->i32{{let state=replace(pack(make()),pack(make()));return state.hits}}"
+        "{MODEL} fn replace<F:FnMut()->i32>(state:State<F>)->State<F>{{var next=state;let old=give next.items;let callback=next.callback;next=pack(callback);return next}} fn main()->i32{{let state=replace(pack(make()));return state.hits}}"
     );
     native(&[("main", &source)], b"ZAZA", 0);
 }
