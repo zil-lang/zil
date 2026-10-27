@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "scope": "Author verification of task168 persistent callback slot and complete layout-budget follow-up; independent review and root full integration remain separate",
+  "author": "/root/nested_closures",
+  "implementation_commit": "febc071cae01ea328d6aa9d8595937cb03d1291e",
+  "crates_tree": "8de7e0ad93a4c99f62a9ed4865f99d8cfbde8ad2",
+  "baseline": "02040876a7f56f14b2058b91f6277b9db86ec393",
+  "proposal_commit": "8da89ba",
+  "original168_implementation": "da49a4271fb2941eb7d2b6aa118ccd7ead5db7d5",
+  "original168_delivery": "c5b04a51f04f848c0b17966deb60101c214e099d",
+  "requires": "167 Package and same-factory Closure fixed array production consumers; baseline already includes original 168 production changes",
+  "schema_version_ir": 19,
+  "new_public_opcodes": [],
+  "changed_files": [
+    "changes/168-persistent-slot-and-layout-work.md",
+    "crates/zil-driver/tests/impl168_retained_composition.rs",
+    "crates/zil-types/src/addresses.rs",
+    "crates/zil-types/src/aggregates.rs",
+    "crates/zil-types/src/closures.rs",
+    "crates/zil-types/src/closures/slots.rs",
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/packages.rs",
+    "crates/zil-verify/src/closures.rs",
+    "crates/zil-verify/src/resources/arrays.rs"
+  ],
+  "author_results": {
+    "driver_suites": {
+      "impl069_retained": 18,
+      "impl155_managed_replace": 12,
+      "impl161_nested_closures": 16,
+      "impl167_array_capture_boundary": 1,
+      "impl167_owned_arrays": 32,
+      "impl168_retained_composition": 26
+    },
+    "driver_total_pass": 105,
+    "verify_lib_pass": 237,
+    "failures": 0,
+    "impl168_native_executions_O0_O2": 40,
+    "impl168_native_new_followup_executions": 12,
+    "clippy_warnings_denied": "Pass",
+    "format_changed_files": "Pass",
+    "full_workspace": "NotRun by author; root owns this gate"
+  },
+  "resolved_review_findings": [
+    {
+      "finding": "Whole DropClosure replacement under a later live guard violated reverse initialization cleanup",
+      "resolution": "Private [Closure;1] shell retains lexical birth while Drop/StoreOwnedArrayElement replace the prepared element",
+      "native_observations": [
+        "shared: AZB",
+        "FnMut: AZC",
+        "FnOnce refill cleanup: AZB",
+        "FnOnce refill call: ABZ",
+        "move recapture: AB",
+        "failed RHS with guard: ZA"
+      ],
+      "live_borrow_replacement": "SafeReject E-BORROW-CONFLICT"
+    },
+    {
+      "finding": "512-field Copy record repeated by a 10-layer closure DAG escaped 100000 analysis steps",
+      "resolution": "Independent complete Type leaf work multiplied by every closure DAG occurrence; original-size raw and wire ResourceLimit"
+    },
+    {
+      "finding": "128-element owning Package array with 2048-field Copy payload escaped 100000 analysis steps",
+      "resolution": "Replace length times direct field count with length times complete bounded Type work; raw and wire ResourceLimit"
+    }
+  ],
+  "preserved_failures": [
+    {
+      "record": "initial-check-failure.log",
+      "meaning": "Initial follow-up Rust check failed on emit return shape before tests; fixed before frozen candidate."
+    },
+    {
+      "record": "run-logs/review168/independent/replacement_later_guard/compile.json",
+      "meaning": "Independent original slot cleanup rejection retained by reviewer."
+    },
+    {
+      "record": "run-logs/review168/raw-probe/raw-probe.log and array-probe.log",
+      "meaning": "Independent old-candidate wide-leaf acceptance retained by reviewer; exact immutable raw candidate replay belongs to independent review."
+    }
+  ],
+  "boundaries": [
+    "Private slot promotion applies to actually reassigned mutable owning concrete closure bindings; pure Copy environments retain ordinary representation.",
+    "Source-visible concrete ClosureId and distinct factory opaque identity remain unchanged; the private array never escapes into a capture.",
+    "Owned arrays and owned ErrorUnion captures, captured closure field assignment, heterogenous/dyn callback collections, dynamic index/capacity, escaping borrowed environments remain outside this slice.",
+    "No new opcode80, implicit Box/RC, heap allocation, or default budget increase.",
+    "Only changed-files formatting is claimed; baseline shared zil-ir formatting is root-owned."
+  ],
+  "rust_goals": {
+    "safety": "Finite slot/loan/debt and raw/wire budget counterexamples are executable; no whole-language safety claim.",
+    "runtime_and_memory": "Inline existing array shell and environment flags; successful and error cleanup runs O0/O2. No paired Rust timing/RSS measurement.",
+    "expression_and_maintenance": "Ordinary var callback replacement and consumed-slot refill now compose with later owning guards and move recapture; no measured maintenance-cost superiority.",
+    "compile_cost": "Actual Type layout work is charged; this language task does not claim compile-speed improvement.",
+    "product_breakthrough": "Concrete language combination gained and review holes closed; product-level Rust net breakthrough is NotProven."
+  },
+  "full_zui_ready": false,
+  "independent_review": "Pending separate reviewer receipt; author does not self-approve"
+}

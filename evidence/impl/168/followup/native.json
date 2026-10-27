@@ -1,0 +1,410 @@
+{
+  "source_commit": "febc071cae01ea328d6aa9d8595937cb03d1291e",
+  "executions": 40,
+  "records": [
+    {
+      "case": "retained168-callee-error-O0-724-4",
+      "exit": "Some(1)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "afb61e24c660872357d0d06c2d342b0c766e5b6f12c951e5672a88f74d957a34",
+      "source_files": {
+        "module0.zil": "4e9be3df0ab9c411f13647393c2ca5be3f623ddd2a383fb930c76e74dbab4b7e"
+      }
+    },
+    {
+      "case": "retained168-callee-error-O2-724-14",
+      "exit": "Some(1)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "369756a0df87d55f87ea21a1ebc7ccfe65ce11ff3cfcb8f1da8238e1ba0aca1b",
+      "source_files": {
+        "module0.zil": "4e9be3df0ab9c411f13647393c2ca5be3f623ddd2a383fb930c76e74dbab4b7e"
+      }
+    },
+    {
+      "case": "retained168-deferred-move-O0-724-19",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "b6cc9e111bc78bd6ba9ea369863694b1fa77f2db5116aa1001385dc83021b2d0",
+      "source_files": {
+        "module0.zil": "42aed81de0306536b9056507bd431f0d18bcefe3c68f006421f18cce4889c662"
+      }
+    },
+    {
+      "case": "retained168-deferred-move-O2-724-28",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "2100712c632ad5b03436e3bc9e90801f2dbb85bc05de5faac5edba804ba8a561",
+      "source_files": {
+        "module0.zil": "42aed81de0306536b9056507bd431f0d18bcefe3c68f006421f18cce4889c662"
+      }
+    },
+    {
+      "case": "retained168-forward-O0-724-5",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "28d8d734faf25031e00f1589340eab42febb8bc44388bdaa7daa9b1600d373c6",
+      "source_files": {
+        "module0.zil": "5953cfafe3925cfcac6ae2d7271c26e3d16d36b42a2432d933bdf4feb087ac32"
+      }
+    },
+    {
+      "case": "retained168-forward-O2-724-10",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "5c7603275fb5254c5484f068b81c9627a67896309383256050d0aa17fb503e80",
+      "source_files": {
+        "module0.zil": "5953cfafe3925cfcac6ae2d7271c26e3d16d36b42a2432d933bdf4feb087ac32"
+      }
+    },
+    {
+      "case": "retained168-forward-mut-O0-724-7",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "a2efe37540f1ec14fc3820abee7f5c8d55d30ea9f6eab7186c9d99c7ba8266af",
+      "source_files": {
+        "module0.zil": "294f0b9f26ca082186af40e45a2d32cb0d99979ec937fdf7646b09f9843dbb76"
+      }
+    },
+    {
+      "case": "retained168-forward-mut-O2-724-13",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "b2e455b9defcf5aaa4e35997ff065d6e64955ad773abe3f9339396ca03926798",
+      "source_files": {
+        "module0.zil": "294f0b9f26ca082186af40e45a2d32cb0d99979ec937fdf7646b09f9843dbb76"
+      }
+    },
+    {
+      "case": "retained168-forward-once-O0-724-22",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "d71748a718db4b8d257088b49862bcf43211b64b0e5c18f0968b31f3d040d940",
+      "source_files": {
+        "module0.zil": "cfbcfd9eee141e4b0b0b11b92545454562aae277d1c17b6f780ab4ed13d5c6be"
+      }
+    },
+    {
+      "case": "retained168-forward-once-O2-724-31",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "ff65f066039c5bc9a68a39f17973e7c9f4309858710ea2592d1bc2421d45e3c4",
+      "source_files": {
+        "module0.zil": "cfbcfd9eee141e4b0b0b11b92545454562aae277d1c17b6f780ab4ed13d5c6be"
+      }
+    },
+    {
+      "case": "retained168-module-forward-O0-724-6",
+      "exit": "Some(0)",
+      "stdout": "",
+      "stderr_empty": true,
+      "compile_report_sha256": "42e38bd2037176390984168b3d17f9e6e3789453d35a23b5ea6531fec91ef043",
+      "source_files": {
+        "module0.zil": "ed4076b322a2e52133d1d3cd8848ae90ff077f3526d9b6bf13c9e0a688ba94f2",
+        "module1.zil": "a7ce064f9cc5dd317dbeb35e91d4ac3ecd5edd2abbd2d832b4ea058ff6bb88fa",
+        "module2.zil": "6806bf729133220f4e3b99382be43fb6c5a509eb3fddfb8e483647f2bdb94f46"
+      }
+    },
+    {
+      "case": "retained168-module-forward-O2-724-16",
+      "exit": "Some(0)",
+      "stdout": "",
+      "stderr_empty": true,
+      "compile_report_sha256": "0bee989d650800dc64ac75f3bbfe5ecb1a2b3d94104fd26b65687c64880f5cb9",
+      "source_files": {
+        "module0.zil": "ed4076b322a2e52133d1d3cd8848ae90ff077f3526d9b6bf13c9e0a688ba94f2",
+        "module1.zil": "a7ce064f9cc5dd317dbeb35e91d4ac3ecd5edd2abbd2d832b4ea058ff6bb88fa",
+        "module2.zil": "6806bf729133220f4e3b99382be43fb6c5a509eb3fddfb8e483647f2bdb94f46"
+      }
+    },
+    {
+      "case": "retained168-mutable-O0-724-21",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "731edf8f0907c9b4bc0dde918c1f322a014b952764ff35342d3fde555e72b21d",
+      "source_files": {
+        "module0.zil": "69cf5a9c13d57acf81926becd6a0c6ba981de1c848fba690386b666592e3711d"
+      }
+    },
+    {
+      "case": "retained168-mutable-O2-724-30",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "278e31d0f8952e375fcd50970b8001ffadee12aa20a1eaf94185465486ee44f7",
+      "source_files": {
+        "module0.zil": "69cf5a9c13d57acf81926becd6a0c6ba981de1c848fba690386b666592e3711d"
+      }
+    },
+    {
+      "case": "retained168-nested-error-O0-724-9",
+      "exit": "Some(1)",
+      "stdout": "BA",
+      "stderr_empty": true,
+      "compile_report_sha256": "5c824cdf3e2b13e6007e294dc38946d1916669e121344bb32a3e13bd8324bb0c",
+      "source_files": {
+        "module0.zil": "83689d030e5f2768974b470ed52c943c000ceda07c618f3c9035805c02657356"
+      }
+    },
+    {
+      "case": "retained168-nested-error-O2-724-17",
+      "exit": "Some(1)",
+      "stdout": "BA",
+      "stderr_empty": true,
+      "compile_report_sha256": "662ccb743b0eaa7e149caee19c46a8cf7b3f7a73bee11d864ef985abecbbe04a",
+      "source_files": {
+        "module0.zil": "83689d030e5f2768974b470ed52c943c000ceda07c618f3c9035805c02657356"
+      }
+    },
+    {
+      "case": "retained168-once-O0-724-3",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "9f3689659c01f5edb826e2983dc7787adc22d456f70ff06a64d5bbcd9d0f2cd4",
+      "source_files": {
+        "module0.zil": "13a02d68ed814ff5ad22d316832577f6b761ad509de949d55eaca97c30b461db"
+      }
+    },
+    {
+      "case": "retained168-once-O2-724-12",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "0986b116317f26d1980bf8fbef0b68712a595b1bd857d2bc3d068ec9e600a00a",
+      "source_files": {
+        "module0.zil": "13a02d68ed814ff5ad22d316832577f6b761ad509de949d55eaca97c30b461db"
+      }
+    },
+    {
+      "case": "retained168-replace-O0-724-36",
+      "exit": "Some(0)",
+      "stdout": "AB",
+      "stderr_empty": true,
+      "compile_report_sha256": "42f726ac704c93c9eec145adc216acade209a64706a122caf326b2a005ea9116",
+      "source_files": {
+        "module0.zil": "e19f5f7e8f445661d1d00b8582f147de3d8f90320740e20ce428b78cea45f7c4"
+      }
+    },
+    {
+      "case": "retained168-replace-O2-724-42",
+      "exit": "Some(0)",
+      "stdout": "AB",
+      "stderr_empty": true,
+      "compile_report_sha256": "4cb10e7520deb6f37528db8e48c5bfb55baee8918bb2ad5911f3516097391171",
+      "source_files": {
+        "module0.zil": "e19f5f7e8f445661d1d00b8582f147de3d8f90320740e20ce428b78cea45f7c4"
+      }
+    },
+    {
+      "case": "retained168-replace-error-O0-724-0",
+      "exit": "Some(1)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "9d951aa2e8b161e2b603d561ccb871375abf9279227637fdce14ff728ccd9450",
+      "source_files": {
+        "module0.zil": "0fdfd39c44afe71c7e6eb833a0d5d089205b3c6969a4b158359b1ded244e47ff"
+      }
+    },
+    {
+      "case": "retained168-replace-error-O2-724-15",
+      "exit": "Some(1)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "ece2cd2480216f868fbd7450773d0ac7516731a6c544c9e94f68c12980edc7f5",
+      "source_files": {
+        "module0.zil": "0fdfd39c44afe71c7e6eb833a0d5d089205b3c6969a4b158359b1ded244e47ff"
+      }
+    },
+    {
+      "case": "retained168-shared-borrow-O0-724-20",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "7df25da047c3a7b4d6b6517e257a04e3417f82e080a61569d2e35d591e4d6473",
+      "source_files": {
+        "module0.zil": "f8bf82b45539201ee9a785e01827e83f188ccfe92fcdae8497f124ede067a040"
+      }
+    },
+    {
+      "case": "retained168-shared-borrow-O2-724-26",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "51f1717f04fa27966e74bc7cab22525b52ff0ef55b77488ebb6ba99af866d645",
+      "source_files": {
+        "module0.zil": "f8bf82b45539201ee9a785e01827e83f188ccfe92fcdae8497f124ede067a040"
+      }
+    },
+    {
+      "case": "retained168-shared-deep-O0-724-23",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "fa06f8426c459de1e2787b442f9ac8c5cf0314fb3e4dcd567e7b5e497f225807",
+      "source_files": {
+        "module0.zil": "8ec531e555afcc9b3ac1c4ac70d1752c9cf42c67fd2dc29bd3e776d3f551e2e9"
+      }
+    },
+    {
+      "case": "retained168-shared-deep-O2-724-32",
+      "exit": "Some(0)",
+      "stdout": "A",
+      "stderr_empty": true,
+      "compile_report_sha256": "bbfccdc50df402382f0dff99767b25059a1fac3bdada74b878386a3361c36eff",
+      "source_files": {
+        "module0.zil": "8ec531e555afcc9b3ac1c4ac70d1752c9cf42c67fd2dc29bd3e776d3f551e2e9"
+      }
+    },
+    {
+      "case": "retained168-slot-failed-rhs-guard-O0-724-45",
+      "exit": "Some(1)",
+      "stdout": "ZA",
+      "stderr_empty": true,
+      "compile_report_sha256": "f70c3589079a4deb02a7e223a6c748f354954babfdbe348f20cf6f6550a0199c",
+      "source_files": {
+        "module0.zil": "c0d94494faec22edcda2ffd64e84571941bbfed71506807493272ce33fdbc4c5"
+      }
+    },
+    {
+      "case": "retained168-slot-failed-rhs-guard-O2-724-46",
+      "exit": "Some(1)",
+      "stdout": "ZA",
+      "stderr_empty": true,
+      "compile_report_sha256": "ce15cd3677f29cb7177001c4f4716714cf364c1c21ee1958c071b42604ec1411",
+      "source_files": {
+        "module0.zil": "c0d94494faec22edcda2ffd64e84571941bbfed71506807493272ce33fdbc4c5"
+      }
+    },
+    {
+      "case": "retained168-slot-guard-O0-724-27",
+      "exit": "Some(0)",
+      "stdout": "AZB",
+      "stderr_empty": true,
+      "compile_report_sha256": "98de3f0fd7defb9ad43bd7ae478db41de45619ae3b86e332b28fc4d5213c14d5",
+      "source_files": {
+        "module0.zil": "517b24e2b8d3bd39160831a0e25a85cca39eaa6e527768c815238d6ce80415e3"
+      }
+    },
+    {
+      "case": "retained168-slot-guard-O2-724-33",
+      "exit": "Some(0)",
+      "stdout": "AZB",
+      "stderr_empty": true,
+      "compile_report_sha256": "81aecfa002c1a30c164268990d408daba377968945d15945a1194a6234c5299a",
+      "source_files": {
+        "module0.zil": "517b24e2b8d3bd39160831a0e25a85cca39eaa6e527768c815238d6ce80415e3"
+      }
+    },
+    {
+      "case": "retained168-slot-move-capture-O0-724-25",
+      "exit": "Some(0)",
+      "stdout": "AB",
+      "stderr_empty": true,
+      "compile_report_sha256": "8f5f15c6767e4bd4c055669f944c45c919a62bcef21588aed23185e2c8ad4750",
+      "source_files": {
+        "module0.zil": "264f47e1ed6cb97f5020d638b792a69038eaad0e35daff66d0d12c89430e455e"
+      }
+    },
+    {
+      "case": "retained168-slot-move-capture-O2-724-35",
+      "exit": "Some(0)",
+      "stdout": "AB",
+      "stderr_empty": true,
+      "compile_report_sha256": "c661080fd4961ed5aada650573bb30de02908baead5dbd4c00f3266862ccbc7b",
+      "source_files": {
+        "module0.zil": "264f47e1ed6cb97f5020d638b792a69038eaad0e35daff66d0d12c89430e455e"
+      }
+    },
+    {
+      "case": "retained168-slot-mut-guard-O0-724-41",
+      "exit": "Some(0)",
+      "stdout": "AZC",
+      "stderr_empty": true,
+      "compile_report_sha256": "2c5722b97c55927493066439a1d338cc92c4dd7802aa88c3551cd8f63852f6ed",
+      "source_files": {
+        "module0.zil": "8e0b4c47c7adc559c093e1120388c897384b539156c8c3963285a1e3c3afe04a"
+      }
+    },
+    {
+      "case": "retained168-slot-mut-guard-O2-724-44",
+      "exit": "Some(0)",
+      "stdout": "AZC",
+      "stderr_empty": true,
+      "compile_report_sha256": "a1068d11ca7bd6ffc03933108fb046b11cc99c8ce1c49d2981c5ecb7c6a4cca4",
+      "source_files": {
+        "module0.zil": "8e0b4c47c7adc559c093e1120388c897384b539156c8c3963285a1e3c3afe04a"
+      }
+    },
+    {
+      "case": "retained168-slot-refill-call-O0-724-18",
+      "exit": "Some(0)",
+      "stdout": "ABZ",
+      "stderr_empty": true,
+      "compile_report_sha256": "aaa4408f67440e219a3078c3d8181fe3995e57c916b9f40ee415dd7d8137fa5a",
+      "source_files": {
+        "module0.zil": "91a1ad4ce0ab164239b5c23ebf3320fffb77d26921d26ab0e899875a3654e89e"
+      }
+    },
+    {
+      "case": "retained168-slot-refill-call-O2-724-29",
+      "exit": "Some(0)",
+      "stdout": "ABZ",
+      "stderr_empty": true,
+      "compile_report_sha256": "e4f33d05d7248ade6374b3da8fe00f00963702b6e4ada0319328a2f01ac41612",
+      "source_files": {
+        "module0.zil": "91a1ad4ce0ab164239b5c23ebf3320fffb77d26921d26ab0e899875a3654e89e"
+      }
+    },
+    {
+      "case": "retained168-slot-refill-cleanup-O0-724-2",
+      "exit": "Some(0)",
+      "stdout": "AZB",
+      "stderr_empty": true,
+      "compile_report_sha256": "f2ad508bc5b91c41f2714ebf8e329502ae6c7ddf811b556b5772d3b74555ed6d",
+      "source_files": {
+        "module0.zil": "6658cb9e0cb3e42aa6ff32f00f114be0615d0cf3852a123690b4f639588672d7"
+      }
+    },
+    {
+      "case": "retained168-slot-refill-cleanup-O2-724-11",
+      "exit": "Some(0)",
+      "stdout": "AZB",
+      "stderr_empty": true,
+      "compile_report_sha256": "38a289a900248081137d8d502cfb5365e7eaebddd3aee953e7693f28f9f15018",
+      "source_files": {
+        "module0.zil": "6658cb9e0cb3e42aa6ff32f00f114be0615d0cf3852a123690b4f639588672d7"
+      }
+    },
+    {
+      "case": "retained168-uncalled-O0-724-39",
+      "exit": "Some(0)",
+      "stdout": "AB",
+      "stderr_empty": true,
+      "compile_report_sha256": "032ce697d9e1480995873c62d98fd1ee70f4ae4c10719587b1bb6c332a4fdf66",
+      "source_files": {
+        "module0.zil": "c090d5c977074a5fc83cfbc701c9bf075e06bd1cbf78d51a674354e1de5f080a"
+      }
+    },
+    {
+      "case": "retained168-uncalled-O2-724-43",
+      "exit": "Some(0)",
+      "stdout": "AB",
+      "stderr_empty": true,
+      "compile_report_sha256": "31706ab7d003e56058932c06290e1ff5fd2e980b26c1bc5e7934ed94c89f4666",
+      "source_files": {
+        "module0.zil": "c090d5c977074a5fc83cfbc701c9bf075e06bd1cbf78d51a674354e1de5f080a"
+      }
+    }
+  ]
+}

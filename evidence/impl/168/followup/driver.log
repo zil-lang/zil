@@ -1,0 +1,151 @@
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-types)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-lower)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt168-slot/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 10.31s
+     Running tests/impl069_retained.rs (/workspace/scratch/39be3faa4442/targets/168-slot/debug/deps/impl069_retained-22ede1341b8bc1f9)
+
+running 18 tests
+test retained069_analyze_reconstructs_cleanup_and_rejects_missing_contract ... ok
+test retained069_hidden_fields_do_not_become_caller_projection_rights ... ok
+test retained069_copy_snapshot_factory_before_and_after_caller ... ok
+test retained069_fnmut_survives_an_event_loop ... ok
+test retained069_factory_result_and_local_closure_share_source_inference ... ok
+test retained069_cross_module_factory_publishes_actual_return_contract ... ok
+test retained069_new_raw_metadata_is_bounded_before_cloning ... ok
+test retained069_cross_module_same_name_factories_and_module_order ... ok
+test retained069_mixed_capture_cleanup_indices_and_owned_return_paths ... ok
+test retained069_return_is_a_direct_call_with_environment_not_body_substitution ... ok
+test retained069_owned_fnonce_consumes_once ... ok
+test retained069_owned_fnmut_updates_retained_resource ... ok
+test retained069_public_factory_result_can_enter_a_public_helper ... ok
+test retained069_managed_use_after_move_and_once_reuse_rejected ... ok
+test retained069_nearest_source_boundaries_fail_closed ... ok
+test retained069_returned_error_callback_and_early_cleanup ... ok
+test retained069_owned_fn_zero_multiple_and_move_calls ... ok
+test retained069_return_same_local_on_multiple_paths_and_unrelated_closure ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/impl155_managed_replace.rs (/workspace/scratch/39be3faa4442/targets/168-slot/debug/deps/impl155_managed_replace-4968805aa3424765)
+
+running 12 tests
+test live_old_views_descriptors_and_annotation_mismatch_are_rejected ... ok
+test independent_verify_rejects_omitted_or_invalid_slot_cleanup ... ok
+test propagated_rhs_error_preserves_old_slot_until_error_cleanup ... ok
+test last_use_of_old_descriptor_before_replacement_is_allowed ... ok
+test byte_buffer_can_be_replaced_and_refilled ... ok
+test nested_owning_closure_transfers_the_replacement_slot_once ... ok
+test give_and_refill_keep_single_obligation ... ok
+test lexical_and_closure_shadowing_do_not_rewrite_unrelated_bindings ... ok
+test owning_fnmut_can_replace_captured_buffer_without_manual_package ... ok
+test replacement_keeps_slot_order_and_disposes_old_value_once ... ok
+test replacement_through_branches_and_loops_uses_one_slot ... ok
+test untouched_mutable_resources_keep_borrowed_capture_compatibility ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.25s
+
+     Running tests/impl161_nested_closures.rs (/workspace/scratch/39be3faa4442/targets/168-slot/debug/deps/impl161_nested_closures-1e334af781621e52)
+
+running 16 tests
+test capturing_a_callable_environment_and_function_pointer_captures_remain_rejected ... ok
+test nested_closure_function_and_depth_budgets_remain_enforced ... ok
+test independent_verify_rejects_forged_shared_kind_and_second_capture_transfer ... ok
+test inner_borrowed_writes_persist_in_outer_owned_copy_capture ... ok
+test activation_local_managed_owner_moves_into_inner_environment ... ok
+test nested_move_transfers_outer_owned_capture_once ... ok
+test inner_unused_environment_and_outer_unused_environment_drop_once ... ok
+test inner_move_promotes_an_outer_nonmove_managed_capture ... ok
+test nested_transfer_and_shared_alias_misuse_are_rejected ... ok
+test nested_move_snapshot_is_distinct_from_borrowed_writeback ... ok
+test nested_error_exit_cleans_only_actual_remaining_owners ... ok
+test nested_owning_buffer_replacement_cleans_real_slots ... ok
+test nested_signatures_infer_across_three_lexical_layers ... ok
+test nested_package_move_and_inner_refill_keep_distinct_responsibilities ... ok
+test nested_shadowed_parameters_and_locals_do_not_capture_outer_names ... ok
+test outer_package_refill_after_nested_move_keeps_fnmut ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.01s
+
+     Running tests/impl167_array_capture_boundary.rs (/workspace/scratch/39be3faa4442/targets/168-slot/debug/deps/impl167_array_capture_boundary-1070e9fd93a806eb)
+
+running 1 test
+test owned_package_array_capture_is_closed_in_source_raw_and_wire ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/impl167_owned_arrays.rs (/workspace/scratch/39be3faa4442/targets/168-slot/debug/deps/impl167_owned_arrays-57093b6aa53da9c2)
+
+running 32 tests
+test dynamic_indices_and_implicit_resource_arrays_remain_explicit_boundaries ... ok
+test callback_array_capture_remains_explicitly_closed_in_source_and_raw_wire ... ok
+test callback_array_borrows_forbid_overlapping_slot_changes_and_escaping_storage ... ok
+test old_byte_buffer_window_cannot_survive_any_array_element_replacement ... ok
+test moved_once_callback_array_element_preserves_remaining_cleanup ... ok
+test byte_buffer_field_windows_use_the_actual_inline_element ... ok
+test failed_replacement_keeps_the_old_element_until_scope_cleanup ... ok
+test construction_and_copy_projection_clean_each_element_once ... ok
+test private_array_element_fields_remain_private_across_modules ... ok
+test original159_same_factory_handler_array_constructs_and_cleans ... ok
+test raw_and_wire_callback_addresses_cannot_survive_replacement_or_forge_permissions ... ok
+test raw_and_wire_callback_array_inputs_require_actual_local_moves ... ok
+test raw_and_wire_cannot_copy_elements_or_retake_the_same_slot ... ok
+test raw_and_wire_cannot_relabel_owned_operations_as_copy_aggregate_operations ... ok
+test raw_and_wire_charge_callback_array_length_times_inline_environment_work ... ok
+test package_fields_clean_in_declaration_order_inside_each_array_element ... ok
+test raw_and_wire_consume_resource_free_callback_values_exactly_once ... ok
+test partial_slots_and_descriptors_cannot_be_reused_after_transfer_or_replacement ... ok
+test raw_and_wire_require_cleanup_before_overwriting_and_complete_whole_moves ... ok
+test raw_and_wire_check_static_bounds_and_charge_declared_array_size ... ok
+test nested_owned_callback_arrays_transfer_refill_borrow_and_drop_once ... ok
+test partial_array_exit_and_branch_join_clean_only_live_elements ... ok
+test source_identity_and_nonresource_callback_slot_moves_are_not_forged ... ok
+test callback_preparation_and_replacement_error_paths_keep_exact_owners ... ok
+test prepared_prefix_is_cleaned_in_reverse_order_on_later_error ... ok
+test pure_callback_slots_borrow_the_actual_environment_and_move_as_a_whole ... ok
+test shared_callback_array_elements_remain_callable_by_shared_borrow ... ok
+test repeated_loop_refill_reinitializes_only_the_chosen_slot ... ok
+test replacement_cleans_previous_element_before_installing_prepared_value ... ok
+test taking_and_refilling_an_element_preserves_unique_cleanup ... ok
+test whole_array_roundtrip_and_move_keep_inline_owners ... ok
+test whole_array_can_cross_modules_with_exact_public_package_identity ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.28s
+
+     Running tests/impl168_retained_composition.rs (/workspace/scratch/39be3faa4442/targets/168-slot/debug/deps/impl168_retained_composition-e15ec715193e5615)
+
+running 26 tests
+test distinct_source_opaque_factories_cannot_mix_even_when_forwarded ... ok
+test independent_ownership_checks_run_without_nominal_resources ... ok
+test independent_raw_and_wire_bound_repeated_child_layout_expansion ... ok
+test independent_raw_and_wire_charge_wide_leaf_inside_closure_dag ... ok
+test independent_raw_and_wire_charge_wide_package_array_elements ... ok
+test independent_raw_and_wire_reject_cycles_wrong_capture_indices_and_permissions ... ok
+test independent_raw_and_wire_reject_repeated_nested_take_and_factory_cycles ... ok
+test forward_factories_resolve_reverse_declarations_and_cleanup_once ... ok
+test consuming_subenvironment_is_taken_and_called_exactly_once ... ok
+test consumed_callee_is_cleaned_when_later_argument_fails ... ok
+test cross_module_forwarding_preserves_public_opaque_result ... ok
+test failed_replacement_keeps_original_slot_responsibility ... ok
+test persistent_slot_cannot_replace_a_still_borrowed_element ... ok
+test nested_error_exit_cleans_inner_activation_then_recursive_environment ... ok
+test nonmove_inner_borrow_keeps_outer_owned_callback_live ... ok
+test consumed_persistent_slot_can_be_refilled_without_rebirth ... ok
+test nested_move_creation_transfers_ownership_before_any_call ... ok
+test owned_mutable_subenvironment_updates_real_inline_storage ... ok
+test recursive_factory_identity_and_escaping_nested_borrow_are_rejected ... ok
+test retained_alias_and_consuming_callback_misuse_are_rejected ... ok
+test forwarding_keeps_exact_mutable_and_consuming_factory_kinds ... ok
+test owned_shared_subenvironment_is_borrowed_and_dropped_recursively ... ok
+test same_factory_slot_replacement_drops_previous_after_new_is_ready ... ok
+test persistent_slot_preserves_cleanup_birth_under_later_guard ... ok
+test uncalled_subenvironment_and_siblings_follow_capture_cleanup_order ... ok
+test persistent_slot_move_capture_transfers_the_actual_element ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.86s
+
