@@ -1,0 +1,21 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets/172-proof/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/zil-restored/wt172/examples/mainline/impl172/reserve_recovery.zil",
+    "--opt",
+    "O0",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/172-final-consumer/reserve_recovery/O0/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/172-final-consumer/reserve_recovery/O0/phases",
+    "--json"
+  ],
+  "start": 1793111076.775778,
+  "status": "Completed",
+  "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "exit_code": 0,
+  "stdout_sha256": "16de417eddad6c80f3e7d5cf85af04972b0051cb82aa7903ae8772e38444b6d7",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793111077.0370393
+}

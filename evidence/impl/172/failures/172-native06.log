@@ -1,0 +1,27 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-types)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-ct)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 42.02s
+     Running tests/impl172_owned_store.rs (/workspace/scratch/39be3faa4442/targets/172-final/debug/deps/impl172_owned_store-303df5d675b7019b)
+
+running 13 tests
+test empty_pop_propagates_unit_error_without_an_element_obligation ... ok
+test exact_verify_budget_boundary_and_untrusted_constructor_metadata_are_bounded ... ok
+test empty_context_and_factory_own_a_real_allocation_free_head ... ok
+test full_push_returns_the_uninserted_package_to_native_error_cleanup ... ok
+
+thread 'raw_wire_constructor_depth_and_actual_inline_size_have_independent_limits' (317) has overflowed its stack
+fatal runtime error: stack overflow, aborting
+error: test failed, to rerun pass `-p zil-driver --test impl172_owned_store`
+
+Caused by:
+  process didn't exit successfully: `/workspace/scratch/39be3faa4442/targets/172-final/debug/deps/impl172_owned_store-303df5d675b7019b --test-threads=2` (signal: 6, SIGABRT: process abort signal)

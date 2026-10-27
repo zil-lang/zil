@@ -44,6 +44,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                     || callable_parameter_type(ty, &module.closures)
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
                     || (resource_type(ty, &module.resources)
+                        && !matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }))
                         && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
                     || (package_type(ty, &module.resources) && !package_array_fields(ty))
             })
@@ -120,6 +121,12 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
 
 fn resource_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     if matches!(ty, Type::Managed(payload) | Type::Desc(payload)
+        if matches!(payload.as_ref(), Type::OwnedStore { .. })
+        && resources.iter().any(|r| r.payload == **payload && r.teardown.is_none()))
+    {
+        return true;
+    }
+    if matches!(ty, Type::Managed(payload) | Type::Desc(payload)
         if payload.as_ref() == &Type::ByteBuffer
         && resources.iter().any(|r| r.name == zil_ir::BYTE_BUFFER_RESOURCE_NAME
             && r.payload == Type::ByteBuffer && r.teardown.is_none()))
@@ -141,7 +148,7 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     };
     fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
         && fields.iter().all(|(_, ty)| {
-            ty.is_copy_value() || matches!(ty, Type::Managed(_) if resource_type(ty, resources))
+            ty.is_copy_value() || matches!(ty, Type::Managed(payload) if !matches!(payload.as_ref(), Type::OwnedStore { .. }) && resource_type(ty, resources))
                 || matches!(ty, Type::Array { element, length } if *length > 0 && package_type(element, resources) && !package_array_fields(element))
         })
 }

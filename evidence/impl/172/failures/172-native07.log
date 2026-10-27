@@ -1,0 +1,42 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt172/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.01s
+     Running tests/impl172_owned_store.rs (/workspace/scratch/39be3faa4442/targets/172-final/debug/deps/impl172_owned_store-303df5d675b7019b)
+
+running 13 tests
+test empty_context_and_factory_own_a_real_allocation_free_head ... ok
+test empty_pop_propagates_unit_error_without_an_element_obligation ... ok
+test exact_verify_budget_boundary_and_untrusted_constructor_metadata_are_bounded ... ok
+test negative_and_overflow_capacity_requests_preserve_populated_prefix ... ok
+test raw_wire_actual_inline_size_product_is_bounded ... ok
+test raw_wire_forbidden_store_composition_and_head_access_are_independently_rejected ... FAILED
+test raw_wire_reject_forged_heads_bad_elements_and_double_transfer ... ok
+test full_push_returns_the_uninserted_package_to_native_error_cleanup ... ok
+test runtime_count_crosses_four_modules_then_drains_real_prefix ... FAILED
+test reserved_prefix_push_pop_and_drop_transfer_each_package_once ... ok
+test source_guards_reject_missing_context_store_fields_and_capture ... ok
+test source_neighbours_preserve_transfer_and_nested_composition_boundaries ... ok
+test whole_give_roundtrip_preserves_ascending_prefix_cleanup ... ok
+
+failures:
+
+---- raw_wire_forbidden_store_composition_and_head_access_are_independently_rejected stdout ----
+
+thread 'raw_wire_forbidden_store_composition_and_head_access_are_independently_rejected' (116) panicked at crates/zil-driver/tests/impl172_owned_store.rs:263:9:
+package-store-field raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-FOREIGN", message: "foreign declarations have canonical parameter locals, no body/environment, and a C integer/handle/unit result", span: Some(Span { file: FileId(0), start: 12, end: 35 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- runtime_count_crosses_four_modules_then_drains_real_prefix stdout ----
+
+thread 'runtime_count_crosses_four_modules_then_drains_real_prefix' (126) panicked at crates/zil-driver/tests/impl172_owned_store.rs:91:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-FIELD-PRIVATE","message":"record field is private to its declaring module","span":{"file":3,"start":784,"end":793},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/172-native07/owned-store172-79-23/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/172-native07/owned-store172-79-23/phases/ct-core.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/172-native07/owned-store172-79-23/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/172-native07/owned-store172-79-23/phases/syntax.txt"},"input_fingerprint":"7aeb4a9e141801848af8f8252e1868cb1b174b39748b5f5fdc9fa52ee5f239e8","seconds":0.085313219,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"model.zil","2":"storage.zil","3":"work.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+
+failures:
+    raw_wire_forbidden_store_composition_and_head_access_are_independently_rejected
+    runtime_count_crosses_four_modules_then_drains_real_prefix
+
+test result: FAILED. 11 passed; 2 failed; 0 ignored; 0 measured; 1 filtered out; finished in 1.33s
+
+error: test failed, to rerun pass `-p zil-driver --test impl172_owned_store`

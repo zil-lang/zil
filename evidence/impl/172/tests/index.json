@@ -1,0 +1,675 @@
+{
+  "source_reports": [
+    {
+      "directory": "owned-store172-448-0",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "311c6305ad824eb0fb36182359f653ffba35d78bc0f7f9d11ff4d3653713d52a"
+    },
+    {
+      "directory": "owned-store172-448-1",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "94ecb59bb878e94a6bd80f0d883d6481b08606a5905c5cd369fb1828d32f3aa0"
+    },
+    {
+      "directory": "owned-store172-448-2",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "311c6305ad824eb0fb36182359f653ffba35d78bc0f7f9d11ff4d3653713d52a"
+    },
+    {
+      "directory": "owned-store172-448-3",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "94ecb59bb878e94a6bd80f0d883d6481b08606a5905c5cd369fb1828d32f3aa0"
+    },
+    {
+      "directory": "owned-store172-448-32",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "eb3c86364a59417c2c1d7524fca9aa100421cfbae3464b34c5bc91b83d219889"
+    },
+    {
+      "directory": "owned-store172-448-33",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "75ff70e2dfcb6dbb218017027d8a5cf44b303acf49df457c87b9585c15bac610"
+    },
+    {
+      "directory": "owned-store172-448-34",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "eb3c86364a59417c2c1d7524fca9aa100421cfbae3464b34c5bc91b83d219889"
+    },
+    {
+      "directory": "owned-store172-448-35",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "75ff70e2dfcb6dbb218017027d8a5cf44b303acf49df457c87b9585c15bac610"
+    },
+    {
+      "directory": "owned-store172-448-36",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-OWNED-STORE-TYPE",
+          "message": "store_new requires a concrete Store<Package> annotation or owning result context",
+          "span": {
+            "file": 0,
+            "start": 281,
+            "end": 292
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "f28fcb5f1acadea195ba69eb1bb481368f5e57c98cc869dc3f0bf7383546cf69"
+    },
+    {
+      "directory": "owned-store172-448-37",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store fields require a separate owning composition profile",
+          "span": {
+            "file": 0,
+            "start": 272,
+            "end": 297
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "afd0b35b6205bca2cbfe9da4446b88b75a1291b3597b40221e967c5ae2a51e2d"
+    },
+    {
+      "directory": "owned-store172-448-38",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store capture requires a separate retained storage profile",
+          "span": {
+            "file": 0,
+            "start": 318,
+            "end": 319
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "50dfa6c2db055b1b99603bc3d19ae8f7b35d0d8499a153340cb99c14d09cc7cc"
+    },
+    {
+      "directory": "owned-store172-448-39",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store capture requires a separate retained storage profile",
+          "span": {
+            "file": 0,
+            "start": 313,
+            "end": 314
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "e0d330ceac3cbb2e04d3f14b7ee3d7222a1119c2c0fb8479ab4d66e006536613"
+    },
+    {
+      "directory": "owned-store172-448-4",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "70a33d3081447b2f45894eb2f5d49125a7489cadd65f1ff5f781f19f87851684"
+    },
+    {
+      "directory": "owned-store172-448-40",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store elements require nonzero complete direct-Managed Packages",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 86
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "3091908506413fc184ff42ea0c1a81e8ac6e52b5cfdee5a8dcb77ab947015522"
+    },
+    {
+      "directory": "owned-store172-448-41",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store elements require nonzero complete direct-Managed Packages",
+          "span": {
+            "file": 0,
+            "start": 15,
+            "end": 44
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "30f7b5b5659e9573b0b02bc2a3e8ae62bab6f25908ec42849c67a97b2d35e59b"
+    },
+    {
+      "directory": "owned-store172-448-42",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 0 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 327,
+            "end": 328
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "90f4ec50d206d9d188de20ccc52f1b4e281f0c2be9aae98cf463d78452c11e27"
+    },
+    {
+      "directory": "owned-store172-448-43",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-GIVE-DESCRIPTOR",
+          "message": "a descriptor does not own the resource carrier",
+          "span": {
+            "file": 0,
+            "start": 319,
+            "end": 325
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "63476d9170c1d4944386f2d3a50b7aac70ab1773194159c67d35fe07825d80bb"
+    },
+    {
+      "directory": "owned-store172-448-44",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 1 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 352,
+            "end": 353
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "63fe53568015674e89accb90f5f85aee54a578eebbdc0f1947c0f8b3175e0b67"
+    },
+    {
+      "directory": "owned-store172-448-45",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Package { name: \"@module0:$module0_P\", fields: [(\"r\", Managed(Record { name: \"@module0:$module0_R\", fields: [(\"code\", I32)] })), (\"n\", I32)] }, found Package { name: \"@module0:$module0_Q\", fields: [(\"r\", Managed(Record { name: \"@module0:$module0_R\", fields: [(\"code\", I32)] })), (\"n\", I32)] }",
+          "span": {
+            "file": 0,
+            "start": 331,
+            "end": 349
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "b738d2f95ccd3514082dd47d66d63fe31a042e749251d18896af9158c9393af2"
+    },
+    {
+      "directory": "owned-store172-448-46",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "address targets must be finite Copy values; nested addresses are not implemented",
+          "span": {
+            "file": 0,
+            "start": 299,
+            "end": 300
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "b6652e35eb194e6711ec9279722f511beafd087c3637afabdd117bd2015aef2b"
+    },
+    {
+      "directory": "owned-store172-448-47",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "address targets must be finite Copy values; nested addresses are not implemented",
+          "span": {
+            "file": 0,
+            "start": 303,
+            "end": 304
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "d5a91e934613a8c60f099817a7046d91bf9e1f06ef18ca7185afbbbc6de6904a"
+    },
+    {
+      "directory": "owned-store172-448-48",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-FIELD-TYPE",
+          "message": "field access requires a record or tuple",
+          "span": {
+            "file": 0,
+            "start": 300,
+            "end": 305
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "2a4e856d483d4dd71e3745dcd608ca9527abec92c888a86567f79f9598cda7e4"
+    },
+    {
+      "directory": "owned-store172-448-49",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store elements require nonzero complete direct-Managed Packages",
+          "span": {
+            "file": 0,
+            "start": 314,
+            "end": 345
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "7335972f317fe7e654129cf2f14e632d2a8c975fbcbc1585025bd6019a2c0eca"
+    },
+    {
+      "directory": "owned-store172-448-50",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store fields require a separate owning composition profile",
+          "span": {
+            "file": 0,
+            "start": 272,
+            "end": 290
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "26a2e9623906daa45f433e6a1f2777afedbfea507d0214bd563b49707144da08"
+    },
+    {
+      "directory": "owned-store172-448-51",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages",
+          "span": {
+            "file": 0,
+            "start": 260,
+            "end": 294
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "6f991ab5f7f5ff95680e68f09c8cdc86a6345233bfd75ddd27e4fe4001fdbc9b"
+    },
+    {
+      "directory": "owned-store172-448-52",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store capture requires a separate retained storage profile",
+          "span": {
+            "file": 0,
+            "start": 327,
+            "end": 328
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "c226b53d30d7731d19e2d0379f0152a95a173ebc0f3785e5c97031f66c9d8910"
+    },
+    {
+      "directory": "owned-store172-448-53",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-OWNED-STORE-NAME",
+          "message": "Store and bare Store primitives cannot be rebound",
+          "span": {
+            "file": 0,
+            "start": 275,
+            "end": 292
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "c6e87f7ea0e4311315cefbe090f4514afaacbaf3c398af4439af8be7822dd704"
+    },
+    {
+      "directory": "owned-store172-448-54",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store elements require nonzero complete direct-Managed Packages",
+          "span": {
+            "file": 0,
+            "start": 275,
+            "end": 309
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "input_fingerprint": "e31821b4157252339dc8d94cb63ae29a02149058c22add199024c46a4fcceccb"
+    },
+    {
+      "directory": "owned-store172-448-55",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "d01026056a494f6f7bf6607129a6f06968cac1ef439fd55c635ecd1d995da55f"
+    },
+    {
+      "directory": "owned-store172-448-56",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "75ff70e2dfcb6dbb218017027d8a5cf44b303acf49df457c87b9585c15bac610"
+    },
+    {
+      "directory": "owned-store172-448-57",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "75ff70e2dfcb6dbb218017027d8a5cf44b303acf49df457c87b9585c15bac610"
+    },
+    {
+      "directory": "owned-store172-448-58",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "d01026056a494f6f7bf6607129a6f06968cac1ef439fd55c635ecd1d995da55f"
+    },
+    {
+      "directory": "owned-store172-448-59",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "75ff70e2dfcb6dbb218017027d8a5cf44b303acf49df457c87b9585c15bac610"
+    },
+    {
+      "directory": "owned-store172-448-6",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "f056073764ed395d21fa33f9d890df528b875bc1d6c82c1964bc50d6f9e2cbf3"
+    },
+    {
+      "directory": "owned-store172-448-60",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "75ff70e2dfcb6dbb218017027d8a5cf44b303acf49df457c87b9585c15bac610"
+    },
+    {
+      "directory": "owned-store172-448-61",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "75ff70e2dfcb6dbb218017027d8a5cf44b303acf49df457c87b9585c15bac610"
+    },
+    {
+      "directory": "owned-store172-448-62",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "75ff70e2dfcb6dbb218017027d8a5cf44b303acf49df457c87b9585c15bac610"
+    },
+    {
+      "directory": "owned-store172-448-7",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "70a33d3081447b2f45894eb2f5d49125a7489cadd65f1ff5f781f19f87851684"
+    },
+    {
+      "directory": "owned-store172-448-8",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "input_fingerprint": "f056073764ed395d21fa33f9d890df528b875bc1d6c82c1964bc50d6f9e2cbf3"
+    }
+  ],
+  "raw_wire_rejections": [
+    {
+      "label": "package-store-field",
+      "directory": "owned-store172-448-11",
+      "candidate_sha256": "7178ab2dc0e1bd72b6087a75f448d74c26785d8c5d079920b9691b482e039c2b"
+    },
+    {
+      "label": "array-leaf-store-field",
+      "directory": "owned-store172-448-12",
+      "candidate_sha256": "41e21f666b1c22403b3f31a7279ab9cb79659a8959ccac1fbd6eca4ac9143f25"
+    },
+    {
+      "label": "state-array-leaf-store-field",
+      "directory": "owned-store172-448-13",
+      "candidate_sha256": "cea97e4337b4f3bce2fe5bafc618446209e9d7bd19734f9065b2bb017a2196fe"
+    },
+    {
+      "label": "error-payload-store-field",
+      "directory": "owned-store172-448-14",
+      "candidate_sha256": "de011cda2182ce9adab63781fb59dca7925fdf9c8e5de78efaaa5285c2cb5ef9"
+    },
+    {
+      "label": "closure-store-capture",
+      "directory": "owned-store172-448-15",
+      "candidate_sha256": "2bb93f22f7181041f55bbc7424fd658070f1ed36e133d73cd3aef24180118e46"
+    },
+    {
+      "label": "closure-package-store-capture",
+      "directory": "owned-store172-448-16",
+      "candidate_sha256": "b9d0a40ad08926eefa061eefc822017c38882f43d4192422f08adb9b2f6d8767"
+    },
+    {
+      "label": "copy-store-head",
+      "directory": "owned-store172-448-17",
+      "candidate_sha256": "867afdf92f3d3d7bb17c510d183ed00e0a99001d1c5754740007a70a67ef0a96"
+    },
+    {
+      "label": "read-store-head-field",
+      "directory": "owned-store172-448-18",
+      "candidate_sha256": "61558a7fabf5dfdcc566a53e003f80eb391338c586fb13c9b6a9acfe40b2450b"
+    },
+    {
+      "label": "invalid-store-value-id",
+      "directory": "owned-store172-448-19",
+      "candidate_sha256": "5f15e5a8a603be91465d4c68e4b2992406df7352c86ecd8ec13272e1fc2c3e8e"
+    },
+    {
+      "label": "wrong-new-element",
+      "directory": "owned-store172-448-20",
+      "candidate_sha256": "be50147453f8edbbda4d3ba3c1cc9d30e0e591d800ff20a9843abd3a1c6dacdf"
+    },
+    {
+      "label": "forge-managed-head",
+      "directory": "owned-store172-448-21",
+      "candidate_sha256": "39a8d9f1b323463cb63636af9613434a071ab85ecec1648dd460c8f924e6922f"
+    },
+    {
+      "label": "wrong-canonical-name",
+      "directory": "owned-store172-448-22",
+      "candidate_sha256": "40be21591048e0641eba1f5efd90df4f16fbead909a2f7a948b8f4fad129befb"
+    },
+    {
+      "label": "forged-user-teardown",
+      "directory": "owned-store172-448-23",
+      "candidate_sha256": "4818eef9455b5a345ccd753a7966f4f289ad1302b6154926650f47346d7e3f96"
+    },
+    {
+      "label": "missing-definition",
+      "directory": "owned-store172-448-24",
+      "candidate_sha256": "d087a343aa8b529bb198c5f29de69527dd3ec742e121795c1fe58ebc85aa7045"
+    },
+    {
+      "label": "capacity-is-a-description",
+      "directory": "owned-store172-448-25",
+      "candidate_sha256": "537fe60522b9600315535801421a545c7c99bd5403491397eb5386742301f1ec"
+    },
+    {
+      "label": "description-is-not-an-element",
+      "directory": "owned-store172-448-26",
+      "candidate_sha256": "747c7be9c303894cda24221e9e0c330f18b32dbbedf61c6f23ebe57cee3f6506"
+    },
+    {
+      "label": "push-same-ssa-twice",
+      "directory": "owned-store172-448-27",
+      "candidate_sha256": "5bb0aabefa70ecd808011fb2b35771d12a48453ca9c433a270b98dbda7edab11"
+    },
+    {
+      "label": "missing-prefix-cleanup",
+      "directory": "owned-store172-448-28",
+      "candidate_sha256": "0417f95dff1e685328d5d33a6de9d0f91a325ac7a65334fb92cceb35a1da3637"
+    },
+    {
+      "label": "forged-new-result-type",
+      "directory": "owned-store172-448-29",
+      "candidate_sha256": "782ed5ddf8f52b3c5eb998fe30b2a4328b705036d6b31487970f9f4a44427eb9"
+    },
+    {
+      "label": "store-is-not-byte-storage",
+      "directory": "owned-store172-448-30",
+      "candidate_sha256": "ef2b942c3d50898a76733db968fd634a4fd91812bcf61664e3bccaa0ac064745"
+    },
+    {
+      "label": "missing-pop-result-cleanup",
+      "directory": "owned-store172-448-31",
+      "candidate_sha256": "866893bab734c91182e92b507e8eef222baa2fcf3b547661a920ae4c453471b8"
+    },
+    {
+      "label": "inline-size-product-overflow",
+      "directory": "owned-store172-448-9",
+      "candidate_sha256": "71c338985cd150d92beb0a24a3815912f424f300ffa5afcefd491658dd77b240"
+    }
+  ]
+}

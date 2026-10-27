@@ -1,0 +1,19 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "-p",
+    "zil-cli",
+    "--offline",
+    "-j2"
+  ],
+  "controlled_environment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/172-proof"
+  },
+  "implementation_commit": "69882483d6b29bee8d831386325da739ac915fd4",
+  "start": 1793111074.8473794,
+  "end": 1793111075.392351,
+  "exit_code": 0,
+  "output_sha256": "8fcdd1fb6b45cde46ee23ffa3c6a06bab8b3d217809be933747af13c43df4402"
+}
