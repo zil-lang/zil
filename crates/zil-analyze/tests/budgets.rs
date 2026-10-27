@@ -158,7 +158,9 @@ fn exact_work_budget_covers_instruction_visits_and_fingerprinting() {
     // Target text is visited by preflight and both independent fingerprints.
     // Finite aggregate admission also reserves 2 visits for each of 101 type roots.
     // Explicit-scope admission scans each instruction once even for legacy raw IR.
-    let required = 1130 + 3 * target_text_bytes(&raw);
+    // Owning-array presence checks visit all 100 SSA types, including Copy-only
+    // modules whose callback arrays may still need affine element checking.
+    let required = 1230 + 3 * target_text_bytes(&raw);
     let exact = Limits {
         max_functions: 1,
         max_blocks: 1,
@@ -186,7 +188,8 @@ fn exact_work_budget_includes_set_scans_across_functions() {
     // Each one-parameter function costs 47 units: the 26-unit fN baseline,
     // 6 additional input/hash units and 15 set construction/scan/export units.
     // Each of the two functions has a result and a parameter type shape.
-    let required = 104 + 3 * target_text_bytes(&raw);
+    // Owning-array presence checks add one visit per local, hence two here.
+    let required = 106 + 3 * target_text_bytes(&raw);
     let exact = Limits {
         max_analysis_steps: required,
         ..Limits::default()
