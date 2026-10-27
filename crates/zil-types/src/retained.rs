@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 
 /// Schedule concrete results without speculative type checking: a failed
 /// Builder is allowed to have reserved environment identities. The borrowed
-/// walk resolves only direct calls and respects every local shadowing scope.
+/// walk resolves direct calls and respects every local shadowing scope.
 pub(super) fn dependencies(
     function: &CoreFunction,
     signatures: &BTreeMap<String, Signature>,
@@ -14,16 +14,92 @@ pub(super) fn dependencies(
     work: &mut usize,
     limits: &Limits,
 ) -> R<BTreeSet<FunctionId>> {
+    Ok(direct_dependencies(function, signatures, imports, work, limits)?.factories)
+}
+
+#[derive(Default)]
+struct DirectDependencies {
+    factories: BTreeSet<FunctionId>,
+    helpers: BTreeSet<helpers::TemplateKey>,
+}
+
+fn direct_dependencies(
+    function: &CoreFunction,
+    signatures: &BTreeMap<String, Signature>,
+    imports: Option<&program::Imports<'_>>,
+    work: &mut usize,
+    limits: &Limits,
+) -> R<DirectDependencies> {
+    spend(work, function.parameters.len(), function.span)?;
+    for parameter in &function.parameters {
+        spend(work, parameter.name.len(), parameter.span)?;
+    }
     let mut walk = Dependencies {
         signatures,
         imports,
         scopes: vec![function.parameters.iter().map(|p| p.name.clone()).collect()],
-        found: BTreeSet::new(),
+        found: DirectDependencies::default(),
         work,
         limits,
     };
     walk.block(&function.body, 0)?;
     Ok(walk.found)
+}
+
+/// An instantiated helper body is checked while its caller factory is being
+/// grounded. Its factory calls therefore precede that caller too. Walk source
+/// definitions in their own lexical/module context without creating instances.
+pub(super) fn factory_dependencies(
+    function: &CoreFunction,
+    signatures: &BTreeMap<String, Signature>,
+    imports: Option<&program::Imports<'_>>,
+    state: &closures::State,
+    work: &mut usize,
+    limits: &Limits,
+) -> R<BTreeSet<FunctionId>> {
+    let DirectDependencies {
+        mut factories,
+        helpers,
+    } = direct_dependencies(function, signatures, imports, work, limits)?;
+    spend(work, helpers.len(), function.span)?;
+    let mut pending = helpers.into_iter().collect::<Vec<_>>();
+    let mut visited = BTreeSet::new();
+    while let Some(key) = pending.pop() {
+        spend(work, 1, function.span)?;
+        if !visited.insert(key) {
+            continue;
+        }
+        let template = state
+            .helper_templates
+            .get(&key)
+            .ok_or_else(|| unsupported(function.span, "callable template dependency is absent"))?;
+        let span = template.function.span;
+        spend(work, template.context.imports.len(), span)?;
+        for alias in template.context.imports.keys() {
+            spend(work, alias.len(), span)?;
+        }
+        let imports = program::Imports {
+            aliases: template.context.imports.clone(),
+            signatures: &state.helper_tables,
+        };
+        let signatures = state
+            .helper_tables
+            .get(&template.context.module)
+            .ok_or_else(|| unsupported(span, "callable template dependency lookup is absent"))?;
+        let reached =
+            direct_dependencies(&template.function, signatures, Some(&imports), work, limits)?;
+        spend(
+            work,
+            reached
+                .factories
+                .len()
+                .saturating_add(reached.helpers.len()),
+            span,
+        )?;
+        factories.extend(reached.factories);
+        pending.extend(reached.helpers);
+    }
+    Ok(factories)
 }
 
 pub(super) fn order(
@@ -123,7 +199,7 @@ struct Dependencies<'a, 'b> {
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     scopes: Vec<BTreeSet<String>>,
-    found: BTreeSet<FunctionId>,
+    found: DirectDependencies,
     work: &'b mut usize,
     limits: &'a Limits,
 }
@@ -275,8 +351,13 @@ impl Dependencies<'_, '_> {
                     }
                     _ => None,
                 };
-                if let Some(signature) = signature.filter(|s| s.callable_return.is_some()) {
-                    self.found.insert(signature.id);
+                if let Some(signature) = signature {
+                    if signature.callable_return.is_some() {
+                        self.found.factories.insert(signature.id);
+                    }
+                    if let Some(key) = signature.template {
+                        self.found.helpers.insert(key);
+                    }
                 }
                 self.expr(callee, depth + 1)?;
                 for argument in arguments {
