@@ -12,7 +12,7 @@ pub package State<F> {
 
 pub fn create<F: FnMut() -> i32>(callback: F, count: i32) -> State<F> {
     let ticket = model.Ticket { code: 90 }
-    let children: Store<model.Item> = store_new()
+    let children: Store<model.Item> = collection.empty()
     let ready = collection.fill(children, count, 68)
     let total = collection.sum(children)
     return State::<F> { ticket: give ticket, children: give children, callback: callback, hits: 0, sum: total, ready: ready }
@@ -27,7 +27,7 @@ pub fn tick<G: FnMut() -> i32>(state: State<G>) -> State<G> {
 
 pub fn replace_children<F: FnMut() -> i32>(state: State<F>, count: i32) -> State<F> {
     var next = state
-    let replacement: Store<model.Item> = store_new()
+    let replacement: Store<model.Item> = collection.empty()
     if !collection.fill(replacement, count, 77) {
         next.ready = false
         next.sum = collection.sum(next.children)
@@ -41,14 +41,8 @@ pub fn replace_children<F: FnMut() -> i32>(state: State<F>, count: i32) -> State
 
 pub fn grow<F: FnMut() -> i32>(state: State<F>, capacity: i64) -> State<F> {
     var next = state
-    let old_len = store_len(next.children)
-    let old_capacity = store_capacity(next.children)
-    let old_sum = collection.sum(next.children)
-    let grown = store_reserve(next.children, capacity)
-    next.ready = store_len(next.children) == old_len
-    if !grown && store_capacity(next.children) != old_capacity { next.ready = false }
+    next.ready = collection.grow(next.children, capacity)
     next.sum = collection.sum(next.children)
-    if next.sum != old_sum { next.ready = false }
     return next
 }
 

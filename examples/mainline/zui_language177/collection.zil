@@ -21,3 +21,16 @@ pub fn sum(items: Store<model.Item>) -> i32 {
     }
     return total
 }
+
+// Concrete helpers keep the current parametric checker contract explicit.
+pub fn empty() -> Store<model.Item> contract { result(create) } { return store_new() }
+
+pub fn grow(items: Store<model.Item>, capacity: i64) -> bool {
+    let old_len = store_len(items)
+    let old_capacity = store_capacity(items)
+    let old_sum = sum(items)
+    let grown = store_reserve(items, capacity)
+    if store_len(items) != old_len { return false }
+    if !grown && store_capacity(items) != old_capacity { return false }
+    return sum(items) == old_sum
+}

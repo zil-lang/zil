@@ -97,6 +97,9 @@ def main():
               "compiler_source_commit": args.compiler_commit or commit,
               "cli_sha256": digest(cli), "selected": selected,
               "sources": {p.name: digest(p) for p in sorted(sources.glob("*.zil"))},
+              "allocator_sources": {str(p.relative_to(repo)): digest(p) for p in
+                                    [repo / "tools/language/173/allocator_probe.c",
+                                     repo / "tools/research/142/allocator_probe.c"]},
               "builds": [], "observations": [], "full_language": "NotSatisfied", "product": "NotRun"}
     save(out / "summary.json", report)
 
@@ -130,7 +133,9 @@ def main():
                     raise RuntimeError(f"{name}/{opt}: {compiled}")
                 report["builds"].append({"entry": name, "optimization": opt, "verification_runs": 1,
                                          "llvm_sha256": digest(phases / "llvm.ll"),
-                                         "executable_sha256": digest(executable)})
+                                         "executable_sha256": digest(executable),
+                                         "source_files": compiled["source_files"],
+                                         "module_count": len(compiled["source_files"])})
                 save(out / "summary.json", report)
                 linked = command(["clang", "-" + opt, phases / "llvm.ll",
                                   repo / "tools/language/173/allocator_probe.c", "-Wl,--wrap=realloc",
