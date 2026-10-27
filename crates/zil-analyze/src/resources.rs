@@ -1513,7 +1513,14 @@ fn analyze_function(
     if shapes.is_empty() {
         return Ok(Effect::default());
     }
-    let after = afters(f, reachable, &shapes, budget)?;
+    // Summary inference never consumes description liveness: all uses of
+    // Flow::after are inside `check` branches. Build it only for the final
+    // ordered ownership validation, not once per effect-frontier revisit.
+    let after = if check {
+        afters(f, reachable, &shapes, budget)?
+    } else {
+        Vec::new()
+    };
     let mut initial = State::default();
     for (place, s) in &shapes {
         budget.lookup(initial.cells.len(), "initial resource state")?;
@@ -1596,6 +1603,13 @@ fn analyze_function(
                 queued[successor] = true;
             }
         }
+    }
+    // Every changed incoming state is queued and processed before the worklist
+    // becomes empty. At fixed effects, rerunning the exact transfer on those
+    // same final states can add no new summary fact. The validation pass is
+    // still mandatory and unchanged when `check` is true.
+    if !check {
+        return Ok(effect);
     }
     for (b, incoming) in input.into_iter().enumerate() {
         if let Some(mut state) = incoming {
@@ -1800,3 +1814,112 @@ pub(super) fn check_module(
 
 #[cfg(test)]
 mod frontier_tests;
+
+// Frozen pre-144 algorithm, used only as an executable transformation oracle.
+#[cfg(test)]
+fn analyze_function_eager_reference(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    effects: &[Effect],
+    check: bool,
+    budget: &mut Budget,
+) -> CompileResult<Effect> {
+    if f.foreign.is_some() {
+        return Ok(Effect::default());
+    }
+    let shapes = shapes(module, f, budget)?;
+    if shapes.is_empty() {
+        return Ok(Effect::default());
+    }
+    let after = afters(f, reachable, &shapes, budget)?;
+    let mut initial = State::default();
+    for (place, s) in &shapes {
+        budget.lookup(initial.cells.len(), "initial resource state")?;
+        let mut fact = Fact::default();
+        if s.owned {
+            fact.life.insert(
+                if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
+                    Life::Available
+                } else {
+                    Life::Vacant
+                },
+            );
+        }
+        if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
+            fact.birth.insert(Birth::Incoming);
+        }
+        initial.cells.insert(*place, fact);
+    }
+    for (index, local) in f.parameters.iter().enumerate() {
+        if let Some(s) = shapes.get(&Place::Local(*local)) {
+            let mut fact = Fact::default();
+            if s.owned {
+                fact.life.insert(Life::Available);
+                fact.birth.insert(Birth::Incoming);
+                for (place, old) in &initial.cells {
+                    budget.spend(1, "incoming resource order")?;
+                    if let Place::Local(older) = place
+                        && old.life.contains(&Life::Available)
+                    {
+                        initial.later.insert((*older, *local));
+                    }
+                }
+            }
+            if s.description {
+                fact.sources.insert(Source::Argument(index as u32));
+            }
+            replace(&mut initial, Place::Local(*local), fact, budget)?;
+            package_transition(f, &mut initial, *local, Life::Available, false, budget)?;
+        }
+    }
+    budget.product(f.blocks.len(), 2, 1, "resource diagnostic CFG")?;
+    let mut input: Vec<Option<State>> = vec![None; f.blocks.len()];
+    input[f.entry.0 as usize] = Some(initial);
+    let mut stack = vec![f.entry.0 as usize];
+    let mut queued = vec![false; f.blocks.len()];
+    queued[f.entry.0 as usize] = true;
+    let mut views = BTreeMap::new();
+    if f.environment.is_some() {
+        for instruction in f.blocks[f.entry.0 as usize].instructions.iter().skip(1) {
+            let InstructionKind::BindPackageCapture { local, index } = instruction.kind else {
+                break;
+            };
+            budget.lookup(views.len(), "Package resource view mapping")?;
+            views.insert(local, index);
+        }
+    }
+    let flow = Flow {
+        module,
+        function: f,
+        shapes: &shapes,
+        after: &after,
+        effects,
+        views: &views,
+    };
+    let mut effect = Effect::default();
+    while let Some(b) = stack.pop() {
+        queued[b] = false;
+        let mut state = clone_state(input[b].as_ref().unwrap(), budget)?;
+        flow.run(b, &mut state, &mut effect, false, budget)?;
+        for successor in next(&f.blocks[b]) {
+            budget.spend(1, "resource diagnostic edge")?;
+            let changed = if let Some(previous) = &mut input[successor] {
+                join(previous, &state, budget)?
+            } else {
+                input[successor] = Some(clone_state(&state, budget)?);
+                true
+            };
+            if changed && !queued[successor] {
+                stack.push(successor);
+                queued[successor] = true;
+            }
+        }
+    }
+    for (b, incoming) in input.into_iter().enumerate() {
+        if let Some(mut state) = incoming {
+            flow.run(b, &mut state, &mut effect, check, budget)?;
+        }
+    }
+    Ok(effect)
+}

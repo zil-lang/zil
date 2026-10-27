@@ -125,6 +125,26 @@ fn compare(module: &TypedModule) -> (usize, usize) {
         "complete input/capture effect rows differ"
     );
     for (function, (_, reachable)) in module.functions.iter().zip(&graphs) {
+        let lazy = analyze_function(
+            module,
+            function,
+            reachable,
+            &actual,
+            false,
+            &mut Budget::new(&limits),
+        );
+        let eager = analyze_function_eager_reference(
+            module,
+            function,
+            reachable,
+            &actual,
+            false,
+            &mut Budget::new(&limits),
+        );
+        assert_eq!(
+            lazy, eager,
+            "144 omitted-liveness/replay transformation changed an effect or diagnostic"
+        );
         let left = analyze_function(
             module,
             function,
