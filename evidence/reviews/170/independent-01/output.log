@@ -1,0 +1,31 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review170/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.02s
+     Running tests/review173_package_fields.rs (/workspace/scratch/39be3faa4442/targets/review170/debug/deps/review173_package_fields-185a81a40615462d)
+
+running 4 tests
+test private_owned_array_field_is_not_exposed_by_take ... FAILED
+test a_live_child_buffer_window_blocks_return_to_the_parent_field ... FAILED
+test zero_sized_owned_leaves_keep_separate_cleanup_responsibilities ... ok
+test repeated_whole_field_transfer_does_not_recreate_element_debt ... ok
+
+failures:
+
+---- private_owned_array_field_is_not_exposed_by_take stdout ----
+
+thread 'private_owned_array_field_is_not_exposed_by_take' (90) panicked at crates/zil-driver/tests/review173_package_fields.rs:146:5:
+{"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-FIELD-PRIVATE","message":"record field is private to its declaring module","span":{"file":0,"start":48,"end":55},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-1/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-1/phases/ct-core.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-1/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-1/phases/syntax.txt"},"input_fingerprint":"74a761d01ec97b31cf07f3f37bfea6721fa239be2e88c7661bc2da2ffcd5cf77","seconds":0.017438812,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"model.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_live_child_buffer_window_blocks_return_to_the_parent_field stdout ----
+
+thread 'a_live_child_buffer_window_blocks_return_to_the_parent_field' (89) panicked at crates/zil-driver/tests/review173_package_fields.rs:172:5:
+{"status":"SafeReject","phase":"verify","diagnostics":[{"phase":"verify","category":"SafeReject","code":"E-BORROW-CONFLICT","message":"write or storage change overlaps a shared address still required by a later use","span":{"file":0,"start":341,"end":342},"notes":[]}],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-0/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-0/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-0/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-0/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-0/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-0/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/review170/native/review173-fields-88-0/phases/typed.txt"},"input_fingerprint":"8fc883e5f464229a203e67db015c2fe9250802f12ea5db9a92e9a1651bea02d0","seconds":0.028829878,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"dcb9ee28b02cce42b4b7f934a2b0e26f57be9b15d3260b994cfd10472a0ff9b3","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+
+
+failures:
+    a_live_child_buffer_window_blocks_return_to_the_parent_field
+    private_owned_array_field_is_not_exposed_by_take
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+error: test failed, to rerun pass `-p zil-driver --test review173_package_fields`
