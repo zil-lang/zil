@@ -1668,7 +1668,8 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
             Ok("{ ptr, i64 }".into())
         }
         Type::Address { inner, .. }
-            if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_))
+            if inner.is_copy_value()
+                || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address() =>
         {
             Ok("ptr".into())
@@ -1721,7 +1722,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::I64 => Ok(8),
         Type::FunctionPointer { .. } => Ok(8),
         Type::Address { inner, .. }
-            if inner.is_address_pointee() || matches!(inner.as_ref(), Type::Closure(_))
+            if inner.is_address_pointee()
+                || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address() =>
         {
             Ok(8)

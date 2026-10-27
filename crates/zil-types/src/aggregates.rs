@@ -585,7 +585,10 @@ impl Resolver<'_> {
                     Type::Managed(payload) | Type::Desc(payload)
                         if !*mutable
                             && matches!(payload.as_ref(), Type::Record { .. })
-                            && payload.is_copy_value() => Type::Managed(payload),
+                            && payload.is_copy_value() =>
+                    {
+                        Type::Managed(payload)
+                    }
                     Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
                         return Err(unsupported(
                             span,

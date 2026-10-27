@@ -1025,7 +1025,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.bind(variable, payload, span)?;
             Ok(Term::Resource(variable, matches!(ty, Type::Managed(_))))
         } else if let Type::Address { mutable, inner } = ty {
-            if !inner.is_address_pointee() {
+            if !inner.is_address_pointee() && !ty.is_shared_resource_head_address() {
                 return Err(unsupported(span, "nested reference signature"));
             }
             self.bind(variable, inner, span)?;
@@ -1150,7 +1150,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 Type::Address {
                     mutable: wanted,
                     inner,
-                } if inner.is_address_pointee() && (*mutable || !wanted) => {
+                } if (inner.is_address_pointee() || ty.is_shared_resource_head_address())
+                    && (*mutable || !wanted) =>
+                {
                     self.bind(*variable, inner, span)
                 }
                 Type::Address { .. } => Err(unsupported(
@@ -1854,6 +1856,26 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     if let Term::Closure(id) = value {
                         return Ok(Term::ClosureAddress(id, *op == UnaryOp::BorrowMut));
                     }
+                    if *op == UnaryOp::Borrow
+                        && let CoreExprKind::Name(name) = &operand.kind
+                        && let Some(Binding {
+                            term: Term::Resource(variable, true),
+                            ..
+                        }) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
+                    {
+                        let variable = *variable;
+                        self.graph.solve()?;
+                        let payload = self.resolved(variable, span)?;
+                        if !matches!(payload, Type::Record { .. }) || !payload.is_copy_value() {
+                            return Err(unsupported(
+                                span,
+                                "head borrow requires a finite user-resource payload",
+                            ));
+                        }
+                        let head = self.fresh(VALUE, false, span)?;
+                        self.bind(head, &Type::Managed(Box::new(payload)), span)?;
+                        return Ok(Term::Address(head, false));
+                    }
                     if matches!(value, Term::Address(..) | Term::ClosureAddress(..)) {
                         return Err(unsupported(
                             span,
@@ -2160,9 +2182,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     }
                     if !write {
                         self.graph.solve()?;
+                        let method_type = self.graph.ty(base)?.map(|ty| match ty {
+                            Type::Managed(payload) => *payload,
+                            other => other,
+                        });
                         if let Some(
                             ty @ (Type::Record { .. } | Type::Package { .. } | Type::ByteBuffer),
-                        ) = self.graph.ty(base)?
+                        ) = method_type
                         {
                             validate_type(&ty, 0, span, self.budget)?;
                             if let Some(signature) = aggregates::resolve_type_method(
@@ -2173,7 +2199,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             ) {
                                 let signature = context_signature(signature, self.budget, span)?;
                                 let receiver = &signature.parameters[0];
-                                let value = if let (
+                                let value = if receiver.is_shared_resource_head_address()
+                                    && matches!(&object.kind, CoreExprKind::Name(name)
+                                        if self.scopes.iter().rev().find_map(|scope|scope.get(name))
+                                            .is_some_and(|binding| matches!(binding.term, Term::Resource(_, true))))
+                                {
+                                    self.known_term(receiver, object.span)?
+                                } else if let (
                                     Type::Address { mutable, .. },
                                     Term::Scalar(variable),
                                 ) = (receiver, &object_type)
