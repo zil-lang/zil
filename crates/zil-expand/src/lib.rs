@@ -51,6 +51,7 @@ fn owned_store_name(name: &str) -> bool {
             | "store_pop"
             | "store_len"
             | "store_capacity"
+            | "store_at"
     )
 }
 fn primitive_name(name: &str) -> bool {
