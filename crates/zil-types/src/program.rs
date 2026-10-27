@@ -414,6 +414,10 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
         Type::I64 => bytes.push(3),
         Type::U16 => bytes.push(16),
         Type::ByteBuffer => bytes.push(21),
+        Type::OwnedStore { element } => {
+            bytes.push(22);
+            type_identity(bytes, element, closures);
+        }
         Type::ForeignHandle => bytes.push(17),
         Type::CWideString => bytes.push(18),
         Type::ForeignCallback { parameters, result } => {

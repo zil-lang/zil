@@ -291,6 +291,13 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::OwnedStoreReserve { store, capacity } => {
+            (Some(*store), Some(*capacity), &[])
+        }
+        InstructionKind::OwnedStorePush { store, value } => (Some(*store), Some(*value), &[]),
+        InstructionKind::OwnedStorePop { store }
+        | InstructionKind::OwnedStoreLen { store }
+        | InstructionKind::OwnedStoreCapacity { store } => (Some(*store), None, &[]),
         InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
         | InstructionKind::StorePackageField { value, .. }
@@ -354,6 +361,7 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
         | InstructionKind::VariantTag { value }
         | InstructionKind::ReadVariant { value, .. } => (Some(*value), None, &[]),
         InstructionKind::ByteBufferNew
+        | InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::Constant(_)
         | InstructionKind::Load(_)
         | InstructionKind::TakeLocal { .. }
