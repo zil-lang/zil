@@ -86,3 +86,35 @@ cleanup/replacement debt, and attempts to use Copy operations on owning arrays.
 Evidence is recorded under `run-logs/167`; Git retains only this proposal, source,
 tests, and compact receipts. Full-language, dynamic-container, performance, and
 product acceptance are not implied by this slice.
+
+## Second increment: same-factory concrete callback arrays
+
+After the Package slice is independently reviewable, 167 integrates the 168
+concrete retained-environment implementation. Nonempty arrays may then contain
+the same factory's exact self-contained Closure environment. Opaque source
+identity remains the factory identity even when two factories forward one hidden
+machine environment; arrays do not unify those separate source types. Separate
+closure expressions also remain distinct. The existing array and borrowing syntax
+is sufficient: construction `[make(1), make(2)]`, whole or indexed movement,
+indexed replacement, and `&mut handlers[0]` followed by a borrowed FnMut call.
+
+169 supplies `BorrowOwnedArrayElement { local, index, mutable }` (opcode 79).
+It creates an address of the actual inline environment in a live element slot;
+it does not copy an environment into a temporary. The first loan profile uses a
+conservative whole-array root. A live shared or exclusive environment address
+prevents overlapping element replacement, element movement, whole-array movement,
+or cleanup. FnMut entry must preserve its existing complete-environment contract.
+Self-contained closure elements cannot hide an external address or Desc capture.
+
+Each element carries a local live flag. Cleanup clears that flag before invoking
+the concrete environment's existing recursive cleanup function. Child environments
+retain their internal capture flags, so take/refill does not duplicate their
+responsibility. Complete array SSA/ABI values remain inline payloads; no heap
+allocation is introduced by the container itself. The independent closure layout
+check must charge `length * expanded_environment_work`, including repeated child
+environments, before machine layout or repeated cleanup can expand a small DAG.
+
+The original handler-array gap is closed only if the same-factory source probe
+and the retained resource/callback variants execute correctly at O0/O2. Dynamic
+owning containers, nonliteral indices, nested owning arrays and array captures
+remain outside this increment.
