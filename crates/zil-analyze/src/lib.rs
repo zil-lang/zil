@@ -9,6 +9,7 @@
 //! materialized are charged before the corresponding work or allocation. These
 //! are deterministic logical units, not elapsed time or an allocator byte count.
 mod budget;
+mod dynamic_store;
 mod helpers;
 mod holds;
 #[cfg(test)]

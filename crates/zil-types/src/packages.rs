@@ -7,7 +7,7 @@ fn leaf_package(ty: &Type) -> bool {
     matches!(ty, Type::Package { fields, .. }
         if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
         && fields.iter().all(|(_, t)| t.is_copy_value()
-            || matches!(t, Type::Managed(_) if resources::supported(t))))
+            || matches!(t, Type::Managed(_) if resources::supported(t) && !dynamic_store::is_carrier(t))))
 }
 
 pub(super) fn array_field_supported(ty: &Type) -> bool {
@@ -24,7 +24,7 @@ pub(super) fn supported(ty: &Type) -> bool {
         if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
         && fields.iter().all(|(_, t)| t.is_copy_value()
             || array_field_supported(t)
-            || matches!(t, Type::Managed(_) if resources::supported(t))))
+            || matches!(t, Type::Managed(_) if resources::supported(t) && !dynamic_store::is_carrier(t))))
 }
 
 /// A separate predicate prevents existing nominal Package operations from

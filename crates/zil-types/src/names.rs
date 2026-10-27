@@ -46,6 +46,13 @@ fn primitive_name(name: &str) -> bool {
             | "c_wstr_null"
             | "c_wstr"
             | "c_callback"
+            | "Store"
+            | "store_new"
+            | "store_reserve"
+            | "store_push"
+            | "store_pop"
+            | "store_len"
+            | "store_capacity"
             | "ByteBuffer"
             | "bytes_new"
             | "bytes_reserve"
@@ -58,6 +65,13 @@ fn primitive_name(name: &str) -> bool {
     )
 }
 fn primitive_reserved(name: &str, span: Span) -> Diagnostic {
+    if name == "Store" || name.starts_with("store_") {
+        return error(
+            "E-OWNED-STORE-NAME",
+            span,
+            "Store and bare Store primitives cannot be rebound",
+        );
+    }
     if name == "ByteBuffer" || name.starts_with("bytes_") {
         return error(
             "E-BYTE-BUFFER-NAME",
