@@ -32,6 +32,28 @@ struct Flow {
     mutable: Vec<bool>,
     roots: Vec<Roots>,
 }
+
+/// Descriptor writes do not mutate the closure's environment position. Only
+/// that position's loan is delegated here; shared addresses captured alongside
+/// a Desc keep their own read-only qualification and cannot authorize a write.
+fn environment_loans(function: &TypedFunction, loans: &Loans, budget: &mut Budget) -> Check<Loans> {
+    budget.spend(loans.len())?;
+    let mut result = Loans::new();
+    for &loan in loans {
+        let ty = if loan < function.values.len() {
+            &function.values[loan]
+        } else {
+            let local = function.parameters[loan - function.values.len()];
+            &function.locals[local.0 as usize].ty
+        };
+        if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))) {
+            budget.spend(result.len().saturating_add(1))?;
+            result.insert(loan);
+        }
+    }
+    Ok(result)
+}
+
 fn local_transfer(
     state: &mut Locals,
     instruction: &Instruction,
@@ -622,7 +644,20 @@ pub(super) fn check(
                 // No unproved closure body is silently read-only. This
                 // conservative access also exports unknown parameter
                 // separation through the existing independent contract.
-                access.check(&empty, callback, true, budget)?;
+                let held = match &instruction.kind {
+                    InstructionKind::CallClosure { callee, .. }
+                    | InstructionKind::CallClosureOnce { callee, .. }
+                    | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                        &flow.values[callee.0 as usize]
+                    }
+                    InstructionKind::CallClosureShared { callee, .. }
+                    | InstructionKind::CallClosureMut { callee, .. } => {
+                        locals.get(callee).unwrap_or(&empty)
+                    }
+                    _ => unreachable!(),
+                };
+                let own = environment_loans(f, held, budget)?;
+                access.check(&own, callback, true, budget)?;
             }
             if let InstructionKind::Call {
                 function: callee,
@@ -636,11 +671,11 @@ pub(super) fn check(
                     let own = if head_windows
                         && captures_descriptors(module, &f.values[argument.0 as usize], budget)?
                     {
-                        &flow.values[argument.0 as usize]
+                        environment_loans(f, &flow.values[argument.0 as usize], budget)?
                     } else {
-                        &empty
+                        Loans::new()
                     };
-                    access.check(own, &facts.values[argument.0 as usize], *write, budget)?;
+                    access.check(&own, &facts.values[argument.0 as usize], *write, budget)?;
                 }
             }
             match &instruction.kind {
