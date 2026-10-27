@@ -223,7 +223,10 @@ impl State {
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         for capture in &checker.captures {
             if dynamic_store::is_carrier(&capture.stored_type()) {
-                return Err(unsupported(capture.span, "Store capture requires a separate retained storage profile"));
+                return Err(unsupported(
+                    capture.span,
+                    "Store capture requires a separate retained storage profile",
+                ));
             }
             if packages::owned_array_supported(&capture.stored_type()) {
                 return Err(unsupported(
@@ -530,8 +533,10 @@ impl Graph {
             Type::ForeignHandle => HANDLE,
             Type::I32 => I32,
             Type::I64 => I64,
-            ty if *ty == Type::ByteBuffer || matches!(ty, Type::OwnedStore { .. })
+            ty if *ty == Type::ByteBuffer
+                || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
+                || errors::owned(ty)
                 || packages::supported(ty)
                 || packages::owned_array_supported(ty)
                 || matches!(ty, Type::Slice { element } if element.is_copy_value()) =>
@@ -2034,6 +2039,62 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }))
             }
             CoreExprKind::Call { callee, arguments } => {
+                if let Some(name) = dynamic_store::primitive(callee) {
+                    self.visit(depth + 1, callee.span)?;
+                    let arity = match name {
+                        "store_new" => 0,
+                        "store_reserve" | "store_push" => 2,
+                        _ => 1,
+                    };
+                    if arguments.len() != arity {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "Store primitive argument count mismatch",
+                        ));
+                    }
+                    if name == "store_new" {
+                        let element =
+                            expected.and_then(dynamic_store::element).ok_or_else(|| {
+                                error(
+                                    "E-OWNED-STORE-TYPE",
+                                    span,
+                                    "store_new requires a concrete Store context",
+                                )
+                            })?;
+                        self.graph.reserve_type(element, 0, span)?;
+                        return self.known(&dynamic_store::result_type(name, element), span);
+                    }
+                    let first = self.expr(&arguments[0], depth + 1)?;
+                    let LocalType::Resource(variable, _) = first else {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    };
+                    let Some(Type::OwnedStore { element }) = self.graph.ty(variable)? else {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a concrete Store element",
+                        ));
+                    };
+                    self.graph.reserve_type(&element, 0, span)?;
+                    if name == "store_reserve" || name == "store_push" {
+                        let wanted = if name == "store_reserve" {
+                            Type::I64
+                        } else {
+                            (*element).clone()
+                        };
+                        let value = self.expr_expected(&arguments[1], Some(&wanted), depth + 1)?;
+                        value.bind(&mut self.graph, &wanted, arguments[1].span)?;
+                    }
+                    if matches!(name, "store_reserve" | "store_push" | "store_pop") {
+                        self.mark_resource_write(first, arguments[0].span)?;
+                    }
+                    return self.known(&dynamic_store::result_type(name, &element), span);
+                }
                 if let Some(name) = byte_buffer::primitive(callee) {
                     self.visit(depth + 1, callee.span)?;
                     let parameters = byte_buffer::parameters(name);

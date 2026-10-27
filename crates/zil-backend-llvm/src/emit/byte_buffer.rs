@@ -14,7 +14,11 @@ pub(super) fn is_resource(ty: &Type, definitions: &[ResourceDefinition]) -> bool
 /// Emit allocator declarations once, checking rather than silently overriding
 /// a user's foreign ABI. Buffer primitives never import a C source host.
 pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
-    if !lir.resources.iter().any(|r| r.payload == Type::ByteBuffer || matches!(r.payload, Type::OwnedStore { .. })) {
+    if !lir
+        .resources
+        .iter()
+        .any(|r| r.payload == Type::ByteBuffer || matches!(r.payload, Type::OwnedStore { .. }))
+    {
         return Ok(String::new());
     }
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";

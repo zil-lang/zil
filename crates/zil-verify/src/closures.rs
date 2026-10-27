@@ -60,7 +60,10 @@ pub(super) fn check_definitions(
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
             if dynamic_store::is_carrier(ty) {
-                return Err(unsupported("Store capture requires a separate retained storage profile", None));
+                return Err(unsupported(
+                    "Store capture requires a separate retained storage profile",
+                    None,
+                ));
             }
             if resources::arrays::is_owned_type(ty) {
                 return Err(unsupported(

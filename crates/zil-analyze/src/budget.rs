@@ -96,7 +96,6 @@ impl Budget {
                 }
             }
             Type::Array { element, .. }
-            | Type::OwnedStore { element }
             | Type::Slice { element }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
@@ -202,7 +201,8 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
                 Some(span),
             )])
         }
-    } else if crate::dynamic_store::is_carrier(ty) || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+    } else if crate::dynamic_store::is_carrier(ty)
+        || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
             if **inner == Type::ByteBuffer
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))

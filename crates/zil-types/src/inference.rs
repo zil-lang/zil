@@ -552,7 +552,6 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             }
         }
         Type::Address { inner, .. }
-        | Type::OwnedStore { element: inner }
         | Type::Slice { element: inner }
         | Type::OwnedStore { element: inner }
         | Type::Managed(inner)
@@ -1925,6 +1924,61 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
             }
             CoreExprKind::Call { callee, arguments } => {
+                if let Some(name) = dynamic_store::primitive(callee) {
+                    self.budget.node(depth + 1, callee.span)?;
+                    self.expression_index += 1;
+                    let arity = match name {
+                        "store_new" => 0,
+                        "store_reserve" | "store_push" => 2,
+                        _ => 1,
+                    };
+                    if arguments.len() != arity {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "Store primitive argument count mismatch",
+                        ));
+                    }
+                    if name == "store_new" {
+                        let element =
+                            expected.and_then(dynamic_store::element).ok_or_else(|| {
+                                error(
+                                    "E-OWNED-STORE-TYPE",
+                                    span,
+                                    "store_new requires a concrete Store context",
+                                )
+                            })?;
+                        validate_type(element, 0, span, self.budget)?;
+                        return self.known_term(&dynamic_store::result_type(name, element), span);
+                    }
+                    let first = self.expr(&arguments[0], depth + 1, false)?;
+                    let Term::Resource(variable, _) = first else {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    };
+                    let Some(Type::OwnedStore { element }) = self.graph.ty(variable)? else {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a concrete Store element",
+                        ));
+                    };
+                    validate_type(&element, 0, span, self.budget)?;
+                    if name == "store_reserve" || name == "store_push" {
+                        let wanted = if name == "store_reserve" {
+                            Type::I64
+                        } else {
+                            (*element).clone()
+                        };
+                        let term =
+                            self.expr_expected(&arguments[1], Some(&wanted), depth + 1, false)?;
+                        self.bind_term(&term, &wanted, arguments[1].span)?;
+                    }
+                    return self.known_term(&dynamic_store::result_type(name, &element), span);
+                }
                 if let Some(name) = byte_buffer::primitive(callee) {
                     self.budget.node(depth + 1, callee.span)?;
                     self.expression_index += 1;

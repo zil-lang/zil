@@ -383,7 +383,10 @@ impl Resolver<'_> {
     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
         let resolved = self.ty(&field.ty, depth, field.span)?;
         if dynamic_store::is_carrier(&resolved) {
-            return Err(unsupported(field.span, "Store fields require a separate owning composition profile"));
+            return Err(unsupported(
+                field.span,
+                "Store fields require a separate owning composition profile",
+            ));
         }
         if byte_buffer::resource(&resolved) && !field.manages {
             return Err(unsupported(
@@ -458,9 +461,9 @@ impl Resolver<'_> {
                                 pending.extend(variants.iter().flat_map(|(_, fields)| fields))
                             }
                             Type::Tuple(fields) => pending.extend(fields),
-                            Type::Array { element, .. } | Type::Slice { element } | Type::OwnedStore { element } => {
-                                pending.push(element)
-                            }
+                            Type::Array { element, .. }
+                            | Type::Slice { element }
+                            | Type::OwnedStore { element } => pending.push(element),
                             Type::ErrorUnion { error, result } => {
                                 pending.push(error);
                                 pending.push(result);
@@ -529,9 +532,14 @@ impl Resolver<'_> {
             Type::OwnedStore { element } => {
                 let element = self.ty(element, depth + 1, span)?;
                 if !dynamic_store::supported_element(&element) {
-                    return Err(unsupported(span, "Store elements require nonzero complete direct-Managed Packages"));
+                    return Err(unsupported(
+                        span,
+                        "Store elements require nonzero complete direct-Managed Packages",
+                    ));
                 }
-                Type::OwnedStore { element: Box::new(element) }
+                Type::OwnedStore {
+                    element: Box::new(element),
+                }
             }
             Type::Array { element, length } => {
                 if *length as usize > self.remaining {
@@ -569,7 +577,11 @@ impl Resolver<'_> {
                 let resolved = self.ty(inner, depth + 1, span)?;
                 let payload = match resolved {
                     Type::Managed(payload) | Type::Desc(payload) => payload,
-                    Type::OwnedStore { .. } if matches!(inner.as_ref(), Type::OwnedStore { .. }) => Box::new(resolved),
+                    Type::OwnedStore { .. }
+                        if matches!(inner.as_ref(), Type::OwnedStore { .. }) =>
+                    {
+                        Box::new(resolved)
+                    }
                     Type::ByteBuffer if matches!(inner.as_ref(), Type::ByteBuffer) => {
                         Box::new(Type::ByteBuffer)
                     }

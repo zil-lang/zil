@@ -1,5 +1,6 @@
 mod arrays;
 mod byte_buffer;
+mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
@@ -123,6 +124,7 @@ pub fn emit_with_options(
     }
     text.push_str("declare void @llvm.trap()\n");
     text.push_str(&byte_buffer::runtime(lir)?);
+    text.push_str(&dynamic_store::runtime(lir)?);
     for (operation, bits) in intrinsics {
         text.push_str(&format!(
             "declare {{ i{bits}, i1 }} @llvm.{operation}.with.overflow.i{bits}(i{bits}, i{bits})\n"
@@ -560,9 +562,12 @@ impl FunctionEmitter<'_> {
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
         match &instruction.kind {
-            InstructionKind::OwnedStoreNew { .. } | InstructionKind::OwnedStoreReserve { .. }
-            | InstructionKind::OwnedStorePush { .. } | InstructionKind::OwnedStorePop { .. }
-            | InstructionKind::OwnedStoreLen { .. } | InstructionKind::OwnedStoreCapacity { .. } => {
+            InstructionKind::OwnedStoreNew { .. }
+            | InstructionKind::OwnedStoreReserve { .. }
+            | InstructionKind::OwnedStorePush { .. }
+            | InstructionKind::OwnedStorePop { .. }
+            | InstructionKind::OwnedStoreLen { .. }
+            | InstructionKind::OwnedStoreCapacity { .. } => {
                 self.dynamic_store_instruction(instruction)?;
             }
             InstructionKind::ByteBufferNew
@@ -1666,13 +1671,15 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
         }
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok("ptr".into())
         }
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             llvm_type(payload)
         }
@@ -1718,13 +1725,15 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         }
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok(8)
         }
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             alignment(payload, closures)
         }

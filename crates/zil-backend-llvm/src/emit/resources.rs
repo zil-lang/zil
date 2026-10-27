@@ -115,7 +115,15 @@ impl FunctionEmitter<'_> {
         };
         let teardown = definition.teardown;
         let byte_buffer = definition.payload == Type::ByteBuffer;
-        let store_drop = if matches!(definition.payload, Type::OwnedStore { .. }) { Some(dynamic_store::helper(&definition.payload, self.resources, "drop")?) } else { None };
+        let store_drop = if matches!(definition.payload, Type::OwnedStore { .. }) {
+            Some(dynamic_store::helper(
+                &definition.payload,
+                self.resources,
+                "drop",
+            )?)
+        } else {
+            None
+        };
         let flag = self.temp();
         let label = self.continuation;
         self.continuation += 1;

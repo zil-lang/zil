@@ -148,7 +148,11 @@ pub(super) fn check_definitions(
         check_type_shape(&resource.payload, &module.target, limits, budget)?;
         if dynamic_store::check_definition(module, resource, budget)? {
             if !names.insert(&resource.name) {
-                return Err(reject("E-VERIFY-STORE", None, "Store definition must be unique"));
+                return Err(reject(
+                    "E-VERIFY-OWNED-STORE",
+                    None,
+                    "Store definition must be unique",
+                ));
             }
             continue;
         }
@@ -830,7 +834,18 @@ impl Transfer<'_> {
                     ));
                 }
             }
+            if let Some((store, true)) = dynamic_store::access(&instruction.kind) {
+                let row = slots.desc_value[store.0 as usize].expect("checked Store description");
+                self.write_roots(&state.desc[row], written, span, validate, budget)?;
+            }
             match &instruction.kind {
+                InstructionKind::OwnedStorePush { value, .. } => {
+                    self.consume(state, *value, span, validate)?;
+                    fresh_result = Some(INPUT);
+                }
+                InstructionKind::OwnedStorePop { .. } => {
+                    fresh_result = Some(INPUT);
+                }
                 InstructionKind::MakeErrorUnion { value, .. } if result.is_some() => {
                     self.consume(state, *value, span, validate)?;
                     fresh_result = Some(INPUT);
@@ -861,9 +876,9 @@ impl Transfer<'_> {
                         )?;
                     }
                 }
-                InstructionKind::MakeManaged { .. } | InstructionKind::ByteBufferNew => {
-                    fresh_result = Some(FRESH)
-                }
+                InstructionKind::OwnedStoreNew { .. }
+                | InstructionKind::MakeManaged { .. }
+                | InstructionKind::ByteBufferNew => fresh_result = Some(FRESH),
                 InstructionKind::MakePackage { fields }
                 | InstructionKind::MakeOwnedArray { elements: fields } => {
                     for &value in fields {
