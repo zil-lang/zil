@@ -180,7 +180,7 @@ fn main()->void!i32{let s:Store<Item>=store_new();if !store_reserve(s,2){return 
         );
     }
 
-    const SIMPLE: &str = "resource R{code:i32}package P{manages a:R;manages b:R}fn empty()->Store<P> contract{result(create)}{return store_new()}fn item()->P=>P{a:R{code:1},b:R{code:2}}";
+    const SIMPLE: &str = "resource R{code:i32}package P{manages a:R;manages b:R}fn empty()->Store<P> contract{result(create)}{return store_new()}fn item()->P=>P{a:R{code:1},b:R{code:2}};";
 
     #[test]
     fn rhs_transfer_cannot_invalidate_prepared_store_descriptor() {
