@@ -1,0 +1,13 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/compose159/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/compose159/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/compose159/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/compose159/crates/zil-expand)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.11s
+     Running tests/impl173_store_names.rs (/workspace/scratch/39be3faa4442/targets/173/debug/deps/impl173_store_names-36c2c35fc75be70a)
+
+running 2 tests
+test store_names_are_reserved_before_alias_elimination_and_specialization ... ok
+test ordinary_member_names_do_not_become_reserved_bare_bindings ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

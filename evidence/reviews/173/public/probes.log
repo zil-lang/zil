@@ -1,0 +1,55 @@
+     Locking 5 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review173-public170/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review173-public170/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review173-public170/crates/zil-syntax)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review173-public170/crates/zil-expand)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/review173-public170/crates/zil-verify)
+   Compiling review173-public-probes v0.1.0 (/workspace/scratch/39be3faa4442/run-logs/review173-public170/probes)
+warning: unused imports: `Limits` and `ResultCategory`
+ --> src/lib.rs:1:32
+  |
+1 | use zil_base::{FileId,ModuleId,Limits,Span,TargetProfile,Fingerprint,SCHEMA_VERSION,ResultCategory,SourceUnit};
+  |                                ^^^^^^                                               ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `module_candidate` is never used
+ --> src/lib.rs:3:4
+  |
+3 | fn module_candidate() -> (TypedModule, CandidatePlan) {
+  |    ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `expanded` is never used
+  --> src/lib.rs:91:4
+   |
+91 | fn expanded(source:&str)->zil_base::CompileResult<CoreModule> {
+   |    ^^^^^^^^
+
+warning: `review173-public-probes` (lib) generated 3 warnings (run `cargo fix --lib -p review173-public-probes` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.06s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets/review173-public170/debug/deps/review173_public_probes-9f64f98f4f9a71be)
+
+running 2 tests
+reserved source: [Diagnostic { phase: Expand, category: SafeReject, code: "E-OWNED-STORE-NAME", message: "Store and bare owned storage primitives cannot be rebound", span: Some(Span { file: FileId(0), start: 0, end: 17 }), notes: [] }]
+
+thread 'source_reservation_keeps_member_names_legal' (625) panicked at src/lib.rs:104:37:
+called `Result::unwrap_err()` on an `Ok` value: CoreModule { schema_version: 20, module_id: ModuleId(0), source_fingerprint: Fingerprint([34, 211, 124, 158, 38, 138, 74, 65, 51, 126, 124, 5, 147, 27, 44, 36, 72, 37, 180, 21, 136, 83, 115, 190, 60, 218, 234, 68, 24, 215, 149, 110]), functions: [CoreFunction { callable_return: None, id: NodeId(0), name: "main", callable_parameter: None, foreign: None, parameters: [], return_type: Unit, result_mode: Infer, body: CoreBlock { statements: [CoreStatement { id: NodeId(2), kind: Binding { name: "store_pop", mutable: false, ty: None, initializer: Some(CoreExpr { id: NodeId(1), kind: Integer("1"), span: Span { file: FileId(0), start: 24, end: 25 } }) }, span: Span { file: FileId(0), start: 10, end: 25 } }], span: Span { file: FileId(0), start: 9, end: 26 } }, receiver: None, span: Span { file: FileId(0), start: 0, end: 26 } }], aggregates: [], enums: [], unsupported: [] }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test source_reservation_keeps_member_names_legal ... FAILED
+wide=false raw: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "aggregate type nesting exceeds verification limit", span: None, notes: [] }]
+wide=false wire: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "candidate wire type nesting quota exceeded", span: None, notes: [] }]
+wide=true raw: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "independent verification work budget exhausted", span: None, notes: [] }]
+wide=true wire: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "independent verification work budget exhausted", span: None, notes: [] }]
+small-stale: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-PLAN-IDENTITY", message: "candidate plan is bound to different module or target bytes", span: None, notes: [] }]; small-bound: [Diagnostic { phase: Verify, category: Unsupported, code: "E-UNSUPPORTED", message: "owned store operations await their independent checker", span: Some(Span { file: FileId(2), start: 4, end: 8 }), notes: [] }]
+test independently_bound_embedded_new_metadata_precedes_identity_and_rejection ... ok
+
+failures:
+
+failures:
+    source_reservation_keeps_member_names_legal
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

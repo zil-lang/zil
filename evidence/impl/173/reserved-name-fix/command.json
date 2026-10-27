@@ -1,0 +1,30 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-expand",
+    "--test",
+    "impl173_store_names",
+    "--offline",
+    "-j2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/zil-restored/compose159",
+  "source_commit": "893b625c18f8cb8776b14b945333f53d8d68c014",
+  "crates_tree": "a7a5f8efa682a8c7e08d2508c392f36de1bc5b0b",
+  "source_status": "",
+  "start": 1793110277.77109,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "bf1fbede25503d267f8bea045429ac63fdfb493537e63efb07c275a763382b25",
+  "end": 1793110287.9361818,
+  "seconds": 10.165091753005981,
+  "tests": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 1
+  },
+  "ending_crates_tree": "a7a5f8efa682a8c7e08d2508c392f36de1bc5b0b",
+  "ending_source_status": ""
+}
