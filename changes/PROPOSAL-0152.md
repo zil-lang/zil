@@ -14,3 +14,5 @@ asynchronous OS operation or resource-owning event is cancelled by this profile.
 Verify via O0/O2 real native FIFO consumers, independent per-operation model,
 actual allocator failure injection and allocation/free accounting. No speed claim
 from allocation counts. Formal gates and independent review remain NotRun.
+
+Validation: 5 native/negative tests, plus 32 deterministic deque-model traces × O0/O2 × 6 allocator schedules = 384 executions / 99840 commands; 230 actual allocator failures including 94 wrapped-growth failures, all released. This is allocator-fault byte FIFO validation, not async cancellation or generic owning element storage.
