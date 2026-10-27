@@ -1,0 +1,31 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl174_store_fields",
+    "--test",
+    "impl172_owned_store",
+    "--no-fail-fast",
+    "--offline",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "source_commit": "9a878f2f91aae4efd4b851eeb8979cacc21ffdd1",
+  "source_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/174-v21",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/174/cases04"
+  },
+  "start": 1793115114.5856886,
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793115128.839631,
+  "log_sha256": "e1bd6f708a6d5284b8a07515d3c362aa571256f73f19f4b1f6c97c205d64da41"
+}

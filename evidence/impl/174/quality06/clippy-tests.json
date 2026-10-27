@@ -1,0 +1,31 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl174_store_fields",
+    "--test",
+    "impl172_owned_store",
+    "--offline",
+    "-j2",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "source_commit": "cc6508f7491db70452a006873c814063afe54c88",
+  "crates_tree": "506a899b2204d3f5abdd398defebce1b98d216d4",
+  "tracked_source_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/174-v21",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0"
+  },
+  "start": 1793115423.7587607,
+  "end": 1793115426.0180147,
+  "exit_code": 0,
+  "status": "Pass",
+  "log_sha256": "fe6be5bf61a71801a9ae86cf0a22f219577323ebe47a726472242803965d73af"
+}

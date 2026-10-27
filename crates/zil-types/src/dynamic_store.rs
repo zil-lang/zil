@@ -104,28 +104,55 @@ pub(super) fn add_definitions(
             .chain(function.locals.iter().map(|l| &l.ty))
             .chain(std::iter::once(&function.return_type))
         {
-            let Some(element) = element(ty) else { continue };
-            let cost = inference::type_snapshot_work(element, function.span, limits)?;
-            work = work
-                .checked_sub(cost.saturating_add(2))
-                .ok_or_else(exhausted)?;
-            if !supported_element(element) {
-                return Err(unsupported(
-                    function.span,
-                    "Store elements require nonzero complete direct-Managed Packages",
-                ));
-            }
-            let name = definition_name(element);
-            if let Some(old) = found.get(&name) {
-                if old != element {
-                    return Err(error(
-                        "E-OWNED-STORE-TYPE",
-                        function.span,
-                        "one Store nominal element has conflicting layouts",
-                    ));
+            let mut pending = vec![ty];
+            while let Some(ty) = pending.pop() {
+                if let Some(element) = element(ty) {
+                    let cost = inference::type_snapshot_work(element, function.span, limits)?;
+                    work = work
+                        .checked_sub(cost.saturating_add(2))
+                        .ok_or_else(exhausted)?;
+                    if !supported_element(element) {
+                        return Err(unsupported(
+                            function.span,
+                            "Store elements require nonzero complete direct-Managed Packages",
+                        ));
+                    }
+                    let name = definition_name(element);
+                    if let Some(old) = found.get(&name) {
+                        if old != element {
+                            return Err(error(
+                                "E-OWNED-STORE-TYPE",
+                                function.span,
+                                "one Store nominal element has conflicting layouts",
+                            ));
+                        }
+                    } else {
+                        found.insert(name, element.clone());
+                    }
+                    // Its exact element predicate excludes another Store.
+                    continue;
                 }
-            } else {
-                found.insert(name, element.clone());
+                // A Store may only be mentioned by a complete State parameter
+                // or result, with no direct Store SSA value in this module.
+                // Charge children before growing the bounded worklist.
+                match ty {
+                    Type::Package { fields, .. } => {
+                        work = work.checked_sub(fields.len()).ok_or_else(exhausted)?;
+                        pending.extend(fields.iter().map(|(_, field)| field));
+                    }
+                    Type::Array { element, .. }
+                    | Type::Opaque {
+                        hidden: element, ..
+                    } => {
+                        work = work.checked_sub(1).ok_or_else(exhausted)?;
+                        pending.push(element);
+                    }
+                    Type::ErrorUnion { error, result } => {
+                        work = work.checked_sub(2).ok_or_else(exhausted)?;
+                        pending.extend([error.as_ref(), result.as_ref()]);
+                    }
+                    _ => {}
+                }
             }
         }
     }

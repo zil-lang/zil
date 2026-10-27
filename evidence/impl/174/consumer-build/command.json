@@ -1,0 +1,26 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "-p",
+    "zil-cli",
+    "--bin",
+    "zil",
+    "--offline",
+    "-j2"
+  ],
+  "source_commit": "cc6508f7491db70452a006873c814063afe54c88",
+  "crates_tree": "506a899b2204d3f5abdd398defebce1b98d216d4",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets/174-v21",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0"
+  },
+  "start": 1793115212.6594987,
+  "end": 1793115213.3424065,
+  "status": "Pass",
+  "exit_code": 0,
+  "log_sha256": "8a78cf6fb8cd5b1aa6d0bb75521ec8cc5fb0933d6638427b8a6a2bba00bfc294",
+  "cli_sha256": "18fa8ec6ebe8b763291c47db8ab0097c3db44dacbee71720386003b5a498c579"
+}

@@ -1,0 +1,138 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt174/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 2.10s
+     Running tests/impl099_owned_bytes.rs (/workspace/scratch/39be3faa4442/targets/174-v21/debug/deps/impl099_owned_bytes-ca18ea3e28820a9d)
+
+running 7 tests
+test live_windows_block_package_field_and_whole_transfers ... ok
+test direct_and_package_owning_factories_have_real_call_modes ... ok
+test ordinary_owned_aggregates_desc_captures_and_error_payloads_stay_closed ... ok
+test owned_views_are_grounded_in_actual_shells_and_captures ... ok
+test package_refill_keeps_fnmut_but_partial_error_is_once ... ok
+test owned_windows_retain_helper_alias_and_lifetime_boundaries ... ok
+test packages_move_return_replace_and_refill_real_byte_owners ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+     Running tests/impl099_owned_bytes_native.rs (/workspace/scratch/39be3faa4442/targets/174-v21/debug/deps/impl099_owned_bytes_native-0ac95dd40ff651fc)
+
+running 7 tests
+test failed_growth_inside_saved_environment_preserves_payload_and_later_use ... ok
+test four_module_saved_state_consumer_matches_rust_on_binary_batches ... ok
+test direct_and_package_owned_factories_keep_state_and_release_when_dropped ... ok
+test mutable_factory_recovers_after_an_error_before_successful_replacement ... ok
+test once_capture_consumption_and_partial_package_error_discharge_remaining_debt ... ok
+test package_transfer_take_refill_and_replace_release_each_payload_once ... ok
+test ordinary_errors_and_failed_preparation_settle_only_acquired_responsibilities ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.30s
+
+     Running tests/impl120_field_backing.rs (/workspace/scratch/39be3faa4442/targets/174-v21/debug/deps/impl120_field_backing-0cc1b5b0afbb8cdc)
+
+running 8 tests
+test changed_root_work_remains_bounded_at_exact_analysis_and_verify_limits ... ok
+test branch_origins_preserve_all_possible_fields_and_unknown_drop_stays_coarse ... ok
+test independent_field_take_preserves_a_live_sibling_window ... ok
+test helper_returns_and_required_apart_substitute_actual_fields ... ok
+test independent_mutation_refill_and_two_exclusive_windows ... ok
+test public_hold_remains_coarse_and_raw_wire_cannot_forge_apartness ... ok
+test owning_fnmut_and_fnonce_keep_precise_fields ... ok
+test same_field_ancestor_and_replacement_do_not_revive_old_views ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/impl120_field_backing_native.rs (/workspace/scratch/39be3faa4442/targets/174-v21/debug/deps/impl120_field_backing_native-1f2451b96eb5eb89)
+
+running 4 tests
+test four_modules_keep_helper_returns_and_owned_field_state ... ok
+test disjoint_exclusive_fields_and_helper_apart_are_real_native_accesses ... ok
+test live_sibling_survives_take_refill_replace_and_growth_with_exact_cleanup ... ok
+test owned_fnmut_and_partial_fnonce_error_release_actual_fields ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.75s
+
+     Running tests/impl166_owned_results.rs (/workspace/scratch/39be3faa4442/targets/174-v21/debug/deps/impl166_owned_results-c517e595343f1e06)
+
+running 13 tests
+test continue_and_break_discharge_each_actual_loop_union ... ok
+test failed_binding_cleans_partial_preparation_then_existing_union_in_order ... ok
+test both_owned_arms_propagate_and_native_boundary_cleans_only_returned_error ... ok
+test named_success_payload_crosses_two_ordinary_functions_then_cleans_once ... ok
+test native_entry_keeps_void_or_i32_success_boundary ... ok
+test failing_later_argument_cleans_staged_union_before_earlier_local ... ok
+test raw_and_wire_do_not_extend_ordinary_union_admission_to_closure_capture ... ok
+test raw_and_wire_reconstruct_union_debt_and_exact_active_tag ... ok
+test public_owned_result_crosses_module_boundaries ... ok
+test source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode ... ok
+test stored_and_discarded_unions_drop_active_payloads_in_lexical_order ... ok
+test whole_local_reassignment_is_explicitly_outside_first_owned_union_profile ... ok
+test success_and_returned_error_buffers_are_really_freed_before_later_fields ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.38s
+
+     Running tests/impl167_array_capture_boundary.rs (/workspace/scratch/39be3faa4442/targets/174-v21/debug/deps/impl167_array_capture_boundary-1070e9fd93a806eb)
+
+running 1 test
+test owned_package_array_capture_is_closed_in_source_raw_and_wire ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/impl167_owned_arrays.rs (/workspace/scratch/39be3faa4442/targets/174-v21/debug/deps/impl167_owned_arrays-57093b6aa53da9c2)
+
+running 32 tests
+test callback_array_borrows_forbid_overlapping_slot_changes_and_escaping_storage ... ok
+test callback_array_capture_remains_explicitly_closed_in_source_and_raw_wire ... ok
+test byte_buffer_field_windows_use_the_actual_inline_element ... ok
+test construction_and_copy_projection_clean_each_element_once ... ok
+test dynamic_indices_and_implicit_resource_arrays_remain_explicit_boundaries ... ok
+test callback_preparation_and_replacement_error_paths_keep_exact_owners ... ok
+test failed_replacement_keeps_the_old_element_until_scope_cleanup ... ok
+test moved_once_callback_array_element_preserves_remaining_cleanup ... ok
+test old_byte_buffer_window_cannot_survive_any_array_element_replacement ... ok
+test nested_owned_callback_arrays_transfer_refill_borrow_and_drop_once ... ok
+test original159_same_factory_handler_array_constructs_and_cleans ... ok
+test package_fields_clean_in_declaration_order_inside_each_array_element ... ok
+test partial_slots_and_descriptors_cannot_be_reused_after_transfer_or_replacement ... ok
+test partial_array_exit_and_branch_join_clean_only_live_elements ... ok
+test private_array_element_fields_remain_private_across_modules ... ok
+test prepared_prefix_is_cleaned_in_reverse_order_on_later_error ... ok
+test raw_and_wire_callback_addresses_cannot_survive_replacement_or_forge_permissions ... ok
+test raw_and_wire_callback_array_inputs_require_actual_local_moves ... ok
+test raw_and_wire_cannot_copy_elements_or_retake_the_same_slot ... ok
+test raw_and_wire_cannot_relabel_owned_operations_as_copy_aggregate_operations ... ok
+test pure_callback_slots_borrow_the_actual_environment_and_move_as_a_whole ... ok
+test raw_and_wire_charge_callback_array_length_times_inline_environment_work ... ok
+test raw_and_wire_check_static_bounds_and_charge_declared_array_size ... ok
+test raw_and_wire_consume_resource_free_callback_values_exactly_once ... ok
+test raw_and_wire_require_cleanup_before_overwriting_and_complete_whole_moves ... ok
+test repeated_loop_refill_reinitializes_only_the_chosen_slot ... ok
+test replacement_cleans_previous_element_before_installing_prepared_value ... ok
+test source_identity_and_nonresource_callback_slot_moves_are_not_forged ... ok
+test shared_callback_array_elements_remain_callable_by_shared_borrow ... ok
+test taking_and_refilling_an_element_preserves_unique_cleanup ... ok
+test whole_array_can_cross_modules_with_exact_public_package_identity ... ok
+test whole_array_roundtrip_and_move_keep_inline_owners ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.77s
+
+     Running tests/impl170_package_fields.rs (/workspace/scratch/39be3faa4442/targets/174-v21/debug/deps/impl170_package_fields-b5312db9a33b1835)
+
+running 16 tests
+test complete_fields_construct_return_and_drop_in_declaration_order ... ok
+test conditional_missing_field_and_self_replacement_keep_exact_flags ... ok
+test arrays_and_both_error_union_payloads_recursively_clean_fields ... ok
+test field_take_local_element_refill_and_parent_refill_are_exact ... ok
+test failed_preparation_cleans_only_actual_temporaries_and_keeps_the_old_field ... ok
+test incomplete_and_reused_field_carriers_are_rejected ... ok
+test nested_partial_places_and_retained_parent_captures_remain_explicitly_closed ... ok
+test public_field_roundtrip_crosses_nominal_module_boundaries ... ok
+test raw_and_wire_budget_boundary_is_exact_for_nested_field_module ... ok
+test raw_and_wire_cannot_copy_retake_or_overwrite_owned_fields ... ok
+test raw_and_wire_charge_outer_times_inner_array_layout ... ok
+test missing_parent_field_cleans_remaining_fields_and_moved_array_once ... ok
+test raw_and_wire_consume_array_inputs_once_and_reconstruct_field_state ... ok
+test raw_and_wire_owning_field_cannot_hide_in_capture_metadata ... ok
+test repeated_take_refill_preserves_parent_cleanup_position ... ok
+test replacing_a_complete_array_field_cleans_the_old_field_first ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.43s
+

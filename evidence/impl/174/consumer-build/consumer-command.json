@@ -1,0 +1,24 @@
+{
+  "command": [
+    "python3",
+    "tools/language/174/consumer.py",
+    "--repo",
+    "/workspace/scratch/39be3faa4442/zil-restored/wt174",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets/174-v21/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/run-logs/174/consumer01",
+    "--source-commit",
+    "cc6508f7491db70452a006873c814063afe54c88",
+    "--compiler-commit",
+    "cc6508f7491db70452a006873c814063afe54c88"
+  ],
+  "source_commit": "cc6508f7491db70452a006873c814063afe54c88",
+  "compiler_sha256": "18fa8ec6ebe8b763291c47db8ab0097c3db44dacbee71720386003b5a498c579",
+  "start": 1793115213.3804104,
+  "end": 1793115217.1971924,
+  "status": "Pass",
+  "exit_code": 0,
+  "stdout_sha256": "fd873b48a4318fd0637e7ffee7011b60142842f7d00992538335cbb584feae71",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,30 @@
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt174/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt174/crates/zil-driver)
+warning: function `check` is never used
+  --> crates/zil-driver/tests/impl174_store_fields.rs:53:4
+   |
+53 | fn check(files: &[(&str, &str)]) -> CompileReport {
+   |    ^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `rejected_candidate` is never used
+   --> crates/zil-driver/tests/impl174_store_fields.rs:114:4
+    |
+114 | fn rejected_candidate(
+    |    ^^^^^^^^^^^^^^^^^^
+
+warning: `zil-driver` (test "impl174_store_fields") generated 2 warnings
+    Finished `test` profile [unoptimized] target(s) in 6.73s
+     Running tests/impl174_store_fields.rs (/workspace/scratch/39be3faa4442/targets/174/debug/deps/impl174_store_fields-8eef8171035c8a9f)
+
+running 6 tests
+test replacing_store_field_drops_old_prefix_before_new_publication ... ok
+test complete_store_fields_construct_move_and_drop_prefix_in_field_order ... ok
+test store_state_in_owned_error_and_fixed_array_recursively_cleans_prefix ... ok
+test sealed_definitions_are_discovered_from_state_only_signatures ... ok
+test taken_store_field_early_error_cleans_only_live_shell_fields ... ok
+test whole_field_take_refill_and_state_transfer_have_one_responsibility ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.55s
+
