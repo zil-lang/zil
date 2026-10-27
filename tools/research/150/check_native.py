@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Real source/LLVM artifacts and target verifier controls, not timing samples."""
 import pathlib,json,subprocess,sys,hashlib
-root=pathlib.Path(sys.argv[1]);base=pathlib.Path(sys.argv[2]);candidate=pathlib.Path(sys.argv[3]);out=pathlib.Path(sys.argv[4]);out.mkdir(exist_ok=False);rows=[];bins={'A':base,'C':candidate}
+root=pathlib.Path(sys.argv[1]);base=pathlib.Path(sys.argv[2]);candidate=pathlib.Path(sys.argv[3]);out=pathlib.Path(sys.argv[4]);out.mkdir(parents=True,exist_ok=False);rows=[];bins={'A':base,'C':candidate}
 spec=json.loads((root/'frozen150.json').read_text());by={c['name']:c for c in spec['cases']}
 def invoke(binary,src,d,args):
  d.mkdir(parents=True,exist_ok=False);cmd=[str(binary),*args,str(src),'--json'];p=subprocess.run(cmd,capture_output=True,timeout=60);(d/'command.json').write_text(json.dumps(cmd));(d/'stdout').write_bytes(p.stdout);(d/'stderr').write_bytes(p.stderr)
  try:r=json.loads(p.stdout)
  except:r={'status':'InvalidReport'}
  return r
-cases=['tiny','captured-reverse128','cycle128x8','cycle512x8','cycle1024x8','owned_component','byte_buffer','integrated_zui','text_decode']
+cases=['tree256x8','tree1024x8','tiny','captured-reverse128','cycle128x8','cycle512x8','cycle1024x8','owned_component','byte_buffer','integrated_zui','text_decode']
 for name in cases:
  for v,b in bins.items():
   for opt in ['O0','O2']:
@@ -17,12 +17,11 @@ for name in cases:
     p=subprocess.run([str(d/'program')],input=b'',capture_output=True,timeout=10);(d/'native-stdout').write_bytes(p.stdout);(d/'native-stderr').write_bytes(p.stderr);observed={'exit':p.returncode,'stdout':p.stdout.decode(errors='replace'),'stderr':p.stderr.decode(errors='replace')};ok=p.returncode==0 and r['verification_runs']==1
     if name=='integrated_zui':ok &= p.stdout==b'RRT46\n'
     if name=='text_decode':ok &= p.stdout==b'0\n'
-   expected_limit=name=='cycle1024x8'and v=='A'
+   expected_limit=False # compose-149 already includes the 146 capability improvement
    rows.append({'case':name,'variant':v,'opt':opt,'status':r['status'],'phase':r.get('phase'),'observed':observed,'expected_limit':expected_limit,'pass':(r['status']=='ResourceLimit')if expected_limit else ok});print(rows[-1],flush=True);(out/'native.json').write_text(json.dumps(rows,indent=2))
 # Compare identical stages and generated LLVM where both variants succeed.
 comparisons=[]
 for name in cases:
- if name=='cycle1024x8':continue
  for opt in ['O0','O2']:
   a=out/f'{name}-A-{opt}'/'phases';c=out/f'{name}-C-{opt}'/'phases'
   files={str(x.relative_to(a))for x in a.rglob('*')if x.is_file()};other={str(x.relative_to(c))for x in c.rglob('*')if x.is_file()};assert files==other
