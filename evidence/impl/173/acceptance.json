@@ -1,7 +1,7 @@
 {
   "schema": "zil-language-stage-acceptance-v1",
   "stage": "170-173",
-  "status": "Pass_LimitedLanguageStage",
+  "status": "Pass",
   "implementation_commit": "6a623edef1e8d928b5b11091a50f9319fbe6fd59",
   "integration_commit": "2ce458178aa29fad893f69191aa5ff64f53bc108",
   "crates_tree": "2236e0060a24fdbd45058e751722d2a3a18e3976",
@@ -74,5 +74,6 @@
   "product": "NotRun",
   "parent_B0": "Doing",
   "performance_claim": "No new comparative compiler/runtime/memory result",
-  "packaging_and_cold_recovery": "Recorded separately after final source freeze; not preclaimed here"
+  "packaging_and_cold_recovery": "Recorded separately after final source freeze; not preclaimed here",
+  "acceptance_scope": "Limited 170-173 language implementation, exact-source tests and independent reviews only. Full language and product gates remain unmet/not run."
 }

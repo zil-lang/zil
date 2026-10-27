@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "tools/check-plan.py",
+    "--self-test"
+  ],
+  "source_commit": "f34faf3bb2f9103a68385a20602bbc87e1a356c0",
+  "status": "Fail",
+  "exit_code": 1,
+  "start": 1793112464.281816,
+  "end": 1793112464.418299,
+  "log_sha256": "09ce44ce5e9fa112c814cf738fb2bc677a64fc7706c74b32193dc342992410ec"
+}
