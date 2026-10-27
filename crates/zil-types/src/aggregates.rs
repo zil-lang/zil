@@ -842,6 +842,32 @@ pub(super) fn field(ty: &Type, name: &str, span: Span) -> R<(u32, Type)> {
         .map(|(i, t)| (i as u32, t.clone()))
         .ok_or_else(|| error("E-UNKNOWN-FIELD", span, format!("unknown field {name}")))
 }
+/// Look up an exact nominal owner's method, never a global same-name method.
+/// Imported lookup observes actual exports and an explicit module edge; the
+/// later ordinary Call still carries its original FunctionId and full ABI.
+pub(super) fn resolve_method<'a>(
+    name: &str,
+    member: &str,
+    local: &'a BTreeMap<String, Signature>,
+    imports: Option<&program::Imports<'a>>,
+) -> Option<&'a Signature> {
+    let (owner, nominal) = name.split_once(':')?;
+    let key = format!("{nominal}.{member}");
+    if let Some(signature) = local.get(&key).filter(|s| s.receiver.is_some()) {
+        return Some(signature);
+    }
+    let module = zil_base::ModuleId(owner.strip_prefix("@module")?.parse().ok()?);
+    let imports = imports?;
+    if !imports.aliases.values().any(|id| *id == module) {
+        return None;
+    }
+    imports
+        .signatures
+        .get(&module)?
+        .get(&key)
+        .filter(|s| s.public && s.receiver.is_some() && !s.cleanup)
+}
+
 impl Builder<'_, '_> {
     pub(super) fn method_signature(&self, object: &CoreExpr, member: &str) -> Option<&Signature> {
         let ty = self.known_type(object)?;
@@ -855,10 +881,7 @@ impl Builder<'_, '_> {
         if fields.iter().any(|(name, _)| name == member) {
             return None;
         }
-        let name = name.split_once(':')?.1;
-        self.signatures
-            .get(&format!("{name}.{member}"))
-            .filter(|s| s.receiver.is_some())
+        resolve_method(&name, member, self.signatures, self.imports)
     }
     pub(super) fn method_call(
         &mut self,

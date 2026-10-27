@@ -2049,11 +2049,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             };
                             if ty.is_copy_value()
                                 && !fields.iter().any(|(name, _)| name == member)
-                                && let Some((_, short)) = name.split_once(':')
-                                && let Some(signature) = self
-                                    .signatures
-                                    .get(&format!("{short}.{member}"))
-                                    .filter(|signature| signature.receiver.is_some())
+                                && let Some(signature) = aggregates::resolve_method(
+                                    name,
+                                    member,
+                                    self.signatures,
+                                    self.imports,
+                                )
                             {
                                 let signature = context_signature(signature, self.budget, span)?;
                                 let receiver = &signature.parameters[0];
