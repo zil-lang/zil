@@ -393,9 +393,17 @@ fn resource047_11_unimplemented_resource_shapes_have_explicit_boundaries() {
     }
     // Slice155 admits this exact former Unsupported case through a verified
     // owning slot, not by relaxing resource authority or borrowing rules.
-    let report=source_report("resource R{x:i32} fn main()->i32{var x=R{x:1};x=R{x:2};return x.x-2}",Stage::Verify);
-    assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
-    assert_eq!(report.verification_runs,1);
+    let report = source_report(
+        "resource R{x:i32} fn main()->i32{var x=R{x:1};x=R{x:2};return x.x-2}",
+        Stage::Verify,
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
 }
 
 #[test]
