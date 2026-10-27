@@ -140,7 +140,6 @@ fn unsupported_solver_features_are_not_invented_by_lowering_to_functions() {
         "trait Read{fn read(self:&Self)->i32{return 1}}fn main(){}",
         "trait Read{fn read(self:&Self)->i32;}resource C{x:i32}impl Read for C{fn read()->i32=>.x}fn main(){}",
         "trait A{fn f(self:&Self)->i32;}trait B{fn f(self:&Self)->i32;}struct C{x:i32}impl A for C{fn f()->i32=>1}impl B for C{fn f()->i32=>2}fn main(){}",
-        "trait Read{fn read(self:&Self)->i32;}struct C{x:i32}impl Read for C{fn read()->i32=>.x}fn read<T:Read>(x:&T)->i32=>x.read();fn main(){}",
     ] {
         let r = compile(src);
         assert_eq!(r.status, ResultCategory::Unsupported, "{}", r.to_json());
@@ -192,4 +191,12 @@ fn attributes_and_ambiguous_method_names_are_not_silently_erased() {
         let r = compile(src);
         assert_eq!(r.status, if i!=1 {ResultCategory::SafeReject}else{ResultCategory::Unsupported}, "{}", r.to_json());
     }
+}
+
+#[test]
+fn finite_nominal_generic_bounds_are_now_checked_before_instantiation() {
+    let r = compile(
+        "trait Read{fn read(self:&Self)->i32;}struct C{x:i32}impl Read for C{fn read()->i32=>.x}fn read<T:Read>(x:&T)->i32=>x.read();fn main(){}",
+    );
+    assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
 }

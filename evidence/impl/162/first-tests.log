@@ -1,0 +1,52 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-db)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-lower)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/zil-restored/wt162/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.68s
+     Running tests/impl162_trait_bounds.rs (/workspace/scratch/39be3faa4442/targets/162/debug/deps/impl162_trait_bounds-97198dc1c84f2e92)
+
+running 12 tests
+test actual_impl_signatures_and_independent_loan_checks_still_run ... ok
+test borrowed_receivers_do_not_gain_mutation_or_move_permissions ... ok
+test bound_method_named_len_and_self_parameters_are_symbolic ... ok
+test forwarding_requires_a_prior_bound_even_when_unused ... ok
+test imported_public_bounds_keep_definition_and_nominal_module_identity ... FAILED
+test missing_trait_wrong_arguments_and_ambiguous_bounds_reject_before_specialization ... ok
+test mutable_multiple_bounds_and_value_receiver_keep_passing_modes ... ok
+test private_and_same_spelling_foreign_traits_cannot_satisfy_bound ... ok
+test same_named_inherent_method_does_not_satisfy_nominal_bound ... ok
+test shared_bounds_dispatch_for_multiple_nominal_types_and_forward_symbolically ... ok
+test trait_bound_scans_obey_actual_work_budget ... ok
+test unused_definitions_cannot_gain_members_types_or_copy_from_instances ... FAILED
+
+failures:
+
+---- imported_public_bounds_keep_definition_and_nominal_module_identity stdout ----
+
+thread 'imported_public_bounds_keep_definition_and_nominal_module_identity' (1391) panicked at crates/zil-driver/tests/impl162_trait_bounds.rs:44:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-TERMINATOR","message":"expected a semicolon, logical newline, or closing brace after the complete statement","span":{"file":2,"start":152,"end":155},"notes":[]}],"artifacts":{},"input_fingerprint":"b620fcefef26da702c77e72d310747382df93d29c27ea1876bcda7484294099c","seconds":0.007145048,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"left.zil","2":"right.zil","3":"helpers.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- unused_definitions_cannot_gain_members_types_or_copy_from_instances stdout ----
+
+thread 'unused_definitions_cannot_gain_members_types_or_copy_from_instances' (1414) panicked at crates/zil-driver/tests/impl162_trait_bounds.rs:129:9:
+{"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"generic value used after move; Copy cannot be inferred from a concrete instance","span":{"file":0,"start":62,"end":63},"notes":[]}],"artifacts":{},"input_fingerprint":"3aa86c3c26cf63e439231ecf455e7762ac1c01002f8f9a701868cb9eeb8ccdb9","seconds":0.000334269,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+
+
+failures:
+    imported_public_bounds_keep_definition_and_nominal_module_identity
+    unused_definitions_cannot_gain_members_types_or_copy_from_instances
+
+test result: FAILED. 10 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.85s
+
+error: test failed, to rerun pass `-p zil-driver --test impl162_trait_bounds`
