@@ -2067,22 +2067,19 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     {
                         return Ok(Term::SliceLength);
                     }
-                    if !write && !matches!(object_type, Term::Resource(..)) {
+                    if !write {
                         self.graph.solve()?;
-                        if let Some(ty @ Type::Record { .. }) = self.graph.ty(base)? {
+                        if let Some(
+                            ty @ (Type::Record { .. } | Type::Package { .. } | Type::ByteBuffer),
+                        ) = self.graph.ty(base)?
+                        {
                             validate_type(&ty, 0, span, self.budget)?;
-                            let Type::Record { name, fields } = &ty else {
-                                unreachable!()
-                            };
-                            if ty.is_copy_value()
-                                && !fields.iter().any(|(name, _)| name == member)
-                                && let Some(signature) = aggregates::resolve_method(
-                                    name,
-                                    member,
-                                    self.signatures,
-                                    self.imports,
-                                )
-                            {
+                            if let Some(signature) = aggregates::resolve_type_method(
+                                &ty,
+                                member,
+                                self.signatures,
+                                self.imports,
+                            ) {
                                 let signature = context_signature(signature, self.budget, span)?;
                                 let receiver = &signature.parameters[0];
                                 let value = if let (

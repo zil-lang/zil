@@ -14,6 +14,7 @@ struct Package {
     whole: usize,
     end: usize,
     fields: BTreeMap<String, usize>,
+    copy_fields: BTreeSet<String>,
 }
 
 #[derive(Default)]
@@ -59,6 +60,7 @@ pub(super) fn classify(
             .checked_add(1)
             .ok_or_else(|| limit("Package slot overflow", item.span))?;
         let mut owned = BTreeMap::new();
+        let mut copy_fields = BTreeSet::new();
         for (name, ty) in fields {
             *work = work
                 .checked_sub(name.len())
@@ -68,6 +70,8 @@ pub(super) fn classify(
                 slots = slots
                     .checked_add(1)
                     .ok_or_else(|| limit("Package slot overflow", item.span))?;
+            } else {
+                copy_fields.insert(name.clone());
             }
         }
         packages.push(Package {
@@ -76,6 +80,7 @@ pub(super) fn classify(
             whole,
             end: slots,
             fields: owned,
+            copy_fields,
         });
     }
     let mut scan = Scan {
@@ -315,6 +320,27 @@ impl Scan<'_> {
             }
             CoreExprKind::Call { callee, arguments } => {
                 self.expr(state, callee, depth + 1)?;
+                if let CoreExprKind::Member { object, member } = &callee.kind
+                    && let Some(package) = self.named(object)?
+                {
+                    let size = self.packages[package].copy_fields.len();
+                    self.spend(
+                        member
+                            .len()
+                            .saturating_add(1)
+                            .saturating_mul(size.checked_ilog2().map_or(1, |n| n as usize + 2)),
+                        callee.span,
+                    )?;
+                    if self.field(package, member, callee.span)?.is_none()
+                        && !self.packages[package].copy_fields.contains(member)
+                    {
+                        // A valid Package method in this finite profile has a
+                        // by-value receiver; head addresses remain unsupported.
+                        // The transfer precedes ordinary arguments. Later full
+                        // refills can restore repeatability on every exit.
+                        self.whole(state, package, EMPTY, object.span)?;
+                    }
+                }
                 for argument in arguments {
                     self.expr(state, argument, depth + 1)?;
                 }

@@ -6,6 +6,13 @@ use std::collections::{BTreeSet, VecDeque};
 type Origins = BTreeSet<usize>;
 pub(super) type Writes = BTreeMap<FunctionId, Origins>;
 type Tables = BTreeMap<zil_base::ModuleId, BTreeMap<String, Signature>>;
+type CallInfo = (FunctionId, Vec<bool>);
+
+enum MethodInfo {
+    Call(CallInfo),
+    Field,
+    Unknown,
+}
 
 struct Input<'a> {
     function: &'a CoreFunction,
@@ -498,6 +505,112 @@ impl<T: Tracking> Scan<'_, '_, T> {
             _ => None,
         }
     }
+    fn method_info(&mut self, origins: &Origins, member: &str, span: Span) -> R<MethodInfo> {
+        // Every tracked origin names a real Desc parameter. Resolve the exact
+        // nominal method from those parameter types, including local aliases.
+        // An unknown/mixed shape remains a conservative write, never read-only.
+        if origins.is_empty() {
+            return Ok(MethodInfo::Unknown);
+        }
+        self.spend(
+            origins.len().saturating_add(
+                self.input.imports.iter().fold(0usize, |count, import| {
+                    count.saturating_add(import.alias.len().saturating_add(1))
+                }),
+            ),
+            span,
+        )?;
+        let imports = self.tables.map(|signatures| program::Imports {
+            aliases: self
+                .input
+                .imports
+                .iter()
+                .map(|import| (import.alias.clone(), import.module))
+                .collect(),
+            signatures,
+        });
+        let mut chosen: Option<&Signature> = None;
+        let mut fields = 0usize;
+        for origin in origins {
+            let Some(CoreParameter {
+                ty: Type::Desc(payload),
+                ..
+            }) = self.input.function.parameters.get(*origin)
+            else {
+                return Ok(MethodInfo::Unknown);
+            };
+            if let Type::Record {
+                fields: members, ..
+            } = payload.as_ref()
+            {
+                self.spend(members.len(), span)?;
+                if members.iter().any(|(name, _)| name == member) {
+                    fields += 1;
+                    continue;
+                }
+            }
+            let Some(signature) = aggregates::resolve_type_method(
+                payload,
+                member,
+                self.input.signatures,
+                imports.as_ref(),
+            ) else {
+                return Ok(MethodInfo::Unknown);
+            };
+            if chosen.is_some_and(|previous| previous.id != signature.id) {
+                return Ok(MethodInfo::Unknown);
+            }
+            chosen = Some(signature);
+        }
+        if fields == origins.len() {
+            return Ok(MethodInfo::Field);
+        }
+        if fields != 0 {
+            return Ok(MethodInfo::Unknown);
+        }
+        let Some(signature) = chosen else {
+            return Ok(MethodInfo::Unknown);
+        };
+        let id = signature.id;
+        let count = signature.parameters.len();
+        self.spend(count, span)?;
+        Ok(MethodInfo::Call((
+            id,
+            chosen
+                .expect("chosen method")
+                .parameters
+                .iter()
+                .map(|ty| matches!(ty, Type::Desc(_)))
+                .collect(),
+        )))
+    }
+    fn call_effect(
+        &mut self,
+        info: &Option<CallInfo>,
+        index: usize,
+        origins: Origins,
+        span: Span,
+    ) -> R<()> {
+        if T::ENABLED
+            && !origins.is_empty()
+            && let Some((id, parameters)) = info
+            && parameters.get(index) == Some(&true)
+        {
+            self.spend(1, span)?;
+            self.callees.observe(*id);
+        }
+        let writes = match info {
+            Some((id, parameters)) => {
+                parameters.get(index) == Some(&true)
+                    && self.summaries.get(id).is_some_and(|s| s.contains(&index))
+            }
+            None => true,
+        };
+        if writes {
+            self.record(origins, span)?;
+        }
+        Ok(())
+    }
     fn place(&mut self, expression: &CoreExpr, depth: usize) -> R<Origins> {
         self.visit(depth, expression.span)?;
         match &expression.kind {
@@ -570,6 +683,26 @@ impl<T: Tracking> Scan<'_, '_, T> {
                         {
                             self.record(origins, argument.span)?;
                         }
+                    }
+                    return Ok(Origins::new());
+                }
+                if self.callee(callee).is_none()
+                    && let CoreExprKind::Member { object, member } = &callee.kind
+                {
+                    self.visit(depth + 1, callee.span)?;
+                    self.spend(member.len(), callee.span)?;
+                    let receiver = self.expr(object, depth + 2)?;
+                    let (info, field) = match self.method_info(&receiver, member, callee.span)? {
+                        MethodInfo::Call(info) => (Some(info), false),
+                        MethodInfo::Field => (None, true),
+                        MethodInfo::Unknown => (None, false),
+                    };
+                    if !field {
+                        self.call_effect(&info, 0, receiver, object.span)?;
+                    }
+                    for (index, argument) in arguments.iter().enumerate() {
+                        let origins = self.expr(argument, depth + 1)?;
+                        self.call_effect(&info, index + 1, origins, argument.span)?;
                     }
                     return Ok(Origins::new());
                 }
