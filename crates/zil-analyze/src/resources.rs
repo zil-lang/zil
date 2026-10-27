@@ -1323,6 +1323,13 @@ impl Flow<'_> {
                         }
                     }
                 }
+                InstructionKind::BorrowLocal { local }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
+                {
+                    if check && !exact(&copied(state, Place::Local(*local), budget)?, Life::Available) {
+                        return Err(error("head address requires a live managed position"));
+                    }
+                }
                 InstructionKind::DescribeLocal { local } => {
                     if !self.views.is_empty() {
                         budget.lookup(self.views.len(), "Package view description boundary")?;

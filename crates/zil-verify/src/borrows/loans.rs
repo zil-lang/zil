@@ -514,9 +514,10 @@ pub(super) fn check(
     graph: &FunctionGraph,
     facts: &Facts,
     effects: &[Effects],
+    head_windows: bool,
     budget: &mut Budget,
 ) -> Check<Apart> {
-    if !f.locals.iter().any(|l| {
+    if !head_windows && !f.locals.iter().any(|l| {
         affine_type(module, &l.ty)
             || byte_buffers::is_carrier(&l.ty)
             || resources::arrays::is_owned_type(&l.ty)
@@ -576,6 +577,12 @@ pub(super) fn check(
             reverse(&mut live, instruction, v);
         }
         let mut locals = copy_state(&flow.inputs[b], budget)?;
+        let mut descriptor_locals = if head_windows {
+            state_cost(&facts.inputs[b], budget)?;
+            facts.inputs[b].clone()
+        } else {
+            State::new()
+        };
         for (i, instruction) in block.instructions.iter().enumerate() {
             let active = active(&flow, &locals, &after[i], v, budget)?;
             let ignore = instruction
@@ -590,8 +597,32 @@ pub(super) fn check(
                 span,
                 apart: apart_ref,
             };
-            if let Some((buffer, write)) = byte_buffers::access(&instruction.kind) {
+            if let Some((buffer, write)) = buffer_effects::access(&instruction.kind, head_windows) {
                 access.check(&empty, &facts.values[buffer.0 as usize], write, budget)?;
+            }
+            if head_windows {
+                let callback = match &instruction.kind {
+                    InstructionKind::CallClosure { callee, .. }
+                    | InstructionKind::CallClosureOnce { callee, .. }
+                    | InstructionKind::CallClosureBorrowed { callee, .. }
+                        if captures_descriptors(module, &f.values[callee.0 as usize]) =>
+                    {
+                        Some(&facts.values[callee.0 as usize])
+                    }
+                    InstructionKind::CallClosureShared { callee, .. }
+                    | InstructionKind::CallClosureMut { callee, .. }
+                        if captures_descriptors(module, &f.locals[callee.0 as usize].ty) =>
+                    {
+                        descriptor_locals.get(callee)
+                    }
+                    _ => None,
+                };
+                if let Some(callback) = callback {
+                    // No unproved closure body is silently read-only. This
+                    // conservative access also exports unknown parameter
+                    // separation through the existing independent contract.
+                    access.check(&empty, callback, true, budget)?;
+                }
             }
             if let InstructionKind::Call {
                 function: callee,
@@ -682,7 +713,7 @@ pub(super) fn check(
                     }
                 }
                 InstructionKind::DropManaged { local }
-                    if byte_buffers::is_owned(&f.locals[local.0 as usize].ty) =>
+                    if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     access.check(&empty, &[Root::Local(*local)], true, budget)?;
                 }
@@ -691,7 +722,7 @@ pub(super) fn check(
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
                         || errors::owned(&f.locals[local.0 as usize].ty)
                         || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
-                        || byte_buffers::is_owned(&f.locals[local.0 as usize].ty)
+                        || matches!(f.locals[local.0 as usize].ty, Type::Managed(_))
                     {
                         access.check(&empty, &[Root::Local(*local)], true, budget)?;
                     }
@@ -779,6 +810,9 @@ pub(super) fn check(
                 _ => {}
             }
             local_transfer(&mut locals, instruction, &flow.values, budget)?;
+            if head_windows {
+                super::local_transfer(&mut descriptor_locals, instruction, &facts.values, budget)?;
+            }
         }
     }
     Ok(apart.into_inner())

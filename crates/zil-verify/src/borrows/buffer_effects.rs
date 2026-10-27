@@ -5,6 +5,14 @@ use super::*;
 pub(super) type Effects = BTreeMap<u32, bool>;
 pub(super) type Apart = BTreeSet<(u32, u32)>;
 
+pub(super) fn access(kind: &InstructionKind, head_windows: bool) -> Option<(ValueId, bool)> {
+    match kind {
+        InstructionKind::ReadDesc { desc, .. } if head_windows => Some((*desc, false)),
+        InstructionKind::WriteDesc { desc, .. } if head_windows => Some((*desc, true)),
+        _ => byte_buffers::access(kind),
+    }
+}
+
 fn add_effect(row: &mut Effects, parameter: u32, write: bool, budget: &mut Budget) -> Check<bool> {
     budget.spend(row.len().saturating_add(1))?;
     match row.get_mut(&parameter) {
@@ -24,6 +32,7 @@ pub(super) fn infer(
     module: &TypedModule,
     graphs: &[FunctionGraph],
     facts: &[Facts],
+    head_windows: bool,
     budget: &mut Budget,
 ) -> Check<Vec<Effects>> {
     budget.spend(module.functions.len())?;
@@ -32,6 +41,17 @@ pub(super) fn infer(
         let mut changed = false;
         for (index, function) in module.functions.iter().enumerate() {
             budget.spend(1)?;
+            if head_windows {
+                // A synchronous helper can invoke its concrete borrowed-Desc
+                // environment. Until a precise capture-access contract is
+                // available here, publish a conservative write to its roots.
+                for (parameter, local) in function.parameters.iter().enumerate() {
+                    budget.spend(1)?;
+                    if captures_descriptors(module, &function.locals[local.0 as usize].ty) {
+                        changed |= add_effect(&mut effects[index], parameter as u32, true, budget)?;
+                    }
+                }
+            }
             for (block, reachable) in function.blocks.iter().zip(&graphs[index].reachable) {
                 budget.spend(1)?;
                 if !reachable {
@@ -39,7 +59,7 @@ pub(super) fn infer(
                 }
                 for instruction in &block.instructions {
                     budget.spend(1)?;
-                    if let Some((buffer, write)) = byte_buffers::access(&instruction.kind) {
+                    if let Some((buffer, write)) = access(&instruction.kind, head_windows) {
                         for root in &facts[index].values[buffer.0 as usize] {
                             budget.spend(1)?;
                             if let Root::Parameter(parameter) = root {

@@ -1247,6 +1247,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 format!("unknown value {name}"),
             ));
         };
+        if ty.is_shared_resource_head_address() {
+            return Err(unsupported(
+                span,
+                "resource-head address capture requires a separate retained head-window contract",
+            ));
+        }
         // A write behind a nested move changes that inner snapshot, not the
         // outer position. Managed/Package captures instead change ownership at
         // creation, even if the nested environment is never invoked.
