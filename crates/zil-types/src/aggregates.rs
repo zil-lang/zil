@@ -99,6 +99,13 @@ impl<'a> Visibility<'a> {
                         .locals
                         .get(local.0 as usize)
                         .map(|local| (&local.ty, *index)),
+                    InstructionKind::ProjectOwnedArrayField { local, field, .. } => function
+                        .locals
+                        .get(local.0 as usize)
+                        .and_then(|local| match &local.ty {
+                            Type::Array { element, .. } => Some((element.as_ref(), *field)),
+                            _ => None,
+                        }),
                     _ => None,
                 };
                 if let Some((ty, field)) = access {
@@ -978,13 +985,15 @@ impl Builder<'_, '_> {
                         "array literal length does not match its type",
                     ));
                 }
-                let mut fields = Vec::new();
+                self.closures.snapshot(items.len(), e.span)?;
+                let mut staged = Vec::new();
                 for v in items {
-                    let (id, t) = self.expr(v, element.as_ref())?;
+                    let (id, t) = self.transfer_expr(v, element.as_ref())?;
                     if element.is_none() {
-                        element = Some(t);
+                        element = Some(t.clone());
                     }
-                    fields.push(id);
+                    self.same(&t, element.as_ref().expect("known array element"), v.span)?;
+                    staged.push(self.stage_argument(id, &t, v.span)?);
                 }
                 let element = element.ok_or_else(|| {
                     error(
@@ -993,16 +1002,31 @@ impl Builder<'_, '_> {
                         "empty array requires an element type",
                     )
                 })?;
-                if !element.is_copy_value() {
-                    return Err(unsupported(e.span, "array element requires a Copy value"));
-                }
                 let ty = Type::Array {
                     element: Box::new(element),
                     length,
                 };
+                let owned = packages::owned_array_supported(&ty);
+                if !owned && !ty.is_copy_value() {
+                    return Err(unsupported(
+                        e.span,
+                        "array elements require finite Copy values or a nonempty homogeneous Package array",
+                    ));
+                }
+                if let Type::Array { element, length } = &ty
+                    && let Type::Package { fields, .. } = element.as_ref()
+                {
+                    self.closures
+                        .snapshot((*length as usize).saturating_mul(fields.len()), e.span)?;
+                }
+                let fields = self.commit_arguments(staged, e.span)?;
                 Ok((
                     self.value(
-                        InstructionKind::MakeAggregate { fields },
+                        if owned {
+                            InstructionKind::MakeOwnedArray { elements: fields }
+                        } else {
+                            InstructionKind::MakeAggregate { fields }
+                        },
                         ty.clone(),
                         e.span,
                     )?,
@@ -1010,6 +1034,16 @@ impl Builder<'_, '_> {
                 ))
             }
             CoreExprKind::Index { object, index } => {
+                if let Some((local, index, ty)) = self.owned_array_place(e)? {
+                    return Ok((
+                        self.value(
+                            InstructionKind::TakeOwnedArrayElement { local, index },
+                            ty.clone(),
+                            e.span,
+                        )?,
+                        ty,
+                    ));
+                }
                 if matches!(self.known_type(object), Some(Type::Address { .. })) {
                     let (address, ty) = self.borrow_place(e)?;
                     let Type::Address { inner, .. } = ty else {
@@ -1253,7 +1287,7 @@ impl Builder<'_, '_> {
             .lookup(name)
             .ok_or_else(|| error("E-UNKNOWN-NAME", root.span, "unknown assignment root"))?;
         let decl = self.function.locals[local.0 as usize].clone();
-        if matches!(decl.ty, Type::Package { .. }) {
+        if matches!(decl.ty, Type::Package { .. }) || packages::owned_array_supported(&decl.ty) {
             return Err(unsupported(
                 target.span,
                 "nested package Copy projection assignment is not implemented; assign the direct Copy field",

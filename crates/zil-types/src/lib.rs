@@ -136,6 +136,7 @@ fn signatures(
             || f.return_type.is_scalar_or_address()
             || packages::supported(&f.return_type)
             || errors::supported(&f.return_type)
+            || packages::owned_array_supported(&f.return_type)
             || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
         {
             errors.push(unsupported(
@@ -172,7 +173,8 @@ fn signatures(
                 || p.ty.is_scalar_or_address()
                 || resources::supported(&p.ty)
                 || packages::supported(&p.ty)
-                || errors::supported(&p.ty))
+                || errors::supported(&p.ty)
+                || packages::owned_array_supported(&p.ty))
             {
                 errors.push(unsupported(
                     p.span,
@@ -1212,7 +1214,10 @@ impl<'a, 'c> Builder<'a, 'c> {
                             desc,
                         ));
                     }
-                    let kind = if matches!(ty, Type::Package { .. }) || errors::owned(&ty) {
+                    let kind = if matches!(ty, Type::Package { .. })
+                        || packages::owned_array_supported(&ty)
+                        || errors::owned(&ty)
+                    {
                         InstructionKind::TakeLocal { local }
                     } else {
                         InstructionKind::Load(local)

@@ -5,6 +5,7 @@
 //! candidate's responsibility fields are not trusted or consulted.
 use super::*;
 use std::collections::VecDeque;
+pub(crate) mod arrays;
 
 const EMPTY: u8 = 1;
 const LIVE: u8 = 2;
@@ -225,6 +226,7 @@ enum Root {
     // populated. A later instance at the same physical slot cannot revive an
     // earlier live description across a Take/Drop/Store transition.
     PackageField { local: LocalId, index: u32 },
+    ArrayElement { local: LocalId, index: u32 },
     Parameter(u32),
     OwnedCapture(u32),
     BorrowedCapture(u32),
@@ -304,6 +306,9 @@ impl Slots {
                 (ty, managed),
                 (Type::Managed(_) | Type::Package { .. }, true) | (Type::Desc(_), false)
             ) || (managed && errors::owned(ty))
+                || (managed
+                    && matches!(ty, Type::Array { element, length }
+                    if *length > 0 && matches!(element.as_ref(), Type::Package { .. })))
                 || matches!(ty, Type::Closure(id) if if managed {
                     owned_closures[id.0 as usize]
                 } else { borrowed_closures[id.0 as usize] })
@@ -323,6 +328,7 @@ impl Slots {
         // slot pass. A function without a Package keeps the former traversal
         // and allocation cost; it does not build or scan an empty field table.
         let mut package_declarations = Vec::new();
+        let mut array_declarations = Vec::new();
         let mut managed_local = Vec::with_capacity(f.locals.len());
         for (local, declaration) in f.locals.iter().enumerate() {
             managed_local.push(slot(&declaration.ty, true));
@@ -330,12 +336,19 @@ impl Slots {
                 budget.spend(2)?;
                 package_declarations.push((local, fields));
             }
+            if let Type::Array { element, length } = &declaration.ty
+                && let Type::Package { fields, .. } = element.as_ref()
+            {
+                budget.spend((*length as usize).saturating_mul(fields.len().saturating_add(1)))?;
+                array_declarations.push((local, *length));
+            }
         }
         let local_count = managed_local.iter().flatten().count();
         let managed_value = f.values.iter().map(|t| slot(t, true)).collect();
         let desc_local = f.locals.iter().map(|l| slot(&l.ty, false)).collect();
         let desc_value = f.values.iter().map(|t| slot(t, false)).collect();
-        let mut package_fields = if package_declarations.is_empty() {
+        let mut package_fields = if package_declarations.is_empty() && array_declarations.is_empty()
+        {
             Vec::new()
         } else {
             budget.spend(f.locals.len())?;
@@ -353,6 +366,15 @@ impl Slots {
                     } else {
                         None
                     }
+                })
+                .collect();
+        }
+        for (local, length) in array_declarations {
+            package_fields[local] = (0..length)
+                .map(|_| {
+                    let next = debt_count;
+                    debt_count += 1;
+                    Some(next)
                 })
                 .collect();
         }
@@ -613,7 +635,7 @@ fn description_live(
     for root in &state.desc[row] {
         let slot = match root {
             Root::Local(local) => slots.managed_local[local.0 as usize],
-            Root::PackageField { local, index } => {
+            Root::PackageField { local, index } | Root::ArrayElement { local, index } => {
                 slots.package_fields[local.0 as usize][*index as usize]
             }
             Root::OwnedCapture(index) => slots.capture_debt[*index as usize],
@@ -646,7 +668,7 @@ fn no_live_description(
                 *candidate == root
                     || matches!(
                         (*candidate, root),
-                        (Root::PackageField { local: a, .. }, Root::Local(b)) if a == b
+                        (Root::PackageField { local: a, .. } | Root::ArrayElement { local: a, .. }, Root::Local(b)) if a == b
                     )
             }) {
                 return Err(bad(
@@ -726,7 +748,12 @@ impl Transfer<'_> {
         written.extend(
             roots
                 .iter()
-                .filter(|root| !matches!(root, Root::Local(_) | Root::PackageField { .. }))
+                .filter(|root| {
+                    !matches!(
+                        root,
+                        Root::Local(_) | Root::PackageField { .. } | Root::ArrayElement { .. }
+                    )
+                })
                 .copied(),
         );
         Ok(())
@@ -821,11 +848,96 @@ impl Transfer<'_> {
                 InstructionKind::MakeManaged { .. } | InstructionKind::ByteBufferNew => {
                     fresh_result = Some(FRESH)
                 }
-                InstructionKind::MakePackage { fields } => {
+                InstructionKind::MakePackage { fields }
+                | InstructionKind::MakeOwnedArray { elements: fields } => {
                     for &value in fields {
                         self.consume(state, value, span, validate)?;
                     }
                     fresh_result = Some(INPUT);
+                }
+                InstructionKind::ProjectOwnedArrayField { local, index, .. } => {
+                    self.package_shell(state, *local, span, validate)?;
+                    let element = slots.package_fields[local.0 as usize][*index as usize]
+                        .expect("independently checked owning array element");
+                    if validate && state.debt[element] != LIVE {
+                        return Err(bad(
+                            span,
+                            "owning array field projection requires a live element on every path",
+                        ));
+                    }
+                    if let Some(row) = instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                    {
+                        state.desc[row] = BTreeSet::from([Root::ArrayElement {
+                            local: *local,
+                            index: *index,
+                        }]);
+                    }
+                }
+                InstructionKind::TakeOwnedArrayElement { local, index }
+                | InstructionKind::DropOwnedArrayElement { local, index } => {
+                    self.package_shell(state, *local, span, validate)?;
+                    let element = slots.package_fields[local.0 as usize][*index as usize]
+                        .expect("independently checked owning array element");
+                    let take = matches!(
+                        instruction.kind,
+                        InstructionKind::TakeOwnedArrayElement { .. }
+                    );
+                    if validate {
+                        if take && state.debt[element] != LIVE {
+                            return Err(bad(
+                                span,
+                                "owning array take requires a complete live element on every path",
+                            ));
+                        }
+                        no_live_description(
+                            state,
+                            &self.after[b][i],
+                            Root::ArrayElement {
+                                local: *local,
+                                index: *index,
+                            },
+                            span,
+                            budget,
+                        )?;
+                    }
+                    if take {
+                        state.debt[element] = MOVED;
+                        fresh_result = Some(INPUT);
+                    } else {
+                        state.debt[element] = discharged(state.debt[element]);
+                    }
+                }
+                InstructionKind::StoreOwnedArrayElement {
+                    local,
+                    index,
+                    value,
+                } => {
+                    self.package_shell(state, *local, span, validate)?;
+                    let element = slots.package_fields[local.0 as usize][*index as usize]
+                        .expect("independently checked owning array element");
+                    if validate {
+                        if state.debt[element] & LIVE != 0 {
+                            return Err(bad(
+                                span,
+                                "owning array refill would overwrite an outstanding element responsibility",
+                            ));
+                        }
+                        no_live_description(
+                            state,
+                            &self.after[b][i],
+                            Root::ArrayElement {
+                                local: *local,
+                                index: *index,
+                            },
+                            span,
+                            budget,
+                        )?;
+                    }
+                    self.consume(state, *value, span, validate)?;
+                    state.debt[element] = LIVE;
+                    state.fresh[element] = INPUT;
                 }
                 InstructionKind::ReadPackageField { local, .. }
                 | InstructionKind::DescribePackageField { local, .. } => {
@@ -1105,6 +1217,7 @@ impl Transfer<'_> {
                 InstructionKind::DropManaged { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
+                | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::DropPackage { local } => {
                     let index = slots.managed_local[local.0 as usize].expect("typed cleanup local");
                     if validate {

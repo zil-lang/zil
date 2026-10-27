@@ -383,7 +383,11 @@ fn check(
                 | InstructionKind::EndPackageCapture { local, .. }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
-                | InstructionKind::DropPackage { local } => Some(Root::Local(local)),
+                | InstructionKind::DropPackage { local }
+                | InstructionKind::DropOwnedArray { local }
+                | InstructionKind::TakeOwnedArrayElement { local, .. }
+                | InstructionKind::DropOwnedArrayElement { local, .. }
+                | InstructionKind::StoreOwnedArrayElement { local, .. } => Some(Root::Local(local)),
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
                 | InstructionKind::StorePackageField { local, index, .. } => {
@@ -398,6 +402,7 @@ fn check(
                     if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
                         || errors::owned(&f.locals[local.0 as usize].ty)
+                        || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
                         || byte_buffers::is_owned(&f.locals[local.0 as usize].ty) =>
                 {
                     Some(Root::Local(local))
@@ -533,6 +538,14 @@ fn reconstruct(
                             // Only checked independent owning byte fields receive
                             // a projection; unknown resources keep the whole root.
                             row.push(field_root(f, *local, *index));
+                        }
+                        InstructionKind::ProjectOwnedArrayField { local, .. }
+                            if byte_buffers::is_desc(&f.values[result.0 as usize]) =>
+                        {
+                            // Reconstruct from the actual local, independently
+                            // of the candidate Hold rows. This deliberately
+                            // does not assert distinct element loans.
+                            row.push(Root::Local(*local));
                         }
                         InstructionKind::DescribeCapture { index }
                             if byte_buffers::is_desc(&f.values[result.0 as usize]) =>

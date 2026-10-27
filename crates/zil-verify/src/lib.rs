@@ -420,6 +420,7 @@ fn check_module(
                     )?,
                     InstructionKind::MakeManaged { fields }
                     | InstructionKind::MakePackage { fields }
+                    | InstructionKind::MakeOwnedArray { elements: fields }
                     | InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakeVariant { fields, .. } => budget.spend(fields.len())?,
                     InstructionKind::Call { arguments, .. }
@@ -660,6 +661,9 @@ fn check_function_signature_type(
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_type_for(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
+        ty if resources::arrays::is_owned_type(ty) => {
+            resources::arrays::check_type_for(module, ty, span, budget)
+        }
         _ => check_signature_type(ty, span),
     }
 }
@@ -684,6 +688,9 @@ fn check_local_type(
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_type_for(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
+        ty if resources::arrays::is_owned_type(ty) => {
+            resources::arrays::check_type_for(module, ty, span, budget)
+        }
         _ => check_type(ty, span),
     }
 }
@@ -903,6 +910,11 @@ fn check_function(
                 | InstructionKind::TakePackageField { local, .. }
                 | InstructionKind::DropPackageField { local, .. }
                 | InstructionKind::StorePackageField { local, .. }
+                | InstructionKind::ProjectOwnedArrayField { local, .. }
+                | InstructionKind::TakeOwnedArrayElement { local, .. }
+                | InstructionKind::DropOwnedArrayElement { local, .. }
+                | InstructionKind::StoreOwnedArrayElement { local, .. }
+                | InstructionKind::BorrowOwnedArrayElement { local, .. }
                 | InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local }
                 | InstructionKind::TakeLocal { local }
@@ -925,6 +937,7 @@ fn check_function(
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropPackage { local }
+                | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::EndPackageCapture { local, .. }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local) => initialized[local.0 as usize] = false,
@@ -1008,6 +1021,15 @@ fn check_instruction(
         | InstructionKind::StorePackageField { .. }
         | InstructionKind::DropPackage { .. } => {
             packages::check_instruction(module, function, instruction, budget)?
+        }
+        InstructionKind::MakeOwnedArray { .. }
+        | InstructionKind::ProjectOwnedArrayField { .. }
+        | InstructionKind::TakeOwnedArrayElement { .. }
+        | InstructionKind::DropOwnedArrayElement { .. }
+        | InstructionKind::StoreOwnedArrayElement { .. }
+        | InstructionKind::DropOwnedArray { .. }
+        | InstructionKind::BorrowOwnedArrayElement { .. } => {
+            resources::arrays::check_instruction(module, function, instruction, budget)?
         }
         InstructionKind::DescribeCapture { .. }
         | InstructionKind::TakeCapture { .. }
@@ -1104,7 +1126,7 @@ fn check_instruction(
                     "an owned error union requires TakeLocal, never copying Load",
                 ));
             }
-            if matches!(ty, Type::Package { .. }) {
+            if matches!(ty, Type::Package { .. }) || resources::arrays::is_owned_type(ty) {
                 return Err(reject(
                     "E-VERIFY-PACKAGE",
                     span,
@@ -1127,6 +1149,7 @@ fn check_instruction(
                 && !matches!(ty, Type::Managed(_))
                 && !matches!(ty, Type::Package { .. })
                 && !errors::owned(ty)
+                && !resources::arrays::is_owned_type(ty)
                 && !closures::owned_type(module, ty, budget)?
             {
                 return Err(reject(
@@ -1481,6 +1504,13 @@ fn check_instruction(
             }
         }
         InstructionKind::ExtractIndex { aggregate, index } => {
+            if resources::arrays::is_owned_type(value_type(function, *aggregate, span)?) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-ARRAY",
+                    span,
+                    "Copy index extraction cannot transfer an owning array element",
+                ));
+            }
             if !value_type(function, *index, span)?.is_integer() {
                 return Err(reject(
                     "E-VERIFY-INDEX",
@@ -1506,6 +1536,13 @@ fn check_instruction(
                 ));
             }
             let ty = value_type(function, *aggregate, span)?;
+            if resources::arrays::is_owned_type(ty) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-ARRAY",
+                    span,
+                    "Copy array update cannot replace an owning element",
+                ));
+            }
             let Type::Array { element, .. } = ty else {
                 return Err(reject(
                     "E-VERIFY-INDEX",
@@ -1531,6 +1568,13 @@ fn check_instruction(
                 )
             })?;
             let ty = value_type(function, result, span)?;
+            if resources::arrays::is_owned_type(ty) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-ARRAY",
+                    span,
+                    "Copy aggregate construction cannot create an owning array",
+                ));
+            }
             check_type(ty, span)?;
             let expected = ty.aggregate_fields().ok_or_else(|| {
                 reject(
@@ -1622,6 +1666,13 @@ fn check_instruction(
         }
         InstructionKind::ExtractField { aggregate, index } => {
             let ty = value_type(function, *aggregate, span)?;
+            if resources::arrays::is_owned_type(ty) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-ARRAY",
+                    span,
+                    "Copy field operations cannot access owning array elements",
+                ));
+            }
             let fields = ty.aggregate_fields().ok_or_else(|| {
                 reject(
                     "E-VERIFY-AGGREGATE",
@@ -1646,6 +1697,13 @@ fn check_instruction(
             value,
         } => {
             let ty = value_type(function, *aggregate, span)?;
+            if resources::arrays::is_owned_type(ty) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-ARRAY",
+                    span,
+                    "Copy field operations cannot access owning array elements",
+                ));
+            }
             let fields = ty.aggregate_fields().ok_or_else(|| {
                 reject(
                     "E-VERIFY-AGGREGATE",
@@ -2044,6 +2102,11 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::DescribePackageField { .. }
         | InstructionKind::TakePackageField { .. }
         | InstructionKind::DropPackageField { .. }
+        | InstructionKind::ProjectOwnedArrayField { .. }
+        | InstructionKind::TakeOwnedArrayElement { .. }
+        | InstructionKind::DropOwnedArrayElement { .. }
+        | InstructionKind::DropOwnedArray { .. }
+        | InstructionKind::BorrowOwnedArrayElement { .. }
         | InstructionKind::DropManaged { .. }
         | InstructionKind::DropPackage { .. }
         | InstructionKind::DropErrorUnion { .. }
@@ -2061,6 +2124,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
         | InstructionKind::StorePackageField { value, .. }
+        | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => ([Some(*value), None], &[]),
         InstructionKind::ByteBufferReserve { buffer, capacity } => {
             ([Some(*buffer), Some(*capacity)], &[])
@@ -2098,6 +2162,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::MakeClosure { captures, .. } => ([None, None], captures),
         InstructionKind::MakeManaged { fields }
         | InstructionKind::MakePackage { fields }
+        | InstructionKind::MakeOwnedArray { elements: fields }
         | InstructionKind::MakeAggregate { fields }
         | InstructionKind::MakeVariant { fields, .. } => ([None, None], fields),
         InstructionKind::VariantTag { value }
@@ -2216,6 +2281,7 @@ fn initialization(
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropPackage { local }
+                | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::EndPackageCapture { local, .. }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local) => outputs[b][local.0 as usize] = false,
@@ -2257,6 +2323,7 @@ fn initialization(
                     | InstructionKind::DropClosure { local }
                     | InstructionKind::DropErrorUnion { local }
                     | InstructionKind::DropPackage { local }
+                    | InstructionKind::DropOwnedArray { local }
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::StorageLive(local)
                     | InstructionKind::StorageDead(local) => out[local.0 as usize] = false,

@@ -608,6 +608,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             || ty.is_scalar_or_address()
             || resources::supported(ty)
             || packages::supported(ty)
+            || packages::owned_array_supported(ty)
     };
     if (!admitted(&signature.result) && signature.callable_return.is_none())
         || signature.parameters.iter().enumerate().any(|(index, ty)| {

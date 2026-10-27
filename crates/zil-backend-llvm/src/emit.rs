@@ -1,3 +1,4 @@
+mod arrays;
 mod byte_buffer;
 mod enums;
 mod errors;
@@ -252,6 +253,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             || resources::supported_type(&function.return_type, &lir.resources)
             || packages::supported_type(&function.return_type, &lir.resources)
             || errors::supported_type(&function.return_type, &lir.resources)
+            || arrays::supported_type(&function.return_type, &lir.resources)
             || (matches!(function.return_type, Type::Closure(_))
                 && function.callable_return_contract.is_some()))
             || function.parameters.iter().any(|id| {
@@ -261,6 +263,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                     || resources::supported_type(ty, &lir.resources)
                     || packages::supported_type(ty, &lir.resources)
                     || errors::supported_type(ty, &lir.resources)
+                    || arrays::supported_type(ty, &lir.resources)
                     || callable_parameter_type(ty, &lir.closures))
             })
         {
@@ -279,6 +282,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                 && !resources::supported_type(ty, &lir.resources)
                 && !packages::supported_type(ty, &lir.resources)
                 && !errors::supported_type(ty, &lir.resources)
+                && !arrays::supported_type(ty, &lir.resources)
             {
                 return unsupported(
                     format!("LLVM representation for {}", ty.name()),
@@ -471,7 +475,7 @@ impl FunctionEmitter<'_> {
                 self.package_capture_storage(local.id, *index)?;
                 continue;
             }
-            if self.owns_resource(&local.ty) {
+            if self.owns_storage(&local.ty) {
                 self.line(format!(
                     "  %resource.live.{} = alloca i1, align 1",
                     local.id.0
@@ -494,6 +498,7 @@ impl FunctionEmitter<'_> {
                 ));
             }
             self.package_flags(local.id, true, self.function.parameters.contains(&local.id))?;
+            self.owned_array_flags(local.id, true, self.function.parameters.contains(&local.id))?;
         }
         // Fixed entry-block scratch slots prevent dynamic indexing inside a
         // loop from growing the stack on every iteration.
@@ -565,6 +570,14 @@ impl FunctionEmitter<'_> {
             }
             InstructionKind::ReadPackageField { local, index } => {
                 self.read_package_field(instruction, *local, *index)?
+            }
+            InstructionKind::ProjectOwnedArrayField { .. }
+            | InstructionKind::TakeOwnedArrayElement { .. }
+            | InstructionKind::DropOwnedArrayElement { .. }
+            | InstructionKind::StoreOwnedArrayElement { .. }
+            | InstructionKind::DropOwnedArray { .. }
+            | InstructionKind::BorrowOwnedArrayElement { .. } => {
+                self.owned_array_instruction(instruction)?;
             }
             InstructionKind::DescribePackageField { local, index } => {
                 self.describe_package_field(instruction, *local, *index)?
@@ -676,13 +689,14 @@ impl FunctionEmitter<'_> {
                     ));
                 }
                 if matches!(instruction.kind, InstructionKind::TakeLocal { .. })
-                    && self.owns_resource(self.local_type(*local)?)
+                    && self.owns_storage(self.local_type(*local)?)
                 {
                     self.line(format!(
                         "  store i1 false, ptr %resource.live.{}, align 1",
                         local.0
                     ));
                     self.package_flags(*local, false, false)?;
+                    self.owned_array_flags(*local, false, false)?;
                 }
             }
             InstructionKind::Store { local, value } => {
@@ -696,12 +710,13 @@ impl FunctionEmitter<'_> {
                         alignment(ty, self.closures)?
                     ));
                 }
-                if self.owns_resource(self.local_type(*local)?) {
+                if self.owns_storage(self.local_type(*local)?) {
                     self.line(format!(
                         "  store i1 true, ptr %resource.live.{}, align 1",
                         local.0
                     ));
                     self.package_flags(*local, false, true)?;
+                    self.owned_array_flags(*local, false, true)?;
                 }
             }
             InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
@@ -823,12 +838,13 @@ impl FunctionEmitter<'_> {
                 }
             }
             InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
-                if self.owns_resource(self.local_type(*local)?) {
+                if self.owns_storage(self.local_type(*local)?) {
                     self.line(format!(
                         "  store i1 false, ptr %resource.live.{}, align 1",
                         local.0
                     ));
                     self.package_flags(*local, false, false)?;
+                    self.owned_array_flags(*local, false, false)?;
                 }
                 // S0 keeps the real stack allocation until return. Lexical
                 // validity was independently proved; no runtime table needed.
@@ -959,6 +975,7 @@ impl FunctionEmitter<'_> {
             } => self.indexed(instruction, *aggregate, *index, Some(*value))?,
             InstructionKind::MakeAggregate { fields }
             | InstructionKind::MakeManaged { fields }
+            | InstructionKind::MakeOwnedArray { elements: fields }
             | InstructionKind::MakePackage { fields } => {
                 let result = instruction.result.expect("verified aggregate result");
                 let ty = &self.function.values[result.0 as usize];

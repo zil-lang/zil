@@ -5,6 +5,7 @@ impl Builder<'_, '_> {
         match ty {
             Type::Package { .. } => true,
             Type::ErrorUnion { .. } => errors::owned(ty),
+            ty if packages::owned_array_supported(ty) => true,
             Type::Address { mutable: true, .. } => true,
             Type::Closure(id) => self.closures.pending[id.0 as usize]
                 .captures
