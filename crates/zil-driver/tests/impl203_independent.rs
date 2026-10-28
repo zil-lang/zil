@@ -372,12 +372,23 @@ fn store_and_success_union_preserve_mode_for_same_and_different_actual_types() {
             "let first=view.first()",
             "view.second()\n    let first=view.first()",
         );
-        reject_source(
-            &format!("borrowed-once-distinct-{distinct}"),
-            &borrow_once,
-            &[Phase::Types],
-            Some("E-CLOSURE-MODE"),
+        let case = Case::new(&format!("borrowed-once-distinct-{distinct}"));
+        let report = compile(&case, &borrow_once, None);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
         );
+        assert!(
+            report.diagnostics.iter().any(|d| (d.phase == Phase::Expand
+                && d.code == "E-GENERIC-ARGUMENT"
+                && d.message == "FnOnce requires an owned Store element obtained by pop")
+                || (d.phase == Phase::Types && d.code == "E-CLOSURE-MODE")),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
         let twice = source.replace(
             "let second=next.second()",
             "let second=next.second()\n    next.second()",
@@ -1129,6 +1140,166 @@ fn unused_raw_state_bodies_cannot_acquire_fields_or_repeat_a_declared_once_call(
     );
 }
 
+fn raw_state_field_take(
+    function: &CoreFunction,
+    local: &str,
+    field: &str,
+    base: u32,
+) -> CoreStatement {
+    let span = function.span;
+    CoreStatement {
+        id: NodeId(base),
+        span,
+        kind: CoreStatementKind::Binding {
+            name: local.into(),
+            mutable: false,
+            ty: None,
+            initializer: Some(CoreExpr {
+                id: NodeId(base + 1),
+                span,
+                kind: CoreExprKind::Member {
+                    object: Box::new(CoreExpr {
+                        id: NodeId(base + 2),
+                        span,
+                        kind: CoreExprKind::Name(function.parameters[0].name.clone()),
+                    }),
+                    member: field.into(),
+                },
+            }),
+        },
+    }
+}
+
+#[test]
+fn unused_raw_state_field_moves_do_not_gain_copy_from_callable_bounds() {
+    let (core, index) = unused_state_core();
+    let mut accepted = Vec::new();
+    for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+        let mut control = core.clone();
+        let f = &mut control.functions[index];
+        f.state_parameters[0].bindings[0].kind = kind;
+        let end = f.body.statements.last().unwrap().clone();
+        f.body.statements = vec![
+            raw_state_field_take(f, "one", "first", 991000),
+            raw_state_field_take(f, "two", "second", 991010),
+            end.clone(),
+        ];
+        raw_types(
+            &format!("unused-take-distinct-{kind:?}"),
+            &control,
+            &Limits::default(),
+            false,
+        );
+        for field in ["first", "second"] {
+            let mut changed = control.clone();
+            let f = &mut changed.functions[index];
+            f.body.statements = vec![
+                raw_state_field_take(f, "one", field, 991000),
+                raw_state_field_take(f, "two", field, 991010),
+                end.clone(),
+            ];
+            let label = format!("unused-take-twice-{kind:?}-{field}");
+            if inspect_origin_attack(&label, &changed) {
+                accepted.push(label);
+            }
+        }
+    }
+    assert!(
+        accepted.is_empty(),
+        "an uninstantiated declaration cannot copy a callback merely because it has a callable bound: {accepted:?}"
+    );
+}
+
+#[test]
+fn unused_raw_state_value_helper_transfer_cannot_leave_the_source_usable() {
+    let (core, index) = unused_state_core();
+    let mut accepted = Vec::new();
+    for (field, kind) in [
+        ("first", CallableKind::Fn),
+        ("second", CallableKind::FnOnce),
+    ] {
+        let mut control = core.clone();
+        let f = &control.functions[index];
+        let span = f.span;
+        let end = f.body.statements.last().unwrap().clone();
+        let mut helper = f.clone();
+        helper.id = NodeId(992000);
+        helper.name = "review_value_helper".into();
+        helper.state_parameters.clear();
+        helper.callable_parameters = vec![CoreCallableParameter {
+            index: 0,
+            generic_index: 0,
+            generic_name: "ReviewH".into(),
+            kind,
+            parameters: vec![],
+            result: Type::I32,
+        }];
+        helper.parameters = vec![CoreParameter {
+            name: "value".into(),
+            ty: Type::Named("ReviewH".into()),
+            mode: PassingMode::Infer,
+            span,
+        }];
+        helper.body.statements = vec![CoreStatement {
+            id: NodeId(992001),
+            span,
+            kind: CoreStatementKind::Return(Some(CoreExpr {
+                id: NodeId(992002),
+                span,
+                kind: CoreExprKind::Call {
+                    callee: Box::new(CoreExpr {
+                        id: NodeId(992003),
+                        span,
+                        kind: CoreExprKind::Name("value".into()),
+                    }),
+                    arguments: vec![],
+                },
+            })),
+        }];
+        let CoreStatementKind::Binding {
+            initializer: Some(argument),
+            ..
+        } = raw_state_field_take(f, "unused", field, 992010).kind
+        else {
+            unreachable!()
+        };
+        let call = CoreStatement {
+            id: NodeId(992020),
+            span,
+            kind: CoreStatementKind::Expression(CoreExpr {
+                id: NodeId(992021),
+                span,
+                kind: CoreExprKind::Call {
+                    callee: Box::new(CoreExpr {
+                        id: NodeId(992022),
+                        span,
+                        kind: CoreExprKind::Name(helper.name.clone()),
+                    }),
+                    arguments: vec![argument],
+                },
+            }),
+        };
+        control.functions[index].body.statements = vec![call.clone(), end.clone()];
+        control.functions.push(helper);
+        raw_types(
+            &format!("unused-value-helper-once-{kind:?}"),
+            &control,
+            &Limits::default(),
+            false,
+        );
+        let f = &mut control.functions[index];
+        f.body.statements = vec![call, raw_state_field_take(f, "later", field, 992030), end];
+        let label = format!("unused-value-helper-reuse-{kind:?}");
+        if inspect_origin_attack(&label, &control) {
+            accepted.push(label);
+        }
+    }
+    assert!(
+        accepted.is_empty(),
+        "an owned helper argument consumes the value even when the declared callable mode is reusable: {accepted:?}"
+    );
+}
+
 #[test]
 fn unused_state_second_binder_metadata_has_a_real_early_budget() {
     let (core, index) = unused_state_core();
@@ -1147,7 +1318,14 @@ fn unused_state_second_binder_metadata_has_a_real_early_budget() {
             let Type::Package { fields, .. } = &mut f.parameters[0].ty else {
                 unreachable!()
             };
-            fields[2].1 = Type::Named(long);
+            fields[2].1 = Type::Named(long.clone());
+            changed
+                .aggregates
+                .iter_mut()
+                .find(|a| a.kind == AggregateKind::Package)
+                .unwrap()
+                .fields[2]
+                .ty = Type::Named(long);
             Limits {
                 max_analysis_steps: 512,
                 ..Limits::default()
@@ -1256,6 +1434,543 @@ fn main()->i32{
         case.write("native.txt",format!("optimization={optimization:?}\nexit={:?}\nexpected_exit=0\nexpected_stdout=MPBQZAMPDQZC\n",output.status.code()));
         assert_eq!(output.status.code(), Some(0));
         assert_eq!(output.stdout, b"MPBQZAMPDQZC");
+        assert!(output.stderr.is_empty());
+    }
+}
+
+fn visit_block(block: &mut CoreBlock, action: &mut impl FnMut(&mut CoreExpr) -> bool) {
+    use CoreStatementKind as S;
+    for statement in &mut block.statements {
+        match &mut statement.kind {
+            S::Binding {
+                initializer: Some(v),
+                ..
+            }
+            | S::Expression(v)
+            | S::Return(Some(v)) => visit_expr(v, action),
+            S::Assign { target, value } => {
+                visit_expr(target, action);
+                visit_expr(value, action);
+            }
+            S::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                visit_expr(condition, action);
+                visit_block(then_body, action);
+                if let Some(b) = else_body {
+                    visit_block(b, action);
+                }
+            }
+            S::IfLet {
+                value,
+                then_body,
+                else_body,
+                ..
+            } => {
+                visit_expr(value, action);
+                visit_block(then_body, action);
+                if let Some(b) = else_body {
+                    visit_block(b, action);
+                }
+            }
+            S::While { condition, body } => {
+                visit_expr(condition, action);
+                visit_block(body, action);
+            }
+            S::WhileLet { value, body, .. } => {
+                visit_expr(value, action);
+                visit_block(body, action);
+            }
+            S::ForRange {
+                start, end, body, ..
+            } => {
+                visit_expr(start, action);
+                visit_expr(end, action);
+                visit_block(body, action);
+            }
+            S::Match { value, arms } => {
+                visit_expr(value, action);
+                for arm in arms {
+                    visit_block(&mut arm.body, action);
+                }
+            }
+            S::Block(b) | S::Unsafe(b) => visit_block(b, action),
+            _ => {}
+        }
+    }
+}
+fn visit_expr(expr: &mut CoreExpr, action: &mut impl FnMut(&mut CoreExpr) -> bool) {
+    if action(expr) {
+        return;
+    }
+    use CoreExprKind as E;
+    match &mut expr.kind {
+        E::Ascribed { value, .. }
+        | E::IntegerConvert { value, .. }
+        | E::CompileTime(value)
+        | E::Try(value)
+        | E::Unary { operand: value, .. } => visit_expr(value, action),
+        E::Binary { left, right, .. } => {
+            visit_expr(left, action);
+            visit_expr(right, action);
+        }
+        E::Call { callee, arguments } => {
+            visit_expr(callee, action);
+            for a in arguments {
+                visit_expr(a, action);
+            }
+        }
+        E::TypeApply { callee, .. } => visit_expr(callee, action),
+        E::Tuple(xs) | E::Array(xs) => {
+            for x in xs {
+                visit_expr(x, action);
+            }
+        }
+        E::Index { object, index } => {
+            visit_expr(object, action);
+            visit_expr(index, action);
+        }
+        E::Slice { object, start, end } => {
+            visit_expr(object, action);
+            for x in [start, end].into_iter().flatten() {
+                visit_expr(x, action);
+            }
+        }
+        E::Member { object, .. } => visit_expr(object, action),
+        E::Record { fields, .. } => {
+            for (_, v) in fields {
+                visit_expr(v, action);
+            }
+        }
+        E::RecordUpdate { base, fields, .. } => {
+            visit_expr(base, action);
+            for (_, v) in fields {
+                visit_expr(v, action);
+            }
+        }
+        E::Sequence { bindings, value } => {
+            for (_, v) in bindings {
+                visit_expr(v, action);
+            }
+            visit_expr(value, action);
+        }
+        E::Closure { body, .. } => visit_block(body, action),
+        E::If {
+            condition,
+            then_value,
+            else_value,
+        } => {
+            visit_expr(condition, action);
+            visit_expr(then_value, action);
+            visit_expr(else_value, action);
+        }
+        _ => {}
+    }
+}
+
+fn inspect_origin_attack(label: &str, core: &CoreModule) -> bool {
+    let case = Case::new(label);
+    case.write("core.txt", format!("{core:#?}"));
+    let single = zil_types::check(core, &TargetProfile::host_llvm(), &Limits::default());
+    let many = zil_types::check_program(
+        &program(core.clone()),
+        &TargetProfile::host_llvm(),
+        &Limits::default(),
+    )
+    .map(|p| p.module);
+    case.write("single.txt", format!("{single:#?}"));
+    case.write("program.txt", format!("{many:#?}"));
+    let mut accepted = false;
+    for (entry, result) in [("single", single), ("program", many)] {
+        match result {
+            Ok(typed) => {
+                accepted = true;
+                let analysis = zil_analyze::analyze(&typed, &Limits::default());
+                case.write(&format!("{entry}-analyze.txt"), format!("{analysis:#?}"));
+                if let Ok(plan) = analysis {
+                    let verification = zil_verify::verify_module(
+                        typed.clone(),
+                        plan.clone(),
+                        &typed.target,
+                        &Limits::default(),
+                    );
+                    let bytes =
+                        zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default())
+                            .unwrap();
+                    let decoded =
+                        zil_verify::verify_module_bytes(&bytes, &typed.target, &Limits::default());
+                    case.write(&format!("{entry}.wire"), bytes);
+                    case.write(&format!("{entry}-verify.txt"),format!("raw={verification:#?}\nwire={decoded:#?}\nThese concrete-memory results cannot recover an erased source declaration.\n"));
+                }
+            }
+            Err(errors) => assert!(
+                errors.iter().any(|d| d.phase == Phase::Types
+                    && matches!(
+                        d.category,
+                        ResultCategory::SafeReject | ResultCategory::Unsupported
+                    )),
+                "{errors:#?}"
+            ),
+        }
+    }
+    accepted
+}
+
+#[test]
+fn raw_reused_node_identity_cannot_hide_conflicting_field_origins() {
+    let mut core = expanded("node-origin-control", ORIGINAL);
+    raw_types("node-origin-valid", &core, &Limits::default(), false);
+    let f = core
+        .functions
+        .iter_mut()
+        .find(|f| !f.state_parameters.is_empty())
+        .unwrap();
+    let mut first = None;
+    visit_block(&mut f.body, &mut |e| {
+        if matches!(&e.kind,CoreExprKind::Member{member,..} if member=="first") {
+            first = Some(e.id);
+        }
+        false
+    });
+    let first = first.unwrap();
+    let mut changed = 0;
+    visit_block(&mut f.body, &mut |e| {
+        if matches!(&e.kind,CoreExprKind::Member{member,..} if member=="second") {
+            e.id = first;
+            changed += 1;
+        }
+        false
+    });
+    assert_eq!(changed, 1);
+    assert!(
+        !inspect_origin_attack("conflicting-field-node-id", &core),
+        "a raw node cannot identify both F and G declaration origins"
+    );
+}
+
+#[test]
+fn raw_complete_type_application_cannot_relabel_equal_concrete_callback_slots() {
+    let moved = ORIGINAL_MARKERS
+        .replace(
+            "    let tag = state.tag",
+            "    let next = identity::<State<T,F,G>>(state)\n    let tag = next.tag",
+        )
+        .replace("state.first()", "next.first()")
+        .replace("state.second()", "next.second()");
+    let source = format!("{HELPERS}{moved}");
+    let core = expanded("typeapply-origin-control", &source);
+    raw_types("typeapply-origin-valid", &core, &Limits::default(), false);
+    let mut resolved =
+        zil_types::resolve_program_shapes(&program(core), &Limits::default()).unwrap();
+    let mut changed = resolved.modules.remove(0).core;
+    let function = changed
+        .functions
+        .iter_mut()
+        .find(|f| !f.state_parameters.is_empty())
+        .unwrap();
+    let mut application = 0;
+    visit_block(&mut function.body, &mut |e| {
+        if let CoreExprKind::TypeApply { type_arguments, .. } = &mut e.kind {
+            let [Type::Package { fields, .. }] = type_arguments.as_mut_slice() else {
+                panic!("complete symbolic State type application")
+            };
+            let first = fields[1].1.clone();
+            let second = fields[2].1.clone();
+            assert_ne!(first, second);
+            fields[1].1 = second;
+            fields[2].1 = first;
+            application += 1;
+        }
+        if let CoreExprKind::Member { object, member } = &mut e.kind
+            && matches!(&object.kind,CoreExprKind::Name(name) if name=="next")
+        {
+            match member.as_str() {
+                "first" => *member = "second".into(),
+                "second" => *member = "first".into(),
+                _ => {}
+            }
+        }
+        false
+    });
+    assert_eq!(application, 1);
+    assert!(
+        !inspect_origin_attack("typeapply-relabels-actual-C-C-weak-G", &changed),
+        "explicit full T metadata must not relabel a G:FnOnce value as F:Fn when actual ids coincide"
+    );
+}
+
+#[test]
+fn raw_record_values_cannot_relabel_equal_concrete_callback_slots() {
+    let source=ORIGINAL_MARKERS.replace("    let tag = state.tag","    let next = State::<T,F,G>{marker:Ticket{code:78},first:state.first,second:state.second,tag:state.tag}\n    let tag = next.tag")
+        .replace("state.first()","next.first()").replace("state.second()","next.second()");
+    native("record-origin-positive", &source, "MPBQNAZ", 0);
+    let mut core = expanded("record-origin-control", &source);
+    raw_types("record-origin-valid", &core, &Limits::default(), false);
+    let function = core
+        .functions
+        .iter_mut()
+        .find(|f| !f.state_parameters.is_empty())
+        .unwrap();
+    let mut swapped = 0;
+    visit_block(&mut function.body, &mut |e| {
+        // Expand stages record fields in a Sequence before the final Record.
+        // Mutate the actual reads while retaining all NodeIds and evaluation
+        // order; these are run's only reads of state.first/state.second.
+        if let CoreExprKind::Member { object, member } = &mut e.kind
+            && matches!(&object.kind,CoreExprKind::Name(name) if name=="state")
+        {
+            match member.as_str() {
+                "first" => {
+                    *member = "second".into();
+                    swapped += 1;
+                }
+                "second" => {
+                    *member = "first".into();
+                    swapped += 1;
+                }
+                _ => {}
+            }
+        }
+        false
+    });
+    assert_eq!(swapped, 2);
+    assert!(
+        !inspect_origin_attack("record-relabels-actual-C-C-weak-G", &core),
+        "a raw record type cannot erase the weaker declaration of its actual field value"
+    );
+}
+
+#[test]
+fn declared_callee_mode_is_prepared_before_fallible_argument_cleanup() {
+    let prefix = ORIGINAL[..ORIGINAL.find("fn run<").unwrap()]
+        .replace("Fn() -> i32", "Fn(i32) -> i32")
+        .replace("FnOnce() -> i32", "FnOnce(i32) -> i32")
+        .replace("move () =>", "move (delta:i32) =>")
+        .replace("return value }", "return value+delta }");
+    for once in [false, true] {
+        for fail in [false, true] {
+            let field = if once { "second" } else { "first" };
+            let expected = if once { "PBZA" } else { "PZAB" };
+            let answer = if once { 21 } else { 11 };
+            let source = format!(
+                "{prefix}\nfn argument(fail:bool)->void!i32{{unsafe{{putchar(80)}}if fail{{return ()}}return 1}}\nfn run<T:Copy,F:Fn(i32)->i32,G:FnOnce(i32)->i32>(state:State<T,F,G>)->void!i32{{return state.{field}(argument({fail})?)-{answer}}}\nfn main()->void!i32{{return run(pack(make(65,10),make(66,20),17))}}\n"
+            );
+            native(
+                &format!("callee-once-{once}-argument-fail-{fail}"),
+                &source,
+                expected,
+                i32::from(fail),
+            );
+        }
+    }
+}
+
+fn value_inferred_identity_source(distinct: bool) -> String {
+    let mut prefix = ORIGINAL_MARKERS[..ORIGINAL_MARKERS.find("fn main()").unwrap()].replace(
+        "    let ticket = Ticket { code: label }",
+        "    unsafe { putchar(label + 32) }\n    let ticket = Ticket { code: label }",
+    );
+    let second = if distinct {
+        let start = prefix.find("fn make(").unwrap();
+        let end = prefix.find("fn pack<").unwrap();
+        let other = prefix[start..end]
+            .replace("fn make(", "fn other(")
+            .replace(
+                "    let ticket = Ticket",
+                "    let padding:i64=1\n    let ticket = Ticket",
+            )
+            .replace("ticket.code; return", "ticket.code; padding; return");
+        prefix.push_str(&other);
+        "other"
+    } else {
+        "make"
+    };
+    format!(
+        "{prefix}\nfn identity<T:StoreElement>(value:T)->T{{return value}}\nfn main()->i32{{\n    let prepared=identity(pack(make(65,10),{second}(66,20),17))\n    let first=prepared.second()\n    let again=prepared.second()\n    if first+again!=40{{return 2}}\n    let result=run(prepared)\n    if result.1!=17{{return 1}}\n    return result.0\n}}\n"
+    )
+}
+
+#[test]
+fn value_inferred_ordinary_identity_prepares_once_without_global_bound_taint() {
+    for distinct in [false, true] {
+        // Main has no F/G declaration: its actual Fn values remain callable.
+        // Entering run restores that function's distinct Fn/FnOnce sources.
+        // Lowercase bytes also catch duplicate argument preparation at inference.
+        native(
+            &format!("value-inferred-identity-distinct-{distinct}"),
+            &value_inferred_identity_source(distinct),
+            "abMPBQZA",
+            0,
+        );
+    }
+}
+
+fn value_inferred_choice_source(phantom: bool, second_type: &str) -> String {
+    let nominal = nominal_source(phantom);
+    let prefix = &nominal[..nominal.find("fn main()").unwrap()];
+    format!(
+        "{prefix}\nfn choose<T:StoreElement>(first:T,second:T)->T{{return first}}\nfn main()->i32{{\n    let chosen=choose(pack(make(65,10),make(66,20),Left{{value:1}}),pack(make(67,10),make(68,20),{second_type}{{value:1}}))\n    return run(chosen)\n}}\n"
+    )
+}
+
+#[test]
+fn value_inferred_ordinary_calls_unify_every_argument_and_keep_nominal_identity() {
+    for phantom in [false, true] {
+        let source = value_inferred_choice_source(phantom, "Left");
+        // The unselected owning argument is cleaned before the returned value.
+        native(
+            &format!("value-inferred-choice-phantom-{phantom}"),
+            &source,
+            "ZCDMPBQZA",
+            0,
+        );
+        reject_source(
+            &format!("value-inferred-conflicting-nominal-phantom-{phantom}"),
+            &value_inferred_choice_source(phantom, "Right"),
+            &[Phase::Expand, Phase::Types],
+            None,
+        );
+    }
+    let control = value_inferred_identity_source(false);
+    for (label, source) in [
+        (
+            "value-inferred-explicit-constraint-conflicts",
+            control.replace("identity(pack(", "identity::<i32>(pack("),
+        ),
+        (
+            "value-inferred-template-cannot-be-value",
+            control.replace(
+                "    let prepared=identity(pack(",
+                "    let function=identity\n    let prepared=function(pack(",
+            ),
+        ),
+        (
+            "value-inferred-no-argument-no-type-constraint",
+            format!(
+                "fn empty<T:StoreElement>()->Store<T> contract{{result(create)}}{{return store_new()}}\n{}",
+                control.replace(
+                    "    let prepared=",
+                    "    let unconstrained=empty()\n    let prepared="
+                )
+            ),
+        ),
+    ] {
+        assert_ne!(source, control);
+        reject_source(&label, &source, &[Phase::Expand, Phase::Types], None);
+    }
+}
+
+#[test]
+fn value_inferred_complete_argument_work_has_an_exact_new_path_boundary() {
+    let source = value_inferred_choice_source(true, "Left");
+    let (core, typed, _) = typed_control("value-inferred-budget-control", &source);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent203.zil", &source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let expand = boundary(|n| {
+        zil_expand::expand_with_map_limits(
+            &unit,
+            &syntax,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual.core, core))
+    });
+    let types = boundary(|n| {
+        zil_types::check(
+            &core,
+            &typed.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual, typed))
+    });
+    Case::new("value-inferred-full-argument-exact-budgets").write(
+        "boundaries.json",
+        format!("{{\"expand\":{expand},\"types\":{types},\"checks\":\"N, N-1 ResourceLimit, fresh N equal result\",\"scope\":\"new bare complete value inference, not an old profile budget claim\"}}\n"),
+    );
+}
+
+#[test]
+fn imported_runtime_templates_keep_scalar_ct_arguments_in_i64_context() {
+    let state = ORIGINAL_MARKERS[..ORIGINAL_MARKERS.find("fn main()").unwrap()]
+        .replace("package State", "pub package State")
+        .replace("fn make(", "pub fn make(")
+        .replace("fn pack<", "pub fn pack<")
+        .replace("fn run<", "pub fn run<")
+        .replace("state: State<T,F,G>)", "state: State<T,F,G>, count:i64)")
+        .replace(
+            "    let tag = state.tag",
+            "    let expected:i64=4294967296\n    if count != expected { return (9,state.tag) }\n    let tag = state.tag",
+        );
+    let files = [
+        (
+            "main",
+            "import state\nimport ordinary\nfn main()->i32{\nlet next=ordinary.identity(state.pack(state.make(65,10),state.make(66,20),17),#(4294967296))\nlet result=state.run(next,#(4294967296))\nif result.1!=17{return 1}\nreturn result.0\n}",
+        ),
+        ("state", state.as_str()),
+        (
+            "ordinary",
+            "pub fn identity<T:StoreElement>(value:T,count:i64)->T{count;return value}",
+        ),
+    ];
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let case = Case::new("imported-template-runtime-i64-ct-argument");
+        for (name, source) in files {
+            case.write(&format!("{name}.zil"), source);
+        }
+        let project = ProjectSources {
+            root: ModuleId(0),
+            modules: files
+                .iter()
+                .enumerate()
+                .map(|(i, (name, source))| {
+                    SourceUnit::new(
+                        FileId(i as u32),
+                        ModuleId(i as u32),
+                        format!("{name}.zil"),
+                        *source,
+                    )
+                })
+                .collect(),
+            paths: files
+                .iter()
+                .enumerate()
+                .skip(1)
+                .map(|(i, (name, _))| (vec![name.to_string()], ModuleId(i as u32)))
+                .collect(),
+        };
+        let report = compile_project(
+            &project,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization,
+                output: Some(case.0.join("program")),
+                emit_dir: Some(case.0.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        case.write("compile.json", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let output = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        case.write("stdout.log", &output.stdout);
+        case.write("stderr.log", &output.stderr);
+        case.write("native.txt",format!("optimization={optimization:?}\nexit={:?}\nexpected_exit=0\nexpected_stdout=MPBQZA\n",output.status.code()));
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(output.stdout, b"MPBQZA");
         assert!(output.stderr.is_empty());
     }
 }
