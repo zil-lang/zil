@@ -240,7 +240,7 @@ pub(super) fn preflight(
     module: &TypedModule,
     limits: &Limits,
     budget: &mut Budget,
-) -> CompileResult<Vec<bool>> {
+) -> CompileResult<(Vec<bool>, Vec<bool>)> {
     if module.schema_version != SCHEMA_VERSION {
         return Err(bad("unknown typed module schema version"));
     }
@@ -693,11 +693,12 @@ pub(super) fn preflight(
     }
     // All raw type and capture trees are now bounded. Admission must include
     // resource-only and unused Store occurrences, not just body operations.
-    super::dynamic_store::owned_capture_profiles(module, &owned_store_capture_roots, budget)?;
+    let store_profiles =
+        super::dynamic_store::owned_capture_profiles(module, &owned_store_capture_roots, budget)?;
     for element in callback_store_elements {
         super::dynamic_store::callback_element(module, element, budget)?;
     }
-    Ok(package_functions)
+    Ok((package_functions, store_profiles))
 }
 
 #[cfg(test)]

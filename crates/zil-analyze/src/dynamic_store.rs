@@ -311,9 +311,9 @@ pub(super) fn owned_capture_profiles(
     module: &TypedModule,
     roots: &[zil_ir::ClosureId],
     budget: &mut Budget,
-) -> CompileResult<()> {
+) -> CompileResult<Vec<bool>> {
     if roots.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     const WORK: &str = "owned Store capture graph";
     let count = module.closures.len();
@@ -441,7 +441,7 @@ pub(super) fn owned_capture_profiles(
             }
         }
     }
-    Ok(())
+    Ok(profile)
 }
 
 pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
