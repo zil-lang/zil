@@ -251,7 +251,14 @@ fn forwarded<'a>(
             "nested helper must forward its actual parameter to an independently checked matching contract",
         ));
     }
-    Ok(Some(&claim.traces))
+    let finite = claim.traces.as_finite().ok_or_else(|| {
+        vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "cyclic callable Flow semantics are not implemented",
+            Some(instruction.span),
+        )]
+    })?;
+    Ok(Some(finite))
 }
 
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
