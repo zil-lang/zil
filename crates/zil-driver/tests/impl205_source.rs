@@ -255,3 +255,133 @@ fn main()->i32{{var original=make(0);let state=pack(original,original);var chang
     );
     native("copy-independent-temporaries", &source, "XZ", 0);
 }
+
+fn rejected(label: &str, source: &str, phase: Phase, code: &str) {
+    let (_, report) = compile(label, source, Stage::Verify);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, phase, "{}", report.to_json());
+    assert_eq!(
+        report.verification_runs,
+        usize::from(phase == Phase::Verify)
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| d.code == code),
+        "{}",
+        report.to_json()
+    );
+    assert!(!report.artifacts.contains_key("executable"));
+}
+
+#[test]
+fn boundary_different_factories_cannot_overwrite_the_first_argument_constraint() {
+    for reverse in [false, true] {
+        let source = program("Fn", 2, reverse, false)
+            .replace("fn main()", "fn other(label:i32,seed:i32)->impl Fn()->i32{let ticket=Ticket{code:label};return move()=>{ticket.code;return seed}}fn main()")
+            .replace("make(67,100)", "other(67,100)");
+        rejected(
+            &format!("different-factory-{reverse}"),
+            &source,
+            Phase::Types,
+            "E-TYPE-MISMATCH",
+        );
+    }
+}
+
+#[test]
+fn boundary_argument_failure_cleans_only_values_prepared_in_actual_order() {
+    for reverse in [false, true] {
+        let source = program("Fn", 2, reverse, false)
+            .replace(
+                "fn main()->i32",
+                "enum E{Fail}fn fail()->E!i64{unsafe{putchar(80)}return E.Fail}fn main()->E!i32",
+            )
+            .replace("#(6*7)", "fail()?");
+        native(
+            &format!("argument-failure-{reverse}"),
+            &source,
+            if reverse { "PCZAB" } else { "PZAB" },
+            1,
+        );
+    }
+}
+
+#[test]
+fn boundary_arguments_evaluate_once_before_replacing_the_old_field() {
+    for reverse in [false, true] {
+        let source = program("Fn", 2, reverse, false)
+            .replace(
+                "let ticket=Ticket{code:label};return move",
+                "unsafe{putchar(label)}let ticket=Ticket{code:label};return move",
+            )
+            .replace(
+                "fn main()->i32",
+                "fn probe()->i64{unsafe{putchar(80)}return 42}fn main()->i32",
+            )
+            .replace("#(6*7)", "probe()");
+        native(
+            &format!("argument-once-{reverse}"),
+            &source,
+            if reverse { "ABCPAXZCB" } else { "ABPCAXZCB" },
+            0,
+        );
+    }
+}
+
+#[test]
+fn boundary_return_before_replacement_preserves_the_original_complete_state() {
+    for early in [false, true] {
+        let source = program("Fn", 2, false, false)
+            .replace(
+                "current.first=replacement",
+                "if separator==0{return current}current.first=replacement",
+            )
+            .replace("#(6*7)", if early { "0" } else { "42" })
+            .replace(
+                "return answer-110",
+                if early {
+                    "return answer-11"
+                } else {
+                    "return answer-110"
+                },
+            );
+        let source = source
+            .replace(
+                "fn main()->i32{",
+                "fn main()->i32{let guard=Ticket{code:71};",
+            )
+            .replace(
+                "let ticket=Ticket{code:label};return move",
+                "unsafe{putchar(label+32)}let ticket=Ticket{code:label};return move",
+            );
+        native(
+            &format!("before-replacement-return-{early}"),
+            &source,
+            if early { "abcCXZABG" } else { "abcAXZCBG" },
+            0,
+        );
+    }
+}
+
+#[test]
+fn boundary_concrete_rhs_error_after_replacement_keeps_all_owner_cleanup() {
+    // The generic operation still returns State. A concrete caller provides
+    // an existing E!i32 context for a genuinely fallible assignment RHS.
+    for fail in [false, true] {
+        let source = program("Fn", 2, false, false)
+            .replace("fn main()->i32{", "enum E{Fail}fn check(fail:bool)->E!bool{unsafe{putchar(80)}if fail{return E.Fail}return true}fn main()->E!i32{let guard=Ticket{code:71};")
+            .replace("let ticket=Ticket{code:label};return move", "unsafe{putchar(label+32)}let ticket=Ticket{code:label};return move")
+            .replace("let answer=changed.first()+changed.second()", &format!("let replacement=make(68,200);changed.first=if check({fail})?{{replacement}}else{{replacement}};let answer=changed.first()+changed.second()"))
+            .replace("return answer-110", "return answer-210");
+        native(
+            &format!("concrete-rhs-error-{fail}"),
+            &source,
+            if fail { "abcAdPDZCBG" } else { "abcAdPCXZDBG" },
+            i32::from(fail),
+        );
+    }
+}
