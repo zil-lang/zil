@@ -6,6 +6,7 @@
 use super::*;
 use std::collections::VecDeque;
 pub(crate) mod arrays;
+mod product;
 
 const EMPTY: u8 = 1;
 const LIVE: u8 = 2;
@@ -261,6 +262,9 @@ struct State {
     // a complete Package still moves as one value, with local partial fields
     // checked by the existing responsibility slots.
     package_fresh: Vec<Vec<u8>>,
+    // Actual local/SSA Managed leaves of new Product functions, independently
+    // rebuilt here. Empty on the historical flat path; never a public proof.
+    product_fresh: Vec<u8>,
     desc: Vec<BTreeSet<Root>>,
     // An edge a -> b means b may have been initialized later while a remained live.
     newer: Vec<BTreeSet<usize>>,
@@ -274,6 +278,7 @@ struct Slots {
     // they still participate in the ordinary-return conservation check.
     package_fields: Vec<Vec<Option<usize>>>,
     package_widths: Vec<usize>,
+    product: product::Plan,
     desc_local: Vec<Option<usize>>,
     desc_value: Vec<Option<usize>>,
     capture_debt: Vec<Option<usize>>,
@@ -461,11 +466,13 @@ impl Slots {
                 }
             }
         }
+        let product = product::Plan::new(f, budget)?;
         Ok(Self {
             managed_local,
             managed_value,
             package_fields,
             package_widths,
+            product,
             desc_local,
             desc_value,
             capture_debt,
@@ -507,10 +514,12 @@ impl Slots {
             // An input or unknown Package producer cannot prove new fields.
             package_fresh.push(vec![INPUT; width]);
         }
+        budget.spend(self.product.width())?;
         Ok(State {
             debt: vec![EMPTY; self.debt_count],
             fresh: vec![0; self.debt_count],
             package_fresh,
+            product_fresh: vec![INPUT; self.product.width()],
             desc: vec![BTreeSet::new(); self.desc_count],
             newer: vec![BTreeSet::new(); self.local_count],
         })
@@ -523,6 +532,7 @@ fn state_cost(s: &State, budget: &mut Budget) -> Check<()> {
             .len()
             .saturating_mul(2)
             .saturating_add(s.package_fresh.len())
+            .saturating_add(s.product_fresh.len())
             .saturating_add(s.desc.len())
             .saturating_add(s.newer.len()),
     )?;
@@ -551,6 +561,7 @@ fn merge(target: &mut State, source: &State, budget: &mut Budget) -> Check<bool>
         .iter_mut()
         .zip(&source.debt)
         .chain(target.fresh.iter_mut().zip(&source.fresh))
+        .chain(target.product_fresh.iter_mut().zip(&source.product_fresh))
         .chain(
             target
                 .package_fresh
@@ -1670,6 +1681,9 @@ impl Transfer<'_> {
                 })?;
                 state.debt[index] = LIVE;
                 state.fresh[index] = fresh;
+            }
+            if !state.product_fresh.is_empty() {
+                slots.product.apply(f, slots, instruction, state, budget)?;
             }
         }
         if let Terminator::Return(value) = f.blocks[b].terminator {
