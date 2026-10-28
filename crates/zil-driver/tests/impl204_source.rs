@@ -117,6 +117,18 @@ fn through_types(label: &str, source: &str) {
     assert_eq!(report.verification_runs, 0);
 }
 
+fn verified(label: &str, source: &str) {
+    let (_, report) = compile(label, source, Stage::Verify);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Verify);
+    assert_eq!(report.verification_runs, 1);
+}
+
 #[test]
 fn original_complete_package_control_reaches_types() {
     through_types("original-control", ORIGINALS[0]);
@@ -254,6 +266,24 @@ fn nested_body_give_preserves_the_actual_package_transfer() {
 }
 
 #[test]
+fn package_ownership_and_nested_creation_cross_independent_verify() {
+    for whole in [false, true] {
+        for moved in [false, true] {
+            verified(
+                &format!("package-verified-{whole}-{moved}"),
+                &package_once(moved, whole),
+            );
+        }
+    }
+    let source = package_once(false, false).replace(
+        "return  () => { let local = give bag.items; return i32(store_len(local)) }",
+        "return () => { let inner = () => { let local = give bag.items; return i32(store_len(local)) }; return inner() }",
+    );
+    assert!(source.contains("let inner"));
+    verified("nested-package-verified", &source);
+}
+
+#[test]
 fn leaf_callback_exclusion_does_not_reclose_plain_stores_or_copy_companions() {
     for (label, definitions, value) in [
         (
@@ -359,6 +389,19 @@ fn uncalled_factory_without_store_operations_keeps_exact_canonical_metadata() {
                     | I::OwnedStorePop { .. }
             ))
     );
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    fs::write(directory.join("analyze.txt"), format!("{plan:#?}")).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    fs::write(directory.join("candidate.wire"), &bytes).unwrap();
+    let raw = zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default());
+    let wire = zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default());
+    fs::write(
+        directory.join("verify.txt"),
+        format!("raw={raw:#?}\nwire={wire:#?}"),
+    )
+    .unwrap();
+    raw.unwrap();
+    wire.unwrap();
 }
 
 #[test]
@@ -391,4 +434,44 @@ fn once_take_and_package_sibling_cleanup_execute() {
     native("package-give-side-native", &side, "BAZ", 0);
     let unused = package_once(false, false).replace("let value = callback()", "let value = 1");
     native("package-auto-unused-native", &unused, "ZAB", 0);
+}
+
+#[test]
+fn old_lending_sibling_remains_local_inside_a_new_store_callback() {
+    let source = r#"
+package Item { manages bytes: ByteBuffer; value: i32 }
+package State<F> { manages bytes: ByteBuffer; callback: F }
+fn stored() -> impl Fn() -> i32 {
+    let items: Store<Item> = store_new()
+    return move () => i32(store_len(items))
+}
+fn lending() -> impl FnMut() -> &[u8] {
+    let bytes = bytes_new()
+    return move () => {
+        bytes_reserve(bytes, 1)
+        if bytes_len(bytes) == 0 { bytes_push(bytes, 7u8) }
+        return bytes_view(bytes)
+    }
+}
+fn make() -> impl FnMut() -> i32 {
+    let inner = stored()
+    var old = lending()
+    return move () => {
+        inner()
+        let view = old()
+        return i32(view[0])
+    }
+}
+fn pack<F: FnMut() -> i32>(callback: F) -> State<F> {
+    return State::<F> { bytes: bytes_new(), callback: callback }
+}
+fn run<F: FnMut() -> i32>(state: State<F>) -> i32 {
+    let outer: Store<State<F>> = store_new()
+    if !store_reserve(outer, 1) { return 1 }
+    store_push(outer, state)
+    return store_at_mut(outer, 0).callback() - 7
+}
+fn main() -> i32 { return run(pack(make())) }
+"#;
+    native("new-store-old-lending-sibling", source, "", 0);
 }
