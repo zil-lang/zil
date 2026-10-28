@@ -79,6 +79,9 @@ pub(super) fn parameter_mode(ty: &Type, name: &str) -> Option<Option<bool>> {
 }
 
 pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
+    if !function.state_parameters.is_empty() {
+        return state_origins::validate_shape(function);
+    }
     let bounds = &function.callable_parameters;
     if bounds.is_empty() {
         return Ok(());
@@ -196,11 +199,11 @@ pub(super) fn install_single(
     state: &mut closures::State,
     limits: &Limits,
 ) -> R<()> {
-    if core
-        .functions
-        .iter()
-        .all(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
-    {
+    if core.functions.iter().all(|f| {
+        f.callable_parameters.is_empty()
+            && f.type_parameters.is_empty()
+            && f.state_parameters.is_empty()
+    }) {
         return Ok(());
     }
     let span = core.functions[0].span;
@@ -270,7 +273,10 @@ pub(super) fn install(
     limits: &Limits,
 ) -> R<()> {
     for function in &core.functions {
-        if !function.callable_parameters.is_empty() || !function.type_parameters.is_empty() {
+        if !function.callable_parameters.is_empty()
+            || !function.type_parameters.is_empty()
+            || !function.state_parameters.is_empty()
+        {
             validate_template(function)?;
             store_templates::validate_header(function)?;
             let (snapshot_work, store_shapes) = inference::helper_snapshot_work(function, limits)?;
