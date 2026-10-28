@@ -1,0 +1,1047 @@
+{
+  "status": "Pass",
+  "source_commit": "f35a8be1d092ade47a5b9a20e3af273a457b682d",
+  "dirty": "",
+  "cli_sha256": "f2dba1910007eeca2c2732af20a5100796952508436c2c68ef12698d31ac494f",
+  "platform": "linux",
+  "execution": "native",
+  "source_hashes": {
+    "examples/mainline/owned_result183/adapter.zil": "832fdfb860fbae93a2a1bcec9b0ce86c1f8689dbb64f3379690cf2bb52d09afd",
+    "examples/mainline/owned_result183/factory.zil": "6bad97596c9c09175f756eeba2e08ff27c375a128fae8639e29858781fb0499f",
+    "examples/mainline/owned_result183/main.zil": "3115810f9385f86e07edef113ad96729bd2b2aa043fa7cb3bb3bcfcf75cc3a6d",
+    "examples/mainline/owned_result183/model.zil": "34e107808cdd9573696e0f96885e1cd962ed750b0184981344ec7b0ab1cf02e4",
+    "tools/language/183/consumer.py": "9723b8d44439791b9901e8088a460b7e3388d64a946e26a1cc94e1472e6d20d6",
+    "tools/language/177/consumer.py": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb",
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5",
+    "tools/language/181/heap_probe.c": "aa078bd0c5247d0ed0bb4baa2dbf56f9c765940b2ef06b248177a12537d5fd03"
+  },
+  "builds": [
+    {
+      "optimization": "O0",
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/language14/review183-by182/examples/mainline/owned_result183/main.zil",
+        "1": "/workspace/scratch/39be3faa4442/language14/review183-by182/examples/mainline/owned_result183/model.zil",
+        "2": "/workspace/scratch/39be3faa4442/language14/review183-by182/examples/mainline/owned_result183/factory.zil",
+        "3": "/workspace/scratch/39be3faa4442/language14/review183-by182/examples/mainline/owned_result183/adapter.zil"
+      },
+      "module_count": 4,
+      "llvm_sha256": "803ad4633356e1a822a0bc98f4965f7d3e2a9ba7a6fb91210b3cd236c12e9072",
+      "executable_sha256": "204d43bc0c5e69f0101a9456bb72835b5ee29c0684c3e23c0478781cc93ad731",
+      "allocation_probe_sha256": "816cb464f9209e1fcddba4f10108334ca631c9f5be381362856f685904add048"
+    },
+    {
+      "optimization": "O2",
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/language14/review183-by182/examples/mainline/owned_result183/main.zil",
+        "1": "/workspace/scratch/39be3faa4442/language14/review183-by182/examples/mainline/owned_result183/model.zil",
+        "2": "/workspace/scratch/39be3faa4442/language14/review183-by182/examples/mainline/owned_result183/factory.zil",
+        "3": "/workspace/scratch/39be3faa4442/language14/review183-by182/examples/mainline/owned_result183/adapter.zil"
+      },
+      "module_count": 4,
+      "llvm_sha256": "803ad4633356e1a822a0bc98f4965f7d3e2a9ba7a6fb91210b3cd236c12e9072",
+      "executable_sha256": "1a95baa4629b483b0965facdf879cdafd9de9eb2befb70c3fb6a851b5a43761f",
+      "allocation_probe_sha256": "2ccfdc03568bf4642797b0fba3e1dcd332d27d41eb97391fd7bfbbe45216acae"
+    }
+  ],
+  "observations": [
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "30",
+      "stdout": "BSACM",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "30",
+      "stdout": "BSACM",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 52
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "BSM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "BCSM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 20
+      }
+    },
+    {
+      "scenario": "buffer-error",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "31",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "buffer-error",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "31",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "scenario": "buffer-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "buffer-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "32",
+      "stdout": "BCSM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "32",
+      "stdout": "BCSM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 52
+      }
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "BSM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "BCSM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 20
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "33",
+      "stdout": "BSCM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "33",
+      "stdout": "BSCM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 52
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "BSM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "BCSM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 20
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "34",
+      "stdout": "BSCM",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "34",
+      "stdout": "BSCM",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "BSCM",
+      "exit_code": 0,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "BSCM",
+      "exit_code": 0,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "BSM",
+      "exit_code": 0,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "BCSM",
+      "exit_code": 0,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16
+      }
+    },
+    {
+      "scenario": "user-resource-error",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "35",
+      "stdout": "",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "user-resource-error",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "35",
+      "stdout": "",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "invalid-input",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "39",
+      "stdout": "",
+      "exit_code": 9,
+      "fail_at": 0
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "30",
+      "stdout": "BSACM",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "30",
+      "stdout": "BSACM",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 52
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "BSM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "scenario": "success",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "BCSM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 20
+      }
+    },
+    {
+      "scenario": "buffer-error",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "31",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "buffer-error",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "31",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "scenario": "buffer-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "buffer-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "32",
+      "stdout": "BCSM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "32",
+      "stdout": "BCSM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 52
+      }
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "BSM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "scenario": "store-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "BCSM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 20
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "33",
+      "stdout": "BSCM",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "33",
+      "stdout": "BSCM",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 52
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "BM",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "BSM",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "scenario": "caller-error",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "BCSM",
+      "exit_code": 1,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 20
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "34",
+      "stdout": "BSCM",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "34",
+      "stdout": "BSCM",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "BSCM",
+      "exit_code": 0,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "BSCM",
+      "exit_code": 0,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "BSM",
+      "exit_code": 0,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "scenario": "discard",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "34",
+      "stdout": "BCSM",
+      "exit_code": 0,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16
+      }
+    },
+    {
+      "scenario": "user-resource-error",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "35",
+      "stdout": "",
+      "exit_code": 1,
+      "fail_at": 0
+    },
+    {
+      "scenario": "user-resource-error",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "35",
+      "stdout": "",
+      "exit_code": 1,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "scenario": "invalid-input",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "39",
+      "stdout": "",
+      "exit_code": 9,
+      "fail_at": 0
+    }
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "executions": 62,
+  "ordinary_executions": 14,
+  "instrumented_executions": 48,
+  "failure_executions": 36
+}

@@ -1,0 +1,93 @@
+{
+  "id": "183",
+  "reviewer": "/root/restore177_inventory",
+  "implementation_author": "/root/design14_acceptance",
+  "verdict": "Pass",
+  "implementation_commit": "19f58c16ed800b0cee5a8afcc11908925920cd63",
+  "review_test_commit": "f35a8be1d092ade47a5b9a20e3af273a457b682d",
+  "production_equivalence": {
+    "diff_paths": [
+      "crates/zil-driver/tests/review183_owned_boundaries.rs"
+    ],
+    "production_unchanged": true,
+    "fresh_target": "/workspace/scratch/39be3faa4442/targets178/review183-by182",
+    "cli_sha256": "f2dba1910007eeca2c2732af20a5100796952508436c2c68ef12698d31ac494f",
+    "source_design_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+    "normative_sha256": "642f7de6249bdc52b42fd3c2ad16059cc801ae68c9c94cce83f205c51a55e063",
+    "schema": 22
+  },
+  "tests": {
+    "passed": 95,
+    "failed": 0,
+    "ignored": 0,
+    "new_independent_groups": 3,
+    "new_independent_native_runs": 12,
+    "new_independent_raw_wire_pairs": 2,
+    "selection": [
+      "review183_owned_boundaries",
+      "impl183_owned_resource_results",
+      "impl183_raw_owned_success",
+      "impl166_owned_results",
+      "impl163_resource_methods",
+      "impl171_resource_heads",
+      "impl172_owned_store",
+      "impl181_win64_store"
+    ]
+  },
+  "machine": {
+    "linux": {
+      "status": "Pass",
+      "executions": 62,
+      "ordinary_executions": 14,
+      "instrumented_executions": 48,
+      "failure_executions": 36
+    },
+    "wine_compatibility": {
+      "status": "Pass",
+      "executions": 62,
+      "ordinary_executions": 14,
+      "instrumented_executions": 48,
+      "failure_executions": 36
+    },
+    "module_count": 4,
+    "resource_classes": [
+      "Mark",
+      "ByteBuffer",
+      "Store<Item>"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "checked_failures": "initial allocation and growth failure, returned/error/discarded values; exact Drop output, exit, zero live allocations, frees=allocations, no bad_operations",
+    "native_windows": "NotRun"
+  },
+  "reviewed_invariants": [
+    "success-mode applies to Managed success payload, outer Sum stays Value",
+    "incoming payload cannot be laundered as create; only actual error arms carry zero success provenance",
+    "take consumes exactly once, tag proof is independent",
+    "duplicate cleanup rejected for both successful and failed source factories through raw and Wire",
+    "real resource/byte buffer/store teardown uses active tag and clears live flag before cleanup",
+    "original159 ByteBuffer probe input preserved and passes; existing unsupported shapes remain rejected"
+  ],
+  "receipts": {
+    "bounded": "targeted01/summary.json",
+    "bounded_stdout": "targeted01/stdout.log",
+    "linux": "linux01/summary.json",
+    "wine": "win64-01/summary.json",
+    "compiler": "cli-build01/summary.json",
+    "environment": "wine-environment.json"
+  },
+  "handoff": {
+    "status": "Fail",
+    "receipt": "handoff-result.json",
+    "reason": "historical normative registry and other task snapshot errors retained; not used as a passing semantic gate"
+  },
+  "scope_limits": {
+    "full_workspace": "NotRun by reviewer",
+    "full_language": "NotSatisfied",
+    "product": "NotRun",
+    "performance": "NotMeasured",
+    "182_integration_regression": "separate active repair; review binds183candidate only, not new combined main"
+  }
+}
