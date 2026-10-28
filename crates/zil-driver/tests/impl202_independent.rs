@@ -882,7 +882,10 @@ fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
         );
         case.write("single.txt", format!("{single:#?}"));
         case.write("program.txt", format!("{multiple:#?}"));
-        for (entry, result) in [("single", single), ("program", multiple)] {
+        for (entry, result) in [
+            ("single", single.map(|_| ())),
+            ("program", multiple.map(|_| ())),
+        ] {
             match result {
                 Ok(_) => accepted.push(format!("{attack}/{entry}")),
                 Err(ds) => assert!(
