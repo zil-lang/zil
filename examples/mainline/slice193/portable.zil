@@ -34,6 +34,9 @@ pub fn check() -> i32 {
     var rows = [Row { byte: 1u8, wide: 2 }, Row { byte: 3u8, wide: 4 }]
     let modify = (values: &mut [Row]) => { values[1].wide = 41; return values[1].wide }
     if modify(&mut rows[..]) != 41 || rows[0].byte != 1u8 { return 12 }
+    var pairs = [[1, 2], [3, 4]]
+    let update = (values: &mut [[i32; 2]]) => { values[1][0] = 41; return values[1][0] }
+    if update(&mut pairs[..]) != 41 || pairs[0][1] != 2 { return 21 }
     var units = [(), (), ()]
     let unit = (values: &mut [()]) => { values[0] = (); return values.len() }
     if unit(&mut units[1..]) != 2 { return 13 }
