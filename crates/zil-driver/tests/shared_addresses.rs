@@ -206,6 +206,13 @@ fn storage_end_cannot_leave_an_address_or_captured_address_live() {
 
 #[test]
 fn unsupported_reference_contracts_and_authority_remain_explicit() {
+    // Exact previously closed inputs are now admitted by189 and184.
+    for source in [
+        "fn result() -> i32 { let f = (p: &i32) => *p; return 0; }",
+        "fn result() -> i32 { let x = 1; let f = () => &x; return 0; }",
+    ] {
+        native(source, 0);
+    }
     native(
         "fn result() -> i32 { var x = 1; let p = &mut x; *p=42; return x; }",
         42,
@@ -229,8 +236,6 @@ fn unsupported_reference_contracts_and_authority_remain_explicit() {
     for text in [
         "fn result() -> i32 { let x = 1; let p = &x; let q = &p; return 0; }",
         "fn result() -> i32 { let p = &(1 + 2); return *p; }",
-        "fn result() -> i32 { let f = (p: &i32) => *p; return 0; }",
-        "fn result() -> i32 { let x = 1; let f = () => &x; return 0; }",
     ] {
         reject(
             text,
