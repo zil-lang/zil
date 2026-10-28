@@ -1,0 +1,13 @@
+{
+  "scope": "evidence packaging only",
+  "status": "ArchivedAndVerified",
+  "archive": "200-review-by197-evidence.zip",
+  "bytes": 8923078,
+  "sha256": "be04843517776f58f4cbd80f111bd1ef7eef28e776e076d458dea89684cdb16d",
+  "included_files": 3125,
+  "included_bytes": 174759668,
+  "omitted_execution_artifacts": 132,
+  "omitted_execution_bytes": 2231984,
+  "full_manifest": "ARCHIVE-MANIFEST.json inside archive",
+  "storage": "Separate evidence deliverable; archive is not committed into source Git history."
+}

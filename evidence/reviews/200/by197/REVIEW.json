@@ -1,0 +1,537 @@
+{
+  "schema_version": 1,
+  "task": "200",
+  "reviewer": "/root/impl197",
+  "verdict": "Pass",
+  "scope": "Finite one-F owning State constructors with one or two actual fields, at most two by-value F inputs, independent values/locations/debts, finite Copy or direct Managed extras, unchanged schema25 and default limits. No full-language or product acceptance.",
+  "implementation_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
+  "tested_source_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
+  "production_components": {
+    "frontend_initial": "73133ced296efe4ebce6e071d32ba43fe486c98b",
+    "frontend_value_staging_and_resource_give": "8247f3bfcbdd3842aab57c25d31cbeef7e51849f",
+    "frontend_legacy_budget_restore": "8bbd05f068333e499993ee600cb61181eb7c547f",
+    "analyze": "0b7b2e51fcd661e8f8420ad9206e68b579ab7bc6",
+    "verify_including_extra_shape_work": "86019ab0b6d15b28f91226fd6cff3531cc4a90fd"
+  },
+  "spec_hash": "13ea0962a2bf73893a0b03eac133456216856f3748152392c925e95028059c7d",
+  "normative_hash": "4402e04fd45551cbdd8dff92c4ac51af8d8ddd6f87296c17ce3690f55359bff3",
+  "public_schema_version": 25,
+  "independence": {
+    "implementation_authors": [
+      "/root",
+      "/root/roles196_frontend",
+      "/root/bundle_sync"
+    ],
+    "reviewer_wrote_200_production": false,
+    "reviewer_write_set": [
+      "crates/zil-driver/tests/impl200_independent.rs",
+      "evidence/reviews/200/by197/**"
+    ],
+    "prior197": "Reviewer authored 197; this receipt does not independently reapprove that prerequisite. The unchanged 197 source is used solely to check 200 budget compatibility."
+  },
+  "source_identity": "SOURCE.json: actual normative/disk hashes, three byte-identical original probes, eight production-file changes, and 199 scoped build/test/consumer/normative inputs. Scoped inputs also equal the parent bced formal source, without reattributing its execution.",
+  "final_tests": {
+    "status": "Pass",
+    "passed": 38,
+    "failed": 0,
+    "driver_groups": 30,
+    "new_independent_groups": 10,
+    "author_frontend_source_groups_replayed": 12,
+    "author_source_derived_raw_wire_groups_replayed": 8,
+    "author_analyze_raw_groups_replayed": 8,
+    "new_native_executions": 26,
+    "author_native_executions_replayed": 58,
+    "native_optimizations": [
+      "O0",
+      "O2"
+    ],
+    "new_compile_reports": 35,
+    "new_compile_outcomes": [
+      {
+        "status": "SafeReject",
+        "phase": "analyze",
+        "count": 1
+      },
+      {
+        "status": "SafeReject",
+        "phase": "expand",
+        "count": 4
+      },
+      {
+        "status": "SafeReject",
+        "phase": "types",
+        "count": 1
+      },
+      {
+        "status": "SafeReject",
+        "phase": "verify",
+        "count": 3
+      },
+      {
+        "status": "Success",
+        "phase": "link",
+        "count": 26
+      }
+    ],
+    "author_compile_reports": 88,
+    "author_compile_outcomes": [
+      {
+        "status": "SafeReject",
+        "phase": "analyze",
+        "count": 1
+      },
+      {
+        "status": "SafeReject",
+        "phase": "expand",
+        "count": 10
+      },
+      {
+        "status": "SafeReject",
+        "phase": "types",
+        "count": 1
+      },
+      {
+        "status": "SafeReject",
+        "phase": "verify",
+        "count": 7
+      },
+      {
+        "status": "Success",
+        "phase": "link",
+        "count": 58
+      },
+      {
+        "status": "Success",
+        "phase": "types",
+        "count": 3
+      },
+      {
+        "status": "Unsupported",
+        "phase": "expand",
+        "count": 5
+      },
+      {
+        "status": "Unsupported",
+        "phase": "types",
+        "count": 3
+      }
+    ],
+    "driver_command": "commands/final-driver01/command.json",
+    "analyze_command": "commands/final-analyze01/command.json"
+  },
+  "independent_source_findings": [
+    {
+      "case": "Structural Copy FnMut duplicated into two inputs at positions 0 and 3 with interleaved Copy/direct Managed arguments",
+      "actual": "O0/O2 exit0, stdout T. Left, right and retained original produce independent totals 11,12,13. Actual IR transfers two distinct staged locals; the original remains callable."
+    },
+    {
+      "case": "Two non-Copy environments of the same type, fields0/3 and arguments0/3",
+      "actual": "O0/O2 exit0, stdout ABABATB; each persistent counter and cleanup remains separate. Source duplicate f input reaches Analyze/E-UNINITIALIZED."
+    },
+    {
+      "case": "Two inputs, one output field selected by branch",
+      "actual": "O0/O2 left branch BXATA and right branch AXBUB, exit0. The unselected environment is settled before the returned State is used; selected field remains live until its own cleanup."
+    },
+    {
+      "case": "Actual Fn adapted to declared FnOnce in two fields sharing one ClosureId",
+      "actual": "Both consumed: CACBXT. Only left: CAXTB. Only right: CBXAT. All O0/O2 exit0; actual IR takes fields0/2 separately. Source same-field twice is Expand/E-GENERIC-ARGUMENT; the independent raw variant reaches Verify/E-VERIFY-RESOURCE."
+    },
+    {
+      "case": "Interleaved argument preparation and second environment creation error",
+      "actual": "Complete path PQATB/exit0, failed second-closure preparation PQTA/exit1, both O0/O2. Only acquired values are cleaned, in actual preparation order."
+    },
+    {
+      "case": "Resource ownership through real give, alias and conditional branch",
+      "actual": "O0/O2 T and TU/exit0 for transferred versus fresh owner branch. Uncalled mixed-description alias, conditional double-give and forwarded double-give definitions remain Expand/SafeReject."
+    },
+    {
+      "case": "Two fields with one closure type lend different shared result origins",
+      "actual": "O0/O2 execute distinct views and replacement of the unborrowed sibling. Same-field recall/take and a genuinely mutable whole-parent move reach Verify/E-BORROW-CONFLICT. First immutable-parent attempt is separately preserved as Types/E-IMMUTABLE-ASSIGNMENT and is not safety credit."
+    }
+  ],
+  "independent_raw_wire": {
+    "control_pairs_executed": 7,
+    "attack_pairs_executed": 12,
+    "attack_routes_executed": 24,
+    "safe_reject_pairs": 9,
+    "unsupported_profile_pairs": 3,
+    "attacks": [
+      {
+        "mutation": "First and second fresh Copy input TakeLocal separately changed to Load",
+        "pairs": 2,
+        "actual": "Analyze produces a fresh matching candidate; raw and Wire Verify reject E-VERIFY-MOVE."
+      },
+      {
+        "mutation": "Second fresh Copy TakeLocal retargeted to the already transferred first slot",
+        "pairs": 1,
+        "actual": "Raw/Wire E-VERIFY-INITIALIZATION; Analyze also rejects E-UNINITIALIZED."
+      },
+      {
+        "mutation": "Second non-Copy call argument or MakePackage field replaced by the first actual SSA value",
+        "pairs": 2,
+        "actual": "Raw/Wire E-VERIFY-MOVE; no type-only ClosureId deduplication of responsibilities."
+      },
+      {
+        "mutation": "Second real callback parameter position mapped to the first LocalId",
+        "pairs": 1,
+        "actual": "Raw/Wire E-VERIFY-PARAMETER."
+      },
+      {
+        "mutation": "Remove DropClosure of the unselected second input on a one-field constructor branch",
+        "pairs": 1,
+        "actual": "Raw/Wire E-VERIFY-RESOURCE."
+      },
+      {
+        "mutation": "Second FnOnce field take retargeted to the first field",
+        "pairs": 1,
+        "actual": "Raw/Wire E-VERIFY-RESOURCE despite the identical concrete closure type."
+      },
+      {
+        "mutation": "Second lending callee field retargeted to the live first field",
+        "pairs": 1,
+        "actual": "Fresh matching Analyze candidate; raw/Wire E-BORROW-CONFLICT."
+      },
+      {
+        "mutation": "Unused ordinary parameter changed to actual address/ByteBuffer description, with matching caller SSA type, or a fake empty noescape contract added",
+        "pairs": 3,
+        "actual": "Raw/Wire Unsupported at the precise constructor/helper profile gate. These are profile-enforcement results, not alias-safety proofs."
+      }
+    ],
+    "boundary": "All attack modules derive from real source controls. Duplicate ownership attacks that Analyze already rejects retain that earlier result; source, raw and Wire claims are not conflated."
+  },
+  "budgets": {
+    "defaults_changed": false,
+    "new_two_input_interleaved": {
+      "expand": 3027,
+      "types": 3696,
+      "analyze": 17974,
+      "verify": 33100,
+      "checks": "N, N-1 ResourceLimit, fresh N",
+      "defaults_unchanged": true
+    },
+    "legacy_single_field": {
+      "source_sha256": "7cedc0a7d37056c9a4dea902c0e5475768296b83cdb8e9c91c6f3492e0fcb251",
+      "baseline_tested_commit": "d2e2cc3bf31ebcb21604a010a302dc663d364acc",
+      "baseline_production_equal_to_fff8": true,
+      "entire_diff_from_fff8": [
+        "crates/zil-driver/tests/impl200_independent.rs"
+      ],
+      "measurements": [
+        {
+          "run": "legacy-baseline01",
+          "source_commit": "d2e2cc3bf31ebcb21604a010a302dc663d364acc",
+          "N": 1731,
+          "checks": "N, N-1 ResourceLimit, fresh N",
+          "receipt": "legacy-baseline01/independent200-legacy-single-field-expand-510741-0/boundaries.json"
+        },
+        {
+          "run": "legacy-candidate01",
+          "source_commit": "2fafa9567d06d4ec32c5bdd0a1c4cd95496d81e4",
+          "N": 1807,
+          "checks": "N, N-1 ResourceLimit, fresh N",
+          "receipt": "legacy-candidate01/independent200-legacy-single-field-expand-510386-0/boundaries.json"
+        },
+        {
+          "run": "final-driver01",
+          "source_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
+          "N": 1731,
+          "checks": "N, N-1 ResourceLimit, fresh N",
+          "receipt": "final-driver01/independent200-legacy-single-field-expand-512983-13/boundaries.json"
+        }
+      ],
+      "repair_commit": "8bbd05f068333e499993ee600cb61181eb7c547f",
+      "net_change_after_repair": 0,
+      "initial_regression": 76
+    },
+    "legacy_correction": "The measurement helper initially reported its boundary successfully at1807; comparison with the real old compiler1731 identified a +76 regression. Frontend8bbd restored the prior single-field fast path, and the final regression assertion requires1731."
+  },
+  "original_probes": {
+    "byte_identity": "SOURCE.json compares all three current fixture bytes to initial bbdb967d.",
+    "00_single": "Actual O0/O2 native success, with Types-only control separately labeled.",
+    "01_two_same_f": "Actual O0/O2 native success through independent Verify; original previous Expand rejection is not relabeled.",
+    "02_callback_store": "Still Expand/SafeReject/E-GENERIC-ARGUMENT with no Verify invocation; Store qualification remains closed, not a cleanup safety proof."
+  },
+  "consumer": {
+    "status": "Pass",
+    "source_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
+    "cli_sha256": "4eaf5291d867f0ebc64390f5ab3850ea6726570216ab688ae971c44e457a2fc9",
+    "build_command": "commands/build-cli01/command.json",
+    "command": "commands/consumer-linux01/command.json",
+    "result": "consumer-linux01/summary.json",
+    "platform": "Linux native",
+    "modules": 4,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "executions": 100,
+    "ordinary_executions": 14,
+    "instrumented_executions": 86,
+    "actual_allocation_failures": 66,
+    "all_cleanup_live_counts": 0,
+    "oracle": "Explicit stdin traces for0/1/2/3/7 rounds, continue/break, EOF/invalid input; root S allocation followed by per-field ABBA streams, distinct mutable state and shared data updates, complete movement/return and exact ab cleanup. Every real failure and one beyond-last allocation checked with exact allocations, frees, peak live and peak bytes.",
+    "instrumentation": "Ordinary ZIL program plus separately linked C allocation observation probe; probe is not language implementation.",
+    "reviewer_wine": "NotRun as requested; author platform evidence stays separate."
+  },
+  "code_review": [
+    "Owning syntax classification does not authorize values: actual input type identity, each field value, each parameter local and each transfer remain independently checked. Constructor names are not special-cased.",
+    "New two-input Copy closures are copied to distinct temporaries and published by TakeLocal; Verify Load/view transfer rejection was preserved. Existing single-input owned_array_input path was restored.",
+    "The new symbolic owned_resource flag is limited to the two-input constructor; give/real create expressions and both if branches establish it, plain descriptions do not. Actual Types and independent resource checking remain necessary.",
+    "Analyze and Verify reconstruct the two by-value, same-type inputs and one/two matching output fields from actual IR. Their extra-parameter gates admit finite Copy/direct Managed and exclude addresses, Desc and additional State.",
+    "Existing199 actual callee field positions and declared FnOnce modes are retained. Two output fields share a type identity but not origins, slots, values or cleanup.",
+    "The initial extra single-F Expand scan was a real budget regression; its removal is independently measured, not a documentation-only relaxation."
+  ],
+  "retained_attempts": [
+    {
+      "record": "commands/build-cli01/command.json",
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-cli",
+        "--bin",
+        "zil"
+      ],
+      "source_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": []
+    },
+    {
+      "record": "commands/consumer-linux01/command.json",
+      "command": [
+        "python3",
+        "tools/language/200/consumer.py",
+        "--repo",
+        "/workspace/scratch/39be3faa4442/language14/review196-by197",
+        "--cli",
+        "/workspace/scratch/39be3faa4442/targets200/review/debug/zil",
+        "--out",
+        "/dev/shm/zil200-review-by197/consumer-linux01",
+        "--platform",
+        "linux"
+      ],
+      "source_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": []
+    },
+    {
+      "record": "commands/final-analyze01/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl200_constructor",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": [
+        "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s"
+      ]
+    },
+    {
+      "record": "commands/final-driver01/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_independent",
+        "--test",
+        "impl200_state_source",
+        "--test",
+        "impl200_analyze_constructor",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": [
+        "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.21s",
+        "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.62s"
+      ]
+    },
+    {
+      "record": "commands/legacy-baseline01/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_independent",
+        "legacy_single_field_state_has_fresh_exact_expand_budget_measurement",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_commit": "d2e2cc3bf31ebcb21604a010a302dc663d364acc",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.02s"
+      ]
+    },
+    {
+      "record": "commands/legacy-candidate01/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_independent",
+        "legacy_single_field_state_has_fresh_exact_expand_budget_measurement",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_commit": "2fafa9567d06d4ec32c5bdd0a1c4cd95496d81e4",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "record": "commands/one-field01/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_independent",
+        "two_input_one_field_constructor_cleans_the_unselected_value_on_each_branch",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_commit": "5dc29f1104c5c5038116fa8213e4bd02e1246f9e",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.47s"
+      ]
+    },
+    {
+      "record": "commands/tests01/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_independent",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_commit": "0bcab9977ef6f4d1de6461905274a5bc6a428f17",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "test_summaries": [
+        "test result: FAILED. 5 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.15s"
+      ]
+    },
+    {
+      "record": "commands/tests02/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_independent",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_commit": "78dda996bb7730068f9d1af9b1f6872477573ce1",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": [
+        "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.98s"
+      ]
+    }
+  ],
+  "first_failures": [
+    {
+      "run": "tests01",
+      "source_commit": "0bcab9977ef6f4d1de6461905274a5bc6a428f17",
+      "result": "5 passed,3 failed",
+      "details": "Same-field FnOnce source rejects earlier in Expand; duplicate non-Copy SSA rejects as Verify E-VERIFY-MOVE; let moved was immutable and rejected in Types. Original inputs and outputs retained. Corrections pin actual stages and add a separate mutable-parent safety case."
+    },
+    {
+      "run": "legacy-candidate01",
+      "result": "Measured old-source N1807 versus actual baseline1731",
+      "details": "Real +76 work regression; fixed by8bbd and verified at the exact prior N."
+    }
+  ],
+  "old_regression_text_migration": {
+    "reviewed_commit": "eb7b661c965418c0eb5f06adda0fb4df781b0cb3",
+    "receipt": "MIGRATION.json",
+    "method": "Read-only; no added execution. One182 expected diagnostic string changes; source/phase/category and production unchanged."
+  },
+  "archive": {
+    "scope": "evidence packaging only",
+    "status": "ArchivedAndVerified",
+    "archive": "200-review-by197-evidence.zip",
+    "bytes": 8923078,
+    "sha256": "be04843517776f58f4cbd80f111bd1ef7eef28e776e076d458dea89684cdb16d",
+    "included_files": 3125,
+    "included_bytes": 174759668,
+    "omitted_execution_artifacts": 132,
+    "omitted_execution_bytes": 2231984,
+    "full_manifest": "ARCHIVE-MANIFEST.json inside archive",
+    "storage": "Separate evidence deliverable; archive is not committed into source Git history."
+  },
+  "formal_workspace_by_reviewer": "NotRun; parent bced full-run status and later migration/retests remain separate exact receipts. No sum of partial runs is called a complete pass.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing",
+  "native_windows_by_reviewer": "NotRun",
+  "rust_goal_reflection": {
+    "same_class_safety": "Finite independent permissions, transfers, source origins, cleanup and rejected forged IR are evidenced; no complete language safety proof.",
+    "runtime_memory": "Actual failure cleanup and allocation balance are verified, but no same-contract Rust timing or RSS comparison.",
+    "expression_maintenance": "A component can retain two same-type stateful handlers and ordinary data; no complete framework maintenance-cost measurement.",
+    "compile_cost": "No performance comparison. Exact phase allowances are resource-limit checks, not a speed claim.",
+    "repeatable_net_breakthrough": "Concrete composition gap closed; no product-level four-goal conjunction or repeatable net breakthrough claimed."
+  }
+}
