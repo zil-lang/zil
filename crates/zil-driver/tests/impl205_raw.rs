@@ -378,6 +378,69 @@ fn unused_aliases_keep_their_original_parent_across_refill() {
 }
 
 #[test]
+fn legacy_complete_state_forwarding_keeps_field_origins_modes_and_old_aliases() {
+    for fields in 1..=2 {
+        let second = if fields == 2 { "second:F;" } else { "" };
+        let source = format!(
+            "package State<F>{{manages bytes:ByteBuffer;first:F;{second}}}fn relay<F:FnOnce()->i32>(state:State<F>)->State<F>{{return state}}fn update<G:FnOnce()->i32>(state:State<G>)->State<G>{{var next=state;(next)=relay(next);return next}}fn main(){{}}"
+        );
+        let case = Case::new(&format!("legacy-forwarding-input-{fields}"));
+        fs::write(case.0.join("original.zil"), &source).unwrap();
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "legacy-forwarding.zil", source);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let base = zil_expand::expand(&unit, &syntax).unwrap();
+        let relay = base
+            .functions
+            .iter()
+            .position(|f| f.name == "relay")
+            .unwrap();
+        let update = base
+            .functions
+            .iter()
+            .position(|f| f.name == "update")
+            .unwrap();
+        assert!(base.functions[relay].state_parameters.is_empty());
+        assert!(base.functions[update].state_parameters.is_empty());
+        check(&format!("legacy-forwarding-once-{fields}"), &base, None);
+
+        let mut bad = base.clone();
+        bad.functions[relay].callable_parameters[0].kind = CallableKind::FnMut;
+        check(
+            &format!("legacy-forwarding-strengthens-{fields}"),
+            &bad,
+            Some("E-CLOSURE-MODE"),
+        );
+        let mut good = bad;
+        good.functions[update].callable_parameters[0].kind = CallableKind::Fn;
+        check(
+            &format!("legacy-forwarding-stronger-source-{fields}"),
+            &good,
+            None,
+        );
+
+        // Rebinding the complete local after moving it through relay restores
+        // its owner, but never revives an address made before that transfer.
+        for stale in [false, true] {
+            let mut core = base.clone();
+            core.functions[relay].callable_parameters[0].kind = CallableKind::Fn;
+            core.functions[update].callable_parameters[0].kind = CallableKind::Fn;
+            let a = Ast::new();
+            let statements = &mut core.functions[update].body.statements;
+            statements.insert(1, a.bind("view", false, a.borrow("first", false)));
+            statements.insert(
+                if stale { 3 } else { 2 },
+                a.use_value(a.call(a.name("view"))),
+            );
+            check(
+                &format!("legacy-forwarding-alias-{fields}-{stale}"),
+                &core,
+                if stale { Some("E-STATE-ALIAS") } else { None },
+            );
+        }
+    }
+}
+
+#[test]
 fn legacy_loop_refresh_checks_current_locals_and_keeps_stale_copies_invalid() {
     let source = "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn recycle<F:Fn()->i32>(state:State<F>,flag:bool)->State<F>{var next=state;var view=&next.a;while view()==0 {let moved=next.a;next.a=moved;view=&next.a}view();return next}fn main(){}";
     let unit = SourceUnit::new(FileId(0), ModuleId(0), "legacy-loop.zil", source);
