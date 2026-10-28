@@ -336,7 +336,12 @@ impl Dependencies<'_, '_> {
         self.node(depth, expression.span)?;
         match &expression.kind {
             CoreExprKind::Call { callee, arguments } => {
-                let signature = match &callee.kind {
+                let target = if let CoreExprKind::TypeApply { callee, .. } = &callee.kind {
+                    callee.as_ref()
+                } else {
+                    callee.as_ref()
+                };
+                let signature = match &target.kind {
                     CoreExprKind::Name(name) if !self.bound(name) => self.signatures.get(name),
                     CoreExprKind::Member { object, member } => {
                         if let CoreExprKind::Name(alias) = &object.kind {
@@ -359,7 +364,9 @@ impl Dependencies<'_, '_> {
                 };
                 if let Some(signature) = signature {
                     if signature.callable_return.is_some() {
-                        self.found.factories.insert(signature.id);
+                        self.found
+                            .factories
+                            .insert(signature.concrete_id(expression.span)?);
                     }
                     if let Some(key) = signature.template {
                         self.found.helpers.insert(key);
@@ -370,7 +377,8 @@ impl Dependencies<'_, '_> {
                     self.expr(argument, depth + 1)?;
                 }
             }
-            CoreExprKind::Ascribed { value, .. }
+            CoreExprKind::TypeApply { callee: value, .. }
+            | CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
