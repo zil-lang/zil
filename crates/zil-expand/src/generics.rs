@@ -18,6 +18,8 @@ mod bytes;
 pub(super) mod callable;
 #[path = "generic_enum.rs"]
 mod enums;
+#[path = "generic_store.rs"]
+mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
 
@@ -195,6 +197,7 @@ impl<'a> Engine<'a> {
                     GenericParamKind::Type(bounds)
                         if bounds.is_empty()
                             || callable.is_some()
+                            || bounds.iter().all(stores::is_bound)
                             || matches!(item.kind, ItemKind::Function(_)) => {}
                     _ => {
                         return Err(unsupported(
@@ -211,9 +214,10 @@ impl<'a> Engine<'a> {
                         "unexecuted generic parameter attribute",
                     ));
                 }
-                if !f.where_clause.is_empty() || !f.contract.is_empty() {
+                if !f.where_clause.is_empty() {
                     return Err(unsupported(f.span, "generic where/contract solving"));
                 }
+                stores::result_mode(f)?;
                 validate_parametric(
                     f,
                     &engine.nominals,
@@ -228,8 +232,28 @@ impl<'a> Engine<'a> {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
             if let ItemKind::Aggregate(a) = &item.kind {
-                let variables = a.generics.iter().map(|p| p.name.clone()).collect();
+                let variables: BTreeSet<_> = a.generics.iter().map(|p| p.name.clone()).collect();
+                let bounds = engine
+                    .traits
+                    .parameter_bounds(&a.generics, &mut engine.budget)?;
                 for field in &a.fields {
+                    if field.manages
+                        && stores::element(&field.ty).is_none()
+                        && variables
+                            .iter()
+                            .any(|variable| callable::refers(&field.ty, variable))
+                    {
+                        return Err(error(
+                            field.span,
+                            "a generic manages field needs an explicit resource category; StoreElement is a Value bound",
+                        ));
+                    }
+                    engine.traits.store_types(
+                        &field.ty,
+                        &bounds,
+                        &variables,
+                        &mut engine.budget,
+                    )?;
                     super::foreign::callback_type_tree(
                         &field.ty,
                         &variables,
@@ -716,6 +740,45 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Call { callee, arguments } => {
+                if let Some(name) =
+                    super::foreign::bare_name(callee).filter(|name| stores::primitive(name))
+                {
+                    if arguments.len() != stores::arity(name)
+                        || arguments.iter().any(|arg| arg.spread)
+                    {
+                        return Err(error(
+                            e.span,
+                            "Store primitive argument count or shape differs",
+                        ));
+                    }
+                    let element = if name == "store_new" {
+                        expected.and_then(stores::element).cloned().ok_or_else(|| {
+                            error(
+                                e.span,
+                                "store_new requires an explicit Store element context",
+                            )
+                        })?
+                    } else {
+                        let store = self
+                            .expr_expected(&mut arguments[0].value, env, None, depth + 1)?
+                            .ok_or_else(|| {
+                                error(e.span, "Store primitive requires a known Store type")
+                            })?;
+                        stores::element(&store).cloned().ok_or_else(|| {
+                            error(e.span, "Store primitive requires a Store description")
+                        })?
+                    };
+                    self.budget.ty(&element)?;
+                    if arguments.len() == 2 {
+                        let wanted = if name == "store_push" {
+                            element.clone()
+                        } else {
+                            named("i64", e.span)
+                        };
+                        self.expr_expected(&mut arguments[1].value, env, Some(&wanted), depth + 1)?;
+                    }
+                    return Ok(Some(stores::result(name, &element, e.span)));
+                }
                 if let Some((parameters, result)) = super::foreign::bare_name(callee)
                     .and_then(|name| bytes::signature(name, e.span))
                 {
