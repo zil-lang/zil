@@ -1764,17 +1764,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
-        if let Term::ValueStore(element, owned) = term {
-            if let Some(wanted) = dynamic_store::element(ty) {
-                if matches!(ty, Type::Managed(_)) && !owned {
-                    return Err(error(
-                        "E-TYPE-MISMATCH",
-                        span,
-                        "Store description is not an owning carrier",
-                    ));
-                }
-                return self.bind_term(element, wanted, span);
+        if let Term::ValueStore(element, owned) = term
+            && let Some(wanted) = dynamic_store::element(ty)
+        {
+            if matches!(ty, Type::Managed(_)) && !owned {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "Store description is not an owning carrier",
+                ));
             }
+            return self.bind_term(element, wanted, span);
         }
         if let Term::ValueUnion {
             error: failure,
