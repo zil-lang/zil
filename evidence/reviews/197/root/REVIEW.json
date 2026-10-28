@@ -1,0 +1,78 @@
+{
+  "reviewer": "/root",
+  "verdict": "Pass",
+  "implementation_commit": "959545dd466b673ec9746633b62d77a504777256",
+  "original_production_commit": "da3a663abd3730418f8ad1dd0941a9b312ec933e",
+  "source_tests": {
+    "command": "commands/tests03/command.json",
+    "tests": 84,
+    "failures": 0,
+    "source_commit": "959545dd466b673ec9746633b62d77a504777256",
+    "scope": "20 new197 + 2 non-author197 + 62 adjacent176/192/194/195; no summing repeated rounds",
+    "native197_receipts": [
+      "state197-modules-434775-37/native.json",
+      "state197-public-field-companion-434775-36/native.json",
+      "state197-modules-434775-31/native.json",
+      "state197-public-field-companion-434775-30/native.json",
+      "state197-last-use-window-434775-28/native.json",
+      "state197-infer-envelope-434775-26/native.json",
+      "state197-nested-data-434775-25/native.json",
+      "state197-state-loop-explicit-borrows-434775-24/native.json",
+      "state197-phantom-envelope-434775-23/native.json",
+      "state197-fnonce-cleanup-434775-22/native.json",
+      "state197-expected-state-result-434775-20/native.json",
+      "state197-last-use-window-434775-14/native.json",
+      "state197-state-loop-explicit-borrows-434775-13/native.json",
+      "state197-phantom-envelope-434775-12/native.json",
+      "state197-fnonce-cleanup-434775-11/native.json",
+      "state197-expected-state-result-434775-6/native.json",
+      "state197-infer-envelope-434775-5/native.json",
+      "state197-nested-data-434775-4/native.json"
+    ],
+    "independent_native_receipts": [
+      "cases03/review197-434869-0/native.txt",
+      "cases03/review197-434869-1/native.txt",
+      "cases03/review197-434869-2/native.txt",
+      "cases03/review197-434869-3/native.txt"
+    ],
+    "new197_native_runs": 22
+  },
+  "consumer_receipts": {
+    "linux": "linux01/summary.json",
+    "win64_wine": "win6403/summary.json",
+    "source_commit": "3d6f4874be4160e0a0539896d2bc8c647eed9fad",
+    "each_runs": 86,
+    "each_real_allocation_failures": 52,
+    "cli_sha256": "7dda33910b0c926d8698dc499e280eeb34de441188ae35be58ed4feb7b42c56a",
+    "note": "Consumer runs remain bound to actual original source. Corrected registry review source has identical compiler, Cargo, consumer, policy and interface trees; no rerun at a new hash is claimed."
+  },
+  "forward_freeze_equal_git_objects": {
+    "crates": "4cbc72d6fc9dcb31aff1d35f6e610137514a59ac",
+    "Cargo.toml": "71adfaea2deb83d99a108a0aa43e6c47937fe3b5",
+    "Cargo.lock": "38a62627c9e74866270068f2594959001ee00fe3",
+    "examples/mainline/generic_state197": "9b9d2f2ba341ff911372a70acdca8416544b6821",
+    "tools/language/197": "0631c851500c23f0a71703d5cc5935b6f1b91e52",
+    "policy/dependencies.json": "59fbacb84e9daa791c501fa94eac41ff01cdb7e4",
+    "spec/interfaces.json": "aaf55d08206c43e4d2eeb0fe8e80ba9eea06a2e4"
+  },
+  "retained_failures": [
+    "Original private-field source09 E-FIELD-PRIVATE and unused-template12 success are not safety evidence; public positive and actually invoked borrow negative were added.",
+    "First two Wine consumers crashed before a completed native case. Same PE hash with explicit TMPDIR failed; unset TMPDIR control in three working directories succeeded, and the full third run passed. No original failure is overwritten.",
+    "Original direct callback field loop rejection is retained in197 and transferred to199; explicit address form passes."
+  ],
+  "code_review": [
+    "Full ordinary T nominal key preserves phantom types and normalizes aliases; actual ClosureId remains separate.",
+    "Symbolic State field calls use declared bound only; Copy never grants arithmetic/field/callable capability.",
+    "New key and type scans charge before allocations under unchanged limits; raw/Wire wrong concrete instances reject."
+  ],
+  "archive": {
+    "path": "review-results.zip",
+    "bytes": 7247198,
+    "sha256": "d2c1043f1ea15a692a7a3eff834262c4cfb826812a9c81405dc717439652f9bb",
+    "nonmachine_files": 4278,
+    "machine_products_hash_only": 178
+  },
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
