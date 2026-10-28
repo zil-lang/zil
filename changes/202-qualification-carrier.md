@@ -1,0 +1,9 @@
+# 202完整T资格的实际Typed表示补充
+
+实施中确认一个原有合同必须显式承载：`identity<T:StoreElement>(value:T)->T`即使实例化后没有Store操作，完整T仍必须满足StoreElement非零布局及实际自含捕获义务。若只扫描已出现的Store carrier，Types的绑定信息擦除后，现有Verify没有要检查的元素定义。不能让Types复制LLVM布局或把前端成功标志当证明。
+
+选定已有表示：每个普通模板实际T绑定都预费登记其canonical `OwnedStore<T>` ResourceDefinition，按现有完整类型/规范名字去重。该未可信定义进入201已实现的unused/resource-only独立检查，由Analyze核实际捕获、Verify按实际Closure和live flags算完整非零布局。它不创建Store值、资源实例或create责任，不执行分配，也不是安全认证位；不增加TypedIR opcode或Wire字段。后端可能生成未使用定义对应的辅助代码，不据此声称代码体积或编译成本不变。
+
+全类型复制/比较、定义注册和独立核工作都计入新路径。没有普通模板的旧路径保持。必须有真实source无Store identity零stride反例与非零近邻、最终Typed canonical定义一致性、raw/Wire真实资格拒绝及预算边界。删除一个未使用约束后得到另一份没有Store操作的安全Typed程序，不等于原源码已通过StoreElement；独立Verify不证明任意raw程序与源文等价，不将这种变换冒称内存安全绕过。
+
+root于2026-10-28登记此必要承载后授权Types实施；本补充不表示实现或验收完成。公共版本仍为在施工的26，已有Typed表示没有新增字段。
