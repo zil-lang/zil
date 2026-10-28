@@ -269,6 +269,77 @@ fn main()->E!i32{{let r=make()?;let old=r;let callback=()=>old.code;let n=callba
 }
 
 #[test]
+fn padded_resource_and_copy_error_layouts_and_zero_sized_resource_are_real() {
+    for (flag, expected, exit) in [("true", b"A".as_slice(), 0), ("false", b"".as_slice(), 1)] {
+        let source = format!(
+            r#"
+extern "C" fn putchar(n:i32)->i32;
+enum E{{Bad(i64,i32)}}
+resource Wide{{lead:u8;number:i64}}
+impl Drop for Wide{{fn drop(self:Self){{unsafe{{putchar(i32(.lead))}}}}}}
+fn make(ok:bool)->E!Wide contract{{result(create)}}{{if !ok{{return E.Bad(123,7)}};return Wide{{lead:u8(65),number:123456789}}}}
+fn main()->E!i32{{let w=make({flag})?;return i32(w.number-123456789)}}
+"#
+        );
+        native("padded-resource", &[("main", &source)], expected, exit);
+    }
+    native(
+        "zero-resource",
+        &[(
+            "main",
+            r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Empty{}
+impl Drop for Empty{fn drop(self:Self){unsafe{putchar(90)}}}
+fn make()->void!Empty contract{result(create)}=>Empty{}
+fn main()->void!i32{let e=make()?;return 0}
+"#,
+        )],
+        b"Z",
+        0,
+    );
+}
+
+#[test]
+fn native_entry_does_not_implicitly_discard_a_managed_success_return() {
+    let dir = directory("entry-boundary");
+    let source = "enum E{Fail}fn main()->E!ByteBuffer contract{result(create)}=>bytes_new()";
+    fs::write(dir.join("main.zil"), source).unwrap();
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", source);
+    let output = dir.join("forbidden");
+    let report = compile_source(
+        &unit,
+        &CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(output.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    fs::write(dir.join("compile.json"), report.to_json()).unwrap();
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(
+        report.phase,
+        zil_base::Phase::Codegen,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-UNSUPPORTED" && d.message.contains("native main must return")),
+        "{}",
+        report.to_json()
+    );
+    assert!(!output.exists());
+}
+
+#[test]
 fn source_ownership_modes_and_existing_rejection_boundaries_stay_explicit() {
     use zil_base::Phase;
     let declarations = "resource R{n:i32}enum E{Fail}fn make()->E!R contract{result(create)}=>R{n:1};fn wrap(give r:R)->E!R contract{result(give)}=>give r;";

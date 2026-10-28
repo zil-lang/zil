@@ -12,7 +12,7 @@ pub fn buffer(mode:i32)->model.Error!ByteBuffer contract { result(create) } {
 
 pub fn store(mode:i32)->model.Error!Store<model.Item> contract { result(create) } {
     let marker=model.marker(83);
-    let store:Store<model.Item>=store_new();
+    let store:Store<model.Item> = store_new();
     if !store_reserve(store,1) { return model.Error.Failed };
     store_push(store,model.item(67));
     if !store_reserve(store,3) { return model.Error.Failed };
