@@ -305,3 +305,9 @@ fn real_alias_work_and_new_header_have_exact_fresh_budget_boundaries() {
         }
     }
 }
+
+#[test]
+fn a_refreshed_alias_remains_valid_after_zero_or_more_iterations() {
+    let source = "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}\nfn recycle<T:Copy,F:Fn()->i32>(state:State<T,F>)->State<T,F>{var next=state;var view=&next.a;while view()==0 {let moved=next.a;next.a=moved;view=&next.a}view();return next}fn main(){}";
+    run(source).unwrap();
+}
