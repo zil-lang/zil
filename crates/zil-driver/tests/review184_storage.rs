@@ -154,15 +154,17 @@ fn a_lent_callback_payload_keeps_its_field_while_another_storage_field_grows() {
     );
     assert_eq!(
         report.phase,
-        zil_base::Phase::Verify,
+        zil_base::Phase::Expand,
         "{}",
         report.to_json()
     );
+    assert_eq!(report.verification_runs, 0);
     assert!(
         report
             .diagnostics
             .iter()
-            .any(|d| d.code == "E-BORROW-CONFLICT")
+            .any(|d| d.code == "E-GENERIC-ARGUMENT"
+                && d.message == "State alias outlives a moved or replaced field")
     );
 }
 
