@@ -160,5 +160,18 @@
   "native_windows": "NotRun",
   "formal_draft_product_pipeline": "NotRun",
   "compiler_speed_claim": "None; separate workstream",
-  "remaining_priority": "205 one complete State<T,F> plus one independently owned replacement:F; remaining full1.4 obligations retained"
+  "remaining_priority": "205 one complete State<T,F> plus one independently owned replacement:F; remaining full1.4 obligations retained",
+  "formal_plan_check": {
+    "status": "Pass",
+    "source_commit": "928ab62d487861989a1e6c41a55580df32f344c5",
+    "receipt": "plan04/command.json",
+    "scope": "Plan consistency and self-tests, not language execution"
+  },
+  "handoff_initial": {
+    "status": "Fail",
+    "errors": 1140,
+    "new_slice204_errors": 2,
+    "receipt": "handoff01/command.json",
+    "cause": "Two acceptance-reference formatting mistakes subsequently corrected; original historical missing-record errors retained."
+  }
 }
