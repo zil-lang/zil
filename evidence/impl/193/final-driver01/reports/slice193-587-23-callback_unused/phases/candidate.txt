@@ -1,0 +1,134 @@
+CandidatePlan {
+    schema_version: 24,
+    module_fingerprint: Fingerprint(
+        [
+            128,
+            7,
+            52,
+            239,
+            178,
+            232,
+            37,
+            64,
+            36,
+            242,
+            206,
+            101,
+            163,
+            95,
+            98,
+            202,
+            21,
+            150,
+            116,
+            5,
+            152,
+            65,
+            128,
+            95,
+            48,
+            66,
+            200,
+            225,
+            70,
+            12,
+            4,
+            154,
+        ],
+    ),
+    target_fingerprint: Fingerprint(
+        [
+            205,
+            49,
+            11,
+            211,
+            61,
+            158,
+            160,
+            206,
+            0,
+            177,
+            155,
+            124,
+            142,
+            36,
+            127,
+            255,
+            149,
+            121,
+            131,
+            121,
+            165,
+            196,
+            116,
+            61,
+            206,
+            130,
+            190,
+            234,
+            40,
+            5,
+            28,
+            15,
+        ],
+    ),
+    functions: [
+        FunctionPlan {
+            function: FunctionId(
+                0,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        1,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                1,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+    ],
+    origins: [],
+    responsibilities: [],
+    unsupported: [],
+}

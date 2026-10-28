@@ -1,0 +1,38 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-BORROW-CONFLICT",
+            message: "access overlaps an active address window without its delegated authority",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 124,
+                    end: 125,
+                },
+            ),
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-BORROW-CONFLICT",
+            message: "access overlaps an active address window without its delegated authority",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 124,
+                    end: 125,
+                },
+            ),
+            notes: [],
+        },
+    ],
+]
