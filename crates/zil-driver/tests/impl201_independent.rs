@@ -501,6 +501,91 @@ fn raw_same_id_element_values_cannot_duplicate_a_pushed_responsibility() {
     );
 }
 
+#[test]
+fn raw_redirect_to_same_typed_parent_cannot_borrow_another_stores_authority() {
+    let start = MULTIPLE.find("fn run<").unwrap();
+    let end = MULTIPLE.find("fn main()").unwrap();
+    let source = format!(
+        r#"{PREFIX}{}
+fn run<F:FnMut(i32)->i32>(pair:Pair<F>)->void!i32{{
+    let left:Store<Item<F>>=store_new();let right:Store<Item<F>>=store_new();
+    store_reserve(left,1);store_reserve(right,1);
+    let first=Item::<F>{{callback:pair.first,pad:(1u8,2i64,3u16),owner:Ticket{{code:80}},value:7}};
+    store_push(left,first);
+    let second=Item::<F>{{callback:pair.second,pad:(4u8,5i64,6u16),owner:Ticket{{code:81}},value:9}};
+    store_push(right,second);
+    let view=store_at_mut(left,0);store_reserve(right,2);return view.callback(1)-11
+}}
+{}"#,
+        &MULTIPLE[..start],
+        &MULTIPLE[end..]
+    );
+    native("same-type-two-stores-control", &source, "BQAPZ", 0);
+    let (mut module, original) = baseline("same-type-two-stores-raw-control", &source);
+    let f = module
+        .functions
+        .iter()
+        .position(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .filter(|i| matches!(i.kind, I::OwnedStoreNew { .. }))
+                .count()
+                == 2
+        })
+        .unwrap();
+    let left = module.functions[f]
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            I::OwnedStoreBorrowMut { store, .. } => Some(store),
+            _ => None,
+        })
+        .unwrap();
+    let position = module.functions[f]
+        .blocks
+        .iter()
+        .enumerate()
+        .flat_map(|(b, block)| {
+            block
+                .instructions
+                .iter()
+                .enumerate()
+                .filter_map(move |(i, instruction)| {
+                    matches!(instruction.kind, I::OwnedStoreReserve { .. }).then_some((b, i))
+                })
+        })
+        .last()
+        .unwrap();
+    let right = match module.functions[f].blocks[position.0].instructions[position.1].kind {
+        I::OwnedStoreReserve { store, .. } => store,
+        _ => unreachable!(),
+    };
+    assert_ne!(
+        left, right,
+        "control must use two distinct actual descriptor values"
+    );
+    assert_eq!(
+        module.functions[f].values[left.0 as usize],
+        module.functions[f].values[right.0 as usize]
+    );
+    let I::OwnedStoreReserve { store, .. } =
+        &mut module.functions[f].blocks[position.0].instructions[position.1].kind
+    else {
+        unreachable!()
+    };
+    *store = left;
+    raw_reject(
+        "same-type-right-reserve-retargeted-to-live-left",
+        module,
+        original,
+        true,
+        ResultCategory::SafeReject,
+        "E-BORROW-CONFLICT",
+    );
+}
+
 fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize {
     let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
     run(high).unwrap();
