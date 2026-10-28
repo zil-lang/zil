@@ -467,6 +467,24 @@ fn uncalled_dual_type_constructor_is_accepted_since_203() {
 }
 
 #[test]
+fn uncalled_state_and_replacement_is_accepted_since_205() {
+    // This is the exact former 138-byte input. Its unused definition is now
+    // supported; execution and field cleanup are covered by impl205_source.
+    let source = "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn replace<F:Fn()->i32>(state:State<F>,replacement:F)->State<F>{return state}fn main(){}";
+    let case = Case::new("state-and-replacement-original205");
+    let report = compile(&case, source, Stage::Verify, Optimization::O0);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Verify);
+    assert_eq!(report.verification_runs, 1);
+    assert!(!report.artifacts.contains_key("executable"));
+}
+
+#[test]
 fn uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions() {
     // The original repeated generic value is rejected before field counting.
     reject(
@@ -490,10 +508,6 @@ fn uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions() {
     );
     assert_eq!(report.verification_runs, 0);
     for (label, source) in [
-        (
-            "state-and-replacement",
-            "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn replace<F:Fn()->i32>(state:State<F>,replacement:F)->State<F>{return state}fn main(){}",
-        ),
         (
             "two-states",
             "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn combine<F:Fn()->i32>(left:State<F>,right:State<F>)->State<F>{return left}fn main(){}",

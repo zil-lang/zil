@@ -376,3 +376,74 @@ fn unused_aliases_keep_their_original_parent_across_refill() {
         );
     }
 }
+
+#[test]
+fn both_mixed_headers_are_charged_before_comparing_large_metadata() {
+    for direct in [false, true] {
+        for attack in 0..3 {
+            let (mut core, index) = template(CallableKind::Fn, 2, false);
+            let f = &mut core.functions[index];
+            let (name, parameters, result) = if direct {
+                let bound = &mut f.callable_parameters[0];
+                (
+                    &mut bound.generic_name,
+                    &mut bound.parameters,
+                    &mut bound.result,
+                )
+            } else {
+                let bound = &mut f.state_parameters[0].bindings[0];
+                (
+                    &mut bound.generic_name,
+                    &mut bound.parameters,
+                    &mut bound.result,
+                )
+            };
+            let limits = match attack {
+                0 => {
+                    *name = "caller_source".repeat(1024);
+                    Limits {
+                        max_analysis_steps: 2048,
+                        ..Limits::default()
+                    }
+                }
+                1 => {
+                    *parameters = vec![Type::I32; 1024];
+                    Limits {
+                        max_analysis_steps: 2048,
+                        max_locals: 64,
+                        ..Limits::default()
+                    }
+                }
+                _ => {
+                    *result = Type::I32;
+                    for _ in 0..16 {
+                        *result = Type::Tuple(vec![result.clone()]);
+                    }
+                    Limits {
+                        max_call_depth: 8,
+                        ..Limits::default()
+                    }
+                }
+            };
+            let case = Case::new(&format!("header-budget-{direct}-{attack}"));
+            fs::write(case.0.join("core.txt"), format!("{core:#?}")).unwrap();
+            let target = TargetProfile::host_llvm();
+            let single = zil_types::check(&core, &target, &limits);
+            let project = zil_types::check_program(&program(core.clone()), &target, &limits)
+                .map(|p| p.module);
+            fs::write(
+                case.0.join("types.txt"),
+                format!("limits={limits:#?}\nsingle={single:#?}\nprogram={project:#?}"),
+            )
+            .unwrap();
+            for result in [single, project] {
+                let errors = result.expect_err("oversized raw metadata");
+                assert!(
+                    errors.iter().any(|e| e.phase == zil_base::Phase::Types
+                        && e.category == zil_base::ResultCategory::ResourceLimit),
+                    "{direct}/{attack}: {errors:#?}"
+                );
+            }
+        }
+    }
+}
