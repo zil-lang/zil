@@ -781,7 +781,7 @@ fn byte_storage_remains_outside_compile_time_and_aggregate_profiles() {
 }
 
 #[test]
-fn package_and_capture_cannot_hide_borrowed_byte_storage() {
+fn package_cannot_hide_borrowed_bytes_and_unused_explicit_desc_capture_is_valid() {
     let mut f = Body::new(0, Type::Unit);
     f.parameter(Type::Package {
         name: "P".into(),
@@ -809,15 +809,9 @@ fn package_and_capture_cannot_hide_borrowed_byte_storage() {
         kind: CallableKind::FnMut,
     });
     t.module.functions[0].environment = Some(ClosureId(0));
-    t.bind();
-    let errors = verify_module(
-        t.module,
-        t.plan,
-        &TargetProfile::host_llvm(),
-        &Limits::default(),
-    )
-    .unwrap_err();
-    assert_eq!(errors[0].category, ResultCategory::Unsupported);
+    // 187 admits an explicit ByteBuffer Desc capture. This exact entry has no
+    // operations or hidden effects; constructing/calling it still checks roots.
+    t.pass();
 }
 
 #[test]

@@ -906,7 +906,13 @@ fn slice_captures_and_explicit_callable_signatures_remain_closed() {
         }
         let mut test = case(vec![body.finish(None)]);
         test.module.closures.push(closure);
-        test.reject("E-UNSUPPORTED");
+        // 184 admits only declared environment lending sources. This original
+        // empty environment has none and still cannot manufacture a window.
+        test.reject(if position == 2 {
+            "E-VERIFY-LENDING"
+        } else {
+            "E-UNSUPPORTED"
+        });
     }
 }
 

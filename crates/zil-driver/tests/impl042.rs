@@ -403,7 +403,7 @@ fn compound_dereference_keeps_one_authority_and_evaluates_address_once() {
     );
 }
 #[test]
-fn raw_closure_address_parameters_remain_explicitly_unsupported() {
+fn raw_closure_address_parameter_cannot_disagree_with_its_entry() {
     let mut module = raw("fn answer()->i32 { let f=(x:i32)=>x+1; return f(1) }");
     let limits = Limits::default();
     let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
@@ -411,9 +411,15 @@ fn raw_closure_address_parameters_remain_explicitly_unsupported() {
         mutable: true,
         inner: Box::new(zil_ir::Type::I32),
     };
-    // An otherwise valid candidate cannot authorize an unsupported signature.
+    // 189 permits the signature shape, but the original i32 entry remains unchanged.
     plan.module_fingerprint = module.fingerprint();
     let error =
         zil_verify::verify_module(module.clone(), plan, &module.target, &limits).unwrap_err();
-    assert_eq!(error[0].category, ResultCategory::Unsupported);
+    assert_eq!(error[0].category, ResultCategory::SafeReject);
+    assert_eq!(error[0].phase, Phase::Verify);
+    assert_eq!(error[0].code, "E-VERIFY-CLOSURE-ENTRY");
+    assert_eq!(
+        error[0].message,
+        "closure entry parameter differs from its definition"
+    );
 }

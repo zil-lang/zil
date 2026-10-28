@@ -619,7 +619,8 @@ fn owned_package_slice_escape_is_rejected_and_lending_captures_remain_closed() {
             f.capture()
         };
         let view = f.view(d, false);
-        // Closure result shapes intentionally remain the finite Copy profile.
-        captured(f, view, CallableKind::Fn, is_package).reject("E-UNSUPPORTED");
+        // 184 requires explicit lending_capture sources. The original claim
+        // remains empty, so the window is still rejected independently.
+        captured(f, view, CallableKind::Fn, is_package).reject("E-VERIFY-LENDING");
     }
 }
