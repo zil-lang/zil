@@ -139,13 +139,25 @@ fn oversized_lending_claims_are_bounded_before_verifier_fingerprinting() {
 
 #[test]
 fn opaque_public_json_retains_the_lending_relation() {
-    let source = SourceUnit::new(
-        FileId(0),
-        ModuleId(0),
-        "export185.zil",
-        "pub fn make(n:i32)->impl Fn()->i32{return move()=>n}fn main(){}",
-    );
-    let report = zil_driver::compile_source(&source, &zil_driver::CompileOptions::default());
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                "import factory;fn main()->i32{let f=factory.make(21);return f()-21}",
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "factory.zil",
+                "pub fn make(n:i32)->impl Fn()->i32{return move()=>n}",
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["factory".into()], ModuleId(1))]),
+    };
+    let report = zil_driver::compile_project(&project, &zil_driver::CompileOptions::default());
     assert_eq!(
         report.status,
         ResultCategory::Success,
