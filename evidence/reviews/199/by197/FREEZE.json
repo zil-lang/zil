@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "task": "199",
+  "reviewer": "/root/impl197",
+  "verdict": "Pass",
+  "implementation_commit": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
+  "production_commit": "22f74e02bb3cb0c4c840a04ba9951f91c38374fa",
+  "tested_source_commit": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
+  "spec_hash": "09ef7fcdf2e71c2de38456d45d911aadc02dec3f355c4edaf8b51f2feb689c51",
+  "normative_hash": "92ede13ac8b9042f08a7b0d737abe6502f79eb6a62ffed8d92d77416585ed1a5",
+  "public_schema_version": 25,
+  "scope": "Finite actual-local owning State direct Fn/FnMut callback-field calls; declared FnOnce consumption and preparation cleanup; current schema25 profile only.",
+  "original_review_commit": "b91bd066cf56b4934ad8d725952ccf8198779b4a",
+  "original_review": "evidence/reviews/199/by197/REVIEW.json",
+  "source_equivalence": "evidence/reviews/199/by197/SOURCE.json",
+  "source_inputs_fingerprint": "cda5ed5e1822abfa42bf80bf7472398de2b3a3717d5b274d4016ebf84f6db04f",
+  "external_evidence": {
+    "archive": "199-review-by197-evidence.zip",
+    "bytes": 5563055,
+    "sha256": "1070a38e99ed5831ef47d578a484929b70e72a445d9fb8cddda6f57eeba5be7b"
+  },
+  "metadata_normalization": "implementation_commit identifies the complete reviewed and actually executed 196+199 candidate. production_commit separately identifies the four-file 199 production change. Original REVIEW.json is preserved unchanged.",
+  "new_execution": false,
+  "reused_actual_results": {
+    "targeted_tests": "22/0",
+    "original197_control": "1/0",
+    "linux_consumer_executions": 86,
+    "actual_allocation_failures": 52
+  },
+  "author_base_boundary": "Author 05f8e31c excludes 196 Verify051. This review executed the actual merged source fff8ed85; author runs and budgets are not relabeled as runs of the merged tree.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing"
+}
