@@ -1,0 +1,1 @@
+fn idle<F:FnOnce()->i32>(f:F,n:i32)->i32{while n>0{}return 0}fn main()->i32{let f=move()=>5;return idle(f,0)}

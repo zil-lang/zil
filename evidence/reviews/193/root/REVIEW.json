@@ -1,0 +1,329 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root",
+  "implementation_author": "/root/resume188_acceptance",
+  "implementation_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "production_commit": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+  "source_commit": "02db31c559e473f98db079cc234d6b7bfdb05000",
+  "executed": 125,
+  "execution_count_note": "121 composed test executions at bd035 plus 4 repeated reviewer tests at final02db; 121 unique tests. Earlier43 and initial failures kept separately, not summed as new coverage.",
+  "commands": {
+    "source01": {
+      "source_commit": "7d42270249da2597e70d777ae12fd5505ff519e5",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-driver",
+        "-p",
+        "zil-verify",
+        "--test",
+        "impl193_slice_arguments",
+        "--test",
+        "impl193_slice_arguments_raw",
+        "--test",
+        "review193_slice_composition",
+        "--test",
+        "impl091_slices"
+      ],
+      "tests": {
+        "passed": 17,
+        "failed": 2,
+        "ignored": 0
+      }
+    },
+    "source02": {
+      "source_commit": "778093a5c96a90f3c2b7b529783d49abed24a94f",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "-p",
+        "zil-verify",
+        "--test",
+        "impl193_slice_arguments",
+        "--test",
+        "impl193_slice_arguments_raw",
+        "--test",
+        "review193_slice_composition",
+        "--test",
+        "impl091_slices"
+      ],
+      "tests": {
+        "passed": 43,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "composed01": {
+      "source_commit": "bd0352980a4b37823161a29013e670607b10451b",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "-p",
+        "zil-verify",
+        "--test",
+        "impl193_slice_arguments",
+        "--test",
+        "impl193_slice_arguments_raw",
+        "--test",
+        "review193_slice_composition",
+        "--test",
+        "impl190_flow_raw",
+        "--test",
+        "impl190_flow_source",
+        "--test",
+        "impl190_for_ranges",
+        "--test",
+        "review190_by193",
+        "--test",
+        "impl192_copy_fields",
+        "--test",
+        "impl192_copy_fields_raw",
+        "--test",
+        "review192_field_composition",
+        "--test",
+        "impl091_slices"
+      ],
+      "tests": {
+        "passed": 121,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "source-final": {
+      "source_commit": "02db31c559e473f98db079cc234d6b7bfdb05000",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review193_slice_composition"
+      ],
+      "tests": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "cli-build01": {
+      "source_commit": "bd0352980a4b37823161a29013e670607b10451b",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "--bin",
+        "zil"
+      ]
+    },
+    "cli-build02": {
+      "source_commit": "04e732cc78bc5043de1aa4e140a8f0a67f02efcf",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-cli",
+        "--bin",
+        "zil"
+      ]
+    },
+    "cli-build03": {
+      "source_commit": "02db31c559e473f98db079cc234d6b7bfdb05000",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-cli",
+        "--bin",
+        "zil"
+      ]
+    },
+    "clippy01": {
+      "source_commit": "04e732cc78bc5043de1aa4e140a8f0a67f02efcf",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review193_slice_composition",
+        "--",
+        "-D",
+        "warnings"
+      ]
+    },
+    "clippy02": {
+      "source_commit": "02db31c559e473f98db079cc234d6b7bfdb05000",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-j",
+        "2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review193_slice_composition",
+        "--",
+        "-D",
+        "warnings"
+      ]
+    }
+  },
+  "normative_hash": "6488fa9f20121c4268f13153c6daecbfd20da5eb5e8aa86630620413d41edadb",
+  "spec_sha256": "48641079ef2ecc84aa50a0a9eafd83ae844f0d3de7924fcc8cb3e2fef3f9db5f",
+  "composition": [
+    "190 Flow/Finite helper contracts",
+    "192 direct Package Copy sibling addresses and independent physical roots",
+    "193 explicit synchronous finite Copy slice arguments"
+  ],
+  "new_independent_tests": {
+    "count": 4,
+    "new_native_executions_at_final": 6,
+    "cases": [
+      "Actual owned State callback, mutable slice and counter sibling fields with Ticket cleanup",
+      "Nested helpers, i64 values >i32 and mutable slice parent/child current-call conflict",
+      "Nested borrowed ByteBuffer capture: distinct backing native and same actual backing last-call rejection",
+      "Distinct SSA slice operands retargeted to the same actual local, matched public Hold claims and recomputed fingerprint: raw/Wire E-BORROW-CONFLICT"
+    ]
+  },
+  "platforms": {
+    "composed-linux01": {
+      "status": "Pass",
+      "source_commit": "04e732cc78bc5043de1aa4e140a8f0a67f02efcf",
+      "cli_sha256": "329c16d798aa74d710786949f6c85fe2826d82d1fbc3a5e55051c8b3904fbe22",
+      "platform": "linux",
+      "executions": 70,
+      "ordinary_executions": 14,
+      "instrumented_executions": 56,
+      "actual_allocation_failures": 36
+    },
+    "author-consumer-linux01": {
+      "status": "Pass",
+      "source_commit": "04e732cc78bc5043de1aa4e140a8f0a67f02efcf",
+      "cli_sha256": "329c16d798aa74d710786949f6c85fe2826d82d1fbc3a5e55051c8b3904fbe22",
+      "platform": "linux",
+      "executions": 40,
+      "ordinary_executions": 12,
+      "instrumented_executions": 28,
+      "actual_allocation_failures": 12
+    },
+    "composed-win64": {
+      "status": "Pass",
+      "source_commit": "02db31c559e473f98db079cc234d6b7bfdb05000",
+      "cli_sha256": "329c16d798aa74d710786949f6c85fe2826d82d1fbc3a5e55051c8b3904fbe22",
+      "platform": "win64",
+      "executions": 70,
+      "ordinary_executions": 14,
+      "instrumented_executions": 56,
+      "actual_allocation_failures": 36
+    },
+    "author-consumer-win64": {
+      "status": "Pass",
+      "source_commit": "02db31c559e473f98db079cc234d6b7bfdb05000",
+      "cli_sha256": "329c16d798aa74d710786949f6c85fe2826d82d1fbc3a5e55051c8b3904fbe22",
+      "platform": "win64",
+      "executions": 40,
+      "ordinary_executions": 12,
+      "instrumented_executions": 28,
+      "actual_allocation_failures": 12
+    }
+  },
+  "platform_totals": {
+    "linux": 110,
+    "wine": 110,
+    "allocation_failures_each": 48,
+    "new_composed_each": 70,
+    "new_composed_failures_each": 36,
+    "native_windows": "NotRun"
+  },
+  "production_identity": "Linux consumers actually used clean04e732; final02db changes only reviewer test lint and runner docstring. Compiler production, lock, spec and source .zil files byte-identical; CLI SHA unchanged. Wine/final tests built clean02db, no source identity invented.",
+  "code_review": [
+    "10 production files checked against03c20 parent; new explicit parameter gates do not grant capture or escaping results.",
+    "Analyze checks actual finite element; Verify independently calls slices::check_pointee after bounded raw type preflight; neither consumes Types proofs.",
+    "Actual loan/current-call and backing-source checks remain independent; no modifications to their production modules by193.",
+    "helper slice parameters require Copy result across Types, Analyze and Verify; existing Copy-parameter environment lending remains separate.",
+    "LLVM retains existing fat pointer/i64 representation; consumer checks own mutable State data and original author six-fat-argument/zero-size/evaluation-order scenarios on O0/O2 Linux/Wine.",
+    "190/192 production composition passed121 selected tests; default budgets and schema24 unchanged by193."
+  ],
+  "preserved_failures": {
+    "source01": "2 passed/2 failed reviewer tests: omitted explicit State generic construction, and bytes_new followed by bytes_push without reserve causing the expected bounds trap. Inputs/diagnostics/exit records retained; corrected fixture uses existing typed pack and checked reserves.",
+    "cli-build01": "Reviewer requested nonexistent zil bin in zil-driver; Cargo ran zero tests/build target. Correct package zil-cli used in02/03.",
+    "clippy01": "Reviewer nested if lint only; fixed as equivalent let-chain without altering production or mutation semantics."
+  },
+  "full_workspace": "Deferred until next integrated formal gate; latest pre190/193 main192 run1925/3 old assertions migrated19/0 independently reviewed.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "rust_goals": {
+    "safety": "Finite actual-source/source-to-machine plus independent raw/Wire attacks; not full language safety claim.",
+    "runtime_memory": "Existing ABI; exact live0/allocations=frees and peak counts at all selected failures. No comparative Rust runtime/RSS measurement.",
+    "expression": "Real Flow helpers operate on callback and Copy sibling plus a buffer window from one owned State.",
+    "compile_cost": "Existing logical budgets preserved and tested by author/current composition; no compile speed claim.",
+    "breakthrough": "Language composability increment only; no product-level net-breakthrough verdict."
+  }
+}

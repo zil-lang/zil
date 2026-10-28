@@ -1,0 +1,17 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-analyze)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-lower)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-expand)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review193/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 8.52s
+     Running tests/impl193_slice_arguments.rs (/workspace/scratch/39be3faa4442/targets178/review193/debug/deps/impl193_slice_arguments-f5505aa925e384ac)
+     Running tests/impl193_slice_arguments_raw.rs (/workspace/scratch/39be3faa4442/targets178/review193/debug/deps/impl193_slice_arguments_raw-d44e026a14ac6a3d)
+     Running tests/review193_slice_composition.rs (/workspace/scratch/39be3faa4442/targets178/review193/debug/deps/review193_slice_composition-06b7d8837753b761)
+error: test failed, to rerun pass `-p zil-driver --test review193_slice_composition`

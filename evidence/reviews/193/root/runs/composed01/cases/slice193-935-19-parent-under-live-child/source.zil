@@ -1,0 +1,1 @@
+fn main()->i32{var a=[1,2];let f=(p:&mut[i32])=>{let q=&mut p[..];let n=p[0];return q[0]+n};return f(&mut a[..])}
