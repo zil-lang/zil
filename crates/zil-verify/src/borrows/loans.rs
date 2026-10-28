@@ -801,6 +801,21 @@ pub(super) fn check(
                     let root = field_root(f, *local, *index, budget)?;
                     access.check(&empty, &[root], true, budget)?;
                 }
+                InstructionKind::ReborrowAddress { address, mutable }
+                    if matches!(
+                        &f.values[address.0 as usize],
+                        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))
+                    ) =>
+                {
+                    // Reborrowing a callback qualifies its environment position.
+                    // Desc targets and captured addresses keep their separate
+                    // permissions and are checked when the callback uses them.
+                    let positions =
+                        environment_loans(&flow, &flow.values[address.0 as usize], budget)?;
+                    for loan in &positions {
+                        access.check(&positions, &flow.roots[*loan], *mutable, budget)?;
+                    }
+                }
                 InstructionKind::ReadAddress { address }
                 | InstructionKind::SliceLength { address }
                 | InstructionKind::WriteAddress { address, .. }
