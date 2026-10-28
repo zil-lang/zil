@@ -6,7 +6,9 @@ use std::{
     process::Command,
     sync::atomic::{AtomicUsize, Ordering},
 };
-use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
+use zil_base::{
+    FileId, Limits, ModuleId, NodeId, Phase, ResultCategory, SourceUnit, Span, TargetProfile,
+};
 use zil_driver::{CompileOptions, CompileReport, Optimization, Stage, compile_source};
 use zil_ir::*;
 
@@ -429,4 +431,215 @@ fn raw_unused_mixed_metadata_checks_every_selector_and_both_heads() {
             Some("E-STATE-PARAMETERS"),
         );
     }
+}
+
+fn raw_name(name: &str, id: u32, span: Span) -> CoreExpr {
+    CoreExpr {
+        id: NodeId(id),
+        span,
+        kind: CoreExprKind::Name(name.into()),
+    }
+}
+fn raw_field(owner: &str, field: &str, id: u32, span: Span) -> CoreExpr {
+    CoreExpr {
+        id: NodeId(id),
+        span,
+        kind: CoreExprKind::Member {
+            object: Box::new(raw_name(owner, id + 1, span)),
+            member: field.into(),
+        },
+    }
+}
+fn raw_bind(name: &str, mutable: bool, initializer: CoreExpr, id: u32) -> CoreStatement {
+    CoreStatement {
+        id: NodeId(id),
+        span: initializer.span,
+        kind: CoreStatementKind::Binding {
+            name: name.into(),
+            mutable,
+            ty: None,
+            initializer: Some(initializer),
+        },
+    }
+}
+fn raw_assign(field: &str, value: &str, id: u32, span: Span) -> CoreStatement {
+    CoreStatement {
+        id: NodeId(id),
+        span,
+        kind: CoreStatementKind::Assign {
+            target: raw_field("next", field, id + 1, span),
+            value: raw_name(value, id + 3, span),
+        },
+    }
+}
+fn raw_call(value: CoreExpr, id: u32) -> CoreStatement {
+    CoreStatement {
+        id: NodeId(id),
+        span: value.span,
+        kind: CoreStatementKind::Expression(CoreExpr {
+            id: NodeId(id + 1),
+            span: value.span,
+            kind: CoreExprKind::Call {
+                callee: Box::new(value),
+                arguments: vec![],
+            },
+        }),
+    }
+}
+fn raw_return_next(span: Span) -> CoreStatement {
+    CoreStatement {
+        id: NodeId(980060),
+        span,
+        kind: CoreStatementKind::Return(Some(raw_name("next", 980061, span))),
+    }
+}
+fn raw_rejection(label: &str, core: &CoreModule, codes: &[&str]) -> bool {
+    let case = Case::new(label);
+    case.write("core.txt", format!("{core:#?}"));
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let a = zil_types::check(core, &target, &limits);
+    let b = zil_types::check_program(&program(core.clone()), &target, &limits).map(|p| p.module);
+    case.write("single.txt", format!("{a:#?}"));
+    case.write("program.txt", format!("{b:#?}"));
+    let mut accepted = false;
+    for result in [a, b] {
+        match result {
+            Ok(_) => accepted = true,
+            Err(errors) => assert!(
+                errors.iter().any(|d| d.phase == Phase::Types
+                    && d.category == ResultCategory::SafeReject
+                    && codes.contains(&d.code.as_str())),
+                "{label}: {errors:#?}"
+            ),
+        }
+    }
+    accepted
+}
+
+#[test]
+fn unused_raw_three_values_never_share_one_consumption_slot() {
+    let original = expanded("raw-three-position-header", ORIGINAL);
+    let index = original
+        .functions
+        .iter()
+        .position(|f| f.name == "replace")
+        .unwrap();
+    let mut unexpectedly_accepted = Vec::new();
+    for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+        let mut control = original.clone();
+        let f = &mut control.functions[index];
+        let span = f.span;
+        f.state_parameters[0].bindings[0].kind = kind;
+        f.callable_parameters[0].kind = kind;
+        f.body.statements = vec![
+            raw_bind("next", true, raw_name("state", 980001, span), 980000),
+            raw_bind("first", false, raw_field("next", "a", 980011, span), 980010),
+            raw_bind(
+                "second",
+                false,
+                raw_field("next", "b", 980021, span),
+                980020,
+            ),
+            raw_bind(
+                "third",
+                false,
+                raw_name("replacement", 980031, span),
+                980030,
+            ),
+            raw_assign("a", "first", 980040, span),
+            raw_assign("b", "second", 980050, span),
+            raw_return_next(span),
+        ];
+        types_pair(&format!("three-independent-takes-{kind:?}"), &control, None);
+        for position in ["first", "second", "third", "whole-state"] {
+            let mut attack = control.clone();
+            let f = &mut attack.functions[index];
+            let value = match position {
+                "first" => raw_field("next", "a", 981001, span),
+                "second" => raw_field("next", "b", 981001, span),
+                "third" => raw_name("replacement", 981001, span),
+                _ => raw_name("state", 981001, span),
+            };
+            f.body
+                .statements
+                .insert(4, raw_bind("repeated", false, value, 981000));
+            let label = format!("repeated-real-position-{kind:?}-{position}");
+            if raw_rejection(&label, &attack, &["E-STATE-MOVE", "E-STATE-ORIGIN"]) {
+                unexpectedly_accepted.push(label)
+            }
+        }
+        let mut attack = control.clone();
+        let f = &mut attack.functions[index];
+        f.body.statements[4] = raw_assign("a", "third", 980040, span);
+        f.body.statements[5] = raw_assign("b", "third", 980050, span);
+        let label = format!("publish-third-twice-{kind:?}");
+        if raw_rejection(&label, &attack, &["E-STATE-MOVE", "E-STATE-ORIGIN"]) {
+            unexpectedly_accepted.push(label)
+        }
+    }
+    assert!(
+        unexpectedly_accepted.is_empty(),
+        "unused moved positions were accepted: {unexpectedly_accepted:?}"
+    );
+}
+
+#[test]
+fn unused_raw_declared_once_call_is_per_value_and_refill_changes_the_position() {
+    let mut core = expanded("raw-once-header", ORIGINAL);
+    let index = core
+        .functions
+        .iter()
+        .position(|f| f.name == "replace")
+        .unwrap();
+    let f = &mut core.functions[index];
+    let span = f.span;
+    f.state_parameters[0].bindings[0].kind = CallableKind::FnOnce;
+    f.callable_parameters[0].kind = CallableKind::FnOnce;
+    let start = raw_bind("next", true, raw_name("state", 982001, span), 982000);
+    f.body.statements = vec![
+        start.clone(),
+        raw_call(raw_field("next", "a", 982012, span), 982010),
+        raw_assign("a", "replacement", 982020, span),
+        raw_return_next(span),
+    ];
+    types_pair("once-field-then-replacement-refill", &core, None);
+    let mut unused = core.clone();
+    unused.functions[index].body.statements = vec![
+        start.clone(),
+        raw_call(raw_name("replacement", 982012, span), 982010),
+        raw_return_next(span),
+    ];
+    types_pair("once-replacement-leaves-two-fields", &unused, None);
+    let mut unexpectedly_accepted = Vec::new();
+    for position in ["a", "b", "replacement"] {
+        let mut attack = core.clone();
+        let f = &mut attack.functions[index];
+        let callee = |id| {
+            if position == "replacement" {
+                raw_name(position, id, span)
+            } else {
+                raw_field("next", position, id, span)
+            }
+        };
+        f.body.statements = vec![
+            start.clone(),
+            raw_call(callee(982012), 982010),
+            raw_call(callee(982032), 982030),
+        ];
+        if position != "replacement" {
+            f.body
+                .statements
+                .push(raw_assign(position, "replacement", 982040, span));
+        }
+        f.body.statements.push(raw_return_next(span));
+        let label = format!("once-repeated-{position}");
+        if raw_rejection(&label, &attack, &["E-STATE-MOVE", "E-STATE-ONCE"]) {
+            unexpectedly_accepted.push(label)
+        }
+    }
+    assert!(
+        unexpectedly_accepted.is_empty(),
+        "declared Once did not consume actual values: {unexpectedly_accepted:?}"
+    );
 }
