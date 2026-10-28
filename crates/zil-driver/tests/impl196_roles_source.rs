@@ -362,6 +362,34 @@ fn nested_helper_second_role_writes_the_actual_owned_environment() {
     );
 }
 #[test]
+fn nested_helper_keeps_actual_identity_signature_and_permission_checks() {
+    let cases = [
+        (
+            "nested-same-f-different-id",
+            "fn pair<F:Fn()->i32>(a:&F,b:&F)->i32{return a()+b()}fn make()->impl Fn()->i32{return move()=>{let a=move()=>1;let b=move()=>2;return pair(&a,&b)}}fn main()->i32{let f=make();return f()}",
+        ),
+        (
+            "nested-second-signature",
+            "fn pair<F:Fn()->i32,G:Fn()->i32>(a:&F,b:&G)->i32{return a()+b()}fn make()->impl Fn()->i32{return move()=>{let a=move()=>1;let b=move()=>true;return pair(&a,&b)}}fn main()->i32{let f=make();return f()}",
+        ),
+        (
+            "nested-second-permission",
+            "fn pair<F:Fn()->i32,G:FnMut()->i32>(a:&F,b:&mut G)->i32{return a()+b()}fn make()->impl Fn()->i32{return move()=>{let a=move()=>1;var count=0;var b=()=>{count+=1;return count};return pair(&a,&b)}}fn main()->i32{let f=make();return f()}",
+        ),
+    ];
+    for (label, source) in cases {
+        let case = Case::new(label);
+        let report = compile(&case, &[("main", source)], None);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types);
+    }
+}
+#[test]
 fn each_owned_role_cleans_its_own_uncalled_environment() {
     let source = r#"extern "C" fn putchar(n:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}fn consume(give r:R)->i32{return r.code}fn make(give r:R)->impl FnOnce()->i32{return move()=>consume(give r)}fn choose<F:FnOnce()->i32>(a:F,b:F,flag:bool)->i32{if flag{return a()};return b()}fn main()->i32{let a=make(R{code:65});let b=make(R{code:66});return choose(a,b,true)-65}"#;
     native("owned-choice", &[("main", source)], "AB", 0);
