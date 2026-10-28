@@ -1,0 +1,50 @@
+{
+  "status": "Pass",
+  "file": "203-all-components-evidence-compact.zip",
+  "bytes": 46922427,
+  "sha256": "7672f080faaab062491aef381eba979ae545cf785a47e9f01c8326e394a390a6",
+  "format": "content-addressed ZIP; original logical paths and metadata in INDEX.json, verify.py checks every reference and blob, restore into a new directory only",
+  "statistics": {
+    "logical_files": 60614,
+    "logical_bytes": 4334912056,
+    "unique_contents": 17294,
+    "unique_bytes": 889679066,
+    "excluded_execution_products": 1491
+  },
+  "inputs": {
+    "manifest": "run-logs/203-evidence-compact/FINAL_INPUTS.json",
+    "sha256": "02ddd4d8478aada33b3e046d9ed52faa5754ab783fd6dda0e5745f78bfa7e796",
+    "source_count": 27,
+    "root_log_freeze_verified": true,
+    "root_implementation_logs": "run-logs/203-root/final-log-freeze.json",
+    "metadata_snapshots_from": "b54a39583b92f44ad6238c13d3eb8403104a8b0c"
+  },
+  "packager": {
+    "source_commit": "8f084e50a9ca5f9126b38bec00cd60f426fc004b",
+    "source_clean": true,
+    "sha256": "ee2b3373ffd92a24e496394cba7833071b505c02423fd7bff8b529f9c92496ce",
+    "command": [
+      "python3",
+      "-B",
+      "/workspace/scratch/39be3faa4442/language14/review195/tools/language/203/compact_evidence.py",
+      "pack",
+      "/workspace/scratch/39be3faa4442/run-logs/203-evidence-compact/FINAL_INPUTS.json",
+      "/workspace/scratch/39be3faa4442/deliverables/203-all-components-evidence-compact.zip"
+    ],
+    "elapsed_seconds": 66.7600844999979,
+    "status": "Pass",
+    "new_language_tests_executed_by_packager": false
+  },
+  "preservation": [
+    "Original source/raw Core/Typed/Wire, IR, commands, output, actual failed runs and receipt identities remain under original logical paths.",
+    "Binary Wire test evidence is retained; it is not an executable. ELF/PE/object/cache execution products are not included.",
+    "Source ZIP originals are not nested; their payloads are deduplicated by SHA while their metadata and exclusion lists remain.",
+    "All CRC, content SHA, logical file size and mapping references were verified.",
+    "Old200 full02 temporary case IR had already been removed by test Case::Drop; only original Git source and actual failure report exist. No missing original was fabricated.",
+    "Full03 actual complete command/stdout/stderr is included. Already deleted or unretained temporary artifacts are not claimed archived."
+  ],
+  "separate_delivery": "Optional evidence archive; source bundle does not require this file to build or synchronize.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun"
+}
