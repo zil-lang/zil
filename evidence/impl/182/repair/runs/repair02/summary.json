@@ -1,0 +1,40 @@
+{
+  "head": "31e3ab0900afdec0847b834799c98895588830b6",
+  "dirty": " M crates/zil-analyze/src/holds.rs\n M crates/zil-driver/tests/impl182_capture_contracts.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/closures.rs\n",
+  "results": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl182_capture_contracts",
+        "--",
+        "--skip",
+        "original_probes_keep_inputs_and_remove_the_unrelated_head_switch",
+        "--test-threads=2"
+      ],
+      "exit": 0
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-analyze",
+        "--lib",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit": 0
+    }
+  ],
+  "time": 1793154467.1627967
+}

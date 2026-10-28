@@ -1,0 +1,1 @@
+fn make()->impl Fn()->i32{return ()=>1}fn wrap()->impl Fn()->i32{return make()}fn main()->i32{var f=make();f=wrap();return f()}

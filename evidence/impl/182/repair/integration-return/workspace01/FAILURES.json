@@ -1,0 +1,537 @@
+[
+  {
+    "test": "exact_work_budget_covers_cfg_edges_and_predecessor_visits",
+    "messages": [
+      "analysis budget exceeded during resource description lane"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "exact_work_budget_covers_instruction_visits_and_fingerprinting",
+    "messages": [
+      "analysis budget exceeded during dense Hold candidate"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "exact_work_budget_includes_set_scans_across_functions",
+    "messages": [
+      "analysis budget exceeded during resource description lane"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "packages072_live_sibling_descriptor_and_finished_old_descriptor_are_allowed",
+    "messages": [
+      "write or storage change overlaps a shared address still required by a later use"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "packages074_component_updates_preserve_sibling_descriptions_and_whole_abi",
+    "messages": [
+      "write or storage change overlaps a shared address still required by a later use"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "captures079_returned_component_repeats_updates_without_losing_environment_flags",
+    "messages": [
+      "write or storage change overlaps a shared address still required by a later use"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "nonmove_inner_borrow_keeps_outer_owned_callback_live",
+    "messages": [
+      "borrowed closure capture requires a nested external capture contract"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "retained_alias_and_consuming_callback_misuse_are_rejected",
+    "messages": [
+      "borrowed closure capture requires a nested external capture contract"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper",
+    "messages": [
+      "access overlaps an active address window without its delegated authority"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "original_probes_keep_inputs_and_remove_the_unrelated_head_switch",
+    "messages": [
+      "one finite Copy callable signature and one nonescaping environment parameter are implemented"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruptions",
+    "messages": [],
+    "detail": "\nthread 'literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruptions' (13941) panicked at crates/zil-driver/tests/review177_public.rs:175:67:\ncalled `Result::unwrap_err()` on an `Ok` value: (TypedModule { schema_version: 23, module_id: ModuleId(0), source_fingerprint: Fingerprint([214, 66, 177, 110, 131, 50, 22, 77, 242, 14, 55, "
+  },
+  {
+    "test": "public_transport_version_and_verified_target_binding_are_independent",
+    "messages": [],
+    "detail": "\nthread 'public_transport_version_and_verified_target_binding_are_independent' (13981) panicked at crates/zil-driver/tests/review181_by179.rs:94:85:\ncalled `Result::unwrap_err()` on an `Ok` value: VerifiedModule { module: TypedModule { schema_version: 23, module_id: ModuleId(0), source_fingerprint: Fingerprint([155, 77, 251, 102, 53, 249, 169, 79, "
+  },
+  {
+    "test": "error_scope_tests::synchronous_error_return_cleans_owned_closure_environments_exactly_once",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::borrowed_owned_fn_calls_twice_and_exports_checked_contract_raw_wire",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::conditional_zero_call_cleanup_and_one_call_consume_are_both_verified",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::consumed_owned_parameter_cannot_be_recalled_or_leaked",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::copy_error_return_paths_keep_distinct_one_and_two_call_traces",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::dropped_hold_call_or_write_bounds_are_rejected_independently",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::exclusive_borrow_calls_fnmut_and_actual_fn_adapter_without_mutable_binding",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::future_public_helper_use_prevents_package_move_through_captured_description",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::helper_contract_node_quotas_are_resource_limits_before_identity_checks",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::longer_call_sequence_is_checked_in_full_without_truncation",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::owned_consume_adapters_call_once_or_drop_uncalled_environment",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::owned_repeatable_fn_borrowed_calls_then_one_cleanup",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::package_field_description_may_end_at_last_public_helper_use",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::public_helper_caller_needs_no_private_effect_rows_after_full_raw_wire_verification",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "helper_tests::uncalled_owned_environment_cleanup_cannot_be_omitted_on_one_return",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::branch_join_retains_all_package_field_description_origins",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::captures::complete_package_factory_input_and_owned_cleanup_contract_are_checked",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::captures::end_must_match_binding_and_cannot_be_followed_by_direct_or_desc_access",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::captures::ended_nested_description_alias_is_rejected_even_when_outer_mode_is_exclusive",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::captures::mixed_capture_indices_keep_distinct_package_roots_and_managed_debts",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::captures::package_captures_are_owned_readonly_repeatable_or_consuming",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::captures::shared_package_desc_cannot_write_through_callee_or_nested_closure",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::captures::stale_capture_description_cannot_revive_after_replace",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::captures::shared_mode_rejects_copy_field_payload_and_responsibility_writes",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::description_alias_in_local_storage_still_blocks_package_move",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::descriptions_of_distinct_packages_do_not_block_unrelated_moves",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::fields::loop_replacement_gets_fresh_instances_without_retargeting_old_descriptions",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::fields::merged_description_origins_block_only_their_actual_fields",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::fields::old_description_alias_and_captured_description_keep_the_precise_field",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::fields::old_description_cannot_be_redirected_by_same_slot_replacement_or_refill",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::fields::partial_shell_keeps_copy_fields_and_sibling_descriptions_available",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::fields::repeated_take_and_description_of_a_missing_field_are_rejected",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::package_field_description_blocks_whole_move_until_last_use",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::package_field_description_capture_retains_owner_and_allows_move_after_last_call",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::package_field_descriptions_never_follow_rebuilt_storage",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::package_parameter_field_description_and_cleanup_are_checked",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "package_tests::whole_move_may_follow_the_last_field_description_use",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_closure_tests::closure_debts_cannot_be_lost_or_cleared_twice",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_closure_tests::a_consuming_environment_ssa_is_not_reusable_even_without_owned_fields",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_closure_tests::consume_can_give_one_field_and_settle_the_remaining_fields",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_closure_tests::direct_and_transitive_write_effects_are_reconstructed_from_callee_body",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_closure_tests::description_environment_cannot_outlive_or_follow_moved_target",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_closure_tests::one_conditional_consume_keeps_other_edge_cleanup_live",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_closure_tests::owned_writes_require_mutable_entry_borrowed_target_writes_do_not",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_closure_tests::owned_fn_repeated_shared_reads_and_uncalled_drop_are_valid",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::a_description_cannot_revive_when_its_old_head_slot_is_reinitialized",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_closure_tests::take_capture_requires_consuming_entry_and_cannot_lose_moved_ssa",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::cleanup_order_comes_from_store_order_not_local_number",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::conditional_give_keeps_a_real_cleanup_obligation_on_the_other_edge",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::duplicate_cleanup_and_duplicate_ssa_transfer_are_rejected",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::descriptions_cannot_survive_cleanup_or_give",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::finite_resource_description_reads_and_cleans_once",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::each_loop_activation_must_discharge_before_reusing_its_static_slots",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::giving_an_owner_and_its_description_in_one_call_is_rejected",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::missing_cleanup_before_storage_dead_is_rejected",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::normal_return_checks_local_and_unstored_ssa_responsibilities",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::process_abort_is_not_a_normal_cleanup_exit",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::two_description_parameters_may_alias_for_sequential_short_operations",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resource_tests::teardown_binding_is_checked_and_ordinary_entries_are_rejected",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "resources::frontier_tests::module_budget_boundary_and_fresh_request_are_exact",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "retained_tests::current_wire_accepts_current_version_and_rejects_other_versions_and_every_truncation",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "retained_tests::raw_and_wire_factories_transfer_owned_and_empty_environments",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "retained_tests::raw_factory_bodies_keep_exact_contracts_when_hidden_identity_is_shared",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "retained_tests::raw_factory_resource_multiplicity_and_caller_cleanup_are_not_trusted",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  },
+  {
+    "test": "managed_native_tokens_keep_cleanup_debt_and_teardown_cannot_be_a_callback",
+    "messages": [
+      "Hold candidate differs from independently reconstructed provenance"
+    ],
+    "detail": ""
+  }
+]

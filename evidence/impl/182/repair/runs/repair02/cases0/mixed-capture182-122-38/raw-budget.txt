@@ -1,0 +1,12 @@
+success=27284
+ResourceLimit=27283
+[
+    Diagnostic {
+        phase: Verify,
+        category: ResourceLimit,
+        code: "E-RESOURCE-LIMIT",
+        message: "independent verification work budget exhausted",
+        span: None,
+        notes: [],
+    },
+]

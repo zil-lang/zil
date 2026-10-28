@@ -1,0 +1,9 @@
+    Checking zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182-repair/crates/zil-syntax)
+    Checking zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182-repair/crates/zil-ct)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182-repair/crates/zil-backend-llvm)
+    Checking zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182-repair/crates/zil-expand)
+    Checking zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182-repair/crates/zil-types)
+    Checking zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182-repair/crates/zil-lower)
+    Checking zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182-repair/crates/zil-db)
+    Checking zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182-repair/crates/zil-driver)
+    Finished `dev` profile [unoptimized] target(s) in 3.19s

@@ -1,0 +1,4 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182-repair/crates/zil-verify)
+    Finished `test` profile [unoptimized] target(s) in 2.89s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets178/author182-repair/debug/deps/zil_analyze-a5dce2e7a4398044)
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets178/author182-repair/debug/deps/zil_verify-c59aee014cb4882b)

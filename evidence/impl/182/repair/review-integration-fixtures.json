@@ -1,0 +1,23 @@
+{
+  "reviewer": "/root/restore177_inventory",
+  "verdict": "Pass",
+  "reviewed_commit": "bfb53c7d7909c98513bdffc775fae2bd337d8a2a",
+  "cumulative_commits": [
+    "dc294df78ab70b70bd89545fb0e69b4b8cca79fe",
+    "bfb53c7d7909c98513bdffc775fae2bd337d8a2a"
+  ],
+  "scope": "tests-only integration assertions, excludes182 production authored by reviewer",
+  "findings": [
+    "Wire negative version loops skip the actual current constant and reject all older plus next versions, preserving original corruption checks",
+    "175 same input remains Verify/SafeReject/E-BORROW-CONFLICT, changing only exact reason substring to the observed earlier access conflict",
+    "182 same include_str input remains Unsupported at the actual Types finite Copy callable boundary; no supported source downgraded",
+    "no production, default budget, gate or original source input changes"
+  ],
+  "execution_provenance": "root ran assertions; independently inspected exact test diff and original receipts; no redundant rerun claimed",
+  "original_failure": "integration-return/assertions01/command.json",
+  "corrected_pass": "integration-return/assertions02/command.json",
+  "root_original_paths": [
+    "/workspace/scratch/39be3faa4442/run-logs/185-integration/assertions01",
+    "/workspace/scratch/39be3faa4442/run-logs/185-integration/assertions02"
+  ]
+}
