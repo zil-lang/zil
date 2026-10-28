@@ -97,7 +97,13 @@ def main():
     declaration = json.loads(oracle_path.read_text())
     oracles = declaration["oracles"]
     expected_counts = declaration["planned_executions_per_platform"]
-    original_sources = json.loads((oracle_path.parent / "SOURCE-MANIFEST.json").read_text())["files"]
+    original_manifest = oracle_path.parent / "SOURCE-MANIFEST.json"
+    original_sources = json.loads(original_manifest.read_text())["files"]
+    source_manifest_path = repo / "tools/language/206/consumer/SOURCE-MANIFEST.json"
+    source_manifest = json.loads(source_manifest_path.read_text())
+    if source_manifest["original_source_manifest_sha256"] != digest(original_manifest):
+        raise RuntimeError("the revised fixture no longer identifies the original source declaration")
+    expected_sources = source_manifest["files"]
     normative_inputs = json.loads((repo / "data/normative-inputs.json").read_text())
     for name, expected_hash in normative_inputs["files"].items():
         if digest(repo / name) != expected_hash:
@@ -110,15 +116,18 @@ def main():
         data = path.read_bytes()
         (frozen_sources / path.name).write_bytes(data)
         source_hashes[path.name] = hashlib.sha256(data).hexdigest()
-        if (source_hashes[path.name] != original_sources[path.name]["sha256"]
-                or len(data) != original_sources[path.name]["bytes"]):
-            raise RuntimeError("source differs from the fixed predeclared input: " + path.name)
-    if set(source_hashes) != set(original_sources):
+        if (source_hashes[path.name] != expected_sources[path.name]["sha256"]
+                or len(data) != expected_sources[path.name]["bytes"]):
+            raise RuntimeError("source differs from the fixed actual fixture manifest: " + path.name)
+    if set(source_hashes) != set(expected_sources) or set(expected_sources) != set(original_sources):
         raise RuntimeError("the five-module source set differs from the fixed input")
     actual_tools = out / "actual-tools"
     actual_tools.mkdir()
     tool_hashes = {}
-    for name in ["tools/language/206/consumer/run.py", "tools/language/173/allocator_probe.c",
+    for name in ["tools/language/206/consumer/run.py",
+                 "tools/language/206/consumer/SOURCE-MANIFEST.json",
+                 "tools/language/206/consumer/predeclared/SOURCE-MANIFEST.json",
+                 "tools/language/173/allocator_probe.c",
                  "tools/research/142/allocator_probe.c", "tools/language/181/heap_probe.c"]:
         path = repo / name
         data = path.read_bytes()
@@ -141,7 +150,13 @@ def main():
                                      repo / "tools/language/181/heap_probe.c"]},
               "oracles": oracles, "builds": [], "observations": [],
               "oracle_sha256": digest(oracle_path), "oracle_status": declaration["status"],
-              "actual_tools": tool_hashes, "predeclared_source_bytes_equal": True,
+              "actual_tools": tool_hashes,
+              "source_fixture_revision": source_manifest["revision"],
+              "source_fixture_corrections": source_manifest["corrections"],
+              "source_manifest_sha256": digest(source_manifest_path),
+              "original_source_manifest_sha256": digest(original_manifest),
+              "predeclared_source_bytes_equal": source_hashes == {
+                  name: item["sha256"] for name, item in original_sources.items()},
               "planned_executions_per_platform": expected_counts,
               "platform": args.platform, "execution": "Wine compatibility" if args.wine else "native", "native_windows": "NotRun",
               "full_language": "NotSatisfied", "product": "NotRun"}
