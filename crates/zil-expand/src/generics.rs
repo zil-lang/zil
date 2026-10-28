@@ -658,7 +658,8 @@ impl<'a> Engine<'a> {
         // A surrounding E!T admits either exact payload or the whole union.
         // It therefore cannot constrain a generic result variable to E!T
         // before argument inference determines the expression's own type.
-        let expected = expected.filter(|ty| !matches!(ty.kind, TypeKind::Error { .. }));
+        let store_success_context = expected.filter(|ty| stores::success(ty).is_some());
+        let expected = expected.filter(|ty| !matches!(grouped(ty).kind, TypeKind::Error { .. }));
         if let Some(ty) = self.enum_expression(e, env, expected, depth)? {
             return Ok(Some(ty));
         }
@@ -692,7 +693,7 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
-                self.expr_expected(inner, env, expected, depth + 1)?
+                self.expr_expected(inner, env, expected.or(store_success_context), depth + 1)?
             }
             ExprKind::Unary { op, operand } => {
                 let hint = if matches!(op, UnaryOp::Negate | UnaryOp::BitNot) {
@@ -763,12 +764,16 @@ impl<'a> Engine<'a> {
                         ));
                     }
                     let element = if name == "store_new" {
-                        expected.and_then(stores::element).cloned().ok_or_else(|| {
-                            error(
-                                e.span,
-                                "store_new requires an explicit Store element context",
-                            )
-                        })?
+                        expected
+                            .or(store_success_context.and_then(stores::carrier))
+                            .and_then(stores::element)
+                            .cloned()
+                            .ok_or_else(|| {
+                                error(
+                                    e.span,
+                                    "store_new requires an explicit Store element context",
+                                )
+                            })?
                     } else {
                         let store = self
                             .expr_expected(&mut arguments[0].value, env, None, depth + 1)?
@@ -859,6 +864,13 @@ impl<'a> Engine<'a> {
                     self.expr(&mut arguments[0].value, env, depth + 1)?;
                     return Ok(Some(named(name, e.span)));
                 }
+                let expected = expected.or_else(|| {
+                    let result = stores::call_name(callee)
+                        .and_then(|name| self.signatures.get(name))?
+                        .return_type
+                        .as_ref()?;
+                    stores::call_context(result, store_success_context?)
+                });
                 let mut hints = self.call_hints(callee, env, expected)?;
                 let mut actual = Vec::new();
                 for (index, arg) in arguments.iter_mut().enumerate() {

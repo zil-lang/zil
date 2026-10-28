@@ -1,0 +1,13 @@
+{
+  "implementation_commit": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330",
+  "head_at_collection": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330",
+  "proposal_commit": "9b22708a92dc2e5cbd231cb87a3210e7ae1a3430",
+  "files": {
+    "changes/186-package-field-creation-provenance.md": "9b4f93add76e918aeb471d710d5e6378b4610d7e48da567a1bcd6e30fbdc6433",
+    "crates/zil-analyze/src/resources.rs": "b4bcdb1fbe70d19e9837c1991990541a524cb3c7e2f7e8dfb4767b8fea1eea1d",
+    "crates/zil-verify/src/resources.rs": "7abd413bfe8555eff47b2825a02c9f74abb5ec7232338a4efce2e7770f9c583d",
+    "crates/zil-driver/tests/impl186_generic_owned_success.rs": "18fed7c7f8e88a52981e7105bfb7e6cfd4c92143adb81ebecaf4260127af91b6",
+    "crates/zil-driver/tests/impl186_raw_owned_success.rs": "23e57a9a5c5dde09902915a59f8aba41c0ebe3612178662d13d9fdd9ad949aab"
+  },
+  "frozen_tree": "4e94299a996fc3542b7dc4c0d16b75ec8e9acd62"
+}

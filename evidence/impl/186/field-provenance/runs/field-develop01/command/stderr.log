@@ -1,0 +1,8 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-analyze)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.57s
+     Running tests/impl186_generic_owned_success.rs (/workspace/scratch/39be3faa4442/targets178/author186/debug/deps/impl186_generic_owned_success-3e00fa64064fdc70)

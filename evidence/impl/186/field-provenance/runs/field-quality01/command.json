@@ -1,0 +1,39 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-analyze",
+    "-p",
+    "zil-verify",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl186_generic_owned_success",
+    "--test",
+    "impl186_raw_owned_success",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt186",
+  "start": 1793155312.2620075,
+  "source_commit": "9b22708a92dc2e5cbd231cb87a3210e7ae1a3430",
+  "git_status": " M crates/zil-analyze/src/resources.rs\n M crates/zil-driver/tests/impl186_generic_owned_success.rs\n M crates/zil-driver/tests/impl186_raw_owned_success.rs\n M crates/zil-verify/src/resources.rs\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author186",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": null,
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793155314.3746512,
+  "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr.log_sha256": "d53bdb0726a02eb99b7d6b931914fdf033a9e66159b2d2d73ec51d471f74bc5c"
+}

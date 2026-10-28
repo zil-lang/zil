@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "/workspace/scratch/39be3faa4442/run-logs/186-author/win64-frozen01/O0/probe.exe"
+  ],
+  "status": "Completed",
+  "start": 1793154370.7787774,
+  "stdin_hex": "30",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "3",
+    "LD_LIBRARY_PATH": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu"
+  },
+  "exit_code": 1,
+  "stdout_sha256": "973d79186a902f64c6baa78a217fdaa977672691cd93f2c6fe98a397b3903ae3",
+  "stderr_sha256": "6217303d449c2768a2e397e5f10c39a1c71a451554718cf66aa81b62c09a893e",
+  "end": 1793154371.8434901
+}

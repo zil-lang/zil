@@ -1,0 +1,1 @@
+trait T{fn f(self:Self)->i32;}resource R{n:i32}impl T for R{fn f()->i32=>.n}fn main(){}
