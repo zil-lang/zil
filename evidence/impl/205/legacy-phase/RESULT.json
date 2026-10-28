@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "task": "205",
+  "scope": "Author limited regression for four exact source-preserving phase migrations",
+  "status": "Pass",
+  "implementation_commit": "94fba307fa447b5e29a6113d2cd653c07c2f838a",
+  "git_status": "",
+  "production_baseline": "c0f10092b0013baf78493c632416b719200d4c4a",
+  "compiler_production_equal_to_baseline": true,
+  "spec_hash": "71d03d540f73b8f3835c8f2198c99a8074f9abdce0f58284c3c9df1f0d17c560",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-legacy-phase/regression01/run/command.json",
+  "command_receipt_sha256": "9db104d3168da706ecafaecb9da1abca2f80c503fd83e6f5f1f6c2d53abb9ead",
+  "tests": {
+    "passed": 31,
+    "failed": 0,
+    "ignored": 0,
+    "groups": [
+      {
+        "binary": "impl197_mixed_state",
+        "passed": 14,
+        "failed": 0
+      },
+      {
+        "binary": "impl201_independent",
+        "passed": 13,
+        "failed": 0
+      },
+      {
+        "binary": "review184_storage",
+        "passed": 4,
+        "failed": 0
+      }
+    ]
+  },
+  "native_controls": {
+    "executions": 52,
+    "record_files": {
+      "native.json": 20,
+      "native.txt": 24,
+      "exit.txt": 8
+    },
+    "scope": "Existing selected test positives at O0/O2; no safety-negative executable produced"
+  },
+  "migrations": [
+    {
+      "case": "unused197",
+      "bytes": 267,
+      "source_sha256": "abf1ab9225dd61a989c14f56f119931d11cf8c6bc156f63fd202ce1be386dcf0",
+      "original_input_bytes_equal": true,
+      "phase": "expand",
+      "category": "SafeReject",
+      "verification_runs": 0,
+      "code": "E-GENERIC-ARGUMENT",
+      "actual_report": "/workspace/scratch/39be3faa4442/run-logs/205-legacy-phase/regression01/cases/state197-original-unused-window-944624-10/compile.json",
+      "actual_report_sha256": "c11c0837bcc67f2e97fe82ef743a56c7ca4bb8c12d60cc23ac7d5f68f83ba601"
+    },
+    {
+      "case": "actual197",
+      "bytes": 558,
+      "source_sha256": "110bca62753be335abfd87cac7f2f488efa5aa8e4b126ab64d2fa4931afb945d",
+      "original_input_bytes_equal": true,
+      "phase": "expand",
+      "category": "SafeReject",
+      "verification_runs": 0,
+      "code": "E-GENERIC-ARGUMENT",
+      "actual_report": "/workspace/scratch/39be3faa4442/run-logs/205-legacy-phase/regression01/cases/state197-actual-held-window-944624-7/compile.json",
+      "actual_report_sha256": "09d044115f7074c0b97e787fa21573d050521bdd2e2f787479bf725a656ea663"
+    },
+    {
+      "case": "actual201",
+      "bytes": 788,
+      "source_sha256": "206789f4501312494b1fa60a0e9a5fe1d641b201ae740dd7c7e45b0e1b9aeed5",
+      "original_input_bytes_equal": true,
+      "phase": "types",
+      "category": "SafeReject",
+      "verification_runs": 0,
+      "code": "E-STATE-ALIAS",
+      "actual_report": "/workspace/scratch/39be3faa4442/run-logs/205-legacy-phase/regression01/cases/independent201-same-element-two-exclusive-windows-944848-36/compile.json",
+      "actual_report_sha256": "e4e05fe530f995e7c34b2a6c7fb841ff7fa8751a19858f3dfacfc5c3f27195bf"
+    },
+    {
+      "case": "actual184",
+      "source_files": {
+        "factory.zil": {
+          "bytes": 118,
+          "sha256": "df632d07cbda648fbffa379d144fbff0aa74eb10f13892a59bab3d4ac4e85357"
+        },
+        "main.zil": {
+          "bytes": 96,
+          "sha256": "21e994c33b7423af03d76ee42e463c399e67709985489d42f15d3a0938e1de17"
+        },
+        "state.zil": {
+          "bytes": 288,
+          "sha256": "ce0913a8bc61de9bb8544584894b9a2d6a8f1915522b8f0d209ff7081af8e7f2"
+        }
+      },
+      "original_input_bytes_equal": true,
+      "phase": "expand",
+      "category": "SafeReject",
+      "verification_runs": 0,
+      "code": "E-GENERIC-ARGUMENT",
+      "actual_report": "/workspace/scratch/39be3faa4442/run-logs/205-legacy-phase/regression01/cases/review184-945173-11/compile.json",
+      "actual_report_sha256": "2ba13730c98d3d9a7f0a3de186d99b412d2b4acd294753bc9fbc522318df2c5c"
+    }
+  ],
+  "unchanged_verify_neighbors": [
+    {
+      "case": "independent201-callee-before-argument-resize-944848-29",
+      "phase": "verify",
+      "verification_runs": 1,
+      "code": "E-BORROW-CONFLICT",
+      "source_sha256": "fa18b66d790bef93e34799f39eea43960243f20bfd8fd7dbd4c8adfe6f963319"
+    },
+    {
+      "case": "independent201-actual-child-blocks-parent-write-944848-34",
+      "phase": "verify",
+      "verification_runs": 1,
+      "code": "E-BORROW-CONFLICT",
+      "source_sha256": "97c9e911235856d68ad3c8bca449d82dc7c51133fe7c5429ac13354450633d35"
+    }
+  ],
+  "test_identities": [
+    {
+      "path": "crates/zil-driver/tests/impl197_mixed_state.rs",
+      "original_sha256": "1843356e6f8603b4b20758e3916c11ab306c70a126c7a772065e53b5885c620a",
+      "current_sha256": "37e3aa64da22fbc67e1a35a166ab15666fa99d5a47c8640ce10eb0c653c0e451"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl201_independent.rs",
+      "original_sha256": "a0fc5fcaaa301cb7fbe3462a4a09425b9c301192189a58a64ebb9dbf41088e38",
+      "current_sha256": "1d8b68b3752405752e06f51798c817864f7b103d0a3f2a31dc149ac32418771e"
+    },
+    {
+      "path": "crates/zil-driver/tests/review184_storage.rs",
+      "original_sha256": "ceb80472a6bce72b4076977b66ebb3378a7528b2c4e45b0b8283299075089140",
+      "current_sha256": "ebeac794f71c7d47a7b18b6576b2feaee2105121fc0b7b95ae0084028c0925ce"
+    }
+  ],
+  "original_failure": {
+    "source_commit": "0317a093ade0118741d334c45438ade07e9d7228",
+    "status": "Fail",
+    "workspace_counts": [
+      2544,
+      6,
+      0
+    ],
+    "evidence": "/workspace/scratch/39be3faa4442/run-logs/205-legacy-phase/baseline02/root-workspace01",
+    "baseline_inputs": "/workspace/scratch/39be3faa4442/run-logs/205-legacy-phase/baseline02/BASELINE.json"
+  },
+  "prior_static_copy_attempt": {
+    "status": "StaticCopyFailed",
+    "compiler_test_execution": "NotRun",
+    "path": "/workspace/scratch/39be3faa4442/run-logs/205-legacy-phase/baseline01/INCOMPLETE.json",
+    "retained": true
+  },
+  "handoff": {
+    "status": "Fail",
+    "errors": 1138,
+    "scope": "Inherited record issues; not relabeled as Pass",
+    "receipt": "/workspace/scratch/39be3faa4442/run-logs/205-legacy-phase/handoff01/command.json"
+  },
+  "full_workspace": "NotRun by this limited author command",
+  "independent_review": "Pending",
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun"
+}
