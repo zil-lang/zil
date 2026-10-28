@@ -1,5 +1,10 @@
 //! Hand-built TypedIR controls for the independent Analyze constructor boundary.
 //! These are raw producer tests, not source or native-execution evidence.
+use std::{
+    fs,
+    path::PathBuf,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 use zil_analyze::analyze;
 use zil_base::{
     FileId, Fingerprint, Limits, ModuleId, Phase, ResultCategory, SCHEMA_VERSION, Span,
@@ -51,19 +56,27 @@ fn local(index: u32, ty: Type) -> LocalDecl {
 fn fixture(inputs: usize, fields: usize) -> TypedModule {
     assert!((1..=2).contains(&inputs) && fields <= inputs);
     let closure = Type::Closure(ClosureId(0));
+    let payload = Type::Record {
+        name: "R".into(),
+        fields: vec![("n".into(), Type::I32)],
+    };
+    let managed = Type::Managed(Box::new(payload.clone()));
     let package = Type::Package {
         name: "State".into(),
-        fields: (0..fields)
-            .map(|i| (format!("field{i}"), closure.clone()))
+        fields: std::iter::once(("resource".into(), managed.clone()))
+            .chain((0..fields).map(|i| (format!("field{i}"), closure.clone())))
             .collect(),
     };
     let mut body = function(0);
     body.environment = Some(ClosureId(0));
     let mut constructor = function(1);
-    constructor.parameters = (0..inputs).map(|i| LocalId(i as u32)).collect();
+    constructor.parameters = (0..=inputs).map(|i| LocalId(i as u32)).collect();
     constructor.locals = (0..inputs)
         .map(|i| local(i as u32, closure.clone()))
         .collect();
+    constructor
+        .locals
+        .push(local(inputs as u32, managed.clone()));
     constructor.return_type = package.clone();
     constructor.blocks[0]
         .instructions
@@ -77,12 +90,22 @@ fn fixture(inputs: usize, fields: usize) -> TypedModule {
             },
         ));
     }
+    let resource = ValueId(constructor.values.len() as u32);
+    constructor.values.push(managed);
+    constructor.blocks[0].instructions.push(ins(
+        Some(resource),
+        InstructionKind::TakeLocal {
+            local: LocalId(inputs as u32),
+        },
+    ));
     let value = ValueId(constructor.values.len() as u32);
     constructor.values.push(package);
     constructor.blocks[0].instructions.push(ins(
         Some(value),
         InstructionKind::MakePackage {
-            fields: (0..fields).map(|i| ValueId(i as u32)).collect(),
+            fields: std::iter::once(resource)
+                .chain((0..fields).map(|i| ValueId(i as u32)))
+                .collect(),
         },
     ));
     for index in fields..inputs {
@@ -93,7 +116,7 @@ fn fixture(inputs: usize, fields: usize) -> TypedModule {
             },
         ));
     }
-    for index in (0..inputs).rev() {
+    for index in (0..=inputs).rev() {
         constructor.blocks[0].instructions.push(ins(
             None,
             InstructionKind::StorageDead(LocalId(index as u32)),
@@ -112,7 +135,11 @@ fn fixture(inputs: usize, fields: usize) -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"raw two-input State constructor"),
         target: TargetProfile::host_llvm(),
-        resources: vec![],
+        resources: vec![ResourceDefinition {
+            name: "R".into(),
+            payload,
+            teardown: None,
+        }],
         functions: vec![body, constructor],
         closures: vec![ClosureDefinition {
             id: ClosureId(0),
@@ -126,11 +153,29 @@ fn fixture(inputs: usize, fields: usize) -> TypedModule {
         unsupported: vec![],
     }
 }
+fn record(module: &TypedModule, result: &str) {
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") else {
+        return;
+    };
+    let path = PathBuf::from(root).join(format!(
+        "raw200-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&path).unwrap();
+    fs::write(path.join("module.txt"), format!("{module:#?}")).unwrap();
+    fs::write(path.join("result.txt"), result).unwrap();
+}
 fn accepted(module: &TypedModule) {
-    analyze(module, &Limits::default()).unwrap();
+    let result = analyze(module, &Limits::default());
+    record(module, &format!("{result:#?}"));
+    result.unwrap();
 }
 fn rejected(module: &TypedModule, category: ResultCategory, message: &str) {
-    let errors = analyze(module, &Limits::default()).unwrap_err();
+    let result = analyze(module, &Limits::default());
+    record(module, &format!("{result:#?}"));
+    let errors = result.unwrap_err();
     assert!(
         errors.iter().any(|d| d.phase == Phase::Analyze
             && d.category == category
@@ -207,9 +252,12 @@ fn returned_field_count_and_identity_bound_the_new_exception() {
         let mut module = good.clone();
         let result = Type::Package {
             name: "State".into(),
-            fields: (0..count)
-                .map(|i| (format!("f{i}"), Type::Closure(ClosureId(0))))
-                .collect(),
+            fields: std::iter::once(match &module.functions[1].return_type {
+                Type::Package { fields, .. } => fields[0].clone(),
+                _ => unreachable!(),
+            })
+            .chain((0..count).map(|i| (format!("f{i}"), Type::Closure(ClosureId(0)))))
+            .collect(),
         };
         module.functions[1].return_type = result.clone();
         *module.functions[1].values.last_mut().unwrap() = result;
@@ -235,7 +283,7 @@ fn duplicated_ssa_missing_assembly_field_and_unpaid_second_input_still_reject() 
             unreachable!()
         };
         if duplicate {
-            fields[1] = fields[0];
+            fields[2] = fields[1];
         } else {
             fields.pop();
         }
@@ -293,8 +341,10 @@ fn ordinary_noescape_helpers_still_require_their_actual_public_contract() {
     f.values.clear();
     f.blocks[0].instructions = vec![
         ins(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
-        ins(None, InstructionKind::DropClosure { local: LocalId(0) }),
+        ins(None, InstructionKind::DropManaged { local: LocalId(2) }),
         ins(None, InstructionKind::DropClosure { local: LocalId(1) }),
+        ins(None, InstructionKind::DropClosure { local: LocalId(0) }),
+        ins(None, InstructionKind::StorageDead(LocalId(2))),
         ins(None, InstructionKind::StorageDead(LocalId(1))),
         ins(None, InstructionKind::StorageDead(LocalId(0))),
         ins(
