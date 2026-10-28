@@ -26,10 +26,10 @@ LLVM动态库参与本版CLI的装载；启用feature构建的CLI即使选择Cla
 ```sh
 mkdir -p out
 ./target/release/zil build examples/mainline/zui_language177/main.zil   -o out/state-api --backend llvm-api --clang "$ZIL_CLANG" --opt O0   --codegen-units 8 --codegen-jobs 4 --json > out/state-api-build.json
-printf '\003' | ./out/state-api
+printf '3' | ./out/state-api
 ```
 
-输入是**一个0x03字节**，不是ASCII字符串`3`。预期输出`DEFHZMNOPK`，退出码0。程序真实使用拥有Store的State、实际元素共享读取及可保存回调。JSON里的`verification_runs=1`、`native_codegen.backend="llvm-api"`与对象receipt是实际链路记录；`commands`只有真正的链接命令，不伪造LLVM API为shell命令。
+输入是**ASCII字符`3`（字节0x33）**；0x03不是合法输入，会以9退出。209核对真实源码后修正了208说明中的输入错误。预期输出`DEFHZMNOPK`，退出码0。程序真实使用拥有Store的State、实际元素共享读取及可保存回调。JSON里的`verification_runs=1`、`native_codegen.backend="llvm-api"`与对象receipt是实际链路记录；`commands`只有真正的链接命令，不伪造LLVM API为shell命令。
 
 优化构建建议先保留单模块：
 

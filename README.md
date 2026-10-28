@@ -9,7 +9,7 @@ export ZIL_CLANG=/opt/llvm-17.0.6/bin/clang
 python3 tools/llvm/check_toolchain.py
 cargo build --release --locked --offline -p zil-cli
 ./target/release/zil build examples/mainline/zui_language177/main.zil -o out/state
-printf '\003' | ./out/state
+printf '3' | ./out/state
 ```
 
 预期输出`DEFHZMNOPK`，退出0。API仍通过共用LLVM文本进入内存解析，**直接Builder尚未实现**。研发默认不等于产品性能验收；单模块仍是默认，206的O2多单元运行退化未撤销。安装见[LLVM API说明](docs/LLVM-API.md)，同步与当前状态见[209整合记录](docs/research/209/INTEGRATION.md)。

@@ -107,3 +107,37 @@ fn reference_only_build_rejects_api_without_overwriting_an_old_output() {
     );
     assert_eq!(fs::read(output).unwrap(), b"existing-output");
 }
+
+#[test]
+fn default_backend_runs_the_current_state_consumer_with_ascii_input() {
+    use std::{io::Write, process::Stdio};
+    let dir = Scratch::new();
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/mainline/zui_language177/main.zil");
+    let executable = dir.0.join("state");
+    let build = Command::new(env!("CARGO_BIN_EXE_zil"))
+        .arg("build")
+        .arg(source)
+        .arg("-o")
+        .arg(&executable)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(build.status.success(), "{build:?}");
+    for (input, expected, code) in [
+        (b"3".as_slice(), b"DEFHZMNOPK".as_slice(), 0),
+        (b"\x03".as_slice(), b"".as_slice(), 9),
+    ] {
+        let mut child = Command::new(&executable)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(input).unwrap();
+        let run = child.wait_with_output().unwrap();
+        assert_eq!(run.status.code(), Some(code), "{run:?}");
+        assert_eq!(run.stdout, expected);
+        assert!(run.stderr.is_empty());
+    }
+}
