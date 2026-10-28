@@ -22,8 +22,10 @@
 //! substitution participates in this ABI.
 
 mod build;
+#[cfg(test)]
 mod cgu;
 mod emit;
+mod machine_cgu;
 
 use zil_ir::FunctionId;
 

@@ -33,13 +33,13 @@ pub(super) fn helper(
     Ok(format!("zil.store.{index}.{operation}"))
 }
 
-pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
+pub(super) fn runtime(lir: &LirModule) -> CompileResult<m::Code> {
     if !lir
         .resources
         .iter()
         .any(|r| matches!(r.payload, Type::OwnedStore { .. }))
     {
-        return Ok(String::new());
+        return Ok(m::Code::new());
     }
     if lir.target.triple != "x86_64-unknown-linux-gnu" {
         return unsupported("owned Store currently requires Linux x64 LLVM", None);
@@ -55,7 +55,7 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
             Some(f.span),
         );
     }
-    let mut output = String::new();
+    let mut output = m::Code::new();
     for (index, resource) in lir.resources.iter().enumerate() {
         let Type::OwnedStore { element } = &resource.payload else {
             continue;
@@ -77,93 +77,607 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
             error: Box::new(Type::Unit),
             result: element.clone(),
         })?;
-        output.push_str(&format!(
-            r#"
-define internal i1 @zil.store.{index}.reserve(ptr %head, i64 %requested) {{
-entry:
-  %stride = ptrtoint ptr getelementptr ({item}, ptr null, i64 1) to i64
-  %maximum = udiv i64 9223372036854775807, %stride
-  %positive = icmp sge i64 %requested, 0
-  %bounded = icmp ule i64 %requested, %maximum
-  %valid = and i1 %positive, %bounded
-  br i1 %valid, label %capacity, label %failed
-capacity:
-  %cap.field = getelementptr {{ ptr, i64, i64 }}, ptr %head, i32 0, i32 2
-  %cap = load i64, ptr %cap.field, align 8
-  %fits = icmp ule i64 %requested, %cap
-  br i1 %fits, label %done, label %prepare
-prepare:
-  %ptr.field = getelementptr {{ ptr, i64, i64 }}, ptr %head, i32 0, i32 0
-  %old = load ptr, ptr %ptr.field, align 8
-  %size = mul i64 %requested, %stride
-  %next = call ptr @zil.bytes.reallocate(ptr %old, i64 %size)
-  %ok = icmp ne ptr %next, null
-  br i1 %ok, label %publish, label %failed
-publish:
-  store ptr %next, ptr %ptr.field, align 8
-  store i64 %requested, ptr %cap.field, align 8
-  br label %done
-done:
-  ret i1 true
-failed:
-  ret i1 false
-}}
-define internal {push} @zil.store.{index}.push(ptr %head, {item} %item) {{
-entry:
-  %len.field = getelementptr {{ ptr, i64, i64 }}, ptr %head, i32 0, i32 1
-  %cap.field = getelementptr {{ ptr, i64, i64 }}, ptr %head, i32 0, i32 2
-  %len = load i64, ptr %len.field, align 8
-  %cap = load i64, ptr %cap.field, align 8
-  %room = icmp ult i64 %len, %cap
-  br i1 %room, label %initialize, label %full
-initialize:
-  %ptr.field = getelementptr {{ ptr, i64, i64 }}, ptr %head, i32 0, i32 0
-  %data = load ptr, ptr %ptr.field, align 8
-  %slot = getelementptr {item}, ptr %data, i64 %len
-  store {item} %item, ptr %slot, align {align}
-  %next.len = add i64 %len, 1
-  store i64 %next.len, ptr %len.field, align 8
-  ret {push} zeroinitializer
-full:
-  %tag = insertvalue {push} zeroinitializer, i1 true, 0
-  %error = insertvalue {push} %tag, {item} %item, 1
-  ret {push} %error
-}}
-define internal {pop} @zil.store.{index}.pop(ptr %head) {{
-entry:
-  %len.field = getelementptr {{ ptr, i64, i64 }}, ptr %head, i32 0, i32 1
-  %len = load i64, ptr %len.field, align 8
-  %live = icmp ne i64 %len, 0
-  br i1 %live, label %take, label %empty
-take:
-  %next.len = sub i64 %len, 1
-  store i64 %next.len, ptr %len.field, align 8
-  %ptr.field = getelementptr {{ ptr, i64, i64 }}, ptr %head, i32 0, i32 0
-  %data = load ptr, ptr %ptr.field, align 8
-  %slot = getelementptr {item}, ptr %data, i64 %next.len
-  %item = load {item}, ptr %slot, align {align}
-  %result = insertvalue {pop} zeroinitializer, {item} %item, 2
-  ret {pop} %result
-empty:
-  %error = insertvalue {pop} zeroinitializer, i1 true, 0
-  ret {pop} %error
-}}
-define internal void @zil.store.{index}.drop(ptr %head) {{
-entry:
-  %len.field = getelementptr {{ ptr, i64, i64 }}, ptr %head, i32 0, i32 1
-  %ptr.field = getelementptr {{ ptr, i64, i64 }}, ptr %head, i32 0, i32 0
-  %len = load i64, ptr %len.field, align 8
-  %data = load ptr, ptr %ptr.field, align 8
-  store i64 0, ptr %len.field, align 8
-  br label %loop
-loop:
-  %index = phi i64 [0, %entry], [%next, %element]
-  %remaining = icmp ult i64 %index, %len
-  br i1 %remaining, label %element, label %release
-element:
-  %slot = getelementptr {item}, ptr %data, i64 %index
-"#
-        ));
+        output.append(m::Code::from(vec![
+            m::Event::Begin(m::Function {
+                name: format!("zil.store.{}.reserve", index),
+                linkage: m::Linkage::Internal,
+                signature: m::Signature {
+                    result: m::Ty::Int(1),
+                    result_attrs: vec![],
+                    params: vec![
+                        m::Param {
+                            ty: m::Ty::Ptr,
+                            name: Some("head".into()),
+                            attrs: vec![],
+                        },
+                        m::Param {
+                            ty: m::Ty::Int(64),
+                            name: Some("requested".into()),
+                            attrs: vec![],
+                        },
+                    ],
+                    variadic: false,
+                },
+                attrs: vec![],
+                blocks: None,
+            }),
+            m::Event::Label("entry".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("stride".into()),
+                m::Op::Cast {
+                    opcode: "ptrtoint".into(),
+                    arg: m::Arg::new(
+                        m::Ty::Ptr,
+                        m::Val::Gep {
+                            ty: (item).clone(),
+                            ptr: Box::new(m::Val::Null),
+                            indices: vec![m::Arg::new(m::Ty::Int(64), m::Val::Int(1))],
+                        },
+                    ),
+                    to: m::Ty::Int(64),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("maximum".into()),
+                m::Op::Binary {
+                    opcode: "udiv".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::Val::Int(9223372036854775807),
+                    right: m::local("stride".into()),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("positive".into()),
+                m::Op::Compare {
+                    predicate: "sge".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::local("requested".into()),
+                    right: m::Val::Int(0),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("bounded".into()),
+                m::Op::Compare {
+                    predicate: "ule".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::local("requested".into()),
+                    right: m::local("maximum".into()),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("valid".into()),
+                m::Op::Binary {
+                    opcode: "and".into(),
+                    ty: m::Ty::Int(1),
+                    left: m::local("positive".into()),
+                    right: m::local("bounded".into()),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::CondBranch {
+                    condition: m::local("valid".into()),
+                    yes: "capacity".into(),
+                    no: "failed".into(),
+                },
+            )),
+            m::Event::Label("capacity".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("cap.field".into()),
+                m::Op::Gep {
+                    ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                    ptr: m::local("head".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(2)),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("cap".into()),
+                m::Op::Load {
+                    ty: m::Ty::Int(64),
+                    ptr: m::local("cap.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("fits".into()),
+                m::Op::Compare {
+                    predicate: "ule".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::local("requested".into()),
+                    right: m::local("cap".into()),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::CondBranch {
+                    condition: m::local("fits".into()),
+                    yes: "done".into(),
+                    no: "prepare".into(),
+                },
+            )),
+            m::Event::Label("prepare".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("ptr.field".into()),
+                m::Op::Gep {
+                    ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                    ptr: m::local("head".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("old".into()),
+                m::Op::Load {
+                    ty: m::Ty::Ptr,
+                    ptr: m::local("ptr.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("size".into()),
+                m::Op::Binary {
+                    opcode: "mul".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::local("requested".into()),
+                    right: m::local("stride".into()),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("next".into()),
+                m::Op::Call {
+                    result: m::Ty::Ptr,
+                    result_attrs: vec![],
+                    callee: m::global("zil.bytes.reallocate".into()),
+                    args: vec![
+                        m::Arg::new(m::Ty::Ptr, m::local("old".into())),
+                        m::Arg::new(m::Ty::Int(64), m::local("size".into())),
+                    ],
+                    vararg: None,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("ok".into()),
+                m::Op::Compare {
+                    predicate: "ne".into(),
+                    ty: m::Ty::Ptr,
+                    left: m::local("next".into()),
+                    right: m::Val::Null,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::CondBranch {
+                    condition: m::local("ok".into()),
+                    yes: "publish".into(),
+                    no: "failed".into(),
+                },
+            )),
+            m::Event::Label("publish".into()),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Ptr, m::local("next".into())),
+                    ptr: m::local("ptr.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(64), m::local("requested".into())),
+                    ptr: m::local("cap.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(None, m::Op::Branch("done".into()))),
+            m::Event::Label("done".into()),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)))),
+            )),
+            m::Event::Label("failed".into()),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)))),
+            )),
+            m::Event::End,
+            m::Event::Begin(m::Function {
+                name: format!("zil.store.{}.push", index),
+                linkage: m::Linkage::Internal,
+                signature: m::Signature {
+                    result: (push).clone(),
+                    result_attrs: vec![],
+                    params: vec![
+                        m::Param {
+                            ty: m::Ty::Ptr,
+                            name: Some("head".into()),
+                            attrs: vec![],
+                        },
+                        m::Param {
+                            ty: (item).clone(),
+                            name: Some("item".into()),
+                            attrs: vec![],
+                        },
+                    ],
+                    variadic: false,
+                },
+                attrs: vec![],
+                blocks: None,
+            }),
+            m::Event::Label("entry".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("len.field".into()),
+                m::Op::Gep {
+                    ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                    ptr: m::local("head".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("cap.field".into()),
+                m::Op::Gep {
+                    ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                    ptr: m::local("head".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(2)),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("len".into()),
+                m::Op::Load {
+                    ty: m::Ty::Int(64),
+                    ptr: m::local("len.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("cap".into()),
+                m::Op::Load {
+                    ty: m::Ty::Int(64),
+                    ptr: m::local("cap.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("room".into()),
+                m::Op::Compare {
+                    predicate: "ult".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::local("len".into()),
+                    right: m::local("cap".into()),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::CondBranch {
+                    condition: m::local("room".into()),
+                    yes: "initialize".into(),
+                    no: "full".into(),
+                },
+            )),
+            m::Event::Label("initialize".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("ptr.field".into()),
+                m::Op::Gep {
+                    ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                    ptr: m::local("head".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("data".into()),
+                m::Op::Load {
+                    ty: m::Ty::Ptr,
+                    ptr: m::local("ptr.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("slot".into()),
+                m::Op::Gep {
+                    ty: (item).clone(),
+                    ptr: m::local("data".into()),
+                    indices: vec![m::Arg::new(m::Ty::Int(64), m::local("len".into()))],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new((item).clone(), m::local("item".into())),
+                    ptr: m::local("slot".into()),
+                    align: (align) as u32,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("next.len".into()),
+                m::Op::Binary {
+                    opcode: "add".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::local("len".into()),
+                    right: m::Val::Int(1),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(64), m::local("next.len".into())),
+                    ptr: m::local("len.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Return(Some(m::Arg::new((push).clone(), m::Val::Zero))),
+            )),
+            m::Event::Label("full".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("tag".into()),
+                m::Op::Insert {
+                    arg: m::Arg::new((push).clone(), m::Val::Zero),
+                    index: 0,
+                    field: m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("error".into()),
+                m::Op::Insert {
+                    arg: m::Arg::new((push).clone(), m::local("tag".into())),
+                    index: 1,
+                    field: m::Arg::new((item).clone(), m::local("item".into())),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Return(Some(m::Arg::new((push).clone(), m::local("error".into())))),
+            )),
+            m::Event::End,
+            m::Event::Begin(m::Function {
+                name: format!("zil.store.{}.pop", index),
+                linkage: m::Linkage::Internal,
+                signature: m::Signature {
+                    result: (pop).clone(),
+                    result_attrs: vec![],
+                    params: vec![m::Param {
+                        ty: m::Ty::Ptr,
+                        name: Some("head".into()),
+                        attrs: vec![],
+                    }],
+                    variadic: false,
+                },
+                attrs: vec![],
+                blocks: None,
+            }),
+            m::Event::Label("entry".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("len.field".into()),
+                m::Op::Gep {
+                    ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                    ptr: m::local("head".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("len".into()),
+                m::Op::Load {
+                    ty: m::Ty::Int(64),
+                    ptr: m::local("len.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("live".into()),
+                m::Op::Compare {
+                    predicate: "ne".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::local("len".into()),
+                    right: m::Val::Int(0),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::CondBranch {
+                    condition: m::local("live".into()),
+                    yes: "take".into(),
+                    no: "empty".into(),
+                },
+            )),
+            m::Event::Label("take".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("next.len".into()),
+                m::Op::Binary {
+                    opcode: "sub".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::local("len".into()),
+                    right: m::Val::Int(1),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(64), m::local("next.len".into())),
+                    ptr: m::local("len.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("ptr.field".into()),
+                m::Op::Gep {
+                    ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                    ptr: m::local("head".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("data".into()),
+                m::Op::Load {
+                    ty: m::Ty::Ptr,
+                    ptr: m::local("ptr.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("slot".into()),
+                m::Op::Gep {
+                    ty: (item).clone(),
+                    ptr: m::local("data".into()),
+                    indices: vec![m::Arg::new(m::Ty::Int(64), m::local("next.len".into()))],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("item".into()),
+                m::Op::Load {
+                    ty: (item).clone(),
+                    ptr: m::local("slot".into()),
+                    align: (align) as u32,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("result".into()),
+                m::Op::Insert {
+                    arg: m::Arg::new((pop).clone(), m::Val::Zero),
+                    index: 2,
+                    field: m::Arg::new((item).clone(), m::local("item".into())),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Return(Some(m::Arg::new((pop).clone(), m::local("result".into())))),
+            )),
+            m::Event::Label("empty".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("error".into()),
+                m::Op::Insert {
+                    arg: m::Arg::new((pop).clone(), m::Val::Zero),
+                    index: 0,
+                    field: m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Return(Some(m::Arg::new((pop).clone(), m::local("error".into())))),
+            )),
+            m::Event::End,
+            m::Event::Begin(m::Function {
+                name: format!("zil.store.{}.drop", index),
+                linkage: m::Linkage::Internal,
+                signature: m::Signature {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    params: vec![m::Param {
+                        ty: m::Ty::Ptr,
+                        name: Some("head".into()),
+                        attrs: vec![],
+                    }],
+                    variadic: false,
+                },
+                attrs: vec![],
+                blocks: None,
+            }),
+            m::Event::Label("entry".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("len.field".into()),
+                m::Op::Gep {
+                    ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                    ptr: m::local("head".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("ptr.field".into()),
+                m::Op::Gep {
+                    ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                    ptr: m::local("head".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("len".into()),
+                m::Op::Load {
+                    ty: m::Ty::Int(64),
+                    ptr: m::local("len.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("data".into()),
+                m::Op::Load {
+                    ty: m::Ty::Ptr,
+                    ptr: m::local("ptr.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(64), m::Val::Int(0)),
+                    ptr: m::local("len.field".into()),
+                    align: 8,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(None, m::Op::Branch("loop".into()))),
+            m::Event::Label("loop".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("index".into()),
+                m::Op::Phi {
+                    ty: m::Ty::Int(64),
+                    incoming: vec![
+                        (m::Val::Int(0), "entry".into()),
+                        (m::local("next".into()), "element".into()),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("remaining".into()),
+                m::Op::Compare {
+                    predicate: "ult".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::local("index".into()),
+                    right: m::local("len".into()),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::CondBranch {
+                    condition: m::local("remaining".into()),
+                    yes: "element".into(),
+                    no: "release".into(),
+                },
+            )),
+            m::Event::Label("element".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("slot".into()),
+                m::Op::Gep {
+                    ty: (item).clone(),
+                    ptr: m::local("data".into()),
+                    indices: vec![m::Arg::new(m::Ty::Int(64), m::local("index".into()))],
+                },
+            )),
+        ]));
         for (field_index, (_, ty)) in fields.iter().enumerate() {
             let Type::Managed(payload) = ty else { continue };
             let definition = lir
@@ -184,10 +698,59 @@ element:
                 definition.teardown.map(symbol)
             };
             if let Some(teardown) = teardown {
-                output.push_str(&format!("  %field.{field_index} = getelementptr {item}, ptr %slot, i32 0, i32 {field_index}\n  call void @{teardown}(ptr %field.{field_index})\n"));
+                output.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some(format!("field.{}", field_index)),
+                        m::Op::Gep {
+                            ty: (item).clone(),
+                            ptr: m::local("slot".into()),
+                            indices: vec![
+                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                m::Arg::new(m::Ty::Int(32), m::val(field_index)),
+                            ],
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Call {
+                            result: m::Ty::Void,
+                            result_attrs: vec![],
+                            callee: m::global(teardown.to_string()),
+                            args: vec![m::Arg::new(
+                                m::Ty::Ptr,
+                                m::local(format!("field.{}", field_index)),
+                            )],
+                            vararg: None,
+                        },
+                    )),
+                ]));
             }
         }
-        output.push_str("  %next = add i64 %index, 1\n  br label %loop\nrelease:\n  call void @zil.bytes.release(ptr %data)\n  ret void\n}\n");
+        output.append(m::Code::from(vec![
+            m::Event::Instruction(m::Inst::new(
+                Some("next".into()),
+                m::Op::Binary {
+                    opcode: "add".into(),
+                    ty: m::Ty::Int(64),
+                    left: m::local("index".into()),
+                    right: m::Val::Int(1),
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(None, m::Op::Branch("loop".into()))),
+            m::Event::Label("release".into()),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global("zil.bytes.release".into()),
+                    args: vec![m::Arg::new(m::Ty::Ptr, m::local("data".into()))],
+                    vararg: None,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(None, m::Op::Return(None))),
+            m::Event::End,
+        ]));
     }
     Ok(output)
 }
@@ -199,10 +762,13 @@ impl FunctionEmitter<'_> {
     ) -> CompileResult<()> {
         let output = result(instruction)?;
         if matches!(instruction.kind, InstructionKind::OwnedStoreNew { .. }) {
-            self.line(format!(
-                "  {} = freeze {{ ptr, i64, i64 }} zeroinitializer",
-                value(output)
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((value(output)).clone())),
+                m::Op::Freeze(m::Arg::new(
+                    m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                    m::Val::Zero,
+                )),
+            )));
             return Ok(());
         }
         let store = match instruction.kind {
@@ -224,12 +790,19 @@ impl FunctionEmitter<'_> {
         match instruction.kind {
             InstructionKind::OwnedStoreReserve { capacity, .. } => {
                 let callee = helper(payload, self.resources, "reserve")?;
-                self.line(format!(
-                    "  {} = call i1 @{callee}(ptr {}, i64 {})",
-                    value(output),
-                    value(store),
-                    value(capacity)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Call {
+                        result: m::Ty::Int(1),
+                        result_attrs: vec![],
+                        callee: m::global(callee.to_string()),
+                        args: vec![
+                            m::Arg::new(m::Ty::Ptr, m::val((value(store)).clone())),
+                            m::Arg::new(m::Ty::Int(64), m::val((value(capacity)).clone())),
+                        ],
+                        vararg: None,
+                    },
+                )));
             }
             InstructionKind::OwnedStoreBorrow { index, .. } => {
                 let Type::OwnedStore { element } = payload.as_ref() else {
@@ -239,54 +812,110 @@ impl FunctionEmitter<'_> {
                 let length_ptr = self.temp();
                 let length = self.temp();
                 let valid = self.temp();
-                self.line(format!(
-                    "  {length_ptr} = getelementptr {{ ptr, i64, i64 }}, ptr {}, i32 0, i32 1",
-                    value(store)
-                ));
-                self.line(format!("  {length} = load i64, ptr {length_ptr}, align 8"));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((length_ptr).clone())),
+                    m::Op::Gep {
+                        ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                        ptr: m::val((value(store)).clone()),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
+                        ],
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((length).clone())),
+                    m::Op::Load {
+                        ty: m::Ty::Int(64),
+                        ptr: m::val((length_ptr).clone()),
+                        align: 8,
+                    },
+                )));
                 // Unsigned comparison also rejects negative i64 indices.
-                self.line(format!(
-                    "  {valid} = icmp ult i64 {}, {length}",
-                    value(index)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((valid).clone())),
+                    m::Op::Compare {
+                        predicate: "ult".into(),
+                        ty: m::Ty::Int(64),
+                        left: m::val((value(index)).clone()),
+                        right: m::val((length).clone()),
+                    },
+                )));
                 let continuation = self.continuation;
                 self.continuation += 1;
-                self.line(format!(
-                    "  br i1 {valid}, label %store.element.ok.{continuation}, label %zil.trap"
-                ));
-                self.line(format!("store.element.ok.{continuation}:"));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::CondBranch {
+                        condition: m::val((valid).clone()),
+                        yes: format!("store.element.ok.{}", continuation),
+                        no: "zil.trap".into(),
+                    },
+                )));
+                self.event(m::Event::Label(format!(
+                    "store.element.ok.{}",
+                    continuation
+                )));
                 let data_ptr = self.temp();
                 let data = self.temp();
-                self.line(format!(
-                    "  {data_ptr} = getelementptr {{ ptr, i64, i64 }}, ptr {}, i32 0, i32 0",
-                    value(store)
-                ));
-                self.line(format!("  {data} = load ptr, ptr {data_ptr}, align 8"));
-                self.line(format!(
-                    "  {} = getelementptr {element_type}, ptr {data}, i64 {}",
-                    value(output),
-                    value(index)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((data_ptr).clone())),
+                    m::Op::Gep {
+                        ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                        ptr: m::val((value(store)).clone()),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        ],
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((data).clone())),
+                    m::Op::Load {
+                        ty: m::Ty::Ptr,
+                        ptr: m::val((data_ptr).clone()),
+                        align: 8,
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Gep {
+                        ty: (element_type).clone(),
+                        ptr: m::val((data).clone()),
+                        indices: vec![m::Arg::new(m::Ty::Int(64), m::val((value(index)).clone()))],
+                    },
+                )));
             }
             InstructionKind::OwnedStorePush { value: item, .. } => {
                 let callee = helper(payload, self.resources, "push")?;
                 let ty = llvm_type(self.value_type(item)?)?;
                 let result = llvm_type(self.value_type(output)?)?;
-                self.line(format!(
-                    "  {} = call {result} @{callee}(ptr {}, {ty} {})",
-                    value(output),
-                    value(store),
-                    value(item)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Call {
+                        result: (result).clone(),
+                        result_attrs: vec![],
+                        callee: m::global(callee.to_string()),
+                        args: vec![
+                            m::Arg::new(m::Ty::Ptr, m::val((value(store)).clone())),
+                            m::Arg::new((ty).clone(), m::val((value(item)).clone())),
+                        ],
+                        vararg: None,
+                    },
+                )));
             }
             InstructionKind::OwnedStorePop { .. } => {
                 let callee = helper(payload, self.resources, "pop")?;
                 let result = llvm_type(self.value_type(output)?)?;
-                self.line(format!(
-                    "  {} = call {result} @{callee}(ptr {})",
-                    value(output),
-                    value(store)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Call {
+                        result: (result).clone(),
+                        result_attrs: vec![],
+                        callee: m::global(callee.to_string()),
+                        args: vec![m::Arg::new(m::Ty::Ptr, m::val((value(store)).clone()))],
+                        vararg: None,
+                    },
+                )));
             }
             InstructionKind::OwnedStoreLen { .. } | InstructionKind::OwnedStoreCapacity { .. } => {
                 let index = if matches!(instruction.kind, InstructionKind::OwnedStoreLen { .. }) {
@@ -295,14 +924,25 @@ impl FunctionEmitter<'_> {
                     2
                 };
                 let pointer = self.temp();
-                self.line(format!(
-                    "  {pointer} = getelementptr {{ ptr, i64, i64 }}, ptr {}, i32 0, i32 {index}",
-                    value(store)
-                ));
-                self.line(format!(
-                    "  {} = load i64, ptr {pointer}, align 8",
-                    value(output)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((pointer).clone())),
+                    m::Op::Gep {
+                        ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                        ptr: m::val((value(store)).clone()),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::val(index)),
+                        ],
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Load {
+                        ty: m::Ty::Int(64),
+                        ptr: m::val((pointer).clone()),
+                        align: 8,
+                    },
+                )));
             }
             _ => unreachable!("checked Store instruction"),
         }

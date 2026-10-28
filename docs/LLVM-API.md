@@ -1,3 +1,28 @@
+# LLVM API主路线（210）
+## 当前路径
+已核LIR → 类型化机器IR → 结构化CGU → LLVMBuilder → LLVM结构核验 → 优化 → LLVM结构核验 → 对象 → 链接。
+标准CLI默认llvm-api；`--backend clang`保留共用机器IR的文本参考后端。
+209的文本解析API仅在`zil-llvm-api/text-reference`测试feature启用；标准构建不引用LLVMParseIRInContext。
+`.ll`旁置文件仅为诊断/对照输出，API和分区不读取或扫描它；当前仍支付这份诊断渲染成本。
+### 实现位置
+- `zil-backend-llvm/src/emit*.rs`：唯一语言lowering，原bind_lir核对不变；产出拥有的类型/指令/控制流和符号引用。
+- `zil-llvm-api/src/model.rs`：纯Rust机器schema及文本诊断渲染，无原生指针，无程序集解析。
+- `zil-llvm-api/src/preflight.rs`：类型/名称/ABI/CFG/SSA结构检查与构图调度；不产生ZIL安全授权。
+- `zil-backend-llvm/src/machine_cgu.rs`：按来源分组、局部链接引用合并、直接声明裁剪；旧文本扫描器只在cfg(test)保留。
+- `zil-llvm-api/src/native/builder.rs`：唯一逐操作LLVMBuilder适配，Context内缓存类型，先声明后定义、预建phi后填回边。
+- `zil-llvm-api/src/native.rs`：目标/布局、上下文生命周期、优化、对象字节及失败处理。
+### 支持和限制
+Linux x64开发宿主，LLVM17.0.6；x64 Linux/Win64目标原有profile。Win64交叉生成不代表Windows本机验收。
+当前有限整数、数组/记录/枚举/错误联合、闭包/资源/Package/ByteBuffer/Store、切片和有限C ABI都使用同一个结构化入口。未实现语言继续明确拒绝，不因后端切换扩大接受集。
+没有直接Builder的文本回退；构图输入不合法返回错误。LLVM verifier不替代独立ZIL Verify。没有新增noalias/dereferenceable。
+O0/O2仍使用既定优化pipeline；O2多CGU已有的运行性能限制不因Builder自动消失。
+取消为阶段间协作检查，不能打断LLVM pass。原生LLVM bug不受本适配层沙箱隔离。
+对象缓存、稳定符号、增量查询和ThinLTO属于下一专项，不是本轮已完成能力。
+## 构建
+沿用209的LLVM17.0.6、Rust1.99.1环境，标准CLI自动启用API。`cargo build --release --locked -p zil-cli`。
+无LLVM库的参考构建：`cargo build --release --locked -p zil-cli --no-default-features`。
+显式文本API差分测试：`cargo test -p zil-llvm-api --features text-reference`，不建议在发布CLI开启。
+## 原安装与平台说明（209沿用，阶段说明以本页上段为准）
 # LLVM API：主线安装、使用与边界（209）
 
 ## 当前主线策略

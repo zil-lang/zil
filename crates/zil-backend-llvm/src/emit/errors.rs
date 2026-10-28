@@ -28,26 +28,71 @@ fn teardowns(
 
 /// The native boundary consumes the returned error Value. Source main's own
 /// cleanup has already run; only this selected returned payload remains owed.
-pub(super) fn entry_cleanup(ty: &Type, resources: &[ResourceDefinition]) -> CompileResult<String> {
+pub(super) fn entry_cleanup(ty: &Type, resources: &[ResourceDefinition]) -> CompileResult<m::Code> {
     let Type::ErrorUnion { error, .. } = ty else {
-        return Ok(String::new());
+        return Ok(m::Code::new());
     };
     if !matches!(error.as_ref(), Type::Package { .. }) {
-        return Ok(String::new());
+        return Ok(m::Code::new());
     }
     let union = llvm_type(ty)?;
     let payload = llvm_type(error)?;
-    let mut text = format!(
-        "  %entry.error.value = extractvalue {union} %entry.result, 1\n  %entry.error.storage = alloca {payload}\n  store {payload} %entry.error.value, ptr %entry.error.storage\n"
-    );
+    let mut text = m::Code::from(vec![
+        m::Event::Instruction(m::Inst::new(
+            Some("entry.error.value".into()),
+            m::Op::Extract {
+                arg: m::Arg::new((union).clone(), m::local("entry.result".into())),
+                index: 1,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("entry.error.storage".into()),
+            m::Op::Alloca {
+                ty: (payload).clone(),
+                align: 0,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new((payload).clone(), m::local("entry.error.value".into())),
+                ptr: m::local("entry.error.storage".into()),
+                align: 0,
+            },
+        )),
+    ]);
     for (index, (path, teardown)) in teardowns(error, resources)?.iter().enumerate() {
         let suffix = path
             .iter()
-            .map(|index| format!(", i32 {index}"))
-            .collect::<String>();
-        text.push_str(&format!(
-            "  %entry.error.field.{index} = getelementptr {payload}, ptr %entry.error.storage, i32 0{suffix}\n  call void @{teardown}(ptr %entry.error.field.{index})\n"
-        ));
+            .map(|index| m::Arg::new(m::Ty::Int(32), *index))
+            .collect::<Vec<_>>();
+        text.append(m::Code::from(vec![
+            m::Event::Instruction(m::Inst::new(
+                Some(format!("entry.error.field.{}", index)),
+                m::Op::Gep {
+                    ty: (payload).clone(),
+                    ptr: m::local("entry.error.storage".into()),
+                    indices: {
+                        let mut args = vec![m::Arg::new(m::Ty::Int(32), m::Val::Int(0))];
+                        args.extend((suffix).clone());
+                        args
+                    },
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global(teardown.to_string()),
+                    args: vec![m::Arg::new(
+                        m::Ty::Ptr,
+                        m::local(format!("entry.error.field.{}", index)),
+                    )],
+                    vararg: None,
+                },
+            )),
+        ]));
     }
     Ok(text)
 }
@@ -72,57 +117,117 @@ impl FunctionEmitter<'_> {
         let flag = self.temp();
         let label = self.continuation;
         self.continuation += 1;
-        self.line(format!(
-            "  {flag} = load i1, ptr %resource.live.{}, align 1",
-            local.0
-        ));
-        self.line(format!(
-            "  br i1 {flag}, label %error.drop.{label}, label %error.done.{label}"
-        ));
-        self.line(format!("error.drop.{label}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((flag).clone())),
+            m::Op::Load {
+                ty: m::Ty::Int(1),
+                ptr: m::local(format!("resource.live.{}", local.0)),
+                align: 1,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::val((flag).clone()),
+                yes: format!("error.drop.{}", label),
+                no: format!("error.done.{}", label),
+            },
+        )));
+        self.event(m::Event::Label(format!("error.drop.{}", label)));
         // Cleanup owns the selected carrier before it can enter user teardown.
         // The inactive payload is never read or given a cleanup obligation.
-        self.line(format!(
-            "  store i1 false, ptr %resource.live.{}, align 1",
-            local.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                ptr: m::local(format!("resource.live.{}", local.0)),
+                align: 1,
+            },
+        )));
         let tag_pointer = self.temp();
         let tag = self.temp();
-        self.line(format!(
-            "  {tag_pointer} = getelementptr {union}, ptr %local.{}, i32 0, i32 0",
-            local.0
-        ));
-        self.line(format!("  {tag} = load i1, ptr {tag_pointer}, align 1"));
-        self.line(format!(
-            "  br i1 {tag}, label %error.payload.{label}, label %success.payload.{label}"
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((tag_pointer).clone())),
+            m::Op::Gep {
+                ty: (union).clone(),
+                ptr: m::local(format!("local.{}", local.0)),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((tag).clone())),
+            m::Op::Load {
+                ty: m::Ty::Int(1),
+                ptr: m::val((tag_pointer).clone()),
+                align: 1,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::val((tag).clone()),
+                yes: format!("error.payload.{}", label),
+                no: format!("success.payload.{}", label),
+            },
+        )));
         for (name, arm, payload, drops) in [
             ("error", 1, error.as_ref(), error_drops),
             ("success", 2, result.as_ref(), success_drops),
         ] {
-            self.line(format!("{name}.payload.{label}:"));
+            self.event(m::Event::Label(format!("{}.payload.{}", name, label)));
             if !drops.is_empty() {
                 let pointer = self.temp();
                 let payload_llvm = llvm_type(payload)?;
-                self.line(format!(
-                    "  {pointer} = getelementptr {union}, ptr %local.{}, i32 0, i32 {arm}",
-                    local.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((pointer).clone())),
+                    m::Op::Gep {
+                        ty: (union).clone(),
+                        ptr: m::local(format!("local.{}", local.0)),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::val(arm)),
+                        ],
+                    },
+                )));
                 for (path, teardown) in drops {
                     let field = self.temp();
                     let suffix = path
                         .iter()
-                        .map(|index| format!(", i32 {index}"))
-                        .collect::<String>();
-                    self.line(format!(
-                        "  {field} = getelementptr {payload_llvm}, ptr {pointer}, i32 0{suffix}"
-                    ));
-                    self.line(format!("  call void @{teardown}(ptr {field})"));
+                        .map(|index| m::Arg::new(m::Ty::Int(32), *index))
+                        .collect::<Vec<_>>();
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((field).clone())),
+                        m::Op::Gep {
+                            ty: (payload_llvm).clone(),
+                            ptr: m::val((pointer).clone()),
+                            indices: {
+                                let mut args = vec![m::Arg::new(m::Ty::Int(32), m::Val::Int(0))];
+                                args.extend((suffix).clone());
+                                args
+                            },
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Call {
+                            result: m::Ty::Void,
+                            result_attrs: vec![],
+                            callee: m::global(teardown.to_string()),
+                            args: vec![m::Arg::new(m::Ty::Ptr, m::val((field).clone()))],
+                            vararg: None,
+                        },
+                    )));
                 }
             }
-            self.line(format!("  br label %error.done.{label}"));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Branch(format!("error.done.{}", label)),
+            )));
         }
-        self.line(format!("error.done.{label}:"));
+        self.event(m::Event::Label(format!("error.done.{}", label)));
         Ok(())
     }
 
@@ -157,14 +262,22 @@ impl FunctionEmitter<'_> {
             value(source)
         };
         let tagged = self.temp();
-        self.line(format!(
-            "  {tagged} = insertvalue {llvm} zeroinitializer, i1 {is_error}, 0"
-        ));
-        self.line(format!(
-            "  {} = insertvalue {llvm} {tagged}, {payload_llvm} {source}, {}",
-            value(result),
-            if is_error { 1 } else { 2 }
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((tagged).clone())),
+            m::Op::Insert {
+                arg: m::Arg::new((llvm).clone(), m::Val::Zero),
+                index: 0,
+                field: m::Arg::new(m::Ty::Int(1), m::val(is_error)),
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result)).clone())),
+            m::Op::Insert {
+                arg: m::Arg::new((llvm).clone(), m::val((tagged).clone())),
+                index: (if is_error { 1 } else { 2 }) as u32,
+                field: m::Arg::new((payload_llvm).clone(), m::val((source).clone())),
+            },
+        )));
         Ok(())
     }
 
@@ -173,12 +286,16 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         source: ValueId,
     ) -> CompileResult<()> {
-        self.line(format!(
-            "  {} = extractvalue {} {}, 0",
-            value(result(instruction)?),
-            llvm_type(self.value_type(source)?)?,
-            value(source)
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result(instruction)?)).clone())),
+            m::Op::Extract {
+                arg: m::Arg::new(
+                    (llvm_type(self.value_type(source)?)?).clone(),
+                    m::val((value(source)).clone()),
+                ),
+                index: 0,
+            },
+        )));
         Ok(())
     }
 
@@ -192,21 +309,33 @@ impl FunctionEmitter<'_> {
         let llvm = llvm_type(self.value_type(source)?)?;
         let tag = self.temp();
         let mismatch = self.temp();
-        self.line(format!(
-            "  {tag} = extractvalue {llvm} {}, 0",
-            value(source)
-        ));
-        self.line(format!("  {mismatch} = icmp ne i1 {tag}, {is_error}"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((tag).clone())),
+            m::Op::Extract {
+                arg: m::Arg::new((llvm).clone(), m::val((value(source)).clone())),
+                index: 0,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((mismatch).clone())),
+            m::Op::Compare {
+                predicate: "ne".into(),
+                ty: m::Ty::Int(1),
+                left: m::val((tag).clone()),
+                right: m::val(is_error),
+            },
+        )));
         // A raw-but-verified projection has defined failure semantics even if
         // its caller did not establish the branch tag statically.
         self.trap_if(&mismatch);
         if self.function.values[result.0 as usize] != Type::Unit {
-            self.line(format!(
-                "  {} = extractvalue {llvm} {}, {}",
-                value(result),
-                value(source),
-                if is_error { 1 } else { 2 }
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((value(result)).clone())),
+                m::Op::Extract {
+                    arg: m::Arg::new((llvm).clone(), m::val((value(source)).clone())),
+                    index: (if is_error { 1 } else { 2 }) as u32,
+                },
+            )));
         }
         Ok(())
     }

@@ -121,13 +121,12 @@ pub(super) fn union_layout(ty: &Type) -> CompileResult<UnionLayout> {
         align: align.max(4),
     })
 }
-pub(super) fn llvm_enum_type(ty: &Type) -> CompileResult<String> {
+pub(super) fn llvm_enum_type(ty: &Type) -> CompileResult<m::Ty> {
     let layout = union_layout(ty)?;
-    Ok(format!(
-        "{{ i32, [{} x i{}] }}",
-        layout.words,
-        layout.word_align * 8
-    ))
+    Ok(m::Ty::Struct(vec![
+        m::Ty::Int(32),
+        m::Ty::array(layout.words, m::Ty::Int(layout.word_align * 8)),
+    ]))
 }
 
 impl FunctionEmitter<'_> {
@@ -143,12 +142,13 @@ impl FunctionEmitter<'_> {
             ),
             _ => return Ok(()),
         };
-        self.line(format!(
-            "  %enum.slot.{} = alloca {}, align {}",
-            result.0,
-            llvm_type(ty)?,
-            union_layout(ty)?.align
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(format!("enum.slot.{}", result.0)),
+            m::Op::Alloca {
+                ty: (llvm_type(ty)?).clone(),
+                align: (union_layout(ty)?.align) as u32,
+            },
+        )));
         Ok(())
     }
     pub(super) fn make_variant(
@@ -166,36 +166,73 @@ impl FunctionEmitter<'_> {
         let llvm = llvm_type(&ty)?;
         let layout = union_layout(&ty)?;
         let slot = format!("%enum.slot.{}", result.0);
-        self.line(format!(
-            "  store {llvm} zeroinitializer, ptr {slot}, align {}",
-            layout.align
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new((llvm).clone(), m::Val::Zero),
+                ptr: m::val((slot).clone()),
+                align: (layout.align) as u32,
+            },
+        )));
         let tag = self.temp();
-        self.line(format!(
-            "  {tag} = getelementptr {llvm}, ptr {slot}, i32 0, i32 0"
-        ));
-        self.line(format!("  store i32 {variant}, ptr {tag}, align 4"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((tag).clone())),
+            m::Op::Gep {
+                ty: (llvm).clone(),
+                ptr: m::val((slot).clone()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(32), m::val(variant)),
+                ptr: m::val((tag).clone()),
+                align: 4,
+            },
+        )));
         let base = self.temp();
-        self.line(format!(
-            "  {base} = getelementptr {llvm}, ptr {slot}, i32 0, i32 1"
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((base).clone())),
+            m::Op::Gep {
+                ty: (llvm).clone(),
+                ptr: m::val((slot).clone()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
+                ],
+            },
+        )));
         for (index, field) in fields.iter().enumerate() {
             let field_ty = &variants[variant as usize].1[index];
             if *field_ty == Type::Unit {
                 continue;
             }
             let address = self.temp();
-            self.line(format!(
-                "  {address} = getelementptr {}, ptr {base}, i32 0, i32 {index}",
-                llvm_type(&payload)?
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((address).clone())),
+                m::Op::Gep {
+                    ty: (llvm_type(&payload)?).clone(),
+                    ptr: m::val((base).clone()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::val(index)),
+                    ],
+                },
+            )));
             self.store_payload(field_ty, &value(*field), &address)?;
         }
-        self.line(format!(
-            "  {} = load {llvm}, ptr {slot}, align {}",
-            value(result),
-            layout.align
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result)).clone())),
+            m::Op::Load {
+                ty: (llvm).clone(),
+                ptr: m::val((slot).clone()),
+                align: (layout.align) as u32,
+            },
+        )));
         Ok(())
     }
     pub(super) fn variant_tag(
@@ -203,12 +240,16 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         source: ValueId,
     ) -> CompileResult<()> {
-        self.line(format!(
-            "  {} = extractvalue {} {}, 0",
-            value(result(instruction)?),
-            llvm_type(&self.function.values[source.0 as usize])?,
-            value(source)
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result(instruction)?)).clone())),
+            m::Op::Extract {
+                arg: m::Arg::new(
+                    (llvm_type(&self.function.values[source.0 as usize])?).clone(),
+                    m::val((value(source)).clone()),
+                ),
+                index: 0,
+            },
+        )));
         Ok(())
     }
     pub(super) fn read_variant(
@@ -226,37 +267,68 @@ impl FunctionEmitter<'_> {
         let fields = &variants[variant as usize].1;
         let llvm = llvm_type(&ty)?;
         let tag = self.temp();
-        self.line(format!(
-            "  {tag} = extractvalue {llvm} {}, 0",
-            value(source)
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((tag).clone())),
+            m::Op::Extract {
+                arg: m::Arg::new((llvm).clone(), m::val((value(source)).clone())),
+                index: 0,
+            },
+        )));
         let mismatch = self.temp();
-        self.line(format!("  {mismatch} = icmp ne i32 {tag}, {variant}"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((mismatch).clone())),
+            m::Op::Compare {
+                predicate: "ne".into(),
+                ty: m::Ty::Int(32),
+                left: m::val((tag).clone()),
+                right: m::val(variant),
+            },
+        )));
         self.trap_if(&mismatch);
         if fields[index as usize] == Type::Unit {
             return Ok(());
         }
         let slot = format!("%enum.slot.{}", result.0);
-        self.line(format!(
-            "  store {llvm} {}, ptr {slot}, align {}",
-            value(source),
-            union_layout(&ty)?.align
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new((llvm).clone(), m::val((value(source)).clone())),
+                ptr: m::val((slot).clone()),
+                align: (union_layout(&ty)?.align) as u32,
+            },
+        )));
         let base = self.temp();
-        self.line(format!(
-            "  {base} = getelementptr {llvm}, ptr {slot}, i32 0, i32 1"
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((base).clone())),
+            m::Op::Gep {
+                ty: (llvm).clone(),
+                ptr: m::val((slot).clone()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
+                ],
+            },
+        )));
         let address = self.temp();
-        self.line(format!(
-            "  {address} = getelementptr {}, ptr {base}, i32 0, i32 {index}",
-            llvm_type(&Type::Tuple(fields.clone()))?
-        ));
-        self.line(format!(
-            "  {} = load {}, ptr {address}, align {}",
-            value(result),
-            llvm_type(&fields[index as usize])?,
-            physical_layout(&fields[index as usize])?.align
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((address).clone())),
+            m::Op::Gep {
+                ty: (llvm_type(&Type::Tuple(fields.clone()))?).clone(),
+                ptr: m::val((base).clone()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result)).clone())),
+            m::Op::Load {
+                ty: (llvm_type(&fields[index as usize])?).clone(),
+                ptr: m::val((address).clone()),
+                align: (physical_layout(&fields[index as usize])?.align) as u32,
+            },
+        )));
         Ok(())
     }
     fn store_payload(&mut self, ty: &Type, source: &str, address: &str) -> CompileResult<()> {
@@ -264,8 +336,22 @@ impl FunctionEmitter<'_> {
             Type::Unit => {}
             Type::Bool => {
                 let widened = self.temp();
-                self.line(format!("  {widened} = zext i1 {source} to i8"));
-                self.line(format!("  store i8 {widened}, ptr {address}, align 1"));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((widened).clone())),
+                    m::Op::Cast {
+                        opcode: "zext".into(),
+                        arg: m::Arg::new(m::Ty::Int(1), m::val(source)),
+                        to: m::Ty::Int(8),
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(m::Ty::Int(8), m::val((widened).clone())),
+                        ptr: m::val(address),
+                        align: 1,
+                    },
+                )));
             }
             Type::U8
             | Type::U16
@@ -274,34 +360,80 @@ impl FunctionEmitter<'_> {
             | Type::FunctionPointer { .. }
             | Type::ForeignHandle
             | Type::CWideString
-            | Type::ForeignCallback { .. } => self.line(format!(
-                "  store {} {source}, ptr {address}, align {}",
-                llvm_type(ty)?,
-                physical_layout(ty)?.align
-            )),
+            | Type::ForeignCallback { .. } => self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new((llvm_type(ty)?).clone(), m::val(source)),
+                    ptr: m::val(address),
+                    align: (physical_layout(ty)?.align) as u32,
+                },
+            ))),
             Type::Enum { .. } => {
                 let llvm = llvm_type(ty)?;
                 let layout = union_layout(ty)?;
                 let tag = self.temp();
                 let tag_address = self.temp();
-                self.line(format!("  {tag} = extractvalue {llvm} {source}, 0"));
-                self.line(format!(
-                    "  {tag_address} = getelementptr {llvm}, ptr {address}, i32 0, i32 0"
-                ));
-                self.line(format!("  store i32 {tag}, ptr {tag_address}, align 4"));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((tag).clone())),
+                    m::Op::Extract {
+                        arg: m::Arg::new((llvm).clone(), m::val(source)),
+                        index: 0,
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((tag_address).clone())),
+                    m::Op::Gep {
+                        ty: (llvm).clone(),
+                        ptr: m::val(address),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        ],
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(m::Ty::Int(32), m::val((tag).clone())),
+                        ptr: m::val((tag_address).clone()),
+                        align: 4,
+                    },
+                )));
                 if layout.words != 0 {
                     let payload = self.temp();
                     let payload_address = self.temp();
-                    self.line(format!("  {payload} = extractvalue {llvm} {source}, 1"));
-                    self.line(format!(
-                        "  {payload_address} = getelementptr {llvm}, ptr {address}, i32 0, i32 1"
-                    ));
-                    self.line(format!(
-                        "  store [{} x i{}] {payload}, ptr {payload_address}, align {}",
-                        layout.words,
-                        layout.word_align * 8,
-                        layout.word_align
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((payload).clone())),
+                        m::Op::Extract {
+                            arg: m::Arg::new((llvm).clone(), m::val(source)),
+                            index: 1,
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((payload_address).clone())),
+                        m::Op::Gep {
+                            ty: (llvm).clone(),
+                            ptr: m::val(address),
+                            indices: vec![
+                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
+                            ],
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Store {
+                            arg: m::Arg::new(
+                                m::Ty::array(
+                                    (layout.words) as u64,
+                                    m::Ty::Int((layout.word_align * 8) as u32),
+                                ),
+                                m::val((payload).clone()),
+                            ),
+                            ptr: m::val((payload_address).clone()),
+                            align: (layout.word_align) as u32,
+                        },
+                    )));
                 }
             }
             Type::ErrorUnion { error, result } => {
@@ -315,10 +447,24 @@ impl FunctionEmitter<'_> {
                     }
                     let projected = self.temp();
                     let field_address = self.temp();
-                    self.line(format!(
-                        "  {projected} = extractvalue {llvm} {source}, {index}"
-                    ));
-                    self.line(format!("  {field_address} = getelementptr {llvm}, ptr {address}, i32 0, i32 {index}"));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((projected).clone())),
+                        m::Op::Extract {
+                            arg: m::Arg::new((llvm).clone(), m::val(source)),
+                            index: (index) as u32,
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((field_address).clone())),
+                        m::Op::Gep {
+                            ty: (llvm).clone(),
+                            ptr: m::val(address),
+                            indices: vec![
+                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                m::Arg::new(m::Ty::Int(32), m::val(index)),
+                            ],
+                        },
+                    )));
                     self.store_payload(field, &projected, &field_address)?;
                 }
             }
@@ -337,10 +483,24 @@ impl FunctionEmitter<'_> {
                     }
                     let projected = self.temp();
                     let field_address = self.temp();
-                    self.line(format!(
-                        "  {projected} = extractvalue {llvm} {source}, {index}"
-                    ));
-                    self.line(format!("  {field_address} = getelementptr {llvm}, ptr {address}, i32 0, i32 {index}"));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((projected).clone())),
+                        m::Op::Extract {
+                            arg: m::Arg::new((llvm).clone(), m::val(source)),
+                            index: (index) as u32,
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((field_address).clone())),
+                        m::Op::Gep {
+                            ty: (llvm).clone(),
+                            ptr: m::val(address),
+                            indices: vec![
+                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                m::Arg::new(m::Ty::Int(32), m::val(index)),
+                            ],
+                        },
+                    )));
                     self.store_payload(field, &projected, &field_address)?;
                 }
             }

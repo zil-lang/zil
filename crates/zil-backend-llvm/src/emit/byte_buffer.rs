@@ -13,13 +13,13 @@ pub(super) fn is_resource(ty: &Type, definitions: &[ResourceDefinition]) -> bool
 
 /// Emit allocator declarations once, checking rather than silently overriding
 /// a user's foreign ABI. Buffer primitives never import a C source host.
-pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
+pub(super) fn runtime(lir: &LirModule) -> CompileResult<m::Code> {
     if !lir
         .resources
         .iter()
         .any(|r| r.payload == Type::ByteBuffer || matches!(r.payload, Type::OwnedStore { .. }))
     {
-        return Ok(String::new());
+        return Ok(m::Code::new());
     }
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     let declarations = if windows {
@@ -69,7 +69,7 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
             );
         }
     }
-    let mut output = String::new();
+    let mut output = m::Code::new();
     for (name, parameters, result) in declarations {
         let existing = lir
             .functions
@@ -91,138 +91,765 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
         } else {
             let parameters = parameters
                 .iter()
-                .map(llvm_type)
-                .collect::<CompileResult<Vec<_>>>()?
-                .join(", ");
-            output.push_str(&format!(
-                "declare {} @{name}({parameters})\n",
-                llvm_type(&result)?
-            ));
+                .map(|ty| Ok(m::Param::unnamed(llvm_type(ty)?)))
+                .collect::<CompileResult<Vec<_>>>()?;
+            output.append(m::Code::from(vec![m::Event::Declare(m::Function {
+                name: name.to_string(),
+                linkage: m::Linkage::External,
+                signature: m::Signature {
+                    result: (llvm_type(&result)?).clone(),
+                    result_attrs: vec![],
+                    params: (parameters).clone(),
+                    variadic: false,
+                },
+                attrs: vec![],
+                blocks: None,
+            })]));
         }
     }
     if windows {
-        output.push_str(WINDOWS_ALLOCATION);
+        output.append(windows_allocation());
     } else {
-        output.push_str(LINUX_ALLOCATION);
+        output.append(linux_allocation());
     }
-    output.push_str(STORAGE_OPERATIONS);
+    output.append(storage_operations());
     Ok(output)
 }
 
-const LINUX_ALLOCATION: &str = r#"
-define internal ptr @zil.bytes.reallocate(ptr %old, i64 %size) {
-entry:
-  %result = call ptr @realloc(ptr %old, i64 %size)
-  ret ptr %result
+fn linux_allocation() -> m::Code {
+    m::Code::from(vec![
+        m::Event::Begin(m::Function {
+            name: "zil.bytes.reallocate".into(),
+            linkage: m::Linkage::Internal,
+            signature: m::Signature {
+                result: m::Ty::Ptr,
+                result_attrs: vec![],
+                params: vec![
+                    m::Param {
+                        ty: m::Ty::Ptr,
+                        name: Some("old".into()),
+                        attrs: vec![],
+                    },
+                    m::Param {
+                        ty: m::Ty::Int(64),
+                        name: Some("size".into()),
+                        attrs: vec![],
+                    },
+                ],
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }),
+        m::Event::Label("entry".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("result".into()),
+            m::Op::Call {
+                result: m::Ty::Ptr,
+                result_attrs: vec![],
+                callee: m::global("realloc".into()),
+                args: vec![
+                    m::Arg::new(m::Ty::Ptr, m::local("old".into())),
+                    m::Arg::new(m::Ty::Int(64), m::local("size".into())),
+                ],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Ptr, m::local("result".into())))),
+        )),
+        m::Event::End,
+        m::Event::Begin(m::Function {
+            name: "zil.bytes.release".into(),
+            linkage: m::Linkage::Internal,
+            signature: m::Signature {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                params: vec![m::Param {
+                    ty: m::Ty::Ptr,
+                    name: Some("payload".into()),
+                    attrs: vec![],
+                }],
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }),
+        m::Event::Label("entry".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Call {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                callee: m::global("free".into()),
+                args: vec![m::Arg::new(m::Ty::Ptr, m::local("payload".into()))],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(None, m::Op::Return(None))),
+        m::Event::End,
+    ])
 }
-define internal void @zil.bytes.release(ptr %payload) {
-entry:
-  call void @free(ptr %payload)
-  ret void
-}
-"#;
 
-const WINDOWS_ALLOCATION: &str = r#"
-define internal ptr @zil.bytes.reallocate(ptr %old, i64 %size) {
-entry:
-  %heap = call ptr @GetProcessHeap()
-  %heap.ok = icmp ne ptr %heap, null
-  br i1 %heap.ok, label %choose, label %failed
-choose:
-  %empty = icmp eq ptr %old, null
-  br i1 %empty, label %allocate, label %reallocate
-allocate:
-  %fresh = call ptr @HeapAlloc(ptr %heap, i32 0, i64 %size)
-  ret ptr %fresh
-reallocate:
-  %grown = call ptr @HeapReAlloc(ptr %heap, i32 0, ptr %old, i64 %size)
-  ret ptr %grown
-failed:
-  ret ptr null
+fn windows_allocation() -> m::Code {
+    m::Code::from(vec![
+        m::Event::Begin(m::Function {
+            name: "zil.bytes.reallocate".into(),
+            linkage: m::Linkage::Internal,
+            signature: m::Signature {
+                result: m::Ty::Ptr,
+                result_attrs: vec![],
+                params: vec![
+                    m::Param {
+                        ty: m::Ty::Ptr,
+                        name: Some("old".into()),
+                        attrs: vec![],
+                    },
+                    m::Param {
+                        ty: m::Ty::Int(64),
+                        name: Some("size".into()),
+                        attrs: vec![],
+                    },
+                ],
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }),
+        m::Event::Label("entry".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("heap".into()),
+            m::Op::Call {
+                result: m::Ty::Ptr,
+                result_attrs: vec![],
+                callee: m::global("GetProcessHeap".into()),
+                args: vec![],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("heap.ok".into()),
+            m::Op::Compare {
+                predicate: "ne".into(),
+                ty: m::Ty::Ptr,
+                left: m::local("heap".into()),
+                right: m::Val::Null,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("heap.ok".into()),
+                yes: "choose".into(),
+                no: "failed".into(),
+            },
+        )),
+        m::Event::Label("choose".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("empty".into()),
+            m::Op::Compare {
+                predicate: "eq".into(),
+                ty: m::Ty::Ptr,
+                left: m::local("old".into()),
+                right: m::Val::Null,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("empty".into()),
+                yes: "allocate".into(),
+                no: "reallocate".into(),
+            },
+        )),
+        m::Event::Label("allocate".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("fresh".into()),
+            m::Op::Call {
+                result: m::Ty::Ptr,
+                result_attrs: vec![],
+                callee: m::global("HeapAlloc".into()),
+                args: vec![
+                    m::Arg::new(m::Ty::Ptr, m::local("heap".into())),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(64), m::local("size".into())),
+                ],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Ptr, m::local("fresh".into())))),
+        )),
+        m::Event::Label("reallocate".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("grown".into()),
+            m::Op::Call {
+                result: m::Ty::Ptr,
+                result_attrs: vec![],
+                callee: m::global("HeapReAlloc".into()),
+                args: vec![
+                    m::Arg::new(m::Ty::Ptr, m::local("heap".into())),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Ptr, m::local("old".into())),
+                    m::Arg::new(m::Ty::Int(64), m::local("size".into())),
+                ],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Ptr, m::local("grown".into())))),
+        )),
+        m::Event::Label("failed".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Ptr, m::Val::Null))),
+        )),
+        m::Event::End,
+        m::Event::Begin(m::Function {
+            name: "zil.bytes.release".into(),
+            linkage: m::Linkage::Internal,
+            signature: m::Signature {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                params: vec![m::Param {
+                    ty: m::Ty::Ptr,
+                    name: Some("payload".into()),
+                    attrs: vec![],
+                }],
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }),
+        m::Event::Label("entry".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("empty".into()),
+            m::Op::Compare {
+                predicate: "eq".into(),
+                ty: m::Ty::Ptr,
+                left: m::local("payload".into()),
+                right: m::Val::Null,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("empty".into()),
+                yes: "done".into(),
+                no: "release".into(),
+            },
+        )),
+        m::Event::Label("release".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("heap".into()),
+            m::Op::Call {
+                result: m::Ty::Ptr,
+                result_attrs: vec![],
+                callee: m::global("GetProcessHeap".into()),
+                args: vec![],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("released".into()),
+            m::Op::Call {
+                result: m::Ty::Int(32),
+                result_attrs: vec![],
+                callee: m::global("HeapFree".into()),
+                args: vec![
+                    m::Arg::new(m::Ty::Ptr, m::local("heap".into())),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Ptr, m::local("payload".into())),
+                ],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("ok".into()),
+            m::Op::Compare {
+                predicate: "ne".into(),
+                ty: m::Ty::Int(32),
+                left: m::local("released".into()),
+                right: m::Val::Int(0),
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("ok".into()),
+                yes: "done".into(),
+                no: "failed".into(),
+            },
+        )),
+        m::Event::Label("failed".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Call {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                callee: m::global("llvm.trap".into()),
+                args: vec![],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(None, m::Op::Unreachable)),
+        m::Event::Label("done".into()),
+        m::Event::Instruction(m::Inst::new(None, m::Op::Return(None))),
+        m::Event::End,
+    ])
 }
-define internal void @zil.bytes.release(ptr %payload) {
-entry:
-  %empty = icmp eq ptr %payload, null
-  br i1 %empty, label %done, label %release
-release:
-  %heap = call ptr @GetProcessHeap()
-  %released = call i32 @HeapFree(ptr %heap, i32 0, ptr %payload)
-  %ok = icmp ne i32 %released, 0
-  br i1 %ok, label %done, label %failed
-failed:
-  call void @llvm.trap()
-  unreachable
-done:
-  ret void
-}
-"#;
 
-const STORAGE_OPERATIONS: &str = r#"
-define internal i1 @zil.bytes.reserve(ptr %head, i64 %requested) {
-entry:
-  %negative = icmp slt i64 %requested, 0
-  br i1 %negative, label %failed, label %capacity
-capacity:
-  %cap.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 2
-  %cap = load i64, ptr %cap.field, align 8
-  %fits = icmp ule i64 %requested, %cap
-  br i1 %fits, label %done, label %prepare
-prepare:
-  %ptr.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 0
-  %old = load ptr, ptr %ptr.field, align 8
-  %next = call ptr @zil.bytes.reallocate(ptr %old, i64 %requested)
-  %ok = icmp ne ptr %next, null
-  br i1 %ok, label %publish, label %failed
-publish:
-  store ptr %next, ptr %ptr.field, align 8
-  store i64 %requested, ptr %cap.field, align 8
-  br label %done
-done:
-  ret i1 true
-failed:
-  ret i1 false
+fn storage_operations() -> m::Code {
+    m::Code::from(vec![
+        m::Event::Begin(m::Function {
+            name: "zil.bytes.reserve".into(),
+            linkage: m::Linkage::Internal,
+            signature: m::Signature {
+                result: m::Ty::Int(1),
+                result_attrs: vec![],
+                params: vec![
+                    m::Param {
+                        ty: m::Ty::Ptr,
+                        name: Some("head".into()),
+                        attrs: vec![],
+                    },
+                    m::Param {
+                        ty: m::Ty::Int(64),
+                        name: Some("requested".into()),
+                        attrs: vec![],
+                    },
+                ],
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }),
+        m::Event::Label("entry".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("negative".into()),
+            m::Op::Compare {
+                predicate: "slt".into(),
+                ty: m::Ty::Int(64),
+                left: m::local("requested".into()),
+                right: m::Val::Int(0),
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("negative".into()),
+                yes: "failed".into(),
+                no: "capacity".into(),
+            },
+        )),
+        m::Event::Label("capacity".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("cap.field".into()),
+            m::Op::Gep {
+                ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                ptr: m::local("head".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(2)),
+                ],
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("cap".into()),
+            m::Op::Load {
+                ty: m::Ty::Int(64),
+                ptr: m::local("cap.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("fits".into()),
+            m::Op::Compare {
+                predicate: "ule".into(),
+                ty: m::Ty::Int(64),
+                left: m::local("requested".into()),
+                right: m::local("cap".into()),
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("fits".into()),
+                yes: "done".into(),
+                no: "prepare".into(),
+            },
+        )),
+        m::Event::Label("prepare".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("ptr.field".into()),
+            m::Op::Gep {
+                ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                ptr: m::local("head".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                ],
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("old".into()),
+            m::Op::Load {
+                ty: m::Ty::Ptr,
+                ptr: m::local("ptr.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("next".into()),
+            m::Op::Call {
+                result: m::Ty::Ptr,
+                result_attrs: vec![],
+                callee: m::global("zil.bytes.reallocate".into()),
+                args: vec![
+                    m::Arg::new(m::Ty::Ptr, m::local("old".into())),
+                    m::Arg::new(m::Ty::Int(64), m::local("requested".into())),
+                ],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("ok".into()),
+            m::Op::Compare {
+                predicate: "ne".into(),
+                ty: m::Ty::Ptr,
+                left: m::local("next".into()),
+                right: m::Val::Null,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("ok".into()),
+                yes: "publish".into(),
+                no: "failed".into(),
+            },
+        )),
+        m::Event::Label("publish".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Ptr, m::local("next".into())),
+                ptr: m::local("ptr.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(64), m::local("requested".into())),
+                ptr: m::local("cap.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(None, m::Op::Branch("done".into()))),
+        m::Event::Label("done".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)))),
+        )),
+        m::Event::Label("failed".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)))),
+        )),
+        m::Event::End,
+        m::Event::Begin(m::Function {
+            name: "zil.bytes.truncate".into(),
+            linkage: m::Linkage::Internal,
+            signature: m::Signature {
+                result: m::Ty::Int(1),
+                result_attrs: vec![],
+                params: vec![
+                    m::Param {
+                        ty: m::Ty::Ptr,
+                        name: Some("head".into()),
+                        attrs: vec![],
+                    },
+                    m::Param {
+                        ty: m::Ty::Int(64),
+                        name: Some("requested".into()),
+                        attrs: vec![],
+                    },
+                ],
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }),
+        m::Event::Label("entry".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("len.field".into()),
+            m::Op::Gep {
+                ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                ptr: m::local("head".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
+                ],
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("len".into()),
+            m::Op::Load {
+                ty: m::Ty::Int(64),
+                ptr: m::local("len.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("nonnegative".into()),
+            m::Op::Compare {
+                predicate: "sge".into(),
+                ty: m::Ty::Int(64),
+                left: m::local("requested".into()),
+                right: m::Val::Int(0),
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("within".into()),
+            m::Op::Compare {
+                predicate: "ule".into(),
+                ty: m::Ty::Int(64),
+                left: m::local("requested".into()),
+                right: m::local("len".into()),
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("valid".into()),
+            m::Op::Binary {
+                opcode: "and".into(),
+                ty: m::Ty::Int(1),
+                left: m::local("nonnegative".into()),
+                right: m::local("within".into()),
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("valid".into()),
+                yes: "publish".into(),
+                no: "failed".into(),
+            },
+        )),
+        m::Event::Label("publish".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(64), m::local("requested".into())),
+                ptr: m::local("len.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)))),
+        )),
+        m::Event::Label("failed".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)))),
+        )),
+        m::Event::End,
+        m::Event::Begin(m::Function {
+            name: "zil.bytes.push".into(),
+            linkage: m::Linkage::Internal,
+            signature: m::Signature {
+                result: m::Ty::Int(1),
+                result_attrs: vec![],
+                params: vec![
+                    m::Param {
+                        ty: m::Ty::Ptr,
+                        name: Some("head".into()),
+                        attrs: vec![],
+                    },
+                    m::Param {
+                        ty: m::Ty::Int(8),
+                        name: Some("byte".into()),
+                        attrs: vec![],
+                    },
+                ],
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }),
+        m::Event::Label("entry".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("len.field".into()),
+            m::Op::Gep {
+                ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                ptr: m::local("head".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
+                ],
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("cap.field".into()),
+            m::Op::Gep {
+                ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                ptr: m::local("head".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(2)),
+                ],
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("len".into()),
+            m::Op::Load {
+                ty: m::Ty::Int(64),
+                ptr: m::local("len.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("cap".into()),
+            m::Op::Load {
+                ty: m::Ty::Int(64),
+                ptr: m::local("cap.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("room".into()),
+            m::Op::Compare {
+                predicate: "ult".into(),
+                ty: m::Ty::Int(64),
+                left: m::local("len".into()),
+                right: m::local("cap".into()),
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("room".into()),
+                yes: "initialize".into(),
+                no: "full".into(),
+            },
+        )),
+        m::Event::Label("initialize".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("ptr.field".into()),
+            m::Op::Gep {
+                ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                ptr: m::local("head".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                ],
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("payload".into()),
+            m::Op::Load {
+                ty: m::Ty::Ptr,
+                ptr: m::local("ptr.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("slot".into()),
+            m::Op::Gep {
+                ty: m::Ty::Int(8),
+                ptr: m::local("payload".into()),
+                indices: vec![m::Arg::new(m::Ty::Int(64), m::local("len".into()))],
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(8), m::local("byte".into())),
+                ptr: m::local("slot".into()),
+                align: 1,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("next.len".into()),
+            m::Op::Binary {
+                opcode: "add".into(),
+                ty: m::Ty::Int(64),
+                left: m::local("len".into()),
+                right: m::Val::Int(1),
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(64), m::local("next.len".into())),
+                ptr: m::local("len.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)))),
+        )),
+        m::Event::Label("full".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)))),
+        )),
+        m::Event::End,
+        m::Event::Begin(m::Function {
+            name: "zil.bytes.drop".into(),
+            linkage: m::Linkage::Internal,
+            signature: m::Signature {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                params: vec![m::Param {
+                    ty: m::Ty::Ptr,
+                    name: Some("head".into()),
+                    attrs: vec![],
+                }],
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }),
+        m::Event::Label("entry".into()),
+        m::Event::Instruction(m::Inst::new(
+            Some("ptr.field".into()),
+            m::Op::Gep {
+                ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                ptr: m::local("head".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                ],
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("payload".into()),
+            m::Op::Load {
+                ty: m::Ty::Ptr,
+                ptr: m::local("ptr.field".into()),
+                align: 8,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Call {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                callee: m::global("zil.bytes.release".into()),
+                args: vec![m::Arg::new(m::Ty::Ptr, m::local("payload".into()))],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(None, m::Op::Return(None))),
+        m::Event::End,
+    ])
 }
-define internal i1 @zil.bytes.truncate(ptr %head, i64 %requested) {
-entry:
-  %len.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 1
-  %len = load i64, ptr %len.field, align 8
-  %nonnegative = icmp sge i64 %requested, 0
-  %within = icmp ule i64 %requested, %len
-  %valid = and i1 %nonnegative, %within
-  br i1 %valid, label %publish, label %failed
-publish:
-  store i64 %requested, ptr %len.field, align 8
-  ret i1 true
-failed:
-  ret i1 false
-}
-define internal i1 @zil.bytes.push(ptr %head, i8 %byte) {
-entry:
-  %len.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 1
-  %cap.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 2
-  %len = load i64, ptr %len.field, align 8
-  %cap = load i64, ptr %cap.field, align 8
-  %room = icmp ult i64 %len, %cap
-  br i1 %room, label %initialize, label %full
-initialize:
-  %ptr.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 0
-  %payload = load ptr, ptr %ptr.field, align 8
-  %slot = getelementptr i8, ptr %payload, i64 %len
-  store i8 %byte, ptr %slot, align 1
-  %next.len = add i64 %len, 1
-  store i64 %next.len, ptr %len.field, align 8
-  ret i1 true
-full:
-  ret i1 false
-}
-define internal void @zil.bytes.drop(ptr %head) {
-entry:
-  %ptr.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 0
-  %payload = load ptr, ptr %ptr.field, align 8
-  call void @zil.bytes.release(ptr %payload)
-  ret void
-}
-"#;
 
 impl FunctionEmitter<'_> {
     pub(super) fn byte_buffer_instruction(
@@ -232,37 +859,61 @@ impl FunctionEmitter<'_> {
         let output = result(instruction)?;
         match instruction.kind {
             InstructionKind::ByteBufferNew => {
-                self.line(format!(
-                    "  {} = freeze {{ ptr, i64, i64 }} zeroinitializer",
-                    value(output)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Freeze(m::Arg::new(
+                        m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                        m::Val::Zero,
+                    )),
+                )));
             }
             InstructionKind::ByteBufferReserve { buffer, capacity } => {
-                self.line(format!(
-                    "  {} = call i1 @zil.bytes.reserve(ptr {}, i64 {})",
-                    value(output),
-                    value(buffer),
-                    value(capacity)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Call {
+                        result: m::Ty::Int(1),
+                        result_attrs: vec![],
+                        callee: m::global("zil.bytes.reserve".into()),
+                        args: vec![
+                            m::Arg::new(m::Ty::Ptr, m::val((value(buffer)).clone())),
+                            m::Arg::new(m::Ty::Int(64), m::val((value(capacity)).clone())),
+                        ],
+                        vararg: None,
+                    },
+                )));
             }
             InstructionKind::ByteBufferTruncate { buffer, length } => {
-                self.line(format!(
-                    "  {} = call i1 @zil.bytes.truncate(ptr {}, i64 {})",
-                    value(output),
-                    value(buffer),
-                    value(length)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Call {
+                        result: m::Ty::Int(1),
+                        result_attrs: vec![],
+                        callee: m::global("zil.bytes.truncate".into()),
+                        args: vec![
+                            m::Arg::new(m::Ty::Ptr, m::val((value(buffer)).clone())),
+                            m::Arg::new(m::Ty::Int(64), m::val((value(length)).clone())),
+                        ],
+                        vararg: None,
+                    },
+                )));
             }
             InstructionKind::ByteBufferPush {
                 buffer,
                 value: byte,
             } => {
-                self.line(format!(
-                    "  {} = call i1 @zil.bytes.push(ptr {}, i8 {})",
-                    value(output),
-                    value(buffer),
-                    value(byte)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Call {
+                        result: m::Ty::Int(1),
+                        result_attrs: vec![],
+                        callee: m::global("zil.bytes.push".into()),
+                        args: vec![
+                            m::Arg::new(m::Ty::Ptr, m::val((value(buffer)).clone())),
+                            m::Arg::new(m::Ty::Int(8), m::val((value(byte)).clone())),
+                        ],
+                        vararg: None,
+                    },
+                )));
             }
             InstructionKind::ByteBufferLen { buffer }
             | InstructionKind::ByteBufferCapacity { buffer } => {
@@ -272,38 +923,80 @@ impl FunctionEmitter<'_> {
                     2
                 };
                 let field = self.temp();
-                self.line(format!(
-                    "  {field} = getelementptr {{ ptr, i64, i64 }}, ptr {}, i32 0, i32 {index}",
-                    value(buffer)
-                ));
-                self.line(format!(
-                    "  {} = load i64, ptr {field}, align 8",
-                    value(output)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((field).clone())),
+                    m::Op::Gep {
+                        ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                        ptr: m::val((value(buffer)).clone()),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::val(index)),
+                        ],
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Load {
+                        ty: m::Ty::Int(64),
+                        ptr: m::val((field).clone()),
+                        align: 8,
+                    },
+                )));
             }
             InstructionKind::ByteBufferBorrow { buffer, .. } => {
                 let pointer = self.temp();
                 let length_field = self.temp();
                 let length = self.temp();
                 let pair = self.temp();
-                self.line(format!(
-                    "  {pointer} = load ptr, ptr {}, align 8",
-                    value(buffer)
-                ));
-                self.line(format!(
-                    "  {length_field} = getelementptr {{ ptr, i64, i64 }}, ptr {}, i32 0, i32 1",
-                    value(buffer)
-                ));
-                self.line(format!(
-                    "  {length} = load i64, ptr {length_field}, align 8"
-                ));
-                self.line(format!(
-                    "  {pair} = insertvalue {{ ptr, i64 }} poison, ptr {pointer}, 0"
-                ));
-                self.line(format!(
-                    "  {} = insertvalue {{ ptr, i64 }} {pair}, i64 {length}, 1",
-                    value(output)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((pointer).clone())),
+                    m::Op::Load {
+                        ty: m::Ty::Ptr,
+                        ptr: m::val((value(buffer)).clone()),
+                        align: 8,
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((length_field).clone())),
+                    m::Op::Gep {
+                        ty: m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]),
+                        ptr: m::val((value(buffer)).clone()),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
+                        ],
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((length).clone())),
+                    m::Op::Load {
+                        ty: m::Ty::Int(64),
+                        ptr: m::val((length_field).clone()),
+                        align: 8,
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((pair).clone())),
+                    m::Op::Insert {
+                        arg: m::Arg::new(
+                            m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64)]),
+                            m::Val::Poison,
+                        ),
+                        index: 0,
+                        field: m::Arg::new(m::Ty::Ptr, m::val((pointer).clone())),
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(output)).clone())),
+                    m::Op::Insert {
+                        arg: m::Arg::new(
+                            m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64)]),
+                            m::val((pair).clone()),
+                        ),
+                        index: 1,
+                        field: m::Arg::new(m::Ty::Int(64), m::val((length).clone())),
+                    },
+                )));
             }
             _ => {
                 return invalid(
