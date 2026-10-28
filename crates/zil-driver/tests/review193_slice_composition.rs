@@ -95,7 +95,7 @@ fn baseline(s: &str) -> (TypedModule, CandidatePlan) {
 }
 #[test]
 fn a_state_callback_receives_its_buffer_and_counter_siblings() {
-    let s = "extern \"C\" fn putchar(n:i32)->i32;resource Ticket{n:i32}impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.n)}}}package State<F>{callback:F;manages bytes:ByteBuffer;count:i32}fn make()->impl FnMut(&mut [u8],&mut i32)->i32{let ticket=Ticket{n:65};var calls=0;return move(s:&mut [u8],p:&mut i32)=>{ticket.n;calls+=1;s[0]+=u8(calls);*p+=i32(s[0]);return *p}}fn run<F:FnMut(&mut [u8],&mut i32)->i32>(state:State<F>)->i32{var current=state;bytes_push(current.bytes,3u8);let callback=&mut current.callback;let window=bytes_view_mut(current.bytes);let count=&mut current.count;let a=callback(window,count);let b=callback(window,count);return a+b+*count}fn main()->i32{return run(State{callback:make(),bytes:bytes_new(),count:0})-24}";
+    let s = "extern \"C\" fn putchar(n:i32)->i32;resource Ticket{n:i32}impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.n)}}}package State<F>{callback:F;manages bytes:ByteBuffer;count:i32}fn make()->impl FnMut(&mut [u8],&mut i32)->i32{let ticket=Ticket{n:65};var calls=0;return move(s:&mut [u8],p:&mut i32)=>{ticket.n;calls+=1;s[0]+=u8(calls);*p+=i32(s[0]);return *p}}fn pack<F:FnMut(&mut [u8],&mut i32)->i32>(callback:F)->State<F>{return State::<F>{callback:callback,bytes:bytes_new(),count:0}}fn run<F:FnMut(&mut [u8],&mut i32)->i32>(state:State<F>)->i32{var current=state;if !bytes_reserve(current.bytes,1){return 90};bytes_push(current.bytes,3u8);let callback=&mut current.callback;let window=bytes_view_mut(current.bytes);let count=&mut current.count;let a=callback(window,count);let b=callback(window,count);return a+b+*count}fn main()->i32{return run(pack(make()))-24}";
     native("state-slice-and-counter", s, b"A", 0);
 }
 #[test]
@@ -118,7 +118,7 @@ fn nested_helpers_preserve_mutable_slice_parent_and_large_copy_values() {
 }
 #[test]
 fn nested_borrowed_descriptors_use_the_actual_last_call_backing() {
-    let s = "fn leaf<F:Fn(&[u8])->i32>(f:&F,s:&[u8])->i32{return f(s)}fn outer<F:Fn(&[u8])->i32>(f:&F,s:&[u8])->i32{return leaf(f,s)}fn main()->i32{let data=bytes_new();let other=bytes_new();bytes_push(data,4u8);bytes_push(other,7u8);let f=(s:&[u8])=>{bytes_reserve(data,32);return i32(s[0])};return outer(&f,bytes_view(other))-7}";
+    let s = "fn leaf<F:Fn(&[u8])->i32>(f:&F,s:&[u8])->i32{return f(s)}fn outer<F:Fn(&[u8])->i32>(f:&F,s:&[u8])->i32{return leaf(f,s)}fn main()->i32{let data=bytes_new();let other=bytes_new();if !bytes_reserve(data,1){return 90};if !bytes_reserve(other,1){return 91};bytes_push(data,4u8);bytes_push(other,7u8);let f=(s:&[u8])=>{bytes_reserve(data,32);return i32(s[0])};return outer(&f,bytes_view(other))-7}";
     native("nested-other-backing", s, b"", 0);
     conflict(
         "nested-same-backing",
