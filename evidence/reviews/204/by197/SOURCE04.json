@@ -1,0 +1,941 @@
+{
+  "reviewer": "/root/impl197",
+  "scope": "Independent 204 fixed source/raw/Wire/budget suite before the subsequently discovered TakeCapture window defect",
+  "scope_verdict": "Pass",
+  "overall_204_verdict": "NotReady; later take-window01 has a real source/raw/Wire acceptance defect",
+  "implementation_commit": "f341e418f9c1938ff2895380f5dc1f8bc5153d17",
+  "production_checkpoint": "26976917dd4cda6becdfc91892ccbad086eb9e5e",
+  "command": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/source04/command.json",
+    "sha256": "a41d4aa6ef3aaeaadbfb922508f4adad9c7a7911dff9fd0a760cfaa49bccff40",
+    "source_commit": "f341e418f9c1938ff2895380f5dc1f8bc5153d17",
+    "git_status": "",
+    "status": "Pass",
+    "exit_code": 0,
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl204_review",
+      "--",
+      "--nocapture",
+      "--test-threads=2"
+    ],
+    "stdout.log_sha256": "03dc889a9b4e0e09e59a3689e64ec841d4178975a9f71859163d48f4f99481ae",
+    "stderr.log_sha256": "f885b46c0b7e034e38abcbb1922022783d500adddb3b5c8ce76105339e7e7a37"
+  },
+  "normative_actual_git_bytes": {
+    "files": {
+      "_zil_design.md": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0",
+      "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/interfaces.json": "5f682c3292d4253091ff2bd3250560adfc69f29d4db2332b0d29b78a84626725",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7"
+  },
+  "registry_snapshot_note": "data/normative-inputs.json at this commit is still the historical 203 snapshot; actual seven normative files above define this run.",
+  "test_file_sha256": "271f6a0998f2843f55c942946c988b1902c4ac20322816633d0a4e13efb84b34",
+  "counts": {
+    "tests_passed": 19,
+    "tests_failed": 0,
+    "native_executions": 44,
+    "source_rejections": 6,
+    "raw_wire_pairs": 30,
+    "positive_pairs": 13,
+    "attack_pairs": 17
+  },
+  "native": [
+    {
+      "label": "capture-window-last-use-control",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-capture-window-last-use-control-53-1",
+      "source_sha256": "56a32cf6e4d4cbf3c32810930a98c5d5449315f02634ec140e7479c91b479911",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"A\"",
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "capture-window-last-use-control",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-capture-window-last-use-control-53-6",
+      "source_sha256": "56a32cf6e4d4cbf3c32810930a98c5d5449315f02634ec140e7479c91b479911",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"A\"",
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "captured-package-keeps-copy-fnptr-companion",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-captured-package-keeps-copy-fnptr-companion-53-41",
+      "source_sha256": "83fae6c7ba1b7098a7a72a7af164bba8927defaaf3f1fd2c747f28fea8ff9650",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"CASB\"",
+      "stdout_sha256": "8e16bfab7df09a40c41cf7ea079cd9e9722251a1922c50bcae54e84b1ede87e9",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "captured-package-keeps-copy-fnptr-companion",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-captured-package-keeps-copy-fnptr-companion-53-43",
+      "source_sha256": "83fae6c7ba1b7098a7a72a7af164bba8927defaaf3f1fd2c747f28fea8ff9650",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"CASB\"",
+      "stdout_sha256": "8e16bfab7df09a40c41cf7ea079cd9e9722251a1922c50bcae54e84b1ede87e9",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "child-store-owned-copy-result",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-child-store-owned-copy-result-53-10",
+      "source_sha256": "8cae08d3ce1620dd3c2dc893df67b53576113947015a84780f2b241309e30f90",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"A\"",
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "child-store-owned-copy-result",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-child-store-owned-copy-result-53-11",
+      "source_sha256": "8cae08d3ce1620dd3c2dc893df67b53576113947015a84780f2b241309e30f90",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"A\"",
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "given-store-parameter-is-owned",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-given-store-parameter-is-owned-53-28",
+      "source_sha256": "573ffaa805abeeecc41cb479ffd62db393b75806c0e97bf55fdc57645c3eae07",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"A\"",
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "given-store-parameter-is-owned",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-given-store-parameter-is-owned-53-30",
+      "source_sha256": "573ffaa805abeeecc41cb479ffd62db393b75806c0e97bf55fdc57645c3eae07",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"A\"",
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "old-child-without-store-still-lends",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-old-child-without-store-still-lends-53-14",
+      "source_sha256": "b9f4cf48edcd3d7d552a4bdc5dc352ac631b49358726cde4e45b9ef9f1d9a554",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "old-child-without-store-still-lends",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-old-child-without-store-still-lends-53-16",
+      "source_sha256": "b9f4cf48edcd3d7d552a4bdc5dc352ac631b49358726cde4e45b9ef9f1d9a554",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "once-after-take",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-after-take-53-23",
+      "source_sha256": "cd6057e94d21456cfe288ecb12d5637f8685ec2d85efc9fe4995d0960453ff27",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"ETSA\"",
+      "stdout_sha256": "9a620e86f36a3dbf1e03d40562fa5795ee1d623f506446c0b653e3e204127b0a",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "once-after-take",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-after-take-53-25",
+      "source_sha256": "cd6057e94d21456cfe288ecb12d5637f8685ec2d85efc9fe4995d0960453ff27",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"ETSA\"",
+      "stdout_sha256": "9a620e86f36a3dbf1e03d40562fa5795ee1d623f506446c0b653e3e204127b0a",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "once-argument-fails",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-argument-fails-53-44",
+      "source_sha256": "6eab14925ce6585daff17f754fba9a106fc75816e50b01c143d9c3c88499e528",
+      "receipt": "optimization=O0\nactual_exit=Some(1)\nexpected_exit=1\nexpected_stdout=\"PAS\"",
+      "stdout_sha256": "d3937eab5dca4f0716d2e77822386387279044220e2427a9b54cf4ef7fc5b576",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "once-argument-fails",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-argument-fails-53-46",
+      "source_sha256": "6eab14925ce6585daff17f754fba9a106fc75816e50b01c143d9c3c88499e528",
+      "receipt": "optimization=O2\nactual_exit=Some(1)\nexpected_exit=1\nexpected_stdout=\"PAS\"",
+      "stdout_sha256": "d3937eab5dca4f0716d2e77822386387279044220e2427a9b54cf4ef7fc5b576",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "once-before-take",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-before-take-53-29",
+      "source_sha256": "6875a92f448380d71d40fcf7fa2cf79026dee835eb8f5f4f43df51207624d5ca",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"EAS\"",
+      "stdout_sha256": "bf8d09b90c7a4b10d808670856bb22f527f16c1c51b8326f6a6d10604a43b2be",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "once-before-take",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-before-take-53-31",
+      "source_sha256": "6875a92f448380d71d40fcf7fa2cf79026dee835eb8f5f4f43df51207624d5ca",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"EAS\"",
+      "stdout_sha256": "bf8d09b90c7a4b10d808670856bb22f527f16c1c51b8326f6a6d10604a43b2be",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "once-local-reserve-overflow",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-local-reserve-overflow-53-39",
+      "source_sha256": "bc6052630016ec5cffe251153422faffc9fb931112f011b35b0d0e7cccc81045",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"ETFAS\"",
+      "stdout_sha256": "58cb69222f5ed692c01623ad3ff006cd34dfd9167494831dd8872b7c99344b55",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "once-local-reserve-overflow",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-local-reserve-overflow-53-42",
+      "source_sha256": "bc6052630016ec5cffe251153422faffc9fb931112f011b35b0d0e7cccc81045",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"ETFAS\"",
+      "stdout_sha256": "58cb69222f5ed692c01623ad3ff006cd34dfd9167494831dd8872b7c99344b55",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "once-not-called",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-not-called-53-34",
+      "source_sha256": "0edcc6af424ad641599233fb116319507aef6b4cda34d237d0641f887257f643",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"AS\"",
+      "stdout_sha256": "de148153b07d429235e6324fa7eff44d0e873484cafdb9742080213b1d340545",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "once-not-called",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-not-called-53-35",
+      "source_sha256": "0edcc6af424ad641599233fb116319507aef6b4cda34d237d0641f887257f643",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"AS\"",
+      "stdout_sha256": "de148153b07d429235e6324fa7eff44d0e873484cafdb9742080213b1d340545",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "ordinary-store-keeps-copy-fnptr-field",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-ordinary-store-keeps-copy-fnptr-field-53-37",
+      "source_sha256": "41303e92cd2a5f0a5f585809bb3eff00adc7569edcedfd58a76c9dbe1c2bde6c",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"A\"",
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "ordinary-store-keeps-copy-fnptr-field",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-ordinary-store-keeps-copy-fnptr-field-53-38",
+      "source_sha256": "41303e92cd2a5f0a5f585809bb3eff00adc7569edcedfd58a76c9dbe1c2bde6c",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"A\"",
+      "stdout_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "original00",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-original00-53-45",
+      "source_sha256": "8838ec1ffc59eab8a0d8351218b09f36dd23bb0894b9414a1725ad508137a5ef",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "original00",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-original00-53-47",
+      "source_sha256": "8838ec1ffc59eab8a0d8351218b09f36dd23bb0894b9414a1725ad508137a5ef",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "original01",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-original01-53-49",
+      "source_sha256": "203a8981a52ad65607ff19f08f9977d9793fd2c70c45e5c0eaa46197aecd3bde",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "original01",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-original01-53-51",
+      "source_sha256": "203a8981a52ad65607ff19f08f9977d9793fd2c70c45e5c0eaa46197aecd3bde",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "original02",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-original02-53-53",
+      "source_sha256": "5d430f79813e995268368bcbe3c3918e1de093007e5802f79d4f88f196905853",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "original02",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-original02-53-54",
+      "source_sha256": "5d430f79813e995268368bcbe3c3918e1de093007e5802f79d4f88f196905853",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "original03",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-original03-53-56",
+      "source_sha256": "2a05b458bb1c0758c2a3d01e6991069464e9b949672cae3c149b143c21758161",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "original03",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-original03-53-58",
+      "source_sha256": "2a05b458bb1c0758c2a3d01e6991069464e9b949672cae3c149b143c21758161",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "outer-store-two-inner-stores",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-outer-store-two-inner-stores-53-50",
+      "source_sha256": "978b4e8694723361c858c478a14c1faf36946a78e35e11ec157644d80fd982e2",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"QBPAZ\"",
+      "stdout_sha256": "d0a36333e3de779cfb0da5fba4f516c1faefd9c966624f5c323a0149f47bafc6",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "outer-store-two-inner-stores",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-outer-store-two-inner-stores-53-52",
+      "source_sha256": "978b4e8694723361c858c478a14c1faf36946a78e35e11ec157644d80fd982e2",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"QBPAZ\"",
+      "stdout_sha256": "d0a36333e3de779cfb0da5fba4f516c1faefd9c966624f5c323a0149f47bafc6",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "package-once-field-take",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-package-once-field-take-53-55",
+      "source_sha256": "547271d12fbbb66fdde817883788fae3a1c82e5c5f411589073b0f298318fbff",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"TASB\"",
+      "stdout_sha256": "693625859d01179994782634cda0a25540bf84d84974aa7415f40d7463607e64",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "package-once-field-take",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-package-once-field-take-53-57",
+      "source_sha256": "547271d12fbbb66fdde817883788fae3a1c82e5c5f411589073b0f298318fbff",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"TASB\"",
+      "stdout_sha256": "693625859d01179994782634cda0a25540bf84d84974aa7415f40d7463607e64",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "package-owned-stores",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-package-owned-stores-53-17",
+      "source_sha256": "be92b74686ce51a60efac7ec42b85f939c7e8d110f8bf58efb7d997d86b3281d",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"CASB\"",
+      "stdout_sha256": "8e16bfab7df09a40c41cf7ea079cd9e9722251a1922c50bcae54e84b1ede87e9",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "package-owned-stores",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-package-owned-stores-53-19",
+      "source_sha256": "be92b74686ce51a60efac7ec42b85f939c7e8d110f8bf58efb7d997d86b3281d",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"CASB\"",
+      "stdout_sha256": "8e16bfab7df09a40c41cf7ea079cd9e9722251a1922c50bcae54e84b1ede87e9",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "same-actual-fn-declared-once-store-field",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-same-actual-fn-declared-once-store-field-53-7",
+      "source_sha256": "51d36a958a2febe662bc4e32f12ab9bcb62c3eb00877bb38799d21ea36277203",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"BCAS\"",
+      "stdout_sha256": "e17608d4c6e6a3d7748f8e4a0096c0f3756236331881d082a2ecc613838a67de",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "same-actual-fn-declared-once-store-field",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-same-actual-fn-declared-once-store-field-53-9",
+      "source_sha256": "51d36a958a2febe662bc4e32f12ab9bcb62c3eb00877bb38799d21ea36277203",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"BCAS\"",
+      "stdout_sha256": "e17608d4c6e6a3d7748f8e4a0096c0f3756236331881d082a2ecc613838a67de",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "two-owned-stores",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-two-owned-stores-53-13",
+      "source_sha256": "9508bfdff707b23ffdf9f7830ec490f39692e79f431656c3161164465372177a",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"CBSA\"",
+      "stdout_sha256": "5fcb91669fe6b14d68a140a3911e71ac42c51d32032b874f2e9d68117665d73a",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "two-owned-stores",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-two-owned-stores-53-15",
+      "source_sha256": "9508bfdff707b23ffdf9f7830ec490f39692e79f431656c3161164465372177a",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"CBSA\"",
+      "stdout_sha256": "5fcb91669fe6b14d68a140a3911e71ac42c51d32032b874f2e9d68117665d73a",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "two-owned-stores-never-called",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-two-owned-stores-never-called-53-21",
+      "source_sha256": "459d829ef54e67972a991c5c6996b34c0d6b52c2faeb0f3fd4ff5f31b864890a",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"BSA\"",
+      "stdout_sha256": "caf57b29bc2cd7da879c94afb00890f95b64d711f78c263356d0a67526f020d0",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "two-owned-stores-never-called",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-two-owned-stores-never-called-53-24",
+      "source_sha256": "459d829ef54e67972a991c5c6996b34c0d6b52c2faeb0f3fd4ff5f31b864890a",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"BSA\"",
+      "stdout_sha256": "caf57b29bc2cd7da879c94afb00890f95b64d711f78c263356d0a67526f020d0",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "unrelated-owned-store-does-not-taint-old-lending",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-unrelated-owned-store-does-not-taint-old-lending-53-18",
+      "source_sha256": "e4bf50e02f8d134b61af76c836fbe7f9899d2224beeec96747481b1fc6d4eae1",
+      "receipt": "optimization=O0\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    },
+    {
+      "label": "unrelated-owned-store-does-not-taint-old-lending",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-unrelated-owned-store-does-not-taint-old-lending-53-20",
+      "source_sha256": "e4bf50e02f8d134b61af76c836fbe7f9899d2224beeec96747481b1fc6d4eae1",
+      "receipt": "optimization=O2\nactual_exit=Some(0)\nexpected_exit=0\nexpected_stdout=\"\"",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_status": "Success",
+      "verification_runs": 1
+    }
+  ],
+  "source_rejections": [
+    {
+      "label": "capture-window-live-across-reserve",
+      "source_sha256": "02ae59b27d7100791e06c5d5bee01b5487b1d7aa0e04279a9ce9f1210757fbff",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "native": "NotRun"
+    },
+    {
+      "label": "captured-inner-leaf-closes-fnptr-field",
+      "source_sha256": "cbd7e8c9a284e39b314e9431e328bab06636908c39de18292a848b50e44b285a",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "native": "NotRun"
+    },
+    {
+      "label": "child-store-cannot-hide-lending-result",
+      "source_sha256": "bed95fae6d80e07135e35caa47d07667b627f0f7567946a717ea50ecaf281f76",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "native": "NotRun"
+    },
+    {
+      "label": "declared-once-store-field-cannot-repeat",
+      "source_sha256": "97b2cfe31b36607ff840d153e9777201386b8f0ea05b55d00eb1aa0ad341e57a",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "codes": [
+        "E-GENERIC-ARGUMENT"
+      ],
+      "native": "NotRun"
+    },
+    {
+      "label": "move-of-desc-is-still-desc",
+      "source_sha256": "50f839ad62e7978dfc5cf542b628126d55bd043be5576f7f8f5d79a5b73e84ac",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "native": "NotRun"
+    },
+    {
+      "label": "once-cannot-repeat",
+      "source_sha256": "87c3efac5254d7450c7e3e3336e40ecdaef82cc76025274b2f59668baae7bb92",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "codes": [
+        "E-UNINITIALIZED"
+      ],
+      "native": "NotRun"
+    }
+  ],
+  "raw_and_wire": [
+    {
+      "label": "actual-store-capture-taken-twice",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-actual-store-capture-taken-twice-53-5",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "df47cdd68a56d79a0e1943f5e0a3c6cdea8723fd90c7b3c18e3def88280b5816",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "candidate_origin": "Analyze rejected. Original control plan plus an explicit untrusted empty Hold claim for the new owned ValueId; not a fresh Analyze proof."
+    },
+    {
+      "label": "capture-only-no-canonical",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-capture-only-no-canonical-53-73",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "6d8199d68e84df1dca97f746c0ea99817464a73e66c514a315c6059dbce60e64",
+      "codes": [
+        "E-VERIFY-OWNED-STORE"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "distinct-runtime-capture-parents",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-distinct-runtime-capture-parents-53-59",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "194230446ec71a6852b7f6819b2f8f0c166a6bea407810555b112d2a7932e088",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "duplicate-store-capture-control",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-duplicate-store-capture-control-53-63",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "8dbc501e1efd985fe73bddfb30717135c82a0562a75eea8195614f06faf44396",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "hidden-address",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-hidden-address-53-78",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "6ffc59206f95e7fb248760fbbffb419975a0230e38eb870b44c4baadd1ebec22",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "hidden-foreign-callback",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-hidden-foreign-callback-53-80",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "9062da06069f56d1ea7b6c7639ffb351b0f21979d2aa7f5c2443612c25b1593c",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "hidden-function-pointer",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-hidden-function-pointer-53-79",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "6659ccd45d8e70cca19ba8783e610fd266aa3d0f7e8110085d59e486ea6dbb07",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "inner-callback-cycle",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-inner-callback-cycle-53-76",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "e3bfd24cadaf7de06ccfc5b3ab7ac360fb0a8b11e4d60d1f42064278d7d540b8",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "inner-store",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-inner-store-53-77",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "b9f6dd9d31fe7b22456a56333f003dc7b82d24449014a56b78a22055f09b9d0b",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "legacy-byte-capture",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-legacy-byte-capture-53-26",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "91f6e7fc2ba337a16a34e8748c2813cfa8c3233dd67d885961c5e21dd918446e",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "managed-header-callback",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-managed-header-callback-53-81",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "0a863f04ad705b1040e55a955875adcede7e1484af95d87b551dc2b58aaceda1",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "new-two-store-capture",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-new-two-store-capture-53-33",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "8dbc501e1efd985fe73bddfb30717135c82a0562a75eea8195614f06faf44396",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "once-transfer-source-control",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-once-transfer-source-control-53-3",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "f09a779f102187c47a9be16b22fd80c2d1f41fc7f850c69a260006c9df3ceca4",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "ordinary-store-retains-managed-copy-function-header",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-ordinary-store-retains-managed-copy-function-header-53-74",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "2fa7fc462269c6a1d175496f1858c41abc6221e5556722cd7faf6205ac88283e",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "owned-store-take-replaced-with-read",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-owned-store-take-replaced-with-read-53-4",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "17f83df184151d703342e3c92dcd9eba5804166a2b06d68162ddf1ddf5fac220",
+      "codes": [
+        "E-VERIFY-CAPTURE"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "owned-store-write-forged-as-shared",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-owned-store-write-forged-as-shared-53-2",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "d573b314edfec29ed9c01649bc519d58b0974908853be299a728633b8944e4e6",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "raw-window-order-source-control",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-raw-window-order-source-control-53-61",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "9237c201bdd57399bbef31c3f07d50ce2b2b22a648e733dfec547325aaebca03",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "reserve-before-last-element-read",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-reserve-before-last-element-read-53-62",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "915392259227bf92d227b36a3f7565d3c925be121ac88df69af26d0fa9f5aeca",
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "candidate_origin": "fresh Analyze result"
+    },
+    {
+      "label": "reserve-repointed-to-other-same-type-capture",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-reserve-repointed-to-other-same-type-capture-53-60",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "4d26c742767298fe6818ef2bc58bdc72ce853a674b79004bb50697e7c91fccc7",
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "candidate_origin": "fresh Analyze result"
+    },
+    {
+      "label": "same-type-distinct-runtime-capture-duplicate",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-same-type-distinct-runtime-capture-duplicate-53-65",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "9d24028cf9b85e8846589eace1a1ccb62c97e6a8bba9572525aa5fb2dfe920a1",
+      "codes": [
+        "E-VERIFY-RESOURCE"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "shared-write-source-control",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-shared-write-source-control-53-0",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "9237c201bdd57399bbef31c3f07d50ce2b2b22a648e733dfec547325aaebca03",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "unused-capture-real-source",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-unused-capture-real-source-53-64",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "e75a416d2874bcb91cafa65a67ef2224864407a9151101fc55b5f8a2e00c1b10",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "unused-custom-store-teardown",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-unused-custom-store-teardown-53-69",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "1791e1f82e8bff4f78212d988023eb5100679efb07a21341483d78581262c1f9",
+      "codes": [
+        "E-VERIFY-OWNED-STORE"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "unused-metadata-derived-positive",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-unused-metadata-derived-positive-53-71",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "aa6c83c366e762a7421fb58b99ef63950c4c2691965e6f08e0dc9e57713e08fa",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "unused-metadata-derived-positive",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-unused-metadata-derived-positive-53-72",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "aa6c83c366e762a7421fb58b99ef63950c4c2691965e6f08e0dc9e57713e08fa",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "unused-metadata-original-source",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-unused-metadata-original-source-53-68",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "d49bf46af69cae640038bbf555b891b34b6699ce9514421df162c308fed1db8a",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "unused-metadata-original-source",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-unused-metadata-original-source-53-70",
+      "raw": "Pass",
+      "wire": "Pass",
+      "wire_sha256": "d49bf46af69cae640038bbf555b891b34b6699ce9514421df162c308fed1db8a",
+      "codes": [],
+      "candidate_origin": "Source control or explicitly documented source-derived metadata control"
+    },
+    {
+      "label": "unused-missing-canonical",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-unused-missing-canonical-53-66",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "992865cb89657c46a0f40138a2e959a2cd2c93489cbc0527e239ca0b30489a38",
+      "codes": [
+        "E-VERIFY-OWNED-STORE"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "unused-renamed-canonical",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-unused-renamed-canonical-53-67",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "4d44c0bbae864a6286554e84a258bccc727917ebd11094c517946c1505f68298",
+      "codes": [
+        "E-VERIFY-OWNED-STORE"
+      ],
+      "candidate_origin": "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof"
+    },
+    {
+      "label": "zero-leaf",
+      "case_directory": "/tmp/zil204-review-records/source04-cases/review204-zero-leaf-53-75",
+      "raw": "Reject",
+      "wire": "Reject",
+      "wire_sha256": "99cccdf425cc6194a745a37d57f65178e129205bc33e184173d3d8277087bcf0",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "candidate_origin": "fresh Analyze result"
+    }
+  ],
+  "budgets": [
+    {
+      "label": "legacy-byte-capture-boundaries",
+      "expand": 2,
+      "types": 196,
+      "analyze": 2230,
+      "verify": 2490,
+      "method": "each exact N, N-1 ResourceLimit, fresh N; fresh Types/Analyze output equals control"
+    },
+    {
+      "label": "new-two-store-capture-boundaries",
+      "expand": 8,
+      "types": 2692,
+      "analyze": 21179,
+      "verify": 52430,
+      "method": "each exact N, N-1 ResourceLimit, fresh N; fresh Types/Analyze output equals control"
+    },
+    {
+      "label": "unused-capture-definition-boundaries",
+      "analyze": 3251,
+      "verify_raw": 5658,
+      "verify_wire": 5658,
+      "store_operations": 0,
+      "make_closure_operations": 0,
+      "method": "N, N-1 ResourceLimit, fresh N; source-derived positive metadata control"
+    }
+  ],
+  "old_budget_baseline": "tools/language/204/review_by197/legacy-budget-baseline.json; its untracked synchronization directory is accurately recorded, not called a clean tree",
+  "preserved_prior_rounds": [
+    {
+      "command": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/source01/command.json",
+        "sha256": "09ec4ada7e942dd4f17db6c1f1531e81031b3c672fd8f996b33c23def50ebcf7",
+        "source_commit": "0f56a305acb23ca03e26a339e9b4456bfd6d38c9",
+        "git_status": "",
+        "status": "Fail",
+        "exit_code": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--offline",
+          "--locked",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl204_review",
+          "--",
+          "--nocapture",
+          "--test-threads=2"
+        ],
+        "stdout.log_sha256": "6468ab114d523d74cb65fbca820714febfa17434ffa7ef04f7ca8cf8bcf4ce1c",
+        "stderr.log_sha256": "ad19646ebf06b5d926e93b742c0f1a24e516ab2aa89e7498a7c71642c870d141"
+      },
+      "note": "7 pass/12 fail: 9 real Lower gates; three reviewer fixture defects, all original bytes retained"
+    },
+    {
+      "command": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/source02/command.json",
+        "sha256": "87f60fa8b32e8ff9dee2c4ee947bc5946d0b7ed7dffa3b1c05d014217f7149a9",
+        "source_commit": "ed49ccc24742afea00c0d7ef6ecc18afea3b412e",
+        "git_status": "",
+        "status": "Fail",
+        "exit_code": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--offline",
+          "--locked",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl204_review",
+          "--",
+          "--nocapture",
+          "--test-threads=2"
+        ],
+        "stdout.log_sha256": "2c5bf0d18415a6779648f60a5b4eb3690ee0737b9d6b6ab4b38d243dc50072a0",
+        "stderr.log_sha256": "1ce2bfc0fa5413d82e35946cc0c91a2053d5b3126789f4efb9d94e292a969959"
+      },
+      "note": "10 pass/9 fail: 8 real Codegen gates; ReadCapture actual capture-specific rejection differed from reviewer expectation"
+    },
+    {
+      "command": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/source03/command.json",
+        "sha256": "0029c9e1921c1b90bda8b7eed443cf94adda178d59bcf5e0db21e44d30868369",
+        "source_commit": "bb5b832eb289061ead551f1fbaa6001676481570",
+        "git_status": "",
+        "status": "Fail",
+        "exit_code": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--offline",
+          "--locked",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl204_review",
+          "--",
+          "--nocapture",
+          "--test-threads=2"
+        ],
+        "stdout.log_sha256": "713f2f7a20f9ec23e30154ee536e151d467f22a49f0fa041d8938d26a00856a7",
+        "stderr.log_sha256": "4024c04c6afb2498d961984810bf4733803f5775b7a9ed02240dfab104a67115"
+      },
+      "note": "17 pass/2 fail: exact earlier declared-mode diagnostic and incomplete untrusted Hold for added ValueId; no new production defect"
+    }
+  ],
+  "limits": {
+    "formal_workspace": "NotRun by this reviewer",
+    "allocator_faults": "NotRun in this fixed source suite; deterministic overflow is not allocation failure",
+    "native_windows": "NotRun",
+    "full_language": "NotSatisfied",
+    "B0": "Doing"
+  }
+}
