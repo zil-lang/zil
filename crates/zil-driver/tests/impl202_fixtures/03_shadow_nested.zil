@@ -14,7 +14,7 @@ extern "C" fn putchar(n: i32) -> i32;
 resource Ticket { code: i32 }
 impl Drop for Ticket { fn drop(self: Self) { unsafe { putchar(.code) } } }
 package Pair<T> { manages root: Ticket; first: T; second: T }
-package Item<T,T> { manages root: Ticket; callback: T; value: T }
+package Item<D,T> { manages root: Ticket; callback: T; value: D }
 
 fn make(label: i32, seed: i32) -> impl FnMut() -> i32 {
     let ticket = Ticket { code: label }
