@@ -54,3 +54,18 @@ State/Store test because it wrongly expected field_exit to return zero. Existing
 the new test oracle; keep failed log, do not alter producer code. Also use a mutable
 source in the borrow negative so it specifically checks E-BORROW-CONFLICT rather
 than an earlier immutable-assignment diagnostic. No timings had been collected.
+
+## Supplementary plans (separate frozen windows; no pooling)
+After all original five plans finished, extend the runner without altering the
+frozen production binaries. Preserve the initial script bytes with its original
+records (and in Git f733e15). Add two three-block/four-request/240-build windows:
+- upgrade: exact restored 211 uncached versus exact 212 with object cache, 8/4 O0.
+  This measures the complete new version/configuration, rather than attributing
+  a same-212 toggle result directly to the prior version.
+- rust/native: keep ZIL at 8/4, but let Rust choose its normal incremental CGU
+  count and set embed-bitcode=no as the official rustc guide recommends without
+  LTO. Do not force a competitor to adopt ZIL's partition count. Resource quota
+  stays four CPUs. Keep the original matched-eight-CGU reference, adverse results
+  included; no best-cell cherry-picking. The reference is still direct rustc and
+  not Cargo no-op, not whole-language or runtime-quality equivalence.
+No production source or tested binary changed for these supplementary plans.
