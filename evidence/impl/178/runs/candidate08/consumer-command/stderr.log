@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/39be3faa4442/language14/wt178/tools/language/178/consumer.py", line 157, in <module>
+    main()
+  File "/workspace/scratch/39be3faa4442/language14/wt178/tools/language/178/consumer.py", line 136, in main
+    observe(ordinary, row, name, opt, "ordinary", row["stdout"], row["exit"])
+  File "/workspace/scratch/39be3faa4442/language14/wt178/tools/language/178/consumer.py", line 94, in observe
+    raise RuntimeError(f"{name}/{row['name']}/{opt}/{mode}: "
+RuntimeError: main/count-0/O0/ordinary: exit=1, stdout=b'H', stderr=b''

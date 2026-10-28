@@ -1,0 +1,1 @@
+import left;pub fn apply<T:left.Measure>(x:&T)->i32=>x.measure()
