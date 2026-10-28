@@ -1,0 +1,37 @@
+{
+  "reviewer": "/root/impl197",
+  "kind": "OriginalSourceIdentityOnly",
+  "execution": "NotRun for 204; historical CLI03 outcomes remain in the original 203 preflight receipt",
+  "spec_hash": "760a74e83016e537d409e55c1924a1dfff1849c5d00e0a20ccdb75788b7e42d3",
+  "normative_hash": "4855227ed1c2d0c43465b1987302c3f1117ebc34f01bbd541b0726be497fec90",
+  "sources": [
+    {
+      "path": "crates/zil-driver/tests/impl204_review_fixtures/00_package_owned_control.zil",
+      "original_commit": "ed3f797561ae5f2ea4b53b76d96df47778c5a43d",
+      "original_path": "evidence/impl/203/next-preflight/00_package_owned_control.zil",
+      "bytes": 437,
+      "sha256": "8838ec1ffc59eab8a0d8351218b09f36dd23bb0894b9414a1725ad508137a5ef"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_review_fixtures/01_direct_store_capture.zil",
+      "original_commit": "ed3f797561ae5f2ea4b53b76d96df47778c5a43d",
+      "original_path": "evidence/impl/203/next-preflight/01_direct_store_capture.zil",
+      "bytes": 350,
+      "sha256": "203a8981a52ad65607ff19f08f9977d9793fd2c70c45e5c0eaa46197aecd3bde"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_review_fixtures/02_original201_package_store_capture.zil",
+      "original_commit": "ed3f797561ae5f2ea4b53b76d96df47778c5a43d",
+      "original_path": "evidence/impl/203/next-preflight/02_original201_package_store_capture.zil",
+      "bytes": 484,
+      "sha256": "5d430f79813e995268368bcbe3c3918e1de093007e5802f79d4f88f196905853"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl204_review_fixtures/03_mutating_store_capture.zil",
+      "original_commit": "ed3f797561ae5f2ea4b53b76d96df47778c5a43d",
+      "original_path": "evidence/impl/203/next-preflight/03_mutating_store_capture.zil",
+      "bytes": 446,
+      "sha256": "2a05b458bb1c0758c2a3d01e6991069464e9b949672cae3c149b143c21758161"
+    }
+  ]
+}
