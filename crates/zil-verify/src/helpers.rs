@@ -476,6 +476,31 @@ pub(super) fn check_module(
             packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
             continue;
         }
+        // A second owned input is a second value, even when both use the same
+        // concrete environment type. Reconstruct this finite owning boundary
+        // from the actual signature; no producer classification or empty
+        // callback contract can stand in for it. Ordinary parameter, move,
+        // Package construction and cleanup checks still cover both values.
+        if f.callable_contract.is_none()
+            && let [(_, first, false, _), (_, second, false, _)] = parameters.as_slice()
+            && first == second
+            && let Type::Package { fields, .. } = &f.return_type
+        {
+            budget.spend(fields.len().saturating_add(2))?;
+            let mut callable_fields = 0usize;
+            let mut same_environment = true;
+            for (_, ty) in fields {
+                if let Type::Closure(id) = ty {
+                    callable_fields += 1;
+                    same_environment &= id == first;
+                }
+            }
+            if same_environment && (1..=2).contains(&callable_fields) {
+                closures::self_contained(module, *first, budget)?;
+                packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
+                continue;
+            }
+        }
         let claim = f.callable_contract.as_ref().ok_or_else(|| {
             bad(
                 f,
