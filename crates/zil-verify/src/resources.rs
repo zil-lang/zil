@@ -146,7 +146,7 @@ pub(super) fn check_definitions(
     for resource in &module.resources {
         budget.spend(resource.name.len().saturating_add(1))?;
         check_type_shape(&resource.payload, &module.target, limits, budget)?;
-        if dynamic_store::check_definition(module, resource, budget)? {
+        if dynamic_store::check_definition(module, resource, limits, budget)? {
             if !names.insert(&resource.name) {
                 return Err(reject(
                     "E-VERIFY-OWNED-STORE",
