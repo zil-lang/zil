@@ -1,0 +1,72 @@
+{
+  "reviewer": "/root/impl197",
+  "reviewed_commit": "10d1e2ef6ab4d165d56fa5b81098c400c6efc2fb",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "scope": "Registered old single-State Expand exact-budget migration; source and semantic expectations unchanged",
+  "production_diff": [],
+  "changed_files": [
+    "crates/zil-driver/tests/impl200_independent.rs",
+    "crates/zil-expand/tests/impl202_store_templates.rs"
+  ],
+  "patch_sha256": "45ee9f9e65062d3f95fd25cbb8cb3249ff05d112c916d189021cec5ae9e8f48b",
+  "source": {
+    "path": "crates/zil-driver/tests/impl197_cases/01-existing-state-f-sibling/main.zil",
+    "bytes": 505,
+    "sha256": "7cedc0a7d37056c9a4dea902c0e5475768296b83cdb8e9c91c6f3492e0fcb251",
+    "pre_fix_to_current_byte_equal": true
+  },
+  "read_only_findings": [
+    "Only exact Expand N/N-1/fresh constants and explanatory purpose/comments changed",
+    "Original source include and assertions on ResourceLimit/fresh success remain",
+    "Ordinary Store2255 was not modified",
+    "Old budget did not cover the newly repaired unused-definition alias obligations; current norm explicitly authorizes this measured repair cost"
+  ],
+  "before": {
+    "independent_command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/old-budget01/command.json",
+      "sha256": "c43e22d9421a252d8c697a2efcd5c9cb604dd51d3c9ed301a9fc2fece4016c06",
+      "source_commit": "2ada1872bdd10bfd392c5e9dac7e3fb72305f178",
+      "exit_code": 0,
+      "source_clean": true
+    },
+    "exact_N": 1731,
+    "N_minus_1": 1730,
+    "fresh_N": 1731,
+    "result": [
+      1,
+      0
+    ]
+  },
+  "after": {
+    "independent_command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/old-budget02/command.json",
+      "sha256": "69b774e8826f2e5e2e00d57ea91247c1488e474a1ccef87b3e3c1508f7dd2f07",
+      "source_commit": "4511b0e72593277e13c2aca3d85c3ac3ac214d14",
+      "exit_code": 0,
+      "source_clean": true
+    },
+    "exact_N": 1938,
+    "N_minus_1": 1937,
+    "fresh_N": 1938,
+    "result": [
+      1,
+      0
+    ]
+  },
+  "separate_types_measurement": {
+    "independent_command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/types-budget01/command.json",
+      "sha256": "00b0ff3bcd3e53dde2fd8a26b53b58791105a953b1974c8963b4ded13c96c3ba",
+      "source_commit": "a2c072323b5f03407866accdf3c79cce6192f5f8",
+      "exit_code": 0,
+      "source_clean": true
+    },
+    "old_state_current_N": 5293,
+    "ordinary_N": 88,
+    "replacement_N": 4498,
+    "historical_old_state_N": 2642,
+    "historical_attribution": "Author baseline, not a new independent baseline execution",
+    "checks": "Each current value independently executed as N / N-1 ResourceLimit / fresh N; not conflated with Expand"
+  },
+  "verdict": "Pass for this exact migration; not final 205 acceptance"
+}
