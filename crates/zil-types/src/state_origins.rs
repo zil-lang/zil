@@ -1744,6 +1744,53 @@ impl Walk<'_, '_> {
             source.expect("one or two State fields"),
         )])
     }
+    fn legacy_state_source(
+        &mut self,
+        pattern: &Type,
+        argument: &Shape,
+        bound: &CoreCallableParameter,
+        span: Span,
+    ) -> R<Shape> {
+        // The older header puts its bound at the owning Package parameter.
+        // Only that Package's direct F fields substitute F in the result;
+        // substituting the whole argument would nest a Package inside each F.
+        let Type::Package { fields, .. } = pattern else {
+            unreachable!("legacy State parameter shape")
+        };
+        let Shape::Package(actual) = argument else {
+            return Err(unsupported(
+                span,
+                "legacy State argument has no complete source shape",
+            ));
+        };
+        self.state
+            .snapshot(fields.len().saturating_add(actual.len()), span)?;
+        if fields.len() != actual.len() {
+            return Err(unsupported(span, "legacy State source field count differs"));
+        }
+        let mut source = None;
+        for ((name, ty), (actual_name, field)) in fields.iter().zip(actual) {
+            self.state.snapshot(
+                name.len()
+                    .saturating_add(actual_name.len())
+                    .saturating_add(bound.generic_name.len())
+                    .saturating_add(1),
+                span,
+            )?;
+            if name != actual_name {
+                return Err(unsupported(span, "legacy State source field names differ"));
+            }
+            if matches!(ty, Type::Named(name) if name == &bound.generic_name) {
+                self.require(field, bound.kind, span)?;
+                if let Some(previous) = &source {
+                    self.same_origin(previous, field, span)?;
+                } else {
+                    source = Some(self.copy(field, span)?);
+                }
+            }
+        }
+        source.ok_or_else(|| unsupported(span, "legacy State has no callable source field"))
+    }
     fn infer_value_shape(
         &mut self,
         pattern: &Type,
@@ -1951,6 +1998,7 @@ impl Walk<'_, '_> {
                             let argument = shapes.get(bound.index as usize).ok_or_else(|| {
                                 error("E-CALL-ARITY", span, "State source argument count differs")
                             })?;
+                            let legacy_source;
                             let source = if let Some(state) = &signature.state_parameter {
                                 let binding = state
                                     .bindings
@@ -1962,6 +2010,12 @@ impl Walk<'_, '_> {
                                 argument.field(binding.fields[0]).ok_or_else(|| {
                                     unsupported(span, "State field declaration source was erased")
                                 })?
+                            } else if let Some(pattern @ Type::Package { .. }) =
+                                signature.parameters.get(bound.index as usize)
+                            {
+                                legacy_source =
+                                    self.legacy_state_source(pattern, argument, bound, span)?;
+                                &legacy_source
                             } else {
                                 argument
                             };
