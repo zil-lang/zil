@@ -300,6 +300,7 @@ impl Scan<'_> {
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. }
             | CoreExprKind::IntegerConvert { value: operand, .. }
+            | CoreExprKind::TypeApply { callee: operand, .. }
             | CoreExprKind::CompileTime(operand) => self.expr(state, operand, depth + 1)?,
             CoreExprKind::Try(operand) => {
                 self.expr(state, operand, depth + 1)?;

@@ -231,6 +231,7 @@ impl Rewriter<'_> {
             CoreExprKind::Member { member, .. } if member == FIELD => {}
             CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::TypeApply { callee: value, .. }
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
             | CoreExprKind::Unary { operand: value, .. } => self.expr(value, shadow, depth + 1)?,
@@ -471,6 +472,7 @@ impl BindingScan {
         match &e.kind {
             CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::TypeApply { callee: value, .. }
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
             | CoreExprKind::Unary { operand: value, .. } => self.expr(value, d + 1)?,
