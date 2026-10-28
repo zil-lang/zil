@@ -182,6 +182,15 @@ fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
 }
 
 fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
+    if matches!(ty, Type::Address { inner, .. }
+        if super::resources::product::nested(inner))
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "ordinary Package Product does not grant a borrowed Package boundary",
+            Some(span),
+        )]);
+    }
     if let Type::ErrorUnion { error, result } = ty {
         if matches!(result.as_ref(), Type::Managed(_)) {
             scalar(error, span)?;
@@ -347,6 +356,13 @@ pub(super) fn preflight(
                     pending.push((element, depth + 1, store_element, None));
                 }
                 Type::OwnedStore { element } => {
+                    if super::resources::product::nested(element) {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "ordinary Package Product is not a Store element profile",
+                            None,
+                        )]);
+                    }
                     pending.push((element, depth + 1, store_element.or(Some(element)), None));
                 }
                 Type::Tuple(fields) => {
