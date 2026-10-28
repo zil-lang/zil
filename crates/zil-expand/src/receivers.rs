@@ -157,6 +157,7 @@ impl Expander<'_> {
         self.functions.push(CoreFunction {
             callable_return,
             type_parameters,
+            state_parameters: Vec::new(),
             callable_parameters,
             result_mode,
             foreign: None,

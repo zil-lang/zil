@@ -148,6 +148,12 @@ impl<'a> SourceProgramContext<'a> {
 }
 
 fn ordinary_template_shape(function: &CoreFunction) -> CompileResult<()> {
+    if !function.state_parameters.is_empty() {
+        return Err(unsupported(
+            function.span,
+            "independent State metadata awaits bounded CT normalization",
+        ));
+    }
     if function.type_parameters.is_empty() {
         return Ok(());
     }
@@ -359,6 +365,7 @@ fn evaluate_with_context(
         walker.scopes.push(scope);
         functions.push(CoreFunction {
             callable_return: f.callable_return.clone(),
+            state_parameters: f.state_parameters.clone(),
             type_parameters: f.type_parameters.clone(),
             callable_parameters: f.callable_parameters.clone(),
             result_mode: f.result_mode,
@@ -1802,6 +1809,7 @@ mod tests {
             unsupported: vec![],
             functions: vec![CoreFunction {
                 callable_return: None,
+                state_parameters: Vec::new(),
                 type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,

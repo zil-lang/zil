@@ -78,6 +78,13 @@ impl<'a> Budget<'a> {
 /// Reserve the complete retained template before a new deep snapshot. This
 /// reuses the borrowed input walk, so nested statements/types and text all count.
 pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> R<(usize, bool)> {
+    // Public registration does not admit execution before Types implements it.
+    if !function.state_parameters.is_empty() {
+        return Err(unsupported(
+            function.span,
+            "independent State bindings await Types admission",
+        ));
+    }
     let mut budget = Budget::new(limits);
     budget.work(
         function
@@ -387,6 +394,13 @@ fn headers(
     validate_module_metadata(core, budget)?;
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
+        // Public registration does not admit execution before Types implements it.
+        if !function.state_parameters.is_empty() {
+            return Err(unsupported(
+                function.span,
+                "independent State bindings await Types admission",
+            ));
+        }
         if !function.type_parameters.is_empty() {
             budget.work(function.type_parameters.len(), function.span)?;
             store_templates::validate_header(function)?;
