@@ -95,7 +95,10 @@ impl Engine<'_> {
             &available,
             &variables,
             &mut self.budget,
-            self.callable_name.as_deref(),
+            callable::StoreCallbacks::from_names(
+                self.callable_name.as_deref(),
+                self.callable_pair.as_ref(),
+            ),
         )?;
         // Charge each actual comparison, rather than assuming an ordered
         // container's internal search cost. This list exists only on the new
