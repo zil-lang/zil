@@ -1,0 +1,17 @@
+{
+  "status": "Pass",
+  "archive_filename": "202-review-by197-evidence.zip",
+  "archive_path": "/workspace/scratch/39be3faa4442/deliverables/202-review-by197-evidence.zip",
+  "bytes": 18083149,
+  "sha256": "b29442b742d26391d2c0c722f802d74502f124642587b732d865011a3c6f827f",
+  "payload_files": 4162,
+  "manifest_sha256": "22e95cbe6867facd7ace02eddcd7ccac464dbad6ba7b3bbe72294c1f22b8d007",
+  "uncompressed_payload_bytes": 474603440,
+  "excluded_execution_products": 152,
+  "excluded_execution_product_bytes": 3050936,
+  "verification": "ZIP CRC plus every included entry length and SHA256 verified after writing",
+  "execution_artifacts_included": false,
+  "raw_wire_included": true,
+  "original_evidence_removed": false,
+  "history_runs": 22
+}
