@@ -1,0 +1,34 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "-p",
+    "zil-analyze",
+    "-p",
+    "zil-verify",
+    "-p",
+    "zil-driver",
+    "--all-targets",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/review179-by178",
+  "source_commit": "1b7ecf7813e49ed12e38edc65279045f405d0506",
+  "dirty": "",
+  "spec_sha256": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review179-by178",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/runs178/review179-by178/final-attacks/cases"
+  },
+  "exit_code": 0,
+  "elapsed_seconds": 9.990631580352783,
+  "status": "Pass"
+}
