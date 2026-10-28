@@ -1280,7 +1280,17 @@ fn helper_resource_result_is_not_silently_treated_as_a_copy_result() {
         },
     ));
     f.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
-    raw.reject("concrete callback helper results must be finite Copy");
+    for result in raw.both() {
+        let errors = result.unwrap_err();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert_eq!(errors[0].phase, Phase::Verify);
+        assert_eq!(errors[0].category, zil_base::ResultCategory::Unsupported);
+        assert_eq!(errors[0].code, "E-UNSUPPORTED");
+        assert_eq!(
+            errors[0].message,
+            "concrete callback helper results require finite Copy or a borrowed environment lending result"
+        );
+    }
 }
 #[test]
 fn fnmut_address_capture_is_consumed_or_ended_under_fnonce_bound() {
