@@ -605,6 +605,12 @@ fn a_nonreturning_cycle_keeps_its_reachable_call_prefix() {
             instruction.kind = InstructionKind::Constant(Constant::I32(0));
         }
     }
+    // Unreachable scope exits are not legal raw IR either. The disconnected
+    // block keeps only its typed SSA definitions and unreachable Return;
+    // removing its obsolete cleanup markers grants no reachable exit.
+    function.blocks[else_block.0 as usize]
+        .instructions
+        .retain(|instruction| instruction.result.is_some());
     let CallableTraces::Flow(graph) = &mut function.callable_contract.as_mut().unwrap().traces
     else {
         unreachable!()
