@@ -10,6 +10,7 @@ fn main() -> i32 {
     var value = 65
     var callback = factory.make()
     let first = helpers.append(&mut callback, &mut value)
+    if first < 0 { return 1 }
     if first != 1 { return 8 }
     helpers.emit(value - 1)
     let current = state.make(callback, value)
