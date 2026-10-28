@@ -7,7 +7,8 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 use zil_base::{
-    FileId, Limits, ModuleId, NodeId, Phase, ResultCategory, SourceUnit, Span, TargetProfile,
+    Diagnostic, FileId, Limits, ModuleId, NodeId, Phase, ResultCategory, SourceUnit, Span,
+    TargetProfile,
 };
 use zil_driver::{CompileOptions, CompileReport, Optimization, Stage, compile_source};
 use zil_ir::*;
@@ -1017,5 +1018,141 @@ fn main()->i32{{
             &changed,
             &candidate,
         );
+    }
+}
+
+fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize {
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    run(high).unwrap();
+    while low + 1 < high {
+        let n = low + (high - low) / 2;
+        match run(n) {
+            Ok(()) => high = n,
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit),
+                    "{errors:#?}"
+                );
+                low = n;
+            }
+        }
+    }
+    run(high).unwrap();
+    let errors = run(high - 1).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::ResourceLimit)
+    );
+    run(high).unwrap();
+    high
+}
+
+#[test]
+fn mixed_state_alias_work_has_exact_phase_limits_and_fresh_outputs() {
+    let source = r#"
+package State<F>{manages bytes:ByteBuffer;a:F;b:F}
+fn make(value:i32)->impl Fn()->i32{return move()=>value}
+fn pack<F:Fn()->i32>(a:F,b:F)->State<F>{return State::<F>{bytes:bytes_new(),a:a,b:b}}
+fn revise<F:Fn()->i32>(replacement:F,flag:bool,state:State<F>)->State<F>{
+    var next=state;let view=&next.a;view();if flag{next.a=replacement}return next
+}
+fn main()->i32{let state=revise(make(3),true,pack(make(1),make(2)));return state.a()+state.b()-5}
+"#;
+    let (typed, candidate) = typed_control("phase-budget-mixed-alias", source);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent205.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let wire =
+        zil_ir::wire::encode_module_candidate(&typed, &candidate, &Limits::default()).unwrap();
+    let limits = |n| Limits {
+        max_analysis_steps: n,
+        ..Limits::default()
+    };
+    let expand = boundary(|n| {
+        zil_expand::expand_with_map_limits(&unit, &syntax, &limits(n))
+            .map(|actual| assert_eq!(actual.core, core))
+    });
+    let types = boundary(|n| {
+        zil_types::check(&core, &typed.target, &limits(n)).map(|actual| assert_eq!(actual, typed))
+    });
+    let analyze = boundary(|n| {
+        zil_analyze::analyze(&typed, &limits(n)).map(|actual| assert_eq!(actual, candidate))
+    });
+    let verify = boundary(|n| {
+        zil_verify::verify_module(typed.clone(), candidate.clone(), &typed.target, &limits(n))
+            .map(|_| ())
+    });
+    let wire_verify =
+        boundary(|n| zil_verify::verify_module_bytes(&wire, &typed.target, &limits(n)).map(|_| ()));
+    let case = Case::new("mixed-alias-work-boundaries");
+    case.write("source.zil", source);
+    case.write("boundaries.json",format!("{{\"expand\":{expand},\"types\":{types},\"analyze\":{analyze},\"verify\":{verify},\"verify_wire\":{wire_verify},\"method\":\"exact N, N-1 ResourceLimit, fresh N; Core/Typed/Candidate unchanged\"}}\n"));
+}
+
+#[test]
+fn raw_mixed_header_trees_are_bounded_before_signature_matching() {
+    let original = expanded("raw-header-work-control", ORIGINAL);
+    let target = TargetProfile::host_llvm();
+    let index = original
+        .functions
+        .iter()
+        .position(|f| f.name == "replace")
+        .unwrap();
+    types_pair("raw-header-work-control", &original, None);
+    for label in [
+        "matching-long-names",
+        "state-type-tree",
+        "replacement-type-tree",
+    ] {
+        let mut core = original.clone();
+        let f = &mut core.functions[index];
+        let limits = if label == "matching-long-names" {
+            let name = "f".repeat(8192);
+            f.callable_parameters[0].generic_name = name.clone();
+            f.state_parameters[0].bindings[0].generic_name = name.clone();
+            f.parameters[1].ty = Type::Named(name.clone());
+            let Type::Package { fields, .. } = &mut f.parameters[0].ty else {
+                unreachable!()
+            };
+            fields[1].1 = Type::Named(name.clone());
+            fields[2].1 = Type::Named(name);
+            f.return_type = f.parameters[0].ty.clone();
+            Limits {
+                max_analysis_steps: 1024,
+                ..Limits::default()
+            }
+        } else {
+            let mut nested = Type::I32;
+            for _ in 0..18 {
+                nested = Type::Array {
+                    element: Box::new(nested),
+                    length: 1,
+                };
+            }
+            if label == "state-type-tree" {
+                f.state_parameters[0].bindings[0].result = nested;
+            } else {
+                f.callable_parameters[0].result = nested;
+            }
+            Limits {
+                max_call_depth: 8,
+                ..Limits::default()
+            }
+        };
+        let a = zil_types::check(&core, &target, &limits);
+        let b =
+            zil_types::check_program(&program(core.clone()), &target, &limits).map(|p| p.module);
+        let case = Case::new(label);
+        case.write("core.txt", format!("{core:#?}"));
+        case.write("limits.txt", format!("{limits:#?}"));
+        case.write("single.txt", format!("{a:#?}"));
+        case.write("program.txt", format!("{b:#?}"));
+        for result in [a, b] {
+            let errors = result.unwrap_err();
+            assert!(errors.iter().any(|d|d.phase==Phase::Types&&d.category==ResultCategory::ResourceLimit),"{label}: {errors:#?}");
+        }
     }
 }
