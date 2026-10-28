@@ -336,3 +336,39 @@ fn extract<F: Fn() -> i32, G: FnOnce() -> i32>(state: State<i32,F,G>) -> Item<F>
     }
     assert_eq!(families[0], families[1]);
 }
+
+#[test]
+fn an_owned_dual_state_can_remain_complete_on_an_error_union_side() {
+    let original = include_str!("impl203_fixtures/05_independent_error_side.zil");
+    let core = expand(original);
+    expand(&original.replace("    return 0\n}", "    return -1\n}"));
+    let function = core
+        .functions
+        .iter()
+        .find(|f| !f.state_parameters.is_empty())
+        .unwrap();
+    assert_eq!(function.state_parameters[0].bindings.len(), 2);
+    assert!(matches!(function.return_type, Type::ErrorUnion { .. }));
+    for changed in [
+        original.replace(
+            "error_route::<State<T,F,G>>(full)",
+            "error_route::<State<T,G,F>>(full)",
+        ),
+        original.replace(
+            "let routed:State<T,F,G>!void",
+            "let routed:void!State<T,F,G>",
+        ),
+        original.replace("->State<T,F,G>!i32", "->(State<T,F,G>, i32)"),
+        original.replace("    return 0\n}", "    return true\n}"),
+        original.replace("    return 0\n}", "    return i64(0)\n}"),
+    ] {
+        let errors = rejection(&changed);
+        assert!(
+            errors.iter().any(|d| matches!(
+                d.category,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            )),
+            "{errors:?}"
+        );
+    }
+}
