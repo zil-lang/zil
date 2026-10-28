@@ -306,16 +306,20 @@ fn fields_require_direct_finite_shape_and_complete_resources() {
             element: Box::new(element(1)),
         })),
     ] {
+        // 206 checks the new ordinary Product/Store parent boundary before
+        // callback-element qualification. Preserve the exact old malformed
+        // Nested+Closure input; the other hidden-shape neighbors stay unchanged.
+        let message = if matches!(&hidden, Type::Package { .. }) {
+            "ordinary Package Product is not a Store element profile"
+        } else {
+            "one or two direct self-contained callbacks"
+        };
         let mut bad = element(0);
         let Type::Package { fields, .. } = &mut bad else {
             unreachable!()
         };
         fields.push(("hidden".into(), hidden));
-        rejected(
-            &fixture(bad, 1),
-            ResultCategory::Unsupported,
-            "one or two direct self-contained callbacks",
-        );
+        rejected(&fixture(bad, 1), ResultCategory::Unsupported, message);
     }
 }
 
