@@ -41,7 +41,7 @@ def main():
     selected = ["impl180_store_mut"]
     if args.adjacent:
         selected += ["impl175_store_views", "review175_by176", "impl174_store_fields"]
-    command = ["cargo", "test", "--offline", "--locked", "-j2", "-p", "zil-driver"]
+    command = ["cargo", "test", "--offline", "--locked", "--no-fail-fast", "-j2", "-p", "zil-driver"]
     for test in selected:
         command += ["--test", test]
     command += ["--", "--test-threads=2"]

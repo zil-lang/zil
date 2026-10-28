@@ -29,3 +29,7 @@ O0/O2 执行实际生成的原生程序，核对输出、退出、析构和 chec
 - baseline：`8c4ed992138fc103c0fbaf6318e2e34d261bda81`
 - design SHA256：`fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2`
 - normative SHA256：`1cf7aadb8800c31436f158ee3cdf78bcea330ed2bfafc29112b8d11211655a6e`
+
+## 原断言迁移
+
+180 开放明确的同步 `&mut P` 参数，因此 175 测试中的原输入 `fn bad(x:&mut P){} fn main(){}` 从 blanket Unsupported 迁移为 Success，原源码保留；同时新增共享 `store_at` 结果不能传给该独占参数的 SafeReject 检查。其余 175 返回、直接捕获、资源字段、共享写与预算断言保持。首次冻结回归因旧期待失败的原始结果保留，不追改为通过。
