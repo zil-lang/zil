@@ -1,0 +1,42 @@
+{
+  "reviewer": "/root/review205_finish",
+  "status": "NotRun",
+  "contract_commit": "bfb7923aa58e67170885f7aed6de42710cc7b46f",
+  "spec_hash": "f26a0d8701b9a00a38286f486b7bcae1b96cf1d9254add7c48d395bb3e6ccbc3",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "production_read_for_oracles": "Only frozen bfb7923 baseline and existing earlier test helpers/contracts; no 206 implementation used to derive expectations",
+  "source_fixtures": {
+    "count": 39,
+    "counts": {
+      "accept": 10,
+      "origin_reject": 7,
+      "affine_reject": 4,
+      "borrow_reject": 1,
+      "qualification_reject": 9,
+      "nominal_reject": 1,
+      "native": 6,
+      "raw_control": 1
+    },
+    "manifest": "crates/zil-driver/tests/impl206_independent_fixtures/MANIFEST.json",
+    "manifest_sha256": "1950ad897c051d4cf22d7e7e8c363b76e714b1323cae12d9759ab503a9b4de1f"
+  },
+  "independent_test_file": {
+    "path": "crates/zil-driver/tests/impl206_independent.rs",
+    "sha256": "a90195358310ff16489988d1a066938ce5e81d6d7d88b8be55c6bd2be29eb85d"
+  },
+  "oracles": [
+    "Embedded complete child is one parent debt; partial child must be moved to an independent local before partial operations",
+    "Only actual selected leaf Created can satisfy create; parent/child wrap, whole local move, unknown ordinary Package calls do not invent freshness",
+    "Two identical child types have different actual value origins; mixed CFG and zero-iteration Incoming survives",
+    "Copy Enum/ErrorUnion/FunctionPointer/ForeignCallback remain valid companions; Store/capture/array/Sum/borrowed/new inner combinations stay closed",
+    "Exact recursive declaration order and reverse local initialization order determine the six native traces before execution",
+    "Raw attacks use source-derived Type/SSA identities and candidate fingerprint rebinding; Verify raw and Wire checked separately; no unsafe native negatives",
+    "New budgets measured at N/N-1/fresh; no fixed guesses or default increases; legacy exact controls remain separate"
+  ],
+  "source_correction_before_any_language_execution": "Initial reconstruction of historic120 omitted LF; identity assertion stopped before fixture write. Exact original baseline source read for final fixture. Scratch BUILD_FAILURE01 preserves preparation failure.",
+  "author_candidate_awaited": "Parent provided b61ec116; integration happens after this frozen fixture commit",
+  "cargo_or_language_execution": "NotRun",
+  "syntax_validation": "Only rustfmt on independent Rust test file; source ZIL intentionally remains NotRun until integration",
+  "production_writes": false,
+  "parent_formal_workspace": "NotRun by reviewer; root-owned"
+}

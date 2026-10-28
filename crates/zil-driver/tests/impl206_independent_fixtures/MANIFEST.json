@@ -1,0 +1,422 @@
+{
+  "task": "206",
+  "reviewer": "/root/review205_finish",
+  "contract_commit": "bfb7923aa58e67170885f7aed6de42710cc7b46f",
+  "spec_hash": "f26a0d8701b9a00a38286f486b7bcae1b96cf1d9254add7c48d395bb3e6ccbc3",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "oracle_basis": "Design §8.1.1 and interfaces.package_product206, legacy field-origin and cleanup rules; no 206 implementation or output was used to choose expectations",
+  "status": "NotRun",
+  "fixtures": [
+    {
+      "name": "00_original120",
+      "file": "00_original120.zil",
+      "bytes": 120,
+      "sha256": "8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba",
+      "kind": "accept",
+      "contract_reason": "Exact original 120-byte nested ordinary Product input",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "01_incoming_child_only",
+      "file": "01_incoming_child_only.zil",
+      "bytes": 354,
+      "sha256": "51a6bc01ef937fc40e95a6a713965f3e2354a4fea03ce7c9fe627b2d3aa2851f",
+      "kind": "accept",
+      "contract_reason": "Pure Incoming complete children remain valid ordinary values through child-only wrappers and ordinary call",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "02_incoming_forged_create",
+      "file": "02_incoming_forged_create.zil",
+      "bytes": 356,
+      "sha256": "278a0c66e20cb0921c48c7564cca47ffa4044acc2f10fbf2aa7cd286d6454a9f",
+      "kind": "origin_reject",
+      "contract_reason": "Pure Incoming parameter leaves cannot satisfy create",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "03_twins_left_created",
+      "file": "03_twins_left_created.zil",
+      "bytes": 477,
+      "sha256": "b999331e7bf4fb1ea823a122690d17b9ac0eef0e2fe29747aee0f01dcf52c29f",
+      "kind": "accept",
+      "contract_reason": "Same nominal Leaf layout in two actual child instances: left a Incoming/b Created; right a Created/b Incoming; complete local transfers preserve each leaf",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "04_twins_right_created",
+      "file": "04_twins_right_created.zil",
+      "bytes": 478,
+      "sha256": "2d75aff45e02a893713d483060eacc1a102e19b1d1d1a2f2b47ec7eb34a0c531",
+      "kind": "accept",
+      "contract_reason": "Same nominal Leaf layout in two actual child instances: left a Incoming/b Created; right a Created/b Incoming; complete local transfers preserve each leaf",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "05_twins_left_incoming",
+      "file": "05_twins_left_incoming.zil",
+      "bytes": 477,
+      "sha256": "e1ded57eae567ae32a471837a14d918bf243b175cdd89966652af0bf6c6aa331",
+      "kind": "origin_reject",
+      "contract_reason": "Same nominal Leaf layout in two actual child instances: left a Incoming/b Created; right a Created/b Incoming; complete local transfers preserve each leaf",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "06_twins_right_incoming",
+      "file": "06_twins_right_incoming.zil",
+      "bytes": 478,
+      "sha256": "45b46ab89b7c3d4eb79318987cbfda6d4eeca17016ae18cf3bd804a9d7a3a7dc",
+      "kind": "origin_reject",
+      "contract_reason": "Same nominal Leaf layout in two actual child instances: left a Incoming/b Created; right a Created/b Incoming; complete local transfers preserve each leaf",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "07_refill_actual_created",
+      "file": "07_refill_actual_created.zil",
+      "bytes": 366,
+      "sha256": "6faddfc2f7988c59700f75db5c4ab977273807618a7c14be06edac77bd75d587",
+      "kind": "accept",
+      "contract_reason": "Taking complete child, changing its own direct field and embedding it preserves actual new a Created",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "08_refill_other_stays_incoming",
+      "file": "08_refill_other_stays_incoming.zil",
+      "bytes": 366,
+      "sha256": "4bd8c46e50caf101b5c4d5b448f0614c58b07abc04b2d7950ecb42c1129d282b",
+      "kind": "origin_reject",
+      "contract_reason": "Refilling a does not create freshness for untouched b",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "09_join_created",
+      "file": "09_join_created.zil",
+      "bytes": 373,
+      "sha256": "ecbed577aceb336b1d2d06ce894461486c7a359e262fdcae039dab7486090782",
+      "kind": "accept",
+      "contract_reason": "Selected a is Created on every incoming CFG edge",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "10_join_mixed",
+      "file": "10_join_mixed.zil",
+      "bytes": 373,
+      "sha256": "d64777d8c751e58ce8288e9a3c62834008f3ba07610b829ee28d4f5ac14d2348",
+      "kind": "origin_reject",
+      "contract_reason": "Join must retain possible Incoming for selected a",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "11_unknown_call_not_create",
+      "file": "11_unknown_call_not_create.zil",
+      "bytes": 301,
+      "sha256": "1c2f2fc6b5c69f5e4dbfab9ba66d08172c379b6855597bf240e2d445a3d9addd",
+      "kind": "origin_reject",
+      "contract_reason": "Ordinary complete Package call has no leaf create contract, even when body constructs new resources",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "12_unknown_call_give",
+      "file": "12_unknown_call_give.zil",
+      "bytes": 299,
+      "sha256": "d855aa731fdb93377d4803b18e6a1bf2533a6f3102dc9452445c5d0565567b4c",
+      "kind": "accept",
+      "contract_reason": "Unknown ordinary call is valid if actual leaf is returned under give",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "13_managed_create_contract",
+      "file": "13_managed_create_contract.zil",
+      "bytes": 318,
+      "sha256": "209df2172ca7cf963c65e229b5b6dd7371e207336f13100f6fb24066922e1417",
+      "kind": "accept",
+      "contract_reason": "Only the existing actual Managed create contract supplies the fresh leaf",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "14_zero_iteration_incoming",
+      "file": "14_zero_iteration_incoming.zil",
+      "bytes": 291,
+      "sha256": "d345c0e0b96af9348cb137f2120e3b3d9c42d08a0800b7253294607bf83e5751",
+      "kind": "origin_reject",
+      "contract_reason": "Zero-iteration path leaves selected actual input leaf Incoming",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "15_partial_child_embed",
+      "file": "15_partial_child_embed.zil",
+      "bytes": 178,
+      "sha256": "66649e3c57cd94c9123ebd22314929ef5ad7b07bc4b8eff8fab4c3c942b2cd9e",
+      "kind": "affine_reject",
+      "contract_reason": "An independent child may be partial but must be complete when embedded",
+      "execution": "NotRun: frozen before merging 206 implementation",
+      "code": "E-ANALYZE-IR",
+      "message": "whole aggregate move requires every owned element or field live"
+    },
+    {
+      "name": "16_partial_parent_return",
+      "file": "16_partial_parent_return.zil",
+      "bytes": 154,
+      "sha256": "bfeb294b0822b9d98c4edc7368d9f064d0bb40fbde2044edb711b9bc385c8fba",
+      "kind": "affine_reject",
+      "contract_reason": "A missing child debt forbids complete parent return even in unused function",
+      "execution": "NotRun: frozen before merging 206 implementation",
+      "code": "E-ANALYZE-IR",
+      "message": "whole aggregate move requires every owned element or field live"
+    },
+    {
+      "name": "17_child_take_twice",
+      "file": "17_child_take_twice.zil",
+      "bytes": 182,
+      "sha256": "c14382ac68e1e59b92ed43629139211d1135abc71d1198a15e731b7810578d7f",
+      "kind": "affine_reject",
+      "contract_reason": "Embedded complete child is a single affine parent debt",
+      "execution": "NotRun: frozen before merging 206 implementation",
+      "code": "E-ANALYZE-IR",
+      "message": "package field take requires that field live"
+    },
+    {
+      "name": "18_child_value_reused_after_refill",
+      "file": "18_child_value_reused_after_refill.zil",
+      "bytes": 194,
+      "sha256": "b5785438fd545f56d34c5956561f037dde175fcb4b6159ac2be4491f2a737855",
+      "kind": "affine_reject",
+      "contract_reason": "Embedding the child consumes its actual value once",
+      "execution": "NotRun: frozen before merging 206 implementation",
+      "code": "E-UNINITIALIZED",
+      "message": "is not initialized on every incoming path"
+    },
+    {
+      "name": "19_desc_last_use",
+      "file": "19_desc_last_use.zil",
+      "bytes": 250,
+      "sha256": "96420f01ab18e384829010d60cb867e13f5d9abebcd4138d26fac145acb1eedd",
+      "kind": "accept",
+      "contract_reason": "Old direct Managed Desc is used before actual replacement/whole child transfer",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "20_desc_does_not_revive",
+      "file": "20_desc_does_not_revive.zil",
+      "bytes": 234,
+      "sha256": "d60a0e725f04744d30ecb13dca120707517e8358bd672b51620c1b0ca7220132",
+      "kind": "borrow_reject",
+      "contract_reason": "Refill and re-embedding cannot revive a Desc of the removed actual resource",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "21_copy_companions",
+      "file": "21_copy_companions.zil",
+      "bytes": 569,
+      "sha256": "bc3a4949e7463934517d108b00b52134f792b467b6cd6756ac54692b0903ab35",
+      "kind": "accept",
+      "contract_reason": "Existing finite Copy Enum/ErrorUnion/FunctionPointer/ForeignCallback companions remain admissible",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "22_inner_store",
+      "file": "22_inner_store.zil",
+      "bytes": 166,
+      "sha256": "6bc1bfc5e57472dd0e5af6eed12e89b2980d7211ae7727476c664ef5623b4f7a",
+      "kind": "qualification_reject",
+      "contract_reason": "206 ordinary Product admission does not widen old owning/capture/borrow qualification",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "23_store_parent",
+      "file": "23_store_parent.zil",
+      "bytes": 124,
+      "sha256": "d2f2b76b4cd2f6580ecd73347361ec288687fd4649e901e714c138959b0b6874",
+      "kind": "qualification_reject",
+      "contract_reason": "206 ordinary Product admission does not widen old owning/capture/borrow qualification",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "24_array_parent",
+      "file": "24_array_parent.zil",
+      "bytes": 121,
+      "sha256": "d544b18a581c3d1e16c577f7840b258b434b8f0d0cf14351131edeccee00d314",
+      "kind": "qualification_reject",
+      "contract_reason": "206 ordinary Product admission does not widen old owning/capture/borrow qualification",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "25_sum_parent",
+      "file": "25_sum_parent.zil",
+      "bytes": 131,
+      "sha256": "7bd766dcbd96741f240a3f14565bd66ddd6c066194b72f7014e8320642358752",
+      "kind": "qualification_reject",
+      "contract_reason": "206 ordinary Product admission does not widen old owning/capture/borrow qualification",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "26_borrowed_companion",
+      "file": "26_borrowed_companion.zil",
+      "bytes": 133,
+      "sha256": "33656e7a1b920e3e0a6bb00f4a582352a932ba0f459c47d19edd234db79fdee6",
+      "kind": "qualification_reject",
+      "contract_reason": "206 ordinary Product admission does not widen old owning/capture/borrow qualification",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "27_inner_owning_array",
+      "file": "27_inner_owning_array.zil",
+      "bytes": 138,
+      "sha256": "c4eb8b5183ecdd006cdba633d120a40e9f9441f7847b80778ba3466727cefe9f",
+      "kind": "qualification_reject",
+      "contract_reason": "206 ordinary Product admission does not widen old owning/capture/borrow qualification",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "28_inner_owning_sum",
+      "file": "28_inner_owning_sum.zil",
+      "bytes": 150,
+      "sha256": "f7c600588f73f285f6b560a13a21fdda09bf8cfbed0fc53a88ace37699d55bfd",
+      "kind": "qualification_reject",
+      "contract_reason": "206 ordinary Product admission does not widen old owning/capture/borrow qualification",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "29_product_capture",
+      "file": "29_product_capture.zil",
+      "bytes": 198,
+      "sha256": "4473856dcdba4c46b73b3ef08fbae6b91eca111e25007f99f56335af97e802f3",
+      "kind": "qualification_reject",
+      "contract_reason": "206 ordinary Product admission does not widen old owning/capture/borrow qualification",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "30_inner_concrete_closure",
+      "file": "30_inner_concrete_closure.zil",
+      "bytes": 284,
+      "sha256": "9a2ca31b7db3e010f612a090d782b2915b2886cdbf4ccbed505c9ed85ed2be3b",
+      "kind": "qualification_reject",
+      "contract_reason": "206 ordinary Product admission does not widen old owning/capture/borrow qualification",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "31_wrong_nominal_child",
+      "file": "31_wrong_nominal_child.zil",
+      "bytes": 203,
+      "sha256": "7c16cf18a67d2aa52189ced9b981cc727b0f6288bb673b3ba22ce4e8e3dd9da3",
+      "kind": "nominal_reject",
+      "contract_reason": "Identical physical field layout cannot substitute a different child nominal identity",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    },
+    {
+      "name": "32_recursive_drop",
+      "file": "32_recursive_drop.zil",
+      "bytes": 547,
+      "sha256": "b4a6ceecebc3a552ee66ebc65606c8a68e7e570b75af28ff3acb07ca4eafff87",
+      "kind": "native",
+      "contract_reason": "Root.branch recursively drops left A/B then right C/D, then Root.tail Z",
+      "execution": "NotRun: frozen before merging 206 implementation",
+      "stdout": "ABCDZ",
+      "stderr": "",
+      "exit": 0,
+      "optimizations": [
+        "O0",
+        "O2"
+      ]
+    },
+    {
+      "name": "33_partial_refill",
+      "file": "33_partial_refill.zil",
+      "bytes": 648,
+      "sha256": "2b5e0e01c8b7d678178e4feb02d7956e5d659fb2b0d9f08f241b83e0ace60f31",
+      "kind": "native",
+      "contract_reason": "Most recently initialized old local drops A; final complete root drops E/B/C/D/Z",
+      "execution": "NotRun: frozen before merging 206 implementation",
+      "stdout": "AEBCDZ",
+      "stderr": "",
+      "exit": 0,
+      "optimizations": [
+        "O0",
+        "O2"
+      ]
+    },
+    {
+      "name": "34_replace_complete_child",
+      "file": "34_replace_complete_child.zil",
+      "bytes": 577,
+      "sha256": "61697c80231dad0f5b817a6b6c20cdbf643b68d597252063ed9b5c8b5465f654",
+      "kind": "native",
+      "contract_reason": "Prepared new child succeeds; old complete child A/B/C/D drops before final E/F/G/H/Z",
+      "execution": "NotRun: frozen before merging 206 implementation",
+      "stdout": "ABCDEFGHZ",
+      "stderr": "",
+      "exit": 0,
+      "optimizations": [
+        "O0",
+        "O2"
+      ]
+    },
+    {
+      "name": "35_failed_rhs_keeps_old",
+      "file": "35_failed_rhs_keeps_old.zil",
+      "bytes": 641,
+      "sha256": "d362d8d1ffc2331753dc1d17d3f9df89bebfed71305f0e090e0d28b29cf5eae3",
+      "kind": "native",
+      "contract_reason": "Only acquired RHS left E/F is cleaned on failure; old complete branch A/B/C/D remains before Z",
+      "execution": "NotRun: frozen before merging 206 implementation",
+      "stdout": "EFABCDZ",
+      "stderr": "",
+      "exit": 1,
+      "optimizations": [
+        "O0",
+        "O2"
+      ]
+    },
+    {
+      "name": "36_failed_rhs_no_rollback",
+      "file": "36_failed_rhs_no_rollback.zil",
+      "bytes": 663,
+      "sha256": "cd6ee1c145f7e9d57437cd9c72319abaac1927dad760377628f1386165eb121c",
+      "kind": "native",
+      "contract_reason": "Explicitly transferred prior.left A/B is RHS debt; remaining prior.right C/D and root.tail Z clean once, no rollback of prior whole take",
+      "execution": "NotRun: frozen before merging 206 implementation",
+      "stdout": "ABCDZ",
+      "stderr": "",
+      "exit": 1,
+      "optimizations": [
+        "O0",
+        "O2"
+      ]
+    },
+    {
+      "name": "37_layout_actual_values",
+      "file": "37_layout_actual_values.zil",
+      "bytes": 682,
+      "sha256": "c5a6dea0f9c90e659c3575bc5671d4dce2452f4fe95f0ed5761a6a9cad954f7e",
+      "kind": "native",
+      "contract_reason": "Actual inline fields total389; newest right drops C/D, then left A/B, then remaining parent Z",
+      "execution": "NotRun: frozen before merging 206 implementation",
+      "stdout": "CDABZ",
+      "stderr": "",
+      "exit": 0,
+      "optimizations": [
+        "O0",
+        "O2"
+      ]
+    },
+    {
+      "name": "38_raw_metadata_control",
+      "file": "38_raw_metadata_control.zil",
+      "bytes": 235,
+      "sha256": "53c98ac40d915b06b183853ecc61161c7e9cac782e0f72a61e23fb460e86e33c",
+      "kind": "raw_control",
+      "contract_reason": "Complete legal source provides actual resource/child types; an unused additional local will be checked against valid baseline before metadata attacks",
+      "execution": "NotRun: frozen before merging 206 implementation"
+    }
+  ],
+  "native_scope": "Only six declared positive/controlled-error sources, O0/O2; unsafe source/raw negatives never native",
+  "later_raw_matrix": [
+    "same-type actual child retarget/swap must retain selected leaf Incoming",
+    "duplicate complete child SSA must reject independently",
+    "TakeLocal to Load owning child must reject",
+    "drop wrong sibling before overwrite must reject",
+    "ordinary call result give-to-create forgery must reject",
+    "unused malformed complete nested type and forbidden owning combinations must reject raw/Wire",
+    "exact N/N-1/fresh at all five existing stages, no guessed thresholds/default increase"
+  ]
+}
