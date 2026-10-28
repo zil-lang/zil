@@ -9,7 +9,8 @@ pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
     match *kind {
         InstructionKind::OwnedStoreReserve { store, .. }
         | InstructionKind::OwnedStorePush { store, .. }
-        | InstructionKind::OwnedStorePop { store } => Some((store, true)),
+        | InstructionKind::OwnedStorePop { store }
+        | InstructionKind::OwnedStoreBorrowMut { store, .. } => Some((store, true)),
         InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store }
         | InstructionKind::OwnedStoreBorrow { store, .. } => Some((store, false)),

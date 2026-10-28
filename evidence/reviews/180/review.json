@@ -1,0 +1,109 @@
+{
+  "task": "180",
+  "reviewer": "/root/design14_acceptance",
+  "implementation_author": "/root/restore177_inventory",
+  "implementation_commit": "74254d8da12004519ca342b1c0602a5a90831c44",
+  "review_test_commit": "d732974b3cbe2b83f97ae99fb12b889305e5942e",
+  "verdict": "Pass",
+  "scope": "Author slice: restricted exclusive Store element windows; not formal workspace or full-language acceptance.",
+  "spec_sha256": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "normative_hash": "1cf7aadb8800c31436f158ee3cdf78bcea330ed2bfafc29112b8d11211655a6e",
+  "rule_version": "ZIL-LANG-1.4",
+  "schema_version": 22,
+  "source_review": {
+    "files": [
+      "crates/zil-types/src/dynamic_store.rs",
+      "crates/zil-types/src/addresses.rs",
+      "crates/zil-types/src/aggregates.rs",
+      "crates/zil-types/src/closures.rs",
+      "crates/zil-types/src/inference.rs",
+      "crates/zil-types/src/lib.rs",
+      "crates/zil-analyze/src/budget.rs",
+      "crates/zil-analyze/src/dynamic_store.rs",
+      "crates/zil-analyze/src/holds.rs",
+      "crates/zil-verify/src/borrows.rs",
+      "crates/zil-verify/src/borrows/loans.rs",
+      "crates/zil-verify/src/borrows/roots.rs",
+      "crates/zil-verify/src/dynamic_store.rs",
+      "crates/zil-verify/src/closures.rs",
+      "crates/zil-verify/src/lib.rs",
+      "crates/zil-lower/src/lib.rs",
+      "crates/zil-backend-llvm/src/emit.rs",
+      "crates/zil-backend-llvm/src/emit/dynamic_store.rs"
+    ],
+    "findings": [],
+    "independent_production_changes": false,
+    "diff_from_implementation": [
+      "crates/zil-driver/tests/review180_by179.rs"
+    ],
+    "old175_assertion_migration": "Original synchronous &mut P source is retained and now admitted. Added shared-window to exclusive-helper rejection preserves nearest negative. Parent acknowledged and added write-set authorization in aba4ef7."
+  },
+  "executed": {
+    "independent_rebuild_and_author_adjacent_tests": {
+      "record": "runs/frozen01/summary.json",
+      "passed": 56,
+      "failed": 0,
+      "ignored": 0
+    },
+    "independent_new_attacks": {
+      "record": "runs/attacks02/command.json",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "source_cases": 7,
+      "raw_wire_mutations": 7,
+      "raw_wire_routes": 14
+    },
+    "implementation180_cases_in_independent_rerun": {
+      "test_groups": 19,
+      "native_observations": 36,
+      "expected_checked_traps": 6,
+      "raw_wire_mutations": 10,
+      "raw_wire_routes": 20
+    },
+    "failed_reviewer_first_run": {
+      "record": "runs/attacks01/command.json",
+      "passed": 3,
+      "failed": 2,
+      "ignored": 0,
+      "reason": "Reviewer expected Verify E-BORROW-CONFLICT for Store capture, but existing boundary is Types Unsupported; reviewer expected E-UNSUPPORTED for whole-Package ReadAddress but actual is Verify E-VERIFY-ADDRESS. Original failure retained, no production fix or acceptance change."
+    }
+  },
+  "checked_obligations": [
+    "Opcode88 checks a Desc<OwnedStore<actual Package>>, i64 index and mutable result independently; shared opcode/result cannot grant write authority.",
+    "LLVM checks unsigned actual index < current initialized len before loading data and forming element GEP. Negative, len and capacity-only indices trap in O0/O2.",
+    "Analyze and Verify independently include StoreBorrowMut in source propagation and write-effect discovery; loans include an actual unique loan.",
+    "Private roots track the actual Store; unknown indices do not prove disjointness. Retargeting a sibling field to the borrowed Store is rejected.",
+    "Unique Package addresses are affine; a Load/projection is only an access view. Raw duplicate transfer or two current-call unique arguments cannot create two permissions.",
+    "Read/write projections remain finite Copy-only. Whole Package, Managed projection, invalid field, early owner drop and forged Hold are rejected.",
+    "Synchronous helper reborrows preserve parent authority; current-call shared/unique aliases and structural effects on the same actual Store are rejected.",
+    "Direct Store/element capture and address return remain explicitly Unsupported. Locally captured Copy child addresses preserve the Store loan until last use.",
+    "Types/Analyze are candidate producers, not imported proof implementations for Verify; default limits and public schema are unchanged by180."
+  ],
+  "integration179": {
+    "review": "Read-only semantic and diff comparison, not a combined executable claim.",
+    "requirements": [
+      "Keep OwnedStoreBorrowMut in Analyze holds, Verify root reconstruction, and loan reconstruction when merging nearby179 field-root changes.",
+      "Use179 budgeted field_root(f,local,index,budget)? for field operations. Maintain whole-parent move/drop overlap.",
+      "Run integrated callback + store_at_mut + Copy sibling cases after both pieces merge."
+    ],
+    "combined_native": "NotRun"
+  },
+  "boundaries": [
+    "Linux x64 only in180 source; Win64 belongs to181.",
+    "Complete whole-element transfer, Managed-field writes, holes, retained element windows and general lending are not opened.",
+    "Mixed captured Store/Address contracts are not implemented by this slice.",
+    "No runtime borrow table, generation, GC, RC, Box or performance gate change."
+  ],
+  "rust_four_goals": {
+    "safety": "Limited source/raw/Wire/native obligations checked, not complete language safety.",
+    "runtime_memory": "In-place Copy updates and existing layout verified; no equivalent Rust performance comparison.",
+    "expression_maintenance": "Real four-module synchronous helper composition, no maintenance-cost comparison.",
+    "compile_cost": "No comparative timing; compiler-speed line remains independent.",
+    "net_product_breakthrough": "NotProven"
+  },
+  "formal_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing"
+}

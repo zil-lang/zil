@@ -52,6 +52,7 @@ pub(super) fn primitive(expression: &CoreExpr) -> Option<&str> {
             | "store_len"
             | "store_capacity"
             | "store_at"
+            | "store_at_mut"
     )
     .then_some(name)
 }
@@ -59,7 +60,7 @@ pub(super) fn primitive(expression: &CoreExpr) -> Option<&str> {
 /// Recognize a direct primitive result without cloning its Package type.
 pub(super) fn borrow_expression(expression: &CoreExpr) -> bool {
     matches!(&expression.kind, CoreExprKind::Call { callee, .. }
-        if primitive(callee) == Some("store_at"))
+        if matches!(primitive(callee), Some("store_at" | "store_at_mut")))
 }
 
 pub(super) fn result_type(name: &str, element: &Type) -> Type {
@@ -68,8 +69,8 @@ pub(super) fn result_type(name: &str, element: &Type) -> Type {
             element: Box::new(element.clone()),
         })),
         "store_reserve" => Type::Bool,
-        "store_at" => Type::Address {
-            mutable: false,
+        "store_at" | "store_at_mut" => Type::Address {
+            mutable: name == "store_at_mut",
             inner: Box::new(element.clone()),
         },
         "store_push" => Type::ErrorUnion {
@@ -194,7 +195,7 @@ impl Builder<'_, '_> {
     ) -> R<(ValueId, Type)> {
         let arity = match name {
             "store_new" => 0,
-            "store_reserve" | "store_push" | "store_at" => 2,
+            "store_reserve" | "store_push" | "store_at" | "store_at_mut" => 2,
             _ => 1,
         };
         if arguments.len() != arity {
@@ -252,10 +253,14 @@ impl Builder<'_, '_> {
                     self.same(&actual, &element, arguments[1].span)?;
                     InstructionKind::OwnedStorePush { store, value }
                 }
-                "store_at" => {
+                "store_at" | "store_at_mut" => {
                     let (index, actual) = self.expr(&arguments[1], Some(&Type::I64))?;
                     self.same(&actual, &Type::I64, arguments[1].span)?;
-                    InstructionKind::OwnedStoreBorrow { store, index }
+                    if name == "store_at_mut" {
+                        InstructionKind::OwnedStoreBorrowMut { store, index }
+                    } else {
+                        InstructionKind::OwnedStoreBorrow { store, index }
+                    }
                 }
                 "store_pop" => InstructionKind::OwnedStorePop { store },
                 "store_len" => InstructionKind::OwnedStoreLen { store },
