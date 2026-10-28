@@ -290,7 +290,7 @@ fn zero_event_fn_once_cycle_stays_an_explicit_scope_limit() {
         panic!("zero event loop must preserve a Flow");
     };
     assert!(graph.nodes.iter().all(|node| node.calls.is_empty()));
-    claim.kind = CallableKind::FnOnce;
+    claim.roles[0].kind = CallableKind::FnOnce;
     reject(
         "zero-event-once",
         module,
@@ -746,10 +746,10 @@ fn a_flow_does_not_waive_hold_call_write_or_cleanup_obligations() {
             .find_map(|f| f.callable_contract.as_mut())
             .unwrap();
         match mutation {
-            0 => claim.hold.push(0),
-            1 => claim.call.push(0),
-            2 => claim.writes.push(0),
-            _ => claim.cleanup = CallableCleanup::Owned,
+            0 => claim.roles[0].hold.push(0),
+            1 => claim.roles[0].call.push(0),
+            2 => claim.roles[0].writes.push(0),
+            _ => claim.roles[0].cleanup = CallableCleanup::Owned,
         }
         reject(
             &format!("envelope-{mutation}"),
