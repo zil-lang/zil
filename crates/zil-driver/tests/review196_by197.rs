@@ -354,7 +354,7 @@ fn second_role_descriptor_write_conflicts_with_the_first_roles_current_capture()
 fn ordinary_window(alias: bool) -> String {
     let written = if alias { "other" } else { "origin" };
     format!(
-        "resource R{{n:i32}}fn pair<F:Fn()->i32,G:Fn()->i32>(reader:&F,writer:&G,edit:R)->i32{{var target=edit;target.n+=1;return reader()+writer()+target.n}}fn main()->i32{{let origin=R{{n:1}};let other=R{{n:8}};let edit={written};let held=&other;let view=&held.n;let reader=()=>*view;let writer=move()=>1;return pair(&reader,&writer,edit)-11}}"
+        "fn pair<F:Fn()->i32,G:Fn()->i32>(reader:&F,writer:&G,edit:ByteBuffer)->i32{{bytes_reserve(edit,2);return reader()+writer()+i32(bytes_len(edit))}}fn main()->i32{{let origin=bytes_new();let other=bytes_new();bytes_reserve(other,1);bytes_push(other,65u8);let edit={written};let view=bytes_view(other);let reader=()=>i32(view[0]);let writer=move()=>1;return pair(&reader,&writer,edit)-66}}"
     )
 }
 
