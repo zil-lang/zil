@@ -1,0 +1,1 @@
+struct Pair{x:i32;y:i32}fn main()->i32{var pair=Pair{x:20,y:22};let by_value=(p)=>p.x+p.y;let read=(p)=>p.x+p.y;let edit=(p)=>{p.x+=1;return p.x};let before=read(&pair)+by_value(pair);let changed=edit(&mut pair);var a:[i32;2]=[1,2];let sum=(p)=>p[0]+p[1];let update=(p)=>{p[0]+=p[1];return p[0]};let old=sum(&a);let new=update(&mut a);return before+changed+old+new-111}

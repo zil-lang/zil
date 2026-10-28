@@ -1,0 +1,1 @@
+fn id(p:&i32)->&i32{return p}fn main()->i32{let n=42;let f=(p:&i32)=>*id(p);return f(&n)-42}

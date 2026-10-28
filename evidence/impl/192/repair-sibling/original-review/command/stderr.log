@@ -1,0 +1,4 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.27s
+     Running tests/review192_field_composition.rs (/workspace/scratch/39be3faa4442/targets178/review192/debug/deps/review192_field_composition-f77ee102d373d100)
+error: test failed, to rerun pass `-p zil-driver --test review192_field_composition`

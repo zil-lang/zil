@@ -1,0 +1,1 @@
+resource R{n:i32}fn main(){let f=(p:&R)=>p.n;}
