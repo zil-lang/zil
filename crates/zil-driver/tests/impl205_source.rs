@@ -385,3 +385,42 @@ fn boundary_concrete_rhs_error_after_replacement_keeps_all_owner_cleanup() {
         );
     }
 }
+
+#[test]
+fn legacy_single_state_without_aliases_keeps_each_once_field_independent() {
+    let source = format!(
+        r#"{RESOURCE}
+package State<F>{{manages root:Ticket;first:F;second:F}}
+fn pack<F:FnOnce()->i32>(first:F,second:F)->State<F>{{return State::<F>{{root:Ticket{{code:90}},first:first,second:second}}}}
+fn make(label:i32)->impl Fn()->i32{{let ticket=Ticket{{code:label}};return move()=>ticket.code}}
+fn relay<F:FnOnce()->i32>(state:State<F>)->State<F>{{return state}}
+fn consume<F:FnOnce()->i32>(state:State<F>)->i32{{let n=state.first()+state.second();mark();return n-131}}
+fn main()->i32{{return consume(relay(pack(make(65),make(66))))}}
+"#
+    );
+    native("legacy-no-alias-once", &source, "ABXZ", 0);
+}
+
+#[test]
+fn legacy_single_state_shared_owners_keep_sibling_exclusive_windows() {
+    let source = format!(
+        r#"{RESOURCE}
+package State<F>{{manages root:Ticket;first:F;second:F}}
+fn pack<F:FnMut(i32)->i32>(first:F,second:F)->State<F>{{return State::<F>{{root:Ticket{{code:90}},first:first,second:second}}}}
+fn make(label:i32,seed:i32)->impl FnMut(i32)->i32{{let ticket=Ticket{{code:label}};var n=seed;return move(delta:i32)=>{{ticket.code;n+=delta;return n}}}}
+fn run<F:FnMut(i32)->i32>(state:State<F>)->i32{{var current=state;let first=&mut current.first;let b=current.second(1);let a=first(1);let again=first(1);return a+b+again-14}}
+fn main()->i32{{return run(pack(make(65,0),make(66,10)))}}
+"#
+    );
+    native("legacy-sibling-exclusive", &source, "ZAB", 0);
+}
+
+#[test]
+fn legacy_single_state_lending_remains_legal_for_two_distinct_fields() {
+    let source = r#"fn make(seed:u8)->impl FnMut()->&[u8]{let b=bytes_new();return move()=>{bytes_reserve(b,bytes_len(b)+1);bytes_push(b,seed);return bytes_view(b)}}
+package State<F>{manages bytes:ByteBuffer;first:F;second:F}
+fn pack<F:FnMut()->&[u8]>(a:F,b:F)->State<F>{return State::<F>{bytes:bytes_new(),first:a,second:b}}
+fn run<F:FnMut()->&[u8]>(state:State<F>)->i32{var current=state;let a=current.first();let b=current.second();return i32(a[0])+i32(b[0])-16}
+fn main()->i32{return run(pack(make(7u8),make(9u8)))}"#;
+    native("legacy-lending", source, "", 0);
+}
