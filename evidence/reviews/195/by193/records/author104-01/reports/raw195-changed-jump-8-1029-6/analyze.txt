@@ -1,0 +1,12 @@
+Err(
+    [
+        Diagnostic {
+            phase: Analyze,
+            category: SafeReject,
+            code: "E-ANALYZE-IR",
+            message: "public helper flow changes actual ordered edges",
+            span: None,
+            notes: [],
+        },
+    ],
+)

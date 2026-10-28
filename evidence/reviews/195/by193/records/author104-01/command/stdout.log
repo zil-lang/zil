@@ -1,0 +1,149 @@
+
+running 9 tests
+test concrete_unary_and_binary_errors_remain_errors_when_unused ... ok
+test duplicate_generic_and_ordinary_function_must_reject ... ok
+test generic_record_default_cannot_gain_numeric_constraint_from_instance ... ok
+test selected_analysis_work_and_unused_signature_lifetimes_are_checked ... ok
+test substituted_type_depth_is_reserved_before_instance_cloning ... ok
+test unused_generic_body_respects_selected_depth ... ok
+test unused_generic_body_respects_selected_work ... ok
+test unused_generic_concrete_bad_operation_is_not_discarded ... ok
+test unused_generic_control_flow_is_checked_before_template_removal ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 6 tests
+test bool_and_distinct_integer_instantiations ... ok
+test concrete_instantiations_inference_recursive_reuse_and_hygiene ... ok
+test generic_arity_constraints_and_bounds_fail_closed ... ok
+test generic_body_cannot_gain_operations_or_copy_from_an_instance ... ok
+test generic_instance_growth_is_bounded_before_type_building ... ok
+test symbolic_result_and_nested_calls_do_not_collapse_distinct_parameters ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+
+running 15 tests
+test actual_generic_calls_do_not_merge_distinct_nominal_elements ... ok
+test bounded_element_shape_work_has_an_exact_definition_time_boundary ... ok
+test cross_module_helpers_preserve_two_nominal_elements_and_failure_returns ... ok
+test descriptor_aliases_do_not_revive_after_give_or_replacement ... ok
+test element_bound_checks_real_shapes_and_never_grants_copy_or_members ... ok
+test fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation ... ok
+test generic_owning_package_and_concrete_callback_state_compose ... ok
+test generic_prefix_drain_repeats_with_real_item_cleanup ... ok
+test generic_source_still_requires_independent_raw_and_wire_ownership ... ok
+test raw_and_wire_create_mode_cannot_forge_fresh_input_resources ... ok
+test real_copy_shapes_including_static_foreign_values_remain_elements ... ok
+test two_element_shapes_use_the_same_actual_generic_helpers ... ok
+test unused_create_results_prove_freshness_across_real_transfers_and_joins ... ok
+test unused_package_fields_keep_mode_and_instance_identity ... ok
+test unused_templates_reject_unproven_store_element_or_owner ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.25s
+
+
+running 16 tests
+test a_later_failing_argument_cleans_the_staged_generic_union ... ok
+test actual_field_sources_survive_whole_moves_replacements_branches_and_loops ... ok
+test an_error_returning_old_branch_does_not_poison_the_surviving_fresh_branch ... ok
+test concrete_wide_copy_errors_keep_zero_success_responsibility ... ok
+test direct_store_and_existing_copy_error_inference_keep_their_meaning ... ok
+test error_only_create_consumes_old_success_without_claiming_a_new_resource ... ok
+test fresh_payload_survives_local_union_moves_and_question_rewrapping ... ok
+test incoming_or_mixed_fields_cannot_be_repackaged_as_created ... ok
+test loop_local_and_discarded_unions_clean_exactly_once ... ok
+test mutable_managed_slots_preserve_creation_through_their_package_representation ... ok
+test propagated_failure_drops_incoming_element_and_earlier_store ... ok
+test two_nominal_shapes_transfer_through_ordinary_union_values ... ok
+test unused_definitions_cannot_launder_old_success_into_create ... ok
+test unused_signatures_require_the_written_mode_and_actual_copy_error_shape ... ok
+test unused_union_moves_and_descriptor_aliases_do_not_create_permissions ... ok
+test written_modes_are_checked_with_and_without_instantiation ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.10s
+
+
+running 17 tests
+test a_cyclic_once_profile_is_not_made_repeatable_by_zero_callback_events ... ok
+test a_zero_callback_loop_keeps_its_cycle_and_owned_cleanup ... ok
+test actual_capture_and_explicit_address_still_must_be_separate ... ok
+test copy_error_return_cleans_each_live_iteration_and_the_outer_owners ... ok
+test early_return_stops_later_calls_without_resetting_the_mutable_environment ... ok
+test finite_defensive_trap_exits_survive_copying_into_a_flow_parent ... ok
+test finite_leaf_and_outer_call_sites_compose_with_a_flow_child ... ok
+test flow_calls_do_not_release_a_lending_window_still_needed_later ... ok
+test four_module_consumer_contains_a_real_flow_helper_and_owned_state ... ok
+test lending_results_end_at_last_use_before_the_next_iteration ... ok
+test mutable_for_keeps_the189_current_explicit_address_across_calls ... ok
+test mutable_while_reuses_the_actual_environment_and_ends_its_window ... ok
+test owned_and_borrowed_environments_cleanup_once_even_on_zero_iterations ... ok
+test runtime_iteration_count_does_not_spend_the_static_helper_depth ... ok
+test shared_for_passes_the_runtime_index_in_order ... ok
+test shared_while_runs_zero_one_two_and_many_actual_calls ... ok
+test two_flow_call_sites_keep_their_own_continuations_inside_an_outer_loop ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.49s
+
+
+running 10 tests
+test an_endpoint_may_consume_a_symbolic_value_once_before_the_backedge ... ok
+test an_unconditional_return_body_keeps_the_existing_finite_once_contract ... ok
+test backedges_cannot_repeat_a_noncopy_or_once_consumption ... ok
+test empty_and_reversed_ranges_still_check_the_body_and_leave_the_outer_binding ... ok
+test endpoint_calls_happen_once_in_order_and_the_iterator_does_not_escape ... ok
+test every_integer_width_infers_unsuffixed_bounds_without_borrowing_authority ... ok
+test index_mutability_scope_widths_and_known_integer_requirements_are_checked ... ok
+test loop_control_templates_keep_their_original_inputs_after_symbolic_admission ... ok
+test original_runtime_helper_range_reaches_the_independent_contract_stage ... ok
+test range_width_hints_cover_arithmetic_calls_and_copy_projections ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.94s
+
+
+running 8 tests
+test a_control_jump_cannot_claim_to_be_a_function_return_cleanup ... ok
+test actual_cyclic_control_and_callbacks_cannot_be_replaced_by_a_finite_claim ... ok
+test changed_break_or_continue_targets_invalidate_the_original_flow_claim ... ok
+test control_cleanup_cannot_leave_storage_live_or_close_the_wrong_scope ... ok
+test independent_raw_and_wire_control_checks_keep_exact_work_frontiers ... ok
+test loop_exit_storage_markers_do_not_discharge_a_missing_owned_drop ... ok
+test omitting_scope_exit_after_break_or_continue_does_not_restore_entry_state ... ok
+test source_control_edges_have_real_cleanup_and_independent_wire_verification ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+
+running 12 tests
+test an_error_after_continue_cleans_the_live_iteration_and_outer_owners ... ok
+test an_unconditional_break_keeps_an_actually_finite_once_contract ... ok
+test both_original_held_lending_inputs_reach_the_real_borrow_conflict ... ok
+test control_flow_does_not_separate_an_explicit_argument_from_the_same_capture ... ok
+test flow_children_keep_their_continuations_when_the_parent_skips_or_breaks ... ok
+test for_continue_steps_once_at_the_integer_maximum_and_keeps_outer_bindings ... ok
+test mixed_match_return_break_and_continue_keep_real_cleanup_edges ... ok
+test nested_while_and_for_control_only_the_nearest_loop ... ok
+test original_once_consumption_before_continue_remains_closed ... ok
+test original_preflight_helper_programs_now_execute_with_their_exact_inputs ... ok
+test owned_and_borrowed_environments_cleanup_after_all_loop_exit_kinds ... ok
+test runtime_while_control_runs_only_the_selected_callbacks ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.46s
+
+
+running 11 tests
+test a_previously_moved_generic_local_retains_its_existing_reinitialization_boundary ... ok
+test break_keeps_invalidated_store_observations_and_unproven_create_origins ... ok
+test continuation_does_not_make_a_once_callback_repeatable ... ok
+test every_break_state_participates_in_post_loop_may_move_join ... ok
+test every_continue_path_preserves_outer_noncopy_consumption ... ok
+test loop_control_keeps_index_mutability_and_scope_checks ... ok
+test loop_control_outside_a_loop_is_rejected_even_in_unused_templates ... ok
+test loop_exit_state_collections_have_exact_existing_budget_frontiers ... ok
+test loop_exits_do_not_supply_function_return_or_allow_unreachable_uses ... ok
+test returning_paths_do_not_pollute_surviving_break_and_continue_states ... ok
+test store_carriers_and_managed_fields_cannot_be_consumed_on_continue_edges ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+

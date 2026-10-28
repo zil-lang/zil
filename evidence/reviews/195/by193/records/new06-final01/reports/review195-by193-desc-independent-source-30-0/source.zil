@@ -1,0 +1,1 @@
+resource R{n:i32}fn walk<F:Fn()->i32>(f:&F,stop:i32)->i32{var seen=0;for index in 0..4{if index==0{continue}seen=f();if index==stop{break}}return seen}fn main()->i32{let origin=R{n:1};let other=R{n:8};let edit=origin;let held=&other;let view=&held.n;let f=()=>{edit.n+=1;return edit.n};let answer=walk(&f,2);return answer+*view-11}
