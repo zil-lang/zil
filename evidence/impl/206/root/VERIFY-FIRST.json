@@ -1,0 +1,91 @@
+{
+  "status": "LimitedAuthorPassNotFinalAcceptance",
+  "spec_hash": "f26a0d8701b9a00a38286f486b7bcae1b96cf1d9254add7c48d395bb3e6ccbc3",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "tested_source_commit": "bf04e18a239b6c20bf44472ceda019251822d67b",
+  "commands": {
+    "verify01": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/verify01/command.json",
+      "sha256": "7fced0b274041728cf9db61f4427d87a5a70a11c5d79183ccc00b20fc022d0d4",
+      "source_commit": "0a51a9abd079336feb5e283869157ff9ce693e55",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101
+    },
+    "verify02": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/verify02/command.json",
+      "sha256": "7008fdb2f9cc7c7a0eaed9b5e29e09c7b775254087bb7a29bca5285aeb07734e",
+      "source_commit": "b61ec116b149c55982af9dff38231cb845fee907",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0
+    },
+    "verify03": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/verify03/command.json",
+      "sha256": "de0effc02063c39c4b9c46c4997c1f8123e3eca5a4d8d09389ea67fd385a1747",
+      "source_commit": "bf04e18a239b6c20bf44472ceda019251822d67b",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0
+    },
+    "clippy01": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-root/clippy01/command.json",
+      "sha256": "617ebf856fd569051c95008907a8667b94b15b0f35d2475c725cb88cb779852e",
+      "source_commit": "bf04e18a239b6c20bf44472ceda019251822d67b",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0
+    }
+  },
+  "latest_tests": {
+    "impl206_verify": [
+      5,
+      0,
+      0
+    ],
+    "review186_field_origins": [
+      6,
+      0,
+      0
+    ]
+  },
+  "exact_new_verify_work": {
+    "created": 27075,
+    "two-whole-transfers": 33259,
+    "three-wrappers": 31077
+  },
+  "exact_old_flat_verify_work": {
+    "original205": 10398,
+    "current206": 10398,
+    "baseline": {
+      "original_source_commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+      "original_full_test_status": "2552/0/0",
+      "test_file": "crates/zil-driver/tests/review186_field_origins.rs",
+      "test_file_sha256": "38afb7de11602c7ae4d50cba6a9a4518fcd417f787c590016604043bf3edce0f",
+      "reconstructed_exact_source_bytes": 222,
+      "source_sha256": "2b4ed96032bfbd05cfa9fe3118220d4dd325f522f13cf22cee32c3f28ffdd854",
+      "original_boundary_mapping": {
+        "component": "root",
+        "source": "workspace02-exact-temporary",
+        "path": "cases/review186-budgets-973887-10/boundaries.txt",
+        "bytes": 43,
+        "sha256": "033722bb7c3bc080227bfebdf71b8fbc912c1890c0c0e64e7d26b0377c77603b",
+        "kind": "text-evidence",
+        "stored_path": "records/sha256/03/033722bb7c3bc080227bfebdf71b8fbc912c1890c0c0e64e7d26b0377c77603b",
+        "restore_path": "components/root/workspace02-exact-temporary/cases/review186-budgets-973887-10/boundaries.txt"
+      },
+      "current_test_file_identical": true,
+      "new_old_compiler_execution": false
+    }
+  },
+  "first_attempt": "verify01 failed to compile a test comparing opaque VerifiedModule directly; fixed test uses complete public module/plan/fingerprint and keeps original Fail. No runtime or safety claim from failed compilation.",
+  "independence": "Verify independently constructs actual SSA/local leaf intervals, separate from producer BTreeMap path/Birth solver. No serialized leaf proof or dependency on Types/Analyze proof functions.",
+  "qualifications": "New ordinary Product gate leaves old Store/owning-array/ErrorUnion/capture gates unchanged. New field provenance tables only for functions with actual child Package.",
+  "global_state": {
+    "full_1_4": "NotSatisfied",
+    "B0": "Doing",
+    "product": "NotRun",
+    "native_windows": "NotRun"
+  },
+  "next": "Independent review, five-module author Linux/Wine and independent Linux, final clean full workspace and Clippy remain required."
+}

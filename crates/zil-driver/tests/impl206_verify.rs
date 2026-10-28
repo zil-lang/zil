@@ -267,3 +267,38 @@ fn real_product_verify_work_has_exact_n_minus_one_and_fresh_boundaries() {
         eprintln!("{label}: verify_work={high}");
     }
 }
+
+#[test]
+fn original_flat186_verify_boundary_stays_10398_without_product_leaf_table() {
+    // Exact source built by review186_field_origins::baseline, unchanged in
+    // accepted205@2db3. Its original workspace02 boundaries.txt records
+    // Analyze8673 / Verify10398; this is a fixed historical control.
+    let source = "resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn origin(give old:R)->R contract{result(create)}{let p=P{pad:7,old:give old,wide:[11,13],fresh:R{n:29}};let q=p;return give q.fresh}fn main(){}";
+    let module = typed("flat186", source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let run = |n| {
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|v| (v.module().clone(), v.plan().clone(), v.fingerprint()))
+    };
+    let expected = run(Limits::default().max_analysis_steps).unwrap();
+    assert_eq!(run(10398).unwrap(), expected);
+    let below = run(10397).unwrap_err();
+    assert!(
+        below
+            .iter()
+            .all(|d| d.phase == Phase::Verify && d.category == ResultCategory::ResourceLimit)
+    );
+    assert_eq!(run(10398).unwrap(), expected);
+    let out = directory("old-flat186-boundary");
+    fs::write(out.join("source.zil"), source).unwrap();
+    fs::write(out.join("boundary.json"),"{\"verify_work\":10398,\"old_verify_work\":10398,\"checks\":\"default == original N == fresh N; N-1 Verify ResourceLimit\"}\n").unwrap();
+    fs::write(out.join("below.txt"), format!("{below:#?}")).unwrap();
+}
