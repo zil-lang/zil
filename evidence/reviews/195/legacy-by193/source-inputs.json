@@ -1,0 +1,61 @@
+{
+  "source_families": [
+    {
+      "family": "driver generics",
+      "byte_identical": true,
+      "sources": [
+        {
+          "text": "fn id<T>(x:T)->T=>x\nfn result()->i32=>id::<i32,i64>(1)",
+          "sha256": "7067bc5d4931738a01c241d8fe44d89d2a2d8dfadb9a39387341e088d677bd29"
+        },
+        {
+          "text": "fn choose<T>(x:T,y:T)->T=>x\nfn result()->i32 {let x:i32=1;let y:i64=2;return choose(x,y)}",
+          "sha256": "10b63f03910294111e3c94cb35aa3b639590e5c9c8df309b591050b85115f60f"
+        },
+        {
+          "text": "fn id<T: Copy>(x:T)->T=>x\nfn result()->i32=>1",
+          "sha256": "df154520384bf6a655d743cb66be9372bbc8b862d970567d14ccdf19f988335f"
+        }
+      ]
+    },
+    {
+      "family": "driver impl147",
+      "byte_identical": true,
+      "sources": [
+        {
+          "text": "trait Copy{}struct C{x:i32}impl Copy for C{}fn main(){}",
+          "sha256": "a650e70e066096be37e42d2cb5e6d9490ac06cd9fb5c5bcd872cae79be31903c"
+        },
+        {
+          "text": "trait Share{}struct C{x:i32}impl Share for C{}fn main(){}",
+          "sha256": "d4e1866cbd32d2b6ee78a05129cdd560ccb0ed46cce5cb8ce638e50dab6b2a6e"
+        },
+        {
+          "text": "trait Transfer{}struct C{x:i32}impl Transfer for C{}fn main(){}",
+          "sha256": "579646de12f245542575c6a98ea2b0dbd53ae874f9345f29d3c5476e3f5145bb"
+        }
+      ]
+    },
+    {
+      "family": "expand generics",
+      "byte_identical": true,
+      "sources": [
+        {
+          "text": "fn id<T: Copy>(x:T)->T=>x\nfn sample()->i32=>0",
+          "sha256": "bb5136414c0ade7ae7738f358eea5ff04bb0380873c7eae8e958007e28fad015"
+        },
+        {
+          "text": "fn id<T: MissingRead>(x:T)->T=>x\nfn sample()->i32=>0",
+          "sha256": "1c5ef73e188ab6b6b172a4f1bcba5793327a58f9ef71c067bd05ab01d0f13c07"
+        },
+        {
+          "text": "struct Read { value: i32 }\nfn id<T: Read>(x:T)->T=>x\nfn sample()->i32=>0",
+          "sha256": "5674ec40868fa5870f084886b60934853bd4ca49c61e78e038c11c29599fad73"
+        }
+      ]
+    }
+  ],
+  "total_original_inputs_preserved": 9,
+  "raw_builder_prefix_sha256": "eaa3955207f784d994fb7576fdb99551d5c36ef0dc19806f9af532ff0b3f02f2",
+  "raw_builder_identical": true
+}
