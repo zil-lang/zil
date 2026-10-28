@@ -185,6 +185,21 @@ fn dual_state_type(ty: &TypeRef, name: &str) -> bool {
         })
 }
 
+fn state_union_result(
+    ty: &TypeRef,
+    name: &str,
+    is_state: &impl Fn(&TypeRef, &str, bool) -> bool,
+) -> bool {
+    let TypeKind::Error { error, result } = &grouped(ty).kind else {
+        return false;
+    };
+    [error.as_ref(), result.as_ref()].into_iter().all(|side| {
+        !refers(side, name)
+            || is_state(side, name, true)
+            || state_union_result(side, name, is_state)
+    })
+}
+
 pub(crate) fn parameter_mode(ty: &TypeRef, name: &str) -> Option<Option<bool>> {
     let ty = grouped(ty);
     if matches!(&ty.kind, TypeKind::Named { path, args } if path.as_slice() == [name] && args.is_empty())
@@ -526,11 +541,11 @@ fn template_with_state(
                 roles.push(binding);
             }
         }
-        if function
-            .return_type
-            .as_ref()
-            .is_some_and(|t| refers(t, &parameter.name) && !is_state(t, &parameter.name, dual))
-        {
+        if function.return_type.as_ref().is_some_and(|t| {
+            refers(t, &parameter.name)
+                && !is_state(t, &parameter.name, dual)
+                && !(dual && takes_state && state_union_result(t, &parameter.name, &is_state))
+        }) {
             return Err(unsupported(
                 function.span,
                 "escaping callable result is not implemented",
