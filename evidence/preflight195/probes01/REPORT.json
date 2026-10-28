@@ -1,0 +1,410 @@
+{
+  "kind": "ReadOnlyPreflight",
+  "task": "195",
+  "source_baseline": "7491c212d392b12bb90f735b90f535066fa00a47",
+  "cli_actual_build": "8644848b80f09a0507f47054830f56f1ef193c9d",
+  "cli_sha256": "164ca2a261317c9db1c3e332aa359da765d6a9818c97cf99e1a21a74fb100a80",
+  "producer_commit_now": "9679e3412a839311c930f42388d4501f6e7c7fbf",
+  "production_equals_7491": true,
+  "schema": 24,
+  "probe_count": 16,
+  "results": [
+    {
+      "name": "01-ordinary-while-break",
+      "source_sha256": "2a03a8180df6a6248620ddceb64766d39ee821e56154f13a320c286167872867",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "native": [
+        {
+          "optimization": "O0",
+          "build_status": "Success",
+          "build_phase": "link",
+          "verification_runs": 1,
+          "exit_code": 0,
+          "stdout_hex": "",
+          "expected_exit": 0,
+          "expected_stdout_hex": "",
+          "matched": true
+        },
+        {
+          "optimization": "O2",
+          "build_status": "Success",
+          "build_phase": "link",
+          "verification_runs": 1,
+          "exit_code": 0,
+          "stdout_hex": "",
+          "expected_exit": 0,
+          "expected_stdout_hex": "",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "name": "02-ordinary-while-continue",
+      "source_sha256": "de39ae28281d08c69c0542bfe1563579d8cef0eb2fedc9d94c8a9c4d189bf87a",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "native": [
+        {
+          "optimization": "O0",
+          "build_status": "Success",
+          "build_phase": "link",
+          "verification_runs": 1,
+          "exit_code": 0,
+          "stdout_hex": "",
+          "expected_exit": 0,
+          "expected_stdout_hex": "",
+          "matched": true
+        },
+        {
+          "optimization": "O2",
+          "build_status": "Success",
+          "build_phase": "link",
+          "verification_runs": 1,
+          "exit_code": 0,
+          "stdout_hex": "",
+          "expected_exit": 0,
+          "expected_stdout_hex": "",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "name": "03-ordinary-for-continue",
+      "source_sha256": "33b926114e63e4ff9991ccdb29e6cce208b03d19494d56dceab03e415ecdbd3d",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "native": [
+        {
+          "optimization": "O0",
+          "build_status": "Success",
+          "build_phase": "link",
+          "verification_runs": 1,
+          "exit_code": 0,
+          "stdout_hex": "",
+          "expected_exit": 0,
+          "expected_stdout_hex": "",
+          "matched": true
+        },
+        {
+          "optimization": "O2",
+          "build_status": "Success",
+          "build_phase": "link",
+          "verification_runs": 1,
+          "exit_code": 0,
+          "stdout_hex": "",
+          "expected_exit": 0,
+          "expected_stdout_hex": "",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "name": "04-ordinary-nested-cleanup",
+      "source_sha256": "65b64203a78cb14eaa6439dbeea3afbeb440879c1a9d5f9467573821ce3b9981",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "native": [
+        {
+          "optimization": "O0",
+          "build_status": "Success",
+          "build_phase": "link",
+          "verification_runs": 1,
+          "exit_code": 0,
+          "stdout_hex": "303141303142",
+          "expected_exit": 0,
+          "expected_stdout_hex": "303141303142",
+          "matched": true
+        },
+        {
+          "optimization": "O2",
+          "build_status": "Success",
+          "build_phase": "link",
+          "verification_runs": 1,
+          "exit_code": 0,
+          "stdout_hex": "303141303142",
+          "expected_exit": 0,
+          "expected_stdout_hex": "303141303142",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "name": "05-helper-current-flow",
+      "source_sha256": "26114738163e38ad3bb60b45182bf50be5a7fb8c261a10372d202bd7303c609c",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "native": []
+    },
+    {
+      "name": "06-helper-while-break",
+      "source_sha256": "dec7cc736bc5c157f70bcac6f4cd21a87c2f80cf00cb5114306ace2e626960bf",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this parametric statement requires additional symbolic checking",
+          "span": {
+            "file": 0,
+            "start": 75,
+            "end": 80
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 3,
+      "native": []
+    },
+    {
+      "name": "07-helper-while-continue",
+      "source_sha256": "c16b32e267de5ea72cfb7b2c733db49ecdcfe26f88f520abcef71be6f65a9666",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this parametric statement requires additional symbolic checking",
+          "span": {
+            "file": 0,
+            "start": 80,
+            "end": 88
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 3,
+      "native": []
+    },
+    {
+      "name": "08-helper-for-continue",
+      "source_sha256": "785350e1a58ad70b99e749ea23628136d7dbd7a3fc04b19e34360eaa17c46ce6",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this parametric statement requires additional symbolic checking",
+          "span": {
+            "file": 0,
+            "start": 82,
+            "end": 90
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 3,
+      "native": []
+    },
+    {
+      "name": "09-helper-for-break-mut-arg",
+      "source_sha256": "af52a3c209ec89b559c881ec21c18c1b3c8d278a8215d317e5963df6902d77b9",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this parametric statement requires additional symbolic checking",
+          "span": {
+            "file": 0,
+            "start": 105,
+            "end": 110
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 3,
+      "native": []
+    },
+    {
+      "name": "10-helper-nested-for-while",
+      "source_sha256": "42a092c9c07c978a79850802cd995e94767fea9ac93048aee5e454581e0e2d11",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this parametric statement requires additional symbolic checking",
+          "span": {
+            "file": 0,
+            "start": 121,
+            "end": 129
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 3,
+      "native": []
+    },
+    {
+      "name": "11-helper-break-resource-cleanup",
+      "source_sha256": "88321fc6213371ae5ed4678e67ae17b123b7dd4239ab55b0d388720b328c46a1",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this parametric statement requires additional symbolic checking",
+          "span": {
+            "file": 0,
+            "start": 245,
+            "end": 250
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 3,
+      "native": []
+    },
+    {
+      "name": "12-helper-continue-resource-cleanup",
+      "source_sha256": "83e5c458a2fa1d22fc7538b8d98cbb32a64b63fe39b182ec4d7bfbabde634345",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this parametric statement requires additional symbolic checking",
+          "span": {
+            "file": 0,
+            "start": 249,
+            "end": 257
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 3,
+      "native": []
+    },
+    {
+      "name": "13-helper-break-after-lending-last-use",
+      "source_sha256": "5501c5626ce925dc3331712ae658ab3f5db264940cd110c4e361dc453b504206",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this parametric statement requires additional symbolic checking",
+          "span": {
+            "file": 0,
+            "start": 195,
+            "end": 200
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 3,
+      "native": []
+    },
+    {
+      "name": "14-helper-continue-held-lending-negative",
+      "source_sha256": "a4a9f78faf316e2c33497390f1932b771db3e2c54dafc475e7c9ae410450bc25",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this parametric statement requires additional symbolic checking",
+          "span": {
+            "file": 0,
+            "start": 183,
+            "end": 191
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 3,
+      "native": []
+    },
+    {
+      "name": "15-helper-existing-held-lending-negative",
+      "source_sha256": "b075f283565ececa72eb64113ca6b64748942aaf33c6ce1646fd50b0802b27a2",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 180,
+            "end": 183
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 1,
+      "native": []
+    },
+    {
+      "name": "16-helper-once-continue",
+      "source_sha256": "cdabe93268db19b7915ac921a460441fca93623f4dfeb982305d2b83b42782bf",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this parametric statement requires additional symbolic checking",
+          "span": {
+            "file": 0,
+            "start": 81,
+            "end": 89
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 3,
+      "native": []
+    }
+  ],
+  "production_modified": false,
+  "new_gate_admission": false
+}

@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author190/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/195-preflight/probes01/03-ordinary-for-continue/main.zil",
+    "--json"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt190",
+  "exit_code": 0,
+  "elapsed_seconds": 0.004834175109863281,
+  "cli_sha256": "164ca2a261317c9db1c3e332aa359da765d6a9818c97cf99e1a21a74fb100a80",
+  "source_sha256": "33b926114e63e4ff9991ccdb29e6cce208b03d19494d56dceab03e415ecdbd3d"
+}
