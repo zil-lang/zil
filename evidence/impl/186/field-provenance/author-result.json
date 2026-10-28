@@ -1,0 +1,157 @@
+{
+  "task": "186",
+  "implementation_author": "/root/design14_acceptance",
+  "implementation_commit": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330",
+  "status": "Pass",
+  "scope": "Private actual creation provenance for direct Managed fields in complete SSA and mutable local Packages. Bounded author result; independent review remains separate.",
+  "checks": {
+    "field-check01": {
+      "status": "Pass",
+      "source_commit": "a55d0dc475318878d154569f8d83ad7ba2acbc9e",
+      "dirty": true,
+      "record": "runs/field-check01/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "native_json": 0,
+      "raw_txt": 0,
+      "wire_txt": 0
+    },
+    "field-develop01": {
+      "status": "Pass",
+      "source_commit": "a55d0dc475318878d154569f8d83ad7ba2acbc9e",
+      "dirty": true,
+      "record": "runs/field-develop01/command/command.json",
+      "suites": 1,
+      "passed": 16,
+      "failed": 0,
+      "ignored": 0,
+      "native_json": 46,
+      "raw_txt": 0,
+      "wire_txt": 0
+    },
+    "field-raw01": {
+      "status": "Pass",
+      "source_commit": "a55d0dc475318878d154569f8d83ad7ba2acbc9e",
+      "dirty": true,
+      "record": "runs/field-raw01/command/command.json",
+      "suites": 1,
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "native_json": 0,
+      "raw_txt": 18,
+      "wire_txt": 18
+    },
+    "field-quality01": {
+      "status": "Pass",
+      "source_commit": "9b22708a92dc2e5cbd231cb87a3210e7ae1a3430",
+      "dirty": true,
+      "record": "runs/field-quality01/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "native_json": 0,
+      "raw_txt": 0,
+      "wire_txt": 0
+    },
+    "field-frozen01": {
+      "status": "Pass",
+      "source_commit": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330",
+      "dirty": false,
+      "record": "runs/field-frozen01/command/command.json",
+      "suites": 13,
+      "passed": 144,
+      "failed": 0,
+      "ignored": 0,
+      "native_json": 102,
+      "raw_txt": 36,
+      "wire_txt": 36,
+      "suite_names": [
+        "impl072_packages",
+        "impl074_packages",
+        "impl166_owned_results",
+        "impl170_package_fields",
+        "impl171_resource_heads",
+        "impl172_owned_store",
+        "impl178_generic_store",
+        "impl178_helper_give",
+        "impl181_composition",
+        "impl183_owned_resource_results",
+        "impl183_raw_owned_success",
+        "impl186_generic_owned_success",
+        "impl186_raw_owned_success"
+      ]
+    },
+    "field-fmt01": {
+      "status": "Pass",
+      "source_commit": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330",
+      "dirty": false,
+      "record": "runs/field-fmt01/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "native_json": 0,
+      "raw_txt": 0,
+      "wire_txt": 0
+    },
+    "field-quality02": {
+      "status": "Pass",
+      "source_commit": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330",
+      "dirty": false,
+      "record": "runs/field-quality02/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "native_json": 0,
+      "raw_txt": 0,
+      "wire_txt": 0
+    }
+  },
+  "own_observations": {
+    "native_executions": 46,
+    "raw_mutations": 18,
+    "raw_wire_routes": 36,
+    "source_rejections": 33,
+    "source_statuses": {
+      "Success": 63,
+      "SafeReject": 27,
+      "Unsupported": 6
+    }
+  },
+  "added_observations": {
+    "source_groups": 4,
+    "raw_groups": 2,
+    "native_executions": 24,
+    "source_rejections": 7,
+    "raw_mutations": 7,
+    "raw_wire_routes": 14
+  },
+  "independent_first_failure": {
+    "source_commit": "972bf63d767cc9c3df3d76f5941f98cfcfef8c8c",
+    "record": "independent-first-failure/command.json",
+    "cause": "Legal var Managed source becomes a single-field Package. Conservative Incoming at construction, whole store and field take lost actual creation provenance. CFG does not merge the error-returned block into the surviving successor."
+  },
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "642f7de6249bdc52b42fd3c2ad16059cc801ae68c9c94cce83f205c51a55e063",
+  "schema_version": 22,
+  "rule_version": "ZIL-LANG-1.4",
+  "platform_note": "This field-provenance extension ran actual Linux O0/O2 source and neighbor tests. Earlier Linux/Wine matrices remain bound to fc96383d and are not relabeled as new runtime tests. No Lower/LLVM/runtime/ABI production changed.",
+  "ref_diagnostic": {
+    "record": "ref-diagnostic01/receipt.json",
+    "observed": "Proposal object and reflog contained 9b227; HEAD read a55 because an old loose ref shadowed packed newer ref. Parent verified this and authorized exact compare-and-swap restoration after complete diff/source backup. Cause of loose-ref reappearance remains unknown.",
+    "dirty_development_receipts": "Retained as originally recorded, not relabeled to 9b227 or final frozen 0fb8."
+  },
+  "remaining_boundaries": [
+    "Unknown Package factory results and incoming/captured Package fields remain Incoming.",
+    "Non-Managed owning fields retain existing conservative provenance; no recursive shape or closure lending extension.",
+    "Fresh/old joins remain mixed and cannot pass create; closure field identity, debt and borrow checks unchanged.",
+    "No public IR, wire opcode, default budget, runtime or backend change."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
