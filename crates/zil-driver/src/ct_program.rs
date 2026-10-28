@@ -125,6 +125,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         strip_expr(&mut query);
         let function = CoreFunction {
             callable_return: None,
+            state_parameters: Vec::new(),
             type_parameters: Vec::new(),
             callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
@@ -456,6 +457,14 @@ impl Collector<'_> {
     fn header(&mut self, function: &CoreFunction) -> CompileResult<()> {
         self.charge(0)?;
         self.text(&function.name)?;
+        if !function.state_parameters.is_empty() {
+            return Err(vec![Diagnostic::error(
+                Phase::Ct,
+                "E-CT-FORBIDDEN",
+                Some(function.span),
+                "independent State templates cannot execute in compile-time queries",
+            )]);
+        }
         if !function.type_parameters.is_empty() {
             if self.query {
                 return Err(vec![Diagnostic::error(

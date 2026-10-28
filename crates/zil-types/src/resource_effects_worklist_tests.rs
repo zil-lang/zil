@@ -64,6 +64,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                     id: NodeId(index as u32),
                     name: format!("f{index}"),
                     callable_return: None,
+                    state_parameters: Vec::new(),
                     type_parameters: Vec::new(),
                     callable_parameters: Vec::new(),
                     foreign: None,
