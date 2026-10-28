@@ -1426,9 +1426,17 @@ impl Flow<'_> {
                     });
                 }
                 InstructionKind::BorrowCapture { index, .. } => {
-                    let fact = copied(state, Place::Capture(*index), budget)?;
-                    if check && !exact(&fact, Life::Available) {
-                        return Err(error("cannot borrow a moved captured closure environment"));
+                    if f.environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        .and_then(|capture| capture.captures.get(*index as usize))
+                        .is_some_and(|ty| matches!(ty, Type::Closure(_)))
+                    {
+                        let fact = copied(state, Place::Capture(*index), budget)?;
+                        if check && !exact(&fact, Life::Available) {
+                            return Err(error(
+                                "cannot borrow a moved captured closure environment",
+                            ));
+                        }
                     }
                 }
                 InstructionKind::DescribeCapture { index } => {

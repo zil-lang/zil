@@ -308,26 +308,28 @@ pub fn check_program(
         }
     }
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
-    for interface in &mut interfaces {
-        interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
-        interface.signature_fingerprint =
-            interface_fingerprint(&interface.exports, target, &closures);
-    }
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
     dynamic_store::add_definitions(&functions, &mut resources, limits).map_err(|e| vec![e])?;
+    let mut module = TypedModule {
+        resources,
+        schema_version: SCHEMA_VERSION,
+        module_id: program.root,
+        source_fingerprint: program.source_fingerprint,
+        target: target.clone(),
+        functions,
+        closures,
+        unsupported: Vec::new(),
+    };
+    lending::populate(&mut module, limits).map_err(|e| vec![e])?;
+    for interface in &mut interfaces {
+        interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
+        interface.signature_fingerprint =
+            interface_fingerprint(&interface.exports, target, &module.closures);
+    }
     Ok(TypedProgram {
-        module: TypedModule {
-            resources,
-            schema_version: SCHEMA_VERSION,
-            module_id: program.root,
-            source_fingerprint: program.source_fingerprint,
-            target: target.clone(),
-            functions,
-            closures,
-            unsupported: Vec::new(),
-        },
+        module,
         interfaces,
         root_functions,
     })
