@@ -1301,6 +1301,73 @@ fn unused_raw_state_value_helper_transfer_cannot_leave_the_source_usable() {
 }
 
 #[test]
+fn unused_raw_field_borrow_alias_keeps_its_original_parent_position() {
+    let (mut core, index) = unused_state_core();
+    let f = &mut core.functions[index];
+    let span = f.span;
+    let end = f.body.statements.last().unwrap().clone();
+    let mut borrowed = raw_state_field_take(f, "view", "first", 993000);
+    let CoreStatementKind::Binding { initializer, .. } = &mut borrowed.kind else {
+        unreachable!()
+    };
+    *initializer = Some(CoreExpr {
+        id: NodeId(993003),
+        span,
+        kind: CoreExprKind::Unary {
+            op: UnaryOp::Borrow,
+            operand: Box::new(initializer.take().unwrap()),
+        },
+    });
+    let take = raw_state_field_take(f, "taken", "first", 993010);
+    let call = CoreStatement {
+        id: NodeId(993020),
+        span,
+        kind: CoreStatementKind::Expression(CoreExpr {
+            id: NodeId(993021),
+            span,
+            kind: CoreExprKind::Call {
+                callee: Box::new(CoreExpr {
+                    id: NodeId(993022),
+                    span,
+                    kind: CoreExprKind::Name("view".into()),
+                }),
+                arguments: vec![],
+            },
+        }),
+    };
+    f.body.statements = vec![borrowed.clone(), call.clone(), take.clone(), end.clone()];
+    raw_types(
+        "unused-borrow-last-use-before-take",
+        &core,
+        &Limits::default(),
+        false,
+    );
+    core.functions[index].body.statements = vec![borrowed, take, call, end];
+    let accepted = inspect_origin_attack("unused-borrow-used-after-parent-field-take", &core);
+
+    let prefix = &ORIGINAL[..ORIGINAL.find("fn run<").unwrap()];
+    let positive = format!(
+        "{prefix}\nfn run<T:Copy,F:Fn()->i32,G:FnOnce()->i32>(state:State<T,F,G>)->i32{{\nlet view=&state.first\nlet first=view()\nlet taken=state.first\nreturn first\n}}\nfn main()->i32{{return run(pack(make(65,10),make(66,20),17))-10}}\n"
+    );
+    native("used-borrow-last-use-before-take", &positive, "AZB", 0);
+    let negative = positive.replace(
+        "let first=view()\nlet taken=state.first",
+        "let taken=state.first\nlet first=view()",
+    );
+    assert_ne!(positive, negative);
+    reject_source(
+        "used-borrow-used-after-parent-field-take",
+        &negative,
+        &[Phase::Expand, Phase::Types, Phase::Analyze, Phase::Verify],
+        None,
+    );
+    assert!(
+        !accepted,
+        "an unused declaration cannot use a field alias after its parent value is moved"
+    );
+}
+
+#[test]
 fn unused_state_second_binder_metadata_has_a_real_early_budget() {
     let (core, index) = unused_state_core();
     raw_types(
@@ -1858,7 +1925,7 @@ fn value_inferred_ordinary_calls_unify_every_argument_and_keep_nominal_identity(
         ),
     ] {
         assert_ne!(source, control);
-        reject_source(&label, &source, &[Phase::Expand, Phase::Types], None);
+        reject_source(label, &source, &[Phase::Expand, Phase::Types], None);
     }
 }
 
