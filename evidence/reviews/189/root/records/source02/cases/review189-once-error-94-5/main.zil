@@ -1,0 +1,1 @@
+extern "C" fn putchar(n:i32)->i32;enum E{No}resource R{n:i32;code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}fn eat(give r:R){}fn main()->E!i32{let guard=R{n:0,code:90};let r=R{n:2,code:65};var n=40;let f=move(p:&mut i32,fail:bool)->E!i32=>{*p+=r.n;eat(give r);if fail{return E.No};return *p};let result=f(&mut n,false)?;return result+n-84}
