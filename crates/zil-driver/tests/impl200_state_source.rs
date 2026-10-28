@@ -107,6 +107,7 @@ resource Ticket{code:i32}impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(
 "#;
 const ONCE: &str = r#"package State<F>{manages root:Ticket;first:F;second:F}
 fn pack<F:FnOnce()->i32>(first:F,second:F)->State<F>{return State::<F>{root:Ticket{code:84},first:first,second:second}}
+fn mark(){unsafe{putchar(88)}}
 "#;
 const MUTABLE: &str = r#"package State<F>{manages root:Ticket;first:F;second:F}
 fn pack<F:FnMut(i32)->i32>(first:F,second:F)->State<F>{return State::<F>{root:Ticket{code:84},first:first,second:second}}
@@ -191,7 +192,7 @@ fn once_and_fn_to_once_use_the_selected_field_and_clean_the_other() {
     ] {
         for (field, expected, output) in [("first", 65, "AXTB"), ("second", 66, "BXTA")] {
             let source = format!(
-                "{RESOURCE}{ONCE}{factory}fn run<G:FnOnce()->i32>(state:State<G>)->i32{{let value=state.{field}();unsafe{{putchar(88)}}return value}}fn main()->i32{{return run(pack(make(65),make(66)))-{expected}}}"
+                "{RESOURCE}{ONCE}{factory}fn run<G:FnOnce()->i32>(state:State<G>)->i32{{let value=state.{field}();mark();return value}}fn main()->i32{{return run(pack(make(65),make(66)))-{expected}}}"
             );
             native(&format!("once-{field}"), &source, output, 0);
         }
@@ -226,6 +227,14 @@ fn once_and_fn_to_once_use_the_selected_field_and_clean_the_other() {
 
 #[test]
 fn actual_copy_can_fill_two_inputs_but_noncopy_cannot_duplicate_responsibility() {
+    native(
+        "copy-mut-original-remains",
+        &format!(
+            "{RESOURCE}{MUTABLE}fn make_copy(seed:i32)->impl FnMut(i32)->i32{{var n=seed;return move(delta:i32)=>{{n+=delta;return n}}}}fn main()->i32{{var original=make_copy(0);var state=pack(original,original);return state.first(1)+state.second(10)+original(100)-111}}"
+        ),
+        "T",
+        0,
+    );
     native(
         "copy-once",
         &format!(
@@ -403,6 +412,34 @@ fn only_the_new_two_input_constructor_limits_extra_parameters() {
         &[Phase::Types],
         "finite Copy or direct Managed",
     );
+    for (label, parameter, prepare, resource) in [
+        ("unused-give-description", "root:Ticket", "", "root"),
+        (
+            "unused-give-alias",
+            "give root:Ticket",
+            "let alias=root;",
+            "alias",
+        ),
+    ] {
+        reject(
+            label,
+            &format!(
+                "{RESOURCE}package State<F>{{manages root:Ticket;first:F;second:F}}fn bad<F:Fn()->i32>(a:F,b:F,{parameter})->State<F>{{{prepare}return State::<F>{{root:give {resource},first:a,second:b}}}}fn main(){{}}"
+            ),
+            ResultCategory::SafeReject,
+            &[Phase::Expand],
+            "descriptions do not own",
+        );
+    }
+    reject(
+        "unused-double-give",
+        &format!(
+            "{RESOURCE}package State<F>{{manages root:Ticket;manages extra:Ticket;first:F;second:F}}fn bad<F:Fn()->i32>(a:F,b:F,give root:Ticket)->State<F>{{return State::<F>{{root:give root,extra:give root,first:a,second:b}}}}fn main(){{}}"
+        ),
+        ResultCategory::SafeReject,
+        &[Phase::Expand],
+        "after give",
+    );
 }
 
 #[test]
@@ -434,10 +471,18 @@ fn constructor_arguments_prepare_once_and_only_acquired_values_clean_on_error() 
 
 #[test]
 fn uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions() {
+    // The original repeated generic value is rejected before field counting.
+    reject(
+        "three-fields-original",
+        "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;c:F;value:T}fn pack<T:Copy,F:Fn()->i32>(a:F,b:F,value:T)->State<T,F>{return State::<T,F>{bytes:bytes_new(),a:a,b:b,c:a,value:value}}fn main(){}",
+        ResultCategory::SafeReject,
+        &[Phase::Expand],
+        "Copy",
+    );
     for (label, source) in [
         (
             "three-fields",
-            "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;c:F;value:T}fn pack<T:Copy,F:Fn()->i32>(a:F,b:F,value:T)->State<T,F>{return State::<T,F>{bytes:bytes_new(),a:a,b:b,c:a,value:value}}fn main(){}",
+            "package State<F>{manages bytes:ByteBuffer;a:F;b:F;c:F}fn ignore<F:Fn()->i32>(state:State<F>)->i32{return 0}fn main(){}",
         ),
         (
             "state-and-replacement",
