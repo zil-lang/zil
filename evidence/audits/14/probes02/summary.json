@@ -1,0 +1,104 @@
+{
+  "source_commit": "b9071e009b34a492b061497b1a07db062470dddc",
+  "probes": [
+    {
+      "name": "package-direct-nested",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "aggregate field requires finite Copy, an explicit package manages resource, or a complete fixed Package array"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "optional-parameter",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type Unsupported(\"type form is not yet lowered\")"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "ct-item-if",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "compile-time item generation"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "ct-statement-if",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "generic expansion of meta statement"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "generic-lifetime",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "generic bound, lifetime or const parameter requires its semantic solver"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "dyn-parameter",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "parse",
+      "diagnostics": [
+        {
+          "code": "E-PARSE-FUNCTION-BODY",
+          "message": "function requires a block, arrow expression, or declaration semicolon"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "async-function",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "parse",
+      "diagnostics": [
+        {
+          "code": "E-PARSE-MODULE-STATEMENT",
+          "message": "module scope requires a declaration; executable statements belong inside a function"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "ct-constant-control",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    }
+  ]
+}
