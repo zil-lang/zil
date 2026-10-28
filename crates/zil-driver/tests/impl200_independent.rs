@@ -902,3 +902,24 @@ fn two_actual_values_and_interleaved_inputs_have_exact_fresh_phase_budgets() {
     });
     Case::new("two-input-boundaries").write("boundaries.json",format!("{{\"expand\":{expand},\"types\":{types},\"analyze\":{analyze},\"verify\":{verify},\"checks\":\"N, N-1 ResourceLimit, fresh N\",\"defaults_unchanged\":true}}\n"));
 }
+
+#[test]
+fn legacy_single_field_state_has_fresh_exact_expand_budget_measurement() {
+    let source = include_str!("impl197_cases/01-existing-state-f-sibling/main.zil");
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "legacy197.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let expand = boundary(|n| {
+        zil_expand::expand_with_map_limits(
+            &unit,
+            &syntax,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|_| ())
+    });
+    let case = Case::new("legacy-single-field-expand");
+    case.write("source.zil", source);
+    case.write("boundaries.json",format!("{{\"expand\":{expand},\"checks\":\"N, N-1 ResourceLimit, fresh N\",\"purpose\":\"Compare the unchanged single-F input on the actual fff8 compiler and the 200 candidate; not a language safety test\"}}\n"));
+}
