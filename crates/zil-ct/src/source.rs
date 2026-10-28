@@ -291,7 +291,7 @@ fn evaluate_with_context(
         walker.scopes.push(scope);
         functions.push(CoreFunction {
             callable_return: f.callable_return.clone(),
-            callable_parameter: f.callable_parameter.clone(),
+            callable_parameters: f.callable_parameters.clone(),
             result_mode: f.result_mode,
             foreign: f.foreign.clone(),
             id: f.id,
@@ -395,7 +395,7 @@ impl<'a> Walker<'a> {
                 self.charge(0, f.span)?;
                 self.parameters(&contract.parameters, &contract.result, f.span)?;
             }
-            if let Some(contract) = &f.callable_parameter {
+            for contract in &f.callable_parameters {
                 self.charge(0, f.span)?;
                 self.text(&contract.generic_name, Some(f.span))?;
                 self.parameters(&contract.parameters, &contract.result, f.span)?;
@@ -1679,7 +1679,7 @@ mod tests {
             unsupported: vec![],
             functions: vec![CoreFunction {
                 callable_return: None,
-                callable_parameter: None,
+                callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
                 id: NodeId(0),

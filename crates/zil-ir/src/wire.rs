@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 24;
+pub const WIRE_VERSION: u32 = 25;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -633,19 +633,24 @@ impl<'a> Writer<'a> {
         self.unsupported(&module.unsupported)
     }
     fn callable_contract(&mut self, c: &CallableParameterContract) -> WireResult<()> {
-        self.u32(c.parameter)?;
-        self.u32(c.closure.0)?;
-        self.u8(callable_kind_tag(c.kind))?;
-        for indices in [&c.hold, &c.call, &c.writes] {
-            self.count(indices.len(), self.limits.max_locals)?;
-            for index in indices {
-                self.u32(*index)?;
+        self.count(c.roles.len(), self.limits.max_locals)?;
+        let mut metadata = 0usize;
+        for role in &c.roles {
+            self.u32(role.parameter)?;
+            self.u32(role.closure.0)?;
+            self.u8(callable_kind_tag(role.kind))?;
+            for indices in [&role.hold, &role.call, &role.writes] {
+                metadata = flow_count(metadata, indices.len(), self.limits.max_analysis_steps)?;
+                self.count(indices.len(), self.limits.max_locals)?;
+                for index in indices {
+                    self.u32(*index)?;
+                }
             }
+            self.u8(match role.cleanup {
+                CallableCleanup::Owned => 0,
+                CallableCleanup::Borrowed => 1,
+            })?;
         }
-        self.u8(match c.cleanup {
-            CallableCleanup::Owned => 0,
-            CallableCleanup::Borrowed => 1,
-        })?;
         match &c.traces {
             CallableTraces::Finite(traces) => {
                 self.u8(0)?;
@@ -682,10 +687,11 @@ impl<'a> Writer<'a> {
         }
         Ok(())
     }
-    fn callable_calls(&mut self, calls: &[CallableKind]) -> WireResult<()> {
+    fn callable_calls(&mut self, calls: &[CallEvent]) -> WireResult<()> {
         self.count(calls.len(), self.limits.max_instructions)?;
         for call in calls {
-            self.u8(callable_kind_tag(*call))?;
+            self.u32(call.parameter)?;
+            self.u8(callable_kind_tag(call.kind))?;
         }
         Ok(())
     }
@@ -1966,27 +1972,53 @@ impl<'a> Reader<'a> {
             _ => Err(malformed("E-WIRE-TAG", "unknown callable exit")),
         }
     }
-    fn callable_calls(&mut self, total: &mut usize) -> WireResult<Vec<CallableKind>> {
-        let count = self.count(self.limits.max_instructions, 1)?;
+    fn callable_calls(&mut self, total: &mut usize) -> WireResult<Vec<CallEvent>> {
+        let count = self.count(self.limits.max_instructions, 5)?;
         *total = flow_count(*total, count, self.limits.max_instructions)?;
         let mut calls = Vec::with_capacity(count);
         for _ in 0..count {
-            calls.push(self.callable_kind()?);
+            calls.push(CallEvent {
+                parameter: self.u32()?,
+                kind: self.callable_kind()?,
+            });
         }
         Ok(calls)
     }
     fn callable_contract(&mut self) -> WireResult<CallableParameterContract> {
-        let parameter = self.u32()?;
-        let closure = ClosureId(self.u32()?);
-        let kind = self.callable_kind()?;
-        let hold = self.callable_indices()?;
-        let call = self.callable_indices()?;
-        let writes = self.callable_indices()?;
-        let cleanup = match self.u8()? {
-            0 => CallableCleanup::Owned,
-            1 => CallableCleanup::Borrowed,
-            _ => return Err(malformed("E-WIRE-TAG", "unknown callable cleanup")),
-        };
+        let count = self.count(self.limits.max_locals, 22)?;
+        let mut roles = Vec::with_capacity(count);
+        let mut metadata = 0usize;
+        for _ in 0..count {
+            let parameter = self.u32()?;
+            let closure = ClosureId(self.u32()?);
+            let kind = self.callable_kind()?;
+            let mut fields = Vec::with_capacity(3);
+            for _ in 0..3 {
+                let count = self.count(self.limits.max_locals, 4)?;
+                metadata = flow_count(metadata, count, self.limits.max_analysis_steps)?;
+                let mut indices = Vec::with_capacity(count);
+                for _ in 0..count {
+                    indices.push(self.u32()?);
+                }
+                fields.push(indices);
+            }
+            let [hold, call, writes]: [Vec<u32>; 3] =
+                fields.try_into().expect("three envelope fields");
+            let cleanup = match self.u8()? {
+                0 => CallableCleanup::Owned,
+                1 => CallableCleanup::Borrowed,
+                _ => return Err(malformed("E-WIRE-TAG", "unknown callable cleanup")),
+            };
+            roles.push(CallableRole {
+                parameter,
+                closure,
+                kind,
+                hold,
+                call,
+                writes,
+                cleanup,
+            });
+        }
         let traces = match self.u8()? {
             0 => {
                 let count = self.count(self.limits.max_analysis_steps, 5)?;
@@ -2033,17 +2065,9 @@ impl<'a> Reader<'a> {
                 ));
             }
         };
-        Ok(CallableParameterContract {
-            parameter,
-            closure,
-            kind,
-            hold,
-            call,
-            writes,
-            cleanup,
-            traces,
-        })
+        Ok(CallableParameterContract { roles, traces })
     }
+
     fn function(&mut self) -> WireResult<TypedFunction> {
         let callable_return_contract = if self.boolean()? {
             Some(CallableReturnContract {
