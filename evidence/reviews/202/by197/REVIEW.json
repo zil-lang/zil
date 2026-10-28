@@ -352,7 +352,8 @@
     }
   },
   "full_language": "NotSatisfied",
-  "B0": "NotSatisfied",
+  "B0": "Doing",
   "native_windows": "NotRun",
-  "product": "NotRun"
+  "product": "NotRun",
+  "B0_completion": "NotSatisfied"
 }
