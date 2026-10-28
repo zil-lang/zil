@@ -1,0 +1,88 @@
+{
+  "scope": "Original five-module source preflight; not native or acceptance",
+  "source_commit": "7726490b66794ec7cd1a6f6b0d62e2ca8315ed9b",
+  "compiler_source_commit": "7726490b66794ec7cd1a6f6b0d62e2ca8315ed9b",
+  "compiler_sha256": "35a2e05f3f296d803e507f70c619262fb9144dabcd03a2906086f4ac6680b6cb",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "source_manifest_sha256": "22bb32ee064489fd4bd45db5a4b3272415f5be23db897545cdab418cf12ba026",
+  "source_files": {
+    "portable.zil": {
+      "bytes": 407,
+      "sha256": "2941ae9bc0134884ced99dbc6fea716808ee9d11c8339d77742b3d8bcf2df531"
+    },
+    "leaf.zil": {
+      "bytes": 1309,
+      "sha256": "395fb6c0848013d99ac7a08e66294aa36b019e32fbe63abf736def660f493242"
+    },
+    "product.zil": {
+      "bytes": 733,
+      "sha256": "d3e53fe12275657e96353e468d7f02f56da820bde249f57b2b091947a9722a0d"
+    },
+    "transitions.zil": {
+      "bytes": 923,
+      "sha256": "9e459a0d8114f3b81a72eef9c7d881d1e61e0d1501f3720950941a6b22aef9f0"
+    },
+    "main.zil": {
+      "bytes": 1567,
+      "sha256": "64857a4690940dbed1a4efb540cd45b0fc7ca6f052e1e26ae1808d1f08986d47"
+    }
+  },
+  "command_sha256": "1873be2d78f63ab48dd5093cc5e22b451dec68b76f5645229a19acfd207fc812",
+  "stdout_sha256": "4d933490c81efccceafdf8c46f6ef93de5ae2e416a8fbfa60a3501a7742910be",
+  "status": "Fail",
+  "classification": "PredeclaredFixtureSyntaxError",
+  "phase": "parse",
+  "diagnostics": [
+    {
+      "phase": "parse",
+      "category": "SafeReject",
+      "code": "E-PARSE-EXPECTED",
+      "message": "expected LBrace",
+      "span": {
+        "file": 2,
+        "start": 733,
+        "end": 735
+      },
+      "notes": []
+    },
+    {
+      "phase": "parse",
+      "category": "SafeReject",
+      "code": "E-PARSE-EXPRESSION",
+      "message": "expected an expression",
+      "span": {
+        "file": 2,
+        "start": 796,
+        "end": 798
+      },
+      "notes": []
+    },
+    {
+      "phase": "parse",
+      "category": "SafeReject",
+      "code": "E-PARSE-EXPRESSION",
+      "message": "expected an expression",
+      "span": {
+        "file": 2,
+        "start": 838,
+        "end": 840
+      },
+      "notes": []
+    }
+  ],
+  "verification_runs": 0,
+  "native_execution": "NotRun",
+  "correction_plan": [
+    {
+      "path": "leaf.zil",
+      "kind": "FixtureSyntaxOnly",
+      "original_sha256": "395fb6c0848013d99ac7a08e66294aa36b019e32fbe63abf736def660f493242",
+      "actual_sha256": "a5c60e7f08b8ff5ba713a9cb036f83437cf893ac8dc2f4504b78b73136aeb509",
+      "change": "Wrap the existing multi-line if condition in parentheses; expression, data checks, ownership operations and expected traces are unchanged.",
+      "reason": "Original CLI03 preflight01 stopped at parse: E-PARSE-EXPECTED expected LBrace at file2 733..735, then E-PARSE-EXPRESSION at796..798 and838..840. Existing newline syntax requires grouping.",
+      "original_result": "Fail; verification_runs0; native NotRun",
+      "original_bytes_retained": "predeclared/sources/leaf.zil and run-logs/206-machine-consumer/preflight01/sources/leaf.zil"
+    }
+  ],
+  "original_evidence_directory": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/preflight01"
+}
