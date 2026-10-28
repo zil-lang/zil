@@ -723,6 +723,36 @@ impl MoveWalk<'_, '_> {
             .pop()
             .expect("State condition alias uses"))
     }
+    fn retire_loop_locals(
+        &mut self,
+        mut flow: MoveFlow,
+        first_local: u32,
+        span: Span,
+    ) -> R<MoveFlow> {
+        // Break/continue snapshots precede the lexical block's pop_scope.
+        // Retire only locals born inside this loop body. References copied
+        // into an outer local keep their now-invalid original parent.
+        self.state.snapshot(flow.work(), span)?;
+        flow.moved.retain(|(root, _)| *root < first_local);
+        let generation = self.next_generation(span)?;
+        let mut removed = 0usize;
+        flow.aliases.retain(|key, values| {
+            if matches!(key, AliasKey::Local(root) if *root >= first_local) {
+                removed = values
+                    .iter()
+                    .fold(removed, |n, alias| n.saturating_add(alias.work()));
+                return false;
+            }
+            for alias in values {
+                if alias.parent.0 >= first_local {
+                    alias.invalidated_at.get_or_insert(generation);
+                }
+            }
+            true
+        });
+        flow.alias_entries -= removed;
+        Ok(flow)
+    }
     fn loop_body(
         &mut self,
         body: &CoreBlock,
@@ -740,11 +770,13 @@ impl MoveWalk<'_, '_> {
         )?;
         self.loops.push((None, None));
         self.loop_alias_uses.push(condition_uses);
+        let first_local = self.next;
         self.block(body, depth + 1)?;
         let (breaks, continues) = self.loops.pop().expect("State move loop");
         let used = self.loop_alias_uses.pop().expect("State alias loop");
         let mut back = self.snapshot_flow(body.span)?;
         if let Some(continues) = continues {
+            let continues = self.retire_loop_locals(continues, first_local, body.span)?;
             back = self.join(back, continues, body.span)?;
         }
         self.state.snapshot(
@@ -791,6 +823,7 @@ impl MoveWalk<'_, '_> {
         // position while permanently invalidating an older borrowed alias.
         let exit = self.join(exit, back, body.span)?;
         self.flow = if let Some(breaks) = breaks {
+            let breaks = self.retire_loop_locals(breaks, first_local, body.span)?;
             self.join(exit, breaks, body.span)?
         } else {
             exit
