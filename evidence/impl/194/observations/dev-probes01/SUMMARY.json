@@ -1,0 +1,221 @@
+{
+  "kind": "development-admission-observation",
+  "source_commit": "e74a8eb4d8f3c4571111ebae0b886ac2a8b3184e",
+  "git_status": "",
+  "cli_sha256": "968c60673dd3cb4ae97a6fe980d32b8f289675ed15d6057012136495869facbf",
+  "executed": 19,
+  "native_executed": 0,
+  "rows": [
+    {
+      "name": "01-ordinary-unbound-control",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "02-one-callable-control",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "03-copy-bound-alone",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "04-map-copy-f",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "05-map-f-copy",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "06-extra-i32-i64",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "07-extra-nominal",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "08-nested-map",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "09-fnmut-copy",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "10-fnonce-copy",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "11-copy-address-parameter",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "12-unused-bad-copy-body",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 42,
+            "end": 43
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "13-unbounded-data-type",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "ordinary parameters beside F require one direct Copy bound",
+          "span": {
+            "file": 0,
+            "start": 9,
+            "end": 10
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "14-owned-package-data",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy bound fields require finite Copy or explicit direct manages resources",
+          "span": {
+            "file": 0,
+            "start": 127,
+            "end": 128
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "15-two-parameters-one-f",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+          "span": {
+            "file": 0,
+            "start": 27,
+            "end": 31
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "16-two-callable-types",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented; it may have one ordinary Copy type parameter",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 71
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "17-nested-mixed-mode",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "nested synchronous helpers require the same declared callable kind",
+          "span": {
+            "file": 0,
+            "start": 83,
+            "end": 91
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "18-mode-adaptation-control",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "19-runtime-loop-copy",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    }
+  ]
+}

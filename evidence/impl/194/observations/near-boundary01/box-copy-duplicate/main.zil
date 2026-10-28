@@ -1,0 +1,1 @@
+struct Box<T>{value:T}fn duplicate<T:Copy>(x:T)->(T,T)=>(x,x);fn main()->i32{let x=Box::<Box<i32>>{value:Box::<i32>{value:7}};let y=duplicate(x);return y.0.value.value+y.1.value.value-14}

@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}fn inspect<T:Copy,F:Fn()->i32>(f:&F,x:T)->i32=>f();fn main()->i32{let f=move()=>0;let p=P{r:R{n:7}};return inspect(&f,p)}

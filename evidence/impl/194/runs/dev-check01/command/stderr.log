@@ -1,0 +1,5 @@
+    Checking zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt194/crates/zil-base)
+    Checking zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt194/crates/zil-syntax)
+    Checking zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt194/crates/zil-ir)
+    Checking zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt194/crates/zil-expand)
+    Finished `dev` profile [unoptimized] target(s) in 1.72s

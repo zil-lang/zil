@@ -1,0 +1,1 @@
+fn apply<T:Copy,F:FnMut(T)->T>(f:&mut F,x:T)->T=>f(x);fn main()->i32{var total=0;var f=(n:i32)=>{total+=n;return total};return apply(&mut f,7)-7}

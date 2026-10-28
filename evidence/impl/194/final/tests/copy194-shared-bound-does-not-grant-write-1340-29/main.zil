@@ -1,0 +1,1 @@
+fn apply<T:Copy,F:Fn(&T)->i32>(f:&F,x:&T)->i32=>f(x);fn main()->i32{var n=1;var f=(x:&i32)=>{n+=*x;return n};return apply(&f,&n)}

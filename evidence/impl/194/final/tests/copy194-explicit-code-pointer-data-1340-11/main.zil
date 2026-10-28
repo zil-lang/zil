@@ -1,0 +1,1 @@
+fn id<T:Copy>(x:T)->T=>x;fn main()->i32{let f:fn()->i32=()=>7;let g=id(f);return g()-7}

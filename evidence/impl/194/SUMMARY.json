@@ -1,0 +1,128 @@
+{
+  "status": "Pass",
+  "scope": "author bounded slice, not independent acceptance or full language",
+  "implementation_author": "/root/resume192",
+  "implementation_commit": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+  "executed": 150,
+  "failed": 0,
+  "suite_count": 13,
+  "new_source_tests": 18,
+  "new_raw_tests": 8,
+  "new_source_compile_reports": 80,
+  "new_source_native_executions": 54,
+  "consumer": {
+    "source_commit": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+    "status": "Pass",
+    "executions": 60,
+    "native_executions": 60,
+    "ordinary_executions": 14,
+    "instrumented_executions": 46,
+    "actual_allocation_failures": 26,
+    "cli_sha256": "029543198554cd97118e2f4bc4a5b75ef0767ea5cbbf872f5e4fa075439ab119"
+  },
+  "checks": {
+    "clippy02": "Pass",
+    "clippy-tests01": "Pass",
+    "fmt01": "Pass",
+    "final-build01": "Pass"
+  },
+  "raw_mutations": [
+    {
+      "mutation": "all-instances-omit-call",
+      "analyze_must_reject": true,
+      "analyze_accepted": false,
+      "verify_executed": 2,
+      "expected_verify_code": "E-VERIFY-CALLABLE-CONTRACT"
+    },
+    {
+      "mutation": "wrong-width-instance",
+      "analyze_must_reject": false,
+      "analyze_accepted": true,
+      "verify_executed": 2,
+      "expected_verify_code": "E-VERIFY-CALL"
+    },
+    {
+      "mutation": "one-instance-omits-call",
+      "analyze_must_reject": true,
+      "analyze_accepted": false,
+      "verify_executed": 2,
+      "expected_verify_code": "E-VERIFY-CALLABLE-CONTRACT"
+    },
+    {
+      "mutation": "wrong-nominal-instance",
+      "analyze_must_reject": false,
+      "analyze_accepted": true,
+      "verify_executed": 2,
+      "expected_verify_code": "E-VERIFY-CALL"
+    },
+    {
+      "mutation": "wrong-result-type",
+      "analyze_must_reject": false,
+      "analyze_accepted": true,
+      "verify_executed": 2,
+      "expected_verify_code": "E-VERIFY-TYPE"
+    }
+  ],
+  "budget_boundaries": [
+    {
+      "phase": "expand",
+      "dimension": "work",
+      "N": 2351,
+      "below": "[Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic metadata budget exceeded\", span: Some(Span { file: FileId(0), start: 80, end: 81 }), notes: [] }]"
+    },
+    {
+      "phase": "expand",
+      "dimension": "nodes",
+      "N": 669,
+      "below": "[Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic expansion budget exceeded\", span: Some(Span { file: FileId(0), start: 80, end: 81 }), notes: [] }]"
+    },
+    {
+      "phase": "expand",
+      "dimension": "depth",
+      "N": 10,
+      "below": "[Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic expansion budget exceeded\", span: Some(Span { file: FileId(0), start: 269, end: 270 }), notes: [] }]"
+    },
+    {
+      "phase": "expand",
+      "dimension": "functions",
+      "N": 4,
+      "below": "[Diagnostic { phase: Expand, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"generic instance budget exceeded\", span: Some(Span { file: FileId(0), start: 244, end: 260 }), notes: [] }]"
+    },
+    {
+      "phase": "Types",
+      "dimension": "work",
+      "N": 2095,
+      "below": "[Diagnostic { phase: Types, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"closure lookup snapshot budget exceeded\", span: Some(Span { file: FileId(0), start: 244, end: 260 }), notes: [] }]"
+    },
+    {
+      "phase": "Analyze",
+      "dimension": "work",
+      "N": 4357,
+      "below": "[Diagnostic { phase: Analyze, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"analysis budget exceeded during public Hold projection\", span: None, notes: [] }]"
+    },
+    {
+      "phase": "Verify",
+      "dimension": "work",
+      "N": 11846,
+      "below": "[Diagnostic { phase: Verify, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"independent verification work budget exhausted\", span: None, notes: [] }]"
+    }
+  ],
+  "failed_observations_preserved": [
+    "source01: new enum pattern + two diagnostic assertions (12/3)",
+    "near-boundary01: genuine Box<Box<i32>> Copy misrejection + controls",
+    "clippy01: internal method argument count lint"
+  ],
+  "initial_success_runs_not_relabelled": [
+    "e74a8eb4 dev-probes01",
+    "d8f62753 source02",
+    "a3c0e73c raw01/adjacent01",
+    "4e719ced consumer01"
+  ],
+  "producer_analysis_note": "Pure Copy argument/result type forgeries may reach a resource-analysis candidate; independent raw and Wire Verify rejects concrete signature mismatch. Omitted callback claims are rejected independently by both safety phases.",
+  "native_windows": "NotRun",
+  "wine": "NotRun by this author",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "independent_review": "Pending"
+}

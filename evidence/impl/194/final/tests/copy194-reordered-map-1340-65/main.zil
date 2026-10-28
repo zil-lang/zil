@@ -1,0 +1,1 @@
+fn apply<F:Fn(T)->T,T:Copy>(f:&F,x:T)->T=>f(x);fn main()->i32{let f=move(n:i32)=>n+1;return apply(&f,6)-7}
