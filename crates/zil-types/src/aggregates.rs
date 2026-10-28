@@ -470,6 +470,41 @@ impl Resolver<'_> {
             Ok(resolved)
         }
     }
+    fn store_element_shape(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
+        if dynamic_store::supported_element(ty) {
+            return Ok(true);
+        }
+        let Type::Package { fields, .. } = ty else {
+            return Ok(false);
+        };
+        // Only the unresolved callback path adds work. The old Store shell
+        // retains exactly its previous resolution cost.
+        let lookup = self
+            .callable_names
+            .len()
+            .checked_ilog2()
+            .map_or(1, |n| n as usize + 2);
+        for (_, field) in fields {
+            self.charge(depth, span)?;
+            if let Type::Named(name) = field {
+                self.remaining = self
+                    .remaining
+                    .checked_sub(lookup.saturating_mul(name.len().saturating_add(1)))
+                    .ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "Store callback placeholder budget exceeded",
+                            Some(span),
+                        )
+                    })?;
+            }
+        }
+        Ok(dynamic_store::callback_element(
+            ty,
+            |field| matches!(field, Type::Named(name) if self.callable_names.contains(name)),
+        ))
+    }
+
     fn charge(&mut self, depth: usize, span: Span) -> R<()> {
         if depth > self.depth_limit || self.remaining == 0 {
             return Err(Diagnostic::limit(
@@ -592,7 +627,7 @@ impl Resolver<'_> {
             }
             Type::OwnedStore { element } => {
                 let element = self.ty(element, depth + 1, span)?;
-                if !dynamic_store::supported_element(&element) {
+                if !self.store_element_shape(&element, depth, span)? {
                     return Err(unsupported(
                         span,
                         "Store elements require nonzero complete direct-Managed Packages",
@@ -673,7 +708,7 @@ impl Resolver<'_> {
                     {
                         Type::Managed(payload)
                     }
-                    Type::Package { .. } if dynamic_store::supported_element(&inner) => inner,
+                    Type::Package { .. } if self.store_element_shape(&inner, depth, span)? => inner,
                     Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
                         return Err(unsupported(
                             span,
