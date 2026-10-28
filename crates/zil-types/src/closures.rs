@@ -323,6 +323,7 @@ impl State {
                 )
             })?;
             definitions.push(ClosureDefinition {
+                lending_captures: Vec::new(),
                 id: pending.id,
                 function: pending.function,
                 captures: pending.captures.iter().map(Capture::stored_type).collect(),

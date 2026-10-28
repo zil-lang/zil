@@ -573,6 +573,7 @@ fn callback_sources_are_real_static_definitions_and_keep_their_actual_signature(
     let mut environment = callback_case();
     environment.module.functions[2].environment = Some(ClosureId(0));
     environment.module.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(2),
         captures: vec![],

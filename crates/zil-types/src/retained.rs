@@ -536,6 +536,7 @@ impl Builder<'_, '_> {
         }
         self.function.return_type = Type::Closure(id);
         self.function.callable_return_contract = Some(CallableReturnContract {
+            lending_captures: Vec::new(),
             closure: id,
             kind: bound.kind,
             hold: Vec::new(),

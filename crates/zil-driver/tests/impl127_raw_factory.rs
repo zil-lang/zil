@@ -136,6 +136,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
     ];
     factory.blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
     factory.callable_return_contract = Some(CallableReturnContract {
+        lending_captures: Vec::new(),
         closure: ClosureId(0),
         kind: CallableKind::Fn,
         hold: vec![],
@@ -155,6 +156,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
         target: TargetProfile::host_llvm(),
         functions: vec![helper, factory, entry],
         closures: vec![ClosureDefinition {
+            lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(2),
             captures: vec![Type::I32],
