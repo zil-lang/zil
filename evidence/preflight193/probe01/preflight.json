@@ -1,0 +1,796 @@
+{
+  "format": "zil-language193-read-only-preflight/1",
+  "status": "Recorded",
+  "scope": "Source check through requested Verify; gap preflight only, not 193 acceptance or native execution",
+  "cli": {
+    "path": "/workspace/scratch/39be3faa4442/targets178/review189/debug/zil",
+    "sha256": "c705c0d356209fe672ad6e1452bb174ed15709f60850a50e44c8217d0e9ff499",
+    "build_source": "9bb141a327cf2433efd755e24551409f4c17caab",
+    "production_source": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+    "build_record_path": "/workspace/scratch/39be3faa4442/run-logs/189-review/build01/command/command.json",
+    "build_record_sha256": "fb546c65271347a6b6d7b53870c5d4546e5c924329fc82d1d197e4df0ef33786"
+  },
+  "read_source": "9bb141a327cf2433efd755e24551409f4c17caab",
+  "recording_worktree_head": "9505afd923679fd78ecd3cca4057f3038edc414a",
+  "design_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "native_executions": 0,
+  "raw_wire_checks": 0,
+  "observations": [
+    {
+      "name": "ordinary_shared",
+      "proposed_193_outcome": "Success",
+      "purpose": "ordinary shared slice control",
+      "source": "ordinary_shared.zil",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "command": "ordinary_shared.command.json",
+      "stdout": "ordinary_shared.stdout",
+      "stderr": "ordinary_shared.stderr"
+    },
+    {
+      "name": "ordinary_exclusive",
+      "proposed_193_outcome": "Success",
+      "purpose": "ordinary exclusive slice control",
+      "source": "ordinary_exclusive.zil",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "command": "ordinary_exclusive.command.json",
+      "stdout": "ordinary_exclusive.stdout",
+      "stderr": "ordinary_exclusive.stderr"
+    },
+    {
+      "name": "ordinary_shared_write",
+      "proposed_193_outcome": "SafeReject",
+      "purpose": "ordinary shared permission control",
+      "source": "ordinary_shared_write.zil",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-ADDRESS-PERMISSION",
+          "message": "indirect write requires an exclusive address",
+          "span": {
+            "file": 0,
+            "start": 28,
+            "end": 32
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        }
+      ],
+      "command": "ordinary_shared_write.command.json",
+      "stdout": "ordinary_shared_write.stdout",
+      "stderr": "ordinary_shared_write.stderr"
+    },
+    {
+      "name": "ordinary_desc_same",
+      "proposed_193_outcome": "SafeReject",
+      "purpose": "ordinary actual buffer provenance control",
+      "source": "ordinary_desc_same.zil",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 200,
+            "end": 218
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 1,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "command": "ordinary_desc_same.command.json",
+      "stdout": "ordinary_desc_same.stdout",
+      "stderr": "ordinary_desc_same.stderr"
+    },
+    {
+      "name": "ordinary_desc_other",
+      "proposed_193_outcome": "Success",
+      "purpose": "ordinary distinct buffer provenance control",
+      "source": "ordinary_desc_other.zil",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "command": "ordinary_desc_other.command.json",
+      "stdout": "ordinary_desc_other.stdout",
+      "stderr": "ordinary_desc_other.stderr"
+    },
+    {
+      "name": "ordinary_desc_read",
+      "proposed_193_outcome": "Success",
+      "purpose": "ordinary readonly same buffer control",
+      "source": "ordinary_desc_read.zil",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "command": "ordinary_desc_read.command.json",
+      "stdout": "ordinary_desc_read.stdout",
+      "stderr": "ordinary_desc_read.stderr"
+    },
+    {
+      "name": "callback_shared",
+      "proposed_193_outcome": "Success",
+      "purpose": "explicit shared slice callback",
+      "source": "callback_shared.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 48,
+            "end": 74
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "callback_shared.command.json",
+      "stdout": "callback_shared.stdout",
+      "stderr": "callback_shared.stderr"
+    },
+    {
+      "name": "callback_exclusive",
+      "proposed_193_outcome": "Success",
+      "purpose": "explicit exclusive slice callback",
+      "source": "callback_exclusive.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 48,
+            "end": 96
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "callback_exclusive.command.json",
+      "stdout": "callback_exclusive.stdout",
+      "stderr": "callback_exclusive.stderr"
+    },
+    {
+      "name": "callback_unused",
+      "proposed_193_outcome": "Success",
+      "purpose": "unused explicit slice callback still hits admission gate",
+      "source": "callback_unused.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 27,
+            "end": 43
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "callback_unused.command.json",
+      "stdout": "callback_unused.stdout",
+      "stderr": "callback_unused.stderr"
+    },
+    {
+      "name": "callback_shared_write",
+      "proposed_193_outcome": "SafeReject",
+      "purpose": "shared callback slice cannot write after signature admission",
+      "source": "callback_shared_write.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 48,
+            "end": 89
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "callback_shared_write.command.json",
+      "stdout": "callback_shared_write.stdout",
+      "stderr": "callback_shared_write.stderr"
+    },
+    {
+      "name": "helper_shared",
+      "proposed_193_outcome": "Success",
+      "purpose": "generic callback bound and explicit slice extra argument",
+      "source": "helper_shared.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 120,
+            "end": 146
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "helper_shared.command.json",
+      "stdout": "helper_shared.stdout",
+      "stderr": "helper_shared.stderr"
+    },
+    {
+      "name": "helper_exclusive",
+      "proposed_193_outcome": "Success",
+      "purpose": "Fn environment with independent exclusive slice argument",
+      "source": "helper_exclusive.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 128,
+            "end": 176
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "helper_exclusive.command.json",
+      "stdout": "helper_exclusive.stdout",
+      "stderr": "helper_exclusive.stderr"
+    },
+    {
+      "name": "helper_extra_only",
+      "proposed_193_outcome": "Success",
+      "purpose": "slice helper extra parameter independently of callback signature",
+      "source": "helper_extra_only.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one finite Copy callable signature, optionally with Copy-address parameters and a Copy result, and one nonescaping environment parameter are implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 71
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        }
+      ],
+      "command": "helper_extra_only.command.json",
+      "stdout": "helper_extra_only.stdout",
+      "stderr": "helper_extra_only.stderr"
+    },
+    {
+      "name": "factory_signature",
+      "proposed_193_outcome": "Success",
+      "purpose": "self-contained returned environment with explicit slice callback parameter",
+      "source": "factory_signature.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 45,
+            "end": 64
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "factory_signature.command.json",
+      "stdout": "factory_signature.stdout",
+      "stderr": "factory_signature.stderr"
+    },
+    {
+      "name": "callback_desc_same",
+      "proposed_193_outcome": "SafeReject",
+      "purpose": "captured Desc writes same actual slice backing even at final use",
+      "source": "callback_desc_same.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 109,
+            "end": 169
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "callback_desc_same.command.json",
+      "stdout": "callback_desc_same.stdout",
+      "stderr": "callback_desc_same.stderr"
+    },
+    {
+      "name": "callback_desc_other",
+      "proposed_193_outcome": "Success",
+      "purpose": "captured Desc writes different actual buffer from explicit slice",
+      "source": "callback_desc_other.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 132,
+            "end": 192
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "callback_desc_other.command.json",
+      "stdout": "callback_desc_other.stdout",
+      "stderr": "callback_desc_other.stderr"
+    },
+    {
+      "name": "callback_desc_read",
+      "proposed_193_outcome": "Success",
+      "purpose": "captured readonly Desc shares actual backing with shared slice",
+      "source": "callback_desc_read.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 109,
+            "end": 157
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "callback_desc_read.command.json",
+      "stdout": "callback_desc_read.stdout",
+      "stderr": "callback_desc_read.stderr"
+    },
+    {
+      "name": "callback_exclusive_same",
+      "proposed_193_outcome": "SafeReject",
+      "purpose": "simultaneous explicit shared and exclusive same-backing arguments",
+      "source": "callback_exclusive_same.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 48,
+            "end": 106
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "callback_exclusive_same.command.json",
+      "stdout": "callback_exclusive_same.stdout",
+      "stderr": "callback_exclusive_same.stderr"
+    },
+    {
+      "name": "callback_exclusive_other",
+      "proposed_193_outcome": "Success",
+      "purpose": "simultaneous explicit shared and exclusive distinct-backing arguments",
+      "source": "callback_exclusive_other.zil",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 68,
+            "end": 126
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        }
+      ],
+      "command": "callback_exclusive_other.command.json",
+      "stdout": "callback_exclusive_other.stdout",
+      "stderr": "callback_exclusive_other.stderr"
+    }
+  ]
+}

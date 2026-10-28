@@ -1,0 +1,116 @@
+[
+  {
+    "name": "ordinary_shared",
+    "proposed_193_outcome": "Success",
+    "purpose": "ordinary shared slice control",
+    "source": "ordinary_shared.zil"
+  },
+  {
+    "name": "ordinary_exclusive",
+    "proposed_193_outcome": "Success",
+    "purpose": "ordinary exclusive slice control",
+    "source": "ordinary_exclusive.zil"
+  },
+  {
+    "name": "ordinary_shared_write",
+    "proposed_193_outcome": "SafeReject",
+    "purpose": "ordinary shared permission control",
+    "source": "ordinary_shared_write.zil"
+  },
+  {
+    "name": "ordinary_desc_same",
+    "proposed_193_outcome": "SafeReject",
+    "purpose": "ordinary actual buffer provenance control",
+    "source": "ordinary_desc_same.zil"
+  },
+  {
+    "name": "ordinary_desc_other",
+    "proposed_193_outcome": "Success",
+    "purpose": "ordinary distinct buffer provenance control",
+    "source": "ordinary_desc_other.zil"
+  },
+  {
+    "name": "ordinary_desc_read",
+    "proposed_193_outcome": "Success",
+    "purpose": "ordinary readonly same buffer control",
+    "source": "ordinary_desc_read.zil"
+  },
+  {
+    "name": "callback_shared",
+    "proposed_193_outcome": "Success",
+    "purpose": "explicit shared slice callback",
+    "source": "callback_shared.zil"
+  },
+  {
+    "name": "callback_exclusive",
+    "proposed_193_outcome": "Success",
+    "purpose": "explicit exclusive slice callback",
+    "source": "callback_exclusive.zil"
+  },
+  {
+    "name": "callback_unused",
+    "proposed_193_outcome": "Success",
+    "purpose": "unused explicit slice callback still hits admission gate",
+    "source": "callback_unused.zil"
+  },
+  {
+    "name": "callback_shared_write",
+    "proposed_193_outcome": "SafeReject",
+    "purpose": "shared callback slice cannot write after signature admission",
+    "source": "callback_shared_write.zil"
+  },
+  {
+    "name": "helper_shared",
+    "proposed_193_outcome": "Success",
+    "purpose": "generic callback bound and explicit slice extra argument",
+    "source": "helper_shared.zil"
+  },
+  {
+    "name": "helper_exclusive",
+    "proposed_193_outcome": "Success",
+    "purpose": "Fn environment with independent exclusive slice argument",
+    "source": "helper_exclusive.zil"
+  },
+  {
+    "name": "helper_extra_only",
+    "proposed_193_outcome": "Success",
+    "purpose": "slice helper extra parameter independently of callback signature",
+    "source": "helper_extra_only.zil"
+  },
+  {
+    "name": "factory_signature",
+    "proposed_193_outcome": "Success",
+    "purpose": "self-contained returned environment with explicit slice callback parameter",
+    "source": "factory_signature.zil"
+  },
+  {
+    "name": "callback_desc_same",
+    "proposed_193_outcome": "SafeReject",
+    "purpose": "captured Desc writes same actual slice backing even at final use",
+    "source": "callback_desc_same.zil"
+  },
+  {
+    "name": "callback_desc_other",
+    "proposed_193_outcome": "Success",
+    "purpose": "captured Desc writes different actual buffer from explicit slice",
+    "source": "callback_desc_other.zil"
+  },
+  {
+    "name": "callback_desc_read",
+    "proposed_193_outcome": "Success",
+    "purpose": "captured readonly Desc shares actual backing with shared slice",
+    "source": "callback_desc_read.zil"
+  },
+  {
+    "name": "callback_exclusive_same",
+    "proposed_193_outcome": "SafeReject",
+    "purpose": "simultaneous explicit shared and exclusive same-backing arguments",
+    "source": "callback_exclusive_same.zil"
+  },
+  {
+    "name": "callback_exclusive_other",
+    "proposed_193_outcome": "Success",
+    "purpose": "simultaneous explicit shared and exclusive distinct-backing arguments",
+    "source": "callback_exclusive_other.zil"
+  }
+]

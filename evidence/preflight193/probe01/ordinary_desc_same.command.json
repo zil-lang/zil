@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/review189/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/ordinary_desc_same.zil",
+    "--stop-after",
+    "verify",
+    "--json"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/review191-baseline",
+  "exit_code": 1,
+  "timeout": false,
+  "elapsed_seconds": 0.00433802604675293,
+  "source_sha256": "54207ba7a88a6f98729db95bcd00933d0fe78f30e67bb375b3b3f1cf4159f80b",
+  "stdout_sha256": "7f830f4b75978019dd320167b0158c187c4cee5e99993b51ee24107f6b735d5a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
