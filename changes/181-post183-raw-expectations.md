@@ -1,0 +1,8 @@
+# 181：183直接拥有成功载荷之后的两条旧raw期待
+
+冻结32bddf86的workspace03真实结果为1751/2。两条失败都保持拒绝，旧期待尚把新支持的直接拥有成功联合当作一概Unsupported。
+
+- 原error_scope fixture创建Managed成功载荷但未写result模式，继续独立拒绝；精确消息改为必须有create/give模式，函数名反映实际保证。
+- 原095 raw参数的ErrorUnion成功ByteBuffer现在是受支持类型，但该原始函数在StorageDead前没有清理，继续Verify/SafeReject/E-VERIFY-RESOURCE且必须含outstanding resource responsibility。ByteBuffer裸值、直接资源数组、资源头地址等其它原形状仍期待Unsupported。
+
+没有改原输入、cleanup、默认预算或生产代码。首次整仓失败保留；后续限定和最终合流命令另绑定实际提交。

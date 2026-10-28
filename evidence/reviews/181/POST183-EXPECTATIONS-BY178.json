@@ -1,0 +1,21 @@
+{
+  "source_commit": "34e95970b8f117fab7a37b9ddc510b0f1c188406",
+  "implementation_commit": "34e95970b8f117fab7a37b9ddc510b0f1c188406",
+  "reviewer": "history178_audit",
+  "status": "Pass",
+  "verdict": "Pass",
+  "scope": "Independent read-only review of the complete tests-only diff; no production or input changes, no test rerun.",
+  "checked_files": [
+    "changes/181-post183-raw-expectations.md",
+    "crates/zil-verify/src/error_scope_tests.rs",
+    "crates/zil-verify/tests/impl095_byte_buffers.rs"
+  ],
+  "findings": [
+    "The OwnedSuccess raw Body, tag construction and cleanup input remain byte-for-byte unchanged. The renamed test still requires rejection; only its expected diagnostic moves from the superseded non-Copy shape gate to the missing explicit create/give result mode. The corresponding production check remains E-VERIFY-RESOURCE.",
+    "Every impl095 raw input type, parameter, function body and missing cleanup remains unchanged. Only the exact ErrorUnion whose success payload is Managed(ByteBuffer) now requires SafeReject, E-VERIFY-RESOURCE and outstanding resource responsibility. Every other profile keeps the prior Unsupported requirement.",
+    "The commit contains no production changes and does not convert either hostile input into acceptance. Both assertions now match the existing owned-success capability and its required mode/cleanup checks."
+  ],
+  "execution": "NotRun: parent explicitly requested diff-only review; this receipt does not claim or duplicate the author's run-logs/185-integration/post183-fixtures01 execution.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
