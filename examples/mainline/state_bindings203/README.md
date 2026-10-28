@@ -11,3 +11,5 @@
 当前作者源已完成，尚未宣称该完整消费者通过：`expand01` 曾发现 seed 返回拥有 Store 时漏写 give，原输入已保存；已按既有责任语义改为 `return give items`。`expand02` 准确暴露普通 main 中 callable State 生产者的完整 T 依赖不能提前 eager 实例化，正在补对应合同及实现。五模块正例保持成功预期，不把这条失败改写为支持边界或复制 202 成绩。
 
 正式a355规范及Expand值推导补片后，`inferred02` 已实际通过五模块Expand。完整生产组合的Types/native/fault仍待运行；早期失败不重标。
+
+Types作者 source09 真实经过 main identity/seed 后，在跨模块 `a.active` 处 E-FIELD-PRIVATE；这是消费者首次把字段访问移到main后遗漏public的源码错误。已只把State.active声明为公开API；once与tag仍通过既定State函数使用，未放宽编译器隐私门。原失败由Types作者保存。

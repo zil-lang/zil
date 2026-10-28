@@ -5,7 +5,7 @@ impl Drop for Mark { fn drop(self: Self) { portable.emit(.code) } }
 
 pub package State<T,F,G> {
     manages marker: Mark
-    active: F
+    pub active: F
     once: G
     tag: T
 }

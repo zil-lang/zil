@@ -11,3 +11,5 @@
 真实 `inferred01`：新五模块 Expand 1/0，旧202 17/0；新State测试13/1，唯一失败为作者此前要求隐式identity一定输出TypeApply的元数据断言。按照正式新增裸Call合同具体迁移该断言，并增加完全相同来源的显式TypeApply对照；失败保留。`inferred02` 实际新State15/0、多模块1/0、旧20217/0。新203原01/04的N由早期规范下3753/4120增加到3814/4181，来源登记先计费，早期收据不改写。
 
 完整消费者已通过Expand，但其Types/Analyze/Verify/native/fault尚须组合候选实际执行，不能据此报告成功。源目录和runner继续使用同一失败后修正give的消费者字节；未以内联或删除普通T helper绕开问题。
+
+精确干净 `fe10218aaa9e0413eb150510dce1f4b8e32062b1` 的 inferred-freeze01 重跑15+1+17/0，clippy02对库和两份新测试 `-D warnings` 通过。新增裸Call路径自己的value-budget01实际 N=4070，N−1 ResourceLimit、新鲜N再通过；对应测试增量为dirty test-only身份，生产字节同fe10218a。
