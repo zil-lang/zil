@@ -343,7 +343,9 @@ impl Builder<'_, '_> {
                     parameter_mode(ty, &bound.generic_name)
                         .ok_or_else(|| unsupported(span, "invalid callable template parameter"))?
                 };
-                let (mut value, mut actual) = if mode.is_none() {
+                let (mut value, mut actual) = if owned_state && signature.callable.len() == 1 {
+                    self.owned_array_input(argument, None)?
+                } else if mode.is_none() {
                     // A constructor receives ordinary values. Structural Copy
                     // environments may be copied into distinct inputs; owning
                     // environments transfer once through the ordinary path.
@@ -439,7 +441,21 @@ impl Builder<'_, '_> {
                 self.same(&actual, ty, argument.span)?;
                 (value, actual)
             };
-            staged.push(self.stage_argument(value, &actual, argument.span)?);
+            let mut prepared = self.stage_argument(value, &actual, argument.span)?;
+            if owned_state
+                && signature.callable.len() == 2
+                && matches!(actual, Type::Closure(_))
+                && prepared.1.is_none()
+            {
+                // A structural Copy environment is first copied to its own
+                // real temporary. Publication into an owning State still
+                // takes that distinct position; a Load view is not an owned
+                // input and the independent verifier must keep rejecting it.
+                let local = self.temp(actual.clone(), argument.span)?;
+                self.store(local, value, argument.span)?;
+                prepared.1 = Some(local);
+            }
+            staged.push(prepared);
         }
         let instance = self.instantiate_helper(
             signature.template.expect("template key"),
