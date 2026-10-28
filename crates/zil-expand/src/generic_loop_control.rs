@@ -65,6 +65,7 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         mut iteration: State,
         span: Span,
+        aliases: state_aliases::LoopMark,
     ) -> R<BlockFlow> {
         let depth = self.loops.len().checked_add(1).ok_or_else(|| {
             Diagnostic::limit(Phase::Expand, "generic loop depth overflow", Some(span))
@@ -80,9 +81,11 @@ impl Check<'_, '_, '_> {
         // by the outer ids, including their managed field slots.
         for continuation in &frame.continues {
             self.budget.node(span, 0)?;
+            self.alias_loop_invariant(state, continuation, aliases, body.span)?;
             self.loop_invariant(state, continuation, body.span)?;
         }
         if body_flow.fallthrough {
+            self.alias_loop_invariant(state, &iteration, aliases, body.span)?;
             self.loop_invariant(state, &iteration, body.span)?;
         }
 
