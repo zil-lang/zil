@@ -299,6 +299,25 @@ fn full_nominal_and_phantom_data_arguments_are_not_a_closure_only_instance_key()
 }
 
 #[test]
+fn ordinary_pop_success_payload_preserves_the_callback_helper_dependency() {
+    let helper = "fn invoke<G:FnMut()->i32>(callback:&mut G)->i32{return callback()}\n";
+    for phantom in [false, true] {
+        let original = nominal_pair_source(phantom, false);
+        let source = original.replace(
+            "return left.callback()+right.callback()-32",
+            "return invoke(&mut left.callback)+invoke(&mut right.callback)-32",
+        );
+        assert_ne!(source, original);
+        native(
+            &format!("ordinary-pop-success-helper-phantom-{phantom}"),
+            &format!("{helper}{source}"),
+            "2B1AZ",
+            0,
+        );
+    }
+}
+
+#[test]
 fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
     // Isolate actual parameter-remapped writes from the separate nominal-name
     // collision test; both must pass, but one early failure must not hide the
@@ -862,9 +881,11 @@ fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
         "wrong-target-in-unused-body",
         "foreign-binder-in-unused-identity",
         "foreign-target-in-unused-body",
+        "unearned-field-in-unused-identity",
+        "unearned-call-in-unused-identity",
     ] {
         let mut changed = core.clone();
-        let index = if attack == "foreign-binder-in-unused-identity" {
+        let index = if attack.ends_with("-unused-identity") {
             identity_index
         } else {
             unused_index
@@ -875,6 +896,28 @@ fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
             // definition; this otherwise unused template only declares U.
             assert_ne!(unused.type_parameters[0].name, "UnusedU");
             unused.type_parameters[0].name = "UnusedU".into();
+        } else if attack.starts_with("unearned-") {
+            let value = CoreExpr {
+                id: NodeId(920004),
+                span: unused.span,
+                kind: CoreExprKind::Name("value".into()),
+            };
+            let kind = if attack == "unearned-field-in-unused-identity" {
+                CoreExprKind::Member {
+                    object: Box::new(value),
+                    member: "secret".into(),
+                }
+            } else {
+                CoreExprKind::Call {
+                    callee: Box::new(value),
+                    arguments: vec![],
+                }
+            };
+            unused.body.statements[0].kind = CoreStatementKind::Return(Some(CoreExpr {
+                id: NodeId(920005),
+                span: unused.span,
+                kind,
+            }));
         } else {
             let mut mutated = 0;
             visit_block(&mut unused.body, &mut |expr| {
