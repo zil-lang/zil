@@ -25,14 +25,16 @@ mod program;
 mod resource_effects;
 mod resources;
 mod retained;
+mod store_templates;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
-    id: FunctionId,
+    id: Option<FunctionId>,
     callable: Vec<CoreCallableParameter>,
     callable_return: Option<CoreCallableReturn>,
+    type_parameter: Option<CoreTypeParameter>,
     template: Option<(zil_base::ModuleId, zil_base::NodeId)>,
     foreign: bool,
     cleanup: bool,
@@ -40,6 +42,17 @@ struct Signature {
     result: Type,
     public: bool,
     receiver: Option<Type>,
+}
+impl Signature {
+    fn concrete_id(&self, span: Span) -> R<FunctionId> {
+        self.id.ok_or_else(|| {
+            error(
+                "E-TYPE-APPLICATION",
+                span,
+                "a template has no concrete function identity before instantiation",
+            )
+        })
+    }
 }
 fn error(code: &str, span: Span, message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(Phase::Types, code, Some(span), message)
@@ -82,13 +95,16 @@ fn signatures(
     let mut concrete_index = 0usize;
     for f in &core.functions {
         let i = concrete_index;
-        if f.callable_parameters.is_empty() {
+        if f.callable_parameters.is_empty() && f.type_parameters.is_empty() {
             concrete_index += 1;
         }
         if let Err(diagnostic) = retained::validate_factory(f) {
             errors.push(diagnostic);
         }
         if let Err(diagnostic) = helpers::validate_template(f) {
+            errors.push(diagnostic);
+        }
+        if let Err(diagnostic) = store_templates::validate_header(f) {
             errors.push(diagnostic);
         }
         if let Err(diagnostic) = foreign::check_declaration(
@@ -104,19 +120,23 @@ fn signatures(
                 Signature {
                     callable: f.callable_parameters.clone(),
                     callable_return: f.callable_return.clone(),
-                    template: (!f.callable_parameters.is_empty()).then_some((core.module_id, f.id)),
+                    type_parameter: f.type_parameters.first().cloned(),
+                    template: (!(f.callable_parameters.is_empty() && f.type_parameters.is_empty()))
+                        .then_some((core.module_id, f.id)),
                     foreign: f.foreign.is_some(),
                     cleanup: core
                         .aggregates
                         .iter()
                         .any(|a| a.teardown.as_ref() == Some(&f.name)),
-                    id: FunctionId(u32::try_from(offset + i).map_err(|_| {
-                        vec![Diagnostic::limit(
-                            Phase::Types,
-                            "function identity overflow",
-                            Some(f.span),
-                        )]
-                    })?),
+                    id: f.type_parameters.is_empty().then_some(FunctionId(
+                        u32::try_from(offset + i).map_err(|_| {
+                            vec![Diagnostic::limit(
+                                Phase::Types,
+                                "function identity overflow",
+                                Some(f.span),
+                            )]
+                        })?,
+                    )),
                     parameters: f.parameters.iter().map(|p| p.ty.clone()).collect(),
                     result: f.return_type.clone(),
                     public: exports.is_none_or(|ids| ids.contains(&f.id)),
@@ -131,101 +151,108 @@ fn signatures(
                 format!("function {} is declared twice", f.name),
             ))
         }
-        if f.return_type.is_package_address() {
-            errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
+        if !f.type_parameters.is_empty() {
+            continue;
         }
-        if f.return_type.is_shared_resource_head_address()
-            || (matches!(f.return_type, Type::Address { .. })
-                && (f
-                    .parameters
-                    .iter()
-                    .any(|p| p.ty.is_shared_resource_head_address())
-                    || f.receiver
-                        .as_ref()
-                        .is_some_and(|r| r.ty.is_shared_resource_head_address())))
-        {
-            errors.push(unsupported(
-                f.span,
-                "resource-head windows are synchronous inputs; returning a head or a window derived from a head input is not implemented",
-            ));
-        }
-        if !(f.callable_return.is_some()
-            || callable_fields::template(f)
-            || f.return_type.is_copy_value()
-            || f.return_type.is_scalar_or_address()
-            || packages::supported(&f.return_type)
-            || errors::supported(&f.return_type)
-            || packages::owned_array_supported(&f.return_type)
-            || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
-        {
-            errors.push(unsupported(
-                f.span,
-                format!("return type {}", f.return_type.name()),
-            ))
-        }
-        if matches!(f.result_mode, PassingMode::Create | PassingMode::Give)
-            && !matches!(f.return_type, Type::Managed(_))
-            && !errors::managed_success(&f.return_type)
-        {
-            errors.push(error(
-                "E-RESOURCE-RESULT-MODE",
-                f.span,
-                "create/give result requires a managed resource or direct owned success payload",
-            ));
-        }
-        if f.receiver.as_ref().is_some_and(|r| {
-            !(r.ty.is_copy_value()
-                || r.ty.is_scalar_or_address()
-                || resources::supported(&r.ty)
-                || packages::supported(&r.ty)
-                || errors::supported(&r.ty))
-        }) {
-            errors.push(unsupported(f.span, "receiver capability typing"))
-        }
-        for (index, p) in f.parameters.iter().enumerate() {
-            if f.callable_parameters
-                .iter()
-                .any(|bound| bound.index as usize == index)
-            {
-                continue;
-            }
-            if !(p.ty.is_copy_value()
-                || p.ty.is_scalar_or_address()
-                || resources::supported(&p.ty)
-                || packages::supported(&p.ty)
-                || errors::supported(&p.ty)
-                || packages::owned_array_supported(&p.ty))
-            {
-                errors.push(unsupported(
-                    p.span,
-                    format!("parameter type {}", p.ty.name()),
-                ))
-            }
-            if matches!(
-                p.mode,
-                PassingMode::Give
-                    | PassingMode::Create
-                    | PassingMode::Describe
-                    | PassingMode::Borrow
-                    | PassingMode::BorrowMut
-            ) && !(p.mode == PassingMode::Borrow
-                && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
-                    || p.ty.is_shared_resource_head_address()
-                    || p.ty.is_shared_package_address()))
-                && !(p.mode == PassingMode::BorrowMut
-                    && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address()))
-                && !(p.mode == PassingMode::Give
-                    && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
-                && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
-            {
-                errors.push(unsupported(p.span, "resource/address parameter mode"))
-            }
-        }
+        signature_errors(f, &mut errors);
     }
     if !errors.is_empty() {
         return Err(errors);
     }
     Ok(signatures)
+}
+
+fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
+    if f.return_type.is_package_address() {
+        errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
+    }
+    if f.return_type.is_shared_resource_head_address()
+        || (matches!(f.return_type, Type::Address { .. })
+            && (f
+                .parameters
+                .iter()
+                .any(|p| p.ty.is_shared_resource_head_address())
+                || f.receiver
+                    .as_ref()
+                    .is_some_and(|r| r.ty.is_shared_resource_head_address())))
+    {
+        errors.push(unsupported(
+            f.span,
+            "resource-head windows are synchronous inputs; returning a head or a window derived from a head input is not implemented",
+        ));
+    }
+    if !(f.callable_return.is_some()
+        || callable_fields::template(f)
+        || f.return_type.is_copy_value()
+        || f.return_type.is_scalar_or_address()
+        || packages::supported(&f.return_type)
+        || errors::supported(&f.return_type)
+        || packages::owned_array_supported(&f.return_type)
+        || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
+    {
+        errors.push(unsupported(
+            f.span,
+            format!("return type {}", f.return_type.name()),
+        ))
+    }
+    if matches!(f.result_mode, PassingMode::Create | PassingMode::Give)
+        && !matches!(f.return_type, Type::Managed(_))
+        && !errors::managed_success(&f.return_type)
+    {
+        errors.push(error(
+            "E-RESOURCE-RESULT-MODE",
+            f.span,
+            "create/give result requires a managed resource or direct owned success payload",
+        ));
+    }
+    if f.receiver.as_ref().is_some_and(|r| {
+        !(r.ty.is_copy_value()
+            || r.ty.is_scalar_or_address()
+            || resources::supported(&r.ty)
+            || packages::supported(&r.ty)
+            || errors::supported(&r.ty))
+    }) {
+        errors.push(unsupported(f.span, "receiver capability typing"))
+    }
+    for (index, p) in f.parameters.iter().enumerate() {
+        if f.callable_parameters
+            .iter()
+            .any(|bound| bound.index as usize == index)
+        {
+            continue;
+        }
+        if !(p.ty.is_copy_value()
+            || p.ty.is_scalar_or_address()
+            || resources::supported(&p.ty)
+            || packages::supported(&p.ty)
+            || errors::supported(&p.ty)
+            || packages::owned_array_supported(&p.ty))
+        {
+            errors.push(unsupported(
+                p.span,
+                format!("parameter type {}", p.ty.name()),
+            ))
+        }
+        if matches!(
+            p.mode,
+            PassingMode::Give
+                | PassingMode::Create
+                | PassingMode::Describe
+                | PassingMode::Borrow
+                | PassingMode::BorrowMut
+        ) && !(p.mode == PassingMode::Borrow
+            && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+                || p.ty.is_shared_resource_head_address()
+                || p.ty.is_shared_package_address()))
+            && !(p.mode == PassingMode::BorrowMut
+                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address()))
+            && !(p.mode == PassingMode::Give
+                && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
+            && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
+        {
+            errors.push(unsupported(p.span, "resource/address parameter mode"))
+        }
+    }
 }
 
 pub fn check(
@@ -246,7 +273,7 @@ pub fn check(
     let concrete_count = core
         .functions
         .iter()
-        .filter(|f| f.callable_parameters.is_empty())
+        .filter(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
     closure_state.resource_writes =
@@ -263,7 +290,9 @@ pub fn check(
         .iter()
         .filter(|f| f.callable_return.is_some())
     {
-        let id = signatures[&f.name].id;
+        let id = signatures[&f.name]
+            .concrete_id(f.span)
+            .map_err(|e| vec![e])?;
         let dependencies =
             retained::factory_dependencies(f, &signatures, None, &closure_state, &mut work, limits)
                 .map_err(|e| vec![e])?;
@@ -274,15 +303,16 @@ pub fn check(
     let ordered = factory_order
         .into_iter()
         .map(|id| factory_functions[&id])
-        .chain(
-            core.functions
-                .iter()
-                .filter(|f| f.callable_parameters.is_empty() && f.callable_return.is_none()),
-        );
+        .chain(core.functions.iter().filter(|f| {
+            (f.callable_parameters.is_empty() && f.type_parameters.is_empty())
+                && f.callable_return.is_none()
+        }));
     for f in ordered {
         match Builder::new(
             f,
-            signatures[&f.name].id,
+            signatures[&f.name]
+                .concrete_id(f.span)
+                .map_err(|e| vec![e])?,
             &signatures,
             limits,
             &mut closure_state,
@@ -314,13 +344,21 @@ pub fn check(
             return Err(errors);
         }
     }
+    let bound_elements =
+        store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
-    dynamic_store::add_definitions(&functions, &mut resource_definitions, &closures, limits)
-        .map_err(|e| vec![e])?;
+    dynamic_store::add_definitions(
+        &functions,
+        &mut resource_definitions,
+        &closures,
+        &bound_elements,
+        limits,
+    )
+    .map_err(|e| vec![e])?;
     let mut module = TypedModule {
         resources: resource_definitions,
         schema_version: SCHEMA_VERSION,
@@ -1471,6 +1509,19 @@ impl<'a, 'c> Builder<'a, 'c> {
                 )
             }
             CoreExprKind::Call { callee, arguments } => {
+                if let CoreExprKind::TypeApply {
+                    callee: target,
+                    type_arguments,
+                } = &callee.kind
+                {
+                    return self.call_type_template(
+                        target,
+                        type_arguments,
+                        arguments,
+                        expected,
+                        e.span,
+                    );
+                }
                 if let Some(name) = dynamic_store::primitive(callee) {
                     return self.dynamic_store_call(name, arguments, expected, e.span);
                 }
@@ -1528,6 +1579,13 @@ impl<'a, 'c> Builder<'a, 'c> {
                     return self.call_closure(callee, arguments, expected, e.span);
                 }
                 let signature = self.resolve_callee(callee)?.clone();
+                if signature.type_parameter.is_some() {
+                    return Err(error(
+                        "E-TYPE-APPLICATION",
+                        callee.span,
+                        "an ordinary template call requires one explicit complete type constraint",
+                    ));
+                }
                 if signature.callable_return.is_some()
                     && matches!(signature.result, Type::Opaque { .. })
                 {
@@ -1899,6 +1957,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             let function_id = pending.function;
             let function = CoreFunction {
                 callable_return: None,
+                type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
@@ -2045,6 +2104,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let function_id = pending.function;
         let function = CoreFunction {
             callable_return: None,
+            type_parameters: Vec::new(),
             callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
             foreign: None,
@@ -2519,6 +2579,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
                 callable_return: None,
+                type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,

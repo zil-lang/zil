@@ -279,13 +279,14 @@ fn new_sequences_still_pay_three_independent_budgets() {
 }
 #[test]
 fn consuming_reuse_rejects_and_the_original_cyclic_neighbor_runs() {
-    for (label, text, phase, category, needle) in [(
-        "once",
-        "fn batch<F:FnOnce()->i32>(f:F)->i32{return f()+f()+f()} fn main()->i32{return 0}",
-        Phase::Expand,
-        ResultCategory::SafeReject,
-        "consumed",
-    )] {
+    {
+        let (label, text, phase, category, needle) = (
+            "once",
+            "fn batch<F:FnOnce()->i32>(f:F)->i32{return f()+f()+f()} fn main()->i32{return 0}",
+            Phase::Expand,
+            ResultCategory::SafeReject,
+            "consumed",
+        );
         let case = Case::new(label);
         let report = compile(&project(&[("main", text)]), &case, None);
         assert_eq!(report.status, category, "{}", report.to_json());

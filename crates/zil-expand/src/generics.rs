@@ -24,6 +24,8 @@ mod enums;
 mod helper_graph;
 #[path = "generic_state.rs"]
 mod states;
+#[path = "generic_store_templates.rs"]
+pub(super) mod store_templates;
 #[path = "generic_store.rs"]
 mod stores;
 #[path = "generic_trait_bounds.rs"]
@@ -92,18 +94,39 @@ pub(super) fn specialize<'a>(
         {
             return Ok(Cow::Owned(normalized.module));
         }
-        return Engine::new(&normalized.module, limits, &normalized.pattern_types)
-            .and_then(|mut engine| engine.run(&normalized.module))
+        return specialize_engine(&normalized.module, limits, &normalized.pattern_types)
             .map(Cow::Owned)
             .map_err(|error| vec![error]);
     }
     if module.items.iter().all(|item| params(item).is_empty()) {
         return Ok(Cow::Borrowed(module));
     }
-    Engine::new(module, limits, &BTreeMap::new())
-        .and_then(|mut engine| engine.run(module))
+    specialize_engine(module, limits, &BTreeMap::new())
         .map(Cow::Owned)
         .map_err(|error| vec![error])
+}
+
+fn specialize_engine(
+    module: &Module,
+    limits: &Limits,
+    pattern_types: &BTreeMap<String, TypeRef>,
+) -> R<Module> {
+    let mut engine = Engine::new(module, limits, pattern_types)?;
+    if !engine.callable_nominal_collision {
+        return engine.run(module);
+    }
+    // Generated aggregates no longer carry the original generic declaration.
+    // Protect actual nominal identities in the original, still-scoped AST,
+    // before substituting a caller binder into those aggregate fields.
+    let protected = super::modules::protect_alias_nominals(module, &mut engine.budget)?;
+    let mut engine = Engine::with_budget(&protected, limits, pattern_types, engine.budget)?;
+    if engine.callable_nominal_collision {
+        return Err(error(
+            module.span,
+            "callable binder still collides with a nominal identity after scoped normalization",
+        ));
+    }
+    engine.run(&protected)
 }
 
 struct Engine<'a> {
@@ -114,6 +137,9 @@ struct Engine<'a> {
     traits: trait_bounds::Index<'a>,
     return_type: Option<TypeRef>,
     callable_name: Option<String>,
+    store_parameter: Option<String>,
+    retained_stores: Vec<String>,
+    callable_nominal_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     instances: BTreeMap<(String, Vec<String>), String>,
     instance_types: BTreeMap<String, TypeRef>,
@@ -161,7 +187,14 @@ impl<'a> Engine<'a> {
         limits: &'a Limits,
         pattern_types: &'a BTreeMap<String, TypeRef>,
     ) -> R<Self> {
-        let mut budget = Budget::new(limits);
+        Self::with_budget(module, limits, pattern_types, Budget::new(limits))
+    }
+    fn with_budget(
+        module: &'a Module,
+        limits: &'a Limits,
+        pattern_types: &'a BTreeMap<String, TypeRef>,
+        mut budget: Budget<'a>,
+    ) -> R<Self> {
         let traits = trait_bounds::Index::new(module, &mut budget)?;
         let mut engine = Self {
             pattern_types,
@@ -171,6 +204,9 @@ impl<'a> Engine<'a> {
             nominals: BTreeMap::new(),
             return_type: None,
             callable_name: None,
+            store_parameter: None,
+            retained_stores: Vec::new(),
+            callable_nominal_collision: false,
             signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
             instance_types: BTreeMap::new(),
@@ -229,6 +265,16 @@ impl<'a> Engine<'a> {
             };
             let mut seen = BTreeSet::new();
             for parameter in params(item) {
+                // This parameter/name was already charged by item preflight.
+                // Borrow the existing nominal index; do not add a global scan,
+                // name copy or a hygiene pass to the noncolliding old path.
+                if callable
+                    .as_ref()
+                    .is_some_and(|bounds| bounds.contains_generic(&parameter.name))
+                    && engine.nominals.contains_key(&parameter.name)
+                {
+                    engine.callable_nominal_collision = true;
+                }
                 if !seen.insert(&parameter.name) {
                     return Err(error(parameter.span, "duplicate type parameter"));
                 }
@@ -351,6 +397,20 @@ impl<'a> Engine<'a> {
         Ok(result)
     }
     fn instantiate(&mut self, template: &str, arguments: Vec<TypeRef>, span: Span) -> R<String> {
+        match self.instantiate_inner(template, arguments, span, false)? {
+            store_templates::Instantiation::Eager(name) => Ok(name),
+            store_templates::Instantiation::Deferred { .. } => {
+                unreachable!("only an ordinary direct call can retain a StoreElement template")
+            }
+        }
+    }
+    fn instantiate_inner(
+        &mut self,
+        template: &str,
+        arguments: Vec<TypeRef>,
+        span: Span,
+        allow_store_template: bool,
+    ) -> R<store_templates::Instantiation> {
         let item = self
             .templates
             .get(template)
@@ -358,9 +418,26 @@ impl<'a> Engine<'a> {
             .ok_or_else(|| error(span, format!("unknown generic declaration {template}")))?;
         // Canonical source type applications identify an instance, independent
         // of whether inference or explicit ::<...> reached it first.
+        let scope = allow_store_template
+            .then(|| {
+                self.store_parameter
+                    .as_deref()
+                    .or(self.callable_name.as_deref())
+            })
+            .flatten();
+        let mut dependent = false;
         let arguments = arguments
             .iter()
-            .map(|ty| self.original_type(ty))
+            .map(|ty| {
+                original_type_observed(
+                    ty,
+                    &self.instance_types,
+                    &mut self.budget,
+                    0,
+                    scope,
+                    &mut dependent,
+                )
+            })
             .collect::<R<Vec<_>>>()?;
         let retained = match &item.kind {
             ItemKind::Function(function) => callable::template(function)?,
@@ -384,6 +461,9 @@ impl<'a> Engine<'a> {
                 ),
             ));
         }
+        if dependent {
+            return self.retain_store_template(template, item, arguments, span);
+        }
         let mut key = (
             template.to_owned(),
             arguments
@@ -399,9 +479,14 @@ impl<'a> Engine<'a> {
             key.1.push(format!("$state-family{family}"));
         }
         if let Some(existing) = self.instances.get(&key) {
-            return Ok(existing.clone());
+            return Ok(store_templates::Instantiation::Eager(existing.clone()));
         }
-        if self.instances.len() >= self.limits.max_functions.min(512) {
+        if self
+            .instances
+            .len()
+            .saturating_add(self.retained_stores.len())
+            >= self.limits.max_functions.min(512)
+        {
             return Err(Diagnostic::limit(
                 Phase::Expand,
                 "generic instance budget exceeded",
@@ -468,7 +553,7 @@ impl<'a> Engine<'a> {
             _ => unreachable!(),
         }
         self.pending.push_back(instance);
-        Ok(generated)
+        Ok(store_templates::Instantiation::Eager(generated))
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
         self.tick(ty.span, depth)?;
@@ -522,6 +607,15 @@ impl<'a> Engine<'a> {
     fn item(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
+                let store_parameter = store_templates::parameter(f);
+                if let Some(parameter) = store_parameter {
+                    self.budget.node(parameter.span, 0)?;
+                    self.budget.text(&parameter.name, parameter.span)?;
+                }
+                let saved_store = std::mem::replace(
+                    &mut self.store_parameter,
+                    store_parameter.map(|parameter| parameter.name.clone()),
+                );
                 let saved_callable = std::mem::replace(
                     &mut self.callable_name,
                     callable::template(f)?
@@ -574,6 +668,7 @@ impl<'a> Engine<'a> {
                 }
                 self.return_type = saved_result;
                 self.callable_name = saved_callable;
+                self.store_parameter = saved_store;
             }
             ItemKind::Aggregate(a) => {
                 for field in &mut a.fields {
@@ -1390,9 +1485,15 @@ impl<'a> Engine<'a> {
                                 })
                                 .collect::<R<Vec<_>>>()?
                         };
-                        let instance = self.instantiate(&target, types, e.span)?;
-                        callee.kind = ExprKind::Name(instance.clone());
-                        self.signature_result(&instance)?
+                        match self.instantiate_inner(&target, types, e.span, true)? {
+                            store_templates::Instantiation::Eager(instance) => {
+                                callee.kind = ExprKind::Name(instance.clone());
+                                self.signature_result(&instance)?
+                            }
+                            store_templates::Instantiation::Deferred { template, element } => {
+                                self.apply_store_template(callee, function, template, element)?
+                            }
+                        }
                     } else {
                         if explicit.is_some() {
                             return Err(error(
@@ -1637,26 +1738,51 @@ fn original_type(
     budget: &mut Budget<'_>,
     depth: usize,
 ) -> R<TypeRef> {
+    original_type_observed(ty, instances, budget, depth, None, &mut false)
+}
+
+fn original_type_observed(
+    ty: &TypeRef,
+    instances: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+    depth: usize,
+    binder: Option<&str>,
+    dependent: &mut bool,
+) -> R<TypeRef> {
     budget.node(ty.span, depth)?;
     budget.ty(ty)?;
     let kind = match &ty.kind {
         TypeKind::Named { path, args } => {
+            // Observe the already charged node, including names restored from
+            // a nominal instance. No second traversal changes legacy budgets.
+            if args.is_empty() && binder.is_some_and(|name| path.as_slice() == [name]) {
+                *dependent = true;
+            }
             if path.len() == 1
                 && args.is_empty()
                 && let Some(original) = instances.get(&path[0])
             {
-                return original_type(original, instances, budget, depth + 1);
+                return original_type_observed(
+                    original,
+                    instances,
+                    budget,
+                    depth + 1,
+                    binder,
+                    dependent,
+                );
             }
             TypeKind::Named {
                 path: path.clone(),
                 args: args
                     .iter()
                     .map(|arg| match arg {
-                        GenericArg::Type(t) => Ok(GenericArg::Type(original_type(
+                        GenericArg::Type(t) => Ok(GenericArg::Type(original_type_observed(
                             t,
                             instances,
                             budget,
                             depth + 1,
+                            binder,
+                            dependent,
                         )?)),
                         _ => Err(unsupported(ty.span, "const generic argument")),
                     })
@@ -1670,32 +1796,64 @@ fn original_type(
         } => TypeKind::Reference {
             lifetime: lifetime.clone(),
             mutable: *mutable,
-            inner: Box::new(original_type(inner, instances, budget, depth + 1)?),
+            inner: Box::new(original_type_observed(
+                inner,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
         },
-        TypeKind::Group(inner) => TypeKind::Group(Box::new(original_type(
+        TypeKind::Group(inner) => TypeKind::Group(Box::new(original_type_observed(
             inner,
             instances,
             budget,
             depth + 1,
+            binder,
+            dependent,
         )?)),
-        TypeKind::Optional(inner) => TypeKind::Optional(Box::new(original_type(
+        TypeKind::Optional(inner) => TypeKind::Optional(Box::new(original_type_observed(
             inner,
             instances,
             budget,
             depth + 1,
+            binder,
+            dependent,
         )?)),
         TypeKind::Tuple(ts) => TypeKind::Tuple(
             ts.iter()
-                .map(|t| original_type(t, instances, budget, depth + 1))
+                .map(|t| original_type_observed(t, instances, budget, depth + 1, binder, dependent))
                 .collect::<R<_>>()?,
         ),
         TypeKind::Array { element, length } => TypeKind::Array {
-            element: Box::new(original_type(element, instances, budget, depth + 1)?),
+            element: Box::new(original_type_observed(
+                element,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
             length: length.clone(),
         },
         TypeKind::Error { error, result } => TypeKind::Error {
-            error: Box::new(original_type(error, instances, budget, depth + 1)?),
-            result: Box::new(original_type(result, instances, budget, depth + 1)?),
+            error: Box::new(original_type_observed(
+                error,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
+            result: Box::new(original_type_observed(
+                result,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
         },
         TypeKind::ForeignFunction {
             abi,
@@ -1705,16 +1863,30 @@ fn original_type(
             abi: abi.clone(),
             params: params
                 .iter()
-                .map(|t| original_type(t, instances, budget, depth + 1))
+                .map(|t| original_type_observed(t, instances, budget, depth + 1, binder, dependent))
                 .collect::<R<_>>()?,
-            result: Box::new(original_type(result, instances, budget, depth + 1)?),
+            result: Box::new(original_type_observed(
+                result,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
         },
         TypeKind::Function { params, result } => TypeKind::Function {
             params: params
                 .iter()
-                .map(|t| original_type(t, instances, budget, depth + 1))
+                .map(|t| original_type_observed(t, instances, budget, depth + 1, binder, dependent))
                 .collect::<R<_>>()?,
-            result: Box::new(original_type(result, instances, budget, depth + 1)?),
+            result: Box::new(original_type_observed(
+                result,
+                instances,
+                budget,
+                depth + 1,
+                binder,
+                dependent,
+            )?),
         },
         _ => ty.kind.clone(),
     };

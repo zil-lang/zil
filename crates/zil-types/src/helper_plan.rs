@@ -2,12 +2,31 @@
 //! A callee is checked normally before a parent Builder may use its instance.
 use super::*;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Node {
+    Callable(Instance),
+    Store(u32),
+}
+
+impl Node {
+    fn ready(self, state: &closures::State) -> bool {
+        match self {
+            Self::Callable(instance) => state.helper_instances.contains_key(&instance),
+            Self::Store(index) => state.store_instances[index as usize].function.is_some(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Shape {
     Unknown,
     Environment(ClosureId),
     Package(Vec<(String, ClosureId)>),
     Store(Box<Shape>),
+    ErrorUnion {
+        error: Box<Shape>,
+        result: Box<Shape>,
+    },
 }
 
 impl Shape {
@@ -17,6 +36,9 @@ impl Shape {
                 n.saturating_add(name.len()).saturating_add(1)
             }),
             Self::Store(element) => 1usize.saturating_add(element.work()),
+            Self::ErrorUnion { error, result } => 1usize
+                .saturating_add(error.work())
+                .saturating_add(result.work()),
             _ => 1,
         }
     }
@@ -27,7 +49,7 @@ impl Shape {
                 let id = fields.first()?.1;
                 fields.iter().all(|(_, other)| *other == id).then_some(id)
             }
-            Self::Unknown | Self::Store(_) => None,
+            Self::Unknown | Self::Store(_) | Self::ErrorUnion { .. } => None,
         }
     }
 }
@@ -42,7 +64,7 @@ struct Walk<'a, 'b> {
     bindings: Bindings,
     tables: Rc<Tables>,
     scopes: Vec<BTreeMap<String, Shape>>,
-    found: BTreeSet<Instance>,
+    found: BTreeSet<Node>,
     state: &'b mut closures::State,
     limits: &'a Limits,
     store_shapes: bool,
@@ -210,6 +232,27 @@ impl Walk<'_, '_> {
             _ => Ok(None),
         }
     }
+    fn applied_result_shape(
+        &mut self,
+        ty: &Type,
+        bounds: &[CoreCallableParameter],
+        bindings: Bindings,
+        span: Span,
+        depth: usize,
+    ) -> R<Shape> {
+        if let Type::ErrorUnion { error, result } = ty {
+            self.node(depth, span)?;
+            self.state.snapshot(2, span)?;
+            let error = self.applied_result_shape(error, bounds, bindings, span, depth + 1)?;
+            let result = self.applied_result_shape(result, bounds, bindings, span, depth + 1)?;
+            Ok(Shape::ErrorUnion {
+                error: Box::new(error),
+                result: Box::new(result),
+            })
+        } else {
+            self.shape(ty, bounds, bindings, span, depth)
+        }
+    }
     fn pattern(&mut self, pattern: &CorePattern, shape: &Shape, depth: usize) -> R<()> {
         self.node(depth, pattern.span)?;
         match &pattern.kind {
@@ -259,7 +302,17 @@ impl Walk<'_, '_> {
                         Shape::Unknown
                     };
                     let shape = if let Some(ty) = ty {
-                        self.shape(ty, self.bounds, self.bindings, statement.span, depth + 1)?
+                        if matches!(inferred, Shape::ErrorUnion { .. }) {
+                            self.applied_result_shape(
+                                ty,
+                                self.bounds,
+                                self.bindings,
+                                statement.span,
+                                depth + 1,
+                            )?
+                        } else {
+                            self.shape(ty, self.bounds, self.bindings, statement.span, depth + 1)?
+                        }
                     } else {
                         inferred
                     };
@@ -345,11 +398,77 @@ impl Walk<'_, '_> {
                 self.local(name, expression.span)?.unwrap_or(Shape::Unknown)
             }
             CoreExprKind::Call { callee, arguments } => {
-                self.expr(callee, depth + 1)?;
+                if let CoreExprKind::TypeApply { callee: target, .. } = &callee.kind {
+                    self.node(depth + 1, callee.span)?;
+                    self.expr(target, depth + 2)?;
+                } else {
+                    self.expr(callee, depth + 1)?;
+                }
                 self.state.snapshot(arguments.len(), expression.span)?;
                 let mut shapes = Vec::with_capacity(arguments.len());
                 for argument in arguments {
                     shapes.push(self.expr(argument, depth + 1)?);
+                }
+                if let CoreExprKind::TypeApply {
+                    callee: target,
+                    type_arguments,
+                } = &callee.kind
+                {
+                    let [argument] = type_arguments.as_slice() else {
+                        return Err(error(
+                            "E-TYPE-APPLICATION",
+                            callee.span,
+                            "one complete type argument is required",
+                        ));
+                    };
+                    let tables = self.tables.clone();
+                    let signature = self.signature(target, &tables)?.ok_or_else(|| {
+                        error(
+                            "E-TYPE-APPLICATION",
+                            callee.span,
+                            "type application requires a static template",
+                        )
+                    })?;
+                    let bound = signature.type_parameter.as_ref().ok_or_else(|| {
+                        error(
+                            "E-TYPE-APPLICATION",
+                            callee.span,
+                            "type application target is not an ordinary StoreElement template",
+                        )
+                    })?;
+                    let actual = store_templates::resolve_argument(
+                        argument,
+                        self.bounds,
+                        self.bindings,
+                        self.state,
+                        self.limits,
+                        callee.span,
+                    )?;
+                    let index = store_templates::intern(
+                        signature.template.expect("validated template"),
+                        &actual,
+                        self.state,
+                        self.limits,
+                        callee.span,
+                    )?;
+                    self.state
+                        .snapshot(tree_work(self.found.len()).saturating_add(1), callee.span)?;
+                    self.found.insert(Node::Store(index));
+                    let result = store_templates::substitute_type(
+                        &signature.result,
+                        &bound.name,
+                        &actual,
+                        self.limits,
+                        callee.span,
+                        &mut |n| self.state.snapshot(n, callee.span),
+                    )?;
+                    return self.applied_result_shape(
+                        &result,
+                        &[],
+                        Bindings::default(),
+                        expression.span,
+                        depth + 1,
+                    );
                 }
                 if self.store_shapes
                     && matches!(
@@ -390,7 +509,7 @@ impl Walk<'_, '_> {
                             tree_work(self.found.len()).saturating_add(1),
                             expression.span,
                         )?;
-                        self.found.insert((key, bindings));
+                        self.found.insert(Node::Callable((key, bindings)));
                         self.shape(
                             &signature.result,
                             &signature.callable,
@@ -412,12 +531,28 @@ impl Walk<'_, '_> {
                 }
             }
             CoreExprKind::Ascribed { ty, value } => {
-                self.expr(value, depth + 1)?;
-                self.shape(ty, self.bounds, self.bindings, expression.span, depth + 1)?
+                let value = self.expr(value, depth + 1)?;
+                if matches!(value, Shape::ErrorUnion { .. }) {
+                    self.applied_result_shape(
+                        ty,
+                        self.bounds,
+                        self.bindings,
+                        expression.span,
+                        depth + 1,
+                    )?
+                } else {
+                    self.shape(ty, self.bounds, self.bindings, expression.span, depth + 1)?
+                }
             }
-            CoreExprKind::Unary { operand, .. }
-            | CoreExprKind::CompileTime(operand)
-            | CoreExprKind::Try(operand) => self.expr(operand, depth + 1)?,
+            CoreExprKind::Unary { operand, .. } | CoreExprKind::CompileTime(operand) => {
+                self.expr(operand, depth + 1)?
+            }
+            CoreExprKind::Try(operand) => match self.expr(operand, depth + 1)? {
+                // Only the success alternative reaches the continuation. In
+                // particular T!void never becomes a callback Package here.
+                Shape::ErrorUnion { result, .. } => *result,
+                old_primitive_shape => old_primitive_shape,
+            },
             CoreExprKind::IntegerConvert { value, .. } => {
                 self.expr(value, depth + 1)?;
                 Shape::Unknown
@@ -511,23 +646,38 @@ impl Walk<'_, '_> {
 }
 
 fn dependencies(
-    instance: Instance,
+    instance: Node,
     state: &mut closures::State,
     limits: &Limits,
     span: Span,
-) -> R<Vec<Instance>> {
+) -> R<Vec<Node>> {
     state.snapshot(
         tree_work(state.helper_templates.len()).saturating_add(2),
         span,
     )?;
+    let (key, bindings) = match instance {
+        Node::Callable((key, bindings)) => (key, bindings),
+        Node::Store(index) => (
+            state.store_instances[index as usize].key,
+            Bindings::default(),
+        ),
+    };
     let template = state
         .helper_templates
-        .get(&instance.0)
+        .get(&key)
         .cloned()
         .ok_or_else(|| unsupported(span, "helper scheduling template is absent"))?;
-    let function = &template.function;
+    let specialized;
+    let function = if let Node::Store(index) = instance {
+        state.snapshot(state.store_instances[index as usize].work, span)?;
+        let actual = state.store_instances[index as usize].actual.clone();
+        specialized = store_templates::specialize(&template, &actual, state, limits)?;
+        &specialized
+    } else {
+        template.function.as_ref()
+    };
     let bounds = &function.callable_parameters;
-    if bounds.is_empty() {
+    if bounds.is_empty() && matches!(instance, Node::Callable(_)) {
         return Err(unsupported(
             span,
             "helper scheduling template bound is absent",
@@ -538,7 +688,7 @@ fn dependencies(
     let mut walk = Walk {
         context: &template.context,
         bounds,
-        bindings: instance.1,
+        bindings,
         tables,
         scopes: vec![BTreeMap::new()],
         found: BTreeSet::new(),
@@ -547,7 +697,7 @@ fn dependencies(
         store_shapes: template.store_shapes,
     };
     for parameter in &function.parameters {
-        let shape = walk.shape(&parameter.ty, bounds, instance.1, parameter.span, 0)?;
+        let shape = walk.shape(&parameter.ty, bounds, bindings, parameter.span, 0)?;
         walk.bind(&parameter.name, shape, parameter.span)?;
     }
     walk.block(&function.body, 0)?;
@@ -558,16 +708,16 @@ fn dependencies(
 /// Every frame is data on an explicitly bounded work list. The source walk's
 /// local syntax depth never accumulates along the helper dependency chain.
 pub(super) fn order(
-    root: Instance,
+    root: Node,
     state: &mut closures::State,
     limits: &Limits,
     span: Span,
-) -> R<Vec<Instance>> {
+) -> R<Vec<Node>> {
     state.snapshot(1, span)?;
     let mut pending = vec![(root, false)];
-    let mut edges = BTreeMap::<Instance, Vec<Instance>>::new();
+    let mut edges = BTreeMap::<Node, Vec<Node>>::new();
     let mut active = BTreeSet::new();
-    let mut heights = BTreeMap::<Instance, usize>::new();
+    let mut heights = BTreeMap::<Node, usize>::new();
     let mut result = Vec::new();
     while let Some((instance, finish)) = pending.pop() {
         state.snapshot(tree_work(heights.len()).saturating_add(1), span)?;
@@ -598,10 +748,23 @@ pub(super) fn order(
             heights.insert(instance, height);
             active.remove(&instance);
             state.snapshot(tree_work(state.helper_instances.len()), span)?;
-            if !state.helper_instances.contains_key(&instance) {
+            if !instance.ready(state) {
                 result.push(instance);
             }
         } else {
+            if let Node::Store(index) = instance {
+                state.snapshot(active.len(), span)?;
+                let key = state.store_instances[index as usize].key;
+                if active.iter().any(|node| {
+                    matches!(node, Node::Store(other)
+                    if state.store_instances[*other as usize].key == key)
+                }) {
+                    return Err(unsupported(
+                        span,
+                        "recursive or growing ordinary template dependency has no finite instance plan",
+                    ));
+                }
+            }
             state.snapshot(tree_work(active.len()).saturating_add(1), span)?;
             if !active.insert(instance) {
                 return Err(unsupported(
@@ -637,4 +800,72 @@ pub(super) fn order(
         }
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod result_shape_tests {
+    use super::*;
+
+    // Private scheduling facts only. Owned union branch patterns remain closed
+    // at source/Types; source/native tests separately exercise real pop and push.
+    #[test]
+    fn binding_a_whole_union_preserves_both_sides_and_try_selects_only_success() {
+        let limits = Limits::default();
+        let context = Context {
+            module: ModuleId(0),
+            imports: BTreeMap::new(),
+            enums: BTreeMap::new(),
+        };
+        let mut state = closures::State::new(0, &limits);
+        let mut walk = Walk {
+            context: &context,
+            bounds: &[],
+            bindings: Bindings::default(),
+            tables: Rc::new(BTreeMap::new()),
+            scopes: vec![BTreeMap::new()],
+            found: BTreeSet::new(),
+            state: &mut state,
+            limits: &limits,
+            store_shapes: false,
+        };
+        let span = Span::default();
+        let pattern = CorePattern {
+            kind: CorePatternKind::Name("bound".into()),
+            span,
+        };
+        let name = CoreExpr {
+            id: NodeId(0),
+            kind: CoreExprKind::Name("bound".into()),
+            span,
+        };
+        let question = CoreExpr {
+            id: NodeId(1),
+            kind: CoreExprKind::Try(Box::new(name.clone())),
+            span,
+        };
+        for (error_shape, result_shape) in [
+            (
+                Shape::Package(vec![("callback".into(), ClosureId(0))]),
+                Shape::Unknown,
+            ),
+            (
+                Shape::Unknown,
+                Shape::Package(vec![("callback".into(), ClosureId(1))]),
+            ),
+            (
+                Shape::Package(vec![("callback".into(), ClosureId(0))]),
+                Shape::Package(vec![("callback".into(), ClosureId(1))]),
+            ),
+        ] {
+            let union = Shape::ErrorUnion {
+                error: Box::new(error_shape),
+                result: Box::new(result_shape.clone()),
+            };
+            walk.pattern(&pattern, &union, 0).unwrap();
+            let stored = walk.expr(&name, 0).unwrap();
+            assert_eq!(stored, union);
+            assert_eq!(stored.environment(), None);
+            assert_eq!(walk.expr(&question, 0).unwrap(), result_shape);
+        }
+    }
 }

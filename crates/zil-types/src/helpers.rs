@@ -5,7 +5,7 @@ use super::*;
 #[path = "helper_flow.rs"]
 mod flow;
 #[path = "helper_plan.rs"]
-mod plan;
+pub(super) mod plan;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 use zil_base::{ModuleId, NodeId};
@@ -32,7 +32,7 @@ impl Bindings {
         *slot = Some(id);
         Ok(())
     }
-    fn get(self, index: u32, span: Span) -> R<ClosureId> {
+    pub(super) fn get(self, index: u32, span: Span) -> R<ClosureId> {
         self.0
             .get(index as usize)
             .and_then(|id| *id)
@@ -199,7 +199,7 @@ pub(super) fn install_single(
     if core
         .functions
         .iter()
-        .all(|f| f.callable_parameters.is_empty())
+        .all(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
     {
         return Ok(());
     }
@@ -270,8 +270,9 @@ pub(super) fn install(
     limits: &Limits,
 ) -> R<()> {
     for function in &core.functions {
-        if !function.callable_parameters.is_empty() {
+        if !function.callable_parameters.is_empty() || !function.type_parameters.is_empty() {
             validate_template(function)?;
+            store_templates::validate_header(function)?;
             let (snapshot_work, store_shapes) = inference::helper_snapshot_work(function, limits)?;
             state.snapshot(snapshot_work.saturating_mul(2), function.span)?;
             state.helper_templates.insert(
@@ -511,10 +512,7 @@ impl Builder<'_, '_> {
                 "actual helper instance is not available from the finite dependency plan",
             ));
         }
-        let order = plan::order((key, bindings), self.closures, self.limits, span)?;
-        for (key, bindings) in order {
-            self.instantiate_ready_helper(key, bindings, span)?;
-        }
+        self.instantiate_plan(plan::Node::Callable((key, bindings)), span)?;
         self.closures
             .snapshot(plan::tree_work(self.closures.helper_instances.len()), span)?;
         self.closures
@@ -522,6 +520,27 @@ impl Builder<'_, '_> {
             .get(&(key, bindings))
             .copied()
             .ok_or_else(|| unsupported(span, "completed helper instance is absent from its plan"))
+    }
+
+    pub(super) fn instantiate_plan(&mut self, root: plan::Node, span: Span) -> R<()> {
+        if !self.closures.active_helpers.is_empty() {
+            return Err(unsupported(
+                span,
+                "actual template instance is absent from the finite dependency plan",
+            ));
+        }
+        let order = plan::order(root, self.closures, self.limits, span)?;
+        for node in order {
+            match node {
+                plan::Node::Callable((key, bindings)) => {
+                    self.instantiate_ready_helper(key, bindings, span)?;
+                }
+                plan::Node::Store(index) => {
+                    self.instantiate_ready_store(index, span)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn instantiate_ready_helper(
@@ -827,7 +846,7 @@ fn environment_origins(
                         state.snapshot(1, instruction.span)?;
                         for signature in table.values() {
                             state.snapshot(1, instruction.span)?;
-                            if signature.id == *callee {
+                            if signature.id == Some(*callee) {
                                 factory = signature.callable_return.is_some()
                                     && matches!(signature.result, Type::Closure(_))
                                     && &signature.result == ty;

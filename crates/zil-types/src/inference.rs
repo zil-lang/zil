@@ -15,6 +15,7 @@ struct Budget<'a> {
     closures: usize,
     inside_store: bool,
     store_shapes: bool,
+    direct_type_callee: bool,
 }
 impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -26,6 +27,7 @@ impl<'a> Budget<'a> {
             closures: 0,
             inside_store: false,
             store_shapes: false,
+            direct_type_callee: false,
         }
     }
     fn work(&mut self, count: usize, span: Span) -> R<()> {
@@ -89,6 +91,9 @@ pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> 
         validate_type(&parameter.ty, 0, parameter.span, &mut budget)?;
     }
     validate_type(&function.return_type, 0, function.span, &mut budget)?;
+    for parameter in &function.type_parameters {
+        budget.work(parameter.name.len().saturating_add(1), function.span)?;
+    }
     for bound in &function.callable_parameters {
         callable_snapshot(bound, function.span, &mut budget)?;
     }
@@ -116,6 +121,9 @@ pub(super) fn signature_snapshot_work(
     }
     for bound in &signature.callable {
         callable_snapshot(bound, span, &mut budget)?;
+    }
+    if let Some(parameter) = &signature.type_parameter {
+        budget.work(parameter.name.len().saturating_add(1), span)?;
     }
     if let Some(bound) = &signature.callable_return {
         returned_snapshot(bound, span, &mut budget)?;
@@ -379,6 +387,30 @@ fn headers(
     validate_module_metadata(core, budget)?;
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
+        if !function.type_parameters.is_empty() {
+            budget.work(function.type_parameters.len(), function.span)?;
+            store_templates::validate_header(function)?;
+            budget.work(
+                function.type_parameters[0]
+                    .name
+                    .len()
+                    .saturating_add(core.functions.len()),
+                function.span,
+            )?;
+            if core
+                .functions
+                .iter()
+                .filter(|f| f.id == function.id)
+                .count()
+                != 1
+            {
+                return Err(error(
+                    "E-TYPE-PARAMETERS",
+                    function.span,
+                    "ordinary template definition identity is duplicated",
+                ));
+            }
+        }
         budget.work(function.name.len(), function.span)?;
         if let Some(foreign) = &function.foreign {
             budget.work(
@@ -435,14 +467,19 @@ fn headers(
             Signature {
                 callable: function.callable_parameters.clone(),
                 callable_return: function.callable_return.clone(),
-                template: (!function.callable_parameters.is_empty())
-                    .then_some((core.module_id, function.id)),
+                type_parameter: function.type_parameters.first().cloned(),
+                template: (!function.callable_parameters.is_empty()
+                    || !function.type_parameters.is_empty())
+                .then_some((core.module_id, function.id)),
                 foreign: function.foreign.is_some(),
                 cleanup: core
                     .aggregates
                     .iter()
                     .any(|a| a.teardown.as_ref() == Some(&function.name)),
-                id: FunctionId(id),
+                id: function
+                    .type_parameters
+                    .is_empty()
+                    .then_some(FunctionId(id)),
                 parameters: function.parameters.iter().map(|p| p.ty.clone()).collect(),
                 result: function.return_type.clone(),
                 public: exports.is_none_or(|e| e.contains(&function.id)),
@@ -462,7 +499,7 @@ fn prepare(
     budget: &mut Budget<'_>,
 ) -> R<CoreFunction> {
     // Scalar-only functions retain their existing inference/default behavior.
-    if !has_closure {
+    if !has_closure && function.type_parameters.is_empty() {
         let dependencies = retained::dependencies(
             function,
             signatures,
@@ -635,16 +672,17 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             || packages::supported(ty)
             || packages::owned_array_supported(ty)
     };
-    if (!admitted(&signature.result)
-        && signature.callable_return.is_none()
-        && !callable_fields::signature(signature))
-        || signature.parameters.iter().enumerate().any(|(index, ty)| {
-            !admitted(ty)
-                && !signature
-                    .callable
-                    .iter()
-                    .any(|bound| bound.index as usize == index)
-        })
+    if signature.type_parameter.is_none()
+        && ((!admitted(&signature.result)
+            && signature.callable_return.is_none()
+            && !callable_fields::signature(signature))
+            || signature.parameters.iter().enumerate().any(|(index, ty)| {
+                !admitted(ty)
+                    && !signature
+                        .callable
+                        .iter()
+                        .any(|bound| bound.index as usize == index)
+            }))
     {
         return Err(unsupported(
             span,
@@ -758,6 +796,7 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
 }
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     budget.node(depth, e.span)?;
+    let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
     let mut found = false;
     match &e.kind {
         CoreExprKind::Literal(Constant::WideString(units)) => budget.work(units.len(), e.span)?,
@@ -795,10 +834,36 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
             found |= expression_has_closure(right, depth + 1, budget)?;
         }
         CoreExprKind::Call { callee, arguments } => {
+            let previous = budget.direct_type_callee;
+            budget.direct_type_callee = true;
             found |= expression_has_closure(callee, depth + 1, budget)?;
+            budget.direct_type_callee = false;
             for argument in arguments {
                 found |= expression_has_closure(argument, depth + 1, budget)?;
             }
+            budget.direct_type_callee = previous;
+        }
+        CoreExprKind::TypeApply {
+            callee,
+            type_arguments,
+        } => {
+            if !direct_type_callee
+                || type_arguments.len() != 1
+                || !(matches!(&callee.kind, CoreExprKind::Name(_))
+                    || matches!(&callee.kind, CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(_))))
+            {
+                return Err(error(
+                    "E-TYPE-APPLICATION",
+                    e.span,
+                    "one type argument is allowed only on a static call's direct callee",
+                ));
+            }
+            budget.work(type_arguments.len(), e.span)?;
+            for argument in type_arguments {
+                validate_type(argument, depth + 1, e.span, budget)?;
+            }
+            budget.direct_type_callee = false;
+            found |= expression_has_closure(callee, depth + 1, budget)?;
         }
         CoreExprKind::Index { object, index } => {
             found |= expression_has_closure(object, depth + 1, budget)?;
@@ -934,6 +999,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         budget: &'b mut Budget<'c>,
     ) -> R<Self> {
         if !(function.callable_return.is_some()
+            || function.type_parameters.first().is_some_and(|parameter| {
+                store_templates::symbolic_type(&function.return_type, &parameter.name)
+            })
             || callable_fields::template(function)
             || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
@@ -968,6 +1036,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             closure_expressions: BTreeMap::new(),
             callable_hint: None,
         };
+        if let Some(parameter) = function.type_parameters.first() {
+            this.graph
+                .set_store_parameter(&parameter.name, function.span)?;
+        }
         for (index, parameter) in function.parameters.iter().enumerate() {
             let term = if let Some(bound) = function
                 .callable_parameters
@@ -1016,12 +1088,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
     fn known_result(&mut self, signature: &Signature, span: Span) -> R<Term> {
         if matches!(signature.result, Type::Opaque { .. }) {
-            if let Some(id) = self.factory_terms.get(&signature.id) {
+            if let Some(id) = self.factory_terms.get(&signature.concrete_id(span)?) {
                 return Ok(Term::Closure(*id));
             }
             let term = self.known_term(&signature.result, span)?;
             if let Term::Closure(id) = term {
-                self.factory_terms.insert(signature.id, id);
+                self.factory_terms.insert(signature.concrete_id(span)?, id);
             }
             Ok(term)
         } else {
@@ -1113,6 +1185,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             if !inner.is_address_pointee()
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_package_address()
+                && !self.graph.symbolic_store_type(inner)
             {
                 return Err(unsupported(span, "nested reference signature"));
             }
@@ -1191,7 +1264,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
     fn bind(&mut self, variable: Variable, ty: &Type, span: Span) -> R<()> {
         self.budget.work(1, span)?;
-        self.graph.bind(variable, ty, span)
+        // Only this source function's declared callable binders may occur in
+        // an unresolved Package shell. Ordinary T remains a distinct opaque
+        // binder, and actual ownership/loans are checked after instantiation.
+        self.graph.bind_source(
+            variable,
+            ty,
+            (!self.helper_environments.is_empty()).then_some(&self.helper_environments),
+            span,
+        )
     }
     fn scalar(&mut self, term: &Term, span: Span) -> R<Variable> {
         match term {
@@ -1262,7 +1343,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     inner,
                 } if (inner.is_address_pointee()
                     || ty.is_shared_resource_head_address()
-                    || ty.is_package_address())
+                    || ty.is_package_address()
+                    || self.graph.symbolic_store_type(inner))
                     && (*mutable || !wanted) =>
                 {
                     self.bind(*variable, inner, span)
@@ -2262,7 +2344,74 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     self.expression_index += 2;
                     return self.variant(&ty, variant, arguments, depth, span);
                 }
-                let callee_type = self.expr(callee, depth + 1, false)?;
+                let callee_type = if let CoreExprKind::TypeApply {
+                    callee: target,
+                    type_arguments,
+                } = &callee.kind
+                {
+                    self.budget.node(depth + 1, callee.span)?;
+                    self.expression_index += 1;
+                    let [actual] = type_arguments.as_slice() else {
+                        return Err(error(
+                            "E-TYPE-APPLICATION",
+                            callee.span,
+                            "one complete type argument is required",
+                        ));
+                    };
+                    validate_type(actual, 0, callee.span, self.budget)?;
+                    if !(self.graph.is_store_parameter(actual)
+                        || dynamic_store::supported_element(actual)
+                        || dynamic_store::callback_element(
+                            actual,
+                            |ty| matches!(ty, Type::Named(name) if self.helper_environments.contains_key(name)),
+                        ))
+                    {
+                        return Err(error(
+                            "E-STORE-TYPE-ARGUMENT",
+                            callee.span,
+                            "ordinary type applications require the caller's StoreElement binder or a complete finite element type",
+                        ));
+                    }
+                    let Term::Function(signature) = self.expr(target, depth + 2, false)? else {
+                        return Err(error(
+                            "E-TYPE-APPLICATION",
+                            callee.span,
+                            "ordinary type application requires a static template",
+                        ));
+                    };
+                    let mut signature = context_signature(&signature, self.budget, span)?;
+                    let bound = signature.type_parameter.take().ok_or_else(|| {
+                        error(
+                            "E-TYPE-APPLICATION",
+                            callee.span,
+                            "type application target is not an ordinary StoreElement template",
+                        )
+                    })?;
+                    let limits = self.budget.limits;
+                    for parameter in &mut signature.parameters {
+                        *parameter = store_templates::substitute_type(
+                            parameter,
+                            &bound.name,
+                            actual,
+                            limits,
+                            span,
+                            &mut |work| self.budget.work(work, span),
+                        )?;
+                    }
+                    signature.result = store_templates::substitute_type(
+                        &signature.result,
+                        &bound.name,
+                        actual,
+                        limits,
+                        span,
+                        &mut |work| self.budget.work(work, span),
+                    )?;
+                    // This temporary signature is consumed only by this call.
+                    // Its template has no concrete FunctionId or function value.
+                    Term::Function(Rc::new(signature))
+                } else {
+                    self.expr(callee, depth + 1, false)?
+                };
                 let (parameters, result) = match callee_type {
                     Term::Method(signature) => {
                         let mut state_environment = None;
@@ -2320,6 +2469,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return self.known_term(&Type::I64, span);
                     }
                     Term::Function(signature) => {
+                        if signature.type_parameter.is_some() {
+                            return Err(error(
+                                "E-TYPE-APPLICATION",
+                                callee.span,
+                                "ordinary templates require an explicit complete type application",
+                            ));
+                        }
                         let mut state_environment = None;
                         if arguments.len() != signature.parameters.len() {
                             return Err(error(
@@ -3006,6 +3162,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             CoreExprKind::Binary { left, right, .. } => {
                 self.normalize_expr(left, expression, statement)?;
                 self.normalize_expr(right, expression, statement)?;
+            }
+            CoreExprKind::TypeApply { callee, .. } => {
+                self.normalize_expr(callee, expression, statement)?
             }
             CoreExprKind::Call { callee, arguments } => {
                 self.normalize_expr(callee, expression, statement)?;
