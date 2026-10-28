@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/runs178/author192/frozen-consumer01/results/O0/allocation-probe"
+  ],
+  "status": "Completed",
+  "start": 1793161636.8359904,
+  "stdin_hex": "33",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "7"
+  },
+  "exit_code": 1,
+  "stdout_sha256": "6859205935ef8f1df78aa2ff676a80b96fb96242f63c9fd9794c17233722a0f1",
+  "stderr_sha256": "ca3b188fe1103e2c472011771572c57397e977d9c40bbe5b07b16505eb05ae46",
+  "end": 1793161636.837683
+}

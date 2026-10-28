@@ -1,0 +1,1 @@
+struct Pair{a:i32;b:i32}resource R{n:i32}package P{manages r:R;pair:Pair;items:[i32;2]}fn main()->i32{var state=P{r:R{n:0},pair:Pair{a:20,b:1},items:[30,2]};let p=&mut state.pair;p.a+=p.b;let items=&mut state.items;items[0]+=items[1];let extra=&state.pair.b;return p.a+items[0]+*extra-54}

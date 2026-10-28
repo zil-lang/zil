@@ -1,0 +1,116 @@
+{
+  "source_commit": "e362dcb65dec13fe0af194144936fa6857bc8335",
+  "production_files": [
+    {
+      "path": "crates/zil-types/src/addresses.rs",
+      "sha256": "e8c46510efda5677093320f50a0174b77ffd601a604ba4d7110f6107fcaf2a5f"
+    },
+    {
+      "path": "crates/zil-types/src/closures.rs",
+      "sha256": "72c8bb66cacb80d98b95753d7c49704347e5b2cf098a092200b9c36758c85ea5"
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "sha256": "c8c65bc9fc00f5fb7c7b7ab91bd397700109aa68f23f2aa3540597718da9ac4d"
+    },
+    {
+      "path": "crates/zil-verify/src/packages.rs",
+      "sha256": "718fb9d9c0bf5e701c5c3a3013ce427f5c4a96cfc3432c2814ca52df91917ba0"
+    },
+    {
+      "path": "crates/zil-verify/src/resources.rs",
+      "sha256": "8c022e9bb9518d8d6b869d7bb02f90802c10ac074a24f77a913c987c5db3d943"
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/loans.rs",
+      "sha256": "a9ab82c8f3674c83933bc4ce26e93310ca696211b13c6672792495b076c1f201"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/packages.rs",
+      "sha256": "068c554465180565da9393838ed025b11b522b027301137646271f3075c1b455"
+    }
+  ],
+  "fixture_files": [
+    {
+      "path": "crates/zil-driver/tests/impl192_copy_fields.rs",
+      "bytes": 16025,
+      "sha256": "21f7d9d2d181c0d6d7ce14890ec5f1806efcdc679d750d83d72f58acfef99387",
+      "stored_as": "sources/crates/zil-driver/tests/impl192_copy_fields.rs"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl192_copy_fields_raw.rs",
+      "bytes": 11275,
+      "sha256": "c134562c493e66b386fee7ce1fa7143c6e5e8cb8ac29afeeffbeceae26e5a98f",
+      "stored_as": "sources/crates/zil-driver/tests/impl192_copy_fields_raw.rs"
+    },
+    {
+      "path": "tools/language/192/consumer.py",
+      "bytes": 5965,
+      "sha256": "d58ab055374a268831195f50480271d4d32ca4bf343593dcd72ccebd9c8505ee",
+      "stored_as": "sources/tools/language/192/consumer.py"
+    },
+    {
+      "path": "tools/language/178/consumer.py",
+      "bytes": 8512,
+      "sha256": "0efe5c8ae17ee431c773c7c677f96e67888dcdeda50078677033d5eeedad7754",
+      "stored_as": "sources/tools/language/178/consumer.py"
+    },
+    {
+      "path": "tools/language/178/run_command.py",
+      "bytes": 2397,
+      "sha256": "feccfe3ba9dca5bc5954f884d52e09ad8cce04cee1c6e10a80b1098b421463e8",
+      "stored_as": "sources/tools/language/178/run_command.py"
+    },
+    {
+      "path": "tools/language/173/allocator_probe.c",
+      "bytes": 446,
+      "sha256": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+      "stored_as": "sources/tools/language/173/allocator_probe.c"
+    },
+    {
+      "path": "changes/192-copy-field-address.md",
+      "bytes": 5819,
+      "sha256": "63778297950894b00de68b09e4de17d861ddf3445ac5b61a26185a38c6deeaab",
+      "stored_as": "sources/changes/192-copy-field-address.md"
+    },
+    {
+      "path": "examples/mainline/fields192/factory.zil",
+      "bytes": 477,
+      "sha256": "f2fff48d35d70b0065e145c4a77a00701f68e24f86c797430c9b516beb038064",
+      "stored_as": "sources/examples/mainline/fields192/factory.zil"
+    },
+    {
+      "path": "examples/mainline/fields192/helpers.zil",
+      "bytes": 211,
+      "sha256": "dd08eacf54593870625bc4c8c3437319a44e7ffc4cf9cfb0a665893576420a16",
+      "stored_as": "sources/examples/mainline/fields192/helpers.zil"
+    },
+    {
+      "path": "examples/mainline/fields192/main.zil",
+      "bytes": 486,
+      "sha256": "7e4c254946660c69974e1cd6d3542bd161ecae36e8d0e1550a001bb4d7beefcf",
+      "stored_as": "sources/examples/mainline/fields192/main.zil"
+    },
+    {
+      "path": "examples/mainline/fields192/state.zil",
+      "bytes": 916,
+      "sha256": "33ff3d7bcfde0696f6ce6b3b51dae145b253bba81cafe3ee135c3145c796f745",
+      "stored_as": "sources/examples/mainline/fields192/state.zil"
+    }
+  ],
+  "normative_files": {
+    "_zil_design.md": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+    "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+    "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+    "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+    "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+    "spec/interfaces.json": "00d65f1f27c418f752b40e6a8162b6c98c2d02bb295a7ca708301dbd2d98e464",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+  },
+  "toolchain": {
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "clang": "Ubuntu clang version 17.0.6 (++20231209124227+6009708b4367-1~exp1~20231209124336.77)"
+  }
+}

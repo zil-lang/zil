@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/runs178/author192/frozen-consumer01/results/O2/program"
+  ],
+  "status": "Completed",
+  "start": 1793161637.2302244,
+  "stdin_hex": "39",
+  "controlled_environment": {},
+  "exit_code": 9,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793161637.2313461
+}
