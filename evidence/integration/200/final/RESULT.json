@@ -1,0 +1,76 @@
+{
+  "status": "Pass",
+  "scope": "Integrated196-200 full workspace regression; finite language profiles only, not full1.4 or product completion",
+  "source_commit": "b9c006b08f5360d51df58462fe29759bf5caece8",
+  "source_clean": true,
+  "source_objects": {
+    "crates": "3e55e0212a7d046b2b80d0e1fc1b27bfb7471c22",
+    "examples": "2b6a8d8a2419405cb68ecaf7558fe8710f762759",
+    "tools": "a0f7c23ace85a80b89a4e09dcd2531a1ad1f4fc7",
+    "Cargo.toml": "71adfaea2deb83d99a108a0aa43e6c47937fe3b5",
+    "Cargo.lock": "38a62627c9e74866270068f2594959001ee00fe3",
+    "_zil_design.md": "491a60c22226e01c8ff5e4ddab1cbe62c28059e6",
+    "spec": "079956125632cafc0c697a4b98fb4fc0e5582639",
+    "policy/dependencies.json": "59fbacb84e9daa791c501fa94eac41ff01cdb7e4",
+    "validation/product-gates.json": "14d352d66503ba948a55b673ccb913ffb3e5842e"
+  },
+  "scope_equivalent_main_before_receipt": "da71538d362090d73183959b7c0508018e81333a",
+  "spec_hash": "13ea0962a2bf73893a0b03eac133456216856f3748152392c925e95028059c7d",
+  "normative_hash": "4402e04fd45551cbdd8dff92c4ac51af8d8ddd6f87296c17ce3690f55359bff3",
+  "schema_version": 25,
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--no-fail-fast"
+  ],
+  "passed": 2198,
+  "failed": 0,
+  "ignored": 0,
+  "test_result_groups": 231,
+  "duration_seconds": 95.23372864723206,
+  "independent_review": {
+    "path": "evidence/reviews/200/by197/REVIEW.json",
+    "implementation_commit": "d6013e23c0f18c6cad368f5b97cdbef65f5011ce",
+    "review_commit": "2a2cae62f8e9073741d1138e53ce49f1bcf4a08d"
+  },
+  "migration_review": "evidence/reviews/200/by197/MIGRATION.json",
+  "prior_full_run": {
+    "source_commit": "bcedb4db78fb1a6228b3baf54cb36a6e4dedf91b",
+    "passed": 2197,
+    "failed": 1,
+    "ignored": 0,
+    "cause": "One historical182 test still expected the old full diagnostic string. Original source still rejects in Types/Unsupported/E-UNSUPPORTED; no production change was made for this migration.",
+    "correction_commit": "eb7b661c965418c0eb5f06adda0fb4df781b0cb3",
+    "targeted_retest": "1 passed,0 failed,22 filtered; original source unchanged"
+  },
+  "infrastructure_attempt": {
+    "source_commit": "b9c006b08f5360d51df58462fe29759bf5caece8",
+    "command_record_status": "Fail",
+    "exit_code": 101,
+    "classification": "InfrastructureFailure",
+    "reported_test_counts": {
+      "passed": 1552,
+      "failed": 640,
+      "ignored": 0,
+      "groups": 218
+    },
+    "cause": "Host temporary filesystem exhausted. All640 failing-test records contain No space left on device; some rustdoc commands also failed to create outputs. These are not classified as640 language regressions.",
+    "same_source_rerun": "workspace03",
+    "recovery": "Verified closed nonexecutable archives before deleting temporary copies. Rerun preflight required2.5GB temporary capacity and began with3,785,633,792 bytes free."
+  },
+  "external_archive": {
+    "file": "200-integration-evidence.zip",
+    "bytes": 197584,
+    "sha256": "1788f91e4e7130a0db2092005cd1928b944fc82a137f9459b5593bcc8d5950a2"
+  },
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "native_windows": "NotRun",
+  "formal_draft_product_pipeline": "NotRun",
+  "compiler_speed_claim": "None; separate workstream"
+}

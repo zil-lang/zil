@@ -1,10 +1,10 @@
 {
-  "source_commit": "7fef177924227fb7be7d694b39d171afa1e13418",
-  "result_path": "evidence/integration/196/final/RESULT.json",
+  "source_commit": "b9c006b08f5360d51df58462fe29759bf5caece8",
+  "result_path": "evidence/integration/200/final/RESULT.json",
   "draft_gate": "NotRun",
   "full_workspace_gate": "Pass",
   "full_language_gate": "NotSatisfied",
   "product_gate": "NotRun",
   "schema_version": 25,
-  "note": "Integrated196/197/198 regression2138/0;199/200 continue under their own frozen scopes. Not complete1.4 or product proof."
+  "note": "Integrated196-200 regression2198/0; callback Store and heterogeneous persistent State remain unimplemented. Exact failures and infrastructure retry retained separately."
 }
