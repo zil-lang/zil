@@ -97,18 +97,20 @@ impl Engine<'_> {
             &mut self.budget,
             self.callable_name.as_deref(),
         )?;
-        // Each lookup/comparison and possible insertion is bounded before it
-        // uses or copies metadata; no generated name grants template status.
-        for _ in 0..self
-            .retained_stores
-            .len()
-            .checked_ilog2()
-            .map_or(1, |n| n as usize + 2)
-        {
+        // Charge each actual comparison, rather than assuming an ordered
+        // container's internal search cost. This list exists only on the new
+        // path and is capped with the other generated functions.
+        let mut retained = false;
+        for previous in &self.retained_stores {
             self.budget.node(span, 0)?;
+            self.budget.text(previous, span)?;
             self.budget.text(template, span)?;
+            if previous == template {
+                retained = true;
+                break;
+            }
         }
-        if !self.retained_stores.contains(template) {
+        if !retained {
             if self
                 .retained_stores
                 .len()
@@ -124,7 +126,7 @@ impl Engine<'_> {
             self.budget.node(span, 0)?;
             self.budget.text(template, span)?;
             self.budget.item(item)?;
-            self.retained_stores.insert(template.to_owned());
+            self.retained_stores.push(template.to_owned());
             self.pending.push_back(item.clone());
         }
         self.budget.text(template, span)?;
