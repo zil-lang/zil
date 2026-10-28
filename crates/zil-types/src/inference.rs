@@ -13,6 +13,8 @@ struct Budget<'a> {
     nodes: usize,
     ordinary_functions: usize,
     closures: usize,
+    inside_store: bool,
+    store_shapes: bool,
 }
 impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -22,6 +24,8 @@ impl<'a> Budget<'a> {
             nodes: limits.max_nodes,
             ordinary_functions: 0,
             closures: 0,
+            inside_store: false,
+            store_shapes: false,
         }
     }
     fn work(&mut self, count: usize, span: Span) -> R<()> {
@@ -71,7 +75,7 @@ impl<'a> Budget<'a> {
 
 /// Reserve the complete retained template before a new deep snapshot. This
 /// reuses the borrowed input walk, so nested statements/types and text all count.
-pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> R<usize> {
+pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> R<(usize, bool)> {
     let mut budget = Budget::new(limits);
     budget.work(
         function
@@ -92,7 +96,7 @@ pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> 
         returned_snapshot(bound, function.span, &mut budget)?;
     }
     contains_closure(&function.body, 0, &mut budget)?;
-    Ok(limits.max_analysis_steps - budget.work)
+    Ok((limits.max_analysis_steps - budget.work, budget.store_shapes))
 }
 
 pub(super) fn signature_snapshot_work(
@@ -549,9 +553,16 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
                 validate_type(element, depth + 1, span, budget)?;
             }
         }
+        Type::OwnedStore { element } => {
+            // Reuse the already charged complete type walk to classify the
+            // new scheduling case. No extra scan or fee reaches old Stores.
+            let previous = budget.inside_store;
+            budget.inside_store = true;
+            validate_type(element, depth + 1, span, budget)?;
+            budget.inside_store = previous;
+        }
         Type::Address { inner, .. }
         | Type::Slice { element: inner }
-        | Type::OwnedStore { element: inner }
         | Type::Managed(inner)
         | Type::Desc(inner)
         | Type::Opaque { hidden: inner, .. } => validate_type(inner, depth + 1, span, budget)?,
@@ -567,7 +578,12 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             }
             validate_type(result, depth + 1, span, budget)?;
         }
-        Type::Named(name) | Type::Unsupported(name) => budget.work(name.len(), span)?,
+        Type::Named(name) => {
+            budget.work(name.len(), span)?;
+            budget.store_shapes |= budget.inside_store;
+        }
+        Type::Closure(_) => budget.store_shapes |= budget.inside_store,
+        Type::Unsupported(name) => budget.work(name.len(), span)?,
         _ => {}
     }
     Ok(())

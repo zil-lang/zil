@@ -374,3 +374,36 @@ fn main()->i32{return run(pair(make(65,10),make(66,20)))}"#;
         "",
     );
 }
+
+#[test]
+fn nested_sync_helper_uses_the_actual_borrowed_store_field() {
+    let source = format!(
+        "fn invoke<F:FnMut()->i32>(callback:&mut F)->i32{{return callback()}}\n{}",
+        PAIR_MUT
+            .replace("first.callback()", "invoke(&mut first.callback)")
+            .replace("second.callback()", "invoke(&mut second.callback)")
+    );
+    native("nested-field-helper", &source, "1A2BZ", 0);
+}
+
+#[test]
+fn zero_payload_package_capture_keeps_its_real_cleanup_flags() {
+    // The independent review retains the original old-State successes and the
+    // pre-fix Store rejection. Keep that exact source here for the author run.
+    let source = r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Empty{}
+impl Drop for Empty{fn drop(self:Self){unsafe{putchar(65)}}}
+package Token{manages empty:Empty}
+package State<F>{manages bytes:ByteBuffer;callback:F}
+fn make()->impl Fn()->i32{
+    let held=Token{empty:Empty{}};return move()=>{held.empty;return 7}
+}
+fn pack<F:Fn()->i32>(callback:F)->State<F>{return State::<F>{bytes:bytes_new(),callback:callback}}
+fn run<F:Fn()->i32>(state:State<F>)->i32{return state.callback()-7}
+fn main()->i32{return run(pack(make()))}
+"#;
+    native("zero-package-old-state", source, "A", 0);
+    let stored = source.replace("return state.callback()-7", "let items:Store<State<F>>=store_new();store_reserve(items,1);store_push(items,state);let view=store_at(items,0);return view.callback()-7");
+    native("zero-package-store", &stored, "A", 0);
+}

@@ -17,12 +17,15 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
 
 /// The original path and its charging remain unchanged for non-callback Stores.
 fn legacy_element(ty: &Type) -> bool {
+    legacy_fields(ty) && has_storage(ty)
+}
+
+fn legacy_fields(ty: &Type) -> bool {
     matches!(ty, Type::Package { fields, .. }
         if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
         && fields.iter().all(|(_, t)| t.is_copy_value()
             || matches!(t, Type::Managed(payload) if **payload == Type::ByteBuffer
                 || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))))
-        && has_storage(ty)
 }
 
 pub(super) fn supported_element(ty: &Type) -> bool {
@@ -111,7 +114,10 @@ fn check_callback_captures(
                     if **payload == Type::ByteBuffer
                         || (matches!(payload.as_ref(), Type::Record { .. })
                             && payload.is_copy_value()) => {}
-                Type::Package { .. } if legacy_element(capture) => {}
+                // A captured Package may have zero payload bytes. Its real
+                // environment retains the existing shell/field live flags;
+                // only the complete Store element must have nonzero layout.
+                Type::Package { .. } if legacy_fields(capture) => {}
                 ty if ty.is_copy_value() => {}
                 _ => {
                     return Err(unsupported(
