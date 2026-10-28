@@ -268,7 +268,7 @@ fn suspended_parent_cannot_read_explicit_or_implicit_slice_metadata() {
 }
 
 #[test]
-fn foreign_abi_and_closure_windows_remain_closed() {
+fn foreign_abi_captures_and_borrowed_results_remain_closed() {
     rejects(
         "extern \"C\" fn bad(s:&[u8])contract{provides(noescape(s));effects(ffi);};fn result(){}",
         ResultCategory::SafeReject,
@@ -278,9 +278,6 @@ fn foreign_abi_and_closure_windows_remain_closed() {
     for text in [
         "fn result()->i64{let a=[1,2];let s=&a[..];let f=()=>s.len();return f();}",
         "fn result()->i64{let a=[1,2];let s=&a[..];let f=move()=>s.len();return f();}",
-        "fn result()->i64{let f=(s:&[i32])->i64=>s.len();return 0;}",
-        "fn run<F:Fn(&[i32])->i64>(f:&F)->i64{return 0;}fn result(){}",
-        "fn run<F:Fn()->i32>(f:&F,s:&[i32])->i32{return f();}fn result(){}",
         "fn run<F:Fn()->i32>(f:&F,s:&[i32])->&[i32]{return s;}fn result(){}",
     ] {
         rejects(
@@ -289,6 +286,15 @@ fn foreign_abi_and_closure_windows_remain_closed() {
             Phase::Types,
             "E-UNSUPPORTED",
         );
+    }
+    // 193 admits these original unused explicit signatures; there is no slice
+    // capture, borrowed result or machine-layout assertion hidden in `passes`.
+    for text in [
+        "fn result()->i64{let f=(s:&[i32])->i64=>s.len();return 0;}",
+        "fn run<F:Fn(&[i32])->i64>(f:&F)->i64{return 0;}fn result(){}",
+        "fn run<F:Fn()->i32>(f:&F,s:&[i32])->i32{return f();}fn result(){}",
+    ] {
+        passes(text);
     }
 }
 

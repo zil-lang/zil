@@ -172,6 +172,7 @@ fn raw_and_wire_keep_explicit_parameter_holds_and_closed_shapes() {
             },
         ),
     ] {
+        let slice = matches!(inner, Type::Slice { .. });
         let (mut module, plan) = baseline(SHARED);
         module.closures[0].parameters[0] = Type::Address {
             mutable: false,
@@ -181,8 +182,18 @@ fn raw_and_wire_keep_explicit_parameter_holds_and_closed_shapes() {
             name,
             module,
             plan,
-            ResultCategory::Unsupported,
-            "E-UNSUPPORTED",
+            if slice {
+                ResultCategory::SafeReject
+            } else {
+                ResultCategory::Unsupported
+            },
+            // 193 admits the declared shape; this unchanged raw input still
+            // disagrees with its actual &i32 entry and must not be accepted.
+            if slice {
+                "E-VERIFY-CLOSURE-ENTRY"
+            } else {
+                "E-UNSUPPORTED"
+            },
         );
     }
 }

@@ -47,7 +47,7 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
     let reject = || {
         unsupported(
             function.span,
-            "one finite Copy callable signature, optionally with Copy-address parameters and a Copy result, and one nonescaping environment parameter are implemented",
+            "one finite Copy callable signature, optionally with Copy/slice-address parameters and a Copy result, and one nonescaping environment parameter are implemented",
         )
     };
     let owned_state = callable_fields::template(function);
@@ -77,7 +77,9 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
         || function.parameters.iter().enumerate().any(|(i, p)| {
             i != bound.index as usize
                 && !(p.ty.is_copy_value()
-                    || matches!(&p.ty, Type::Address { inner, .. } if inner.is_copy_value())
+                    || matches!(&p.ty, Type::Address { inner, .. }
+                        if inner.is_copy_value() || (function.return_type.is_copy_value()
+                            && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
                     || packages::supported(&p.ty)
                     || matches!(&p.ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
                     || matches!(p.ty, Type::Managed(_)))
