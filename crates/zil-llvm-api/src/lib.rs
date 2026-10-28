@@ -132,3 +132,24 @@ pub fn compile_module(
         })
     }
 }
+
+/// Runtime checks and the resolved LLVM library for a trusted local cache.
+/// This does not create a module or bypass per-request language verification.
+pub fn cache_runtime(config: &Config<'_>) -> Result<(String, std::path::PathBuf), Error> {
+    #[cfg(all(feature = "native", target_os = "linux"))]
+    {
+        let v = native::check_config(config)?;
+        Ok((
+            format!("{}.{}.{}", v[0], v[1], v[2]),
+            native::runtime_library()?,
+        ))
+    }
+    #[cfg(not(all(feature = "native", target_os = "linux")))]
+    {
+        let _ = config;
+        Err(Error {
+            kind: ErrorKind::Unavailable,
+            message: "local object cache currently requires a Linux LLVM API host".into(),
+        })
+    }
+}

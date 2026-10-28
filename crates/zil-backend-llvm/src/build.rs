@@ -8,6 +8,9 @@ use zil_base::{CompileResult, Diagnostic, Phase, ResultCategory};
 use zil_ir::LirModule;
 use zil_verify::VerifiedModule;
 
+use crate::object_cache::{
+    Access, ObjectCacheSummary, PendingObject, PendingObjectCache, PreparedCache,
+};
 use crate::{EmitOptions, EntryPoint};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -65,6 +68,7 @@ pub struct CodegenSummary {
     pub backend: NativeBackend,
     /// Actual in-process calls, not invented subprocess commands.
     pub object_reports: Vec<String>,
+    pub object_cache: ObjectCacheSummary,
     pub requested_units: usize,
     pub actual_units: usize,
     pub jobs: usize,
@@ -73,9 +77,10 @@ pub struct CodegenSummary {
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
+            self.object_cache.to_json(),
             self.requested_units,
             self.actual_units,
             self.jobs,
@@ -95,6 +100,8 @@ pub struct BuildOptions {
     pub codegen: CodegenOptions,
     pub emit: EmitOptions,
     pub windows: Option<WindowsLinkOptions>,
+    /// Explicit trusted local cache; None preserves the uncached reference.
+    pub object_cache: Option<PathBuf>,
 }
 
 impl BuildOptions {
@@ -106,6 +113,7 @@ impl BuildOptions {
             optimization: Optimization::O0,
             codegen: CodegenOptions::default(),
             windows: None,
+            object_cache: None,
             emit: EmitOptions {
                 entry: EntryPoint::Main,
             },
@@ -122,6 +130,14 @@ pub struct BuildArtifact {
     /// Every actual subprocess, including the separate Win64 linker.
     pub commands: Vec<Vec<String>>,
     pub codegen: CodegenSummary,
+    /// Pending bytes confer no validation authority and are discarded on failure.
+    pub pending_cache: PendingObjectCache,
+}
+impl BuildArtifact {
+    /// Call only after all request validation, cancellation and publication steps.
+    pub fn commit_object_cache(&mut self) {
+        std::mem::take(&mut self.pending_cache).commit(&mut self.codegen.object_cache);
+    }
 }
 
 /// Compile LLVM IR directly with the configured clang. Construction of any
@@ -133,11 +149,15 @@ pub fn build(
     lir: &LirModule,
     options: &BuildOptions,
 ) -> CompileResult<BuildArtifact> {
-    build_with_cancellation(verified, lir, options, &|| false)
+    let mut artifact = build_with_cancellation(verified, lir, options, &|| false)?;
+    artifact.commit_object_cache();
+    Ok(artifact)
 }
 
 /// Cooperative cancellation does not unwind inside an LLVM pass or linker.
 /// It is checked before/after each unit phase and before publishing any result.
+/// Embedding drivers must call artifact.commit_object_cache() only after their
+/// own final publication succeeds. Dropping the artifact discards pending writes.
 pub fn build_with_cancellation(
     verified: &VerifiedModule,
     lir: &LirModule,
@@ -174,10 +194,37 @@ pub fn build_with_cancellation(
             None,
         )]);
     }
+    if options.object_cache.is_some() && options.backend != NativeBackend::LlvmApi {
+        return Err(infra(
+            "E-OBJECT-CACHE-BACKEND",
+            "object cache requires the LLVM API backend",
+        ));
+    }
+    let mut cache_summary = ObjectCacheSummary {
+        requested: options.object_cache.is_some(),
+        ..ObjectCacheSummary::default()
+    };
+    let cache = options.object_cache.as_ref().and_then(|path| {
+        match PreparedCache::new(path, &lir.target, options.optimization) {
+            Ok(cache) => {
+                cache_summary.enabled = true;
+                Some(cache)
+            }
+            Err(reason) => {
+                cache_summary.disabled_reason = Some(reason);
+                None
+            }
+        }
+    });
+    let mut pending_cache = PendingObjectCache {
+        directory: cache.as_ref().map(|c| c.directory.clone()),
+        ..PendingObjectCache::default()
+    };
     let actual_units = plan.units.len().max(1);
     let mut codegen = CodegenSummary {
         backend: options.backend,
         object_reports: Vec::new(),
+        object_cache: cache_summary,
         requested_units: options.codegen.units,
         actual_units,
         jobs: options.codegen.jobs.min(actual_units),
@@ -279,14 +326,21 @@ pub fn build_with_cancellation(
             &lir.target.triple,
             optimization,
             options,
+            cache.as_ref(),
             cancelled,
         )?;
-        for (command, receipt) in compiled {
-            if let Some(command) = command {
+        for result in compiled {
+            if let Some(command) = result.command {
                 commands.push(command);
             }
-            if let Some(receipt) = receipt {
+            if let Some(receipt) = result.receipt {
                 codegen.object_reports.push(receipt);
+            }
+            if let Some(access) = result.access {
+                codegen.object_cache.add(&access);
+            }
+            if let Some(pending) = result.pending {
+                pending_cache.objects.push(pending);
             }
         }
         inputs
@@ -339,6 +393,7 @@ pub fn build_with_cancellation(
         command: recorded_command,
         commands,
         codegen,
+        pending_cache,
     })
 }
 
@@ -350,13 +405,19 @@ struct UnitInput {
     object: PathBuf,
     module: zil_llvm_api::model::Module,
 }
-type UnitResult = (Option<Vec<String>>, Option<String>);
+struct UnitResult {
+    command: Option<Vec<String>>,
+    receipt: Option<String>,
+    access: Option<Access>,
+    pending: Option<PendingObject>,
+}
 
 fn compile_units(
     inputs: &[UnitInput],
     target: &str,
     optimization: &str,
     options: &BuildOptions,
+    cache: Option<&PreparedCache>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<Vec<UnitResult>> {
     let mut schedule = (0..inputs.len()).collect::<Vec<_>>();
@@ -407,11 +468,20 @@ fn compile_units(
                                             "LLVM did not produce a codegen object",
                                         ));
                                     }
-                                    Ok((Some(command), None))
+                                    Ok(UnitResult {
+                                        command: Some(command),
+                                        receipt: None,
+                                        access: None,
+                                        pending: None,
+                                    })
                                 }
-                                NativeBackend::LlvmApi => {
-                                    compile_api_unit(unit, target, options.optimization, cancelled)
-                                }
+                                NativeBackend::LlvmApi => compile_api_unit(
+                                    unit,
+                                    target,
+                                    options.optimization,
+                                    cache,
+                                    cancelled,
+                                ),
                             }
                         });
                         results.push((id, result));
@@ -454,13 +524,36 @@ fn check_cancelled(cancelled: &(dyn Fn() -> bool + Sync)) -> CompileResult<()> {
 }
 
 #[cfg(feature = "llvm-api")]
+fn api_error(error: zil_llvm_api::Error) -> Vec<Diagnostic> {
+    use zil_llvm_api::ErrorKind;
+    let (code, category) = match error.kind {
+        ErrorKind::Cancelled => ("E-LLVM-API-CANCELLED", ResultCategory::Cancelled),
+        ErrorKind::Unavailable => ("E-LLVM-API-UNAVAILABLE", ResultCategory::Unsupported),
+        ErrorKind::Version => ("E-LLVM-API-VERSION", ResultCategory::InfraError),
+        ErrorKind::Target => ("E-LLVM-API-TARGET", ResultCategory::InfraError),
+        ErrorKind::Parse => ("E-LLVM-API-PARSE", ResultCategory::InfraError),
+        ErrorKind::Verify => ("E-LLVM-API-VERIFY", ResultCategory::InfraError),
+        ErrorKind::Optimize => ("E-LLVM-API-OPTIMIZE", ResultCategory::InfraError),
+        ErrorKind::Emit => ("E-LLVM-API-EMIT", ResultCategory::InfraError),
+    };
+    vec![Diagnostic::new(
+        Phase::Link,
+        category,
+        code,
+        error.to_string(),
+        None,
+    )]
+}
+
+#[cfg(feature = "llvm-api")]
 fn compile_api_unit(
     unit: &UnitInput,
     target: &str,
     opt: Optimization,
+    cache: Option<&PreparedCache>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<UnitResult> {
-    use zil_llvm_api::{Config, ErrorKind, Optimization as ApiOpt};
+    use zil_llvm_api::{Config, Optimization as ApiOpt};
     let config = Config {
         triple: target,
         optimization: match opt {
@@ -468,32 +561,46 @@ fn compile_api_unit(
             Optimization::O2 => ApiOpt::O2,
         },
     };
+    let mut access = None;
+    if let Some(cache) = cache {
+        let (mut lookup, bytes) = cache.lookup(&unit.module);
+        check_cancelled(cancelled)?;
+        if let Some(bytes) = bytes {
+            // A hit is not a native Builder invocation. Current machine checks
+            // still run, independently of the checks performed by the producer.
+            let t = std::time::Instant::now();
+            zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
+            lookup.preflight_ns = crate::object_cache::elapsed_ns(t);
+            check_cancelled(cancelled)?;
+            fs::write(&unit.object, &bytes)
+                .map_err(|e| io_error("write reused object", &unit.object, e))?;
+            let q = zil_base::json_string;
+            let receipt = format!(
+                "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
+                q(&cache.llvm_version),
+                q(target),
+                bytes.len(),
+                lookup.to_json(),
+                lookup.preflight_ns,
+                lookup.key_ns + lookup.lookup_ns + lookup.preflight_ns
+            );
+            return Ok(UnitResult {
+                command: None,
+                receipt: Some(receipt),
+                access: Some(lookup),
+                pending: None,
+            });
+        }
+        access = Some(lookup);
+    }
     let object =
-        zil_llvm_api::compile_module(&unit.module, &config, cancelled).map_err(|error| {
-            let (code, category) = match error.kind {
-                ErrorKind::Cancelled => ("E-LLVM-API-CANCELLED", ResultCategory::Cancelled),
-                ErrorKind::Unavailable => ("E-LLVM-API-UNAVAILABLE", ResultCategory::Unsupported),
-                ErrorKind::Version => ("E-LLVM-API-VERSION", ResultCategory::InfraError),
-                ErrorKind::Target => ("E-LLVM-API-TARGET", ResultCategory::InfraError),
-                ErrorKind::Parse => ("E-LLVM-API-PARSE", ResultCategory::InfraError),
-                ErrorKind::Verify => ("E-LLVM-API-VERIFY", ResultCategory::InfraError),
-                ErrorKind::Optimize => ("E-LLVM-API-OPTIMIZE", ResultCategory::InfraError),
-                ErrorKind::Emit => ("E-LLVM-API-EMIT", ResultCategory::InfraError),
-            };
-            vec![Diagnostic::new(
-                Phase::Link,
-                category,
-                code,
-                error.to_string(),
-                None,
-            )]
-        })?;
+        zil_llvm_api::compile_module(&unit.module, &config, cancelled).map_err(api_error)?;
     check_cancelled(cancelled)?;
     fs::write(&unit.object, &object.bytes)
         .map_err(|e| io_error("write LLVM API object", &unit.object, e))?;
     let r = &object.receipt;
     let q = zil_base::json_string;
-    let receipt = format!(
+    let mut receipt = format!(
         "{{\"backend\":\"llvm-api\",\"llvm_version\":{},\"triple\":{},\"cpu\":{},\"features\":{},\"data_layout\":{},\"pipeline\":{},\"relocation\":{},\"code_model\":{},\"verify_before_after\":{},\"object_bytes\":{},\"input_kind\":{},\"preflight_ns\":{},\"builder_ns\":{},\"parse_ns\":{},\"optimize_ns\":{},\"emit_ns\":{},\"total_ns\":{}}}",
         q(&r.llvm_version),
         q(&r.triple),
@@ -513,14 +620,30 @@ fn compile_api_unit(
         r.emit_ns,
         r.total_ns
     );
-    Ok((None, Some(receipt)))
-}
 
+    if let Some(access) = &access {
+        receipt.pop();
+        receipt.push_str(",\"cache\":");
+        receipt.push_str(&access.to_json());
+        receipt.push('}');
+    }
+    let pending = access.as_ref().map(|a| PendingObject {
+        key: a.key,
+        bytes: object.bytes,
+    });
+    Ok(UnitResult {
+        command: None,
+        receipt: Some(receipt),
+        access,
+        pending,
+    })
+}
 #[cfg(not(feature = "llvm-api"))]
 fn compile_api_unit(
     _unit: &UnitInput,
     _target: &str,
     _opt: Optimization,
+    _cache: Option<&PreparedCache>,
     _cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<UnitResult> {
     Err(infra(

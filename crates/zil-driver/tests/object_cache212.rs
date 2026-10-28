@@ -1,0 +1,371 @@
+//! Real source -> current Verify -> direct Builder/cache -> native execution.
+#![cfg(all(feature = "llvm-api", target_os = "linux"))]
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+    sync::atomic::{AtomicUsize, Ordering},
+};
+use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
+use zil_driver::{
+    CodegenOptions, CompilationSession, CompileOptions, CompileReport, NativeBackend, Optimization,
+    Stage, compile_path,
+};
+static NEXT: AtomicUsize = AtomicUsize::new(0);
+struct Dir(PathBuf);
+impl Dir {
+    fn new() -> Self {
+        let p = std::env::temp_dir().join(format!(
+            "zil-obj212-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&p).unwrap();
+        Self(p)
+    }
+    fn write(&self, name: &str, text: &str) {
+        fs::write(self.0.join(name), text).unwrap();
+    }
+    fn source(&self) {
+        self.write(
+            "main.zil",
+            "import a\nimport b\nfn main()->i32 { return a.get()+b.get(); }",
+        );
+        self.write(
+            "a.zil",
+            "fn hidden()->i32 { return 19; }\npub fn get()->i32 { return hidden(); }",
+        );
+        self.write("b.zil", "pub fn get()->i32 { return 23; }");
+    }
+    fn options(&self, units: usize, opt: Optimization) -> CompileOptions {
+        CompileOptions {
+            backend: NativeBackend::LlvmApi,
+            stop_after: Stage::Build,
+            output: Some(self.0.join("program")),
+            object_cache: Some(self.0.join("objects")),
+            optimization: opt,
+            codegen: CodegenOptions { units, jobs: 4 },
+            ..CompileOptions::default()
+        }
+    }
+    fn build(&self, options: &CompileOptions) -> CompileReport {
+        compile_path(&self.0.join("main.zil"), options)
+    }
+}
+impl Drop for Dir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+fn success(r: &CompileReport, expected: i32) {
+    assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+    assert_eq!(r.verification_runs, 1, "current Verify must execute");
+    assert_eq!(
+        r.commands.len(),
+        1,
+        "linking must execute on cache hits too"
+    );
+    let out = Command::new(&r.artifacts["executable"]).output().unwrap();
+    assert_eq!(out.status.code(), Some(expected), "{out:?}");
+}
+fn entries(root: &Path) -> Vec<PathBuf> {
+    let mut files = vec![];
+    if let Ok(dir) = fs::read_dir(root) {
+        for p in dir {
+            let p = p.unwrap().path();
+            if p.is_dir() {
+                files.extend(entries(&p));
+            } else if p.extension().is_some_and(|e| e == "zobj") {
+                files.push(p);
+            }
+        }
+    }
+    files.sort();
+    files
+}
+#[test]
+fn cold_warm_private_public_edits_preserve_current_verify_and_output() {
+    let d = Dir::new();
+    d.source();
+    let o = d.options(8, Optimization::O0);
+    let a = d.build(&o);
+    success(&a, 42);
+    let summary = &a.native_codegen.as_ref().unwrap().object_cache;
+    assert!(summary.enabled, "{}", a.to_json());
+    assert_eq!(summary.hits, 0);
+    assert_eq!(summary.stored, summary.misses);
+    let executable = fs::read(&a.artifacts["executable"]).unwrap();
+    let b = d.build(&o);
+    success(&b, 42);
+    let n = b.native_codegen.as_ref().unwrap();
+    assert_eq!(n.object_cache.hits, n.actual_units);
+    assert_eq!(n.object_cache.misses, 0);
+    assert!(
+        n.object_reports
+            .iter()
+            .all(|s| s.contains("\"input_kind\":\"object-cache\"")
+                && s.contains("\"llvm_verification_this_request\":false"))
+    );
+    assert_eq!(executable, fs::read(&b.artifacts["executable"]).unwrap());
+    d.write(
+        "a.zil",
+        "fn hidden()->i32 { return 20; }\npub fn get()->i32 { return hidden(); }",
+    );
+    let c = d.build(&o);
+    success(&c, 43);
+    let n = &c.native_codegen.as_ref().unwrap().object_cache;
+    assert!(n.hits > 0 && n.misses > 0, "{}", c.to_json());
+    d.write(
+        "a.zil",
+        "fn hidden()->i32 { return 20; }\npub fn get(x:i32)->i32 { return hidden()+x; }",
+    );
+    d.write(
+        "main.zil",
+        "import a\nimport b\nfn main()->i32 { return a.get(1)+b.get(); }",
+    );
+    let e = d.build(&o);
+    success(&e, 44);
+    let n = &e.native_codegen.as_ref().unwrap().object_cache;
+    assert!(n.hits > 0 && n.misses > 0, "{}", e.to_json());
+}
+#[test]
+fn optimization_and_units_invalidate_but_job_count_does_not() {
+    let d = Dir::new();
+    d.source();
+    let mut o = d.options(8, Optimization::O0);
+    success(&d.build(&o), 42);
+    o.codegen.jobs = 1;
+    let warm = d.build(&o);
+    success(&warm, 42);
+    assert_eq!(warm.native_codegen.as_ref().unwrap().object_cache.misses, 0);
+    o.optimization = Optimization::O2;
+    let changed = d.build(&o);
+    success(&changed, 42);
+    assert_eq!(
+        changed.native_codegen.as_ref().unwrap().object_cache.hits,
+        0
+    );
+    let warm = d.build(&o);
+    success(&warm, 42);
+    assert_eq!(warm.native_codegen.as_ref().unwrap().object_cache.misses, 0);
+    o.codegen.units = 1;
+    let single = d.build(&o);
+    success(&single, 42);
+    assert_eq!(
+        single.native_codegen.as_ref().unwrap().object_cache.misses,
+        1
+    );
+    success(&d.build(&o), 42);
+}
+#[test]
+fn corrupt_and_truncated_entries_rebuild_without_changed_native_bytes() {
+    let d = Dir::new();
+    d.source();
+    let o = d.options(8, Optimization::O0);
+    let first = d.build(&o);
+    success(&first, 42);
+    let executable = fs::read(&first.artifacts["executable"]).unwrap();
+    let files = entries(o.object_cache.as_ref().unwrap());
+    assert!(!files.is_empty());
+    for (i, p) in files.iter().enumerate() {
+        if i % 2 == 0 {
+            fs::write(p, b"truncated").unwrap();
+        } else {
+            let mut bytes = fs::read(p).unwrap();
+            *bytes.last_mut().unwrap() ^= 1;
+            fs::write(p, bytes).unwrap();
+        }
+    }
+    let rebuilt = d.build(&o);
+    success(&rebuilt, 42);
+    let n = rebuilt.native_codegen.as_ref().unwrap();
+    assert_eq!(n.object_cache.hits, 0);
+    assert_eq!(n.object_cache.corrupt, n.actual_units);
+    assert_eq!(n.object_cache.stored, n.actual_units);
+    assert_eq!(
+        executable,
+        fs::read(&rebuilt.artifacts["executable"]).unwrap()
+    );
+    assert_eq!(d.build(&o).native_codegen.unwrap().object_cache.misses, 0);
+}
+#[test]
+fn unsafe_or_invalid_current_source_never_reuses_a_success_capability() {
+    let d = Dir::new();
+    d.source();
+    let mut o = d.options(8, Optimization::O0);
+    let a = d.build(&o);
+    success(&a, 42);
+    let bytes = fs::read(o.output.as_ref().unwrap()).unwrap();
+    let before = entries(o.object_cache.as_ref().unwrap());
+    d.write(
+        "main.zil",
+        "fn main()->i32 { let a=1; let r=&a; a=2; return *r; }",
+    );
+    let bad = d.build(&o);
+    assert_ne!(bad.status, ResultCategory::Success);
+    assert!(bad.commands.is_empty());
+    assert!(bad.native_codegen.is_none());
+    assert_eq!(fs::read(o.output.as_ref().unwrap()).unwrap(), bytes);
+    assert_eq!(entries(o.object_cache.as_ref().unwrap()), before);
+    d.source();
+    o.limits.max_analysis_steps = 0;
+    let limited = d.build(&o);
+    assert_ne!(limited.status, ResultCategory::Success);
+    assert_eq!(entries(o.object_cache.as_ref().unwrap()), before);
+}
+#[test]
+fn linker_failure_discards_pending_objects_and_preserves_previous_output() {
+    let d = Dir::new();
+    d.source();
+    let mut initial = d.options(8, Optimization::O0);
+    initial.object_cache = None;
+    success(&d.build(&initial), 42);
+    let previous = fs::read(initial.output.as_ref().unwrap()).unwrap();
+    let mut o = d.options(8, Optimization::O0);
+    o.clang = Some("/bin/false".into());
+    let failed = d.build(&o);
+    assert_ne!(failed.status, ResultCategory::Success);
+    assert!(entries(o.object_cache.as_ref().unwrap()).is_empty());
+    assert_eq!(fs::read(o.output.as_ref().unwrap()).unwrap(), previous);
+}
+#[test]
+fn cancellation_after_backend_success_does_not_commit_object_cache() {
+    let d = Dir::new();
+    d.write("main.zil", "fn main()->i32 { return 42; }");
+    let o = d.options(1, Optimization::O0);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        d.0.join("main.zil").to_string_lossy(),
+        "fn main()->i32 { return 42; }",
+    );
+    let mut session = CompilationSession::default();
+    let token = o.cancellation.clone();
+    let r = session.compile_source_with_observer(&source, &o, &mut |event| {
+        if event.phase == Phase::Link {
+            token.cancel();
+        }
+    });
+    assert_eq!(r.status, ResultCategory::Cancelled, "{}", r.to_json());
+    assert!(entries(o.object_cache.as_ref().unwrap()).is_empty());
+    assert!(!o.output.as_ref().unwrap().exists());
+}
+#[test]
+fn cache_directory_failure_is_a_visible_bypass_not_a_build_failure() {
+    let d = Dir::new();
+    d.source();
+    d.write("objects", "must remain a file");
+    let o = d.options(8, Optimization::O0);
+    let r = d.build(&o);
+    success(&r, 42);
+    let c = &r.native_codegen.as_ref().unwrap().object_cache;
+    assert!(c.requested && !c.enabled);
+    assert!(c.disabled_reason.is_some());
+    assert_eq!(
+        fs::read(o.object_cache.as_ref().unwrap()).unwrap(),
+        b"must remain a file"
+    );
+}
+#[test]
+fn diagnostic_fingerprint_change_does_not_pollute_machine_keys() {
+    let d = Dir::new();
+    d.source();
+    let o = d.options(8, Optimization::O0);
+    let first = d.build(&o);
+    success(&first, 42);
+    let ir = fs::read(&first.artifacts["llvm"]).unwrap();
+    // A source comment changes the current verification input, not instructions.
+    d.write("main.zil","// current request has different source\nimport a\nimport b\nfn main()->i32 { return a.get()+b.get(); }");
+    let again = d.build(&o);
+    success(&again, 42);
+    assert_ne!(ir, fs::read(&again.artifacts["llvm"]).unwrap());
+    let n = again.native_codegen.as_ref().unwrap();
+    assert_eq!(n.object_cache.hits, n.actual_units);
+}
+#[test]
+fn concurrent_requests_share_only_complete_native_objects() {
+    let d = Dir::new();
+    d.source();
+    let source = d.0.join("main.zil");
+    let options = d.options(8, Optimization::O0);
+    std::thread::scope(|scope| {
+        let mut handles = vec![];
+        for i in 0..4 {
+            let mut o = options.clone();
+            o.output = Some(d.0.join(format!("p{i}")));
+            let p = &source;
+            handles.push(scope.spawn(move || compile_path(p, &o)));
+        }
+        for h in handles {
+            success(&h.join().unwrap(), 42);
+        }
+    });
+    let warm = d.build(&options);
+    success(&warm, 42);
+    assert_eq!(warm.native_codegen.as_ref().unwrap().object_cache.misses, 0);
+}
+
+#[test]
+fn owned_state_store_and_callbacks_match_on_cold_and_warm_o0_o2() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let d = Dir::new();
+    let root =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/zui_language177");
+    for entry in ["main", "field_exit"] {
+        for opt in [Optimization::O0, Optimization::O2] {
+            for units in [1, 8] {
+                let o = d.options(units, opt);
+                for warm in [false, true] {
+                    let r = compile_path(&root.join(format!("{entry}.zil")), &o);
+                    assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+                    assert_eq!(r.verification_runs, 1);
+                    let c = r.native_codegen.as_ref().unwrap();
+                    if warm {
+                        assert_eq!(c.object_cache.hits, c.actual_units);
+                    }
+                    for (input, main, field) in [
+                        (b'0', "HZMK", "HZ"),
+                        (b'1', "DHZMNK", "DHZ"),
+                        (b'2', "DEHZMNOK", "DEHZ"),
+                        (b'3', "DEFHZMNOPK", "DEFHZ"),
+                    ] {
+                        let mut child = Command::new(&r.artifacts["executable"])
+                            .stdin(Stdio::piped())
+                            .stdout(Stdio::piped())
+                            .stderr(Stdio::piped())
+                            .spawn()
+                            .unwrap();
+                        child.stdin.take().unwrap().write_all(&[input]).unwrap();
+                        let out = child.wait_with_output().unwrap();
+                        assert!(out.status.success());
+                        assert_eq!(
+                            out.stdout,
+                            if entry == "main" { main } else { field }.as_bytes()
+                        );
+                        assert!(out.stderr.is_empty());
+                    }
+                }
+            }
+        }
+    }
+}
+#[test]
+fn current_checked_overflow_still_traps_on_cache_hits() {
+    let d = Dir::new();
+    d.write(
+        "main.zil",
+        "fn add(x:i32)->i32 { return x+1; } fn main()->i32 { return add(2147483647); }",
+    );
+    for opt in [Optimization::O0, Optimization::O2] {
+        let o = d.options(8, opt);
+        for _ in 0..2 {
+            let r = d.build(&o);
+            assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+            assert_eq!(r.verification_runs, 1);
+            let out = Command::new(&r.artifacts["executable"]).output().unwrap();
+            use std::os::unix::process::ExitStatusExt;
+            assert_eq!(out.status.signal(), Some(4));
+        }
+    }
+}

@@ -403,6 +403,41 @@ impl fmt::Display for Fingerprint {
     }
 }
 
+/// Incremental SHA-256 for machine inputs and object bytes. No authority is
+/// conferred by a fingerprint. `Hash` encodings are compiler-specific: callers
+/// persisting a derived-Hash digest must also bind that compiler's identity.
+#[derive(Clone)]
+pub struct FingerprintBuilder(sha256::Sha256);
+impl FingerprintBuilder {
+    pub fn new() -> Self {
+        Self(sha256::Sha256::new())
+    }
+    pub fn update(&mut self, bytes: &[u8]) {
+        self.0.update(bytes);
+    }
+    pub fn digest(self) -> Fingerprint {
+        Fingerprint(self.0.finish())
+    }
+}
+impl Default for FingerprintBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl std::hash::Hasher for FingerprintBuilder {
+    fn write(&mut self, bytes: &[u8]) {
+        self.update(bytes);
+    }
+    // Hash-derived cache keys use digest(), never this lossy 64-bit interface.
+    fn finish(&self) -> u64 {
+        u64::from_le_bytes(
+            self.clone().digest().0[..8]
+                .try_into()
+                .expect("eight bytes"),
+        )
+    }
+}
+
 /// Return a complete JSON string literal, including quotes. UTF-8 stays UTF-8.
 pub fn json_string(text: &str) -> String {
     use fmt::Write;

@@ -540,6 +540,7 @@ mod tests {
             command: Vec::new(),
             commands: Vec::new(),
             codegen: Default::default(),
+            pending_cache: Default::default(),
         };
         let error = publication
             .commit(artifact, &CancellationToken::default())

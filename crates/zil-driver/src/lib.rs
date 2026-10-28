@@ -61,6 +61,8 @@ pub struct CompileOptions {
     pub output: Option<PathBuf>,
     pub entry: Option<String>,
     pub cache_dir: Option<PathBuf>,
+    /// Trusted local machine-object cache; independent of source-candidate cache.
+    pub object_cache: Option<PathBuf>,
     pub clang: Option<PathBuf>,
     pub optimization: zil_backend_llvm::Optimization,
     pub codegen: CodegenOptions,
@@ -82,6 +84,7 @@ impl Default for CompileOptions {
             output: None,
             entry: None,
             cache_dir: None,
+            object_cache: None,
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
             codegen: CodegenOptions::default(),

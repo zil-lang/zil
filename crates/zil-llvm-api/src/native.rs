@@ -172,13 +172,7 @@ pub(super) fn compile_module(
 ) -> Result<Object, Error> {
     compile_input(Input::Structured(module), config, cancelled)
 }
-fn compile_input(
-    input: Input<'_>,
-    config: &Config<'_>,
-    cancelled: &(dyn Fn() -> bool + Sync),
-) -> Result<Object, Error> {
-    let start = Instant::now();
-    check(cancelled)?;
+pub(super) fn check_config(config: &Config<'_>) -> Result<[u32; 3], Error> {
     if !matches!(
         config.triple,
         "x86_64-unknown-linux-gnu" | "x86_64-pc-windows-msvc"
@@ -197,6 +191,58 @@ fn compile_input(
             format!("expected LLVM 17.0.6, got {version:?}"),
         ));
     }
+    Ok(version)
+}
+
+/// Report the actual shared object containing the C API symbol, not an
+/// environment-variable guess. Only used by the opt-in trusted local cache.
+#[cfg(target_os = "linux")]
+pub(super) fn runtime_library() -> Result<std::path::PathBuf, Error> {
+    #[repr(C)]
+    struct DlInfo {
+        filename: *const c_char,
+        base: *mut c_void,
+        symbol: *const c_char,
+        address: *mut c_void,
+    }
+    #[link(name = "dl")]
+    unsafe extern "C" {
+        fn dladdr(address: *const c_void, info: *mut DlInfo) -> c_int;
+    }
+    let mut info = DlInfo {
+        filename: ptr::null(),
+        base: ptr::null_mut(),
+        symbol: ptr::null(),
+        address: ptr::null_mut(),
+    };
+    // SAFETY: symbol belongs to the linked shared object, info is correctly
+    // laid out and writable. The loader-owned filename lives with the DSO.
+    if unsafe { dladdr(LLVMGetVersion as *const () as *const c_void, &mut info) } == 0
+        || info.filename.is_null()
+    {
+        return Err(error(
+            ErrorKind::Unavailable,
+            "cannot identify loaded LLVM library",
+        ));
+    }
+    use std::os::unix::ffi::OsStrExt;
+    let bytes = unsafe { CStr::from_ptr(info.filename) }.to_bytes();
+    std::fs::canonicalize(std::ffi::OsStr::from_bytes(bytes)).map_err(|e| {
+        error(
+            ErrorKind::Unavailable,
+            format!("cannot identify loaded LLVM library: {e}"),
+        )
+    })
+}
+
+fn compile_input(
+    input: Input<'_>,
+    config: &Config<'_>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Object, Error> {
+    let start = Instant::now();
+    check(cancelled)?;
+    check_config(config)?;
     INIT.call_once(|| {
         // SAFETY: target registry is initialized once, before worker lookups.
         unsafe {
