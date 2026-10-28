@@ -1,0 +1,1 @@
+pub fn make()->impl FnMut(&mut i32)->i32{var calls=0;return move(p:&mut i32)=>{calls+=1;*p+=calls;return *p}}

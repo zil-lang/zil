@@ -1,0 +1,1 @@
+fn main()->i32{var n=20;let p=&mut n;let read=(q:&i32)->i32=>*q;let bump=(q:&mut i32)->i32=>{*q+=1;return *q};let old=read(p);let a=bump(p);let b=bump(p);return old+a+b+n-85}

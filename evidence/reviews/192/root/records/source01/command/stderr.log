@@ -1,0 +1,26 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-expand)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-lower)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review192/crates/zil-driver)
+error[E0428]: the name `baseline` is defined multiple times
+   --> crates/zil-driver/tests/review192_field_composition.rs:167:1
+    |
+ 87 | fn baseline(s: &str) -> (TypedModule, CandidatePlan) {
+    | ---------------------------------------------------- previous definition of the value `baseline` here
+...
+167 | fn baseline(s: &str) -> (TypedModule, CandidatePlan) {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `baseline` redefined here
+    |
+    = note: `baseline` must be defined only once in the value namespace of this module
+
+For more information about this error, try `rustc --explain E0428`.
+error: could not compile `zil-driver` (test "review192_field_composition") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

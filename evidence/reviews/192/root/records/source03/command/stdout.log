@@ -1,0 +1,31 @@
+
+running 4 tests
+test raw_read_retargeting_keeps_actual_parent_identity ... ok
+test nested_helpers_keep_owned_environment_and_explicit_field_arguments_separate ... FAILED
+test an_owning_sibling_can_be_taken_and_replaced_during_a_copy_window ... FAILED
+test aligned_and_zero_sized_fields_preserve_inline_storage ... ok
+
+failures:
+
+---- nested_helpers_keep_owned_environment_and_explicit_field_arguments_separate stdout ----
+
+thread 'nested_helpers_keep_owned_environment_and_explicit_field_arguments_separate' (118) panicked at crates/zil-driver/tests/review192_field_composition.rs:43:9:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"recursive or nested synchronous callable helper contracts are not implemented","span":{"file":0,"start":279,"end":288},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/192-review/source03/cases/review192-owned-helper-field-115-0/phases/syntax.txt"},"input_fingerprint":"8a29798057691029dcf86ca642af7b53850b12d463810c875f9558aa6e51b5a0","seconds":0.008590751,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"review192.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- an_owning_sibling_can_be_taken_and_replaced_during_a_copy_window stdout ----
+
+thread 'an_owning_sibling_can_be_taken_and_replaced_during_a_copy_window' (117) panicked at crates/zil-driver/tests/review192_field_composition.rs:43:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"verify","diagnostics":[{"phase":"verify","category":"SafeReject","code":"E-BORROW-CONFLICT","message":"write or storage change overlaps a shared address still required by a later use","span":{"file":0,"start":232,"end":248},"notes":[]}],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/run-logs/192-review/source03/cases/review192-sibling-take-replace-115-1/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/run-logs/192-review/source03/cases/review192-sibling-take-replace-115-1/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/192-review/source03/cases/review192-sibling-take-replace-115-1/phases/ct-core.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/192-review/source03/cases/review192-sibling-take-replace-115-1/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/192-review/source03/cases/review192-sibling-take-replace-115-1/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/192-review/source03/cases/review192-sibling-take-replace-115-1/phases/typed.txt"},"input_fingerprint":"07692eefb7250c55e6f40d2124ff8bb0a4a745c3f69ec146242fb2241ec4dc7f","seconds":0.023895197,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"review192.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+
+failures:
+    an_owning_sibling_can_be_taken_and_replaced_during_a_copy_window
+    nested_helpers_keep_owned_environment_and_explicit_field_arguments_separate
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
