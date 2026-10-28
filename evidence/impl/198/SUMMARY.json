@@ -1,0 +1,42 @@
+{
+  "status": "Pass",
+  "implementation_author": "/root/bundle_sync",
+  "implementation_commit": "860181d21519312767977353945a27cff9afa8f5",
+  "spec_hash": "09ef7fcdf2e71c2de38456d45d911aadc02dec3f355c4edaf8b51f2feb689c51",
+  "normative_hash": "a7f030e1f008799712cc3410c492719f64a3bf86d8079251327b8e8a869736fe",
+  "command": [
+    "python3",
+    "tools/language/198/test_bundle.py",
+    "--temp-root",
+    "/dev/shm/zil198-git",
+    "--report",
+    "/workspace/scratch/39be3faa4442/run-logs/198-author/attempt02.json"
+  ],
+  "working_tree_before_tests": "clean",
+  "tests": 10,
+  "failures": 0,
+  "errors": 0,
+  "actual_subprocesses": 193,
+  "expected_nonzero_subprocesses": 12,
+  "git_version": "git version 2.51.1",
+  "platform": "linux",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "scope": "Isolated real local Git bundle export/import and explicit merge operations only; no Rust compiler or language acceptance changes.",
+  "native_windows": "NotRun",
+  "prior_attempt": {
+    "file": "attempt01.json",
+    "source_commit": "475a486908dc25c399e96822fc580ace1a634713",
+    "tests": 10,
+    "status": "Pass",
+    "note": "Repeated same test coverage before explicit recurse-submodules=no; not 10 additional coverage cases."
+  },
+  "final_attempt": "attempt02.json",
+  "final_main_bundle": "NotRun; integration root supplies final accepted HEAD.",
+  "rust_four_goals": {
+    "memory_safety": "No language semantics changed",
+    "runtime_memory": "NotMeasured",
+    "expression_maintenance": "Offline synchronization preserves original compiler branch and true ancestry",
+    "compile_time": "NotMeasured"
+  },
+  "product_breakthrough": "NotEstablished"
+}
