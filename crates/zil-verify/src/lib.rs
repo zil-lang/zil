@@ -1322,7 +1322,16 @@ fn check_instruction(
                     "field projection index outside its record or tuple",
                 )
             })?;
-            check_type(field, span)?;
+            if matches!(projected, Type::Package { .. })
+                && let Type::Closure(id) = field
+            {
+                // The real Package element was independently admitted above.
+                // Projection borrows its actual field; it grants neither a
+                // Copy read nor a consuming/replacing indirect operation.
+                closures::definition(module, *id, span)?;
+            } else {
+                check_type(field, span)?;
+            }
             Some(Type::Address {
                 mutable: *mutable,
                 inner: Box::new(field.clone()),
