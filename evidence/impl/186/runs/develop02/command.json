@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl186_generic_owned_success",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt186",
+  "start": 1793153940.1162891,
+  "source_commit": "172961c01e0fead728e47fb8c244740f79034944",
+  "git_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author186",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/186-author/develop02/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Fail",
+  "exit_code": 101,
+  "end": 1793153944.6968787,
+  "stdout.log_sha256": "d57dd4e2dbe17b47030db406285733b047a5562b876b0b8cc1a3740eac0382e0",
+  "stderr.log_sha256": "74232fd0017e553b5f2d49ca951745e2031e56418e6d0a60bcbbadcf581e9694"
+}

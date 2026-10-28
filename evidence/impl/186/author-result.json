@@ -1,0 +1,86 @@
+{
+  "task": "186",
+  "implementation_author": "/root/design14_acceptance",
+  "implementation_commit": "fc96383d70ad6f8e91dff97b416b8237cfb26c73",
+  "status": "Pass",
+  "scope": "Bounded generic E!Store<T> with concrete finite Copy E, T:StoreElement and explicit successful-payload modes; author slice only.",
+  "checks": {
+    "final_bounded": {
+      "record": "runs/frozen01/summary.json",
+      "passed": 85,
+      "failed": 0,
+      "ignored": 0,
+      "own_source_groups": 12,
+      "own_raw_groups": 3
+    },
+    "own_observations": {
+      "native_executions": 22,
+      "source_rejections": 26,
+      "raw_mutations": 11,
+      "raw_wire_routes": 22
+    },
+    "clippy": {
+      "status": "Pass",
+      "record": "runs/quality01/command.json"
+    },
+    "format": {
+      "status": "Pass",
+      "record": "runs/fmt01/command.json"
+    },
+    "linux": {
+      "status": "Pass",
+      "executions": 54,
+      "ordinary": 12,
+      "instrumented": 42,
+      "actual_failures": 32,
+      "record": "runs/linux-frozen01/summary.json"
+    },
+    "win64": {
+      "status": "Pass",
+      "execution": "Actual AMD64 PE through independent Wine prefix186; not native Windows certification",
+      "executions": 54,
+      "ordinary": 12,
+      "instrumented": 42,
+      "actual_failures": 32,
+      "record": "runs/win64-frozen01/summary.json"
+    }
+  },
+  "cli_build_commit": "fc96383d70ad6f8e91dff97b416b8237cfb26c73",
+  "cli_sha256": "c8e56658f88910d210d9e584aaf4ce11aa167e5a596dfb68122966f2d868a5cc",
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "642f7de6249bdc52b42fd3c2ad16059cc801ae68c9c94cce83f205c51a55e063",
+  "schema_version": 22,
+  "rule_version": "ZIL-LANG-1.4",
+  "first_failures_preserved": [
+    {
+      "record": "runs/develop01/summary.json",
+      "cause": "0/10: finite enum error branch was given the entire union as constructor context; new source fixtures also omitted separators or joined > with =>. Production selects the actual error context; fixtures retain valid lexical separators."
+    },
+    {
+      "record": "runs/develop02/summary.json",
+      "cause": "7/3: nested argument hints omitted Error type variable traversal and prematurely treated unresolved T as a complete context. The existing variable walker now visits both written error arms."
+    },
+    {
+      "record": "runs/develop04/summary.json",
+      "cause": "38/1: missing-cleanup mutation removed a conditionally dead staging temporary DropErrorUnion, which Verify correctly accepted. Changed the fixture to remove the actually live final union cleanup. Verify production unchanged; original accepted candidate bytes and failure output remain."
+    }
+  ],
+  "remaining_boundaries": [
+    "Default E!Store parameters/results or local annotations do not acquire an owning mode. give union and whole union replacement remain rejected.",
+    "Give results and incoming success payloads do not acquire create freshness through wrapping, extraction, forwarding or branch merging.",
+    "Arbitrary owning nested Sum, resources in the error arm, owning-union captures, lending escape and asynchronous behavior are outside this slice.",
+    "No claim of a complete symbolic checker for all language forms; existing closed expression and pattern profiles remain."
+  ],
+  "rust_four_goals": {
+    "safety": "Definition-time category/source checks, independent raw/Wire rechecks and actual failure cleanup verified in the finite slice; not a full-language proof.",
+    "runtime_memory": "Direct existing IR and machine representation; actual frees balanced. No equivalent Rust runtime/RSS comparison.",
+    "expression_maintenance": "One ordinary four-module generic collection library supports two distinct element layouts and fallible ownership; maintenance-cost comparison not measured.",
+    "compile_cost": "NotMeasured; no compiler-speed claim or budget changes.",
+    "net_product_breakthrough": "NotProven"
+  },
+  "independent_review": "Pending",
+  "formal_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing"
+}

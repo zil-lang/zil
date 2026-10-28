@@ -1,0 +1,38 @@
+{
+  "implementation_commit": "fc96383d70ad6f8e91dff97b416b8237cfb26c73",
+  "implementation_author": "/root/design14_acceptance",
+  "baseline": "19f58c16ed800b0cee5a8afcc11908925920cd63",
+  "preparation_commit": "ac704f7cae247367b63ac3b323d55262a32e6d8d",
+  "explicit_preparation_dependencies": [
+    "6b2a700a017679d7ded5550d313501578d082972",
+    "83174688e249c8e5723ebaffd11cde3024b601b6"
+  ],
+  "proposal_commit": "161b23083e73ce71ca0615dd44f6e4dc2917821c",
+  "schema_version": 22,
+  "rule_version": "ZIL-LANG-1.4",
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "642f7de6249bdc52b42fd3c2ad16059cc801ae68c9c94cce83f205c51a55e063",
+  "production_files": [
+    "crates/zil-expand/src/generic_check.rs",
+    "crates/zil-expand/src/generic_enum.rs",
+    "crates/zil-expand/src/generic_store.rs",
+    "crates/zil-expand/src/generics.rs"
+  ],
+  "input_sha256": {
+    "crates/zil-expand/src/generic_check.rs": "0124a74bcca851038d9f1d99711d4dbacb480b07e9358ba358c47ef8bf862db8",
+    "crates/zil-expand/src/generic_enum.rs": "dcbd1637ac20e19ae23ff9d5e623d8d3ace7b9d229649de0daf48255e2f2a30e",
+    "crates/zil-expand/src/generic_store.rs": "35d132319049740301ecbcdfc4a16f1ab48677dabd52c90232069d0f976e0085",
+    "crates/zil-expand/src/generics.rs": "cd8cd942ea4076404a373dc6cb3e1f12669abd374a511c63e991058b95e07422",
+    "changes/186-generic-owned-store-success.md": "4452fa64f2ab8f34447c919bd39b7669dc9ea7ec807fccd7188a1165052efc3e",
+    "crates/zil-driver/tests/impl186_generic_owned_success.rs": "b89acf45f7bd43fd03b0f59ac10a19229be2e8ba37a6c3081d8896875b32ef3d",
+    "crates/zil-driver/tests/impl186_raw_owned_success.rs": "339f1a13fe1f36e7aaa7216089081fa10c12490208f1bff51aed71e2166b3f6a",
+    "examples/mainline/generic_result186/README.md": "f79f8e4b28bc70c512b8337cc905a8c154c48c02838f3cb51ff22b8e6f4de811",
+    "examples/mainline/generic_result186/adapter.zil": "9d203a1dbae9f61a3d5a0541aae16a330d3cf2651cfe23caa47f01530bc105ae",
+    "examples/mainline/generic_result186/collection.zil": "0cb3f29632dd7bdddc9bd57433fd5ef4add6a1560b856119f265cee91ac080e6",
+    "examples/mainline/generic_result186/main.zil": "4c09d00ddf26fff349b477d878cedf9096e177a5d137133a7d90d66ca8523a1c",
+    "examples/mainline/generic_result186/model.zil": "6d2387fbf8d389bcd97f6664918a355f8fe00f2266252a5c6e8f9443bfaf5c8b",
+    "tools/language/186/consumer.py": "9f916d84dcd0b027ea35e8e182c1456e74bcfc94db5b6df228b74dfcb2bebe66"
+  },
+  "git_status_before_evidence": "",
+  "public_ir_or_budget_changes": false
+}

@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author186/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/language14/wt186/examples/mainline/generic_result186/main.zil",
+    "--opt",
+    "O2",
+    "--clang",
+    "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/186-author/linux-frozen01/O2/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/186-author/linux-frozen01/O2/phases",
+    "--json"
+  ],
+  "status": "Completed",
+  "start": 1793154347.4882247,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "dec05bd3bf9405099a4d2cf006fc988c8e59d63066ba8bac93d22fb9214bd417",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793154347.7199395
+}

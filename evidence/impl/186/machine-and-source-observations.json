@@ -1,0 +1,766 @@
+{
+  "native_executions": [
+    {
+      "case": "impl186-copy-error-687-1",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "",
+      "expected_stdout_hex": ""
+    },
+    {
+      "case": "impl186-copy-error-687-2",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "",
+      "expected_stdout_hex": ""
+    },
+    {
+      "case": "impl186-copy-error-687-4",
+      "optimization": "O0",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "",
+      "expected_stdout_hex": ""
+    },
+    {
+      "case": "impl186-copy-error-687-6",
+      "optimization": "O2",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "",
+      "expected_stdout_hex": ""
+    },
+    {
+      "case": "impl186-discard-loop-687-12",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4142",
+      "expected_stdout_hex": "4142"
+    },
+    {
+      "case": "impl186-discard-loop-687-15",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4142",
+      "expected_stdout_hex": "4142"
+    },
+    {
+      "case": "impl186-fresh-question-687-11",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    },
+    {
+      "case": "impl186-fresh-question-687-13",
+      "optimization": "O0",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    },
+    {
+      "case": "impl186-fresh-question-687-14",
+      "optimization": "O2",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    },
+    {
+      "case": "impl186-fresh-question-687-9",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    },
+    {
+      "case": "impl186-inference-687-5",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "42",
+      "expected_stdout_hex": "42"
+    },
+    {
+      "case": "impl186-inference-687-7",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "42",
+      "expected_stdout_hex": "42"
+    },
+    {
+      "case": "impl186-late-argument-687-0",
+      "optimization": "O0",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "415a",
+      "expected_stdout_hex": "415a"
+    },
+    {
+      "case": "impl186-late-argument-687-3",
+      "optimization": "O2",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "415a",
+      "expected_stdout_hex": "415a"
+    },
+    {
+      "case": "impl186-question-failure-687-16",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4241",
+      "expected_stdout_hex": "4241"
+    },
+    {
+      "case": "impl186-question-failure-687-18",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4241",
+      "expected_stdout_hex": "4241"
+    },
+    {
+      "case": "impl186-question-failure-687-20",
+      "optimization": "O0",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "4241",
+      "expected_stdout_hex": "4241"
+    },
+    {
+      "case": "impl186-question-failure-687-32",
+      "optimization": "O2",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "4241",
+      "expected_stdout_hex": "4241"
+    },
+    {
+      "case": "impl186-two-shapes-687-17",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4241",
+      "expected_stdout_hex": "4241"
+    },
+    {
+      "case": "impl186-two-shapes-687-19",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4241",
+      "expected_stdout_hex": "4241"
+    },
+    {
+      "case": "impl186-zero-success-687-10",
+      "optimization": "O2",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    },
+    {
+      "case": "impl186-zero-success-687-8",
+      "optimization": "O0",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    }
+  ],
+  "source_rejections": [
+    {
+      "case": "impl186-move-category-687-39",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+          "span": {
+            "file": 0,
+            "start": 814,
+            "end": 815
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-move-category-687-40",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+          "span": {
+            "file": 0,
+            "start": 819,
+            "end": 820
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-move-category-687-41",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic managed give requires a direct Package manages field",
+          "span": {
+            "file": 0,
+            "start": 840,
+            "end": 841
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-move-category-687-42",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store result requires an actual create/give value, not a descriptor",
+          "span": {
+            "file": 0,
+            "start": 828,
+            "end": 829
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-move-category-687-43",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "give requires an actual Store carrier; descriptors do not own",
+          "span": {
+            "file": 0,
+            "start": 856,
+            "end": 861
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-move-category-687-44",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "give requires an actual Store carrier; descriptors do not own",
+          "span": {
+            "file": 0,
+            "start": 867,
+            "end": 872
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-move-category-687-45",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic owning Store union replacement is not implemented",
+          "span": {
+            "file": 0,
+            "start": 808,
+            "end": 809
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-move-category-687-46",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic owned Store union locals require a producer-inferred success mode",
+          "span": {
+            "file": 0,
+            "start": 806,
+            "end": 816
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-move-category-687-47",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic loop must preserve outer carrier and non-Copy consumption state",
+          "span": {
+            "file": 0,
+            "start": 820,
+            "end": 832
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-old-create-687-21",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store create result requires a fresh source on every returning path",
+          "span": {
+            "file": 0,
+            "start": 835,
+            "end": 841
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-old-create-687-22",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store create result requires a fresh source on every returning path",
+          "span": {
+            "file": 0,
+            "start": 837,
+            "end": 838
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-old-create-687-23",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store create result requires a fresh source on every returning path",
+          "span": {
+            "file": 0,
+            "start": 851,
+            "end": 852
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-old-create-687-24",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store create result requires a fresh source on every returning path",
+          "span": {
+            "file": 0,
+            "start": 852,
+            "end": 858
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-old-create-687-25",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store create result requires a fresh source on every returning path",
+          "span": {
+            "file": 0,
+            "start": 837,
+            "end": 847
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-old-create-687-26",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store create result requires a fresh source on every returning path",
+          "span": {
+            "file": 0,
+            "start": 858,
+            "end": 859
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-old-create-687-27",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store create result requires a fresh source on every returning path",
+          "span": {
+            "file": 0,
+            "start": 835,
+            "end": 847
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-old-create-687-28",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store create result requires a fresh source on every returning path",
+          "span": {
+            "file": 0,
+            "start": 875,
+            "end": 876
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-old-create-687-29",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store create result requires a fresh source on every returning path",
+          "span": {
+            "file": 0,
+            "start": 897,
+            "end": 898
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-old-create-687-30",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic Store create result requires a fresh source on every returning path",
+          "span": {
+            "file": 0,
+            "start": 895,
+            "end": 901
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-shape-mode-687-31",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic Store result requires result(create/give)",
+          "span": {
+            "file": 0,
+            "start": 758,
+            "end": 809
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-shape-mode-687-33",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic Store success parameter requires an explicit give payload mode",
+          "span": {
+            "file": 0,
+            "start": 781,
+            "end": 793
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-shape-mode-687-34",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Store<T> requires a declared StoreElement bound; nominal traits do not grant element ownership",
+          "span": {
+            "file": 0,
+            "start": 779,
+            "end": 780
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-shape-mode-687-35",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "StoreElement fields require finite Copy or explicit direct manages resources",
+          "span": {
+            "file": 0,
+            "start": 784,
+            "end": 785
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-shape-mode-687-36",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "StoreElement fields require finite Copy or explicit direct manages resources",
+          "span": {
+            "file": 0,
+            "start": 784,
+            "end": 785
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-shape-mode-687-37",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "StoreElement fields require finite Copy or explicit direct manages resources",
+          "span": {
+            "file": 0,
+            "start": 784,
+            "end": 785
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "impl186-shape-mode-687-38",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "StoreElement fields cannot contain addresses, borrowed or unknown ownership shapes",
+          "span": {
+            "file": 0,
+            "start": 784,
+            "end": 788
+          },
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "raw_mutations": [
+    {
+      "case": "impl186-raw-copy-success-788-9",
+      "candidate_sha256": "41452df25092f7fb1111cc97f7d3abfa7759b78042259d179265afadd45d113f",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "impl186-raw-copy-whole-union-788-10",
+      "candidate_sha256": "8cd5511651fc4ccc4b95e6c1c0e1a515f56ebe449f5a1d05dbd2ba530ad51bd6",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "impl186-raw-description-as-success-788-2",
+      "candidate_sha256": "8aa5c50d39da6954b91829b8e16e08837d005294b380d8c2a4d2650aa7c448e0",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "impl186-raw-duplicate-injection-788-8",
+      "candidate_sha256": "a30c49d87b723d1242345fc3904addbe3d6a626e1eb37f1c4a55bdac6e2bdbe1",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "impl186-raw-duplicate-take-788-7",
+      "candidate_sha256": "c7be504d6dee152ebfe729171ffed4ea69c7582d0595124da8721f43baaf69f4",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "impl186-raw-input-as-create-0-788-3",
+      "candidate_sha256": "44640fbbda880fc4f668dfe68b8fcca7b05ccace82f273a769681adc074738e0",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "impl186-raw-input-as-create-1-788-5",
+      "candidate_sha256": "af447a21527cdc2ed309db760502d888eb2405de43366b2f37bd93bf5bce5c9a",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "impl186-raw-input-as-create-2-788-6",
+      "candidate_sha256": "41ea3bc43affebebbb835d645f8c37bc2c6a8b947dc60cd7773c15b796669b69",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "impl186-raw-missing-mode-788-1",
+      "candidate_sha256": "3c6f699ccfa9cb850375f512374cc2b4cf9e305b789676ebd4489352d2eacb0a",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "impl186-raw-missing-union-cleanup-788-4",
+      "candidate_sha256": "342db7398dc80a68b88301360916100f2074756dbc74d6d1ccc48e9fe22f1048",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "impl186-raw-opposite-tag-788-0",
+      "candidate_sha256": "735d86ab7ee253b1929c0dc353900b860f5f59615d02113039449ad3c641b3a6",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    }
+  ]
+}

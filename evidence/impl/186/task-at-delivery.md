@@ -1,0 +1,38 @@
+施工
+# 186 泛型Store与显式资源成功载荷的闭合
+
+```json
+{
+  "id": "186",
+  "parent_task": "B0",
+  "status": "施工",
+  "baseline": "19f58c16ed800b0cee5a8afcc11908925920cd63",
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "642f7de6249bdc52b42fd3c2ad16059cc801ae68c9c94cce83f205c51a55e063",
+  "implementation_author": "/root/design14_acceptance",
+  "dependencies": [
+    "178",
+    "183"
+  ],
+  "write_set": [
+    "crates/zil-expand/src/generic*.rs",
+    "crates/zil-driver/tests/impl186*",
+    "examples/mainline/generic_result186/**",
+    "tools/language/186/**",
+    "changes/186-*",
+    "evidence/impl/186/**"
+  ],
+  "implementation_commit": null,
+  "review": null,
+  "integration_commit": null,
+  "evidence": []
+}
+```
+
+依据1.4§8.2/8.3和178/183已声明规则，贯通`E!Store<T>` + `T:StoreElement` 的泛型正文符号检查。普通有限Copy错误侧，成功侧显式create/give拥有；不得将外层union当Managed或允许give union。未实例化定义同样验证create来源，不得把调用参数/给入旧Store重新包装后冒充新建；失败分支0资源责任，?及普通转发按实证。
+
+先changes后实现。限定Expand私有泛型检查、源/普通实例/跨模块/原生与raw-Wire回归；不改公开schema、预算、主树任务。作者183与186生产相交依赖独审后串行合入，允许明确候选准备。root作为186非作者独审。
+
+## 往来
+
+- 2026-10-28：183作者报告具体Store成功返回已实现，但178模板尚未同构支持；root派本片补真实组合缺口，不能把两片单独Pass外推为泛型组合Pass。先交183精简证据再开186独立worktree/target。

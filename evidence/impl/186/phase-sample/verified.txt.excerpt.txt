@@ -1,0 +1,301 @@
+EXCERPT ONLY; full original SHA256 is indexed in SOURCE.json. Line numbers refer to original.
+1: fingerprint=aecff0554e269cce9d714eb854e54ba2bea856604f2a5074ca4378a116ce3077
+2: TypedModule {
+3:     schema_version: 22,
+4:     module_id: ModuleId(
+5:         0,
+6:     ),
+7:     source_fingerprint: Fingerprint(
+8:         [
+9:             158,
+10:             98,
+11:             233,
+12:             53,
+13:             52,
+14:             8,
+15:             41,
+16:             140,
+75:             result_mode: Infer,
+121:             result_mode: Infer,
+404:                         Managed(
+422:             result_mode: Infer,
+459:                     ty: Managed(
+499:                     ty: Managed(
+523:                 Managed(
+535:                 Managed(
+547:                 Managed(
+563:                             Managed(
+740:                             kind: MakeManaged {
+972:                             kind: DropManaged {
+1017:                             kind: DropManaged {
+1152:                         Managed(
+1170:             result_mode: Infer,
+1222:                     ty: Managed(
+1262:                     ty: Managed(
+1288:                 Managed(
+1301:                 Managed(
+1313:                 Managed(
+1333:                             Managed(
+1582:                             kind: MakeManaged {
+1836:                             kind: DropManaged {
+1881:                             kind: DropManaged {
+2018:             return_type: ErrorUnion {
+2030:             result_mode: Infer,
+2042:                                 Managed(
+2074:                     ty: ErrorUnion {
+2084:                         result: Managed(
+2085:                             OwnedStore {
+2091:                                             Managed(
+2126:                     ty: ErrorUnion {
+2136:                         result: Managed(
+2137:                             OwnedStore {
+2143:                                             Managed(
+2178:                     ty: ErrorUnion {
+2188:                         result: Managed(
+2189:                             OwnedStore {
+2195:                                             Managed(
+2230:                     ty: Managed(
+2231:                         OwnedStore {
+2237:                                         Managed(
+2280:                                 Managed(
+2312:                     ty: ErrorUnion {
+2322:                         result: Managed(
+2323:                             OwnedStore {
+2333:                                             Managed(
+2368:                     ty: Managed(
+2369:                         OwnedStore {
+2379:                                         Managed(
+2420:                                     Managed(
+2464:                                     Managed(
+2515:                             Managed(
+2539:                             Managed(
+2557:                 ErrorUnion {
+2567:                     result: Managed(
+2568:                         OwnedStore {
+2574:                                         Managed(
+2595:                 ErrorUnion {
+2605:                     result: Managed(
+2606:                         OwnedStore {
+2612:                                         Managed(
+2633:                 ErrorUnion {
+2643:                     result: Managed(
+2644:                         OwnedStore {
+2650:                                         Managed(
+2671:                 ErrorUnion {
+2681:                     result: Managed(
+2682:                         OwnedStore {
+2688:                                         Managed(
+2709:                 ErrorUnion {
+2719:                     result: Managed(
+2720:                         OwnedStore {
+2726:                                         Managed(
+2757:                 ErrorUnion {
+2769:                 Managed(
+2770:                     OwnedStore {
+2776:                                     Managed(
+2806:                             Managed(
+2834:                             Managed(
+2852:                 ErrorUnion {
+2862:                     result: Managed(
+2863:                         OwnedStore {
+2873:                                         Managed(
+2894:                 ErrorUnion {
+2904:                     result: Managed(
+2905:                         OwnedStore {
+2915:                                         Managed(
+2936:                 ErrorUnion {
+2946:                     result: Managed(
+2947:                         OwnedStore {
+2957:                                         Managed(
+2988:                 ErrorUnion {
+3000:                 Managed(
+3001:                     OwnedStore {
+3011:                                     Managed(
+3032:                     OwnedStore {
+3038:                                     Managed(
+3066:                                 Managed(
+3086:                     OwnedStore {
+3096:                                     Managed(
+3128:                                 Managed(
+3154:                                 Managed(
+3196:                                 Managed(
+3236:                 ErrorUnion {
+3249:                     OwnedStore {
+3255:                                     Managed(
+3277:                     OwnedStore {
+3287:                                     Managed(
+3312:                 ErrorUnion {
+3625:                             kind: DropErrorUnion {
+3763:                             kind: ErrorTag {
+3800:                             kind: TakeErrorUnion {
+3820:                             kind: MakeErrorUnion {
+3836:                             kind: DropErrorUnion {
+3866:                             kind: DropErrorUnion {
+4021:                             kind: TakeErrorUnion {
+4261:                             kind: ErrorTag {
+4298:                             kind: TakeErrorUnion {
+4318:                             kind: MakeErrorUnion {
+4334:                             kind: DropErrorUnion {
+4394:                             kind: DropManaged {
+4424:                             kind: DropErrorUnion {
+4454:                             kind: DropErrorUnion {
+4579:                             kind: TakeErrorUnion {
+4595:                             kind: DropErrorUnion {
+4700:                             kind: OwnedStoreBorrow {
+4793:                             kind: OwnedStoreBorrow {
+5255:                             kind: MakeErrorUnion {
+5332:                             kind: DropManaged {
+5392:                             kind: DropManaged {
+5422:                             kind: DropErrorUnion {
+5452:                             kind: DropErrorUnion {
+5592:                             kind: OwnedStoreLen {
+5630:                             kind: OwnedStoreLen {
+5734:                             kind: MakeErrorUnion {
+5795:                             kind: DropManaged {
+5855:                             kind: DropManaged {
+5885:                             kind: DropErrorUnion {
+5915:                             kind: DropErrorUnion {
+6032:             name: "$generic_$module0_make_0",
+6043:             return_type: ErrorUnion {
+6053:                 result: Managed(
+6054:                     OwnedStore {
+6060:                                     Managed(
+6081:             result_mode: Create,
+6093:                                 Managed(
+6140:                     ty: Managed(
+6141:                         OwnedStore {
+6147:                                         Managed(
+6181:                     ty: ErrorUnion {
+6187:                                     Managed(
+6218:                 Managed(
+6219:                     OwnedStore {
+6225:                                     Managed(
+6255:                 ErrorUnion {
+6265:                     result: Managed(
+6266:                         OwnedStore {
+6272:                                         Managed(
+6294:                     OwnedStore {
+6300:                                     Managed(
+6332:                 ErrorUnion {
+6342:                     result: Managed(
+6343:                         OwnedStore {
+6349:                                         Managed(
+6371:                     OwnedStore {
+6377:                                     Managed(
+6402:                             Managed(
+6420:                 ErrorUnion {
+6426:                                 Managed(
+6446:                 Managed(
+6447:                     OwnedStore {
+6453:                                     Managed(
+6473:                 ErrorUnion {
+6483:                     result: Managed(
+6484:                         OwnedStore {
+6490:                                         Managed(
+6692:                             kind: MakeErrorUnion {
+6724:                             kind: DropManaged {
+6913:                             kind: OwnedStoreReserve {
+7006:                             kind: MakeErrorUnion {
+7038:                             kind: DropManaged {
+7227:                             kind: OwnedStorePush {
+7263:                             kind: DropErrorUnion {
+7301:                             kind: MakeErrorUnion {
+7332:                             kind: DropManaged {
+7464:             name: "$generic_$module0_forward_1",
+7472:             return_type: ErrorUnion {
+7482:                 result: Managed(
+7483:                     OwnedStore {
+7489:                                     Managed(
+7510:             result_mode: Give,
+7517:                     ty: ErrorUnion {
+7527:                         result: Managed(
+7528:                             OwnedStore {
+7534:                                             Managed(
+7566:                 ErrorUnion {
+7576:                     result: Managed(
+7577:                         OwnedStore {
+7583:                                         Managed(
+7678:                             kind: DropErrorUnion {
+7749:             name: "$generic_$module0_make_2",
+7760:             return_type: ErrorUnion {
+7770:                 result: Managed(
+7771:                     OwnedStore {
+7781:                                     Managed(
+7802:             result_mode: Create,
+7818:                                 Managed(
+7865:                     ty: Managed(
+7866:                         OwnedStore {
+7876:                                         Managed(
+7910:                     ty: ErrorUnion {
+7920:                                     Managed(
+7951:                 Managed(
+7952:                     OwnedStore {
+7962:                                     Managed(
+7992:                 ErrorUnion {
+8002:                     result: Managed(
+8003:                         OwnedStore {
+8013:                                         Managed(
+8035:                     OwnedStore {
+8045:                                     Managed(
+8077:                 ErrorUnion {
+8087:                     result: Managed(
+8088:                         OwnedStore {
+8098:                                         Managed(
+8120:                     OwnedStore {
+8130:                                     Managed(
+8159:                             Managed(
+8177:                 ErrorUnion {
+8187:                                 Managed(
+8207:                 Managed(
+8208:                     OwnedStore {
+8218:                                     Managed(
+8238:                 ErrorUnion {
+8248:                     result: Managed(
+8249:                         OwnedStore {
+8259:                                         Managed(
+8461:                             kind: MakeErrorUnion {
+8493:                             kind: DropManaged {
+8682:                             kind: OwnedStoreReserve {
+8775:                             kind: MakeErrorUnion {
+8807:                             kind: DropManaged {
+8996:                             kind: OwnedStorePush {
+9032:                             kind: DropErrorUnion {
+9070:                             kind: MakeErrorUnion {
+9101:                             kind: DropManaged {
+9233:             name: "$generic_$module0_forward_3",
+9241:             return_type: ErrorUnion {
+9251:                 result: Managed(
+9252:                     OwnedStore {
+9262:                                     Managed(
+9283:             result_mode: Give,
+9290:                     ty: ErrorUnion {
+9300:                         result: Managed(
+9301:                             OwnedStore {
+9311:                                             Managed(
+9343:                 ErrorUnion {
+9353:                     result: Managed(
+9354:                         OwnedStore {
+9364:                                         Managed(
+9459:                             kind: DropErrorUnion {
+9534:             return_type: Managed(
+9535:                 OwnedStore {
+9541:                                 Managed(
+9561:             result_mode: Create,
+9564:                 Managed(
+9565:                     OwnedStore {
+9571:                                     Managed(
+9634:                             kind: OwnedStoreNew {
+9640:                                             Managed(
+9730:             return_type: Managed(
+9731:                 OwnedStore {
+9741:                                 Managed(
+9761:             result_mode: Create,
+9764:                 Managed(
+9765:                     OwnedStore {
+9775:                                     Managed(
+9838:                             kind: OwnedStoreNew {
+9848:                                             Managed(
+9949:             name: "@builtin:OwnedStore<@module0:$module0_P>",
+9950:             payload: OwnedStore {
+9956:                             Managed(
+9978:             name: "@builtin:OwnedStore<@module0:$module0_Q>",

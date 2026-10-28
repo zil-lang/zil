@@ -1,0 +1,46 @@
+{
+  "source_commit": "708470995f8ecbc4140db29529c208401f657389",
+  "status": "Fail",
+  "suites": {
+    "generic_regressions": {
+      "result": "ok",
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0
+    },
+    "generics": {
+      "result": "ok",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl178_generic_store": {
+      "result": "ok",
+      "passed": 15,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl178_helper_give": {
+      "result": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl181_composition": {
+      "result": "ok",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl186_raw_owned_success": {
+      "result": "FAILED",
+      "passed": 2,
+      "failed": 1,
+      "ignored": 0
+    }
+  },
+  "passed": 38,
+  "failed": 1,
+  "ignored": 0,
+  "source": "Original cargo stdout/stderr and command.json; author and development reruns are not added to final counts."
+}
