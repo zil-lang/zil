@@ -28,7 +28,14 @@
       "state197-expected-state-result-434775-6/native.json",
       "state197-infer-envelope-434775-5/native.json",
       "state197-nested-data-434775-4/native.json"
-    ]
+    ],
+    "independent_native_receipts": [
+      "cases03/review197-434869-0/native.txt",
+      "cases03/review197-434869-1/native.txt",
+      "cases03/review197-434869-2/native.txt",
+      "cases03/review197-434869-3/native.txt"
+    ],
+    "new197_native_runs": 22
   },
   "consumer_receipts": {
     "linux": "linux01/summary.json",
