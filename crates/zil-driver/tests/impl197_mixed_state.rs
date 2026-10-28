@@ -468,22 +468,39 @@ fn make()->impl FnOnce()->i32{let r=R{code:65};return move()=>{let value=give r;
 }
 
 #[test]
-fn mixed_state_direct_fnmut_field_calls_compose_with_continue_and_break() {
-    native(
-        "state-loop-exits",
-        &[(
-            "main",
-            r#"
+fn mixed_state_explicit_fnmut_field_borrows_compose_with_continue_and_break() {
+    let direct = r#"
 package State<T,F>{manages bytes:ByteBuffer;callback:F;value:T}
 fn pack<T:Copy,F:FnMut(&mut T)->T>(callback:F,value:T)->State<T,F>{return State::<T,F>{bytes:bytes_new(),callback:callback,value:value}}
 fn spin<T:Copy,G:FnMut(&mut T)->T>(state:State<T,G>,count:i32)->T{
 var current=state;var i=0;while i<count{i+=1;if i==2{continue}current.callback(&mut current.value);if i==4{break}}return current.value}
 fn factory()->impl FnMut(&mut i32)->i32{var hits=0;return move(value:&mut i32)=>{hits+=1;*value+=1;return *value}}
 fn main()->i32{return spin(pack(factory(),10),7)-13}
-"#,
-        )],
-        "",
+"#;
+    let case = Case::new("direct-field-take-loop");
+    let report = compile(&case, &[("main", direct)], None);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
     );
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("package field take")),
+        "{}",
+        report.to_json()
+    );
+    // A direct field read takes its non-Copy environment. Repeated calls use
+    // the explicit field-address protocol already supported by 192.
+    let borrowed = direct.replace(
+        "current.callback(&mut current.value);",
+        "let callback=&mut current.callback;let value=&mut current.value;callback(value);",
+    );
+    native("state-loop-explicit-borrows", &[("main", &borrowed)], "");
 }
 
 #[test]
