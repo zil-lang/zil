@@ -1,0 +1,1 @@
+fn skip<F:Fn()->i32>(f:&F)->i32{return 0}fn main()->i32{let b=bytes_new();bytes_reserve(b,1);bytes_push(b,u8(65));let view=bytes_view(b);let f=()=>{bytes_truncate(b,0);return 0};return f()+i32(view[0])-65}

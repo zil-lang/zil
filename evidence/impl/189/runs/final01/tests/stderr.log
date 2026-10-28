@@ -1,0 +1,11 @@
+error[E0599]: no variant, associated function, or constant named `LimitReached` found for enum `ResultCategory` in the current scope
+   --> crates/zil-driver/tests/impl189_address_raw.rs:301:52
+    |
+301 |             .any(|d| d.category == ResultCategory::LimitReached),
+    |                                                    ^^^^^^^^^^^^ variant, associated function, or constant not found in `ResultCategory`
+
+For more information about this error, try `rustc --explain E0599`.
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.40s
+     Running tests/impl065_helpers.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl065_helpers-086b76848dc0a398)
+error: test failed, to rerun pass `-p zil-driver --test impl065_helpers`

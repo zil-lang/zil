@@ -1,0 +1,71 @@
+
+running 13 tests
+test active_mutable_result_prevents_overlapping_call_or_replacement ... ok
+test borrowed_mutable_helper_and_whole_parent_transfer_preserve_result_loans ... ok
+test borrowed_generic_helper_forwards_environment_lending_origin ... ok
+test callable_field_view_keeps_its_actual_field_without_blocking_copy_sibling ... ok
+test conditional_sources_and_ordinary_parameter_forwarding_are_preserved ... ok
+test environment_results_reject_local_external_and_temporary_sources ... ok
+test copy_environment_reads_and_address_writes_use_one_actual_slot ... ok
+test live_byte_environment_views_reject_mutation_move_and_drop ... ok
+test inline_aggregate_projection_and_slice_results_keep_actual_environment_storage ... ok
+test mutable_factory_result_allows_next_call_after_last_use ... ok
+test owned_byte_environment_can_mutate_after_prior_result_last_use ... ok
+test owned_byte_environment_lends_real_storage_and_survives_factory_return ... ok
+test shared_factory_result_uses_real_stored_copy_environment ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s
+
+
+running 6 tests
+test analyze_bounds_both_public_lending_vectors_before_fingerprinting ... ok
+test analyzer_rejects_opaque_lending_mismatch_and_pays_nonempty_metadata ... ok
+test raw_and_wire_cannot_erase_result_hold_or_mutate_shared_entry ... ok
+test raw_and_wire_keep_owned_payload_write_and_cleanup_obligations ... ok
+test raw_and_wire_reconstruct_exact_environment_sources ... ok
+test raw_and_wire_reject_consumed_and_by_value_environment_results ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 23 tests
+test a_zero_call_helper_does_not_execute_its_buffer_capture_effects ... ok
+test borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed ... FAILED
+test every_actual_storage_write_conflicts_with_a_live_same_source_view ... ok
+test actual_readonly_capture_composes_with_a_live_shared_byte_view ... ok
+test helper_argument_views_are_checked_with_the_actual_capture_effects ... ok
+test helper_body_accesses_do_not_disappear_behind_its_callback_contract ... ok
+test independent_buffer_sources_do_not_inherit_an_unrelated_window ... ok
+test internal_capture_obligations_cross_two_ordinary_description_helpers ... ok
+test four_module_buffer_consumer_checks_runtime_input_and_cleanup_order ... ok
+test internal_window_separation_work_has_a_bounded_raw_and_wire_limit ... ok
+test live_buffer_windows_still_block_give_with_an_unused_weak_environment ... ok
+test mutable_environment_position_and_last_call_leave_separate_byte_permissions ... ok
+test ordinary_helper_layers_preserve_readonly_and_hidden_clear_effects ... ok
+test original_local_byte_description_capture_reaches_native_execution ... ok
+test raw_and_wire_cannot_capture_a_description_after_its_owner_was_given ... ok
+test raw_and_wire_cannot_forge_a_self_contained_factory_return ... ok
+test raw_and_wire_cannot_move_cleanup_before_the_last_captured_use ... ok
+test raw_and_wire_do_not_promote_weak_buffer_captures_or_erase_real_view_holds ... ok
+test raw_and_wire_reconstruct_an_inserted_storage_write_without_analyze ... ok
+test raw_and_wire_reconstruct_internal_capture_and_parameter_window_obligations ... ok
+test raw_and_wire_reconstruct_the_actual_capture_source_not_just_its_type ... ok
+test unused_capture_does_not_own_or_extend_a_buffer_after_transfer ... ok
+test internal_capture_windows_propagate_separation_to_each_actual_call ... ok
+
+failures:
+
+---- borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed stdout ----
+
+thread 'borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed' (369) panicked at crates/zil-driver/tests/impl187_borrowed_bytes.rs:193:5:
+assertion `left == right` failed: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/runs178/author189/development04/cases/borrowed-bytes187-350-8/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/runs178/author189/development04/cases/borrowed-bytes187-350-8/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/runs178/author189/development04/cases/borrowed-bytes187-350-8/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/runs178/author189/development04/cases/borrowed-bytes187-350-8/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/runs178/author189/development04/cases/borrowed-bytes187-350-8/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/runs178/author189/development04/cases/borrowed-bytes187-350-8/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/runs178/author189/development04/cases/borrowed-bytes187-350-8/phases/typed.txt","verified":"/workspace/scratch/39be3faa4442/runs178/author189/development04/cases/borrowed-bytes187-350-8/phases/verified.txt","verified-interfaces":"/workspace/scratch/39be3faa4442/runs178/author189/development04/cases/borrowed-bytes187-350-8/phases/verified-interfaces.txt"},"input_fingerprint":"b1cf47a49a36d3972b8623d641908593e8c8f96c919744f4ed52734b51533764","seconds":0.009670807,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19","implementation_fingerprint":"1c354295211f9877f021d0acecb36e30eaf0ba7e0390ee9edc3322f1c0d02510","contract_fingerprint":"41679486d9468a355b3174ba8615c044bd9cde52d31e30f14891df77583a2cad","result_origins":[],"callable_contracts":[],"callable_returns":[],"exports":[]}]}
+  left: Success
+ right: Unsupported
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed
+
+test result: FAILED. 22 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.70s
+

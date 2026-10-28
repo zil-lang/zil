@@ -1,0 +1,1 @@
+struct Pair{x:i32;y:i64}fn main()->i32{var pair=Pair{x:20,y:22};let read=(p:&Pair)=>i64(p.x)+p.y;let edit=(p:&mut Pair)=>{p.x+=1};let old=read(&pair);edit(&mut pair);var values:[i32;2]=[1,2];let set=(p:&mut [i32;2])=>{p[0]+=p[1]};set(&mut values);return i32(old)+pair.x+values[0]-66}

@@ -1,0 +1,15 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 9.75s
+     Running tests/impl189_address.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl189_address-8c296929301d0e07)
+error: test failed, to rerun pass `-p zil-driver --test impl189_address`

@@ -1,0 +1,69 @@
+{
+  "status": "Fail",
+  "source_commit": "7e7aba613d382f6d0102a02fb8666987b64c8612",
+  "git_status": " M examples/mainline/address189/state.zil\n",
+  "cli_sha256": "c705c0d356209fe672ad6e1452bb174ed15709f60850a50e44c8217d0e9ff499",
+  "sources": {
+    "factory.zil": "0bb4e54836d0aa0752c80384c2b0f5d6d9dc969c3191cb1b31991b31836a25c3",
+    "helpers.zil": "dd08eacf54593870625bc4c8c3437319a44e7ffc4cf9cfb0a665893576420a16",
+    "main.zil": "3697e6db4af4d421c102d81ef639101c7508819444d255eaefe7c08b79797313",
+    "state.zil": "61dda69bb6ee2b78bcaea37d55840dd39044d7c79483ebacd6ba1869c4175005"
+  },
+  "builds": [
+    {
+      "optimization": "O0",
+      "verification_runs": 1,
+      "module_count": 4,
+      "llvm_sha256": "83c38a22824181f355b42d1db57d9172c96f631f45688a2716989989fa05a26d",
+      "executable_sha256": "35b169cc16790801cf67a0e9163b3648b470d94b192077966d4da7a1ad57d944",
+      "callable_returns": [
+        {
+          "name": "make",
+          "closure": 0,
+          "kind": "FnMut",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": [
+            0,
+            1
+          ],
+          "lending_captures": []
+        }
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "input": 0,
+      "stdout": "AH",
+      "exit_code": 0,
+      "expected_stdout": "AH",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O0/count-0/ordinary/command.json"
+    },
+    {
+      "input": 0,
+      "stdout": "AH",
+      "exit_code": 0,
+      "expected_stdout": "AH",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O0/count-0/allocation/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    }
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "error_type": "RuntimeError",
+  "error": "execution differs from oracle: {'input': 0, 'stdout': 'H', 'exit_code': 8, 'expected_stdout': 'H', 'expected_exit': 1, 'fail_at': 1, 'command': 'O0/count-0/failure-1/command.json'}, stderr=b'{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\\n'"
+}

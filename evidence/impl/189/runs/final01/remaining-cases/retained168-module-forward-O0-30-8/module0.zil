@@ -1,0 +1,1 @@
+import a;fn main()->i32{let f=a.outer(21);return f()+f()-42}

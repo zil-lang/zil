@@ -1,0 +1,1 @@
+fn apply<F:FnMut(&mut i32)->i32>(f:&mut F,p:&mut i32)->i32{return f(p)+f(p)}fn main()->i32{var step=0;var f=move(p:&mut i32)=>{step+=1;*p+=step;return *p};var n=20;let total=apply(&mut f,&mut n);return total+n-67}

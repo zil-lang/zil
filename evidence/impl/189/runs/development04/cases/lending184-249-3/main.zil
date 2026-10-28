@@ -1,0 +1,1 @@
+pub fn counter(start:i32)->impl FnMut()->&i32{var n=start;return move()=>{n+=1;return &n}}fn peek<F:FnMut()->&i32>(f:&mut F)->&i32{return f()}fn main()->i32{var f=counter(3);let a=peek(&mut f);let b=peek(&mut f);return *a+*b}

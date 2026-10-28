@@ -1,0 +1,1 @@
+extern "C" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(65)}}}fn eat(give r:R){}fn main()->i32{let r=R{n:2};let f=move(p:&mut i32)=>{*p+=r.n;eat(give r);return *p};var n=40;return f(&mut n)-42}

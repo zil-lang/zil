@@ -1,0 +1,38 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-CLOSURE-CALL",
+            message: "exclusive capture borrow requires an exclusive or consuming entry",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 64,
+                    end: 65,
+                },
+            ),
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-CLOSURE-CALL",
+            message: "exclusive capture borrow requires an exclusive or consuming entry",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 64,
+                    end: 65,
+                },
+            ),
+            notes: [],
+        },
+    ],
+]
