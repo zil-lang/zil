@@ -205,21 +205,25 @@ fn owned_windows_retain_helper_alias_and_lifetime_boundaries() {
             "verify",
             "E-BORROW-ESCAPE",
         ),
-        (
-            "fn entry099()->i64{let b=bytes_new();let d=b;let f=move()=>bytes_len(d);return f()}",
-            "types",
-            "E-UNSUPPORTED",
-        ),
-        (
-            "fn entry099()->i64{let b=bytes_new();let f=()=>bytes_len(b);return f()}",
-            "types",
-            "E-UNSUPPORTED",
-        ),
     ] {
         check(body, Some((phase, code)));
     }
     check(
         "fn act(a:ByteBuffer,b:ByteBuffer)->i64{let s=bytes_view(a);let n=s.len();bytes_reserve(b,4);return n}fn entry099()->i64{let p=make();return act(p.data,p.data)}",
+        None,
+    );
+}
+
+#[test]
+fn local_byte_descriptors_remain_borrowed_when_captured() {
+    // Both original099 inputs remain unchanged; 187 verifies the actual
+    // resource instance and external effects without giving ownership to Desc.
+    check(
+        "fn entry099()->i64{let b=bytes_new();let d=b;let f=move()=>bytes_len(d);return f()}",
+        None,
+    );
+    check(
+        "fn entry099()->i64{let b=bytes_new();let f=()=>bytes_len(b);return f()}",
         None,
     );
 }
