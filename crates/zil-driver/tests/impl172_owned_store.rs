@@ -726,17 +726,21 @@ fn raw_wire_store_composition_boundaries_and_head_access_are_independently_check
             );
         }
     }
-    for (label, ty, message) in [
-        ("closure-store-capture", store, "Store capture requires"),
-        (
-            "closure-package-store-capture",
-            direct,
-            "Package capture with Store fields",
-        ),
+    for (label, ty) in [
+        ("closure-store-capture", store),
+        ("closure-package-store-capture", direct),
     ] {
         let mut mutated = original.clone();
         mutated.closures[0].captures[0] = ty;
-        reject_candidate(label, mutated, plan.clone(), "E-UNSUPPORTED", message);
+        // 204 admits qualified owned Store captures, but changing metadata
+        // does not change the original scalar MakeClosure operand.
+        reject_candidate(
+            label,
+            mutated,
+            plan.clone(),
+            "E-VERIFY-CAPTURE",
+            "capture operand type differs from the environment field",
+        );
     }
     let take = locate(
         &original,
