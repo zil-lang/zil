@@ -1,0 +1,121 @@
+{
+  "reviewer": "/root/impl197",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "scope": "Interim actual results; instantiated-loop01 is an open blocker, so 205 final acceptance is not asserted",
+  "source04": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/source04/command.json",
+      "sha256": "b28a6bf9f16df3ef14e62fde79ba3e6064b65f54d0f41a3b6d5f38e5cd738927",
+      "source_commit": "4511b0e72593277e13c2aca3d85c3ac3ac214d14",
+      "exit_code": 0,
+      "source_clean": true
+    },
+    "test_result": {
+      "independent_source_raw_wire": 24,
+      "independent_ct": 4,
+      "failed": 0,
+      "ignored": 0,
+      "adapter_tests_excluded": 4
+    },
+    "native_successes": 36,
+    "compile_observations": [
+      {
+        "status": "SafeReject",
+        "phase": "expand",
+        "count": 10
+      },
+      {
+        "status": "SafeReject",
+        "phase": "types",
+        "count": 3
+      },
+      {
+        "status": "Success",
+        "phase": "link",
+        "count": 36
+      },
+      {
+        "status": "Success",
+        "phase": "verify",
+        "count": 15
+      },
+      {
+        "status": "Unsupported",
+        "phase": "types",
+        "count": 2
+      }
+    ],
+    "exact_limits": {
+      "expand": 2369,
+      "types": 6231,
+      "analyze": 13108,
+      "verify": 19180,
+      "verify_wire": 19180,
+      "method": "exact N, N-1 ResourceLimit, fresh N; Core/Typed/Candidate unchanged"
+    },
+    "same_original_loop_inputs": [
+      {
+        "label": "fresh-loop-view-after-join",
+        "bytes": 308,
+        "sha256": "241d9a49eb3d82bd0a1abb6a8acd08e8f73be1402c7206f086e8a3cf5a501b0f",
+        "before": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/loop-correlation01/cases/independent205-fresh-loop-view-after-join-117-0/source.zil",
+        "after": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/source04/cases/independent205-fresh-loop-view-after-join-137-92/source.zil",
+        "byte_equal": true
+      },
+      {
+        "label": "stale-loop-copy-after-join",
+        "bytes": 309,
+        "sha256": "ab7276ecd08dd9a590c78abf3f440e8c080eae56d22552865de9d520ffbd0988",
+        "before": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/loop-correlation01/cases/independent205-stale-loop-copy-after-join-117-1/source.zil",
+        "after": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/source04/cases/independent205-stale-loop-copy-after-join-137-95/source.zil",
+        "byte_equal": true
+      }
+    ]
+  },
+  "original_loop_failure": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/loop-correlation01/command.json",
+      "sha256": "72364fdefc0da3e0e1c59ec31dac784459fb9d6eeefca3f9a14a2cb8fec243fc",
+      "source_commit": "5c4c5754ff007d8cd7ffb1fbbf4ed8a75a0e38eb",
+      "exit_code": 101,
+      "source_clean": true
+    },
+    "tests": [
+      0,
+      1
+    ],
+    "meaning": "Fresh alias was incorrectly rejected at Expand; retained stale-copy negative correctly rejected; both reports saved before assertion, no native"
+  },
+  "new_instantiated_loop_blocker": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/instantiated-loop01/command.json",
+      "sha256": "f8ac294719daf64566db6d3d1a4dfab40501600046f16e8ad6f67278e1052663",
+      "source_commit": "69277e7bba88097583c8ba3233eb677592e315c7",
+      "exit_code": 101,
+      "source_clean": true
+    },
+    "tests": [
+      0,
+      1
+    ],
+    "fresh_bytes": 698,
+    "fresh_sha256": "a4c9bda2e53625bd14f0d0ea45c40406ade1aa78369b47f022ad9c98d7f21833",
+    "fresh_actual": "Types SafeReject E-STATE-ALIAS, Verify0, NativeNotRun",
+    "stale_bytes": 714,
+    "stale_sha256": "fb947c2364cf1e1649c0f7fcc50f204d30b461b3cac315d7560c5f848cbd4e01",
+    "stale_actual": "Expand SafeReject E-GENERIC-ARGUMENT, Verify0, NativeNotRun",
+    "distinction": "source04 unused fresh loop had Verify1 only for main; it was never evidence that this instantiated function passed"
+  },
+  "concrete_closed_controls": [
+    "Conditional callable reference phi remains Types Unsupported before borrow verification",
+    "Address dereference projection remains Types E-OPERATOR-TYPE before borrow verification"
+  ],
+  "concrete_copy_control": "Name-to-name alias copies execute O0/O2 with AAMZCB in source04; this is distinct from the closed forms",
+  "remaining": [
+    "Instantiated refresh fix with unchanged positive and stale-copy counterexample",
+    "Frozen final CLI Linux consumer",
+    "Final exact source identity and independent evidence packaging"
+  ],
+  "workspace_full": "NotRun by this reviewer",
+  "production_authorship": "None"
+}
