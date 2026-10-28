@@ -97,7 +97,7 @@ fn reject_pair(label: &str, module: TypedModule, mut plan: CandidatePlan, code: 
 }
 
 #[test]
-fn current_call_reborrows_and_hidden_callback_writes_keep_actual_aliases() {
+fn current_call_reborrows_keep_actual_aliases() {
     let cases = [
         (
             "shared-and-unique-args",
@@ -114,16 +114,6 @@ fn current_call_reborrows_and_hidden_callback_writes_keep_actual_aliases() {
             "fn pair(a:&Entry,b:Store<Entry>)->i32{store_reserve(b,32);return a.count}",
             "let p=store_at_mut(s,0);return pair(p,s)",
         ),
-        (
-            "captured-store-mut-borrow",
-            "",
-            "let held=store_at(s,1);var change=()=>{let p=store_at_mut(s,0);p.count=30;return p.count};return change()+held.count",
-        ),
-        (
-            "last-call-captured-parent-conflict",
-            "",
-            "let p=store_at_mut(s,0);let child=&mut p.count;var change=()=>{store_reserve(s,32);*child+=1;return *child};return change()",
-        ),
     ];
     for (label, helpers, body) in cases {
         rejected_source(
@@ -132,6 +122,28 @@ fn current_call_reborrows_and_hidden_callback_writes_keep_actual_aliases() {
             ResultCategory::SafeReject,
             Phase::Verify,
             "E-BORROW-CONFLICT",
+        );
+    }
+}
+
+#[test]
+fn direct_and_mixed_store_capture_remain_explicitly_unsupported() {
+    for (label, body) in [
+        (
+            "captured-store-mut-borrow",
+            "let held=store_at(s,1);var change=()=>{let p=store_at_mut(s,0);p.count=30;return p.count};return change()+held.count",
+        ),
+        (
+            "last-call-captured-parent-conflict",
+            "let p=store_at_mut(s,0);let child=&mut p.count;var change=()=>{store_reserve(s,32);*child+=1;return *child};return change()",
+        ),
+    ] {
+        rejected_source(
+            label,
+            &format!("{MODEL}fn main()->i32{{{SETUP}{body}}}"),
+            ResultCategory::Unsupported,
+            Phase::Types,
+            "E-UNSUPPORTED",
         );
     }
 }
@@ -255,7 +267,7 @@ fn raw_copy_projection_does_not_authorize_package_or_resource_access() {
     if let I::AddressField { address, .. } = projection.kind {
         projection.kind = I::ReadAddress { address };
     }
-    reject_pair("load-entire-package", bad, plan.clone(), "E-UNSUPPORTED");
+    reject_pair("load-entire-package", bad, plan.clone(), "E-VERIFY-ADDRESS");
 
     let mut bad = module;
     let f = &mut bad.functions[main];
