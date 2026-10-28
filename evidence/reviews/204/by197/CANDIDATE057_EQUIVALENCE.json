@@ -1,0 +1,1036 @@
+{
+  "reviewer": "/root/impl197",
+  "mode": "Read-only byte identity; no new test execution",
+  "actual_test_and_consumer_source": "694940eda0f7a9e5f9f999f8f2b107f4550d84fb",
+  "actual_compiler_source": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+  "reviewed_candidate": "057e7f67cd6fee9dc80c9cf31fe7af5cbc6bf1b3",
+  "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "domains": {
+    "production": {
+      "Cargo.lock": {
+        "mode": "100644",
+        "git_blob": "38a62627c9e74866270068f2594959001ee00fe3",
+        "sha256": "76ff89481c963f58a5006edf64c4340d871a66a2ed7c8b2fd9bf984582fe69e6"
+      },
+      "Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "71adfaea2deb83d99a108a0aa43e6c47937fe3b5",
+        "sha256": "295899fb51d7793ae4dbc61b93ccc9a1a0c374b01007ced4541a5e5354874f0b"
+      },
+      "crates/zil-analyze/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "df900e4c508b38301f8b21c630f92d819942fc66",
+        "sha256": "e4a2cac7cfafc7b5e4fcd093a1355e2c4090a66e12a37f9624ffba0781b757c6"
+      },
+      "crates/zil-analyze/src/budget.rs": {
+        "mode": "100644",
+        "git_blob": "44a8a468dcbe424ac12ddceac65e8a4e3b3720f5",
+        "sha256": "7456dffcdc3cb0c9f2c8e7ea84a64d34b1740ba8f66844958bf162dee236707d"
+      },
+      "crates/zil-analyze/src/callable_fields.rs": {
+        "mode": "100644",
+        "git_blob": "30b3d21716f022f214b5e275c3ea12e64646f71b",
+        "sha256": "41dce9430085186a3760f9161ac2f3db3fc347e84b27010cfd07834a67d1c9ca"
+      },
+      "crates/zil-analyze/src/dynamic_store.rs": {
+        "mode": "100644",
+        "git_blob": "1b2b01ffdbf2b06dc2b8e5a2f9f84a3666b512b8",
+        "sha256": "e2d5785e4cd76d18b0a892cf639e921603700258ad5b7c888d2ad85cc51b819e"
+      },
+      "crates/zil-analyze/src/helper_flow.rs": {
+        "mode": "100644",
+        "git_blob": "5cafd5bc4d8b6aa07b4d841af672bc9c6401e8f9",
+        "sha256": "55602c259c6a3441abec24f132d758b9391d666e2ec76ee61a6966176f8c4fda"
+      },
+      "crates/zil-analyze/src/helpers.rs": {
+        "mode": "100644",
+        "git_blob": "1a4155cc6ca9f2b104fe5f65b69793a90552a0bc",
+        "sha256": "f941da7353eeec2d881871aee9c0a163cded5a641b56e07ce62f6be959d1b6f0"
+      },
+      "crates/zil-analyze/src/holds.rs": {
+        "mode": "100644",
+        "git_blob": "a0cfaac2f2f13de47f82ae99f763b7ef03c73e6b",
+        "sha256": "f38ba86e9cc0895bf9de149bcd3385169bbae33824bb0b8133f60d81106a1156"
+      },
+      "crates/zil-analyze/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "c13e12ce0b2a31c02ddfc4af49d666408fa60084",
+        "sha256": "d2eae9f8808585ed488d5c35e280e83bf86adedffa73ec6fa5787eb9b7ff6c82"
+      },
+      "crates/zil-analyze/src/resource_tests.rs": {
+        "mode": "100644",
+        "git_blob": "428fa72da2abb66d98b72a313bdc22fb5811af71",
+        "sha256": "6abc8d64c5df7485d0f0c1f272474ea40633fb14ebccef127c9d0e12ecf375d5"
+      },
+      "crates/zil-analyze/src/resources.rs": {
+        "mode": "100644",
+        "git_blob": "4db5ca905720ce8c51bb793a6712091914ec9533",
+        "sha256": "14f243e13022ff0914e9116b64ff2304879ba3a5ea4e0824a8a96a0b9987d71e"
+      },
+      "crates/zil-analyze/src/resources/frontier_tests.rs": {
+        "mode": "100644",
+        "git_blob": "022abdf2d856684f971dab9bb0b977d4a484a123",
+        "sha256": "ddec14c63dde99eba4bdcfaa4d73e89251539ac180fe8f58aeab9f56df9eb7d7"
+      },
+      "crates/zil-analyze/src/resources/summary_graph.rs": {
+        "mode": "100644",
+        "git_blob": "9e379f49d554890de31deaf2784dffdacb551beb",
+        "sha256": "97cb60c86c69f627a5b4e397ad39310d2568d4b970ba5b302b7f715640bec98a"
+      },
+      "crates/zil-analyze/src/retained.rs": {
+        "mode": "100644",
+        "git_blob": "e111d3a27ada3a4dee50343c11bbd9a6ae6365fb",
+        "sha256": "bf01a8292d4f5c3ae6050cab9e5b984bb437314a394d5d310fc971bbf1a6b628"
+      },
+      "crates/zil-analyze/src/scopes.rs": {
+        "mode": "100644",
+        "git_blob": "0765eae6f163d41724af30b89e1c62bbfeefccb1",
+        "sha256": "1661bcb8e4ece88d689a0a0caeefc17b1a7e88b915fdca83fda881669671dc49"
+      },
+      "crates/zil-backend-llvm/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "afc208fbf5efc5049898cf23c442e458001ea860",
+        "sha256": "4d9fa8fd320f7a2362254229ec1b094949d852debadb427224b7829de4ef42d8"
+      },
+      "crates/zil-backend-llvm/src/build.rs": {
+        "mode": "100644",
+        "git_blob": "7bbe7d2ce8a028b085d75dfb715e7217b1a9f589",
+        "sha256": "f0c434eb94463de07586dc308bf1bd5cfab98c5e0bb09207dc88499ca458995d"
+      },
+      "crates/zil-backend-llvm/src/emit.rs": {
+        "mode": "100644",
+        "git_blob": "f78e17c8d02d6792855315a78d9dc6ea46c03536",
+        "sha256": "428e50eb3f9d12273ff4d96d2625eac57da0375eb2fce402b3c21a390a3b199e"
+      },
+      "crates/zil-backend-llvm/src/emit/arrays.rs": {
+        "mode": "100644",
+        "git_blob": "e4c7222080b6ad3a38a0d2917df4309770cd82f4",
+        "sha256": "f8c5334628750e1c843dddb72cfd8e7798e0429487bb7b0c1ad6425da9a23888"
+      },
+      "crates/zil-backend-llvm/src/emit/byte_buffer.rs": {
+        "mode": "100644",
+        "git_blob": "53f563c22041ff9a10cb54b2d65f1b9eb6da7d6e",
+        "sha256": "afc95e6c656aa33ca9ea468fe4c2c1488c466e663a4d73832a0a877f98a28093"
+      },
+      "crates/zil-backend-llvm/src/emit/dynamic_store.rs": {
+        "mode": "100644",
+        "git_blob": "bce3cde41ff8cb234f062bd2c2a7d5add08ce394",
+        "sha256": "44012bca22e3c8f7c442e1889eeca74a0cf60bf2d57949f18cb2671f82594844"
+      },
+      "crates/zil-backend-llvm/src/emit/enums.rs": {
+        "mode": "100644",
+        "git_blob": "ef5d7cc127ce248328c3cc9ddbb5c5770dc26417",
+        "sha256": "21e03f9c69ddd85777f97849852ef8375d87fc7163943ff4691d49d5e0aa7a54"
+      },
+      "crates/zil-backend-llvm/src/emit/errors.rs": {
+        "mode": "100644",
+        "git_blob": "1a62cb8883ad6d0f23e732446ca952b8929d0f2a",
+        "sha256": "7ca9bcf5281947998f7cd4714a6cffed9cb854cf4462f36c63b269ec33151504"
+      },
+      "crates/zil-backend-llvm/src/emit/foreign.rs": {
+        "mode": "100644",
+        "git_blob": "71b88fb4789d0bdc32d656cc9f1d0e6615a93377",
+        "sha256": "f03350f1875b4fc49928213456ed50f0429216c36b6dabe283f192bc2682a079"
+      },
+      "crates/zil-backend-llvm/src/emit/packages.rs": {
+        "mode": "100644",
+        "git_blob": "1d6ea4d2d9e7390d1d4a32f07b6d5d4eb0aaeb67",
+        "sha256": "068c554465180565da9393838ed025b11b522b027301137646271f3075c1b455"
+      },
+      "crates/zil-backend-llvm/src/emit/resource_closures.rs": {
+        "mode": "100644",
+        "git_blob": "bf4e544233257831cb9877b3902d5494c9298445",
+        "sha256": "b323ab3311d89784e8980d819b56cd5cb97cba041313f99c30d1ea8cfdb9322b"
+      },
+      "crates/zil-backend-llvm/src/emit/resources.rs": {
+        "mode": "100644",
+        "git_blob": "44c90be1af9684ed80a6ff4abd18e01dfb591267",
+        "sha256": "ffd49f2a61fe2daf9a2c52677dfeb1b4a9cd0dea48ef4924fcf203e63051ec52"
+      },
+      "crates/zil-backend-llvm/src/emit/slices.rs": {
+        "mode": "100644",
+        "git_blob": "b8153e380b809cae73a3f5a6210a0bc1a4b74fb6",
+        "sha256": "c7bca7b01c17b65fda8952927d9eafeae633ebdc0f927b7cee7302e54bbb1a8f"
+      },
+      "crates/zil-backend-llvm/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "59e5ea905ffd3302a91aba59d67a50e2c50ca487",
+        "sha256": "50ca3af8b65e2063fd195a2ab8c5399615331de1478f8591a52a2a58d41070b4"
+      },
+      "crates/zil-backend-llvm/src/tests.rs": {
+        "mode": "100644",
+        "git_blob": "1db8b3df41137c2998eb5e842c1dd3ee68d3769c",
+        "sha256": "ad6d1eb3b94dc49f1c2b04cd6af6a735e800a60daa7dc1d51b7ecb05b74caaec"
+      },
+      "crates/zil-base/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "882bb11a4a30934088abc6cd3a06f67fd016c38a",
+        "sha256": "7eae24124d86c3db6aedcf7326cdbe69548a30454d1dbecab41f1ddc1789d100"
+      },
+      "crates/zil-base/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "a2b08d12886f79d6124426ae98bc6c6762f73d1b",
+        "sha256": "dc6c23988b431c6fb3969dcd233a5dac8dd5baf9373f948805ef76c4d0048617"
+      },
+      "crates/zil-base/src/sha256.rs": {
+        "mode": "100644",
+        "git_blob": "e208f3f4cf3c4a7b1920ac87a54746d11dd88140",
+        "sha256": "17c76c54c6266a9c874704801d7ad235ae0f75d2adf9511fbe16bb37d31a912f"
+      },
+      "crates/zil-base/src/source_map.rs": {
+        "mode": "100644",
+        "git_blob": "16e4f787c30ad4034871cff97212fa5de71cfe21",
+        "sha256": "7447480de4b4d829a50ea5cbc50d55471275fc3b4d0d5fc34a07d6c2e1a20b6f"
+      },
+      "crates/zil-cli/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "77643d9530c29400a88fc4bea68b157111e5c24c",
+        "sha256": "ff7683a0399230433b0439373cd02a3451c4aa819bfe0343e5e505cf516d649a"
+      },
+      "crates/zil-cli/src/main.rs": {
+        "mode": "100644",
+        "git_blob": "63ecd6eca17e05c5b8bb732a88d6cc6ab3b32f29",
+        "sha256": "28312fc7cf9663fd89d4f7b67c48b23a58a0e13505cc24ba72d7681fabc71f0b"
+      },
+      "crates/zil-cli/src/qc.rs": {
+        "mode": "100644",
+        "git_blob": "3c330baa8b6bd02403878eee164ff5b7d6c2f599",
+        "sha256": "50b547d409bdea20a82e84d00ddc2dc5e28d985fea9b50d7c1abd9cc4d5cfe29"
+      },
+      "crates/zil-ct/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "77e4cf5f913dd41531f5c4e0bb3aa2214bca2cf4",
+        "sha256": "08e8c13a09cee48a8ca2210b6586a7a4a4ac3bfe98e3034e7e6ade49dee171fb"
+      },
+      "crates/zil-ct/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "60c603bfd8db31935b8aa6b079d2af521ddba382",
+        "sha256": "c697c9044fdb63dcf79c82d840d92307d777e5c5692ec724044b5d40025ce8c5"
+      },
+      "crates/zil-ct/src/materialize.rs": {
+        "mode": "100644",
+        "git_blob": "560d7cdb70ecf3055fc69b09b78d92499f63993d",
+        "sha256": "52781fcff16b26f59627e94a0c874a69574ab9c4eb5052539fcc1d22a1358139"
+      },
+      "crates/zil-ct/src/program.rs": {
+        "mode": "100644",
+        "git_blob": "adca2b8fcde05571d163c5d90dd1c08719ac28d3",
+        "sha256": "2824ba4773087e5d725a1d5d6ca43a379f2bfae95a46ebe225a98e1c53ddcbd7"
+      },
+      "crates/zil-ct/src/source.rs": {
+        "mode": "100644",
+        "git_blob": "bdd9eb9fa37563fc8dcac89fadfbef8ee1de0004",
+        "sha256": "330beb11e8a9f9ada122eabf46bc0c0605c1f269252cec7612c66b0edbfd6695"
+      },
+      "crates/zil-db/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "dd8456c5bec7dde8683cb0631d2e0b30a4f78ca7",
+        "sha256": "9824d0a6685429730d419397cd9f7776a50e44130d998e21d5e549a2f79038a5"
+      },
+      "crates/zil-db/src/cache.rs": {
+        "mode": "100644",
+        "git_blob": "d2c5f64a71b253f8da100ce81ca846935caf59e2",
+        "sha256": "ff79c1b73e4e7f563e64b65ad3c7fe8f2a5bc51c8afa89fcca1a164a9511c7e2"
+      },
+      "crates/zil-db/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "97f7998b6dad8195c7dbccab19367121c711f420",
+        "sha256": "2a07435a5d585581219bea2cc8aa70d9dbd62fe9cb3e0555f2a2913563e768e4"
+      },
+      "crates/zil-db/src/tests.rs": {
+        "mode": "100644",
+        "git_blob": "a85f91fbe29f40a1e2b7bbb5f3afdd360f777d8a",
+        "sha256": "4dbb8006dc7decb62c0686b653849ba3f24e18cfe01cb76db38b32da3a95a510"
+      },
+      "crates/zil-driver/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "863383ba15d4cc0434388be319fe5b398f2533fa",
+        "sha256": "627bc678a20ca9da923a9ffd73b96e07257b08e6634aa99e3d0766efb9549dd6"
+      },
+      "crates/zil-driver/src/artifacts.rs": {
+        "mode": "100644",
+        "git_blob": "94a6196c3021499ecd1f7cd580016fabb9f0ced2",
+        "sha256": "afabc775571be7143b04d03db70bd2905de1dab96436864efb66c4a1b19684d7"
+      },
+      "crates/zil-driver/src/contracts.rs": {
+        "mode": "100644",
+        "git_blob": "2f6975cb9f3bf2abe0d0ffbeea082d3c076f1b8e",
+        "sha256": "afa4ad387603187029b314fc794fd3ca55a2e9c71ead4bc5f5c17465254d2980"
+      },
+      "crates/zil-driver/src/ct_program.rs": {
+        "mode": "100644",
+        "git_blob": "ed59d0fff1229dbff1fbbd156ecdd00e25ffab84",
+        "sha256": "1940f4bbe544e04256e272c80c88c2f2de503f48d76a244b0818ab5d3db38d34"
+      },
+      "crates/zil-driver/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "689e93ee4353442232fa293789475065ae2c509b",
+        "sha256": "cb7b412c50a6763aa30e8d4122c82be04648cea5f5275159e1170b0c8cab96f8"
+      },
+      "crates/zil-driver/src/project.rs": {
+        "mode": "100644",
+        "git_blob": "4e7e2bf9529d41c33792eb36c040a20a2d5b2bfd",
+        "sha256": "b05e995ca2bb55e69451a4f50135ea5128a71c3e829379a8a99c1c2037d0f752"
+      },
+      "crates/zil-driver/src/session.rs": {
+        "mode": "100644",
+        "git_blob": "80f00414f1822da81f94d5a57f0bd079af52bb7f",
+        "sha256": "fbf9d80e6f3464cb68a7fdacacff909b26f78ffe299732eddef51218e3d07851"
+      },
+      "crates/zil-driver/src/tests.rs": {
+        "mode": "100644",
+        "git_blob": "e2d2699c05fa84d36be7638e79fbddadee183e2d",
+        "sha256": "37176735debb6b809b396ae95803b99f5b32dc634b857f2d2e64acd080aa20dd"
+      },
+      "crates/zil-expand/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "159afad934bf1b7827a250d69d3d139a8f1ac710",
+        "sha256": "2241fce02e77acf41d395f76d3f1ffd9d2d883a28a9fd12c43a0edcd0554ae99"
+      },
+      "crates/zil-expand/src/enums.rs": {
+        "mode": "100644",
+        "git_blob": "9158b2888a04417e090c1caee4ba4e1e1798e7e7",
+        "sha256": "c3ee6ee223f8a8be09fc816cb21987fd54abdf7f0f571fcf7275aca1bb94e9bf"
+      },
+      "crates/zil-expand/src/foreign.rs": {
+        "mode": "100644",
+        "git_blob": "f96d852bf50090173efabaf41ecb3c9377a5ee3e",
+        "sha256": "d67b43e3daf65ebe6fb268c9da5f4032608e0880bbf3a5fbda2f1261f4269c18"
+      },
+      "crates/zil-expand/src/generic_alias.rs": {
+        "mode": "100644",
+        "git_blob": "95814b567d7ee2d14eb0173e0f1d57e2177e9425",
+        "sha256": "d743f4586408927910f88c6cb52ce328c1c6c8e18e4abdc7a26e94b77b5e17c6"
+      },
+      "crates/zil-expand/src/generic_budget.rs": {
+        "mode": "100644",
+        "git_blob": "9d3db5ad9d1fe042075ec0ae9918245874cec1cf",
+        "sha256": "32b6dc12e0857a34b6b22da401a869964b5c2ac055f036984d36a079b8e83203"
+      },
+      "crates/zil-expand/src/generic_bytes.rs": {
+        "mode": "100644",
+        "git_blob": "986f7018734ca3cd10d72ea384c64c4158550723",
+        "sha256": "65cb4b1a2f014a56cf5e8d6fc0f21f818da04d31871ef768e1864ab1032b3cc0"
+      },
+      "crates/zil-expand/src/generic_callable.rs": {
+        "mode": "100644",
+        "git_blob": "3c91349a5c28b9781e5189d0669c3b56f3c08a1a",
+        "sha256": "f6ad623a224a3acae504047134ebc2b5af0823593e6057c99be23a65907bde7f"
+      },
+      "crates/zil-expand/src/generic_check.rs": {
+        "mode": "100644",
+        "git_blob": "6538e0b2d1355aa7687462aa1a3ff0fd3d643d47",
+        "sha256": "eef8596851af86e6ae0e5387e688c0cbbdb5028458c29c3d6a061b37a3dc34e9"
+      },
+      "crates/zil-expand/src/generic_check_enum.rs": {
+        "mode": "100644",
+        "git_blob": "039ddea83413737f66fd2a0426c2ae00b1f04895",
+        "sha256": "2c7e823f82a6dcd1bd883769de6d2f0af9a93b696f6626fac03f903c72e955db"
+      },
+      "crates/zil-expand/src/generic_copy.rs": {
+        "mode": "100644",
+        "git_blob": "f5de31b645b6a5b6c453bd87e5830514b610f88b",
+        "sha256": "9d9e85b7b6905fc0db144c6d3e217c6d728f6187fe818038df73c8391fde9d05"
+      },
+      "crates/zil-expand/src/generic_enum.rs": {
+        "mode": "100644",
+        "git_blob": "5e89806f1ae03402131e1d2646f76db28ad66577",
+        "sha256": "882f28ccacf0eaa3ca493600ee5e9bb96ce8d999127f0c5d49407ddfdd022826"
+      },
+      "crates/zil-expand/src/generic_helper_graph.rs": {
+        "mode": "100644",
+        "git_blob": "3edf13c54811960948e4a44fdd026c94bc760a55",
+        "sha256": "e1b794a954bbb31d1192310ce62a10580dc2ae59e904fe3ae042cf098baf4155"
+      },
+      "crates/zil-expand/src/generic_loop_control.rs": {
+        "mode": "100644",
+        "git_blob": "9a9a06536f537f68e7b2d8bf90087bd5c84eb021",
+        "sha256": "98aedf0ba66d9046859b7eb70a09c45cd097de2b4326ca7573062a86aa7935de"
+      },
+      "crates/zil-expand/src/generic_places.rs": {
+        "mode": "100644",
+        "git_blob": "8428fb710b1901925b37b273f5787395af07ba11",
+        "sha256": "cdadee0e1007883bd2e45fbddad471c343753c22de007354f20fe20a92b907de"
+      },
+      "crates/zil-expand/src/generic_state.rs": {
+        "mode": "100644",
+        "git_blob": "bddd849058f9f4ce153769b4c7ff0d56091da0bd",
+        "sha256": "6bcb33b1f4631ca968316ad816e161ab27db7772b69daa29670723db8b18e76b"
+      },
+      "crates/zil-expand/src/generic_store.rs": {
+        "mode": "100644",
+        "git_blob": "57b42543797c7b44b5a14a44e330688a32651d81",
+        "sha256": "a93c3b3817399e5bab4dc2a9407b6875ad87d44dd3018f2093875509fd863308"
+      },
+      "crates/zil-expand/src/generic_store_templates.rs": {
+        "mode": "100644",
+        "git_blob": "a8202ab204183eab7aa0fb863a0596faf181f827",
+        "sha256": "282327a19d4e40703b42891fc910c8fad76a886ec5267f7afd810fb7876b2c33"
+      },
+      "crates/zil-expand/src/generic_trait_bounds.rs": {
+        "mode": "100644",
+        "git_blob": "144390a524cfcce87ec1cf1d1a29c969ac97619b",
+        "sha256": "e4d3ec39d7c3702d1ba42d72892a6f281de48e6c5aaaf9e8dcc04eab0245c12a"
+      },
+      "crates/zil-expand/src/generics.rs": {
+        "mode": "100644",
+        "git_blob": "598e27de21112720563378ce90c32e122c8fa4c8",
+        "sha256": "9ce474f0fcd8d21a6b72434a0ee37b54d541e67de249c9af5589dd9a885f39d2"
+      },
+      "crates/zil-expand/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "2f4abd6925b91727d1e05a3a5243f1a048278f84",
+        "sha256": "1f603275893e29b62758d50807ece94b159905fc85cac268d43302add28bf769"
+      },
+      "crates/zil-expand/src/mapping.rs": {
+        "mode": "100644",
+        "git_blob": "c04617df05e4a63ff9ad6487d67dbc895163a723",
+        "sha256": "da6560b21aee953cf780256d09d7c6f91a771bc88ff125eff4e1f9362b44b537"
+      },
+      "crates/zil-expand/src/modules.rs": {
+        "mode": "100644",
+        "git_blob": "1dc8c168b4dbf034859a740973c307868a1f7f2b",
+        "sha256": "9b740a46a77ee7c940c2f78002f91b9909e00caa0b7e165e542095cf58eeecc8"
+      },
+      "crates/zil-expand/src/receivers.rs": {
+        "mode": "100644",
+        "git_blob": "1e5aec805d8b0c0ddc23a56d30133fe8f1d8565c",
+        "sha256": "a64e9cf1038785bbb58bd51f66d175fbf64c4c5aeee6468c08471d693fd4b520"
+      },
+      "crates/zil-expand/src/records.rs": {
+        "mode": "100644",
+        "git_blob": "34f9dec54a09337efafd4f29906aeb6d99ca883f",
+        "sha256": "cc95014f31838ab9900390ffc3265b7a88536289f022ad5d6a7970961aaf1829"
+      },
+      "crates/zil-expand/src/resources.rs": {
+        "mode": "100644",
+        "git_blob": "b038a058ac49bb1b559885c6b9512faa0b695f48",
+        "sha256": "91afc69213732b3efc3cf730ce84d7f4e1cece5bd05edb9bf2556ebc173e1096"
+      },
+      "crates/zil-expand/src/static_traits.rs": {
+        "mode": "100644",
+        "git_blob": "580a1650f3b9b0734efd05a5216b505ef2cb24f2",
+        "sha256": "892ba1ef6862f2b6029fd6214e1e66afaf0ef83c6dac312e91f983b4e59993c5"
+      },
+      "crates/zil-ide/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "835e5b337f06fec842c3b1a317de22b7b1e9d70b",
+        "sha256": "f4f5cf2d9d62065a712ad454691c53aeed44c3ca35f54af7036ba1db6b1973e2"
+      },
+      "crates/zil-ide/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "d51299428cef151faf1b4e970349299d2c7ad2a5",
+        "sha256": "39f762271571f263f946ce96adad9e837d192ae79efcec2e217905744922b0bb"
+      },
+      "crates/zil-ir/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "087d7c512b74a88e16f1e91e44a80e8203d96d74",
+        "sha256": "7a7692cb5cec45b0e8dddfffd4851d883ccaf05fcef20c8464cc276eaf1c96fe"
+      },
+      "crates/zil-ir/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "f899af92b437e135efec5a53520cb5a906dea0ee",
+        "sha256": "863779c82cad36fc7473956caea3be9b7a53216612bb98ea90f97bb7cdb02fbd"
+      },
+      "crates/zil-ir/src/program.rs": {
+        "mode": "100644",
+        "git_blob": "a93ce68090ee74b554c834984ee2966ed1a8d9e2",
+        "sha256": "faf6d430a202892500079a03048269c46370a63b54ec81309a50a2f732f9c0d2"
+      },
+      "crates/zil-ir/src/wire.rs": {
+        "mode": "100644",
+        "git_blob": "0cc342b364016660a99ae58229a28e4b0a7db1c2",
+        "sha256": "ab4da6618b25f322103ac7e3b5bf1af61a18258f227040b90fb779596d8b11a6"
+      },
+      "crates/zil-ir/src/wire/flow_tests.rs": {
+        "mode": "100644",
+        "git_blob": "6b2a0c3d0e8d6dd8231cd39597672452ca4ac41b",
+        "sha256": "93432ed562948159ea84dc34374ab7f6a0f785eb432b4f92649c4cdd61f2cc34"
+      },
+      "crates/zil-ir/src/wire/owned_carrier_tests.rs": {
+        "mode": "100644",
+        "git_blob": "9d1324800895dd3094f80174087a6f4482da5fd4",
+        "sha256": "cc3384c0138cefce52f4d5d626e79a83203a41feb70f2c265e29c30c813d51e1"
+      },
+      "crates/zil-ir/src/wire/state_field_tests.rs": {
+        "mode": "100644",
+        "git_blob": "22d085b314c705915c4dcd118fb31bedac6a04b6",
+        "sha256": "4eb4a4d7c70ee437a48fc3e63d2b418975b62db268c2195669135d59e65194a5"
+      },
+      "crates/zil-ir/src/wire/store_tests.rs": {
+        "mode": "100644",
+        "git_blob": "8db2256f885baf89d81b65adc65ac21e85a8c5ae",
+        "sha256": "9ea2530452456da2f2a7a749b766fa5b0880124f41875bf5c7502febff5bc398"
+      },
+      "crates/zil-ir/src/wire/tests.rs": {
+        "mode": "100644",
+        "git_blob": "153fadb4557f3a19dbb080cb63f79288d386d3b7",
+        "sha256": "1963bbf0df2f91da9bbaa53ef6f5ef1aa80341314b5c48bd439a41a930d0671b"
+      },
+      "crates/zil-ir/src/wire/type_stack_tests.rs": {
+        "mode": "100644",
+        "git_blob": "ed9888958621997d0d16126e161d50aaefb7a73c",
+        "sha256": "3cd4df6ac4e3e0df707663f6cbddd3586c19a4c0ee91c80c4c92efd14fd00af6"
+      },
+      "crates/zil-lower/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "9b737603e458bf4f8a69b37f746ca420a6524f0e",
+        "sha256": "629b59aeeefab243b4b7ad9111eb2143ef51ab9badc040eb0e790076373535d4"
+      },
+      "crates/zil-lower/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "04be2d1d0f7db7ab261ee81510262ba0278bee98",
+        "sha256": "fa3ecb9592a3d154f988a8d1141c354c357daca864008d2688251d2a537f89c2"
+      },
+      "crates/zil-syntax/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "45f7d601308d982e4bae74e6ae49e2fdf61209ae",
+        "sha256": "ed2d1d2833378bb1edaa8978f1b41cdc458ba616b0df49494237ca3c31dfafba"
+      },
+      "crates/zil-syntax/src/ast.rs": {
+        "mode": "100644",
+        "git_blob": "73c10950301ad29a2d9ad62e4edcb9d55f03ed1b",
+        "sha256": "e027ab4e952e122a972b11c98d00ae27162b779d40388cc6eb35ebbe34d61980"
+      },
+      "crates/zil-syntax/src/attributes/config.rs": {
+        "mode": "100644",
+        "git_blob": "bad9d02d756c2c117b1d00d231594fcbe1a58171",
+        "sha256": "471837895a762fc23474809c4d897551dc92cfb39530507ef05853570006b156"
+      },
+      "crates/zil-syntax/src/attributes/mod.rs": {
+        "mode": "100644",
+        "git_blob": "de86b7ad01f2ea0b050624fb1ac796e04784dcf8",
+        "sha256": "f2bc1689bc6dd0606a8bc4b3dd7d191395f2f5de8b45bd55ced3a874639df6da"
+      },
+      "crates/zil-syntax/src/attributes/registry.rs": {
+        "mode": "100644",
+        "git_blob": "ca866f35ee704f4508ad815a3fca4ed88bf2e6ca",
+        "sha256": "0fca9d64aee85225044b2e7445b77b1ebfe8011ea9141dcc498f7dce532d43b4"
+      },
+      "crates/zil-syntax/src/format.rs": {
+        "mode": "100644",
+        "git_blob": "b558334774fc820defa352addd6de1d46e28c57d",
+        "sha256": "3efdc673f19c41a2321bb1576d5c2d373f0cfeba08c2b301c1dfc8003788c3c1"
+      },
+      "crates/zil-syntax/src/lexer.rs": {
+        "mode": "100644",
+        "git_blob": "3da52fc9e9574de0e9d9aa0564bd8a3b88b566ba",
+        "sha256": "a05810a2c77590ace029d643dbcd324b9be1cdfaa4529480e4d5aa05d8c2f714"
+      },
+      "crates/zil-syntax/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "e76d49329cba8a57083fce53f05c84490ccf2ff1",
+        "sha256": "3a933eb81cac5de91a1100d4333fcd8e2dbd6bb62a4f474fb88f57291dc4fa61"
+      },
+      "crates/zil-syntax/src/parser/expr.rs": {
+        "mode": "100644",
+        "git_blob": "c82caa076ee35da44f182af31244866a753c4804",
+        "sha256": "5b1067d94b9c48f21650cb3059e52a6e21cbee6fd1a35d01982f0854151881a1"
+      },
+      "crates/zil-syntax/src/parser/items.rs": {
+        "mode": "100644",
+        "git_blob": "39c2871750ff20a3769123aa656a9aa48feb8676",
+        "sha256": "0c07ab627ea2d34a8da5934d528f23c11e64db0b4de8856dc5d16941a290b21f"
+      },
+      "crates/zil-syntax/src/parser/mod.rs": {
+        "mode": "100644",
+        "git_blob": "9b43e2a20b1136e8f5a57ffde979f1ebe3f10dd5",
+        "sha256": "5179ce26ef9e695361fdd1dc7d274edc210ae28fb45a5a5b4eca8d2f75ecf58f"
+      },
+      "crates/zil-syntax/src/parser/stmt.rs": {
+        "mode": "100644",
+        "git_blob": "a8834441f72c85454ddd207cc4e87caf71de0f31",
+        "sha256": "c0403efa2c80698f6bcf83496b91df0c0f8b1d44f2613a6f4c08de41d363cc97"
+      },
+      "crates/zil-syntax/src/parser/types.rs": {
+        "mode": "100644",
+        "git_blob": "584f48e8288b2e7268a44d5f92f11a26814d5e79",
+        "sha256": "57a3f9bc61790345b23d72ef3af0e31af1a28af4cc0c0ea2f5f8cba8d102c2fc"
+      },
+      "crates/zil-syntax/src/token.rs": {
+        "mode": "100644",
+        "git_blob": "ca5e618a6a59dfc646182779abdbea15d32e0aad",
+        "sha256": "e515c82116d140d233e9c3ae34d405169ebf7b5961ac1b438fa2dca4f7791105"
+      },
+      "crates/zil-syntax/src/unicode.rs": {
+        "mode": "100644",
+        "git_blob": "33855ce17e96537554986e1fc3ef3b6917a38c28",
+        "sha256": "ad37a735644eff46a6b4279f76b7f9b0edc32d353d8d2260537d11c6f8711a7b"
+      },
+      "crates/zil-types/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "643bc07ecbcf9d9a13119dbe7c33dd16a5e51a01",
+        "sha256": "48186032e93628d30b9eabfacc845bb484af69e7373a515b4cf63296c1c69df9"
+      },
+      "crates/zil-types/src/addresses.rs": {
+        "mode": "100644",
+        "git_blob": "0a8ffba68c4db60e4934e65bcc851b449eb14e2d",
+        "sha256": "a6239b55c8b0f58ece5584d14d4410a6af518dc2b3a109cd965b63f986cf270c"
+      },
+      "crates/zil-types/src/aggregates.rs": {
+        "mode": "100644",
+        "git_blob": "c6f436672d852d7048d7c6102fda5825d7c35713",
+        "sha256": "f896b57b8711ab69a850a12c868d90b9901faa72974912ae1bb7128b8ceaada9"
+      },
+      "crates/zil-types/src/byte_buffer.rs": {
+        "mode": "100644",
+        "git_blob": "6163b2a8280af68c5c6906edca1b0167c3e900ed",
+        "sha256": "1fbb3a1ec6d59fc6f7d86e4fa0344ac5b8700260e5e8fe34908845b66ce3d905"
+      },
+      "crates/zil-types/src/callable_fields.rs": {
+        "mode": "100644",
+        "git_blob": "8ae32d2c674d680de4c62ca95683618ae5b781b7",
+        "sha256": "89867e4ee84f2ff7f9b9bebffd4d7a3e9cb14bfd854c34a22361e9628be4d92b"
+      },
+      "crates/zil-types/src/closures.rs": {
+        "mode": "100644",
+        "git_blob": "23e2ace92c55d65d029fed7f881d2650a2c4a6d8",
+        "sha256": "a8bd3f3484fe8be67efd527952330b57ea772f5597c10333976fc775104b8294"
+      },
+      "crates/zil-types/src/closures/methods.rs": {
+        "mode": "100644",
+        "git_blob": "675456debe1de8ff0401f3203c04bc4b2b7583be",
+        "sha256": "86edff3f29a56c2722f881b7a2d536429429d4d51fd684f82981652bf0aadc2f"
+      },
+      "crates/zil-types/src/closures/package_effects.rs": {
+        "mode": "100644",
+        "git_blob": "b29d535122cab3be20284c30db016096dcd89035",
+        "sha256": "d3f7fcfbb55580140fa7a357d43aa47f25a57942f92f8e6059142e3fecc48170"
+      },
+      "crates/zil-types/src/closures/patterns.rs": {
+        "mode": "100644",
+        "git_blob": "28e5c8d35b7e29b90ffef5e26369feb38113e816",
+        "sha256": "7f4848429b1f780b4a705c0fa710014d82825a1c05c3c65a1b7a537b1287b123"
+      },
+      "crates/zil-types/src/closures/slots.rs": {
+        "mode": "100644",
+        "git_blob": "d4dec733572cbc7158e76a87a3a6bf546452b108",
+        "sha256": "a11d1888b0c4d1f90b5f08ca47309f10695f54d9bbace1752b1fbd7fee706776"
+      },
+      "crates/zil-types/src/conditions.rs": {
+        "mode": "100644",
+        "git_blob": "b38c3a5f8cb6b493524b3d8a1b2c4e2496ea4351",
+        "sha256": "2564ccabae4d6f8e6b973dfe8037275c59dc28f4c5e9de243c55ab0f77593795"
+      },
+      "crates/zil-types/src/dynamic_store.rs": {
+        "mode": "100644",
+        "git_blob": "7a8d5c43e597bd186ee68e8cb337160d44b26b4e",
+        "sha256": "4970cc92329d87b991d069ac1feee626460d85660edf52efc4fc2bf7a2f80226"
+      },
+      "crates/zil-types/src/enums.rs": {
+        "mode": "100644",
+        "git_blob": "8d604dfd4b78facbefda9611a7e4047690f7ac0a",
+        "sha256": "064f544df2f8330b47d5d703737f9c254186b39441813811f5cd88bc36113471"
+      },
+      "crates/zil-types/src/errors.rs": {
+        "mode": "100644",
+        "git_blob": "2ab720d703b06db1f8f4622aff7748f2870d16cc",
+        "sha256": "470df4355c59c332fba569a88af3df67dd5d7610770a66e726ce1d3c5e13e631"
+      },
+      "crates/zil-types/src/foreign.rs": {
+        "mode": "100644",
+        "git_blob": "f2f81f376880c02f5c40bd32da9973fd46da1309",
+        "sha256": "43a1c7e38b081d3d29e30f17b409a9de99e8e476c369540b62b6d063cc798292"
+      },
+      "crates/zil-types/src/functions.rs": {
+        "mode": "100644",
+        "git_blob": "9e60d0fdcfe636b86d9c9beb2b23fd1087760f16",
+        "sha256": "e67e9208db1ef4229251152ba189fd5394477b32d5994ecfb2154b10da16f8be"
+      },
+      "crates/zil-types/src/helper_flow.rs": {
+        "mode": "100644",
+        "git_blob": "859f819f0ac730439a4aefe829978cecaf3be964",
+        "sha256": "b72e83be497a15b4c76b8e31aa6a7e0938068e9888fda9ce88b48615a80715fc"
+      },
+      "crates/zil-types/src/helper_plan.rs": {
+        "mode": "100644",
+        "git_blob": "1c3a15d825f37827ecedfdf668841469436ee6d5",
+        "sha256": "06769b26e308c2edcdf364944eaa10690e4dbedfbd683eb195b647dd6225e97f"
+      },
+      "crates/zil-types/src/helpers.rs": {
+        "mode": "100644",
+        "git_blob": "d1f377daa03e38b29ae290047fd21606fe950ce0",
+        "sha256": "15409d55113bf78382b0c60c2cb1b59dde57eb0218594b1205e9c5790e5e1b26"
+      },
+      "crates/zil-types/src/inference.rs": {
+        "mode": "100644",
+        "git_blob": "065e71f114f876dc5311fcaec7035ed2cba47045",
+        "sha256": "e6838ae61d166a45e050268b92392825799c9f289a03988805a9ba1af98a129e"
+      },
+      "crates/zil-types/src/lending.rs": {
+        "mode": "100644",
+        "git_blob": "0f6bbb5d531a1c339987727e19debe2bce1cdc37",
+        "sha256": "d0983196dfa012199e5901ac8328a3d9345696e3c00369f4a0995426c1da656b"
+      },
+      "crates/zil-types/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "2a0526ee16015b875fe354cbd1bf63edddf36a2b",
+        "sha256": "fa0ecdfef1dcef78d3572ce193097e555a1adcc3672fa5f1ea6223a7b71549c9"
+      },
+      "crates/zil-types/src/managed_slots.rs": {
+        "mode": "100644",
+        "git_blob": "e6c8db4a16e60c736127a3ad8d3466871a3b0915",
+        "sha256": "6d4d182055e542b43a987751a2c18f5204b908e3d85905cbbf8a459cf6db8694"
+      },
+      "crates/zil-types/src/names.rs": {
+        "mode": "100644",
+        "git_blob": "0b692f9884548a2b82c1d375b94ecb229d4ffe64",
+        "sha256": "5b747c951df24c1e6169ef5429b57cefcf61b9970eeb9b1ff3ec39c39c55097f"
+      },
+      "crates/zil-types/src/packages.rs": {
+        "mode": "100644",
+        "git_blob": "d194040a6b75f6ac4d2e1b341b9a597448d390a6",
+        "sha256": "2df69d676de35dee48719b83e21b1601e164a2acaba710148ff170ea65feae25"
+      },
+      "crates/zil-types/src/program.rs": {
+        "mode": "100644",
+        "git_blob": "f2e271c312831ffa59242f6080dcf4bb62a63ec6",
+        "sha256": "ea12a6052ea6cc874dcc8d7428f2c6f6b8f064e903687e4502012f64af240e94"
+      },
+      "crates/zil-types/src/resource_effects.rs": {
+        "mode": "100644",
+        "git_blob": "cf4c5934af64e7f57c0bcd60374daf3ee2ef42d7",
+        "sha256": "5e9ea40bca14d9edff0b10dc4e0684c7da919185a775f77d88d38e17231b2e23"
+      },
+      "crates/zil-types/src/resource_effects_worklist_tests.rs": {
+        "mode": "100644",
+        "git_blob": "e266bc550dcb16d77d040f07eafce084da109040",
+        "sha256": "8bc9a7cc98962e695071352c54ce015e7dbf71cabb984eb0f4986a125dba86dd"
+      },
+      "crates/zil-types/src/resources.rs": {
+        "mode": "100644",
+        "git_blob": "cbd4dfcdecfb5b46b274d9e741991b8f55ed4e2d",
+        "sha256": "7e6811a4497473ae25692238693fd15b9332d18d45ea69d40c705f5522b70147"
+      },
+      "crates/zil-types/src/retained.rs": {
+        "mode": "100644",
+        "git_blob": "36c6db7f98c3f7803ec892f4c22a41a410de01de",
+        "sha256": "e9d05607dedcff5ff611161736b55ee61ff74b41fc80da11af3a3413cfc1dd24"
+      },
+      "crates/zil-types/src/state_origins.rs": {
+        "mode": "100644",
+        "git_blob": "0476a0a8ae55ec42e0f5420616f9ccd1f8a4f5d3",
+        "sha256": "38a054e809c77d7f6ca42e61d1316df695f958f725d7c4387951da10328b62d4"
+      },
+      "crates/zil-types/src/store_templates.rs": {
+        "mode": "100644",
+        "git_blob": "12931ee447acad749dbf069f1eaf1d323d7534a2",
+        "sha256": "e445e07a193fe8a46623e9c1911f1f22f5171f08c2ef2738d0682d4114f88737"
+      },
+      "crates/zil-verify/Cargo.toml": {
+        "mode": "100644",
+        "git_blob": "c4d16ca4f436175d2a0fd296b61257f5b1eb8fb5",
+        "sha256": "923a34cf372b236e1955935ababb8fff631bb8fbcbba256f50b949a84cbf20e9"
+      },
+      "crates/zil-verify/src/borrows.rs": {
+        "mode": "100644",
+        "git_blob": "530bc578e23c82ca35fc3131781f885b3709fe2e",
+        "sha256": "5bc78e24e83e202fca4628c160af725ec7c2e3e625d54c9f6e72bae1180bbd41"
+      },
+      "crates/zil-verify/src/borrows/buffer_effects.rs": {
+        "mode": "100644",
+        "git_blob": "247269a37786fd29c2c1a08ccc087868eb0fd2e4",
+        "sha256": "7d3a86cbaaa7cf6a0e8636f6f34207e8cccbfddd5b4151d1d01baec9daba6c32"
+      },
+      "crates/zil-verify/src/borrows/captures.rs": {
+        "mode": "100644",
+        "git_blob": "cbc78a64b61e3c386fad1e0f348a508fbb15c730",
+        "sha256": "bee7159b39cb4faadb2c461890683be0ffb5123f8509abf31975d9439979ead1"
+      },
+      "crates/zil-verify/src/borrows/loans.rs": {
+        "mode": "100644",
+        "git_blob": "bfaae52a9b171378a2a250b0d081bd43b114a74b",
+        "sha256": "6a25d9bd94e940dc89e8135b28506b2bebf237e26e9674e1f645034b2a69ae5f"
+      },
+      "crates/zil-verify/src/borrows/roots.rs": {
+        "mode": "100644",
+        "git_blob": "236c4c7a44b96d42813745b2107a6395e2367230",
+        "sha256": "972d1662dba801ca972161ff3e8e8322c64946bbc8fa20ca8a01d2eb2bf0a692"
+      },
+      "crates/zil-verify/src/byte_buffers.rs": {
+        "mode": "100644",
+        "git_blob": "706654cf5b2312d54a36d47968eaaa9614972174",
+        "sha256": "5130588bdb30a0c64472c3303ab1f88b3850a04d946f34b9068d98a7c2ac32d6"
+      },
+      "crates/zil-verify/src/c_layout.rs": {
+        "mode": "100644",
+        "git_blob": "80efd994a26796549ee96873e0fbc0a981a2a995",
+        "sha256": "e1c8c2284e306317a4327df9a214189101f74d02aadd299746f17ced6e2e2b79"
+      },
+      "crates/zil-verify/src/cleanup.rs": {
+        "mode": "100644",
+        "git_blob": "081339b11134dd298e316108595e9c7be025dab8",
+        "sha256": "3e628b3fb129cef6b725fad8f7422d625ae7dfe9fcc8be180c0570bdf84cfe9f"
+      },
+      "crates/zil-verify/src/closure_tests.rs": {
+        "mode": "100644",
+        "git_blob": "69925828b5a550f80e06bc90064a584f19c0b65e",
+        "sha256": "535e383950b26e099638af4f19a4f94ed6bfb633e834d557a16ef3cd275c56a8"
+      },
+      "crates/zil-verify/src/closures.rs": {
+        "mode": "100644",
+        "git_blob": "7b0fd9f3b3814b3f649109b068f1723c43140e99",
+        "sha256": "ed1c709dd916160dc598068cb225950e7b4d04b68747b9efedb63398175c3b49"
+      },
+      "crates/zil-verify/src/ct_program.rs": {
+        "mode": "100644",
+        "git_blob": "bc6587ea1aa5afe8fc10488dc94b8ec4ab3ad203",
+        "sha256": "0fe123f19a0c1d458a44957d731e87f0284d068cda6547b2761b2bc2f2d7d1eb"
+      },
+      "crates/zil-verify/src/dynamic_store.rs": {
+        "mode": "100644",
+        "git_blob": "444217377961312ed2f66fd2a673937165519c8e",
+        "sha256": "920ad19a71c293c36849288cde7698abe8022c739cf4cc4380a434e6ef6a167a"
+      },
+      "crates/zil-verify/src/dynamic_store/tests.rs": {
+        "mode": "100644",
+        "git_blob": "62abf6038fb243ca454c8c5836be7523d907cab6",
+        "sha256": "6c3bbd461e039e067da45ae46699710bcbc2770b6b512b4545acfd97d25ea9ce"
+      },
+      "crates/zil-verify/src/error_scope_tests.rs": {
+        "mode": "100644",
+        "git_blob": "dc09f23c56846985860b95a9342cfd5cfb0a996a",
+        "sha256": "66f72d835f4a2d7974594ca1a2321dda2465a95f303fa0475c275760ddaf4ffb"
+      },
+      "crates/zil-verify/src/errors.rs": {
+        "mode": "100644",
+        "git_blob": "1e629349975e66ac42b88dab24df0279dc9b7ca4",
+        "sha256": "029cc6b48efdf7da0c08d9f9d7baee0e52cf54076374d52302f382306db388da"
+      },
+      "crates/zil-verify/src/foreign.rs": {
+        "mode": "100644",
+        "git_blob": "35aa5d8db5a7280d1c7e44a067853193092bd86e",
+        "sha256": "1b30a4668283a1f1dfecf4a25c856f0bb982a064c490f316acaef9fc2ff40aa3"
+      },
+      "crates/zil-verify/src/helper_flow.rs": {
+        "mode": "100644",
+        "git_blob": "0c036357c5ca8a1cfa4d2040361d9bdc3a5687a1",
+        "sha256": "65d28ec8450f82e095e58eac35937535f1d04b7df392610b9488585f6eac513c"
+      },
+      "crates/zil-verify/src/helper_tests.rs": {
+        "mode": "100644",
+        "git_blob": "46656f18b0dc9e07b4065d37dae9ce6ce4b3ea6b",
+        "sha256": "0d88711f7b617cac5a7d639d2a17d156740f41bb797d4b631070b57978061353"
+      },
+      "crates/zil-verify/src/helpers.rs": {
+        "mode": "100644",
+        "git_blob": "e9921298e2e4d99b7478f72d94cbac2be49ee2cc",
+        "sha256": "ecf308c81e07e511370a35679aeb0f6c7946ad9e419c5ddad89b102a8adddc13"
+      },
+      "crates/zil-verify/src/lib.rs": {
+        "mode": "100644",
+        "git_blob": "b4376f4ca2be905cd47120571dcbd81f905f8dbc",
+        "sha256": "aef2f342acff8f7c41e520c018da3ce107ea459606cf2a5a6d45628a5e0a305e"
+      },
+      "crates/zil-verify/src/native_values.rs": {
+        "mode": "100644",
+        "git_blob": "7acee51e3768714310e5971748c12c3f72d7a25c",
+        "sha256": "4ccf0d9bdc6303207f36d7e9350d7a8daeb80ca6a8bcb4f47825366a6a887772"
+      },
+      "crates/zil-verify/src/package_tests.rs": {
+        "mode": "100644",
+        "git_blob": "e3dbb1f50931f3d86f77e55af28be71b6fa705c5",
+        "sha256": "c93da24d70902ef4eb03c1930bf30bac7b2c7b1152a7a0d557455929afeb0e72"
+      },
+      "crates/zil-verify/src/package_tests/captures.rs": {
+        "mode": "100644",
+        "git_blob": "a872783d44fa71fdd67b90f8484aa891e197e455",
+        "sha256": "f494b785f0ab737c142bad6fe673b550ad0f0f9d15e4dd3188e6394d9179cb64"
+      },
+      "crates/zil-verify/src/package_tests/fields.rs": {
+        "mode": "100644",
+        "git_blob": "c6e51a0891e39d1f087b738a1de6dec4fd3c31fd",
+        "sha256": "ebce163f27e4d6d73dbf709d758306251cbb4bda3b201e0f1430c4384ab7edd5"
+      },
+      "crates/zil-verify/src/packages.rs": {
+        "mode": "100644",
+        "git_blob": "08aee2d76ad3d8971988b17465331a6284f21958",
+        "sha256": "718fb9d9c0bf5e701c5c3a3013ce427f5c4a96cfc3432c2814ca52df91917ba0"
+      },
+      "crates/zil-verify/src/resource_closure_tests.rs": {
+        "mode": "100644",
+        "git_blob": "78bb85327a69fe9e2870b0479eda973cbb335126",
+        "sha256": "4f2bcadfad614f93d7fb8c070b3ff93826f2d58540a4f232d5222a35c8e10fb4"
+      },
+      "crates/zil-verify/src/resource_tests.rs": {
+        "mode": "100644",
+        "git_blob": "6c8a0d14c318968b2a4f2e75d258c6dff9078115",
+        "sha256": "093622bfd5096e4c02c37e71ef36ee0968911ffb388d1db6ab347a7410711200"
+      },
+      "crates/zil-verify/src/resources.rs": {
+        "mode": "100644",
+        "git_blob": "6fde9f47501b9f75743bd4f9344d4f9b11a3f0d1",
+        "sha256": "f7b4d40efba352fbeab5dbac63885ba881219be91b4930c5d2dac43a1792839a"
+      },
+      "crates/zil-verify/src/resources/arrays.rs": {
+        "mode": "100644",
+        "git_blob": "62036c47ce2ca53a8f231d87191018c9e054ca53",
+        "sha256": "09528b2ca0402a0fbb1f225eab9a5859d2cef5de86951e1c7f2e3a4fda0a97b7"
+      },
+      "crates/zil-verify/src/resources/frontier_tests.rs": {
+        "mode": "100644",
+        "git_blob": "aaadc71c378783b93e6b5e672a34ae54617dfb5d",
+        "sha256": "7c873d88039ebac4dc029ebd3c3179b7c5b899fbbe49c559b28604cc4ada4cb8"
+      },
+      "crates/zil-verify/src/retained.rs": {
+        "mode": "100644",
+        "git_blob": "3d2d7d3cdd7e5f6c13b1b4e0c7c074927cf31a8c",
+        "sha256": "95755ce283323d09f7e9ca7c9b135e1ad8546944b81dc857214d283239e336c5"
+      },
+      "crates/zil-verify/src/retained_tests.rs": {
+        "mode": "100644",
+        "git_blob": "3c3a8d3553bc2272203156e9040423c27dda434e",
+        "sha256": "01368443215905bc842e2664312232331ffdfa6c6a8f721065bac4f495a61a4d"
+      },
+      "crates/zil-verify/src/slices.rs": {
+        "mode": "100644",
+        "git_blob": "67c9d6cf20f87abf59efe41a8de08c5f2cb2d06d",
+        "sha256": "e80b26fb4470a2417b7069243a2b319b99c29d0694f73dcf0f84943ee35ca875"
+      },
+      "crates/zil-verify/src/tests.rs": {
+        "mode": "100644",
+        "git_blob": "434f2734fc0aba84b7968a180f1403232aea97a7",
+        "sha256": "013171ce9af37a7fd49919362adc5f8d5fa988cdd0cba18c6c1e1ecc2c34dd06"
+      },
+      "rust-toolchain.toml": {
+        "mode": "100644",
+        "git_blob": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c",
+        "sha256": "d13306be0ecda81ce779baa290ffb417380d525928477f16200884b5169cca33"
+      }
+    },
+    "normative": {
+      "_zil_design.md": {
+        "mode": "100644",
+        "git_blob": "e59c662f966ffc119d715419d4b9085ebc20e568",
+        "sha256": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0"
+      },
+      "data/normative-inputs.json": {
+        "mode": "100644",
+        "git_blob": "372adbf3c934a49e8265906a54a8eb9f3eefd576",
+        "sha256": "c9a89b672283c948fd66571b64596ea00c36fb4e42e78b0dd615778660417954"
+      },
+      "policy/dependencies.json": {
+        "mode": "100644",
+        "git_blob": "59fbacb84e9daa791c501fa94eac41ff01cdb7e4",
+        "sha256": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752"
+      },
+      "spec/attributes.json": {
+        "mode": "100644",
+        "git_blob": "94c9170704e0d733c77da52d8d5e2f70c9b35a53",
+        "sha256": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa"
+      },
+      "spec/diagnostics.json": {
+        "mode": "100644",
+        "git_blob": "e61cf634143cda7783df2e8d757b5240ce607cdb",
+        "sha256": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e"
+      },
+      "spec/grammar.ebnf": {
+        "mode": "100644",
+        "git_blob": "8a136721bf16241c371e3c3362fa2377f2ec1bb9",
+        "sha256": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b"
+      },
+      "spec/interfaces.json": {
+        "mode": "100644",
+        "git_blob": "356aebd37319ace53cbc1dd72fc92aba8b02b79a",
+        "sha256": "5f682c3292d4253091ff2bd3250560adfc69f29d4db2332b0d29b78a84626725"
+      },
+      "validation/product-gates.json": {
+        "mode": "100644",
+        "git_blob": "14d352d66503ba948a55b673ccb913ffb3e5842e",
+        "sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+      }
+    },
+    "independent_inputs": {
+      "crates/zil-driver/tests/impl204_review.rs": {
+        "mode": "100644",
+        "git_blob": "73c1b2440a739aecf3510b0b2ca06cadf607a059",
+        "sha256": "a9d1d0d31c920a4d2b11b82f1cb7b0dd97c062174ad4ce0fd41c0d00710da220"
+      },
+      "crates/zil-driver/tests/impl204_review_fixtures/00_package_owned_control.zil": {
+        "mode": "100644",
+        "git_blob": "789a65509f874d0809c3348b28c32034daa517f5",
+        "sha256": "8838ec1ffc59eab8a0d8351218b09f36dd23bb0894b9414a1725ad508137a5ef"
+      },
+      "crates/zil-driver/tests/impl204_review_fixtures/01_direct_store_capture.zil": {
+        "mode": "100644",
+        "git_blob": "3442780ead5cbce8d649e65514a69d35c23de6ae",
+        "sha256": "203a8981a52ad65607ff19f08f9977d9793fd2c70c45e5c0eaa46197aecd3bde"
+      },
+      "crates/zil-driver/tests/impl204_review_fixtures/02_original201_package_store_capture.zil": {
+        "mode": "100644",
+        "git_blob": "c326a8159ce211619567878e182b1ce6bb26847d",
+        "sha256": "5d430f79813e995268368bcbe3c3918e1de093007e5802f79d4f88f196905853"
+      },
+      "crates/zil-driver/tests/impl204_review_fixtures/03_mutating_store_capture.zil": {
+        "mode": "100644",
+        "git_blob": "449f9b48b3282e6ed51565617f3e379dedf75cb4",
+        "sha256": "2a05b458bb1c0758c2a3d01e6991069464e9b949672cae3c149b143c21758161"
+      },
+      "tools/language/204/review_by197/legacy-budget-baseline.json": {
+        "mode": "100644",
+        "git_blob": "0d2aaeb4d7cbb0e8eeb48142af7f34d046d51445",
+        "sha256": "3b4674302deadd9ffba91dc0e73c04e9bcaf335eb2e51eac872eebf69bce68a8"
+      },
+      "tools/language/204/review_by197/original-inputs.json": {
+        "mode": "100644",
+        "git_blob": "e59013b557d2b5a60b91858c5e6ed6391b0cc78e",
+        "sha256": "3b5ab4d628e6fa605b9c08adb0dabd252a5856dd08fdd1cd2a8878cc205a4126"
+      }
+    },
+    "consumer_inputs": {
+      "examples/mainline/store_captures204/factory.zil": {
+        "mode": "100644",
+        "git_blob": "e7fece661a6327928a5819e679c3fefd9b0d3e51",
+        "sha256": "3e6326aca9ca00eea08c45edc08240bb54273870f7128e77621c9f6e50ed2e8d"
+      },
+      "examples/mainline/store_captures204/main.zil": {
+        "mode": "100644",
+        "git_blob": "3c35cb5d47b2bb75ea25fb56a15e656864a1d3f3",
+        "sha256": "aa47e54a06846fda761ac5e29c38fa475d57664b74a71378a1e8efed311ceb26"
+      },
+      "examples/mainline/store_captures204/portable.zil": {
+        "mode": "100644",
+        "git_blob": "61400389ac630f17cf30c1a1d8b29d8a78105706",
+        "sha256": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c"
+      },
+      "examples/mainline/store_captures204/state.zil": {
+        "mode": "100644",
+        "git_blob": "a60518e7c789da5ee8baaba1a7b4c75183646f29",
+        "sha256": "99618a828044f68b02935508c981f0e511b632f85e06879bc44ff6f6346108cd"
+      },
+      "examples/mainline/store_captures204/store_helpers.zil": {
+        "mode": "100644",
+        "git_blob": "56b56fb29dc1521f7b0b91c914a264037f4757c9",
+        "sha256": "53148c2f87961fe62b09b800dd6fb9f559187b3ad0f2be0cbf8a526cec7e9b1a"
+      },
+      "tools/language/173/allocator_probe.c": {
+        "mode": "100644",
+        "git_blob": "54af1bbd829ed71ad74766e7f1348c95cecda509",
+        "sha256": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60"
+      },
+      "tools/language/178/run_command.py": {
+        "mode": "100644",
+        "git_blob": "f4aaee54ef2bd9e236663200093e15ed856a0c5b",
+        "sha256": "c5f01320f6a3edc28e5776e421ad56da6c5df0195bb2194f99c69133be95d467"
+      },
+      "tools/language/181/heap_probe.c": {
+        "mode": "100644",
+        "git_blob": "574cf1450d720421d446500be388c662bf36ae67",
+        "sha256": "aa078bd0c5247d0ed0bb4baa2dbf56f9c765940b2ef06b248177a12537d5fd03"
+      },
+      "tools/language/204/consumer.py": {
+        "mode": "100644",
+        "git_blob": "659160bf47e2fe1ae5d69acc5c185476e7c1a1e8",
+        "sha256": "c4a346623c75ef9ab46aa5d1dd3c5632e10ab2011c5e48c31393c83022f09fbd"
+      }
+    }
+  },
+  "counts": {
+    "production": 178,
+    "normative": 8,
+    "independent_inputs": 7,
+    "consumer_inputs": 9
+  },
+  "actual_other_difference": " crates/zil-driver/tests/impl204_analyze_capture.rs | 64 ++++++++++++++++++++++\n 1 file changed, 64 insertions(+)\n",
+  "current_formal_status": "Root reported workspace01 2468/1/0; one old Analyze201 diagnostic migration is pending. This equality is not a full-workspace Pass."
+}
