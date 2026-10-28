@@ -1,0 +1,1 @@
+pub fn counter(start:i32)->impl FnMut()->&i32{var n=start;return move()=>{n+=1;return &n}}fn main()->i32{var f=counter(4);let a=f();let b=f();return *a+*b}

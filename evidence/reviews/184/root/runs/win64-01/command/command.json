@@ -1,0 +1,43 @@
+{
+  "command": [
+    "python3",
+    "tools/language/184/review_platform.py",
+    "--repo",
+    ".",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets178/review184/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/run-logs/184-review/win64-01/execution",
+    "--platform",
+    "win64",
+    "--wine",
+    "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "--wine-library-path",
+    "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu",
+    "--linker",
+    "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/lld-link",
+    "--windows-lib",
+    "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernel32.lib",
+    "--windows-lib",
+    "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/msvcrt.lib",
+    "--windows-lib",
+    "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernelbase.lib"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/review184",
+  "start": 1793156444.5931659,
+  "source_commit": "898a12b29500a3682d8bacf16e2e9f6fad850736",
+  "git_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": null,
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": null,
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793156483.7913845,
+  "stdout.log_sha256": "80429c832f0edb76e09b6d77714993ff0c0eca0267b3af687d97b4aada6f8edd",
+  "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

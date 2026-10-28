@@ -1,0 +1,1 @@
+import factory;import state;fn main()->i32{var s=state.state(factory.make(7u8));let cb=&s.callback;let view=cb();bytes_reserve(s.other,4);s.count+=1;return i32(view[0])+s.count-8}

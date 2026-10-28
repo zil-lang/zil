@@ -1,0 +1,1 @@
+fn make()->impl FnMut()->&[u8]{let b=bytes_new();return move()=>{let s=bytes_view(b);bytes_truncate(b,0);return s}}fn main(){}

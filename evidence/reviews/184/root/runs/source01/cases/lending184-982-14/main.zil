@@ -1,0 +1,1 @@
+fn main(){let f=(n:i32)=>&n;let v=f(3);}

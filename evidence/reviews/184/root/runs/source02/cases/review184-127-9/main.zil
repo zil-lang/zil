@@ -1,0 +1,1 @@
+fn make(n:i32)->impl Fn(bool)->&i32{return move(flag)=>{if flag{let value=n;return &value};return &n}}fn main(){}
