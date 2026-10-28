@@ -1368,6 +1368,125 @@ fn unused_raw_field_borrow_alias_keeps_its_original_parent_position() {
 }
 
 #[test]
+fn unused_raw_exclusive_field_view_cannot_overlap_a_direct_fnmut_call() {
+    let (mut core, index) = unused_state_core();
+    let f = &mut core.functions[index];
+    f.state_parameters[0].bindings[0].kind = CallableKind::FnMut;
+    let span = f.span;
+    let end = f.body.statements.last().unwrap().clone();
+    let owner = CoreStatement {
+        id: NodeId(994000),
+        span,
+        kind: CoreStatementKind::Binding {
+            name: "last".into(),
+            mutable: true,
+            ty: None,
+            initializer: Some(CoreExpr {
+                id: NodeId(994001),
+                span,
+                kind: CoreExprKind::Name(f.parameters[0].name.clone()),
+            }),
+        },
+    };
+    let mut local = f.clone();
+    local.parameters[0].name = "last".into();
+    let mut borrowed = raw_state_field_take(&local, "view", "first", 994010);
+    let CoreStatementKind::Binding { initializer, .. } = &mut borrowed.kind else {
+        unreachable!()
+    };
+    *initializer = Some(CoreExpr {
+        id: NodeId(994013),
+        span,
+        kind: CoreExprKind::Unary {
+            op: UnaryOp::BorrowMut,
+            operand: Box::new(initializer.take().unwrap()),
+        },
+    });
+    let call = |target: CoreExpr, base| CoreStatement {
+        id: NodeId(base),
+        span,
+        kind: CoreStatementKind::Expression(CoreExpr {
+            id: NodeId(base + 1),
+            span,
+            kind: CoreExprKind::Call {
+                callee: Box::new(target),
+                arguments: vec![],
+            },
+        }),
+    };
+    let indirect = call(
+        CoreExpr {
+            id: NodeId(994022),
+            span,
+            kind: CoreExprKind::Name("view".into()),
+        },
+        994020,
+    );
+    let CoreStatementKind::Binding {
+        initializer: Some(target),
+        ..
+    } = raw_state_field_take(&local, "unused", "first", 994032).kind
+    else {
+        unreachable!()
+    };
+    let direct = call(target, 994030);
+    f.body.statements = vec![
+        owner.clone(),
+        borrowed.clone(),
+        indirect.clone(),
+        direct.clone(),
+        end.clone(),
+    ];
+    raw_types(
+        "unused-exclusive-view-last-use-before-direct",
+        &core,
+        &Limits::default(),
+        false,
+    );
+    core.functions[index].body.statements = vec![owner, borrowed, direct, indirect, end];
+    let accepted = inspect_origin_attack("unused-exclusive-view-live-across-direct-fnmut", &core);
+
+    let prefix = ORIGINAL[..ORIGINAL.find("fn run<").unwrap()]
+        .replace("Fn() -> i32", "FnMut() -> i32")
+        .replace(
+            "fn make(label: i32, value: i32)",
+            "fn make(label: i32, initial: i32)",
+        )
+        .replace(
+            "    let ticket = Ticket",
+            "    var value=initial\n    let ticket = Ticket",
+        )
+        .replace(
+            "ticket.code; return value",
+            "ticket.code; value+=1; return value",
+        );
+    let positive = format!(
+        "{prefix}\nfn run<T:Copy,F:FnMut()->i32,G:FnOnce()->i32>(state:State<T,F,G>)->i32{{\nvar last=state\nlet view=&mut last.first\nlet first=view()\nlet second=last.first()\nreturn first+second-23\n}}\nfn main()->i32{{return run(pack(make(65,10),make(66,20),17))}}\n"
+    );
+    native(
+        "used-exclusive-view-last-use-before-direct",
+        &positive,
+        "ZAB",
+        0,
+    );
+    let negative = positive.replace(
+        "let first=view()\nlet second=last.first()",
+        "let second=last.first()\nlet first=view()",
+    );
+    assert_ne!(positive, negative);
+    reject_source(
+        "used-exclusive-view-live-across-direct-fnmut",
+        &negative,
+        &[Phase::Expand, Phase::Types, Phase::Analyze, Phase::Verify],
+        None,
+    );
+    assert!(
+        !accepted,
+        "an unused declaration cannot overlap a live exclusive field view with another direct mutable call"
+    );
+}
+
+#[test]
 fn unused_state_second_binder_metadata_has_a_real_early_budget() {
     let (core, index) = unused_state_core();
     raw_types(
@@ -1925,7 +2044,7 @@ fn value_inferred_ordinary_calls_unify_every_argument_and_keep_nominal_identity(
         ),
     ] {
         assert_ne!(source, control);
-        reject_source(&label, &source, &[Phase::Expand, Phase::Types], None);
+        reject_source(label, &source, &[Phase::Expand, Phase::Types], None);
     }
 }
 
