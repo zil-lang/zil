@@ -1,0 +1,50 @@
+施工
+# 192 Package Copy字段实际借址
+
+```json
+{
+  "id": "192",
+  "parent_task": "B0",
+  "status": "施工",
+  "baseline": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "1068cda3fe79b906f49eeee4bd3f62863f9db4ae85e8a0dbaa3c439d310777b8",
+  "implementation_author": "/root/resume192",
+  "dependencies": [
+    "187",
+    "189"
+  ],
+  "write_set": [
+    "crates/zil-types/src/addresses.rs",
+    "crates/zil-analyze/src/resources.rs",
+    "crates/zil-verify/src/packages.rs",
+    "crates/zil-verify/src/resources.rs",
+    "crates/zil-verify/src/borrows/loans.rs",
+    "crates/zil-backend-llvm/src/emit/packages.rs",
+    "crates/zil-driver/tests/impl192*",
+    "examples/mainline/fields192/**",
+    "tools/language/192/**",
+    "changes/192-*",
+    "evidence/impl/192/**",
+    "crates/zil-types/src/closures.rs"
+  ],
+  "implementation_commit": null,
+  "review": null,
+  "integration_commit": null,
+  "evidence": []
+}
+```
+
+依据189四模块消费者真实暴露的Copy字段借址缺口，开放已初始化有限Copy字段的一层共享/可变地址；复用现有BorrowPackageField表示和独立物理Field根。没有新的公共schema。当前189精确候选尚独审，192仅独立候选施工，不先行合入主线。
+
+Typed/Analyze/Verify/LLVM分别按实际字段类型实现；Copy没有拥有清理债务，不可借用拥有字段状态假定。独立loan补ReadPackageField直接读权限；同字段直接读取/写入/借入、parent整体移动销毁、未初始化字段和共享到可变升级必须检查，异字段按既有字段不相交规则允许。保留189直接借址失败原件，实际State同时借回调字段与另一个状态字段作新消费者，加入原始IR/Wire攻击、默认额度和O0/O2/故障清理。不得借此开放一般Package借址、嵌套Address字段、slice或任意NonCopy字段。
+
+先changes后源码；root登记接口和独立审核。188 helper计划和191公共Flow运输由其他作者负责，合流按功能块，禁止整文件覆盖。
+
+## 精确追加
+
+192真实owned Package环境对Copy字段借址被mark_address_write旧默认分支误判shared。授权closures.rs仅在该方法识别Package并使用既有name(write=true)路径；必须仍要求explicit move、实际FnMut环境、独立字段贷款与Drop责任。非move捕获、整体Package借址及其他类别权限不变；需原输入、非move负例及独立raw验证。
+
+## 中断恢复接续
+
+2026-10-28北京时间12:21核对原执行已停止；保留全部原源码与失败，/root/history178_audit的未完成施工由/root/resume192接续。既有候选和受测source身份不改。

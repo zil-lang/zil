@@ -186,7 +186,14 @@ pub(super) fn check_definitions(
             ));
         }
         for ty in &closure.parameters {
-            check_type(ty, None)?;
+            if let Type::Address { inner, .. } = ty
+                && inner.is_copy_value()
+                && closure.result.is_copy_value()
+            {
+                check_type(inner, None)?;
+            } else {
+                check_type(ty, None)?;
+            }
         }
         if lending_result(&closure.result) {
             check_local_type(&closure.result, None, module, budget)?;
