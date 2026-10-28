@@ -1,0 +1,28 @@
+{
+  "reviewer": "/root",
+  "verdict": "Pass",
+  "implementation_commit": "de6052f0506a677d0166695ff3a928891db8f625",
+  "actual_test_source": "de6052f0506a677d0166695ff3a928891db8f625",
+  "tests": 10,
+  "failures": 0,
+  "errors": 0,
+  "actual_subprocesses": 193,
+  "evidence": "attempt02-registry-corrected.json",
+  "evidence_sha256": "2862e50f1cd61661d00d431c6bde87d1e3179a9975f2ff43f4f37a9f4bfe9496",
+  "static_review": [
+    "Git arguments use argv, not shell interpolation. Export pins a clean non-shallow source ref and checks it before publication.",
+    "Import verifies SHA256, exact advertised branch/head/prerequisites, actual tree and uses compare-and-swap for one immutable destination ref.",
+    "Local object fetch explicitly disables tag updates, FETCH_HEAD writes and recursive submodule fetching; no checkout, merge, reset, workfile/index write or remote update occurs.",
+    "Real isolated tests cover dirty staged/unstaged/untracked preservation, repeated import, fast-forward/divergence/conflict abort and rejection of missing history/identity corruption."
+  ],
+  "native_windows": "NotRun",
+  "language_semantics": "Unchanged",
+  "scope": "Offline Git transport and explicit integration workflow only; no full-language/product acceptance claim.",
+  "original_production_commit": "860181d21519312767977353945a27cff9afa8f5",
+  "refreeze_reason": "aa039194 changed canonical design bytes but retained the old generated registry. 114f6bb2 repairs only the index. The actual tool/test bytes are identical to 860181d; the full 10-test suite was independently rerun on this clean forward commit. Original receipts and original failure are retained.",
+  "source_equivalence": {
+    "tools/language/198/bundle.py": "f3b69e086816f0b2846a265286728eb681be16801f278e470b590d3fb6ae7f8f",
+    "tools/language/198/test_bundle.py": "d4b446ad9caf26d7dd26d7e3d03fe7b3ce3c8d45257780b08e9ac6cbc314d963",
+    "docs/OFFLINE-BUNDLE.md": "17345414a6186e5e9ffdf58f9c66a42b1f8a27317ea1d5fe3d67d997c956c7f3"
+  }
+}
