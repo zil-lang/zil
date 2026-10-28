@@ -1,0 +1,1 @@
+import model;pub fn forward(x:model.E!model.P)->model.E!model.P=>x

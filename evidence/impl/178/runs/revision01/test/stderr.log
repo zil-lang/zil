@@ -1,0 +1,7 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 3.66s
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+error: test failed, to rerun pass `-p zil-driver --test impl178_generic_store`
+error: 1 target failed:
+    `-p zil-driver --test impl178_generic_store`

@@ -1,0 +1,6 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review178/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review178/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 3.20s
+     Running tests/impl162_trait_bounds.rs (/workspace/scratch/39be3faa4442/targets178/review178/debug/deps/impl162_trait_bounds-349d4bf489784a2b)
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/review178/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+     Running tests/review178_definitions.rs (/workspace/scratch/39be3faa4442/targets178/review178/debug/deps/review178_definitions-600db8ced5add513)

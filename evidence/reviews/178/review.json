@@ -1,0 +1,53 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root",
+  "implementation_author": "/root/history178_audit",
+  "implementation_commit": "24402e17e1e248fb88a9a69fc5ec961388005e72",
+  "review_test_commit": "14d613107797f3a1b914c8dbd8834934e0afa7eb",
+  "spec_hash": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "normative_hash": "1cf7aadb8800c31436f158ee3cdf78bcea330ed2bfafc29112b8d11211655a6e",
+  "scope": "178 symbolic StoreElement bounds, actual carrier modes and definition-time freshness; not all language1.4",
+  "checks": {
+    "final_independent_rebuild": {
+      "passed": 31,
+      "failed": 0,
+      "ignored": 0,
+      "record": "runs/repaired03/command/command.json"
+    },
+    "initial_independent_author_and_nominal_regression": {
+      "passed": 23,
+      "record": "runs/targeted02/command.json"
+    },
+    "non_author_attack_cases": {
+      "groups": 4,
+      "source_negative_cases": 5,
+      "raw_wire_mode_mutations": 1,
+      "raw_wire_routes": 2
+    }
+  },
+  "defect_and_repair": {
+    "original_source_commit": "fc2cdb9aef61a543faf94e61aa10750c09180996",
+    "finding": "An unused generic result(create) definition returning its give input was accepted without independently establishing a fresh source. A new symbolic position was treated as if it established resource freshness.",
+    "counterexample": "fn bad<T:StoreElement>(give incoming:Store<T>)->Store<T> contract{result(create)} { return give incoming } fn main() {}",
+    "original_record": "runs/attacks01/command/command.json",
+    "original_test_result": "3 pass, 1 fail",
+    "repair": "Separate fresh_stores data, input/give-call exclusion, path intersection, source-preserving explicit local give and replacement, conservative field-take boundary. Independent raw Verify retains actual create-route enforcement.",
+    "verification": "Same non-author counterexample now Expand SafeReject; a new local is still allowed through explicit give, alias lifetime negatives and raw/Wire missing-mode negatives remain rejected."
+  },
+  "preserved_infrastructure_failure": "targeted01 referenced nonexistent test impl162_traits; no tests executed; corrected to actual impl162_trait_bounds.",
+  "review_notes": [
+    "StoreElement is a sealed shape bound, not a user impl or Copy/Managed capability. Unused templates are checked.",
+    "Source Store ordinary parameters remain descriptions. give requires an owning position and invalidates descriptor aliases, including field replacement.",
+    "Generic builtins preserve exact T in both error alternatives; instance remains subject to Types/Analyze/independent Verify.",
+    "Finite ownership-shape validation and fresh-state cloning/joins charge existing logical budgets; default limits are not raised.",
+    "Concrete generic package/callable State use remains finite; unrelated shapes are not declared supported."
+  ],
+  "limitations": [
+    "Mutable local Store replacement may be lowered to a Package field and loses proven freshness under the existing field-take INPUT boundary; this separate limitation is not claimed fixed.",
+    "No complete 1.4, concurrency, lending, dyn or compiler-performance claim."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}

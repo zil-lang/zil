@@ -1,0 +1,29 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 2.72s
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+
+running 7 tests
+test descriptor_aliases_do_not_revive_after_give_or_replacement ... ok
+test element_bound_checks_real_shapes_and_never_grants_copy_or_members ... ok
+test cross_module_helpers_preserve_two_nominal_elements_and_failure_returns ... ok
+test generic_owning_package_and_concrete_callback_state_compose ... ok
+test unused_package_fields_keep_mode_and_instance_identity ... FAILED
+test unused_templates_reject_unproven_store_element_or_owner ... ok
+test two_element_shapes_use_the_same_actual_generic_helpers ... ok
+
+failures:
+
+---- unused_package_fields_keep_mode_and_instance_identity stdout ----
+
+thread 'unused_package_fields_keep_mode_and_instance_identity' (98) panicked at crates/zil-driver/tests/impl178_generic_store.rs:227:3:
+fn bad<T:StoreElement>(s:Store<T>)->Batch<T>=>Batch::<T>{items:s}: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-FUNCTION-BODY","message":"function requires a block, arrow expression, or declaration semicolon","span":{"file":0,"start":97,"end":98},"notes":[]}],"artifacts":{},"input_fingerprint":"cc16de8776fd247ddb113cfb6661161f8abf79f34f28b1f58ca52cbc92de01c2","seconds":0.000925764,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    unused_package_fields_keep_mode_and_instance_identity
+
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+
+error: test failed, to rerun pass `-p zil-driver --test impl178_generic_store`

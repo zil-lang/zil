@@ -1,0 +1,32 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-backend-llvm)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-driver)
+error[E0425]: cannot find function `encode_candidate` in module `wire`
+  --> crates/zil-driver/tests/impl181_win64_store.rs:41:27
+   |
+41 |         let bytes = wire::encode_candidate(&module, &plan, &limits).unwrap();
+   |                           ^^^^^^^^^^^^^^^^ not found in `wire`
+
+error[E0425]: cannot find function `encode_candidate` in module `wire`
+  --> crates/zil-driver/tests/impl181_win64_store.rs:80:27
+   |
+80 |         let bytes = wire::encode_candidate(&bad, &plan, &limits).unwrap();
+   |                           ^^^^^^^^^^^^^^^^ not found in `wire`
+
+error[E0425]: cannot find function `encode_candidate` in module `wire`
+   --> crates/zil-driver/tests/impl181_win64_store.rs:104:23
+    |
+104 |     let bytes = wire::encode_candidate(&module, &plan, &limits).unwrap();
+    |                       ^^^^^^^^^^^^^^^^ not found in `wire`
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `zil-driver` (test "impl181_win64_store") due to 3 previous errors

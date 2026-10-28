@@ -1,0 +1,1 @@
+import left;import right;import helpers;fn main()->i32{let a=left.make(7);let b=right.make(35);return helpers.apply(&a)+right.apply(&b)-42}

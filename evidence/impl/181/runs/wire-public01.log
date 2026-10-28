@@ -1,0 +1,29 @@
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-ir)
+    Finished `test` profile [unoptimized] target(s) in 1.18s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets178/author181/debug/deps/zil_ir-601477dc999eefd3)
+
+running 3 tests
+test wire::state_field_tests::shared_package_shape_does_not_grant_copy_or_general_pointee_support ... ok
+test wire::state_field_tests::new_window_instructions_match_manual_bytes_and_all_truncations_fail ... ok
+test wire::state_field_tests::window_fingerprints_bind_each_index_operand_and_mutability ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 0.00s
+
+     Running tests/impl092_slice_wire.rs (/workspace/scratch/39be3faa4442/targets178/author181/debug/deps/impl092_slice_wire-da5a3021bb4add30)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests/impl096_byte_buffer_wire.rs (/workspace/scratch/39be3faa4442/targets178/author181/debug/deps/impl096_byte_buffer_wire-47700b34149ccde6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/review092_slice_transport.rs (/workspace/scratch/39be3faa4442/targets178/author181/debug/deps/review092_slice_transport-f723623e6b01ce74)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+

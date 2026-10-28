@@ -1,0 +1,21 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 10.10s
+     Running tests/impl162_trait_bounds.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl162_trait_bounds-349d4bf489784a2b)
+     Running tests/impl174_store_fields.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl174_store_fields-8eef8171035c8a9f)
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+     Running tests/impl177_state_composition.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl177_state_composition-343f8c8517143965)
+error: test failed, to rerun pass `-p zil-driver --test impl177_state_composition`
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+error: 1 target failed:
+    `-p zil-driver --test impl177_state_composition`

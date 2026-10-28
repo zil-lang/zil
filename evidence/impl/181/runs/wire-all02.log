@@ -1,0 +1,39 @@
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-ir)
+    Finished `test` profile [unoptimized] target(s) in 1.16s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets178/author181/debug/deps/zil_ir-601477dc999eefd3)
+
+running 31 tests
+test wire::owned_carrier_tests::schema19_owned_claims_reject_noncanonical_flags_and_array_allocation_bombs ... ok
+test wire::state_field_tests::new_window_instructions_match_manual_bytes_and_all_truncations_fail ... ok
+test wire::state_field_tests::window_fingerprints_bind_each_index_operand_and_mutability ... ok
+test wire::state_field_tests::shared_package_shape_does_not_grant_copy_or_general_pointee_support ... ok
+test wire::owned_carrier_tests::schema19_owned_claims_fingerprint_binds_every_operand_and_flag ... ok
+test wire::store_tests::store_type_has_distinct_tag_and_nested_metadata_is_bounded_both_ways ... ok
+test wire::owned_carrier_tests::schema19_owned_claims_roundtrip_with_distinct_fixed_opcodes ... ok
+test wire::tests::borrowed_callable_operation_binds_requested_mode_and_real_address ... ok
+test wire::store_tests::store_fingerprint_binds_each_operand_and_full_element_type ... ok
+test wire::store_tests::shared_head_shape_does_not_expand_general_pointees_or_sealed_heads ... ok
+test wire::store_tests::schema22_wire_rejects_all_old_versions_and_next_unknown_version ... ok
+test wire::tests::byte_count_node_depth_and_execution_quotas_precede_allocation ... ok
+test wire::tests::ct_roundtrip_is_stable_and_preserves_raw_claims ... ok
+test wire::store_tests::store_raw_ops_have_fixed_tags_and_reject_every_truncated_prefix ... ok
+test wire::tests::forbidden_ops_and_dependencies_survive_as_untrusted_data ... ok
+test wire::tests::bytes083_scalar_ct_current_wire_preserves_byte_conversion_and_all_prefixes_reject ... ok
+test wire::tests::every_truncated_ct_prefix_is_rejected_without_panicking ... ok
+test wire::tests::module_and_candidate_roundtrip_and_every_partial_record_rejects ... ok
+test wire::tests::rejects_trailing_bytes_noncanonical_bool_and_unknown_type ... ok
+test wire::tests::raw_cache_keeps_resource_claims_without_endorsing_them ... ok
+test wire::tests::rejects_unknown_opcode_version_and_missing_typed_claims ... ok
+test wire::tests::concrete_helper_contract_roundtrips_and_binds_each_claim ... ok
+test wire::tests::error_cleanup_raw_contract_roundtrips_and_binds_each_claim ... ok
+test wire::tests::package_capture_view_current_wire_preserves_indices_end_kind_and_fingerprints ... ok
+test wire::type_stack_tests::type_nodes_keep_the_exact_preexisting_collection_and_child_charge ... ok
+test wire::tests::shared_address_operations_and_raw_hold_claims_roundtrip ... ok
+test wire::type_stack_tests::independently_encoded_258_level_input_rejects_before_host_stack_exhaustion ... ok
+test wire::type_stack_tests::default_type_depth_boundary_is_a_result_on_the_normal_test_stack ... ok
+test wire::tests::resource_closure_operations_bind_wire_and_fingerprint ... ok
+test wire::tests::resource_raw_fields_roundtrip_bind_fingerprint_and_reject_old_wire ... ok
+test wire::tests::package_wire_preserves_untrusted_shape_and_binds_all_field_operations ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

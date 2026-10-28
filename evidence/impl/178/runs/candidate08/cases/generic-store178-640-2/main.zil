@@ -1,0 +1,1 @@
+fn bad<T:StoreElement>(condition:bool)->i64{let s:Store<T>=store_new();let old=s;let next=give s;return store_len(old)}fn main(){}
