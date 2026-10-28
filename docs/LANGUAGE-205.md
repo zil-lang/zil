@@ -77,7 +77,7 @@ F 是类型绑定；State 的两个字段和 replacement 是至多三个实际�
 
 交付标准完整main Git bundle及204→205增量bundle，保存可审计历史；旁置JSON固定提交、tree、前置对象、大小和SHA256。离线导入只建立不可变语言incoming ref，用户在独立集成分支合入实际编译支线。现有一键脚本未提供，故只验证标准bundle与随包import helper，不冒称验证过该脚本。
 
-新源码Git只收录代码、测试、工具、文档与紧凑收据。完整源码/raw/Wire/IR、二进制标准I/O、命令与原失败独立无损去重压缩；执行产物仅保哈希，Cargo缓存不交付。最终容器大小、SHA、恢复及独审见ARCHIVE.json与离线说明。
+新源码Git只收录代码、测试、工具、文档与紧凑收据。完整源码/raw/Wire/IR、二进制标准I/O、命令与原失败独立无损去重压缩；执行产物仅保哈希，Cargo缓存不交付。主证据标准tar.xz为23,525,588字节（23.53MB），32346个成员经逐字及独立CRC/SHA/XZ尾部检查。它保存声明的11个来源；原CT01/CT02与旧预算临时树约3.15MB原始数据、最终审核及离线命令另入小补充包，不把主包冒称为全部证据。最终身份、恢复及独审见ARCHIVE.json与离线说明。
 
 下一206优先有限完整嵌套Package Product：父字段持一笔完整child责任，取出为独立局部后可部分操作；逐Managed叶保留Created/Incoming，不把装包或取子包当作新建资源。允许只含child的自然wrapper，不要求多造dummy资源。普通完整值准入与旧capture/Store/Sum/owning-array资格分开，深层可操作Place不随之开放。
 
