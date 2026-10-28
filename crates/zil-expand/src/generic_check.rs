@@ -1669,8 +1669,15 @@ impl Check<'_, '_, '_> {
                 member: MemberName::Name(member),
             } => {
                 let package = self.package_local(object, state);
-                let value = self.expr(object, state, None, borrowing || package.is_some())?;
-                let TypeKind::Named { path, args } = &group(&value).kind else {
+                // Reading a field first accesses its base place. In particular
+                // an exclusive address is not moved just to read a Copy child.
+                // Non-Copy callable fields still consume their own slot below.
+                let value = self.expr(object, state, None, true)?;
+                let (base, through_address) = match &group(&value).kind {
+                    TypeKind::Reference { inner, .. } => (group(inner), true),
+                    _ => (group(&value), false),
+                };
+                let TypeKind::Named { path, args } = &base.kind else {
                     return Err(needs_bound());
                 };
                 let Some(Item {
@@ -1704,6 +1711,14 @@ impl Check<'_, '_, '_> {
                     substitutions.insert(p.name.clone(), ty.clone());
                 }
                 let ty = substituted_type(&field.ty, &substitutions, self.budget)?;
+                if through_address
+                    && (field.manages || !known_copy(&ty, &self.variables, self.nominals))
+                {
+                    return Err(unsupported(
+                        e.span,
+                        "generic address field reads require a proven Copy projection",
+                    ));
+                }
                 if field.manages
                     && self
                         .existing_field_slot(e, state)?
