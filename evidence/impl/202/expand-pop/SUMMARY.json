@@ -1,0 +1,91 @@
+{
+  "task": "202 Expand ordinary helper result context",
+  "phase": "Expand only",
+  "production_commit": "f200d5be6a4af1facd90e95daf860464681ae714",
+  "design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+  "normative_hash": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+  "runs": [
+    {
+      "run": "pop01",
+      "status": "Fail",
+      "source_commit": "13467585c410b5b08b403d2df4e94477a22ab7f8",
+      "clean": false,
+      "passed": 0,
+      "failed": 1,
+      "receipt_sha256": "b541648716c5d30010bdbe7a3ca5f636e0090fb557d456655d4879d8441ae785",
+      "instrumented_diagnostic_only": false
+    },
+    {
+      "run": "pop-debug01",
+      "status": "Fail",
+      "source_commit": "13467585c410b5b08b403d2df4e94477a22ab7f8",
+      "clean": false,
+      "passed": 0,
+      "failed": 1,
+      "receipt_sha256": "5251a784c8a338ff17fd6e6f9912b1f94a7c46569c6c6addc3e37b9800f43583",
+      "instrumented_diagnostic_only": true
+    },
+    {
+      "run": "pop02",
+      "status": "Pass",
+      "source_commit": "13467585c410b5b08b403d2df4e94477a22ab7f8",
+      "clean": false,
+      "passed": 16,
+      "failed": 0,
+      "receipt_sha256": "4cb2a0520279bce73f9bcc21d05753fe9371d591ffe597fabea425567fe46ba7",
+      "instrumented_diagnostic_only": false
+    },
+    {
+      "run": "pop03",
+      "status": "Pass",
+      "source_commit": "13467585c410b5b08b403d2df4e94477a22ab7f8",
+      "clean": false,
+      "passed": 17,
+      "failed": 0,
+      "receipt_sha256": "afe3834714874b97d37b6c6c398ffd58a7e30076728460dea93f57fbb1f4b558",
+      "instrumented_diagnostic_only": false
+    },
+    {
+      "run": "pop04",
+      "status": "Pass",
+      "source_commit": "f200d5be6a4af1facd90e95daf860464681ae714",
+      "clean": true,
+      "passed": 17,
+      "failed": 0,
+      "receipt_sha256": "cd43cae21d69b95642e3172678706b39c0e1ed6d45642a6ea0d9f4d81b4be697",
+      "instrumented_diagnostic_only": false
+    }
+  ],
+  "exact_independent_source": {
+    "sha256": "406ced096b964088aa184d722bf33c96c41800713a53ed306d6fc431ef0c93f0",
+    "bytes": 1550,
+    "core_sha256": "861669baf549105ca45f8b7dc07160b7152e6b275ab0f5d59cb613a426d7c738",
+    "source_map_sha256": "9e94902fd089139a182b2e6eab10df52d6cf755e079c1712b392ee1cb5bee048"
+  },
+  "change": "The original definition checker must not unify a concrete callback-helper payload result with its callers entire error union. call_context retains complete-union constraints only for a written callee union result; Store-success explicit context remains. Actual argument binding and same_return are unchanged.",
+  "nearest_controls": {
+    "matching_explicit_union": "Expand Success",
+    "wrong_result_i32_to_void_error_bool": "Expand SafeReject E-GENERIC-ARGUMENT: generic body types must agree before concrete instantiation",
+    "wrong_error_bool_error_i32_to_void_error_i32": "Expand SafeReject E-GENERIC-ARGUMENT: generic parameter does not match argument type"
+  },
+  "budgets": {
+    "pop_helper": 12291,
+    "legacy197": 1731,
+    "ordinary_store_eager": 2255,
+    "deferred_original_factory": 8399,
+    "callable_nominal_collision": 12755,
+    "checks": "N Success, N-1 ResourceLimit, fresh N Success; defaults unchanged"
+  },
+  "failure_retention": "pop01 is the exact original safe rejection; pop-debug01 temporarily prints actual pattern/expected types only and is not final production. Both dirty inputs and output are retained. pop02/pop03 are dirty successful exploration; only pop04 supports the clean frozen-source score.",
+  "native": "NotRun in this Expand receipt",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "archive": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/202-expand-pop-evidence.zip",
+    "bytes": 214659,
+    "sha256": "8ea71828dbc7f04072be69deeeddf3c1c10ee9c31fd52b3eb7751cfc86999a62",
+    "payload_files": 68,
+    "integrity": "ZIP CRC and each payload SHA256 verified",
+    "execution_artifacts": false
+  }
+}

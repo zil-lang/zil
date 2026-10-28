@@ -118,4 +118,56 @@ mod tests {
             ResultCategory::Cancelled
         );
     }
+
+    #[test]
+    fn editor202_full_store_types_match_driver_and_invalidate_changed_bounds() {
+        let cases = [
+            include_str!("../../zil-driver/tests/impl202_fixtures/01_original_push.zil"),
+            include_str!("../../zil-driver/tests/impl202_fixtures/02_original_factory.zil"),
+        ];
+        let mut editor = EditorSession::new();
+        let options = CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        };
+        for original in cases {
+            // Reuse the same file/module/path across edits: stale template or
+            // concrete-type bindings must not survive the source fingerprint.
+            let source = SourceUnit::new(FileId(0), ModuleId(0), "store-template202.zil", original);
+            let cli = zil_driver::compile_source(&source, &options);
+            assert_eq!(cli.status, ResultCategory::Success, "{}", cli.to_json());
+            assert_eq!(cli.verification_runs, 1);
+            let cold = editor.analyze(&source, &options);
+            assert_eq!(cold.status, cli.status);
+            assert_eq!(cold.phase, cli.phase);
+            assert_eq!(cold.diagnostics, cli.diagnostics);
+            let warm = editor.analyze(&source, &options);
+            assert_eq!(warm.status, ResultCategory::Success);
+            assert_eq!(warm.verification_runs, 1);
+            assert!(
+                warm.query_events
+                    .iter()
+                    .any(|event| event.disposition == QueryDisposition::Reused)
+            );
+            let changed = original.replacen("fn push<T: StoreElement>", "fn push<T: Copy>", 1);
+            assert_ne!(original, changed);
+            let edited = SourceUnit::new(FileId(0), ModuleId(0), "store-template202.zil", changed);
+            let cli = zil_driver::compile_source(&edited, &options);
+            let ide = editor.analyze(&edited, &options);
+            assert_ne!(cli.status, ResultCategory::Success);
+            assert_eq!(cli.phase, zil_base::Phase::Expand);
+            assert_eq!(ide.status, cli.status);
+            assert_eq!(ide.phase, cli.phase);
+            assert_eq!(ide.diagnostics, cli.diagnostics);
+            assert_eq!(ide.verification_runs, 0);
+            let restored = editor.analyze(&source, &options);
+            assert_eq!(
+                restored.status,
+                ResultCategory::Success,
+                "{}",
+                restored.to_json()
+            );
+            assert_eq!(restored.verification_runs, 1);
+        }
+    }
 }

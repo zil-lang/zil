@@ -297,6 +297,9 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
                     CoreExprKind::Unary { operand, .. }
                     | CoreExprKind::CompileTime(operand)
                     | CoreExprKind::Try(operand)
+                    | CoreExprKind::TypeApply {
+                        callee: operand, ..
+                    }
                     | CoreExprKind::Ascribed { value: operand, .. }
                     | CoreExprKind::IntegerConvert { value: operand, .. } => {
                         pending.push((Visit::Expr(operand), depth + 1))
@@ -452,6 +455,7 @@ mod tests {
     fn function(id: u32, body: CoreBlock) -> CoreFunction {
         CoreFunction {
             callable_return: None,
+            type_parameters: Vec::new(),
             callable_parameters: Vec::new(),
             foreign: None,
             id: NodeId(id),
@@ -644,5 +648,31 @@ mod tests {
                 quota(span(41 + selected as u32))
             );
         }
+    }
+
+    #[test]
+    fn ct202_fresh_ids_include_the_static_callee_inside_type_application() {
+        let mut core = input();
+        core.functions[0].body.statements.push(statement(
+            401,
+            CoreStatementKind::Expression(expression(
+                402,
+                CoreExprKind::TypeApply {
+                    callee: Box::new(expression(9000, CoreExprKind::Name("target".into()))),
+                    type_arguments: vec![Type::Named("T".into())],
+                },
+            )),
+        ));
+        assert_eq!(first_free_id(&core, &Limits::default()).unwrap(), 9001);
+        let CoreStatementKind::Expression(application) =
+            &mut core.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::TypeApply { callee, .. } = &mut application.kind else {
+            panic!()
+        };
+        callee.id = NodeId(u32::MAX);
+        assert!(first_free_id(&core, &Limits::default()).is_err());
     }
 }

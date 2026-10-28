@@ -308,6 +308,8 @@ fn resolve_indexed(
         }
     }
     let mut resolver = Resolver {
+        ordinary_parameter: None,
+        active_callable_parameters: &[],
         callable_names: core
             .functions
             .iter()
@@ -343,7 +345,22 @@ fn resolve_indexed(
         declaration.variants = variants;
     }
     let mut functions = core.functions.clone();
-    for f in &mut functions {
+    for (f, original) in functions.iter_mut().zip(&core.functions) {
+        resolver.active_callable_parameters = &original.callable_parameters;
+        store_templates::validate_header(f).map_err(|e| vec![e])?;
+        if let Some(parameter) = f.type_parameters.first() {
+            resolver.remaining = resolver
+                .remaining
+                .checked_sub(parameter.name.len().saturating_add(1))
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Types,
+                        "ordinary binder resolution budget exceeded",
+                        Some(f.span),
+                    )]
+                })?;
+            resolver.ordinary_parameter = Some(parameter.name.clone());
+        }
         for bound in &mut f.callable_parameters {
             bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
             for ty in &mut bound.parameters {
@@ -385,6 +402,8 @@ fn resolve_indexed(
             }
         }
         resolver.block(&mut f.body, 0).map_err(|e| vec![e])?;
+        resolver.ordinary_parameter = None;
+        resolver.active_callable_parameters = &[];
     }
     *remaining = resolver.remaining;
     let mut aggregates = core.aggregates.clone();
@@ -414,6 +433,8 @@ fn owned_mode_type(ty: &Type) -> Type {
 
 struct Resolver<'a> {
     callable_names: BTreeSet<String>,
+    ordinary_parameter: Option<String>,
+    active_callable_parameters: &'a [CoreCallableParameter],
     declarations: BTreeMap<String, &'a CoreAggregate>,
     enum_declarations: BTreeMap<String, &'a CoreEnum>,
     owners: BTreeMap<String, u32>,
@@ -423,6 +444,37 @@ struct Resolver<'a> {
     depth_limit: usize,
 }
 impl Resolver<'_> {
+    fn callback_error_payload(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
+        let Type::Package { fields, .. } = ty else {
+            return Ok(false);
+        };
+        if self.active_callable_parameters.is_empty() {
+            return Ok(false);
+        }
+        for (_, field) in fields {
+            self.charge(depth, span)?;
+            if let Type::Named(name) = field {
+                self.remaining = self
+                    .remaining
+                    .checked_sub(
+                        name.len()
+                            .saturating_add(1)
+                            .saturating_mul(self.active_callable_parameters.len()),
+                    )
+                    .ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "callback error payload budget exceeded",
+                            Some(span),
+                        )
+                    })?;
+            }
+        }
+        Ok(dynamic_store::callback_element(
+            ty,
+            |field| matches!(field, Type::Named(name) if self.active_callable_parameters.iter().any(|b| &b.generic_name == name)),
+        ))
+    }
     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
         let resolved = self.ty(&field.ty, depth, field.span)?;
         if dynamic_store::is_carrier(&resolved) && !field.manages {
@@ -471,6 +523,11 @@ impl Resolver<'_> {
         }
     }
     fn store_element_shape(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
+        if let Type::Named(name) = ty
+            && self.ordinary_parameter.as_ref() == Some(name)
+        {
+            return Ok(true);
+        }
         if dynamic_store::supported_element(ty) {
             return Ok(true);
         }
@@ -519,6 +576,7 @@ impl Resolver<'_> {
     fn ty(&mut self, ty: &Type, depth: usize, span: Span) -> R<Type> {
         self.charge(depth, span)?;
         Ok(match ty {
+            Type::Named(name) if self.ordinary_parameter.as_ref() == Some(name) => ty.clone(),
             Type::Named(name) if name == "ByteBuffer" => Type::Desc(Box::new(Type::ByteBuffer)),
             Type::Named(name)
                 if self.declarations.contains_key(name)
@@ -733,10 +791,25 @@ impl Resolver<'_> {
                     result: Box::new(result),
                 };
                 if !errors::supported(&union) {
-                    return Err(unsupported(
-                        span,
-                        "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
-                    ));
+                    let mut symbolic = self
+                        .ordinary_parameter
+                        .as_ref()
+                        .is_some_and(|name| store_templates::symbolic_type(&union, name));
+                    if !symbolic && let Type::ErrorUnion { error, result } = &union {
+                        let error_ok = error.is_copy_value()
+                            || packages::supported(error)
+                            || self.callback_error_payload(error, depth + 1, span)?;
+                        let result_ok = result.is_copy_value()
+                            || packages::supported(result)
+                            || self.callback_error_payload(result, depth + 1, span)?;
+                        symbolic = error_ok && result_ok;
+                    }
+                    if !symbolic {
+                        return Err(unsupported(
+                            span,
+                            "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+                        ));
+                    }
                 }
                 union
             }
@@ -902,6 +975,15 @@ impl Resolver<'_> {
             CoreExprKind::Binary { left, right, .. } => {
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
+            }
+            CoreExprKind::TypeApply {
+                callee,
+                type_arguments,
+            } => {
+                for argument in type_arguments {
+                    *argument = self.ty(argument, depth + 1, e.span)?;
+                }
+                self.expr(callee, depth + 1)?;
             }
             CoreExprKind::Call { callee, arguments } => {
                 self.expr(callee, depth + 1)?;
@@ -1092,7 +1174,7 @@ impl Builder<'_, '_> {
             self.same(&ty, expected, span)?;
         }
         let kind = InstructionKind::Call {
-            function: signature.id,
+            function: signature.concrete_id(span)?,
             arguments,
         };
         if ty == Type::Unit {

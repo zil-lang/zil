@@ -3,7 +3,9 @@ use super::*;
 
 impl Signature {
     pub(super) fn pointer_type(&self) -> Option<Type> {
-        if !self.callable.is_empty()
+        if self.id.is_none()
+            || self.type_parameter.is_some()
+            || !self.callable.is_empty()
             || self.foreign
             || self.cleanup
             || !self.parameters.iter().all(Type::is_copy_value)
@@ -40,7 +42,7 @@ impl Builder<'_, '_> {
                 "function pointer parameters and result require pure Copy values; indirect address contracts are not implemented")
         })?;
         let instruction = InstructionKind::FunctionRef {
-            function: signature.id,
+            function: signature.concrete_id(expression.span)?,
         };
         let value = self.value(instruction, ty.clone(), expression.span)?;
         Ok((value, ty))

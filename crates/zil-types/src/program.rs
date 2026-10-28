@@ -52,7 +52,7 @@ pub fn check_program(
             .checked_add(
                 core.functions
                     .iter()
-                    .filter(|f| f.callable_parameters.is_empty())
+                    .filter(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
                     .count(),
             )
             .filter(|n| *n <= limits.max_functions)
@@ -92,7 +92,7 @@ pub fn check_program(
                 - core
                     .functions
                     .iter()
-                    .filter(|f| f.callable_parameters.is_empty())
+                    .filter(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
                     .count(),
         ));
     }
@@ -122,7 +122,7 @@ pub fn check_program(
         m.core
             .functions
             .iter()
-            .any(|f| !f.callable_parameters.is_empty())
+            .any(|f| !(f.callable_parameters.is_empty() && f.type_parameters.is_empty()))
     }) {
         let mut enum_budget = limits.max_analysis_steps;
         for table in signatures_by_module.values() {
@@ -135,7 +135,7 @@ pub fn check_program(
             if core
                 .functions
                 .iter()
-                .all(|f| f.callable_parameters.is_empty())
+                .all(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
             {
                 continue;
             }
@@ -163,7 +163,7 @@ pub fn check_program(
             .iter()
             .filter(|f| f.callable_return.is_some())
         {
-            let id = table[&f.name].id;
+            let id = table[&f.name].concrete_id(f.span).map_err(|e| vec![e])?;
             let dependencies = retained::factory_dependencies(
                 f,
                 table,
@@ -232,16 +232,17 @@ pub fn check_program(
         for f in core
             .functions
             .iter()
-            .filter(|f| f.callable_parameters.is_empty())
+            .filter(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
         {
             let signature = &table[&f.name];
-            let mut typed = if let Some(typed) = factories.remove(&signature.id) {
+            let id = signature.concrete_id(f.span).map_err(|e| vec![e])?;
+            let mut typed = if let Some(typed) = factories.remove(&id) {
                 typed
             } else {
                 let pending_start = closure_state.pending.len();
                 let thin_start = closure_state.thin.len();
-                let mut builder = Builder::new(f, signature.id, table, limits, &mut closure_state)
-                    .map_err(|e| vec![e])?;
+                let mut builder =
+                    Builder::new(f, id, table, limits, &mut closure_state).map_err(|e| vec![e])?;
                 builder.imports = Some(&imports);
                 builder.enums = Some(&enum_types);
                 let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
@@ -258,12 +259,12 @@ pub fn check_program(
             };
             // This is a diagnostic label only; all resolution and calls use module/function IDs.
             if core.module_id != program.root {
-                typed.name = format!("@module{}:function{}", core.module_id.0, signature.id.0);
+                typed.name = format!("@module{}:function{}", core.module_id.0, id.0);
             }
             let export = ScalarFunction {
                 result_mode: f.result_mode,
                 name: f.name.clone(),
-                function: signature.id,
+                function: id,
                 parameters: f
                     .parameters
                     .iter()
@@ -307,12 +308,20 @@ pub fn check_program(
             interface.exports.push(export.signature.clone());
         }
     }
+    let bound_elements =
+        store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
-    dynamic_store::add_definitions(&functions, &mut resources, &closures, limits)
-        .map_err(|e| vec![e])?;
+    dynamic_store::add_definitions(
+        &functions,
+        &mut resources,
+        &closures,
+        &bound_elements,
+        limits,
+    )
+    .map_err(|e| vec![e])?;
     let mut module = TypedModule {
         resources,
         schema_version: SCHEMA_VERSION,

@@ -39,7 +39,24 @@ impl Expander<'_> {
                 Vec::new()
             }
         };
-        if (callable_parameters.is_empty() && !f.generics.is_empty()) || !f.where_clause.is_empty()
+        let type_parameters =
+            match generics::store_templates::core_parameters(f, &mut self.callable_work) {
+                Ok(parameters) if prefix.is_none() => parameters,
+                Ok(parameters) if parameters.is_empty() => parameters,
+                Ok(_) => {
+                    self.unsupported(
+                        "ordinary StoreElement template methods are not implemented",
+                        f.span,
+                    );
+                    Vec::new()
+                }
+                Err(diagnostic) => {
+                    self.diagnostics.push(diagnostic);
+                    Vec::new()
+                }
+            };
+        if (callable_parameters.is_empty() && type_parameters.is_empty() && !f.generics.is_empty())
+            || !f.where_clause.is_empty()
         {
             self.unsupported("generic function specialization", f.span);
         }
@@ -103,7 +120,9 @@ impl Expander<'_> {
             .return_type
             .as_ref()
             .and_then(|ty| self.callable_return(ty));
-        if callable_return.is_some() && (!callable_parameters.is_empty() || host.is_some()) {
+        if callable_return.is_some()
+            && (!callable_parameters.is_empty() || !type_parameters.is_empty() || host.is_some())
+        {
             self.unsupported(
                 "opaque callable factories must be ordinary nongeneric functions",
                 f.span,
@@ -137,6 +156,7 @@ impl Expander<'_> {
         };
         self.functions.push(CoreFunction {
             callable_return,
+            type_parameters,
             callable_parameters,
             result_mode,
             foreign: None,

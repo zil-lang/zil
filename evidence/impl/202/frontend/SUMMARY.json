@@ -1,0 +1,1146 @@
+{
+  "schema_version": 1,
+  "task": "202 ordinary StoreElement templates: Types author evidence",
+  "author_branch": "impl/202-types",
+  "production_freeze": "ba4e4d07a1f14573871844f790a4daabc5efe9db",
+  "compiler_schema": 26,
+  "design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+  "normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+  "production_milestones": [
+    "0470a2d0e2b841588ad2b3a4f06aa1d983ea8ed0",
+    "37542381bb919e81631bd7aed9151ed90fa7bd55",
+    "0098acdc239b97ed8c7c87ebf643b9a5ea47526b",
+    "ba4e4d07a1f14573871844f790a4daabc5efe9db"
+  ],
+  "final_author_results": {
+    "driver": {
+      "run": "final02",
+      "passed": 14,
+      "failed": 0,
+      "source": 8,
+      "raw": 4,
+      "budget": 2,
+      "native_executions": 22
+    },
+    "types_library": {
+      "run": "types03",
+      "passed": 18,
+      "failed": 0
+    },
+    "raw_core": {
+      "shapes": 14,
+      "entry_checks": 28,
+      "legal_controls": 4,
+      "rejected_routes": 24,
+      "entry_points": [
+        "single",
+        "program"
+      ]
+    },
+    "own_cli_build": null,
+    "separate_integration": "Root fullworkspace, independent review, exact CLI, and Linux/Wine allocation-fault matrices have separate receipts and are not added to these author counts."
+  },
+  "original_fixtures": [
+    {
+      "path": "crates/zil-driver/tests/impl202_fixtures/01_original_push.zil",
+      "sha256": "101580f8d78e661011d3b73f731c4f2f2ae376a408c1cc02c8aa072d4f627bf9"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl202_fixtures/02_original_factory.zil",
+      "sha256": "d8fd10675872542e99533ee23957db2c3150760a2f71ea8ff28150ad6c3a7a55"
+    }
+  ],
+  "types_budget_boundaries": [
+    {
+      "label": "old-nested-helper",
+      "source_sha256": "2e59bac9e5b55e2300f255040b7acb62dfef986714eb5b2165ec55ace7bfd87b",
+      "types_work": 11792,
+      "types_locals": 40,
+      "types_functions": 8,
+      "old_work_locals": [
+        11792,
+        40
+      ],
+      "checks": "default == exact N == fresh N; N-1 Types ResourceLimit",
+      "archive_path": "logs/final02/budget202-old-nested-helper"
+    },
+    {
+      "label": "old-original02",
+      "source_sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+      "types_work": 4241,
+      "types_locals": 16,
+      "types_functions": 5,
+      "old_work_locals": [
+        4241,
+        16
+      ],
+      "checks": "default == exact N == fresh N; N-1 Types ResourceLimit",
+      "archive_path": "logs/final02/budget202-old-original02"
+    },
+    {
+      "label": "old-two-elements",
+      "source_sha256": "ca1e30fdce8bebc1c337ddeba934603496eaef21d041fd99d3130eaabfad7969",
+      "types_work": 11851,
+      "types_locals": 39,
+      "types_functions": 7,
+      "old_work_locals": [
+        11851,
+        39
+      ],
+      "checks": "default == exact N == fresh N; N-1 Types ResourceLimit",
+      "archive_path": "logs/final02/budget202-old-two-elements"
+    },
+    {
+      "label": "original-factory",
+      "source_sha256": "d8fd10675872542e99533ee23957db2c3150760a2f71ea8ff28150ad6c3a7a55",
+      "types_work": 18959,
+      "types_locals": 41,
+      "types_functions": 9,
+      "old_work_locals": null,
+      "checks": "default == exact N == fresh N; N-1 Types ResourceLimit",
+      "archive_path": "logs/final02/budget202-original-factory"
+    },
+    {
+      "label": "original-push",
+      "source_sha256": "101580f8d78e661011d3b73f731c4f2f2ae376a408c1cc02c8aa072d4f627bf9",
+      "types_work": 20085,
+      "types_locals": 43,
+      "types_functions": 8,
+      "old_work_locals": null,
+      "checks": "default == exact N == fresh N; N-1 Types ResourceLimit",
+      "archive_path": "logs/final02/budget202-original-push"
+    }
+  ],
+  "failure_policy": {
+    "all_runs_retained": true,
+    "dirty_runs_relabelled_as_clean": false,
+    "dirty_snapshot_limit": "Historical dirty runs retain real HEAD, tracked diff SHA and untracked-file SHA, commands, test sources and outputs. Full compiler patch bytes were not saved for every dirty run. Only the final clean commit is asserted fully reproducible.",
+    "classification": "Zero-stride identity is Verify Unsupported; explicit wrong-side annotation is Types SafeReject with zero Verify runs. Neither is reclassified as a raw machine-safety attack.",
+    "external_consumer_failure": "Original CLI02 failures belong to the consumer author and independent archives; this archive includes the Types dirty fix run and final clean unchanged-source runs."
+  },
+  "limits": [
+    "One ordinary StoreElement binder; no new independent F/G State binder table.",
+    "Private error/result shape propagation does not open owned error-union pattern matching.",
+    "Canonical qualification definition creates no owning value or runtime allocation; no code-size identity claim.",
+    "No Rust runtime/RSS/maintenance comparison, compile-speed comparison, full-language proof or product net-breakthrough claim."
+  ],
+  "toolchain_env_sha256": "d3d6b12993ba854ce03e2c154d05f53fa6660246e63a6dac3c39a6faecd067a8",
+  "runs": [
+    {
+      "label": "check01",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "check",
+          "--offline",
+          "-p",
+          "zil-types"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/check01"
+        },
+        "head": "9f60fb1fb1c22ecb2fdaf81d9d287fbeca54e11e",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T10:10:40Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "6dcf6c58d126bc7922cee8102bb4b44ca91c9acd6e1ef476fb3bcfc80f2399a6",
+      "head_normative_sha256": "9bb84f09971a522cb8ffc3808829d3aa05744dac1e8871c3914e7a2a0635aec6",
+      "clean": true,
+      "exit_code": 101,
+      "test_groups": [],
+      "native_execution_records": 0,
+      "archive_path": "logs/check01",
+      "interpretation": "Public skeleton lacks Types exhaustive matches; Rust compile failure, no tests executed."
+    },
+    {
+      "label": "check02",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "check",
+          "--offline",
+          "-p",
+          "zil-types"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/check02"
+        },
+        "head": "9f60fb1fb1c22ecb2fdaf81d9d287fbeca54e11e",
+        "tracked_diff_sha256": "4a4792ca8d220c09d4efdb4c2fc5f38b880bb9980929d81f380a4392acebe468",
+        "started_utc": "2026-10-28T10:12:08Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "6dcf6c58d126bc7922cee8102bb4b44ca91c9acd6e1ef476fb3bcfc80f2399a6",
+      "head_normative_sha256": "9bb84f09971a522cb8ffc3808829d3aa05744dac1e8871c3914e7a2a0635aec6",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [],
+      "native_execution_records": 0,
+      "archive_path": "logs/check02",
+      "interpretation": "Dirty minimal traversal cargo check passed; no full language acceptance claimed."
+    },
+    {
+      "label": "check03",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "check",
+          "--offline",
+          "-p",
+          "zil-types"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/check03"
+        },
+        "head": "989a3af1bdca12c44d5a413e5074a75ebae0dc85",
+        "tracked_diff_sha256": "5834eca282d2509ddb59fd430bced0a9d533ab4ce2a3157b79e59581ce692ad2",
+        "started_utc": "2026-10-28T10:24:47Z",
+        "untracked": {
+          "crates/zil-types/src/store_templates.rs": "f254284a1071401580726ac531e4688810571a1efe7a6493b9378b75562fb83d"
+        }
+      },
+      "head_design_sha256": "6dcf6c58d126bc7922cee8102bb4b44ca91c9acd6e1ef476fb3bcfc80f2399a6",
+      "head_normative_sha256": "9bb84f09971a522cb8ffc3808829d3aa05744dac1e8871c3914e7a2a0635aec6",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [],
+      "native_execution_records": 0,
+      "archive_path": "logs/check03",
+      "interpretation": "Dirty ordinary-template implementation cargo check passed."
+    },
+    {
+      "label": "source01",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/source01"
+        },
+        "head": "989a3af1bdca12c44d5a413e5074a75ebae0dc85",
+        "tracked_diff_sha256": "3d9f1580189c7417755425b74e75386edc2ae605447757e2ec3badc72980b8dc",
+        "started_utc": "2026-10-28T10:26:35Z",
+        "untracked": {
+          "crates/zil-driver/tests/impl202_fixtures/01_original_push.zil": "101580f8d78e661011d3b73f731c4f2f2ae376a408c1cc02c8aa072d4f627bf9",
+          "crates/zil-driver/tests/impl202_fixtures/02_original_factory.zil": "d8fd10675872542e99533ee23957db2c3150760a2f71ea8ff28150ad6c3a7a55",
+          "crates/zil-driver/tests/impl202_source.rs": "efc85234876571374c4d19096bd9a23c0d726c697c3bf5d5cf88cccbfd42ffa2",
+          "crates/zil-types/src/store_templates.rs": "f254284a1071401580726ac531e4688810571a1efe7a6493b9378b75562fb83d"
+        }
+      },
+      "head_design_sha256": "6dcf6c58d126bc7922cee8102bb4b44ca91c9acd6e1ef476fb3bcfc80f2399a6",
+      "head_normative_sha256": "9bb84f09971a522cb8ffc3808829d3aa05744dac1e8871c3914e7a2a0635aec6",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 4,
+      "archive_path": "logs/source01",
+      "interpretation": "Original two helper sources passed with 4 native runs under the early normative identity."
+    },
+    {
+      "label": "check04",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "check",
+          "--offline",
+          "-p",
+          "zil-driver"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/check04"
+        },
+        "head": "3aec8b5e70ff15cffdf1a3d58b87b2c42a856a46",
+        "tracked_diff_sha256": "c0fdb19479ce4f2300ec13428575705d737deca8e571ac07beb3beaef7fb3c1a",
+        "started_utc": "2026-10-28T10:33:01Z",
+        "untracked": {
+          "crates/zil-driver/tests/impl202_fixtures/01_original_push.zil": "101580f8d78e661011d3b73f731c4f2f2ae376a408c1cc02c8aa072d4f627bf9",
+          "crates/zil-driver/tests/impl202_fixtures/02_original_factory.zil": "d8fd10675872542e99533ee23957db2c3150760a2f71ea8ff28150ad6c3a7a55",
+          "crates/zil-driver/tests/impl202_source.rs": "34bbaa8e3d40e7875dd0beeed47e22e2427a8780cfefd3159ce3eec3771ceb4a",
+          "crates/zil-types/src/store_templates.rs": "b45e16fcc9b38d73fd0b85e7d0bb5937643fd13ea876053fd0243f60ffc226c0"
+        }
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [],
+      "native_execution_records": 0,
+      "archive_path": "logs/check04",
+      "interpretation": "Dirty driver cargo check passed before the first semantic commit."
+    },
+    {
+      "label": "types01",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-types",
+          "--lib"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/types01"
+        },
+        "head": "37542381bb919e81631bd7aed9151ed90fa7bd55",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T10:33:49Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": true,
+      "exit_code": 101,
+      "test_groups": [],
+      "native_execution_records": 0,
+      "archive_path": "logs/types01",
+      "interpretation": "Clean 375 test compilation failed on an old exhaustive TypeApply matrix; no tests executed."
+    },
+    {
+      "label": "source02",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/source02"
+        },
+        "head": "37542381bb919e81631bd7aed9151ed90fa7bd55",
+        "tracked_diff_sha256": "ed46579873e85ae74565204db691a890b4a013721bf27ba03b83bb2212336e16",
+        "started_utc": "2026-10-28T10:35:02Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 101,
+      "test_groups": [
+        {
+          "passed": 4,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 8,
+      "archive_path": "logs/source02",
+      "interpretation": "4 passed, 1 failed: zero-stride fixture expected SafeReject but actual Verify result was Unsupported."
+    },
+    {
+      "label": "source03",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/source03"
+        },
+        "head": "37542381bb919e81631bd7aed9151ed90fa7bd55",
+        "tracked_diff_sha256": "62f628256ddd79d501dff968162ae4faf3684214bc1dbb18d5e51aa91d072e17",
+        "started_utc": "2026-10-28T10:37:30Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 10,
+      "archive_path": "logs/source03",
+      "interpretation": "Dirty 5/0 after expectation and symbolic-check work; not relabeled as a later commit."
+    },
+    {
+      "label": "source04",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/source04"
+        },
+        "head": "37542381bb919e81631bd7aed9151ed90fa7bd55",
+        "tracked_diff_sha256": "14e82a0ebbe78a8c863eb3af619b3dae4a7acc63817e56047c1a89bb6689e4dc",
+        "started_utc": "2026-10-28T10:42:44Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 101,
+      "test_groups": [
+        {
+          "passed": 5,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 10,
+      "archive_path": "logs/source04",
+      "interpretation": "5/1: source inference could not establish the finite caller factory plus callback Store-window shape."
+    },
+    {
+      "label": "source05",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/source05"
+        },
+        "head": "37542381bb919e81631bd7aed9151ed90fa7bd55",
+        "tracked_diff_sha256": "be59818efade1ba8f382b0c55b37b8e6498511eb0d6741eaadb7d844e4f35b61",
+        "started_utc": "2026-10-28T10:46:51Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 6,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 12,
+      "archive_path": "logs/source05",
+      "interpretation": "Dirty 6/0 and 12 native; not assigned the later 0098 commit identity."
+    },
+    {
+      "label": "raw01",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_raw",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/raw01"
+        },
+        "head": "37542381bb919e81631bd7aed9151ed90fa7bd55",
+        "tracked_diff_sha256": "be59818efade1ba8f382b0c55b37b8e6498511eb0d6741eaadb7d844e4f35b61",
+        "started_utc": "2026-10-28T10:47:58Z",
+        "untracked": {
+          "crates/zil-driver/tests/impl202_raw.rs": "d256aa5830ea265362de9346b5f05c0268c1df6424086bd3c590244665be9754"
+        }
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 0,
+      "archive_path": "logs/raw01",
+      "interpretation": "Dirty 4/0 original-derived unused-template Core checks."
+    },
+    {
+      "label": "types02",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-types",
+          "--lib"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/types02"
+        },
+        "head": "504141f1c7de54d401c94554432485cb5eafe033",
+        "tracked_diff_sha256": "84bd6ad8a568859726939bfcaeecd3e4d31582891769541c41e46e0b6a514e9c",
+        "started_utc": "2026-10-28T10:48:26Z",
+        "untracked": {
+          "crates/zil-driver/tests/impl202_raw.rs": "a2166c28d0552a984268b73ae9bee31f4703bda6bdc1d67c0c7d75f207eb75b1"
+        }
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 17,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 0,
+      "archive_path": "logs/types02",
+      "interpretation": "Dirty Types library 17/0 before semantic freeze."
+    },
+    {
+      "label": "final01",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "--test",
+          "impl202_raw",
+          "--test",
+          "impl202_budget",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/final01"
+        },
+        "head": "e9cc90b02b966cff750a49c9f7107d216a6857d7",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T10:51:26Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": true,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 6,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 12,
+      "archive_path": "logs/final01",
+      "interpretation": "Clean previous candidate 12/0 and 12 native; later consumer failure means this is not final acceptance."
+    },
+    {
+      "label": "pop01",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "pop_template_success",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/pop01"
+        },
+        "head": "e9cc90b02b966cff750a49c9f7107d216a6857d7",
+        "tracked_diff_sha256": "5e32a81708d792ce01a1b6ecf263b01aebd24ab468cc8442b893becf5004d637",
+        "started_utc": "2026-10-28T10:53:16Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 101,
+      "test_groups": [
+        {
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 0,
+      "archive_path": "logs/pop01",
+      "interpretation": "0/1 at Expand: caller whole error-union result constrained a child payload result."
+    },
+    {
+      "label": "consumer01",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "five_module_consumer",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/consumer01"
+        },
+        "head": "e9cc90b02b966cff750a49c9f7107d216a6857d7",
+        "tracked_diff_sha256": "ce74a6d59cce799de461421d82fe6554887aa33dd9a9c6f3d8e06b306808c638",
+        "started_utc": "2026-10-28T10:54:50Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 6,
+      "archive_path": "logs/consumer01",
+      "interpretation": "Dirty private ErrorUnion shape implementation; unchanged five modules ran 6 native inputs."
+    },
+    {
+      "label": "pop02",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "pop_template_success",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/pop02"
+        },
+        "head": "65efba1f15c38824d063fae70fd06805c6ffd6a5",
+        "tracked_diff_sha256": "bcb36e29b69aff796685f65add3db6a4f3275a8ecacfd3d0e82b02d09669a099",
+        "started_utc": "2026-10-28T10:57:53Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 101,
+      "test_groups": [
+        {
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 2,
+      "archive_path": "logs/pop02",
+      "interpretation": "0/1: original direct-return source passed 2 native runs after Expand f200; explicit union annotation failed Types."
+    },
+    {
+      "label": "pop03",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "pop_template_success",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/pop03"
+        },
+        "head": "65efba1f15c38824d063fae70fd06805c6ffd6a5",
+        "tracked_diff_sha256": "12e26a1f5fae6b700d86187f1b0ca06b888bb3724c6ef9ea5316da35204dddd9",
+        "started_utc": "2026-10-28T10:58:47Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 4,
+      "archive_path": "logs/pop03",
+      "interpretation": "Dirty annotation fix passed 1/0 and 4 native."
+    },
+    {
+      "label": "pop04",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "pop_template_success",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/pop04"
+        },
+        "head": "65efba1f15c38824d063fae70fd06805c6ffd6a5",
+        "tracked_diff_sha256": "1371bf38172c19e97bced8298ca8131355699f4c5cccd6aff86211b2626a2b87",
+        "started_utc": "2026-10-28T11:01:13Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 4,
+      "archive_path": "logs/pop04",
+      "interpretation": "Dirty 1/0 and 4 native, with wrong-side annotation rejected by Types before Verify."
+    },
+    {
+      "label": "shape01",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-types",
+          "--lib",
+          "result_shape_tests",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/shape01"
+        },
+        "head": "65efba1f15c38824d063fae70fd06805c6ffd6a5",
+        "tracked_diff_sha256": "1371bf38172c19e97bced8298ca8131355699f4c5cccd6aff86211b2626a2b87",
+        "started_utc": "2026-10-28T11:01:49Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 0,
+      "archive_path": "logs/shape01",
+      "interpretation": "Dirty private model 1/0; no runtime authority or opening of owned-union patterns."
+    },
+    {
+      "label": "final02",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl202_source",
+          "--test",
+          "impl202_raw",
+          "--test",
+          "impl202_budget",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/final02"
+        },
+        "head": "ba4e4d07a1f14573871844f790a4daabc5efe9db",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T11:02:34Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": true,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 8,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 22,
+      "archive_path": "logs/final02",
+      "interpretation": "Final clean driver acceptance: budget 2/0, raw 4/0, source 8/0, 22 actual native executions."
+    },
+    {
+      "label": "types03",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil202",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-types",
+          "--lib"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil202-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil202-frontend/types03"
+        },
+        "head": "ba4e4d07a1f14573871844f790a4daabc5efe9db",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T11:05:38Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+      "head_normative_sha256": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+      "clean": true,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 18,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 0,
+      "archive_path": "logs/types03",
+      "interpretation": "Final clean Types library: 18/0."
+    }
+  ],
+  "external_archive": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/202-frontend/202-types-author-evidence.zip",
+    "filename": "202-types-author-evidence.zip",
+    "bytes": 8102607,
+    "sha256": "17dad6a62c86d8fee4a0bc5b139dec756ff57a852cb165e6b5f2fc5b79f77649",
+    "payload_files": 1900,
+    "zip_entries_including_manifest": 1901,
+    "uncompressed_payload_bytes": 213912014,
+    "excluded_execution_products": 86,
+    "excluded_execution_bytes": 1623800,
+    "crc_verification": "all entries passed zipfile.testzip",
+    "sha256_verification": "all included payload files reread and matched the manifest",
+    "under_50mb": true
+  }
+}

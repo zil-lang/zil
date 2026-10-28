@@ -1,0 +1,63 @@
+{
+  "task": "202 Expand callable/nominal shadowing follow-up",
+  "phase": "Expand only",
+  "production_commit": "504141f1c7de54d401c94554432485cb5eafe033",
+  "design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+  "normative_hash": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+  "runs": [
+    {
+      "run": "shadow01",
+      "source_commit": "4ad84dd2f13f24508116754aedfe4213bdbbd3f9",
+      "clean": false,
+      "status": "Fail",
+      "exit_code": 101,
+      "passed": 14,
+      "failed": 1,
+      "receipt_sha256": "624989ccb2e32976c4912029d06295b6270263fb3f52e5ced84bf03f887f31a5"
+    },
+    {
+      "run": "shadow02",
+      "source_commit": "4ad84dd2f13f24508116754aedfe4213bdbbd3f9",
+      "clean": false,
+      "status": "Pass",
+      "exit_code": 0,
+      "passed": 15,
+      "failed": 0,
+      "receipt_sha256": "ef5dae237e42122171e9d3417c6ccdcdb674047189e10ace7852eedea826323e"
+    },
+    {
+      "run": "shadow03",
+      "source_commit": "504141f1c7de54d401c94554432485cb5eafe033",
+      "clean": true,
+      "status": "Pass",
+      "exit_code": 0,
+      "passed": 15,
+      "failed": 0,
+      "receipt_sha256": "2f9d774a1bb0fcb346d9afb8b17ec793358c2f59667ac21739a5443b27348370"
+    }
+  ],
+  "source": {
+    "sha256": "0fb5d46ddf4cc07c2f9dd22a73ba32ec5c0da38725dd7937e7f71d248cf70851",
+    "bytes": 1778,
+    "core_sha256": "3315ed1fc3c446c7eb5dc2bf73cbe37ea0e8c819dd63abe2d4a5c8cd8ef0a00a",
+    "source_map_sha256": "e34594dc15d8a392d8264992d0dad8cd03d266d3ea65c5f43200dbb203d1dd03"
+  },
+  "budgets": {
+    "legacy197": 1731,
+    "ordinary_store_eager": 2255,
+    "deferred_original_factory": 8399,
+    "callable_nominal_collision": 12755,
+    "checks": "Each N Success; N-1 ResourceLimit; fresh N Success. Defaults unchanged."
+  },
+  "implementation": "Detect an actual callable-binder/nominal collision in the existing charged generic-parameter walk. Only that path protects nominal identity on the original scoped AST, then rebuilds with the remaining same Budget. It does not rewrite already specialized fields or globally prioritize generic names in Types.",
+  "initial_failure": "shadow01 preserved: the author-generated test accidentally rewrote FnMut to TnMut and failed Parse. Only test construction was corrected; production was unchanged for shadow02.",
+  "scope": "This receipt does not claim Types/native completion or language1.4 acceptance. The independent original shadow fixture is owned by the reviewer.",
+  "archive": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/202-expand-shadow-evidence.zip",
+    "bytes": 170725,
+    "sha256": "8c55639a518fd664c62666e7e30f885ccd0c3adf8c0c0d6f525f4fb58d99e25a",
+    "payload_files": 52,
+    "integrity": "ZIP CRC plus every payload SHA256 verified",
+    "execution_artifacts": false
+  }
+}

@@ -1,0 +1,5 @@
+# 202公开Core骨架
+
+在正式规范e310b946之后发布CoreTypeBound::StoreElement、独立CoreTypeParameter表和静态TypeApply节点，schema/Wire及typed指纹域统一26。旧构造器机械发空表，源CT复制保留真实表；原具体typed wire载荷没有增加opcode。
+
+此提交只为并行施工提供共同接口，不是202实现完成或完整工作区通过。Expand/Types的新增分流与所有Core遍历、raw元数据预费和CT执行门须由已派工作者继续完成；新增枚举的编译穷尽适配尚待各负责模块实现。历史accepted201 bundle保持schema25和其真实成绩。仅wire/store_tests的当前版本断言机械从25改为26，旧版本拒绝循环仍按WIRE_VERSION实测。
