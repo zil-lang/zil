@@ -18,9 +18,9 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
 }
 
 fn target(target: &TargetProfile, span: Option<Span>) -> Check<()> {
-    if !target.is_supported_x64_llvm() || target.triple != "x86_64-unknown-linux-gnu" {
+    if !target.is_supported_x64_llvm() {
         return Err(unsupported(
-            "owned Store currently requires checked Linux x64 LLVM",
+            "owned Store requires checked Linux x64 or Win64 LLVM",
             span,
         ));
     }
