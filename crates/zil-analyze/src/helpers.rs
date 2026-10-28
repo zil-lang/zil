@@ -1,6 +1,8 @@
 //! Producer-side finite helper envelopes. A topological path propagation checks
 //! claims; independent Verify uses its own provenance and trace reconstruction.
 use super::*;
+#[path = "helper_flow.rs"]
+mod flow;
 
 fn env(ty: &Type) -> Option<(ClosureId, Option<bool>)> {
     match ty {
@@ -119,6 +121,8 @@ fn parameter_invocation(origin: u8, borrowed: bool) -> CompileResult<bool> {
 fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<Vec<usize>> {
     let count = module.functions.len();
     budget.product(count, 4, 1, "helper dependency tables")?;
+    budget.spend(count, "helper dependency depth table")?;
+    let mut depth = vec![1usize; count];
     let mut incoming = vec![0usize; count];
     let mut users = vec![Vec::new(); count];
     for (caller, function) in module.functions.iter().enumerate() {
@@ -189,6 +193,17 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         )?;
         order.push(function);
         for &user in &users[function] {
+            let candidate = depth[function]
+                .checked_add(1)
+                .filter(|n| *n <= budget.helper_depth)
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Analyze,
+                        "helper dependency call depth exhausted",
+                        None,
+                    )]
+                })?;
+            depth[user] = depth[user].max(candidate);
             incoming[user] -= 1;
             if incoming[user] == 0 {
                 ready.push_back(user);
@@ -199,6 +214,18 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "recursive callable helper dependency requires an explicit finite contract",
+            None,
+        )]);
+    }
+    if module
+        .functions
+        .iter()
+        .any(|f| f.callable_contract.is_some())
+        && budget.helper_depth == 0
+    {
+        return Err(vec![Diagnostic::limit(
+            Phase::Analyze,
+            "helper dependency call depth exhausted",
             None,
         )]);
     }
@@ -213,7 +240,7 @@ fn forwarded<'a>(
     kind: CallableKind,
     checked: &[bool],
     budget: &mut Budget,
-) -> CompileResult<Option<&'a [CallableTrace]>> {
+) -> CompileResult<Option<&'a CallableTraces>> {
     let InstructionKind::Call {
         function: callee,
         arguments,
@@ -251,14 +278,7 @@ fn forwarded<'a>(
             "nested helper must forward its actual parameter to an independently checked matching contract",
         ));
     }
-    let finite = claim.traces.as_finite().ok_or_else(|| {
-        vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "cyclic callable Flow semantics are not implemented",
-            Some(instruction.span),
-        )]
-    })?;
-    Ok(Some(finite))
+    Ok(Some(&claim.traces))
 }
 
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
@@ -295,13 +315,6 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .callable_contract
             .as_ref()
             .ok_or_else(|| bad("callable parameter has no public helper contract"))?;
-        let CallableTraces::Finite(claim_traces) = &claim.traces else {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "cyclic callable Flow semantics are not implemented",
-                Some(function.span),
-            )]);
-        };
         if candidates.len() != 1 || function.environment.is_some() || function.foreign.is_some() {
             return Err(bad("helper requires one concrete environment parameter"));
         }
@@ -391,197 +404,15 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 "helper Hold/Call/write envelope differs from its concrete captures",
             ));
         }
-        let (locals, values) = origins(module, function, local, budget)?;
-        let n = function.blocks.len();
-        budget.product(n, 4, 1, "helper finite trace CFG")?;
-        let mut reachable = vec![false; n];
-        let mut edges = vec![Vec::new(); n];
-        let mut stack = vec![function.entry.0 as usize];
-        while let Some(b) = stack.pop() {
-            budget.spend(1, "helper reachability")?;
-            if b >= n {
-                return Err(bad("helper CFG edge outside table"));
-            }
-            if reachable[b] {
-                continue;
-            }
-            reachable[b] = true;
-            edges[b] = match function.blocks[b].terminator {
-                Terminator::Jump(b) => vec![b.0 as usize],
-                Terminator::Branch {
-                    then_block,
-                    else_block,
-                    ..
-                } => vec![then_block.0 as usize, else_block.0 as usize],
-                _ => Vec::new(),
-            };
-            stack.extend(&edges[b]);
-        }
-        let mut incoming = vec![0usize; n];
-        for (b, outgoing) in edges.iter().enumerate() {
-            if reachable[b] {
-                for target in outgoing {
-                    incoming[*target] += 1;
-                }
-            }
-        }
-        let mut queue: VecDeque<_> = (0..n)
-            .filter(|b| reachable[*b] && incoming[*b] == 0)
-            .collect();
-        // Only the declared call kind is admitted below. Counts retain the
-        // exact sequence while avoiding repeated long vector propagation.
-        let mut prefixes = vec![BTreeSet::<usize>::new(); n];
-        prefixes[function.entry.0 as usize].insert(0);
-        let mut traces = BTreeSet::new();
-        let mut processed = 0usize;
-        while let Some(b) = queue.pop_front() {
-            processed += 1;
-            let mut output = std::mem::take(&mut prefixes[b]);
-            for instruction in &function.blocks[b].instructions {
-                budget.spend(1, "helper finite trace instruction")?;
-                if let Some(children) = forwarded(
-                    module,
-                    function,
-                    instruction,
-                    &values,
-                    claim.kind,
-                    &checked,
-                    budget,
-                )? {
-                    let mut continuing = BTreeSet::new();
-                    for prefix in &output {
-                        for child in children {
-                            budget.spend(1, "helper nested trace concatenation")?;
-                            let calls = prefix.checked_add(child.calls.len()).ok_or_else(|| {
-                                vec![Diagnostic::limit(
-                                    Phase::Analyze,
-                                    "nested helper call count overflow",
-                                    Some(instruction.span),
-                                )]
-                            })?;
-                            if claim.kind == CallableKind::FnOnce && calls > 1 {
-                                return Err(bad("helper exceeds its finite call allowance"));
-                            }
-                            if child.exit == CallableExit::Trap {
-                                budget.lookup(traces.len(), "nested helper terminating prefix")?;
-                                traces.insert((calls, CallableExit::Trap));
-                            } else {
-                                budget
-                                    .lookup(continuing.len(), "nested helper returning prefix")?;
-                                continuing.insert(calls);
-                            }
-                        }
-                    }
-                    output = continuing;
-                    continue;
-                }
-                let callback = match &instruction.kind {
-                    InstructionKind::CallClosure { callee, .. }
-                    | InstructionKind::CallClosureOnce { callee, .. } => {
-                        if !parameter_invocation(values[callee.0 as usize], false)? {
-                            continue;
-                        }
-                        Some(
-                            if matches!(instruction.kind, InstructionKind::CallClosureOnce { .. }) {
-                                CallableKind::FnOnce
-                            } else {
-                                CallableKind::Fn
-                            },
-                        )
-                    }
-                    InstructionKind::CallClosureShared { callee, .. }
-                    | InstructionKind::CallClosureMut { callee, .. } => {
-                        if !parameter_invocation(locals[callee.0 as usize], false)? {
-                            continue;
-                        }
-                        Some(
-                            if matches!(instruction.kind, InstructionKind::CallClosureMut { .. }) {
-                                CallableKind::FnMut
-                            } else {
-                                CallableKind::Fn
-                            },
-                        )
-                    }
-                    InstructionKind::CallClosureBorrowed { callee, kind, .. } => {
-                        parameter_invocation(values[callee.0 as usize], true)?;
-                        Some(*kind)
-                    }
-                    InstructionKind::DropClosure { local }
-                        if borrowed.is_some() && locals[local.0 as usize] & 1 != 0 =>
-                    {
-                        return Err(bad("borrowed helper cannot destroy its environment"));
-                    }
-                    InstructionKind::MakeClosure { .. } => {
-                        return Err(bad(
-                            "helper-local nested environments require an additional contract",
-                        ));
-                    }
-                    _ => None,
-                };
-                if let Some(kind) = callback {
-                    if kind != claim.kind {
-                        return Err(bad("helper callback call mode differs from its bound"));
-                    }
-                    let mut next = BTreeSet::new();
-                    for calls in output {
-                        budget.lookup(next.len(), "helper direct call prefix")?;
-                        if claim.kind == CallableKind::FnOnce && calls != 0 {
-                            return Err(bad("helper exceeds its finite call allowance"));
-                        }
-                        next.insert(calls.checked_add(1).ok_or_else(|| {
-                            vec![Diagnostic::limit(
-                                Phase::Analyze,
-                                "helper call count overflow",
-                                Some(instruction.span),
-                            )]
-                        })?);
-                    }
-                    output = next;
-                }
-            }
-            let exit = match function.blocks[b].terminator {
-                Terminator::Return(_) => Some(CallableExit::Return),
-                Terminator::Trap => Some(CallableExit::Trap),
-                Terminator::Unreachable => {
-                    return Err(bad("helper has a reachable undefined exit"));
-                }
-                _ => None,
-            };
-            if let Some(exit) = exit {
-                for calls in output {
-                    budget.lookup(traces.len(), "helper exact call-count exit")?;
-                    traces.insert((calls, exit));
-                }
-            } else {
-                for target in &edges[b] {
-                    budget.spend(output.len(), "helper trace propagation")?;
-                    for count in &output {
-                        budget.lookup(prefixes[*target].len(), "helper exact call-count union")?;
-                        prefixes[*target].insert(*count);
-                    }
-                    incoming[*target] -= 1;
-                    if incoming[*target] == 0 {
-                        queue.push_back(*target);
-                    }
-                }
-            }
-        }
-        if processed != reachable.iter().filter(|r| **r).count() {
-            return Err(bad("cyclic helper requires an explicit loop contract"));
-        }
-        budget.spend(claim_traces.len(), "helper public trace comparison")?;
-        if traces.len() != claim_traces.len() {
-            return Err(bad("public helper trace claim differs from its CFG"));
-        }
-        for ((count, exit), claim_trace) in traces.into_iter().zip(claim_traces) {
-            budget.spend(claim_trace.calls.len(), "helper public call comparison")?;
-            if count != claim_trace.calls.len()
-                || exit != claim_trace.exit
-                || claim_trace.calls.iter().any(|kind| *kind != claim.kind)
-            {
-                return Err(bad("public helper trace claim differs from its CFG"));
-            }
-        }
+        flow::check(
+            module,
+            function,
+            claim,
+            local,
+            borrowed.is_some(),
+            &checked,
+            budget,
+        )?;
         checked[index] = true;
     }
     Ok(())

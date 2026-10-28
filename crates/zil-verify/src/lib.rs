@@ -473,7 +473,7 @@ fn check_module(
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
-    helpers::check_module(module, &graphs, &mut budget)?;
+    helpers::check_module(module, &graphs, limits, &mut budget)?;
     borrows::check_module(module, plan, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
     Ok(fingerprint)
