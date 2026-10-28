@@ -1,0 +1,76 @@
+{
+  "task": "179",
+  "status": "AuthorLimitedPass",
+  "source_commit": "204fea481d8770bf53f2e81324830b4f375d954e",
+  "implementation_commit": "881707dfa6a732f1fb4b6e073cc378a74b1aed01",
+  "baseline_commit": "8c4ed992138fc103c0fbaf6318e2e34d261bda81",
+  "rule_version": "ZIL-LANG-1.4",
+  "schema_version": 22,
+  "spec_sha256": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "normative_hash": "1cf7aadb8800c31436f158ee3cdf78bcea330ed2bfafc29112b8d11211655a6e",
+  "final_commands": [
+    "runs/final-tests02/command.json",
+    "runs/final-build02/command.json",
+    "runs/final-consumer02/command.json",
+    "runs/final-format01/command.json",
+    "runs/final-clippy01/command.json"
+  ],
+  "tests": {
+    "passed": 95,
+    "failed": 0,
+    "ignored": 0,
+    "groups": {
+      "impl120_field_backing": 8,
+      "impl120_field_backing_native": 4,
+      "impl171_resource_heads": 17,
+      "impl174_store_fields": 13,
+      "impl175_store_views": 20,
+      "impl176_callable_fields": 12,
+      "impl177_state_composition": 11,
+      "impl179_field_precision": 10
+    },
+    "new_test_native_executions": 16
+  },
+  "consumer": {
+    "summary": "runs/final-consumer02/result/summary.json",
+    "module_count": 4,
+    "native_executions": 18,
+    "allocation_failure_executions": 8,
+    "all_measured_allocations_freed": true,
+    "all_measured_live_zero": true
+  },
+  "preserved_failures": {
+    "baseline01": "Expected baseline rejection: whole-parent callback loan conflicts with actual sibling Store/Copy operations. This is the reproduced gap.",
+    "candidate01": "Test expectation was too late: whole-State assignment is already rejected by Analyze E-ANALYZE-IR for overwriting an unpaid resource. Assertion corrected without changing production acceptance.",
+    "consumer01": "Initial example used unsupported pub manages syntax; replaced with same-module State declaration and a real fourth collection helper module.",
+    "consumer02": "Initial getchar wrapper lacked explicit unsafe; fixed example only.",
+    "final-tests01": "Rust StableCrateId/rlib cache collision after RULE_VERSION changed. No tests ran. Kept failure; clean separate target used for final-tests02."
+  },
+  "nonfinal_runs": [
+    "build01",
+    "candidate02",
+    "consumer03",
+    "final-build01",
+    "final-consumer01"
+  ],
+  "untracked_fixture_note": "A stale unimported state.zil reappeared between tool invocations. Dirty older runs and all snapshots remain unchanged. The five final command records have dirty=\"\"; final consumer source set and compiler source_files each contain exactly four modules. The stale file is excluded from tracked delivery.",
+  "changes": [
+    "Separate actual self-contained Closure field footprint from parent lifetime in Analyze and independent Verify.",
+    "Permit genuine sibling Copy/Store/ByteBuffer operations while callback or Store field window is live.",
+    "Keep whole parent, same field, current invocation, indirect effects, stale instance, and unknown user cleanup conflicts.",
+    "Charge field payload before structural Copy traversal; limits unchanged."
+  ],
+  "closed_boundaries": [
+    "General mixed Desc/Address capture environments remain Unsupported.",
+    "Unknown user-resource teardown retains whole-parent conservatism.",
+    "No new schema, runtime borrow checks, generation, RC, GC, implicit Box, or external callback lifecycle claim."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing",
+  "independent_review": "Pending",
+  "formal_acceptance": "NotRun",
+  "raw_artifact_policy": "Native programs, LLVM/phase dumps and caches are not promoted. candidate.bin files are small verifier input fixtures, not executable products. Adjacent test detail is represented by full test-run output; 179 cases include source, compile reports, native observations and raw/Wire inputs.",
+  "promoted_files": 561,
+  "promoted_bytes": 588734
+}

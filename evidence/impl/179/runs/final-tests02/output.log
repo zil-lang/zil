@@ -1,0 +1,156 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-analyze)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-lower)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-ct)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 9.20s
+     Running tests/impl120_field_backing.rs (/workspace/scratch/39be3faa4442/targets178/author179-final01/debug/deps/impl120_field_backing-0cc1b5b0afbb8cdc)
+
+running 8 tests
+test changed_root_work_remains_bounded_at_exact_analysis_and_verify_limits ... ok
+test branch_origins_preserve_all_possible_fields_and_unknown_drop_stays_coarse ... ok
+test independent_field_take_preserves_a_live_sibling_window ... ok
+test helper_returns_and_required_apart_substitute_actual_fields ... ok
+test owning_fnmut_and_fnonce_keep_precise_fields ... ok
+test independent_mutation_refill_and_two_exclusive_windows ... ok
+test public_hold_remains_coarse_and_raw_wire_cannot_forge_apartness ... ok
+test same_field_ancestor_and_replacement_do_not_revive_old_views ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/impl120_field_backing_native.rs (/workspace/scratch/39be3faa4442/targets178/author179-final01/debug/deps/impl120_field_backing_native-1f2451b96eb5eb89)
+
+running 4 tests
+test four_modules_keep_helper_returns_and_owned_field_state ... ok
+test disjoint_exclusive_fields_and_helper_apart_are_real_native_accesses ... ok
+test live_sibling_survives_take_refill_replace_and_growth_with_exact_cleanup ... ok
+test owned_fnmut_and_partial_fnonce_error_release_actual_fields ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.23s
+
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/39be3faa4442/targets178/author179-final01/debug/deps/impl171_resource_heads-eb5aeb3f3386f885)
+
+running 17 tests
+test active_head_prevents_write_move_replacement_and_old_address_revival ... ok
+test desc_only_imported_helpers_export_writes_into_caller_head_window ... ok
+test actual_head_trait_and_inherent_methods_and_plain_parameters ... ok
+test descriptor_callback_cannot_use_a_captured_field_address_as_write_permission ... ok
+test descriptor_and_head_parameters_do_not_assume_distinct_origins ... ok
+test descriptor_capturing_callbacks_cannot_write_under_a_live_head ... ok
+test descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls ... ok
+test descriptor_only_helper_exports_its_internal_callback_effect_across_modules ... ok
+test head_metadata_work_has_an_exact_finite_budget_boundary ... ok
+test failed_argument_preparation_ends_head_window_and_cleans_owner_once ... ok
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... ok
+test imported_heads_keep_nominal_identity_visibility_and_actual_storage ... ok
+test last_use_then_descriptor_write_is_allowed ... ok
+test original_159_resource_address_receiver_probe_is_unchanged_and_now_supported ... ok
+test raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head ... ok
+test resource_trait_nonshared_receivers_and_head_indirect_calls_stay_closed ... ok
+test unrelated_owned_callback_and_shared_head_compose ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.51s
+
+     Running tests/impl174_store_fields.rs (/workspace/scratch/39be3faa4442/targets178/author179-final01/debug/deps/impl174_store_fields-8eef8171035c8a9f)
+
+running 13 tests
+test complete_store_fields_construct_move_and_drop_prefix_in_field_order ... ok
+test raw_wire_reconstruct_sealed_store_definition_even_for_state_only_signature ... ok
+test raw_wire_reject_double_take_unpaid_replace_and_wrong_field_projection ... ok
+test raw_wire_store_bearing_capture_remains_closed ... ok
+test replacing_store_field_drops_old_prefix_before_new_publication ... ok
+test sealed_definitions_are_discovered_from_state_only_signatures ... ok
+test source_rejects_borrowed_store_fields_and_unsupported_nested_storage ... ok
+test source_rejects_missing_field_double_take_and_old_description_retargeting ... ok
+test store_field_raw_and_wire_budget_has_an_exact_boundary ... ok
+test cross_module_state_owns_runtime_replacement_and_partial_exit ... ok
+test taken_store_field_early_error_cleans_only_live_shell_fields ... ok
+test store_state_in_owned_error_and_fixed_array_recursively_cleans_prefix ... ok
+test whole_field_take_refill_and_state_transfer_have_one_responsibility ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.92s
+
+     Running tests/impl175_store_views.rs (/workspace/scratch/39be3faa4442/targets178/author179-final01/debug/deps/impl175_store_views-2b21878bd7a24e97)
+
+running 20 tests
+test actual_field_windows_block_mutation_take_replace_and_whole_parent_move ... ok
+test copy_child_address_keeps_a_live_window_through_local_callback ... ok
+test actual_store_fields_preserve_separation_and_last_use_before_parent_move ... ok
+test element_read_respects_actual_package_field_visibility ... ok
+test element_shape_mutable_owned_field_return_and_capture_guards_are_explicit ... ok
+test direct_projection_and_last_use_allow_later_reserve_and_pop ... ok
+test every_intersecting_container_mutation_is_rejected_while_view_is_live ... ok
+test failed_argument_preparation_ends_element_window_and_cleans_prefix_once ... ok
+test old_field_descriptions_cannot_reanimate_element_windows ... ok
+test indirect_alias_contract_is_instantiated_from_real_store_roots ... ok
+test raw_and_wire_rebuild_element_type_index_and_hold_origins ... ok
+test raw_and_wire_reject_container_drop_during_an_active_element_window ... ok
+test raw_and_wire_reject_write_retargeted_behind_an_active_window ... ok
+test raw_and_wire_rebuild_field_separation_and_parent_invalidation ... ok
+test runtime_negative_empty_and_end_indices_trap_before_element_access ... ok
+test shared_element_windows_cross_functions_and_keep_one_owner ... ok
+test shared_views_allow_len_capacity_and_unrelated_address_return ... ok
+test verify_window_budget_has_an_exact_n_and_n_minus_one_boundary ... ok
+test view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper ... ok
+test runtime_index_reads_real_metadata_through_four_source_modules ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.00s
+
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets178/author179-final01/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+
+running 12 tests
+test borrowed_environments_cannot_enter_retained_state ... ok
+test bytebuffer_environment_survives_field_calls_and_state_transfer ... ok
+test different_source_opaque_factories_and_moved_fields_are_rejected ... ok
+test exact_raw_and_wire_budget_boundary_is_deterministic_for_nested_callback_state ... ok
+test failed_preparation_keeps_old_field_and_unwinds_prepared_argument ... ok
+test fnonce_take_consumes_and_partial_state_exit_cleans_only_remaining_fields ... ok
+test field_take_refill_replace_and_nested_cleanup_preserve_one_environment ... ok
+test public_state_generic_api_preserves_identity_across_modules_and_composition ... ok
+test generic_state_api_can_take_call_refill_and_return_complete_state ... ok
+test raw_and_wire_cannot_publish_the_same_resource_free_callback_twice ... ok
+test raw_and_wire_reconstruct_field_permission_liveness_and_unique_publication ... ok
+test whole_state_parameters_and_results_keep_original_fnmut_environment ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.22s
+
+     Running tests/impl177_state_composition.rs (/workspace/scratch/39be3faa4442/targets178/author179-final01/debug/deps/impl177_state_composition-343f8c8517143965)
+
+running 11 tests
+test borrowed_package_array_cannot_create_a_manages_field_owner ... ok
+test borrowed_concrete_package_cannot_be_copied_into_a_local_give_capability ... ok
+test direct_store_builtin_in_parametric_body_remains_a_separate_closed_protocol ... ok
+test generic_comparison_result_hint_does_not_retype_a_concrete_helper_operand ... ok
+test complete_local_assignment_restores_liveness_after_rhs_transfer ... ok
+test give_does_not_grant_ownership_to_copy_callable_or_descriptor_values ... ok
+test generic_state_takes_refills_and_calls_actual_callback_after_store_transfer ... ok
+test owning_state_indexed_package_transfer_waits_for_its_own_symbolic_slot_protocol ... ok
+test partial_state_whole_overwrite_still_requires_actual_old_debt_cleanup ... ok
+test unused_templates_reject_missing_fields_and_concrete_batch_aliases ... ok
+test ordinary_generic_concrete_package_projections_and_array_take_remain_usable ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+     Running tests/impl179_field_precision.rs (/workspace/scratch/39be3faa4442/targets178/author179-final01/debug/deps/impl179_field_precision-b8aa0a896a16c234)
+
+running 10 tests
+test borrowed_callback_capture_cannot_acquire_owning_field_authority ... ok
+test callback_loan_allows_actual_sibling_store_and_copy_fields ... ok
+test callback_loan_survives_sibling_replacement_and_failing_preparation ... ok
+test generic_state_body_uses_same_field_precision ... ok
+test raw_wire_cannot_hide_a_current_overlapping_callback_loan ... ok
+test raw_wire_rebuild_field_origin_and_keep_parent_hold ... ok
+test same_field_parent_movement_and_simultaneous_exclusive_use_still_reject ... ok
+test helper_effects_and_current_call_reject_real_overlap ... ok
+test store_window_keeps_its_real_field_while_copy_and_callback_are_updated ... ok
+test shared_callback_and_callback_replacement_preserve_sibling_windows ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.18s
+

@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/consumer03/result/O2/program"
+  ],
+  "status": "Completed",
+  "start": 1793150321.0102751,
+  "stdin_hex": "39",
+  "controlled_environment": {},
+  "exit_code": 9,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793150321.0113828
+}
