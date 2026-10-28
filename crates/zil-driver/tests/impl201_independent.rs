@@ -309,6 +309,8 @@ fn lending_result_keeps_actual_element_and_parent_until_last_use() {
     native("lending-last-use-before-reserve", LENDING, "", 0);
     for (label, invalidation) in [
         ("reserve", "store_reserve(items,2);"),
+        ("reserve-with-enough-capacity", "store_reserve(items,1);"),
+        ("reserve-that-would-fail", "store_reserve(items,-1);"),
         ("pop", "store_pop(items);"),
         ("recall", "view.callback();"),
         ("parent-copy-write", "view.value+=1;"),
@@ -378,8 +380,8 @@ fn zero_sized_actual_environment_is_not_a_nonzero_store_element() {
         "zero-managed-and-empty-environment",
         ZERO,
         ResultCategory::Unsupported,
-        &[Phase::Types, Phase::Verify],
-        "nonzero",
+        &[Phase::Verify],
+        "nonzero actual inline layout",
     );
     let sized = ZERO.replace(
         "fn make()->impl Fn()->i32{return ()=>0}",
