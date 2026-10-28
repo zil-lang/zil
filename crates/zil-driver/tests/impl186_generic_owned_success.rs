@@ -176,6 +176,10 @@ fn written_modes_are_checked_with_and_without_instantiation() {
             "fn good<T:StoreElement>(give a:E!Store<T>)->E!Store<T>contract{result(create)}=>E.Fail",
             "good(make(p(65),false))",
         ),
+        (
+            "fn good<T:StoreElement>(give a:E!Store<T>)->E!Store<T>contract{result(create)}{let s=a?;return E.Fail}",
+            "good(make(p(65),false))",
+        ),
     ] {
         for used in [false, true] {
             let main = if used {
@@ -400,4 +404,32 @@ fn main()->E!i32{{let a=from_direct::<P>()?;let b=from_union(q(66))?;return scal
 "#
     );
     native("inference", &[("main", &source)], b"B", 0);
+}
+
+#[test]
+fn a_later_failing_argument_cleans_the_staged_generic_union() {
+    let source = format!(
+        r#"{MODEL}{HELPERS}
+fn fail()->E!i32=>E.Fail
+fn consume<T:StoreElement>(give pending:E!Store<T>,n:i32)->i32=>n
+fn main()->E!i32{{let guard=R{{code:90}};return consume(make(p(65),false),fail()?)}}
+"#
+    );
+    native("late-argument", &[("main", &source)], b"AZ", 1);
+}
+
+#[test]
+fn concrete_wide_copy_errors_keep_zero_success_responsibility() {
+    for fail in [false, true] {
+        let source = format!(
+            r#"{MODEL}{HELPERS}
+enum WideError{{Bad(i64,u8)}}
+fn create<T:StoreElement>(fail:bool)->WideError!Store<T>contract{{result(create)}}{{
+ if fail{{return WideError.Bad(123456789,u8(7))}};return store_new()
+}}
+fn main()->WideError!i32{{let pending=create::<Q>({fail});let store=pending?;return 0}}
+"#
+        );
+        native("copy-error", &[("main", &source)], b"", i32::from(fail));
+    }
 }
