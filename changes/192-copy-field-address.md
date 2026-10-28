@@ -36,3 +36,13 @@
 恢复时已有7处生产修改未提交。development04原17组全部通过，保留原owned Package字段借址输入。development05补充检查后源17组仍全过；新raw组3过2失败：一条父清理输入更早被E-VERIFY-INITIALIZATION正确拒绝，需要精确校正测试诊断；另一条将实际有独占字段借址的拥有Package闭包从FnMut重标Fn，独立Verify错误接受。该事实说明既有Shared Package写集合漏列`BorrowPackageField { mutable:true }`，不能把此候选作为完成状态。接续在已授权的Analyze/Verify资源文件分别补实际绑定view的资格检查；无新增公共schema和默认额度变化。当前先提交可恢复WIP，后续独立冻验才出最终源码。
 
 中间缺陷已在Analyze和独立Verify的既有Shared Package视图检查分别补齐：只对实际绑定捕获view的独占字段地址拒绝，普通函数或共享闭包内部新建的局部Package仍可取得独占字段地址。development06保持所有原输入，源18组及raw5组全过；raw误标Fn现在分别被Analyze和raw/Wire Verify拒绝。父对象已清理/未初始化保持原输入，断言改为实际更早的E-VERIFY-INITIALIZATION。该运行仍是未提交工作区的开发检查，最终事实以随后干净冻结执行为准。
+
+## 独审实际用户资源兄弟字段反例
+
+root 在生产等同 e362 的独立 cbeb1b 候选上保留了原输入：持有 `&mut state.count` 时，`give state.owner` 取走 R、补入新 R，再通过原 count 地址累加 old.n。该输入在 Verify 的 232..248 span 被 E-BORROW-CONFLICT 拒绝；TypedIR 没有 DescribePackageField，因此不是旧 Desc Hold。实际 count 地址是 Field(local4,1)，但 field_root 对 Managed(Record R) 仍按179旧保守门退成整个 Local4，令独立的 TakePackageField(local4,0) 被误判相交。
+
+root 在89b1d7adea261d0596f988fa442d6c1cec38f14f明确追加 roots.rs 写集，仅允许已经独立核验名义定义的 Managed(有限Copy Record) 获得实际 Field(local,index) 根。保留 charge_payload 完整计费、全部失效检查、公共 HoldRoot 与真实资源实例规则，不把 Managed 当作 Copy，不开放资源字段借址。资源载荷不能持语言 Address/Desc，teardown 仍由独立资源验证要求匹配的单 Desc 参数和无环境普通函数。
+
+修复原输入须 O0/O2 输出 AB、退出0；同资源旧 Desc 跨 take/refill、整体父对象移动清理、同 Copy 字段窗口冲突、未知名义或非Copy资源载荷仍须独立拒绝。旧 e362 收据不改写；新修复另冻验，仍按本作者树实际 schema23/规范快照记录，root 的 schema24 合流另验。
+
+repair01原独审正例已输出AB/0；新增旧Desc源反例实际被更早的Analyze以“head transition invalidates a description required later”拒绝，首次19/1日志保留，原输入不改，仅校准预期阶段。repair02源20项与raw6项全过：同一资源Desc跨take/refill的raw/Wire另由Verify独立拒绝；未知名义定义与非Copy载荷也分别按独立资格拒绝。两次均为开发检查，随后以干净修复冻结的有界复验为正式结果。
