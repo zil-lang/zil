@@ -71,6 +71,18 @@ fn compile(
     report
 }
 fn native(label: &str, files: &[(&str, &str)], cases: &[(u8, String, i32)], markers: &[&str]) {
+    native_input(label, files, cases, markers, true);
+}
+fn fixed(label: &str, files: &[(&str, &str)], cases: &[(u8, String, i32)], markers: &[&str]) {
+    native_input(label, files, cases, markers, false);
+}
+fn native_input(
+    label: &str,
+    files: &[(&str, &str)],
+    cases: &[(u8, String, i32)],
+    markers: &[&str],
+    reads_input: bool,
+) {
     for optimization in [Optimization::O0, Optimization::O2] {
         let dir = directory(label);
         let program = dir.join("program");
@@ -102,19 +114,25 @@ fn native(label: &str, files: &[(&str, &str)], cases: &[(u8, String, i32)], mark
         for (count, expected, code) in cases {
             let case = dir.join(format!("count-{count}"));
             fs::create_dir(&case).unwrap();
-            fs::write(case.join("stdin.txt"), [b'0' + count]).unwrap();
+            let input = if reads_input {
+                vec![b'0' + count]
+            } else {
+                Vec::new()
+            };
+            fs::write(case.join("stdin.txt"), &input).unwrap();
             let mut child = Command::new(&program)
-                .stdin(Stdio::piped())
+                .stdin(if reads_input {
+                    Stdio::piped()
+                } else {
+                    Stdio::null()
+                })
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
                 .unwrap();
-            child
-                .stdin
-                .take()
-                .unwrap()
-                .write_all(&[b'0' + count])
-                .unwrap();
+            if reads_input {
+                child.stdin.take().unwrap().write_all(&input).unwrap();
+            }
             let started = Instant::now();
             let mut timed_out = false;
             while child.try_wait().unwrap().is_none() {
@@ -164,7 +182,7 @@ fn reject(label: &str, source: &str, phase: Phase, category: ResultCategory, cod
 
 #[test]
 fn original_preflight_helper_programs_now_execute_with_their_exact_inputs() {
-    native(
+    fixed(
         "06-helper-while-break",
         &[(
             "main",
@@ -174,7 +192,7 @@ fn original_preflight_helper_programs_now_execute_with_their_exact_inputs() {
         &[(0, "".into(), 0)],
         &["traces: Flow("],
     );
-    native(
+    fixed(
         "07-helper-while-continue",
         &[(
             "main",
@@ -184,7 +202,7 @@ fn original_preflight_helper_programs_now_execute_with_their_exact_inputs() {
         &[(0, "".into(), 0)],
         &["traces: Flow("],
     );
-    native(
+    fixed(
         "08-helper-for-continue",
         &[(
             "main",
@@ -194,7 +212,7 @@ fn original_preflight_helper_programs_now_execute_with_their_exact_inputs() {
         &[(0, "".into(), 0)],
         &["traces: Flow("],
     );
-    native(
+    fixed(
         "09-helper-for-break-mut-arg",
         &[(
             "main",
@@ -204,7 +222,7 @@ fn original_preflight_helper_programs_now_execute_with_their_exact_inputs() {
         &[(0, "".into(), 0)],
         &["traces: Flow("],
     );
-    native(
+    fixed(
         "10-helper-nested-for-while",
         &[(
             "main",
@@ -214,7 +232,7 @@ fn original_preflight_helper_programs_now_execute_with_their_exact_inputs() {
         &[(0, "".into(), 0)],
         &["traces: Flow("],
     );
-    native(
+    fixed(
         "11-helper-break-resource-cleanup",
         &[(
             "main",
@@ -224,7 +242,7 @@ fn original_preflight_helper_programs_now_execute_with_their_exact_inputs() {
         &[(0, "CACB".into(), 0)],
         &["traces: Flow("],
     );
-    native(
+    fixed(
         "12-helper-continue-resource-cleanup",
         &[(
             "main",
@@ -234,7 +252,7 @@ fn original_preflight_helper_programs_now_execute_with_their_exact_inputs() {
         &[(0, "CABCC".into(), 0)],
         &["traces: Flow("],
     );
-    native(
+    fixed(
         "13-helper-break-after-lending-last-use",
         &[(
             "main",
@@ -395,11 +413,11 @@ fn for_continue_steps_once_at_the_integer_maximum_and_keeps_outer_bindings() {
     let source = format!(
         r#"{EMIT}
 fn lower(value:i64)->i64{{emit(76);return value}}fn upper(value:i64)->i64{{emit(72);return value}}
-fn run<F:Fn(i64)->i32>(f:&F)->i32{{let index:i64=7;var total=0;for index in lower(9223372036854775805i64)..upper(9223372036854775807i64){{total+=f(index);continue}}emit(i32(index)+48);return total}}
-fn main()->i32{{let f=move(index:i64)=>{{if index==9223372036854775805i64{{emit(65)}}else{{emit(66)}}return 1}};return run(&f)-2}}
+fn run<F:Fn(i64)->i32>(f:&F)->i32{{let index:i64=7;var total=0;for index in lower(9223372036854775805)..upper(9223372036854775807){{total+=f(index);continue}}emit(i32(index)+48);return total}}
+fn main()->i32{{let f=move(index:i64)=>{{if index==9223372036854775805{{emit(65)}}else{{emit(66)}}return 1}};return run(&f)-2}}
 "#
     );
-    native(
+    fixed(
         "maximum-step-once",
         &[("main", &source)],
         &[(0, "LHAB7".into(), 0)],
