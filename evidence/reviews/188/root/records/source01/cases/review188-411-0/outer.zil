@@ -1,0 +1,1 @@
+import middle;pub fn run<F:FnMut()->i32>(f:&mut F)->i32{let zero=middle.choose(false,f);let a=middle.choose(true,f);return zero+a+middle.twice(f)}

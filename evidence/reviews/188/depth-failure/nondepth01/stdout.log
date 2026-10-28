@@ -1,0 +1,8 @@
+
+running 3 tests
+test branch_and_zero_call_edges_preserve_a_real_mutable_environment_across_modules ... ok
+test unused_three_node_generic_cycle_has_no_finite_forwarding_contract ... ok
+test nested_lending_results_continue_to_block_the_actual_owning_environment ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.26s
+

@@ -1,0 +1,23 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-analyze)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-lower)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-expand)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review188/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 9.10s
+     Running tests/impl188_nested_helpers.rs (/workspace/scratch/39be3faa4442/targets178/review188/debug/deps/impl188_nested_helpers-fefacff303671db3)
+     Running tests/impl188_nested_helpers_raw.rs (/workspace/scratch/39be3faa4442/targets178/review188/debug/deps/impl188_nested_helpers_raw-4ec50ddc1b2d498e)
+     Running tests/review188_composition.rs (/workspace/scratch/39be3faa4442/targets178/review188/debug/deps/review188_composition-c5320c17369500fc)
+
+thread 'forward_declared_helper_chain_uses_dependency_order_instead_of_vector_order' (413) has overflowed its stack
+fatal runtime error: stack overflow, aborting
+error: test failed, to rerun pass `-p zil-driver --test review188_composition`
+
+Caused by:
+  process didn't exit successfully: `/workspace/scratch/39be3faa4442/targets178/review188/debug/deps/review188_composition-c5320c17369500fc --test-threads=2` (signal: 6, SIGABRT: process abort signal)
