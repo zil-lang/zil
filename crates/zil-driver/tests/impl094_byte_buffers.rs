@@ -231,11 +231,6 @@ fn storage_heads_and_unsupported_escape_routes_fail_closed() {
             "E-UNSUPPORTED",
         ),
         (
-            "fn main(){let b=bytes_new();let d=b;let f=move()=>bytes_len(d);}",
-            Phase::Types,
-            "E-UNSUPPORTED",
-        ),
-        (
             "extern \"C\" fn f(b:ByteBuffer);fn main(){}",
             Phase::Types,
             "E-FFI-DECLARATION",
@@ -268,6 +263,13 @@ fn storage_heads_and_unsupported_escape_routes_fail_closed() {
     ] {
         rejects(text, phase, code);
     }
+}
+
+#[test]
+fn an_uncalled_local_byte_descriptor_capture_keeps_its_owner_in_scope() {
+    // The original 094 input is unchanged. Slice187 now admits the local
+    // descriptor profile; nonescaping cleanup is checked independently.
+    passes("fn main(){let b=bytes_new();let d=b;let f=move()=>bytes_len(d);}");
 }
 
 #[test]
