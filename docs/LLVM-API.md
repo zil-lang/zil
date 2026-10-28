@@ -1,90 +1,86 @@
 # LLVM API主路线（210）
-## 当前路径
-已核LIR → 类型化机器IR → 结构化CGU → LLVMBuilder → LLVM结构核验 → 优化 → LLVM结构核验 → 对象 → 链接。
-标准CLI默认llvm-api；`--backend clang`保留共用机器IR的文本参考后端。
-209的文本解析API仅在`zil-llvm-api/text-reference`测试feature启用；标准构建不引用LLVMParseIRInContext。
-`.ll`旁置文件仅为诊断/对照输出，API和分区不读取或扫描它；当前仍支付这份诊断渲染成本。
-### 实现位置
-- `zil-backend-llvm/src/emit*.rs`：唯一语言lowering，原bind_lir核对不变；产出拥有的类型/指令/控制流和符号引用。
-- `zil-llvm-api/src/model.rs`：纯Rust机器schema及文本诊断渲染，无原生指针，无程序集解析。
-- `zil-llvm-api/src/preflight.rs`：类型/名称/ABI/CFG/SSA结构检查与构图调度；不产生ZIL安全授权。
-- `zil-backend-llvm/src/machine_cgu.rs`：按来源分组、局部链接引用合并、直接声明裁剪；旧文本扫描器只在cfg(test)保留。
-- `zil-llvm-api/src/native/builder.rs`：唯一逐操作LLVMBuilder适配，Context内缓存类型，先声明后定义、预建phi后填回边。
-- `zil-llvm-api/src/native.rs`：目标/布局、上下文生命周期、优化、对象字节及失败处理。
-### 支持和限制
-Linux x64开发宿主，LLVM17.0.6；x64 Linux/Win64目标原有profile。Win64交叉生成不代表Windows本机验收。
-当前有限整数、数组/记录/枚举/错误联合、闭包/资源/Package/ByteBuffer/Store、切片和有限C ABI都使用同一个结构化入口。未实现语言继续明确拒绝，不因后端切换扩大接受集。
-没有直接Builder的文本回退；构图输入不合法返回错误。LLVM verifier不替代独立ZIL Verify。没有新增noalias/dereferenceable。
-O0/O2仍使用既定优化pipeline；O2多CGU已有的运行性能限制不因Builder自动消失。
-取消为阶段间协作检查，不能打断LLVM pass。原生LLVM bug不受本适配层沙箱隔离。
-对象缓存、稳定符号、增量查询和ThinLTO属于下一专项，不是本轮已完成能力。
-## 构建
-沿用209的LLVM17.0.6、Rust1.99.1环境，标准CLI自动启用API。`cargo build --release --locked -p zil-cli`。
-无LLVM库的参考构建：`cargo build --release --locked -p zil-cli --no-default-features`。
-显式文本API差分测试：`cargo test -p zil-llvm-api --features text-reference`，不建议在发布CLI开启。
-## 原安装与平台说明（209沿用，阶段说明以本页上段为准）
-# LLVM API：主线安装、使用与边界（209）
 
-## 当前主线策略
+## 目标与实际路径
 
-语言174–177/Wire21与编译专项204/206/207的实际集成版本。标准CLI默认在 **ZIL编译器进程内部** 调用LLVM17 C API生成对象，然后由Clang驱动Linux链接（Win64用显式lld-link）。它不是Python探针，不把ZIL转为C，也不把单元交给Clang编译。
+当前Wire21已实现语言统一走：已核LIR → 类型化机器IR → 结构化代码生成单元 → LLVMBuilder → LLVM结构核验 → 优化 → LLVM结构核验 → 对象字节 → 链接与发布。
+标准CLI默认llvm-api；`--backend clang`保留基于同一机器IR的文本参考后端。没有直接Builder失败后的文本解析回退。
 
-本版仍走 **已核LIR → 共用发射器产生LLVM文本 → 内存解析API → 对象**，不是直接LLVMBuilder；文本生成/解析成本仍存在。Clang参考路径及默认单模块策略保留。新设计的来源投影精化、稳定符号、结构化CGU、对象缓存和ThinLTO不在本版完成范围。
+209的文本解析API只由显式`zil-llvm-api/text-reference`测试feature开放。标准CLI没有`LLVMParseIRInContext`动态符号引用。完整`.ll`旁置文件仍为诊断和参考输出生成，API及分区不读取或扫描它；因此不能宣称整个请求零文本渲染成本。
 
-## 安装
+当前有限整数、数组、记录、枚举、错误联合、函数值、闭包、资源、Package、ByteBuffer、Store、切片和有限C ABI共用这条路径。未实现的语言能力继续明确拒绝，不能因后端切换扩大接受集。这是现有语言后端路径的完成，不等于整门语言、增量编译或产品门全部完成。
 
-实测构建宿主为Linux x86_64；Rust 1.99.1、libLLVM **17.0.6**、Clang **17.0.6**。动态库目录需要同时有供链接使用的`libLLVM-17.so`及其真实动态库。头文件、llvm-sys、Inkwell均不是本版构建依赖。Cargo依赖仅本workspace；LLVM及系统链接器是外部可信工具链，源码包不重新携带它们。
+## 为什么这样分层
+
+- 唯一语言lowering：`zil-backend-llvm/src/emit.rs`及`emit/`。原`bind_lir`核对保留，不让API重新解释语言责任和借用。
+- 纯Rust schema：`zil-llvm-api/src/model.rs`。类型、指令、值、基本块和引用是数据；文本渲染不反向决定结构。符号仍是机器层名字，不冒称稳定跨请求身份。
+- 构图前核验：`zil-llvm-api/src/preflight.rs`。核对名称、类型、常量、对齐、聚合/GEP索引、调用ABI、CFG终结、phi边与SSA支配，并生成构图顺序。只核对机器表示，不产生ZIL验证授权。
+- 结构化分区：`zil-backend-llvm/src/machine_cgu.rs`。来源文件分组，本地链接定义与引用者共置，只导入真实使用的声明。单元取得函数体所有权，跨单元声明只复制签名；不克隆函数体再丢弃。
+- 原生边界：`zil-llvm-api/src/native.rs`及私有`native/builder.rs`。每个单元有独立Context/Module/Builder/TargetMachine，先声明类型与符号，再构造定义和phi回边。原生句柄不在线程间传递，成功返回拥有的对象字节。
+- 调度与发布：`zil-backend-llvm/src/build.rs`及driver。有界工人、统一链接、阶段取消与失败清理。所有API单元进入原生Builder前都执行完整机器预检；不存在另一份重复整模块预检。
+
+LLVM verifier只负责LLVM约束，不能替代每次请求的独立ZIL Verify。语言安全、预算、溢出、清理顺序及ABI规则未改，不新增默认noalias或dereferenceable。目标和布局必须明确，不使用宿主布局冒充交叉目标。
+
+## 安装与构建
+
+实际验证的开发宿主为Linux x86_64，Rust 1.99.1、LLVM/Clang 17.0.6。动态库目录需有`libLLVM-17.so`和真实动态库。头文件、llvm-sys、Inkwell均不是本版构建依赖；Cargo依赖仅workspace。源码包不携带工具链。
 
 ```sh
-# 改为本机安装位置；必须是LLVM 17.0.6，而不是Rust自己附带的LLVM。
 export ZIL_LLVM_LIB_DIR=/opt/llvm-17.0.6/lib
 export LD_LIBRARY_PATH="$ZIL_LLVM_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export ZIL_CLANG=/opt/llvm-17.0.6/bin/clang
-
 cargo build --locked --offline --release -p zil-cli
 ```
 
-LLVM动态库参与本版CLI的装载；启用feature构建的CLI即使选择Clang也需能加载该库。不需要API时，显式执行`cargo build --locked --offline --release -p zil-cli --no-default-features`，该参考构建没有libLLVM链接依赖；在它上面请求`--backend llvm-api`会得到`E-LLVM-API-UNAVAILABLE`，不会静默回退。
+启用API的CLI装载时需要LLVM动态库，即使选择Clang参考。无LLVM库时显式构建参考版：
 
-## 第一个实际程序
+```sh
+cargo build --locked --offline --release -p zil-cli --no-default-features
+```
+
+参考版请求API明确报错，不静默回退。这里的`--offline`适用于已备妥工具链和项目依赖的环境。
+
+## 实际程序
 
 ```sh
 mkdir -p out
-./target/release/zil build examples/mainline/zui_language177/main.zil   -o out/state-api --backend llvm-api --clang "$ZIL_CLANG" --opt O0   --codegen-units 8 --codegen-jobs 4 --json > out/state-api-build.json
-printf '3' | ./out/state-api
+./target/release/zil build examples/mainline/zui_language177/main.zil \
+  -o out/state --clang "$ZIL_CLANG" --opt O0 \
+  --codegen-units 8 --codegen-jobs 4 --json > out/state-build.json
+printf '3' | ./out/state
 ```
 
-输入是**ASCII字符`3`（字节0x33）**；0x03不是合法输入，会以9退出。209核对真实源码后修正了208说明中的输入错误。预期输出`DEFHZMNOPK`，退出码0。程序真实使用拥有Store的State、实际元素共享读取及可保存回调。JSON里的`verification_runs=1`、`native_codegen.backend="llvm-api"`与对象receipt是实际链路记录；`commands`只有真正的链接命令，不伪造LLVM API为shell命令。
+输入为ASCII字符`3`（0x33），不是0x03；预期输出`DEFHZMNOPK`、退出0。它真实使用拥有Store的State、元素只读窗口和保存回调。`verification_runs=1`，`native_codegen.object_reports[*].input_kind="builder"`且`parse_ns=0`记录实际路径；`commands`只记录真正的链接进程。
 
-优化构建建议先保留单模块：
+优化构建先保持单模块：
 
 ```sh
-./target/release/zil build examples/mainline/zui_language177/main.zil   -o out/state-api-o2 --backend llvm-api --clang "$ZIL_CLANG" --opt O2   --codegen-units 1 --codegen-jobs 1
+./target/release/zil build examples/mainline/zui_language177/main.zil \
+  -o out/state-o2 --clang "$ZIL_CLANG" --opt O2 --codegen-units 1
 ```
 
-O2分块可显式选择，但206已观察到的跨单元运行性能退化尚未修复，不能因为API可用就改成默认多单元。`--backend clang`使用同一已核LIR和现有Clang参考实现；本版没有宣称两个LLVM pipeline逐pass等价。
+206已观察到的O2多单元运行性能退化没有因为Builder接入而消失。默认并行参数和pipeline不在210改动范围。
 
-## 回归与真实分配失败注入
+## 回归和复现
 
 ```sh
-cargo test --workspace --locked --offline --features zil-cli/llvm-api -- --test-threads=4
-cargo test --workspace --locked --offline --no-default-features -- --test-threads=4
-python3 tools/research/208/validate.py --repo . --cli target/release/zil   --clang "$ZIL_CLANG" --out out/api-consumer-new   --source-commit <本包SOURCE-208.json中的source_commit>
+cargo test --workspace --locked --offline
+cargo test --workspace --locked --offline --no-default-features
+cargo test --locked --offline -p zil-llvm-api --features text-reference
+cargo clippy --workspace --all-targets --locked --offline -- -D warnings
+cargo fmt --all -- --check
+python3 tools/research/208/validate.py --repo . --cli target/release/zil \
+  --clang "$ZIL_CLANG" --out out/api-consumer-new --source-commit <交付提交>
 ```
 
-`--out`必须不存在；Git工作树中可省略`--source-commit`。源码ZIP不含Git数据库时明确给出交付身份，脚本记录其为用户提供身份，而不是伪装成现场Git查询。测试oracle来自177已存在的业务场景。探针只给 **API已生成的对象** 加入分配/释放包装并链接，不把发布`.ll`重新交给Clang编译冒充API验证。
+`--out`必须不存在；无Git源码快照用交付清单提供的提交身份，该身份不冒充现场Git查询。消费者探针包装的是API生成的对象，不把旁置`.ll`重新用Clang编译。
 
-## 支持和失败边界
+`tools/research/210/differential.py`对209/210的63个现有入口做O0/O2、单/多CGU原生差分。`no-parser.c`用于拦截旧解析API，有209触发失败作为正控制。`bench.py`冻结二进制和工作负载后测完整构建，首次负面结果和修正后的新窗口分别保留。
 
-- 当前生产验证仍按177的语言profile执行；Store仍只支持checked Linux x64 LLVM。API不会开启新语义或默认`noalias`。
-- Win64已实测COFF对象和带显式`kernel32`导入库的PE链接；**没有Windows原生运行验证**。不宣称Windows宿主上的编译器安装已验收。
-- 每CGU独立Context/Module/TargetMachine，输出为拥有对象字节；统一初始化一次。新`unsafe`仅在登记的`zil-llvm-api/src/native.rs`，Verify和原有安全crate保持禁止unsafe。
-- 解析、LLVM结构核验、版本、目标布局、优化、对象或链接失败都返回错误。取消在阶段边界协作检查；不能中断正在运行的LLVM pass或链接器。CLI/driver不将旧成功文件返回为新成功，也不发布失败半成品。
-- LLVM结构核验不代替ZIL独立Verify。输入是可信编译器产生的IR；不把LLVM当恶意IR隔离沙箱。崩溃时私有暂存可能残留，不产生成功收据。
-- 208是作者实测的可选后端；209按用户要求选择为CLI研发默认，非作者审核尚未进行；完整语言NotSatisfied、产品NotRun、B0 Doing不升级。
+## 边界
 
-## 209策略差异
-
-标准Cargo CLI特性现在默认启用`llvm-api`。发行CLI的默认策略在CLI入口选择：编译时有该特性则为API；显式`--backend clang`覆盖选择。底层库`CompileOptions::default()`仍为Clang，嵌入者应显式选择策略，避免Cargo特性统一改变库调用者的隐式选择。没有API特性的参考CLI默认Clang，显式请求API仍拒绝。`zil version`报告实际默认策略。
-
-LLVM库是进程装载依赖：安装错误可能在CLI启动前由动态加载器报告，不能宣传成全部都有ZIL结构化错误。`tools/llvm/check_toolchain.py`用于构建前核对库与Clang版本，不能替代编译器内的版本和目标检查。
+- 实测Linux原生构建运行；Win64已验证COFF对象与PE交叉链接，没有Windows宿主安装或Windows本机运行验收。Store仍遵守原有Linux目标限制。
+- 机器预检不使任意恶意IR成为可信输入，也不隔离LLVM本身的原生错误。原生unsafe仅在登记的适配边界；Verify继续禁止unsafe。
+- 取消是阶段间协作检查，不能立即打断LLVM pass或链接器。失败不会返回旧成功产物作为本次结果；崩溃时暂存目录可能残留。
+- LLVM前后结构核验、对象生成和链接均可失败，任何失败都停止发布。
+- 对象缓存、稳定符号/匿名项身份、按项查询、ThinLTO属于后续专项，不是本轮已完成功能。
+- 新性能结果仅适用于冻结场景、工具链和资源；没有完成产品级性能门、非作者独立审核或远端CI。
