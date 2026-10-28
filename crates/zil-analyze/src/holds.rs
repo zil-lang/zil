@@ -39,12 +39,114 @@ fn extend(target: &mut Roots, source: &Roots, budget: &mut Budget) -> CompileRes
     Ok(before != target.len())
 }
 
+fn contains_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    if dynamic_store::is_owned_carrier(ty) {
+        return Ok(true);
+    }
+    if let Type::Package { fields, .. } = ty {
+        budget.spend(fields.len(), "captured Store whole-position classification")?;
+        return Ok(fields
+            .iter()
+            .any(|(_, ty)| dynamic_store::is_owned_carrier(ty)));
+    }
+    Ok(false)
+}
+
+/// Validate against this invocation's private precise roots. The exported
+/// candidate coarsens Field into Local and is deliberately not read here.
+fn store_window_transition(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    values: &[Roots],
+    state: &State,
+    live: &resources::Live,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.spend(1, "captured Store window transition scan")?;
+    let single = match instruction.kind {
+        InstructionKind::TakeCapture { index }
+            if f.environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .and_then(|c| c.captures.get(index as usize))
+                .is_some_and(dynamic_store::is_owned_carrier) =>
+        {
+            Some(Root::Capture(index))
+        }
+        InstructionKind::TakeLocal { local }
+        | InstructionKind::DropManaged { local }
+        | InstructionKind::DropPackage { local }
+            if contains_owned_store(&f.locals[local.0 as usize].ty, budget)? =>
+        {
+            Some(Root::Local(local))
+        }
+        InstructionKind::TakePackageField { local, index }
+        | InstructionKind::DropPackageField { local, index }
+        | InstructionKind::StorePackageField { local, index, .. }
+            if matches!(&f.locals[local.0 as usize].ty, Type::Package { fields, .. }
+                if fields.get(index as usize).is_some_and(|(_, ty)| dynamic_store::is_owned_carrier(ty))) =>
+        {
+            Some(Root::Field(local, index))
+        }
+        _ => None,
+    };
+    let mut changed = Roots::new();
+    if let Some(root) = single {
+        budget.spend(1, "captured Store transition root")?;
+        changed.insert(root);
+    }
+    if let InstructionKind::OwnedStoreReserve { store, .. }
+    | InstructionKind::OwnedStorePush { store, .. }
+    | InstructionKind::OwnedStorePop { store } = instruction.kind
+    {
+        let roots = values
+            .get(store.0 as usize)
+            .ok_or_else(|| bad("captured Store transition operand is absent"))?;
+        extend(&mut changed, roots, budget)?;
+    }
+    if changed.is_empty() {
+        return Ok(());
+    }
+    budget.spend(live.len(), "captured Store live windows")?;
+    for place in live {
+        let held = match place {
+            resources::Place::Value(value) => values.get(value.0 as usize),
+            resources::Place::Local(local) => {
+                budget.lookup(state.len(), "captured Store live local roots")?;
+                state.get(local)
+            }
+            _ => None,
+        };
+        let Some(held) = held else {
+            continue;
+        };
+        budget.product(
+            changed.len(),
+            held.len(),
+            1,
+            "captured Store window overlap",
+        )?;
+        if changed.iter().any(|changed| {
+            held.iter().any(|root| {
+                changed == root
+                    || matches!((changed, root), (Root::Local(a), Root::Field(b, _)) if a == b)
+            })
+        }) {
+            return Err(bad(
+                "captured Store transition invalidates a live element window",
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn infer(
     module: &TypedModule,
     summaries: &[Roots],
     f: &TypedFunction,
     predecessors: &[Vec<usize>],
     reachable: &[bool],
+    store_windows: bool,
     budget: &mut Budget,
 ) -> CompileResult<Vec<ValueHold>> {
     let v = f.values.len();
@@ -74,6 +176,11 @@ fn infer(
             }
         }
     }
+    let address_afters = if store_windows {
+        resources::address_afters(f, reachable, budget)?
+    } else {
+        Vec::new()
+    };
     if !has_sources {
         return Ok((0..v)
             .map(|i| ValueHold {
@@ -115,8 +222,19 @@ fn infer(
                     }
                 }
             }
-            for instruction in &block.instructions {
+            for (position, instruction) in block.instructions.iter().enumerate() {
                 budget.spend(1, "Hold instruction")?;
+                if !address_afters.is_empty() {
+                    store_window_transition(
+                        module,
+                        f,
+                        instruction,
+                        &values,
+                        &state,
+                        &address_afters[b][position],
+                        budget,
+                    )?;
+                }
                 let mut found = Roots::new();
                 match &instruction.kind {
                     InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. })) =>
@@ -340,6 +458,7 @@ fn infer(
 pub(super) fn infer_module(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    store_profiles: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     if !module
@@ -351,7 +470,19 @@ pub(super) fn infer_module(
             .functions
             .iter()
             .zip(graphs)
-            .map(|(f, (preds, reachable))| infer(module, &[], f, preds, reachable, budget))
+            .map(|(f, (preds, reachable))| {
+                infer(
+                    module,
+                    &[],
+                    f,
+                    preds,
+                    reachable,
+                    f.environment.is_some_and(|id| {
+                        store_profiles.get(id.0 as usize).copied().unwrap_or(false)
+                    }),
+                    budget,
+                )
+            })
             .collect();
     }
     let count = module.functions.len();
@@ -407,6 +538,9 @@ pub(super) fn infer_module(
             function,
             predecessors,
             reachable,
+            function
+                .environment
+                .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false)),
             budget,
         )?;
         let mut changed = false;
@@ -569,7 +703,9 @@ mod frontier_tests {
                 .functions
                 .iter()
                 .zip(graphs)
-                .map(|(f, (preds, reachable))| infer(module, &[], f, preds, reachable, budget))
+                .map(|(f, (preds, reachable))| {
+                    infer(module, &[], f, preds, reachable, false, budget)
+                })
                 .collect();
         }
         budget.spend(module.functions.len(), "return contract table")?;
@@ -586,6 +722,7 @@ mod frontier_tests {
                     function,
                     predecessors,
                     reachable,
+                    false,
                     budget,
                 )?;
                 if matches!(function.return_type, Type::Address { .. }) {
@@ -630,7 +767,8 @@ mod frontier_tests {
     fn compare(module: &TypedModule) -> (usize, usize) {
         let graphs = graphs(module);
         TEST_SOLVES.with(|n| n.set(0));
-        let fast = infer_module(module, &graphs, &mut Budget::new(&Limits::default())).unwrap();
+        let fast =
+            infer_module(module, &graphs, &[], &mut Budget::new(&Limits::default())).unwrap();
         let fast_visits = TEST_SOLVES.with(|n| n.get());
         TEST_SOLVES.with(|n| n.set(0));
         let reference = slow(module, &graphs, &mut Budget::new(&Limits::default())).unwrap();
@@ -670,6 +808,7 @@ mod frontier_tests {
         let error = infer_module(
             &module,
             &graphs(&module),
+            &[],
             &mut Budget::new(&Limits::default()),
         )
         .unwrap_err();
@@ -679,7 +818,8 @@ mod frontier_tests {
             max_analysis_steps: 0,
             ..Limits::default()
         };
-        let error = infer_module(&module, &graphs(&module), &mut Budget::new(&limits)).unwrap_err();
+        let error =
+            infer_module(&module, &graphs(&module), &[], &mut Budget::new(&limits)).unwrap_err();
         assert_eq!(error[0].category, zil_base::ResultCategory::ResourceLimit);
     }
 }

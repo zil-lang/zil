@@ -93,6 +93,357 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
     matches!(ty, Type::Managed(inner) | Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. }))
 }
 
+pub(super) fn is_owned_carrier(ty: &Type) -> bool {
+    matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. }))
+}
+
+fn capture_error(message: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::unsupported(Phase::Analyze, message, None)]
+}
+
+/// The inner captured Item keeps the old leaf shape, even though an ordinary
+/// outer Store may now contain callbacks. Inspect its complete actual tree,
+/// including types hidden inside otherwise Copy aggregates.
+fn leaf_element(element: &Type, budget: &mut Budget) -> CompileResult<()> {
+    const WORK: &str = "owned Store capture leaf qualification";
+    let Type::Package { fields, .. } = element else {
+        return Err(capture_error(
+            "owned Store capture requires a complete leaf Item Package",
+        ));
+    };
+    budget.spend(1, WORK)?;
+    let mut pending = vec![(element, 0usize)];
+    while let Some((ty, depth)) = pending.pop() {
+        budget.spend(1, WORK)?;
+        if depth > budget.helper_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "owned Store capture type depth exceeded",
+                None,
+            )]);
+        }
+        let mut push = |child| -> CompileResult<()> {
+            budget.spend(pending.len().saturating_add(1), WORK)?;
+            pending.push((child, depth + 1));
+            Ok(())
+        };
+        match ty {
+            Type::Closure(_)
+            | Type::FunctionPointer { .. }
+            | Type::ForeignCallback { .. }
+            | Type::Address { .. }
+            | Type::Desc(_)
+            | Type::OwnedStore { .. }
+            | Type::Opaque { .. }
+            | Type::Named(_)
+            | Type::Unsupported(_)
+            | Type::Slice { .. } => {
+                return Err(capture_error(
+                    "captured Store Item cannot contain callbacks, addresses, descriptions, nested Store or unresolved types",
+                ));
+            }
+            Type::Package { fields, .. } if depth == 0 => {
+                for (_, child) in fields {
+                    push(child)?;
+                }
+            }
+            Type::Package { .. } => {
+                return Err(capture_error(
+                    "captured Store Item cannot contain owning aggregates",
+                ));
+            }
+            Type::Managed(child) if depth == 1 => push(child)?,
+            Type::Managed(_) => {
+                return Err(capture_error(
+                    "captured Store Item ownership must be a direct field",
+                ));
+            }
+            Type::Tuple(fields) => {
+                for child in fields {
+                    push(child)?;
+                }
+            }
+            Type::Record { fields, .. } => {
+                for (_, child) in fields {
+                    push(child)?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    for child in fields {
+                        push(child)?;
+                    }
+                }
+            }
+            Type::Array { element, .. } => push(element)?,
+            Type::ErrorUnion { error, result } => {
+                push(error)?;
+                push(result)?;
+            }
+            _ => {}
+        }
+    }
+    // The structural walk above rejects opaque/unbounded hidden trees before
+    // the existing recursive comparison/Copy reservation can inspect them.
+    budget.type_work(element, true, WORK)?;
+    let mut managed = false;
+    for (_, field) in fields {
+        match field {
+            Type::Managed(inner)
+                if **inner == Type::ByteBuffer
+                    || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()) =>
+            {
+                managed = true
+            }
+            ty if ty.is_copy_value() => {}
+            _ => {
+                return Err(capture_error(
+                    "captured Store Item requires finite Copy fields and direct supported Managed resources",
+                ));
+            }
+        }
+    }
+    if !managed {
+        return Err(capture_error(
+            "captured Store Item requires at least one direct Managed field",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn owned_capture(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    const WORK: &str = "owned Store capture canonical definition";
+    let Type::Managed(payload) = ty else {
+        return Err(capture_error(
+            "owned Store capture requires the actual Managed carrier",
+        ));
+    };
+    let Type::OwnedStore { element } = payload.as_ref() else {
+        return Err(capture_error(
+            "owned Store capture requires the actual Store payload",
+        ));
+    };
+    leaf_element(element, budget)?;
+    let Type::Package { name, .. } = element.as_ref() else {
+        unreachable!("qualified leaf")
+    };
+    budget.spend(name.len().saturating_add(32), WORK)?;
+    let canonical = format!("@builtin:OwnedStore<{name}>");
+    budget.spend(module.resources.len(), WORK)?;
+    let mut found = 0;
+    for resource in &module.resources {
+        budget.spend(resource.name.len().saturating_add(canonical.len()), WORK)?;
+        let related_payload = if let Type::OwnedStore { element: actual } = &resource.payload
+            && let Type::Package {
+                name: actual_name, ..
+            } = actual.as_ref()
+        {
+            budget.spend(actual_name.len().saturating_add(name.len()), WORK)?;
+            actual_name == name
+        } else {
+            false
+        };
+        if resource.name != canonical && !related_payload {
+            continue;
+        }
+        let Type::OwnedStore { element: actual } = &resource.payload else {
+            return Err(super::bad(
+                "owned Store capture canonical name has a different payload",
+            ));
+        };
+        leaf_element(actual, budget)?;
+        budget.type_work(&resource.payload, false, WORK)?;
+        if resource.name != canonical
+            || resource.payload != **payload
+            || resource.teardown.is_some()
+        {
+            return Err(super::bad(
+                "owned Store capture requires its exact canonical payload and no user teardown",
+            ));
+        }
+        found += 1;
+    }
+    if found != 1 {
+        return Err(super::bad(
+            "owned Store capture requires exactly one canonical resource definition",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn captured_package(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    let Type::Package { fields, .. } = ty else {
+        return Err(super::bad("expected captured Package"));
+    };
+    budget.type_work(ty, true, "owned Store capture Package")?;
+    let mut store = false;
+    for (_, field) in fields {
+        if is_owned_carrier(field) {
+            owned_capture(module, field, budget)?;
+            store = true;
+        } else if !(field.is_copy_value()
+            || matches!(field, Type::Managed(inner) if **inner == Type::ByteBuffer
+                || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value())))
+        {
+            return Err(capture_error(
+                "captured Store Package requires direct owned Store, supported Managed and finite Copy fields",
+            ));
+        }
+    }
+    if !store {
+        return Err(capture_error("unsupported captured Package shape"));
+    }
+    Ok(())
+}
+
+/// Run only after the paid type walk actually sees an owned Store capture.
+/// Private profile bits constrain results; actual MakeClosure values and the
+/// ordinary resource pass still establish ownership and distinct live roots.
+pub(super) fn owned_capture_profiles(
+    module: &TypedModule,
+    roots: &[zil_ir::ClosureId],
+    budget: &mut Budget,
+) -> CompileResult<Vec<bool>> {
+    if roots.is_empty() {
+        return Ok(Vec::new());
+    }
+    const WORK: &str = "owned Store capture graph";
+    let count = module.closures.len();
+    budget.product(count, 5, 1, WORK)?;
+    let mut parents = vec![Vec::new(); count];
+    let mut remaining = vec![0usize; count];
+    let mut depth = vec![1usize; count];
+    let mut profile = vec![false; count];
+    let mut ready = Vec::with_capacity(count);
+    for (index, definition) in module.closures.iter().enumerate() {
+        if definition.id.0 as usize != index {
+            return Err(super::bad(
+                "owned Store capture closure identity differs from its table position",
+            ));
+        }
+        budget.spend(definition.captures.len(), WORK)?;
+        for capture in &definition.captures {
+            if let Type::Closure(child) = capture {
+                let incoming = parents
+                    .get_mut(child.0 as usize)
+                    .ok_or_else(|| super::bad("owned Store child environment is absent"))?;
+                budget.spend(incoming.len().saturating_add(1), WORK)?;
+                incoming.push(index);
+                remaining[index] += 1;
+            }
+        }
+        if remaining[index] == 0 {
+            ready.push(index);
+        }
+    }
+    budget.spend(roots.len(), WORK)?;
+    for root in roots {
+        profile[root.0 as usize] = true;
+    }
+    let mut position = 0;
+    while position < ready.len() {
+        let child = ready[position];
+        position += 1;
+        budget.spend(parents[child].len().saturating_add(1), WORK)?;
+        for &parent in &parents[child] {
+            profile[parent] |= profile[child];
+            depth[parent] = depth[parent].max(depth[child].saturating_add(1));
+            if depth[parent] > budget.helper_depth {
+                return Err(vec![Diagnostic::limit(
+                    Phase::Analyze,
+                    "owned Store capture graph depth exceeded",
+                    None,
+                )]);
+            }
+            remaining[parent] -= 1;
+            if remaining[parent] == 0 {
+                ready.push(parent);
+            }
+        }
+    }
+    if ready.len() != count {
+        return Err(super::bad(
+            "owned Store capture graph contains an owning cycle",
+        ));
+    }
+    for (definition, &new_profile) in module.closures.iter().zip(&profile) {
+        if !new_profile {
+            continue;
+        }
+        budget.type_work(&definition.result, true, "owned Store capture result")?;
+        if !definition.result.is_copy_value()
+            || definition.kind == zil_ir::CallableKind::FunctionPointer
+        {
+            return Err(capture_error(
+                "owned Store capture and its owning Closure parents require finite Copy or Unit results",
+            ));
+        }
+        let function = module
+            .functions
+            .get(definition.function.0 as usize)
+            .ok_or_else(|| super::bad("owned Store environment entry is absent"))?;
+        budget.type_work(
+            &function.return_type,
+            true,
+            "owned Store actual entry result",
+        )?;
+        if function.environment != Some(definition.id)
+            || function.foreign.is_some()
+            || function.return_type != definition.result
+        {
+            return Err(super::bad(
+                "owned Store environment must match its actual entry and result",
+            ));
+        }
+        budget.spend(1, "owned Store self-contained root")?;
+        callable_fields::self_contained(module, definition.id, budget)?;
+    }
+    budget.spend(module.functions.len(), "owned Store MakeClosure functions")?;
+    for function in &module.functions {
+        budget.spend(function.blocks.len(), "owned Store MakeClosure blocks")?;
+        for block in &function.blocks {
+            budget.spend(
+                block.instructions.len(),
+                "owned Store MakeClosure instructions",
+            )?;
+            for instruction in &block.instructions {
+                let InstructionKind::MakeClosure { closure, captures } = &instruction.kind else {
+                    continue;
+                };
+                if !profile.get(closure.0 as usize).copied().unwrap_or(false) {
+                    continue;
+                }
+                let expected = &module.closures[closure.0 as usize].captures;
+                if expected.len() != captures.len() {
+                    return Err(super::bad("owned Store MakeClosure capture count mismatch"));
+                }
+                budget.spend(captures.len(), "owned Store MakeClosure actual operands")?;
+                for (value, expected) in captures.iter().zip(expected) {
+                    let actual = function
+                        .values
+                        .get(value.0 as usize)
+                        .ok_or_else(|| super::bad("owned Store MakeClosure operand is absent"))?;
+                    budget.type_work(actual, false, "owned Store MakeClosure type comparison")?;
+                    if actual != expected {
+                        return Err(super::bad(
+                            "owned Store MakeClosure actual capture type differs from the environment",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(profile)
+}
+
 pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
     match *kind {
         InstructionKind::OwnedStoreReserve { store, .. }

@@ -378,3 +378,223 @@ fn impl203_two_root_qualification_has_an_exact_fresh_work_boundary() {
     assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
     println!("impl203 independent two-root qualification work={n}");
 }
+
+fn captured_leaf_store() -> (Type, ResourceDefinition) {
+    let leaf = Type::Package {
+        name: "Leaf204".into(),
+        fields: vec![
+            ("marker".into(), Type::I32),
+            ("token".into(), Type::Managed(Box::new(zero()))),
+        ],
+    };
+    let payload = Type::OwnedStore {
+        element: Box::new(leaf.clone()),
+    };
+    (
+        Type::Managed(Box::new(payload.clone())),
+        ResourceDefinition {
+            name: definition_name(&leaf),
+            payload,
+            teardown: None,
+        },
+    )
+}
+
+#[test]
+fn impl204_direct_and_package_capture_layouts_keep_every_store_flag() {
+    let (store, resource) = captured_leaf_store();
+    let limits = Limits::default();
+    let mut m = module(vec![store.clone(), store.clone()]);
+    m.resources.push(resource);
+    let layouts =
+        closure_layouts(&m, ClosureId(0), Some(&limits), &mut Budget::new(&limits)).unwrap();
+    // Two distinct 24-byte heads and two distinct live flags, never one head
+    // deduplicated by its canonical element type.
+    assert_eq!(layouts[0], Some((56, 8)));
+    admit(&m, &element(&[0]), &limits).unwrap();
+    m.closures[0].captures = vec![Type::Package {
+        name: "Bag204".into(),
+        fields: vec![
+            ("tag".into(), Type::I32),
+            ("items".into(), store),
+            ("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+        ],
+    }];
+    let layouts =
+        closure_layouts(&m, ClosureId(0), Some(&limits), &mut Budget::new(&limits)).unwrap();
+    // 56 payload bytes plus shell + two Managed flags, rounded to 64.
+    assert_eq!(layouts[0], Some((64, 8)));
+    admit(&m, &element(&[0]), &limits).unwrap();
+}
+
+#[test]
+fn impl204_fixed_store_head_never_bypasses_canonical_or_leaf_checks() {
+    let (store, resource) = captured_leaf_store();
+    let limits = Limits::default();
+    let mut m = module(vec![store.clone()]);
+    assert_eq!(
+        admit(&m, &element(&[0]), &limits).unwrap_err().code,
+        "E-VERIFY-OWNED-STORE"
+    );
+    m.resources.push(resource);
+    admit(&m, &element(&[0]), &limits).unwrap();
+    for variant in 0..3 {
+        let mut bad = m.clone();
+        let definition = bad.resources.last_mut().unwrap();
+        match variant {
+            0 => definition.name.push_str("wrong"),
+            1 => {
+                let Type::OwnedStore { element } = &mut definition.payload else {
+                    unreachable!()
+                };
+                let Type::Package { fields, .. } = element.as_mut() else {
+                    unreachable!()
+                };
+                fields[0].1 = Type::I64;
+            }
+            _ => definition.teardown = Some(FunctionId(0)),
+        }
+        assert_eq!(
+            admit(&bad, &element(&[0]), &limits).unwrap_err().code,
+            "E-VERIFY-OWNED-STORE"
+        );
+    }
+    let Type::Managed(payload) = store else {
+        unreachable!()
+    };
+    m.closures[0].captures = vec![Type::Desc(payload)];
+    assert!(
+        admit(&m, &element(&[0]), &limits)
+            .unwrap_err()
+            .message
+            .contains("actual owning carrier")
+    );
+
+    let (mut zero_store, _) = captured_leaf_store();
+    let Type::Managed(payload) = &mut zero_store else {
+        unreachable!()
+    };
+    let Type::OwnedStore { element: leaf } = payload.as_mut() else {
+        unreachable!()
+    };
+    let Type::Package { fields, .. } = leaf.as_mut() else {
+        unreachable!()
+    };
+    fields.remove(0);
+    m.closures[0].captures = vec![zero_store];
+    assert!(
+        admit(&m, &element(&[0]), &limits)
+            .unwrap_err()
+            .message
+            .contains("nonzero")
+    );
+}
+
+#[test]
+fn impl204_copy_result_restriction_follows_actual_owned_closure_children() {
+    let (store, resource) = captured_leaf_store();
+    let limits = Limits::default();
+    let mut m = module(vec![store]);
+    m.resources.push(resource);
+    for id in 1..3 {
+        m.closures.push(ClosureDefinition {
+            id: ClosureId(id),
+            function: FunctionId(id),
+            captures: vec![Type::Closure(ClosureId(id - 1))],
+            ..m.closures[0].clone()
+        });
+    }
+    admit(&m, &element(&[2]), &limits).unwrap();
+    for changed in 0..3 {
+        let mut bad = m.clone();
+        bad.closures[changed].result = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        assert!(
+            admit(&bad, &element(&[2]), &limits)
+                .unwrap_err()
+                .message
+                .contains("Copy or Unit result")
+        );
+    }
+    // The historical single-root environment with no owned Store still has
+    // its original qualification behavior. This is not a complete loan proof.
+    m.closures[0].captures = vec![Type::I32];
+    m.closures[2].result = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::I32),
+    };
+    admit(&m, &element(&[2]), &limits).unwrap();
+}
+
+#[test]
+fn impl204_owning_store_qualification_has_an_exact_fresh_work_boundary() {
+    let (store, resource) = captured_leaf_store();
+    let mut m = module(vec![store.clone(), store]);
+    m.resources.push(resource);
+    let ty = element(&[0]);
+    let limits = Limits::default();
+    let mut budget = Budget::new(&limits);
+    check_element_with_limits(&m, &ty, None, Some(&limits), &mut budget).unwrap();
+    let n = limits.max_analysis_steps - budget.remaining;
+    let exact = Limits {
+        max_analysis_steps: n,
+        ..limits.clone()
+    };
+    admit(&m, &ty, &exact).unwrap();
+    let below = Limits {
+        max_analysis_steps: n - 1,
+        ..limits
+    };
+    assert_eq!(
+        admit(&m, &ty, &below).unwrap_err().category,
+        zil_base::ResultCategory::ResourceLimit
+    );
+    admit(&m, &ty, &exact).unwrap();
+    println!("impl204 independent owning Store qualification work={n}");
+}
+
+#[test]
+fn impl204_callable_types_cannot_hide_in_copy_leaf_fields_or_resource_heads() {
+    let limits = Limits::default();
+    for callback in [
+        Type::Closure(ClosureId(0)),
+        Type::FunctionPointer {
+            parameters: vec![],
+            result: Box::new(Type::I32),
+        },
+        Type::ForeignCallback {
+            parameters: vec![],
+            result: Box::new(Type::I32),
+        },
+    ] {
+        for inside_resource in [false, true] {
+            let (mut store, _) = captured_leaf_store();
+            let Type::Managed(payload) = &mut store else {
+                unreachable!()
+            };
+            let Type::OwnedStore { element: leaf } = payload.as_mut() else {
+                unreachable!()
+            };
+            let Type::Package { fields, .. } = leaf.as_mut() else {
+                unreachable!()
+            };
+            let hidden = Type::Record {
+                name: "Hidden204".into(),
+                fields: vec![("callback".into(), Type::Tuple(vec![callback.clone()]))],
+            };
+            fields.push((
+                "extra".into(),
+                if inside_resource {
+                    Type::Managed(Box::new(hidden))
+                } else {
+                    hidden
+                },
+            ));
+            let m = module(vec![store]);
+            let error = admit(&m, &element(&[0]), &limits).unwrap_err();
+            assert!(error.message.contains("inner leaf types cannot hide"));
+        }
+    }
+}

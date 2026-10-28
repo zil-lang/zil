@@ -15,6 +15,8 @@ struct Package {
     end: usize,
     fields: BTreeMap<String, usize>,
     copy_fields: BTreeSet<String>,
+    owned_use: bool,
+    contains_store: bool,
 }
 
 #[derive(Default)]
@@ -43,6 +45,7 @@ pub(super) fn classify(
     }
     let mut packages = Vec::new();
     let mut slots = 0usize;
+    let mut has_store = false;
     for (capture, item) in captures.iter().enumerate() {
         let Type::Package { fields, .. } = &item.ty else {
             continue;
@@ -61,11 +64,13 @@ pub(super) fn classify(
             .ok_or_else(|| limit("Package slot overflow", item.span))?;
         let mut owned = BTreeMap::new();
         let mut copy_fields = BTreeSet::new();
+        let mut contains_store = false;
         for (name, ty) in fields {
             *work = work
                 .checked_sub(name.len())
                 .ok_or_else(|| limit("Package field name budget exceeded", item.span))?;
             if matches!(ty, Type::Managed(_)) {
+                contains_store |= dynamic_store::is_carrier(ty);
                 owned.insert(name.clone(), slots);
                 slots = slots
                     .checked_add(1)
@@ -81,7 +86,10 @@ pub(super) fn classify(
             end: slots,
             fields: owned,
             copy_fields,
+            owned_use: false,
+            contains_store,
         });
+        has_store |= contains_store;
     }
     let mut scan = Scan {
         writes: vec![false; packages.len()],
@@ -91,6 +99,8 @@ pub(super) fn classify(
         limits,
         work,
         nested_moves,
+        has_store,
+        borrow_depth: 0,
     };
     for parameter in parameters {
         scan.bind(&parameter.name, parameter.span)?;
@@ -103,6 +113,7 @@ pub(super) fn classify(
     for (index, package) in scan.packages.iter().enumerate() {
         captures[package.capture].written |= scan.writes[index];
         captures[package.capture].consumed |= scan.partial_exit[index];
+        captures[package.capture].moved |= package.owned_use;
     }
     Ok(())
 }
@@ -115,6 +126,8 @@ struct Scan<'a> {
     limits: &'a Limits,
     work: &'a mut usize,
     nested_moves: &'a BTreeMap<zil_base::NodeId, BTreeSet<String>>,
+    has_store: bool,
+    borrow_depth: usize,
 }
 
 impl Scan<'_> {
@@ -213,6 +226,7 @@ impl Scan<'_> {
         self.spend(range.len(), span)?;
         state[range].fill(value);
         self.writes[package] = true;
+        self.packages[package].owned_use |= value == EMPTY && self.borrow_depth == 0;
         Ok(())
     }
     fn field(&mut self, package: usize, name: &str, span: Span) -> R<Option<usize>> {
@@ -293,14 +307,27 @@ impl Scan<'_> {
                 {
                     state[slot] = EMPTY;
                     self.writes[package] = true;
+                    self.packages[package].owned_use = true;
                 } else {
                     self.expr(state, operand, depth + 1)?;
                 }
             }
+            CoreExprKind::Unary {
+                op: UnaryOp::Borrow | UnaryOp::BorrowMut,
+                operand,
+            } => {
+                // The old receiver flow remains conservative, but a read of a
+                // Package place must not infer the new creation-time transfer.
+                self.borrow_depth += 1;
+                self.expr(state, operand, depth + 1)?;
+                self.borrow_depth -= 1;
+            }
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. }
             | CoreExprKind::IntegerConvert { value: operand, .. }
-            | CoreExprKind::TypeApply { callee: operand, .. }
+            | CoreExprKind::TypeApply {
+                callee: operand, ..
+            }
             | CoreExprKind::CompileTime(operand) => self.expr(state, operand, depth + 1)?,
             CoreExprKind::Try(operand) => {
                 self.expr(state, operand, depth + 1)?;
@@ -395,7 +422,9 @@ impl Scan<'_> {
                     .join(Some(current), Some(other), span)?
                     .expect("branches");
             }
-            CoreExprKind::Closure { .. } => {
+            CoreExprKind::Closure {
+                parameters, body, ..
+            } => {
                 // The body executes later, but its owned captures transfer at
                 // creation. Only these source-inferred transfers enter this
                 // flow; Analyze/Verify independently check the actual IR.
@@ -406,6 +435,9 @@ impl Scan<'_> {
                         }
                     }
                 }
+                if self.has_store {
+                    self.nested_owned_uses(state, parameters, body, depth + 1)?;
+                }
             }
             CoreExprKind::Integer(_)
             | CoreExprKind::Bool(_)
@@ -414,6 +446,51 @@ impl Scan<'_> {
             | CoreExprKind::Unit
             | CoreExprKind::ReceiverMember(_)
             | CoreExprKind::Unsupported(_) => {}
+        }
+        Ok(())
+    }
+    fn nested_owned_uses(
+        &mut self,
+        state: &mut State,
+        parameters: &[CoreClosureParameter],
+        body: &CoreBlock,
+        depth: usize,
+    ) -> R<()> {
+        // Only new Store-bearing Package captures enter this extra source
+        // walk. A nested body's real value/give use transfers its complete
+        // Package when that child is created, regardless of a `move` keyword.
+        let count = self.packages.len();
+        self.spend(
+            count
+                .saturating_mul(6)
+                .saturating_add(state.len())
+                .saturating_add(parameters.len())
+                .saturating_add(1),
+            body.span,
+        )?;
+        let writes = std::mem::replace(&mut self.writes, vec![false; count]);
+        let exits = std::mem::replace(&mut self.partial_exit, vec![false; count]);
+        let owned = self
+            .packages
+            .iter_mut()
+            .map(|package| std::mem::replace(&mut package.owned_use, false))
+            .collect::<Vec<_>>();
+        let borrow_depth = std::mem::replace(&mut self.borrow_depth, 0);
+        self.scopes.push(BTreeSet::new());
+        for parameter in parameters {
+            self.bind(&parameter.name, parameter.span)?;
+        }
+        self.block(vec![LIVE; state.len()], body, depth)?;
+        self.scopes.pop();
+        self.borrow_depth = borrow_depth;
+        self.writes = writes;
+        self.partial_exit = exits;
+        for (index, prior) in owned.into_iter().enumerate() {
+            let moved = self.packages[index].contains_store && self.packages[index].owned_use;
+            self.packages[index].owned_use = prior;
+            if moved {
+                self.whole(state, index, EMPTY, body.span)?;
+            }
         }
         Ok(())
     }

@@ -1,0 +1,31 @@
+{
+  "inputs_frozen": true,
+  "scope": "Independent 204 exact execution evidence: source06 21/0, Linux148/108 at source694, earlier true failures and intermediate results kept separate. This packaging performs no compiler or program execution.",
+  "notes": [
+    "Actual final reviewer execution source is 694940eda0f7a9e5f9f999f8f2b107f4550d84fb; actual CLI05 build source is 7abbbac1f6479c52f4967653acfab74fc56c945d and executable SHA is baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d.",
+    "The final independent REVIEW and any later test-only migration binding remain separate repository receipts. The included receipts-at-da4222a1 snapshot preserves exactly what existed before that final binding.",
+    "Formal root workspace01 failed2468/1 due to an old diagnostic expectation and is not included or claimed as reviewer execution.",
+    "Wire binary test inputs, source, TypedIR, candidates, LLVM text, original outputs and empty logs are retained. Native executables and object/build products are excluded with hashes.",
+    "Tracked snapshots for dirty Rust scaffold runs are explicitly marked; no claim is made to reconstruct unrecorded dirty Rust bytes. All final source06 and consumer runs had clean checkouts."
+  ],
+  "sources": [
+    {
+      "component": "reviewer",
+      "id": "reviewer-records",
+      "kind": "directory",
+      "path": "/tmp/zil204-review-records"
+    },
+    {
+      "component": "reviewer",
+      "id": "reviewer-commands",
+      "kind": "directory",
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197"
+    },
+    {
+      "component": "compiler",
+      "id": "compiler-cli05",
+      "kind": "directory",
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-root/cli05"
+    }
+  ]
+}
