@@ -4,6 +4,8 @@
 use super::*;
 use std::collections::BTreeSet;
 
+type RoleAccesses = Vec<(Option<ValueId>, Effects)>;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Source {
     Root(Root),
@@ -441,7 +443,7 @@ impl Context<'_> {
         &self,
         instruction: &Instruction,
         budget: &mut Budget,
-    ) -> Check<Option<Vec<(Option<ValueId>, Effects)>>> {
+    ) -> Check<Option<RoleAccesses>> {
         let InstructionKind::Call {
             function,
             arguments,
