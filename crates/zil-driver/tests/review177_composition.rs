@@ -253,7 +253,7 @@ fn borrowed_and_nonfield_values_do_not_get_the_new_give_capability() {
         (
             "arbitrary-generic-give",
             "fn unused<T>(value:T)->T{return give value}",
-            "owning State profile",
+            "direct Package manages field",
         ),
     ] {
         let source = format!("{MODEL}{function}fn main()->i32=>0");
