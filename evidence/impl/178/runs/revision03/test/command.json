@@ -1,0 +1,33 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl178_generic_store",
+    "--offline",
+    "--locked",
+    "--no-fail-fast",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt178",
+  "start": 1793151689.6793718,
+  "source_commit": "690c85d8b06aa5510188f844343cd89af87329f9",
+  "git_status": " M crates/zil-driver/tests/impl178_generic_store.rs\n M crates/zil-expand/src/generic_check.rs\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author178",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/runs178/author178/revision03/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793151691.1050942,
+  "stdout.log_sha256": "eeb1b1cf37d88b9020de34c17e915c0f4850443eec190c7bbf4b38cd811e4fb6",
+  "stderr.log_sha256": "d31bf21972df8a4bf2028a5c41785f58cd38999687040048a68f6a6a4c2ab680"
+}

@@ -1,0 +1,19 @@
+{
+  "status": "Pass",
+  "source_commit": "23d256323c1e39f5821c80686d0c8f1a4cd225e7",
+  "dirty": "",
+  "cli_sha256": "e9cf79452c46fafb8b6c48fe4a7f462f05c1adc6a00e87654b3ea0eadd4a04b1",
+  "platform": "linux",
+  "execution": "native",
+  "selected": [
+    "main",
+    "field_exit",
+    "padded"
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "executions": 72,
+  "ordinary_executions": 22,
+  "instrumented_executions": 50,
+  "failure_executions": 32
+}

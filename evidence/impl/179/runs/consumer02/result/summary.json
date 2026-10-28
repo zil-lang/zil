@@ -1,0 +1,23 @@
+{
+  "status": "Fail",
+  "source_commit": "9b9be9b16f9d7d2e1f51daec16e67f61ce0b6dda",
+  "compiler_source_commit": "9b9be9b16f9d7d2e1f51daec16e67f61ce0b6dda",
+  "cli_sha256": "74f1d781b495447591c07a56b364be70b609126e024a701878acf4454b79f848",
+  "sources": {
+    "callbacks.zil": "17597b71abc57b029baa66b458673dee891ff7d736c83bbcaba74509b417e0fe",
+    "collection.zil": "fecf9ab1c6b7544ebf5c81ba661ece184a86a299012047b26d8b149b34beb84e",
+    "main.zil": "ea845706962dcf1ceb22ed053e0f67151520c96ff9e8b29192e79397d09a7062",
+    "model.zil": "7c0af7109eaee83e9afc360060530b0bdf1148f4f3d18a79738359c4a32f28d5",
+    "state.zil": "19ea0f599265d0af835db338556b9e0b7d926a24be9fe9fb90ea5f7841e3971d"
+  },
+  "probe_sources": {
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5"
+  },
+  "builds": [],
+  "observations": [],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "error_type": "RuntimeError",
+  "error": "O0: {'status': 'SafeReject', 'phase': 'types', 'diagnostics': [{'phase': 'types', 'category': 'SafeReject', 'code': 'E-FFI-UNSAFE', 'message': 'foreign calls require an explicit lexical unsafe block', 'span': {'file': 0, 'start': 586, 'end': 595}, 'notes': []}], 'artifacts': {'core': '/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/consumer02/result/O0/phases/core.txt', 'ct-core': '/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/consumer02/result/O0/phases/ct-core.txt', 'source-map': '/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/consumer02/result/O0/phases/source-map.txt', 'syntax': '/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/consumer02/result/O0/phases/syntax.txt'}, 'input_fingerprint': '5e24c056d7a59af56863c8d21167a8e89b48b7cd3814e87288a014add08f5232', 'seconds': 0.052954453, 'cache_hit': False, 'commands': [], 'disk_cache': 'disabled', 'query_events': [{'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'expand', 'disposition': 'executed'}, {'phase': 'ct', 'disposition': 'executed'}, {'phase': 'types', 'disposition': 'executed'}], 'verification_runs': 0, 'source_files': {'0': '/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/main.zil', '1': '/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/model.zil', '2': '/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/callbacks.zil', '3': '/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/collection.zil'}, 'scalar_interfaces': []}"
+}

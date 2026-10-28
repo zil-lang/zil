@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/lld-link",
+    "/lib",
+    "/def:/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernel32.def",
+    "/machine:x64",
+    "/out:/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernel32.lib"
+  ],
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "",
+  "definition_sha256": "365221d3e8e00eec11b6c3e728459c182a98e602eb82ba93a84ce1052c03638a",
+  "library_sha256": "339817e4237bce3e09134b2871adf37bb8043d256003064bb9c94f4a3c626c04"
+}

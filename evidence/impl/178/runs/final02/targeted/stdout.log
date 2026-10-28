@@ -1,0 +1,84 @@
+
+running 12 tests
+test borrowed_receivers_do_not_gain_mutation_or_move_permissions ... ok
+test actual_impl_signatures_and_independent_loan_checks_still_run ... ok
+test forwarding_requires_a_prior_bound_even_when_unused ... ok
+test bound_method_named_len_and_self_parameters_are_symbolic ... ok
+test imported_public_bounds_keep_definition_and_nominal_module_identity ... ok
+test missing_trait_wrong_arguments_and_ambiguous_bounds_reject_before_specialization ... ok
+test private_and_same_spelling_foreign_traits_cannot_satisfy_bound ... ok
+test same_named_inherent_method_does_not_satisfy_nominal_bound ... ok
+test shared_bounds_dispatch_for_multiple_nominal_types_and_forward_symbolically ... ok
+test trait_bound_scans_obey_actual_work_budget ... ok
+test unused_definitions_cannot_gain_members_types_or_copy_from_instances ... ok
+test mutable_multiple_bounds_and_value_receiver_keep_passing_modes ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+
+running 13 tests
+test complete_store_fields_construct_move_and_drop_prefix_in_field_order ... ok
+test raw_wire_reconstruct_sealed_store_definition_even_for_state_only_signature ... ok
+test raw_wire_reject_double_take_unpaid_replace_and_wrong_field_projection ... ok
+test raw_wire_store_bearing_capture_remains_closed ... ok
+test replacing_store_field_drops_old_prefix_before_new_publication ... ok
+test sealed_definitions_are_discovered_from_state_only_signatures ... ok
+test source_rejects_borrowed_store_fields_and_unsupported_nested_storage ... ok
+test source_rejects_missing_field_double_take_and_old_description_retargeting ... ok
+test store_field_raw_and_wire_budget_has_an_exact_boundary ... ok
+test cross_module_state_owns_runtime_replacement_and_partial_exit ... ok
+test taken_store_field_early_error_cleans_only_live_shell_fields ... ok
+test store_state_in_owned_error_and_fixed_array_recursively_cleans_prefix ... ok
+test whole_field_take_refill_and_state_transfer_have_one_responsibility ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.59s
+
+
+running 12 tests
+test borrowed_environments_cannot_enter_retained_state ... ok
+test different_source_opaque_factories_and_moved_fields_are_rejected ... ok
+test bytebuffer_environment_survives_field_calls_and_state_transfer ... ok
+test exact_raw_and_wire_budget_boundary_is_deterministic_for_nested_callback_state ... ok
+test failed_preparation_keeps_old_field_and_unwinds_prepared_argument ... ok
+test field_take_refill_replace_and_nested_cleanup_preserve_one_environment ... ok
+test fnonce_take_consumes_and_partial_state_exit_cleans_only_remaining_fields ... ok
+test generic_state_api_can_take_call_refill_and_return_complete_state ... ok
+test raw_and_wire_cannot_publish_the_same_resource_free_callback_twice ... ok
+test raw_and_wire_reconstruct_field_permission_liveness_and_unique_publication ... ok
+test public_state_generic_api_preserves_identity_across_modules_and_composition ... ok
+test whole_state_parameters_and_results_keep_original_fnmut_environment ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.18s
+
+
+running 10 tests
+test borrowed_concrete_package_cannot_be_copied_into_a_local_give_capability ... ok
+test borrowed_package_array_cannot_create_a_manages_field_owner ... ok
+test generic_comparison_result_hint_does_not_retype_a_concrete_helper_operand ... ok
+test complete_local_assignment_restores_liveness_after_rhs_transfer ... ok
+test give_does_not_grant_ownership_to_copy_callable_or_descriptor_values ... ok
+test generic_state_takes_refills_and_calls_actual_callback_after_store_transfer ... ok
+test owning_state_indexed_package_transfer_waits_for_its_own_symbolic_slot_protocol ... ok
+test partial_state_whole_overwrite_still_requires_actual_old_debt_cleanup ... ok
+test unused_templates_reject_missing_fields_and_concrete_batch_aliases ... ok
+test ordinary_generic_concrete_package_projections_and_array_take_remain_usable ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.92s
+
+
+running 12 tests
+test bounded_element_shape_work_has_an_exact_definition_time_boundary ... ok
+test actual_generic_calls_do_not_merge_distinct_nominal_elements ... ok
+test descriptor_aliases_do_not_revive_after_give_or_replacement ... ok
+test element_bound_checks_real_shapes_and_never_grants_copy_or_members ... ok
+test generic_owning_package_and_concrete_callback_state_compose ... ok
+test cross_module_helpers_preserve_two_nominal_elements_and_failure_returns ... ok
+test generic_source_still_requires_independent_raw_and_wire_ownership ... ok
+test generic_prefix_drain_repeats_with_real_item_cleanup ... ok
+test real_copy_shapes_including_static_foreign_values_remain_elements ... ok
+test unused_package_fields_keep_mode_and_instance_identity ... ok
+test unused_templates_reject_unproven_store_element_or_owner ... ok
+test two_element_shapes_use_the_same_actual_generic_helpers ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s
+

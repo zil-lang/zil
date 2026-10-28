@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-OWNED-STORE",
+        message: "Store definition must have its canonical element identity and no user teardown",
+        span: None,
+        notes: [],
+    },
+]

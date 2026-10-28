@@ -1,0 +1,1 @@
+import owner;fn value()->i32{var f=owner.make();return f()+f()}

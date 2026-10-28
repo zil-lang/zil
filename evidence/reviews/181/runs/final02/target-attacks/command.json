@@ -1,0 +1,21 @@
+{
+  "name": "target-attacks",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl181_win64_store",
+    "--test",
+    "review181_by179",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "exit_code": 101,
+  "status": "Fail",
+  "elapsed_seconds": 0.27439045906066895
+}

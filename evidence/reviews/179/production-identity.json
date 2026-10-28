@@ -1,0 +1,32 @@
+{
+  "source_commit": "204fea481d8770bf53f2e81324830b4f375d954e",
+  "review_test_commit": "1b7ecf7813e49ed12e38edc65279045f405d0506",
+  "git_diff_name_only": "crates/zil-driver/tests/review179_borrows.rs",
+  "trees": {
+    "crates/zil-analyze": {
+      "author_tree": "69deb69a4019b242f397c7f47e5ab4d0ddccd9fb",
+      "review_tree": "69deb69a4019b242f397c7f47e5ab4d0ddccd9fb"
+    },
+    "crates/zil-verify": {
+      "author_tree": "705a3ec3d39726a649ef8e6d337b1917b1048720",
+      "review_tree": "705a3ec3d39726a649ef8e6d337b1917b1048720"
+    },
+    "crates/zil-types": {
+      "author_tree": "4ad260d405978a7f3cd36f0a266fbc61a02a7673",
+      "review_tree": "4ad260d405978a7f3cd36f0a266fbc61a02a7673"
+    },
+    "crates/zil-ir": {
+      "author_tree": "1bccbe7e79229b9a596523f0d64b4e1d1a0e4e6f",
+      "review_tree": "1bccbe7e79229b9a596523f0d64b4e1d1a0e4e6f"
+    },
+    "crates/zil-expand": {
+      "author_tree": "4e265d6108963b08ae8d4c7ec5502c4623a10bce",
+      "review_tree": "4e265d6108963b08ae8d4c7ec5502c4623a10bce"
+    },
+    "crates/zil-driver/src": {
+      "author_tree": "da8ca17616eb1fe3a956f5c9ecaeb45fc62e0b9a",
+      "review_tree": "da8ca17616eb1fe3a956f5c9ecaeb45fc62e0b9a"
+    }
+  },
+  "production_identical": true
+}

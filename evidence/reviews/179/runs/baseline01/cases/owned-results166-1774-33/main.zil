@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}enum E{Fail}enum F{Fail}fn make()->E!P=>P{r:R{n:1}};fn bad()->F!i32{let p=make()?;return p.r.n}fn main(){}

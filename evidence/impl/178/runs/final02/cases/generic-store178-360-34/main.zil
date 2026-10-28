@@ -1,0 +1,1 @@
+package Batch<T:StoreElement>{manages items:Store<T>}fn bad<T:StoreElement>(s:Store<T>)->Batch<T> =>Batch::<T>{items:s};fn main(){}

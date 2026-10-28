@@ -1,0 +1,1 @@
+pub trait Measure{fn measure(self:&Self)->i32;}pub struct Value{n:i32}impl Measure for Value{fn measure()->i32=>.n}pub fn make(n:i32)->Value=>Value{n:n}

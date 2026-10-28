@@ -1,0 +1,17 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.31s
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+
+running 9 tests
+test descriptor_aliases_do_not_revive_after_give_or_replacement ... ok
+test element_bound_checks_real_shapes_and_never_grants_copy_or_members ... ok
+test cross_module_helpers_preserve_two_nominal_elements_and_failure_returns ... ok
+test generic_owning_package_and_concrete_callback_state_compose ... ok
+test generic_source_still_requires_independent_raw_and_wire_ownership ... ok
+test generic_prefix_drain_repeats_with_real_item_cleanup ... ok
+test unused_package_fields_keep_mode_and_instance_identity ... ok
+test unused_templates_reject_unproven_store_element_or_owner ... ok
+test two_element_shapes_use_the_same_actual_generic_helpers ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s
+

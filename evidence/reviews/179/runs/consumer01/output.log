@@ -1,0 +1,4 @@
+usage: consumer.py [-h] --repo REPO --cli CLI --out OUT
+                   [--source-commit SOURCE_COMMIT]
+                   [--compiler-commit COMPILER_COMMIT]
+consumer.py: error: the following arguments are required: --cli
