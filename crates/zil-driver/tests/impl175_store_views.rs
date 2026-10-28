@@ -404,7 +404,7 @@ fn element_shape_mutable_owned_field_return_and_capture_guards_are_explicit() {
         ResultCategory::Unsupported,
         Types,
         "E-UNSUPPORTED",
-        "only project finite Copy fields",
+        "only project finite Copy or concrete callback fields",
     );
     reject_source(
         &format!(
