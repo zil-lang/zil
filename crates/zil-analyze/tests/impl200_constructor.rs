@@ -240,7 +240,9 @@ fn constructor_does_not_erase_actual_type_or_borrowed_parameter_modes() {
     rejected(
         &duplicate,
         ResultCategory::SafeReject,
-        "duplicate scoped parameter",
+        // The removed actual parameter leaves local 1 uninitialized before
+        // helper-contract checks; this is an initialization rejection.
+        "not initialized on every incoming path",
     );
     accepted(&good);
 }
