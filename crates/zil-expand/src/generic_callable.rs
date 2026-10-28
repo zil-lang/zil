@@ -30,6 +30,10 @@ impl CallableTemplates {
             .all(|role| role.generic_index == first.generic_index)
             .then_some(first.generic_name.as_str())
     }
+
+    pub(crate) fn store_generic(&self) -> Option<&str> {
+        self.owned_state.then(|| self.single_generic()).flatten()
+    }
 }
 
 pub(crate) fn refers(ty: &TypeRef, name: &str) -> bool {
