@@ -1,0 +1,309 @@
+{
+  "status": "Pass",
+  "scope": "205 one complete owned State<T,F> plus independently owned replacement:F, actual positions, declared origins, unused definition checks and finite composition; not complete1.4 or product acceptance",
+  "source_commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+  "source_clean": true,
+  "integration_merge": "e159723aab87418be1150085036741b4e64376c5",
+  "production_freeze": "54452f8a50eb494c7c444bca3a9682802246284f",
+  "production_input_count": 178,
+  "compiler_input_sha256_equal_to_frozen_cli": true,
+  "post_test_changes": "Only compact receipts, documentation and task metadata. Compiler, Rust tests, ZIL consumer sources and frozen consumer oracle equal the tested source.",
+  "spec_hash": "71d03d540f73b8f3835c8f2198c99a8074f9abdce0f58284c3c9df1f0d17c560",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "schema_version": 27,
+  "wire_version": 27,
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--no-fail-fast"
+  ],
+  "passed": 2552,
+  "failed": 0,
+  "ignored": 0,
+  "test_result_groups": 259,
+  "duration_seconds": 193.77161931991577,
+  "stdout_log_sha256": "e06671dcd2ee97175e490b5876d218b937110c03b823ae1903af14baad796ca5",
+  "stderr_log_sha256": "6c3fd5c03a4fb45a1455983eada62040dbf9529ed79b600f6041ba0e94029ba3",
+  "clippy": {
+    "status": "Pass",
+    "source_commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+    "command": [
+      "cargo",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--offline",
+      "--locked",
+      "-j2",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "receipt": "clippy-final02/command.json",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e0d8f58b8873ff63f8705f22a81c566b10a5c84b805221f3c69bf3932ea51a51"
+  },
+  "host_test_environment": {
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "optimization": "unoptimized/debug0",
+    "source": "workspace02-plan.json",
+    "scope": "Host test symbol metadata only to fit environment; no language rule, input, oracle, default limit or performance claim changes. Final host executables are not claimed identical to earlier runs.",
+    "reviewer_direct_elf_observation": "NotAvailable; reviewer audited declared profile and exact receipts."
+  },
+  "compiler": {
+    "source_commit": "54452f8a50eb494c7c444bca3a9682802246284f",
+    "git_status": "",
+    "binary_path": "/tmp/zil205-cli-8cf2524495bc1fb1ac59fad705ead558c4c6f72fb200b5b21dc871ef22a5e323",
+    "bytes": 28665608,
+    "sha256": "8cf2524495bc1fb1ac59fad705ead558c4c6f72fb200b5b21dc871ef22a5e323"
+  },
+  "independent_review": {
+    "reviewer": "/root/review205_finish",
+    "earlier_reviewer": "/root/impl197",
+    "verdict": "Pass",
+    "implementation_commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+    "review_commit": "22cab54c246e641a3adb43718a6f8cfd2df27124",
+    "receipt": "evidence/reviews/205/by197/REVIEW.json",
+    "identity": "evidence/reviews/205/by197/FINAL_IDENTITY.json",
+    "independent_execution": {
+      "earlier_cli03_source_raw_wire_ct": {
+        "source_commit": "70f91cbff7319a71cb0fede9c1d1f93ca129d444",
+        "command": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/source05/command.json",
+          "bytes": 1664,
+          "sha256": "eb32c4d80026e8722c7d9c12cd2978d26bc4be3af0e77a111c83c5833d2b8c7d"
+        },
+        "source_raw_wire_tests": 25,
+        "ct_tests": 4,
+        "failed": 0,
+        "native_successes": 38,
+        "attribution": "Earlier exact candidate, not relabelled final"
+      },
+      "earlier_producer_cross": {
+        "source_commit": "fe3b3c8d386170a971124e251cf519db555f8904",
+        "tests": [
+          1,
+          0
+        ],
+        "native_successes": 4,
+        "record": "run-logs/205-review-by197/producer-cross01"
+      },
+      "final_repairs": {
+        "record": "evidence/reviews/205/by197/CLI04_PROGRESS.json",
+        "new_actual_forwarding": {
+          "tests": [
+            1,
+            0
+          ],
+          "native_successes": 2,
+          "stdout": "ADMZFEZCB",
+          "source_commit": "dc55eed2d685494f5aa84782f1d19cfcf9fb0dc6"
+        },
+        "original177": {
+          "tests": [
+            1,
+            0
+          ],
+          "native_successes": 4,
+          "original867_sha256": "dc68299194fcc8dcea73fad37540a270bf16fe497235a8c6858d1bff750e199e",
+          "original867_native_successes": 2,
+          "stdout": "ZA"
+        },
+        "raw_legacy_forwarding": {
+          "tests": [
+            1,
+            0
+          ],
+          "inputs": 10,
+          "public_types_entries_per_input": 2
+        },
+        "old_budget": {
+          "tests": [
+            1,
+            0
+          ],
+          "old_work": [
+            4241,
+            11851,
+            11792
+          ],
+          "new_work": [
+            6326,
+            29030,
+            29566
+          ],
+          "locals": [
+            16,
+            39,
+            40
+          ],
+          "functions": [
+            5,
+            7,
+            8
+          ]
+        },
+        "exact_phase_replay": {
+          "inputs": 6,
+          "matched": 6,
+          "unsafe_native": "NotRun"
+        },
+        "execution_source_except_new_forwarding": "2dec56f70cd4de5a2d45445e9b2b008aa7f947a2"
+      },
+      "final_linux_consumer": {
+        "source_commit": "2dec56f70cd4de5a2d45445e9b2b008aa7f947a2",
+        "compiler_source_commit": "54452f8a50eb494c7c444bca3a9682802246284f",
+        "cli_sha256": "8cf2524495bc1fb1ac59fad705ead558c4c6f72fb200b5b21dc871ef22a5e323",
+        "executions": 140,
+        "ordinary": 20,
+        "instrumented": 120,
+        "actual_allocation_failures": 88,
+        "observed_live": 0,
+        "peak_live": 4,
+        "peak_bytes": 264,
+        "same_five_sources_and_oracles_as_cli03": true,
+        "record": "run-logs/205-review-followup/linux02/summary.json"
+      },
+      "full_workspace": "NotRun by reviewer; root recorded execution audited separately",
+      "counting": "Separate runs and authors; overlapping cases are not added into a unique-test total"
+    },
+    "overlapping_counts_not_added": true
+  },
+  "author_consumers": {
+    "source_commit": "54452f8a50eb494c7c444bca3a9682802246284f",
+    "cli_sha256": "8cf2524495bc1fb1ac59fad705ead558c4c6f72fb200b5b21dc871ef22a5e323",
+    "linux": {
+      "executions": 140,
+      "actual_allocation_failures": 88,
+      "live": 0
+    },
+    "wine_compatibility": {
+      "executions": 140,
+      "actual_allocation_failures": 88,
+      "live": 0,
+      "bad_operations": 0
+    },
+    "attribution": "Author execution; Wine is not native Windows; independent execution remains separate",
+    "records": {
+      "same_five_modules_and_oracles_as_cli03": true,
+      "same_cli04_across_author_linux_wine_and_independent_linux": true,
+      "independent_linux_summary": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/linux02/summary.json",
+        "bytes": 81089,
+        "sha256": "1e3463ca36c0532e44b2ec517cffb8a7b0655513930ac32e2608789cde845dfd"
+      },
+      "author_linux_summary": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-consumer-followup/linux01/summary.json",
+        "bytes": 81029,
+        "sha256": "f32c6b84b0137726b40683668ac105fbb7a17e5a97d64e973608cd5b5b62ed3b"
+      },
+      "author_wine_summary": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-consumer-followup/wine01/summary.json",
+        "bytes": 85127,
+        "sha256": "e6026018a9ab65981fbc32aa4ef054e969b603cabee4c57b671b3f4a7a8c1f3e"
+      },
+      "execution_counts_kept_separate": true
+    }
+  },
+  "author_evidence": [
+    "evidence/impl/205/types/SUMMARY.json",
+    "evidence/impl/205/types-loop-followup/SUMMARY.json",
+    "evidence/impl/205/types/LEGACY_FORWARDING.json",
+    "evidence/impl/205/expand/RESULT.json",
+    "evidence/impl/205/ct/RESULT.json",
+    "evidence/impl/205/consumer/RESULT.json",
+    "evidence/impl/205/consumer/CLI04.json",
+    "evidence/impl/205/legacy-phase/RESULT.json"
+  ],
+  "resolved_defects": [
+    {
+      "kind": "unused legacy State definition alias checking",
+      "stages": [
+        "Expand",
+        "both public Types entries"
+      ],
+      "proof": "Original false acceptances and independently derived raw Core are retained; invalid native execution NotRun."
+    },
+    {
+      "kind": "actual loop refresh and loop-body local retirement",
+      "proof": "Original698 bytes plus 0/1/3 actual iterations and raw stale-copy/backedge neighbors; no cached obsolete expression becomes current-local authority."
+    },
+    {
+      "kind": "single-F complete ordinary T producer inference",
+      "production_commit": "f62b75ac06b843c5cb1683790a7946eff403e765",
+      "proof": "Complete actual nominal source records only defer ordinary template inference; no Store or F capability granted."
+    },
+    {
+      "kind": "old legal complete-State RHS forwarding",
+      "production_commit": "d71758d2be95995aeb4a9b690fa62ee0095a3797",
+      "original_source_sha256": "dc68299194fcc8dcea73fad37540a270bf16fe497235a8c6858d1bff750e199e",
+      "proof": "Original867 byte Success/native oracle unchanged; only direct Named(F) fields substitute F, with declared-kind and same-origin checks."
+    }
+  ],
+  "legacy_types_budget_migration": {
+    "baseline_source": "85f01d622d9c31bffe165e5720bbf09658af5084",
+    "baseline_proof": "Original recorded204 workspace Pass; exact test and included sources equal205 workspace01. This is not a new baseline compiler run.",
+    "original_work": [
+      4241,
+      11851,
+      11792
+    ],
+    "measured_work": [
+      6326,
+      29030,
+      29566
+    ],
+    "locals": [
+      16,
+      39,
+      40
+    ],
+    "functions": [
+      5,
+      7,
+      8
+    ],
+    "before_fix_probe": "4e69c996257c776482b624c1c48c0d67f00802c0",
+    "after_fix_probe": "e09748eab8f0f70b8e917dc7f3ed9d5fa05b853c",
+    "both_original_assertions": "Fail retained",
+    "final_method": "Each unchanged original input: default==N==fresh N full Typed; N-1 Types ResourceLimit. Independent repeat and root full suite passed.",
+    "report": "changes/205-legacy-types-budget.md"
+  },
+  "prior_full_run": {
+    "source_commit": "0317a093ade0118741d334c45438ade07e9d7228",
+    "git_status": "",
+    "command_status": "Fail",
+    "passed": 2544,
+    "failed": 6,
+    "ignored": 0,
+    "groups": 259,
+    "seconds": 175.8306484222412
+  },
+  "retained_failures": {
+    "workspace01": {
+      "source_commit": "0317a093ade0118741d334c45438ade07e9d7228",
+      "passed": 2544,
+      "failed": 6,
+      "ignored": 0,
+      "status": "Fail"
+    },
+    "clippy_final01": {
+      "source_commit": "cb24b2e53e55ae18eb881205e4b5cd8a8e83fda4",
+      "status": "Fail",
+      "cause": "Unused accepted test helper; 2db3 removes11 lines without changing input, oracle or production"
+    },
+    "earlier_source_raw_loop_producer_infrastructure_oracle_failures": "Preserved at their original identities in prior receipts and archives; no retrospective Pass"
+  },
+  "evidence_delivery": "Exact source/raw/Wire/IR, binary standard I/O, commands and original failures separately compacted; executables hash-only. Source Git contains code/tests/tools/docs/compact receipts, no new executable or Cargo cache. Final container identity: ARCHIVE.json.",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "formal_draft_product_pipeline": "NotRun",
+  "compiler_speed_claim": "None; separate workstream",
+  "remaining_priority": "206 complete nested owning Package Product with independent per-leaf origins and exact recursive cleanup; other1.4 obligations retained."
+}
