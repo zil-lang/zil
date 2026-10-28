@@ -38,6 +38,7 @@ enum Birth {
     Created,
     Incoming,
 }
+type PackageValues = BTreeMap<(ValueId, u32), BTreeSet<Birth>>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Fact {
     life: BTreeSet<Life>,
@@ -51,7 +52,7 @@ struct State {
     // Complete SSA Packages carry the actual birth of each direct Managed
     // field. Local Packages already have separate lifecycle cells. Unknown
     // producers keep Incoming; packaging itself never creates a resource.
-    package_values: BTreeMap<(ValueId, u32), BTreeSet<Birth>>,
+    package_values: PackageValues,
     product_births: product::Origins,
 }
 #[derive(Clone, Copy)]
@@ -172,7 +173,7 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
 fn package_value_shapes(
     f: &TypedFunction,
     budget: &mut Budget,
-) -> CompileResult<(BTreeMap<(ValueId, u32), BTreeSet<Birth>>, product::Origins)> {
+) -> CompileResult<(PackageValues, product::Origins)> {
     budget.spend(f.values.len(), "Package SSA birth shape scan")?;
     let mut fields = BTreeMap::new();
     let mut products = product::Origins::new();
