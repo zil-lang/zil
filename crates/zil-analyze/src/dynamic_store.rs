@@ -16,7 +16,7 @@ pub(super) fn callback_element(
     let unsupported = || {
         vec![Diagnostic::unsupported(
             Phase::Analyze,
-            "callback Store requires a complete State with one or two same-type direct self-contained callbacks, finite Copy fields and direct Managed resources",
+            "callback Store requires a complete State with one or two direct self-contained callbacks, finite Copy fields and direct Managed resources",
             None,
         )]
     };
@@ -27,14 +27,18 @@ pub(super) fn callback_element(
         return Err(unsupported());
     };
     budget.spend(fields.len().saturating_add(1), CONTEXT)?;
-    let (mut callback, mut count, mut managed) = (None, 0usize, false);
+    let (mut callback, mut second, mut count, mut managed) = (None, None, 0usize, false);
     for (_, field) in fields {
         match field {
             Type::Closure(id) => {
-                if callback.is_some_and(|previous| previous != *id) || count == 2 {
+                if count == 2 {
                     return Err(unsupported());
                 }
-                callback = Some(*id);
+                match callback {
+                    None => callback = Some(*id),
+                    Some(first) if first != *id => second = Some(*id),
+                    _ => {}
+                }
                 count += 1;
             }
             Type::Managed(inner)
@@ -53,8 +57,36 @@ pub(super) fn callback_element(
     // Reserve the initial pending entry before the existing independent
     // capture-graph checker allocates it. Each actual capture is then charged
     // there before inspecting or enqueueing its type.
+    if let Some(other) = second {
+        // Only the new heterogeneous profile adds result constraints. The
+        // existing same-environment lending path keeps its original work.
+        for id in [callback, other] {
+            budget.spend(1, "heterogeneous Store callback result")?;
+            let definition = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| super::bad("callback Store environment is absent"))?;
+            budget.type_work(
+                &definition.result,
+                true,
+                "heterogeneous Store result Copy predicate",
+            )?;
+            if !definition.result.is_copy_value() {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "heterogeneous callback Store requires Copy results for both actual environments",
+                    None,
+                )]);
+            }
+        }
+    }
     budget.spend(1, "callback Store environment root")?;
-    callable_fields::self_contained(module, callback, budget)
+    callable_fields::self_contained(module, callback, budget)?;
+    if let Some(other) = second {
+        budget.spend(1, "callback Store second environment root")?;
+        callable_fields::self_contained(module, other, budget)?;
+    }
+    Ok(())
 }
 
 pub(super) fn is_carrier(ty: &Type) -> bool {

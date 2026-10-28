@@ -67,13 +67,17 @@ fn check_element_with_limits(
         ));
     };
     let mut callback = None;
+    let mut second = None;
     let mut callback_fields = 0usize;
     if !fields.iter().all(|(_, ty)| {
         if let Type::Closure(id) = ty {
             callback_fields += 1;
-            let same = callback.is_none_or(|actual| actual == *id);
-            callback = Some(*id);
-            same && callback_fields <= 2
+            match callback {
+                None => callback = Some(*id),
+                Some(first) if first != *id => second = Some(*id),
+                _ => {}
+            }
+            callback_fields <= 2
         } else {
             ty.is_copy_value()
                 || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer
@@ -90,9 +94,36 @@ fn check_element_with_limits(
     // Only the new callback route walks reachable capture metadata here, with
     // the caller's depth limits before any recursive Copy/layout predicate.
     // Ordinary Store follows its original work and admission path unchanged.
-    let environments = callback
-        .map(|id| closure_layouts(module, id, limits, budget))
-        .transpose()?;
+    let environments = match (callback, second) {
+        (Some(first), Some(second)) => {
+            // Definitions precede the module-wide closure shape check. Bound
+            // both new result trees before recursive Copy predicates as well.
+            for id in [first, second] {
+                budget.spend(1)?;
+                let definition = closures::definition(module, id, span)?;
+                if let Some(limits) = limits {
+                    check_type_shape(&definition.result, &module.target, limits, budget)?;
+                }
+                resources::charge_payload(&definition.result, budget)?;
+                if !definition.result.is_copy_value() {
+                    return Err(unsupported(
+                        "heterogeneous callback Store requires Copy results for both actual environments",
+                        span,
+                    ));
+                }
+            }
+            Some(closure_layouts_pair(
+                module,
+                first,
+                Some(second),
+                limits,
+                budget,
+            )?)
+        }
+        (Some(id), None) => Some(closure_layouts(module, id, limits, budget)?),
+        (None, None) => None,
+        (None, Some(_)) => unreachable!("second callback follows the first field"),
+    };
     packages::check_type_for(module, element, span, budget)?;
     // Array lengths are metadata, not expanded slots. Their actual byte
     // product must still fit the target even when the type tree is shallow.
@@ -115,14 +146,32 @@ fn closure_layouts(
     limits: Option<&Limits>,
     budget: &mut Budget,
 ) -> Check<Vec<Option<(u64, u64)>>> {
+    closure_layouts_pair(module, root, None, limits, budget)
+}
+
+// This memoizes checked type layouts only. Each real field and Store element
+// still has its own value, live flags, move and cleanup responsibilities.
+fn closure_layouts_pair(
+    module: &TypedModule,
+    root: ClosureId,
+    second: Option<ClosureId>,
+    limits: Option<&Limits>,
+    budget: &mut Budget,
+) -> Check<Vec<Option<(u64, u64)>>> {
     if limits.is_some_and(|limits| module.closures.len() > limits.max_functions) {
         return Err(limit("Store callback count exceeds the selected bound"));
     }
     budget.spend(module.closures.len().saturating_mul(3).saturating_add(1))?;
+    if second.is_some() {
+        budget.spend(2)?; // second root and the bounded two-entry queue copy
+    }
     let mut state = vec![0u8; module.closures.len()];
     let mut heights = vec![0usize; module.closures.len()];
     let mut layouts = vec![None; module.closures.len()];
     let mut pending = vec![(root, false)];
+    if let Some(other) = second {
+        pending.insert(0, (other, false));
+    }
     while let Some((id, exit)) = pending.pop() {
         budget.spend(1)?;
         let definition = closures::definition(module, id, None)?;
