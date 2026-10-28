@@ -655,7 +655,7 @@ fn check_function_signature_type(
     budget: &mut Budget,
 ) -> Check<()> {
     match ty {
-        Type::Address { inner, .. } if ty.is_shared_package_address() => {
+        Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
         Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
@@ -684,7 +684,7 @@ fn check_local_type(
             span,
             "local closure type references an absent environment",
         )),
-        Type::Address { inner, .. } if ty.is_shared_package_address() => {
+        Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
         Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
@@ -761,13 +761,13 @@ fn check_function(
     }
     if matches!(function.return_type, Type::Address { .. }) {
         budget.spend(function.locals.len().saturating_add(function.values.len()))?;
-        if function.return_type.is_shared_package_address()
+        if function.return_type.is_package_address()
             || function
                 .locals
                 .iter()
                 .map(|local| &local.ty)
                 .chain(&function.values)
-                .any(Type::is_shared_package_address)
+                .any(Type::is_package_address)
         {
             return Err(unsupported(
                 "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
@@ -1041,19 +1041,14 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
-        InstructionKind::OwnedStoreBorrowMut { .. } => {
-            return Err(unsupported(
-                "exclusive Store window semantics pending",
-                span,
-            ));
-        }
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
         | InstructionKind::OwnedStorePush { .. }
         | InstructionKind::OwnedStorePop { .. }
         | InstructionKind::OwnedStoreLen { .. }
         | InstructionKind::OwnedStoreCapacity { .. }
-        | InstructionKind::OwnedStoreBorrow { .. } => {
+        | InstructionKind::OwnedStoreBorrow { .. }
+        | InstructionKind::OwnedStoreBorrowMut { .. } => {
             dynamic_store::check_instruction(module, function, instruction, budget)?
         }
         InstructionKind::ByteBufferNew
@@ -1314,7 +1309,7 @@ fn check_instruction(
             let field = match projected {
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
-                Type::Package { fields, .. } if !*mutable => {
+                Type::Package { fields, .. } => {
                     dynamic_store::check_element(module, projected, span, budget)?;
                     fields.get(*index as usize).map(|(_, ty)| ty)
                 }

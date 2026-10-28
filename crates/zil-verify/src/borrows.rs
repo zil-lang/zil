@@ -102,7 +102,7 @@ fn head_windows(module: &TypedModule, budget: &mut Budget) -> Check<bool> {
                 .saturating_add(1),
         )?;
         if function.locals.iter().map(|local| &local.ty).chain(&function.values)
-            .any(|ty| ty.is_shared_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
+            .any(|ty| ty.is_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
             return Ok(true);
         }
     }
@@ -647,7 +647,8 @@ fn reconstruct(
                             row.push(Root::Capture(*index));
                         }
                         InstructionKind::ByteBufferBorrow { buffer, .. }
-                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. } => {
+                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
+                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
                             roots_join(&mut row, &values[buffer.0 as usize], budget)?;
                         }
                         InstructionKind::BorrowOwnedArrayElement { local, .. }
