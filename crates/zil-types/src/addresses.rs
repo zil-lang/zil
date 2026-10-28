@@ -317,11 +317,17 @@ impl Builder<'_, '_> {
                     unreachable!()
                 };
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
-                if matches!(inner.as_ref(), Type::Package { .. }) && !field.is_copy_value() {
+                if matches!(inner.as_ref(), Type::Package { .. })
+                    && !field.is_copy_value()
+                    && !matches!(field, Type::Closure(_))
+                {
                     return Err(unsupported(
                         e.span,
-                        "Store element windows only project finite Copy fields",
+                        "Store element windows only project finite Copy or concrete callback fields",
                     ));
+                }
+                if matches!(field, Type::Closure(_)) {
+                    self.check_owned_array_closure(&field, 1, e.span)?;
                 }
                 let ty = Type::Address {
                     mutable,
@@ -508,6 +514,12 @@ impl Builder<'_, '_> {
                 "indirect write requires an exclusive address",
             ));
         };
+        if matches!(inner.as_ref(), Type::Closure(_)) {
+            return Err(unsupported(
+                target.span,
+                "Store windows cannot replace an owning callback field",
+            ));
+        }
         let (value, actual) = self.expr(rhs, Some(&inner))?;
         self.same(&actual, &inner, rhs.span)?;
         self.emit(

@@ -242,7 +242,7 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let CoreExprKind::Name(name) = &object.kind else {
-            return Ok(None);
+            return self.store_callable_callee(target);
         };
         // Bound all newly introduced scope/name and field comparisons before
         // their lookup. Inspect the borrowed declaration without cloning the
@@ -259,7 +259,14 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let Type::Package { fields, .. } = &self.function.locals[local.0 as usize].ty else {
-            return Ok(None);
+            return if self.function.locals[local.0 as usize]
+                .ty
+                .is_package_address()
+            {
+                self.store_callable_callee(target)
+            } else {
+                Ok(None)
+            };
         };
         self.closures.snapshot(
             fields.len().saturating_mul(member.len().saturating_add(1)),
@@ -273,27 +280,7 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let (index, id) = (index as u32, *id);
-        let count = self.closures.pending[id.0 as usize].captures.len();
-        self.closures
-            .snapshot(count.saturating_mul(2).saturating_add(1), target.span)?;
-        for index in 0..count {
-            let work = inference::type_snapshot_work(
-                &self.closures.pending[id.0 as usize].captures[index].ty,
-                target.span,
-                self.limits,
-            )?;
-            // callable_kind and the existing call path inspect stored capture
-            // types. Pay for their snapshots before constructing any of them.
-            self.closures
-                .snapshot(work.saturating_mul(4), target.span)?;
-        }
-        let kind = self
-            .state_callable_mode
-            .filter(|(bound, _)| *bound == id)
-            .map_or_else(
-                || self.closures.pending[id.0 as usize].callable_kind(),
-                |(_, kind)| kind,
-            );
+        let kind = self.field_callable_kind(id, target.span)?;
         let value = if kind == CallableKind::FnOnce {
             self.value(
                 InstructionKind::TakePackageField { local, index },
@@ -311,6 +298,100 @@ impl Builder<'_, '_> {
             .0
         };
         Ok(Some((value, id, kind)))
+    }
+
+    fn field_callable_kind(&mut self, id: ClosureId, span: Span) -> R<CallableKind> {
+        let count = self.closures.pending[id.0 as usize].captures.len();
+        self.closures
+            .snapshot(count.saturating_mul(2).saturating_add(1), span)?;
+        for index in 0..count {
+            let work = inference::type_snapshot_work(
+                &self.closures.pending[id.0 as usize].captures[index].ty,
+                span,
+                self.limits,
+            )?;
+            // callable_kind and the existing call path inspect stored capture
+            // types. Pay for their snapshots before constructing any of them.
+            self.closures.snapshot(work.saturating_mul(4), span)?;
+        }
+        Ok(self
+            .state_callable_mode
+            .filter(|(bound, _)| *bound == id)
+            .map_or_else(
+                || self.closures.pending[id.0 as usize].callable_kind(),
+                |(_, kind)| kind,
+            ))
+    }
+
+    /// A Store window grants an address, never an owned environment value.
+    /// Classify without evaluating the source, then locate/reborrow exactly
+    /// once before the caller evaluates any arguments.
+    fn store_callable_callee(
+        &mut self,
+        target: &CoreExpr,
+    ) -> R<Option<(ValueId, ClosureId, CallableKind)>> {
+        let CoreExprKind::Member { object, member } = &target.kind else {
+            return Ok(None);
+        };
+        let (source, from_store) = match &object.kind {
+            CoreExprKind::Name(name) => (name, false),
+            CoreExprKind::Call { callee, arguments }
+                if matches!(
+                    dynamic_store::primitive(callee),
+                    Some("store_at" | "store_at_mut")
+                ) =>
+            {
+                let Some(CoreExpr {
+                    kind: CoreExprKind::Name(name),
+                    ..
+                }) = arguments.first()
+                else {
+                    return Ok(None);
+                };
+                (name, true)
+            }
+            _ => return Ok(None),
+        };
+        let depth = self.function.locals.len().saturating_add(1).ilog2() as usize + 1;
+        self.closures.snapshot(
+            self.scopes
+                .len()
+                .saturating_mul(depth)
+                .saturating_mul(source.len().saturating_add(1)),
+            target.span,
+        )?;
+        let Some(local) = self.lookup(source) else {
+            return Ok(None);
+        };
+        let ty = &self.function.locals[local.0 as usize].ty;
+        let element = if from_store {
+            dynamic_store::element(ty)
+        } else if let Type::Address { inner, .. } = ty {
+            Some(inner.as_ref())
+        } else {
+            None
+        };
+        let Some(Type::Package { fields, .. }) = element else {
+            return Ok(None);
+        };
+        self.closures.snapshot(
+            fields.len().saturating_mul(member.len().saturating_add(1)),
+            target.span,
+        )?;
+        let Some((_, Type::Closure(id))) = fields.iter().find(|(name, _)| name == member) else {
+            return Ok(None);
+        };
+        let id = *id;
+        let kind = self.field_callable_kind(id, target.span)?;
+        if kind == CallableKind::FnOnce {
+            return Err(error(
+                "E-CLOSURE-MODE",
+                target.span,
+                "FnOnce requires an owned Store element obtained by pop",
+            ));
+        }
+        let (address, _) = self.borrow_place_mode(target, kind == CallableKind::FnMut)?;
+        Ok(Some((address, id, kind)))
     }
 
     pub(super) fn package_place(&self, target: &CoreExpr) -> R<Option<(LocalId, u32, Type)>> {

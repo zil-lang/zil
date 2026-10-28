@@ -295,6 +295,7 @@ impl<'a> Engine<'a> {
                         &bounds,
                         &variables,
                         &mut engine.budget,
+                        None,
                     )?;
                     super::foreign::callback_type_tree(
                         &field.ty,
@@ -432,7 +433,11 @@ impl<'a> Engine<'a> {
         self.traits.check_arguments(
             params(item),
             &substitution,
-            (&trait_bounds::Bounds::new(), &BTreeSet::new()),
+            (
+                &trait_bounds::Bounds::new(),
+                &BTreeSet::new(),
+                self.callable_name.as_deref(),
+            ),
             &mut self.budget,
             span,
             retained.as_ref(),
