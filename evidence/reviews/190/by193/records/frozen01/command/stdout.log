@@ -1,0 +1,75 @@
+
+running 14 tests
+test a_flow_does_not_waive_hold_call_write_or_cleanup_obligations ... ok
+test a_nonreturning_cycle_keeps_its_reachable_call_prefix ... ok
+test a_repeatable_label_does_not_authorize_consuming_an_owned_capture ... ok
+test a_same_typed_factory_instance_cannot_replace_the_parameter_on_a_backedge ... ok
+test actual_instructions_and_cfg_are_checked_against_the_graph_independently ... ok
+test child_copy_size_is_checked_before_allocating_a_forged_short_parent_claim ... ok
+test cyclic_cfg_cannot_claim_an_empty_or_truncated_finite_language ... ok
+test exact_verification_work_frontier_rejects_without_poisoning_a_fresh_request ... ok
+test nested_flow_copies_do_not_share_continuations_or_trust_coordinated_claims ... ok
+test raw_and_wire_reject_missing_backedges_changed_exits_and_noncanonical_numbering ... ok
+test raw_and_wire_reject_omitted_added_or_changed_callback_events ... ok
+test runtime_helper_has_an_explicit_verified_flow_and_wire_identity ... ok
+test static_helper_depth_is_bounded_independently_of_runtime_iteration_count ... ok
+test zero_event_fn_once_cycle_stays_an_explicit_scope_limit ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+
+running 17 tests
+test a_cyclic_once_profile_is_not_made_repeatable_by_zero_callback_events ... ok
+test a_zero_callback_loop_keeps_its_cycle_and_owned_cleanup ... ok
+test actual_capture_and_explicit_address_still_must_be_separate ... ok
+test copy_error_return_cleans_each_live_iteration_and_the_outer_owners ... ok
+test early_return_stops_later_calls_without_resetting_the_mutable_environment ... ok
+test finite_defensive_trap_exits_survive_copying_into_a_flow_parent ... ok
+test finite_leaf_and_outer_call_sites_compose_with_a_flow_child ... ok
+test flow_calls_do_not_release_a_lending_window_still_needed_later ... ok
+test four_module_consumer_contains_a_real_flow_helper_and_owned_state ... ok
+test lending_results_end_at_last_use_before_the_next_iteration ... ok
+test mutable_for_keeps_the189_current_explicit_address_across_calls ... ok
+test mutable_while_reuses_the_actual_environment_and_ends_its_window ... ok
+test owned_and_borrowed_environments_cleanup_once_even_on_zero_iterations ... ok
+test runtime_iteration_count_does_not_spend_the_static_helper_depth ... ok
+test shared_for_passes_the_runtime_index_in_order ... ok
+test shared_while_runs_zero_one_two_and_many_actual_calls ... ok
+test two_flow_call_sites_keep_their_own_continuations_inside_an_outer_loop ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.93s
+
+
+running 10 tests
+test an_endpoint_may_consume_a_symbolic_value_once_before_the_backedge ... ok
+test an_unconditional_return_body_keeps_the_existing_finite_once_contract ... ok
+test backedges_cannot_repeat_a_noncopy_or_once_consumption ... ok
+test empty_and_reversed_ranges_still_check_the_body_and_leave_the_outer_binding ... ok
+test endpoint_calls_happen_once_in_order_and_the_iterator_does_not_escape ... ok
+test every_integer_width_infers_unsuffixed_bounds_without_borrowing_authority ... ok
+test index_mutability_scope_widths_and_known_integer_requirements_are_checked ... ok
+test original_runtime_helper_range_reaches_the_independent_contract_stage ... ok
+test range_width_hints_cover_arithmetic_calls_and_copy_projections ... ok
+test unsupported_loop_control_is_not_treated_as_an_ordinary_statement ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.46s
+
+
+running 2 tests
+test flow_transport_roundtrip_does_not_grant_analysis_or_verification ... ok
+test raw_graph_bounds_precede_stale_identity_and_fresh_retry_is_unchanged ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 7 tests
+test a_nonreturning_prefix_still_writes_its_actual_desc_source ... ok
+test all_three_phases_enforce_twenty_four_static_helpers_at_the_exact_depth ... ok
+test exact_four_node_loop_distinguishes_prefix_body_and_return_suffix ... ok
+test exact_work_frontiers_are_independent_and_fresh_requests_recover ... ok
+test finite_once_zero_or_one_calls_keeps_its_original_trace_domain ... ok
+test no_return_child_keeps_its_prefix_but_never_reaches_the_parent_suffix ... ok
+test two_loop_call_sites_preserve_argument_order_environment_and_single_cleanup ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+

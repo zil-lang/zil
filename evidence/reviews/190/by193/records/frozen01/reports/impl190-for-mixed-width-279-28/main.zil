@@ -1,0 +1,1 @@
+fn bad<T>(value:T){for index in 0u8..i64(3){}}fn main(){}
