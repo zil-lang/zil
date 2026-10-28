@@ -59,7 +59,7 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
-            if ty.is_shared_package_address() {
+            if ty.is_package_address() {
                 return Err(unsupported(
                     "Store element address capture requires a separate retained element-window contract",
                     None,
