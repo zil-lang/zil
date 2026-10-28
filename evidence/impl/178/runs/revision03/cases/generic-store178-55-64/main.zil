@@ -1,0 +1,1 @@
+package Batch<T:StoreElement>{manages items:Store<T>}fn bad<T:StoreElement>(b:&Batch<T>)->Store<T>contract{result(give)}=>give b.items;fn main(){}

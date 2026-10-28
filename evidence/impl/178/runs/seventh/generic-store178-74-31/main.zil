@@ -1,0 +1,1 @@
+package Batch<T:StoreElement>{manages items:Store<T>}fn bad<T:StoreElement>(b:Batch<T>)->i64{var p=b;let old=p.items;p.items=store_new();return store_len(old)};fn main(){}

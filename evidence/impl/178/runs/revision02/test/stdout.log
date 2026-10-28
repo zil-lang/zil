@@ -1,0 +1,34 @@
+
+running 15 tests
+test bounded_element_shape_work_has_an_exact_definition_time_boundary ... ok
+test actual_generic_calls_do_not_merge_distinct_nominal_elements ... ok
+test descriptor_aliases_do_not_revive_after_give_or_replacement ... ok
+test element_bound_checks_real_shapes_and_never_grants_copy_or_members ... ok
+test fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation ... FAILED
+test cross_module_helpers_preserve_two_nominal_elements_and_failure_returns ... ok
+test generic_prefix_drain_repeats_with_real_item_cleanup ... ok
+test generic_source_still_requires_independent_raw_and_wire_ownership ... ok
+test raw_and_wire_create_mode_cannot_forge_fresh_input_resources ... ok
+test generic_owning_package_and_concrete_callback_state_compose ... ok
+test real_copy_shapes_including_static_foreign_values_remain_elements ... ok
+test unused_create_results_prove_freshness_across_real_transfers_and_joins ... ok
+test unused_package_fields_keep_mode_and_instance_identity ... ok
+test two_element_shapes_use_the_same_actual_generic_helpers ... ok
+test unused_templates_reject_unproven_store_element_or_owner ... ok
+
+failures:
+
+---- fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation stdout ----
+
+thread 'fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation' (62) panicked at crates/zil-driver/tests/impl178_generic_store.rs:225:13:
+assertion `left == right` failed: used=true fn good<T:StoreElement>(flag:bool)->Store<T> contract{result(create)} { var fresh:Store<T>=store_new();if flag{fresh=empty();}return give fresh }: {"status":"SafeReject","phase":"analyze","diagnostics":[{"phase":"analyze","category":"SafeReject","code":"E-ANALYZE-IR","message":"resource closure: create result forwards an incoming responsibility","span":null,"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/runs178/author178/revision02/cases/generic-store178-55-31/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/runs178/author178/revision02/cases/generic-store178-55-31/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/runs178/author178/revision02/cases/generic-store178-55-31/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/runs178/author178/revision02/cases/generic-store178-55-31/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/runs178/author178/revision02/cases/generic-store178-55-31/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/runs178/author178/revision02/cases/generic-store178-55-31/phases/typed.txt"},"input_fingerprint":"3d54a60118d0845540e15b44e15d224592af64b0acba5ae4104739f3e97d116e","seconds":0.015141669,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19","implementation_fingerprint":"6e79284f001e4f2f586451a3b1ed10b3f113bef0debc76ff15de629034b9c751","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation
+
+test result: FAILED. 14 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.92s
+
