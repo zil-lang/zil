@@ -103,7 +103,7 @@ fn reject_consumed(label: &str, source: &str) {
         report.to_json()
     );
     // The unchanged source is rejected by its declaration before IR exists.
-    // Raw Core below separately exercises the lower ownership check.
+    // Separate raw Core tests below bypass this source declaration check.
     assert_eq!(report.verification_runs, 0, "{}", report.to_json());
     assert!(
         report
@@ -233,4 +233,115 @@ fn store_windows_reject_borrowed_once_and_shared_mutable() {
             );
         }
     }
+}
+
+#[test]
+fn mutually_exclusive_once_paths_are_checked_independently() {
+    for selected in [false, true] {
+        let source = MARKERS.replace(
+            "let second = state.second()",
+            &format!(
+                "if {selected} {{ let second = state.second(); unsafe {{ putchar(81) }}; return (first + again + second - 40, tag) }}\n    let second = state.second()"
+            ),
+        );
+        native(&format!("exclusive-once-{selected}"), &source, "MPBQZA", 0);
+    }
+}
+
+fn expanded(source: &str) -> zil_ir::CoreModule {
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "raw203.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    zil_expand::expand(&unit, &syntax).unwrap()
+}
+
+fn raw_program(core: zil_ir::CoreModule) -> zil_ir::CoreProgram {
+    zil_ir::CoreProgram {
+        root: core.module_id,
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![zil_ir::ProgramModule {
+            imports: vec![],
+            exports: vec![],
+            core,
+        }],
+    }
+}
+
+fn raw_types(label: &str, core: &zil_ir::CoreModule, expected_code: Option<&str>) {
+    let case = Case::new(label);
+    fs::write(case.0.join("core.txt"), format!("{core:#?}")).unwrap();
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let single = zil_types::check(core, &target, &limits);
+    let program = zil_types::check_program(&raw_program(core.clone()), &target, &limits)
+        .map(|checked| checked.module);
+    fs::write(
+        case.0.join("types.txt"),
+        format!("single={single:#?}\nprogram={program:#?}"),
+    )
+    .unwrap();
+    for result in [single, program] {
+        if let Some(code) = expected_code {
+            let diagnostics = result.unwrap_err();
+            assert!(
+                diagnostics.iter().any(|d| d.code == code),
+                "{diagnostics:#?}"
+            );
+        } else {
+            result.unwrap();
+        }
+    }
+}
+
+#[test]
+fn raw_unused_declaration_flow_keeps_separate_return_paths() {
+    use zil_ir::{CoreExprKind, CoreStatementKind};
+    let core = expanded(
+        r#"
+resource Ticket{code:i32}
+package State<F,G>{manages marker:Ticket;first:F;second:G}
+fn inspect<F:Fn()->i32,G:FnOnce()->i32>(state:State<F,G>,flag:bool)->i32{
+    if flag{return state.second()}
+    return state.second()
+}
+fn main()->i32{return 0}
+"#,
+    );
+    raw_types("unused-paths-control", &core, None);
+    let index = core
+        .functions
+        .iter()
+        .position(|f| !f.state_parameters.is_empty())
+        .unwrap();
+    let mut repeated = core.clone();
+    let function = &mut repeated.functions[index];
+    let mut first = function.body.statements.last().unwrap().clone();
+    let CoreStatementKind::Return(Some(value)) = first.kind else {
+        panic!("once return")
+    };
+    first.kind = CoreStatementKind::Expression(value);
+    function
+        .body
+        .statements
+        .insert(function.body.statements.len() - 1, first);
+    raw_types("unused-paths-repeated", &repeated, Some("E-STATE-ONCE"));
+    let mut collision = core;
+    let function = &mut collision.functions[index];
+    let CoreStatementKind::Return(Some(last)) =
+        &mut function.body.statements.last_mut().unwrap().kind
+    else {
+        panic!("return")
+    };
+    let CoreExprKind::Call { callee, .. } = &mut last.kind else {
+        panic!("call")
+    };
+    let CoreExprKind::Member { object, .. } = &mut callee.kind else {
+        panic!("field")
+    };
+    // A single NodeId must not simultaneously mean the Package and its field.
+    callee.id = object.id;
+    raw_types(
+        "unused-conflicting-node-origin",
+        &collision,
+        Some("E-STATE-ORIGIN"),
+    );
 }
