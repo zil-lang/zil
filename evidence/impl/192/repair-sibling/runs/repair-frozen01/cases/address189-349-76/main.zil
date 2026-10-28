@@ -1,0 +1,1 @@
+fn main(){let a:i32=1;let b:i64=2;let f=(p)=>*p;f(&a);f(&b);}

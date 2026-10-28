@@ -1,0 +1,1 @@
+package P{manages bytes:ByteBuffer;n:i32}fn main(){var state=P{bytes:bytes_new(),n:1};let p=&state.bytes;}

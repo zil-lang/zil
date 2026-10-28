@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R;x:i32;y:i32}fn make()->P{return P{r:R{n:1},x:20,y:1}}fn main()->i32{let amount=20;let f=move()=>{var local=make();let p=&mut local.x;*p+=amount;return *p};return f()+f()-80}

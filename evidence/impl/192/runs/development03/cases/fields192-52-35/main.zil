@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R;x:i32;y:i32}fn make()->P{return P{r:R{n:1},x:20,y:1}}fn apply<F:Fn(&mut i32,&i32)->i32>(f:&F,a:&mut i32,b:&i32)->i32{return f(a,b)}fn main()->i32{var state=make();let f=(a:&mut i32,b:&i32)=>{*a+=*b;return *a};let result=apply(&f,&mut state.x,&state.x);return result+state.x-42}

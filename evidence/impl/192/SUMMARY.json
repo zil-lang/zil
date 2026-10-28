@@ -1,0 +1,222 @@
+{
+  "implementation_author": "/root/resume192",
+  "original_author": "/root/history178_audit",
+  "source_commit": "e362dcb65dec13fe0af194144936fa6857bc8335",
+  "production_commit": "48454703c63995e15c9533db1f6808a820417325",
+  "production_equivalence": "e362dcb65 differs from 48454703 only by the parent-authored Task190/192 resume dispatch.",
+  "predecessor_wip_commit": "d69b2bfe9948d77ce6df7d6b7f7f13f770811552",
+  "status": "ScopedPass",
+  "review": "AwaitingIndependentRootReview",
+  "schema": 23,
+  "spec_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "1068cda3fe79b906f49eeee4bd3f62863f9db4ae85e8a0dbaa3c439d310777b8",
+  "normative_registry_matches_actual": true,
+  "commands": {
+    "driver_tests": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "e362dcb65dec13fe0af194144936fa6857bc8335",
+      "git_status": "",
+      "receipt": "runs/frozen01/tests/command.json",
+      "tests": {
+        "passed": 93,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "capture_tests": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "e362dcb65dec13fe0af194144936fa6857bc8335",
+      "git_status": "",
+      "receipt": "runs/frozen-capture01/tests/command.json",
+      "tests": {
+        "passed": 24,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "build": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "e362dcb65dec13fe0af194144936fa6857bc8335",
+      "git_status": "",
+      "receipt": "runs/frozen-build01/command/command.json"
+    },
+    "consumer": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "e362dcb65dec13fe0af194144936fa6857bc8335",
+      "git_status": "",
+      "receipt": "runs/frozen-consumer01/command/command.json"
+    },
+    "fmt": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "e362dcb65dec13fe0af194144936fa6857bc8335",
+      "git_status": "",
+      "receipt": "runs/frozen-fmt01/command/command.json"
+    },
+    "production_clippy": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "e362dcb65dec13fe0af194144936fa6857bc8335",
+      "git_status": "",
+      "receipt": "runs/frozen-clippy01/command/command.json"
+    },
+    "test_clippy": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "e362dcb65dec13fe0af194144936fa6857bc8335",
+      "git_status": "",
+      "receipt": "runs/frozen-test-clippy01/command/command.json"
+    },
+    "toolchain": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "e362dcb65dec13fe0af194144936fa6857bc8335",
+      "git_status": "",
+      "receipt": "runs/frozen-provenance01/command/command.json"
+    }
+  },
+  "scoped_tests": {
+    "passed": 117,
+    "failed": 0,
+    "ignored": 0,
+    "driver": 93,
+    "verify_captures": 24,
+    "new_source": 18,
+    "new_raw_and_budget": 5
+  },
+  "source_native_executions": 28,
+  "consumer_native_executions": 50,
+  "consumer_fault_executions": 32,
+  "consumer_modules": 4,
+  "consumer_optimizations": [
+    "O0",
+    "O2"
+  ],
+  "consumer_allocation_balance": "Exact allocation calls, failures, allocations=frees, and live0 checked for each instrumented run; actual two ByteBuffer owners and Ticket Drop.",
+  "consumer_state_field_boundary": "Actual callback-field view and actual exclusive Copy sibling field address are passed directly; the read-local/write-back workaround is removed.",
+  "raw_wire_attacks": {
+    "invalid_pairs": 9,
+    "independent_verify_rejections": 18,
+    "valid_pairs": 1,
+    "analyze_shared_capture_rejections": 1,
+    "details": [
+      {
+        "directory": "runs/frozen01/cases/fields192-raw-bad-field-index-815-2",
+        "raw": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-PACKAGE\",\n        message: \"package field index is outside its declaration\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 135,\n                end: 142,\n            },\n        ),\n        notes: [],\n    },\n]",
+        "wire": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-PACKAGE\",\n        message: \"package field index is outside its declaration\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 135,\n                end: 142,\n            },\n        ),\n        notes: [],\n    },\n]"
+      },
+      {
+        "directory": "runs/frozen01/cases/fields192-raw-borrow-owned-field-815-3",
+        "raw": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-PACKAGE\",\n        message: \"field borrow requires a finite Copy or exact concrete Closure field\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 135,\n                end: 142,\n            },\n        ),\n        notes: [],\n    },\n]",
+        "wire": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-PACKAGE\",\n        message: \"field borrow requires a finite Copy or exact concrete Closure field\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 135,\n                end: 142,\n            },\n        ),\n        notes: [],\n    },\n]"
+      },
+      {
+        "directory": "runs/frozen01/cases/fields192-raw-current-read-overlaps-815-7",
+        "raw": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-BORROW-CONFLICT\",\n        message: \"access overlaps an active address window without its delegated authority\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 153,\n                end: 160,\n            },\n        ),\n        notes: [],\n    },\n]",
+        "wire": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-BORROW-CONFLICT\",\n        message: \"access overlaps an active address window without its delegated authority\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 153,\n                end: 160,\n            },\n        ),\n        notes: [],\n    },\n]"
+      },
+      {
+        "directory": "runs/frozen01/cases/fields192-raw-dropped-parent-815-10",
+        "raw": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-INITIALIZATION\",\n        message: \"load may read a local before initialization\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 131,\n                end: 138,\n            },\n        ),\n        notes: [],\n    },\n]",
+        "wire": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-INITIALIZATION\",\n        message: \"load may read a local before initialization\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 131,\n                end: 138,\n            },\n        ),\n        notes: [],\n    },\n]"
+      },
+      {
+        "directory": "runs/frozen01/cases/fields192-raw-erased-parent-hold-815-1",
+        "raw": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-HOLD\",\n        message: \"Hold candidate differs from independently reconstructed provenance\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 92,\n                end: 162,\n            },\n        ),\n        notes: [],\n    },\n]",
+        "wire": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-HOLD\",\n        message: \"Hold candidate differs from independently reconstructed provenance\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 92,\n                end: 162,\n            },\n        ),\n        notes: [],\n    },\n]"
+      },
+      {
+        "directory": "runs/frozen01/cases/fields192-raw-immutable-parent-815-5",
+        "raw": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-MUTABILITY\",\n        message: \"exclusive field borrow requires mutable Package storage\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 135,\n                end: 142,\n            },\n        ),\n        notes: [],\n    },\n]",
+        "wire": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-MUTABILITY\",\n        message: \"exclusive field borrow requires mutable Package storage\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 135,\n                end: 142,\n            },\n        ),\n        notes: [],\n    },\n]"
+      },
+      {
+        "directory": "runs/frozen01/cases/fields192-raw-permission-mismatch-815-4",
+        "raw": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-TYPE\",\n        message: \"instruction result presence or type is incorrect\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 135,\n                end: 142,\n            },\n        ),\n        notes: [],\n    },\n]",
+        "wire": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-TYPE\",\n        message: \"instruction result presence or type is incorrect\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 135,\n                end: 142,\n            },\n        ),\n        notes: [],\n    },\n]"
+      },
+      {
+        "directory": "runs/frozen01/cases/fields192-raw-shared-owned-package-entry-815-9",
+        "raw": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-RESOURCE\",\n        message: \"a shared Fn entry cannot write or consume an owned Package capture\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 150,\n                end: 157,\n            },\n        ),\n        notes: [],\n    },\n]",
+        "wire": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-RESOURCE\",\n        message: \"a shared Fn entry cannot write or consume an owned Package capture\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 150,\n                end: 157,\n            },\n        ),\n        notes: [],\n    },\n]"
+      },
+      {
+        "directory": "runs/frozen01/cases/fields192-raw-uninitialized-parent-815-11",
+        "raw": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-INITIALIZATION\",\n        message: \"load may read a local before initialization\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 131,\n                end: 138,\n            },\n        ),\n        notes: [],\n    },\n]",
+        "wire": "[\n    Diagnostic {\n        phase: Verify,\n        category: SafeReject,\n        code: \"E-VERIFY-INITIALIZATION\",\n        message: \"load may read a local before initialization\",\n        span: Some(\n            Span {\n                file: FileId(\n                    0,\n                ),\n                start: 131,\n                end: 138,\n            },\n        ),\n        notes: [],\n    },\n]"
+      },
+      {
+        "directory": "runs/frozen01/cases/fields192-raw-valid-copy-field-815-0",
+        "raw": "Pass",
+        "wire": "Pass"
+      }
+    ]
+  },
+  "work_boundaries": {
+    "analyze": {
+      "status": "Pass",
+      "rejected": 4542,
+      "accepted": 4543,
+      "default_steps": 10000000,
+      "receipt": "runs/frozen01/cases/fields192-raw-analyze-work-815-6/boundary.json"
+    },
+    "verify": {
+      "status": "Pass",
+      "rejected": 8870,
+      "accepted": 8871,
+      "default_steps": 10000000,
+      "receipt": "runs/frozen01/cases/fields192-raw-verify-work-815-12/boundary.json"
+    }
+  },
+  "budget_policy": "Existing work budgets only; default 10000000 unchanged; below boundary ResourceLimit and boundary/fresh default retry Pass.",
+  "verification_runs": "Exactly one independently verified plan for successful source compilation; raw and Wire are separately sent to Verify.",
+  "preserved_failures": {
+    "development02": {
+      "passed": 9,
+      "failed": 5,
+      "meaning": "Initial fixture termination syntax, real borrowed-callback current-argument conflict in an intended positive fixture, one loop numeric oracle, and parent overwrite rejected by the earlier existing Analyze unpaid-resource gate. Original inputs, diagnostics and observations retained."
+    },
+    "development03": {
+      "passed": 16,
+      "failed": 1,
+      "meaning": "Actual owned Package environment var f=move()=>{let p=&mut state.x;*p+=1;return *p} falsely rejected by Types E-ADDRESS-PERMISSION. Explicit Package name(write=true) recovery preserves the input; nonmove negative remains Unsupported."
+    },
+    "development05": {
+      "source_passed": 17,
+      "raw_passed": 3,
+      "raw_failed": 2,
+      "meaning": "Shared-entry relabel of actual owned Package FnMut wrongly accepted by Verify; original returned VerifiedModule appears in failure stdout. Parent-drop mutation already rejected by earlier E-VERIFY-INITIALIZATION; expected code corrected without changing mutation."
+    },
+    "handoff": "Original and resumed cold handoff checks report historical bookkeeping failures; these are preserved and not credited as a language pass."
+  },
+  "boundary": {
+    "supported": "One-layer shared/exclusive field addresses from actual initialized named Package locals, where the field has an existing finite Copy shape; existing concrete Closure field addresses retained.",
+    "permissions": "Actual mutability, shared/exclusive qualification, top-level physical Field roots and whole-parent conflicts; direct Copy field reads checked against active exclusive loans; mutable owned captures require explicit move and FnMut.",
+    "shared_entry_scope": "Analyze and independent Verify reject mutable BorrowPackageField only when the local is an actual Shared Package capture view; a fresh local Package inside a shared entry remains valid.",
+    "preserved": "Copy fields carry no independent ownership debt; parent shell and actual initialization remain required, owning sibling debts and cleanup unchanged.",
+    "unsupported": [
+      "general whole-Package addresses",
+      "addresses to arbitrary non-Copy fields",
+      "new disjointness between subfields inside one top-level Copy field",
+      "general lifetime/HRTB, arbitrary nested Address or slice capabilities"
+    ]
+  },
+  "rust_goals": {
+    "safety": "Source alias/lifetime controls, independent Analyze shared-view check, raw/Wire qualifications and observed cleanup; independent root review remains required.",
+    "runtime_and_memory": "Existing inline LLVM field GEP and Address representation; no new box, RC, lock or runtime borrow check. Matched Rust performance and RSS comparison not run.",
+    "expression_and_maintenance": "State Copy field can be passed directly to the actual callback, removing the local-copy/write-back workaround. Maintenance advantage not benchmarked.",
+    "compile_cost": "Existing bounded snapshot/resource/loan work; Analyze and Verify boundaries measured. No default-budget increase and no compile-speed comparison.",
+    "breakthrough": "Scoped language capability and independent-verifier qualification repair; no claim of complete Rust superiority or finished language1.4."
+  },
+  "platforms": {
+    "linux_native": "Pass",
+    "windows_wine": "NotRunBy192Author"
+  },
+  "full_workspace": "NotRunByAuthor",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

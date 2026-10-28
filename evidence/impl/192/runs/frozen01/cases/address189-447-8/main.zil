@@ -1,0 +1,1 @@
+fn main(){let f:fn(&i32)->i32=(p:&i32)=>*p;}

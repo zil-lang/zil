@@ -1,0 +1,1 @@
+package P{manages bytes:ByteBuffer;count:i32}fn main()->i32{var state=P{bytes:bytes_new(),count:42};let count=&state.count;let bytes=give state.bytes;return *count+i32(bytes_len(bytes))-42}

@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R;x:i32;y:i32}fn make()->P{return P{r:R{n:1},x:20,y:1}}fn run(flag:bool)->i32{var state=make();var total=0;var i=0;while i<3{let p=&mut state.x;if flag{*p+=1}else{*p+=2}total+=*p;i+=1}return total+state.x}fn main()->i32{return run(true)+run(false)-187}

@@ -1,0 +1,4 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt192/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.63s
+     Running tests/impl192_copy_fields.rs (/workspace/scratch/39be3faa4442/targets178/author192/debug/deps/impl192_copy_fields-b52d00061320b098)
+error: test failed, to rerun pass `-p zil-driver --test impl192_copy_fields`

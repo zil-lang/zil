@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R;x:i32;y:i32}fn make()->P{return P{r:R{n:1},x:20,y:1}}fn eat(p:P){}fn main()->i32{var state=make();let p=&state.x;eat(state);return *p}

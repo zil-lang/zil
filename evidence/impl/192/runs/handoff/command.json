@@ -1,0 +1,24 @@
+{
+  "command": [
+    "node",
+    "tools/handoff.mjs",
+    "--check"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt192",
+  "start": 1793159345.6307938,
+  "source_commit": "d2c40d13707dd3500f3a74b935af07e4aa107333",
+  "git_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": null,
+    "CARGO_INCREMENTAL": null,
+    "CARGO_PROFILE_DEV_DEBUG": null,
+    "CARGO_PROFILE_TEST_DEBUG": null,
+    "ZIL_TEST_REPORT_DIR": null,
+    "ZIL_CLANG": null
+  },
+  "status": "Fail",
+  "exit_code": 1,
+  "end": 1793159350.262225,
+  "stdout.log_sha256": "b5d6cd943623cd238b157b251639f19935915552158f6ac31707441125303c5c",
+  "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
