@@ -1,0 +1,433 @@
+{
+  "status": "ObservedDeclaredSemanticCategoriesSatisfied",
+  "source_commit": "41d02b5147cee2f82df91de05a4711bb8e8a88b7",
+  "compiler_sha256": "35a2e05f3f296d803e507f70c619262fb9144dabcd03a2906086f4ac6680b6cb",
+  "negative_source_count": 12,
+  "verify_positive_controls": 3,
+  "native_executions": 0,
+  "diagnostic_phases_predeclared": false,
+  "phase_note": "Original Draft metadata is unchanged. These are actual exact diagnostic observations and source-specific adjudication; no retroactive phase predeclaration or new Rust test count.",
+  "observations": [
+    {
+      "kind": "negative",
+      "name": "closed-capture",
+      "bytes": 293,
+      "sha256": "df6531c814776f4a2a32cab5b394c3be607b153643f7e9d64dd834418624f742",
+      "predeclared_semantic_obligation": "Nested Root cannot enter the old Package capture ABI that only flags direct Managed fields.",
+      "predeclared_category": "Unsupported",
+      "exit_code": 3,
+      "actual_status": "Unsupported",
+      "actual_phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer",
+          "span": {
+            "file": 0,
+            "start": 265,
+            "end": 269
+          },
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "closed-child-borrow",
+      "bytes": 242,
+      "sha256": "179b5bb2eec05f7ef2c3642fbdf8d91c7181257e77cd2d4acc80d46a86aefae5",
+      "predeclared_semantic_obligation": "A child Package is not a new BorrowPackageField pointee.",
+      "predeclared_category": "Unsupported",
+      "exit_code": 3,
+      "actual_status": "Unsupported",
+      "actual_phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "package field addresses require a finite Copy field or concrete callback",
+          "span": {
+            "file": 0,
+            "start": 230,
+            "end": 240
+          },
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "closed-deep-child-lvalue",
+      "bytes": 248,
+      "sha256": "86267e9c4a727a3cdbf6c4e38e9353b3eb6063c3ad7852e686dcb6c0a3015f08",
+      "predeclared_semantic_obligation": "Direct whole-child transfer does not add an arbitrary deep storage projection.",
+      "predeclared_category": "Unsupported",
+      "exit_code": 3,
+      "actual_status": "Unsupported",
+      "actual_phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "package field transfer or assignment requires a named local shell",
+          "span": {
+            "file": 0,
+            "start": 216,
+            "end": 231
+          },
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "closed-nested-error-payload",
+      "bytes": 248,
+      "sha256": "bc7df6f6f348cb892c4aaa476031444f087b510d60b92c302b77c9cabd90b4b8",
+      "predeclared_semantic_obligation": "Existing flat Leaf error payloads do not imply new error payload qualification for Root/Middle.",
+      "predeclared_category": "Unsupported",
+      "exit_code": 3,
+      "actual_status": "Unsupported",
+      "actual_phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+          "span": {
+            "file": 0,
+            "start": 190,
+            "end": 235
+          },
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "closed-owning-array",
+      "bytes": 229,
+      "sha256": "384679cf3a8621218c2508a7e5e30f6af1dae08eacf160147b32692f0b56438d",
+      "predeclared_semantic_obligation": "Arrays of the newly nested Product are not opened by the ordinary complete-value predicate.",
+      "predeclared_category": "Unsupported",
+      "exit_code": 3,
+      "actual_status": "Unsupported",
+      "actual_phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
+          "span": {
+            "file": 0,
+            "start": 219,
+            "end": 227
+          },
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "closed-store-element",
+      "bytes": 235,
+      "sha256": "c530e741f846186e58fa61c619aee94348b345d620868abdef22cc74dcf2233d",
+      "predeclared_semantic_obligation": "Existing StoreElement qualification is not widened to nested-owning Product.",
+      "predeclared_category": "Unsupported",
+      "exit_code": 3,
+      "actual_status": "Unsupported",
+      "actual_phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store elements require nonzero complete direct-Managed Packages",
+          "span": {
+            "file": 0,
+            "start": 200,
+            "end": 233
+          },
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "duplicate-child",
+      "bytes": 325,
+      "sha256": "06e366546e89fd62d3d62559271b5d44b90287c489c47b55d402bd9109cee76f",
+      "predeclared_semantic_obligation": "One actual complete child consumed twice; same type is not a second responsibility.",
+      "predeclared_category": "SafeReject",
+      "exit_code": 1,
+      "actual_status": "SafeReject",
+      "actual_phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 1 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 317,
+            "end": 322
+          },
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "code": "E-UNINITIALIZED"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "incoming-subtree-is-not-create",
+      "bytes": 315,
+      "sha256": "157c250b18c6a5c30ead5642518b674ab1e6d61e68835fc718dbb76f7ea07fb9",
+      "predeclared_semantic_obligation": "Taking/wrapping nested input leaves cannot launder Incoming provenance into Created.",
+      "predeclared_category": "SafeReject",
+      "exit_code": 1,
+      "actual_status": "SafeReject",
+      "actual_phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: create result forwards an incoming responsibility",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "code": "E-ANALYZE-IR"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "old-description-after-wrap",
+      "bytes": 328,
+      "sha256": "8483127edb79734ea1b37df331646d8c7b2e6ac983f7ee869d77377a30f585ed",
+      "predeclared_semantic_obligation": "An address rooted in the old local does not follow whole-child relocation.",
+      "predeclared_category": "SafeReject",
+      "exit_code": 1,
+      "actual_status": "SafeReject",
+      "actual_phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: head transition invalidates a description required later",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "code": "E-ANALYZE-IR"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "partial-child-embed",
+      "bytes": 303,
+      "sha256": "4858b70ae24e6a0c3afe85a15f3daa237773e604e5e49a0b5656bfea6515a9c7",
+      "predeclared_semantic_obligation": "A Middle local with an empty Leaf field cannot be embedded as a complete child.",
+      "predeclared_category": "SafeReject",
+      "exit_code": 1,
+      "actual_status": "SafeReject",
+      "actual_phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: whole aggregate move requires every owned element or field live",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "code": "E-ANALYZE-IR"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "partial-leaf-embed",
+      "bytes": 318,
+      "sha256": "863761b17901e5d3ef440684ffc7d5613ec06f847e9e9872434a94ee15bb2854",
+      "predeclared_semantic_obligation": "A partial leaf cannot be hidden by constructing a complete parent.",
+      "predeclared_category": "SafeReject",
+      "exit_code": 1,
+      "actual_status": "SafeReject",
+      "actual_phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: whole aggregate move requires every owned element or field live",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "code": "E-ANALYZE-IR"
+      }
+    },
+    {
+      "kind": "negative",
+      "name": "same-layout-distinct-nominal",
+      "bytes": 372,
+      "sha256": "1237c327781cc096b339943f7b9df23f8fb1a1338c94b3f2f403a1b28f060a3f",
+      "predeclared_semantic_obligation": "OtherMiddle and Middle have the same physical layout but different complete nominal identity.",
+      "predeclared_category": "SafeReject",
+      "exit_code": 1,
+      "actual_status": "SafeReject",
+      "actual_phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Package { name: \"@module0:$module0_Middle\", fields: [(\"guard\", Managed(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] })), (\"leaf\", Package { name: \"@module0:$module0_Leaf\", fields: [(\"r\", Managed(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] }))] })] }, found Package { name: \"@module0:$module0_OtherMiddle\", fields: [(\"guard\", Managed(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] })), (\"leaf\", Package { name: \"@module0:$module0_OtherLeaf\", fields: [(\"r\", Managed(Record { name: \"@module0:$module0_R\", fields: [(\"n\", I32)] }))] })] }",
+          "span": {
+            "file": 0,
+            "start": 364,
+            "end": 369
+          },
+          "notes": []
+        }
+      ],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used",
+      "specific_adjudicated_tuple": {
+        "category": "SafeReject",
+        "phase": "types",
+        "code": "E-TYPE-MISMATCH"
+      }
+    },
+    {
+      "kind": "control",
+      "name": "fresh-subtree-remains-create",
+      "bytes": 366,
+      "sha256": "844d1b40c2be311940885f91cb6d5f77e0e31041bd1bda1d15330678663de05f",
+      "exit_code": 0,
+      "actual_status": "Success",
+      "actual_phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used"
+    },
+    {
+      "kind": "control",
+      "name": "original120-package-direct-nested",
+      "bytes": 120,
+      "sha256": "8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba",
+      "exit_code": 0,
+      "actual_status": "Success",
+      "actual_phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used"
+    },
+    {
+      "kind": "control",
+      "name": "parent-only-child",
+      "bytes": 116,
+      "sha256": "e6eaec19437f78614ea4c9b9aed03df8374be6016524cbfc567dfd99f852ed34",
+      "exit_code": 0,
+      "actual_status": "Success",
+      "actual_phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native_execution": "NotRun",
+      "review": "Actual exact diagnostic inspected against this source and its predeclared semantic obligation; no phase whitelist is used"
+    }
+  ],
+  "actual_command": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/negative01-command/command.json",
+  "actual_command_sha256": "77c2b01a37f3a9a63dfadc467f1defbf33001b9c81035d067cfffd6d1f3670ea"
+}

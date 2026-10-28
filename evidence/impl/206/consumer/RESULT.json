@@ -1,0 +1,399 @@
+{
+  "status": "Pass",
+  "scope": "Author206 five-module complete owning Product consumer; platform counts are separate",
+  "source_commit": "41d02b5147cee2f82df91de05a4711bb8e8a88b7",
+  "compiler_source_commit": "7726490b66794ec7cd1a6f6b0d62e2ca8315ed9b",
+  "compiler_sha256": "35a2e05f3f296d803e507f70c619262fb9144dabcd03a2906086f4ac6680b6cb",
+  "compiler_inputs_count": 182,
+  "compiler_inputs_match_root_frozen_full_source": "d078f9e2cc5902167e78a5cb815638f9d05a2095",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "design_sha256": "f26a0d8701b9a00a38286f486b7bcae1b96cf1d9254add7c48d395bb3e6ccbc3",
+  "source_fixture_revision": "consumer02-parenthesized-if",
+  "source_manifest_sha256": "e691a94f6fa9ee451dee11225a45437c3aed328d9c2ebf5c8b46ce30da9e123a",
+  "original_source_manifest_sha256": "22bb32ee064489fd4bd45db5a4b3272415f5be23db897545cdab418cf12ba026",
+  "predeclared_source_bytes_equal": false,
+  "actual_sources": {
+    "leaf.zil": {
+      "bytes": 1311,
+      "sha256": "a5c60e7f08b8ff5ba713a9cb036f83437cf893ac8dc2f4504b78b73136aeb509"
+    },
+    "main.zil": {
+      "bytes": 1567,
+      "sha256": "64857a4690940dbed1a4efb540cd45b0fc7ca6f052e1e26ae1808d1f08986d47"
+    },
+    "portable.zil": {
+      "bytes": 407,
+      "sha256": "2941ae9bc0134884ced99dbc6fea716808ee9d11c8339d77742b3d8bcf2df531"
+    },
+    "product.zil": {
+      "bytes": 733,
+      "sha256": "d3e53fe12275657e96353e468d7f02f56da820bde249f57b2b091947a9722a0d"
+    },
+    "transitions.zil": {
+      "bytes": 923,
+      "sha256": "9e459a0d8114f3b81a72eef9c7d881d1e61e0d1501f3720950941a6b22aef9f0"
+    }
+  },
+  "corrections": [
+    {
+      "path": "leaf.zil",
+      "kind": "FixtureSyntaxOnly",
+      "original_sha256": "395fb6c0848013d99ac7a08e66294aa36b019e32fbe63abf736def660f493242",
+      "actual_sha256": "a5c60e7f08b8ff5ba713a9cb036f83437cf893ac8dc2f4504b78b73136aeb509",
+      "change": "Wrap the existing multi-line if condition in parentheses; expression, data checks, ownership operations and expected traces are unchanged.",
+      "reason": "Original CLI03 preflight01 stopped at parse: E-PARSE-EXPECTED expected LBrace at file2 733..735, then E-PARSE-EXPRESSION at796..798 and838..840. Existing newline syntax requires grouping.",
+      "original_result": "Fail; verification_runs0; native NotRun",
+      "original_bytes_retained": "predeclared/sources/leaf.zil and run-logs/206-machine-consumer/preflight01/sources/leaf.zil"
+    }
+  ],
+  "fixture_diff_sha256": "9fd69bd45f0b3ed02e9ea9ac62ce997425b6d3bf560c4873a40e2b5cd596cbf1",
+  "oracle_sha256": "956e2142fc79cd4ea0431c5cfecdaa8d54d47072873795e88a3c8d1df929ec6d",
+  "oracle_unchanged": true,
+  "source_preflight": {
+    "status": "Pass",
+    "directory": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/preflight02",
+    "command_sha256": "ab6d4e89981e74cf53562e8a1d5c3a7f12baa62b658bdc92155e537d335a4cd8",
+    "verification_runs": 1,
+    "source_files": 5,
+    "native_execution": "NotRun by check"
+  },
+  "platforms": {
+    "linux01": {
+      "status": "Pass",
+      "execution": "native",
+      "ordinary": 20,
+      "instrumented": 74,
+      "total": 94,
+      "actual_allocation_failures": 42,
+      "all_final_live_zero": true,
+      "all_bad_operations_zero": null,
+      "builds": [
+        {
+          "optimization": "O0",
+          "verification_runs": 1,
+          "llvm_sha256": "5e46e75591037e425f31b01137b4f03a0a00a5f2369e198693289cc64d868190",
+          "executable_sha256": "3584aa7785d14ecb39b76fd47e05c7513c2fcef5f8c40bce901d1ebaa7e0dc72",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/portable.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/leaf.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/product.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/transitions.zil"
+          },
+          "module_count": 5,
+          "allocation_probe_sha256": "9b23ee674aa98cd7ec742589cbde2ca4046884407e7ad8560893eb9aac54888b"
+        },
+        {
+          "optimization": "O2",
+          "verification_runs": 1,
+          "llvm_sha256": "5e46e75591037e425f31b01137b4f03a0a00a5f2369e198693289cc64d868190",
+          "executable_sha256": "b7533442ca5fc983e8b032d18afd88d53928f85e59e32f48943936b4c2a6aadb",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/portable.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/leaf.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/product.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/transitions.zil"
+          },
+          "module_count": 5,
+          "allocation_probe_sha256": "f2625109e38e7b0b1f908ae9869272eb95fb54b3544be1c65a442a4ffbb56a14"
+        }
+      ],
+      "summary": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/linux01/summary.json",
+      "summary_sha256": "b8dc1b3796375e46a52b01352100a425e6e141fff91d06efc465e6ebf7eb6d38",
+      "outer_command": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/linux01-command/command.json",
+      "outer_command_sha256": "a204ddefc71c30a1f8e1279b93fdfa9b3b3cc9454ba3b74db4356569b1b73248",
+      "inputs_unchanged_at_end": true
+    },
+    "wine02": {
+      "status": "Pass",
+      "execution": "Wine compatibility",
+      "ordinary": 20,
+      "instrumented": 74,
+      "total": 94,
+      "actual_allocation_failures": 42,
+      "all_final_live_zero": true,
+      "all_bad_operations_zero": true,
+      "builds": [
+        {
+          "optimization": "O0",
+          "verification_runs": 1,
+          "llvm_sha256": "186fcda327e6cd9f3e9ec693df9832c087a7df28024279cefa17d73be9371a6f",
+          "executable_sha256": "83534be6c1f0eae3191b310a8ba3f2803a4694e33493af7e584953e02f4e1ffd",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/portable.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/leaf.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/product.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/transitions.zil"
+          },
+          "module_count": 5,
+          "probe_llvm_sha256": "705d08dff320a51a55d35e67239b616dab3cb3332cb68ae6013ff803467caa04",
+          "redirected_symbols": {
+            "HeapAlloc": 2,
+            "HeapReAlloc": 2,
+            "HeapFree": 2,
+            "ExitProcess": 2
+          },
+          "instrumentation": "separate exact external-symbol redirection",
+          "allocation_probe_sha256": "f1088fe8dbee10d825b4ff4938a64923c84fe67a7ddbc8ed66a20083e38a7a48"
+        },
+        {
+          "optimization": "O2",
+          "verification_runs": 1,
+          "llvm_sha256": "186fcda327e6cd9f3e9ec693df9832c087a7df28024279cefa17d73be9371a6f",
+          "executable_sha256": "42ef9612038efe24c9a5974fcbee890916ccf534b09d2d49c560bd5f9ecf6b50",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/portable.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/leaf.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/product.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/package_product206/transitions.zil"
+          },
+          "module_count": 5,
+          "probe_llvm_sha256": "705d08dff320a51a55d35e67239b616dab3cb3332cb68ae6013ff803467caa04",
+          "redirected_symbols": {
+            "HeapAlloc": 2,
+            "HeapReAlloc": 2,
+            "HeapFree": 2,
+            "ExitProcess": 2
+          },
+          "instrumentation": "separate exact external-symbol redirection",
+          "allocation_probe_sha256": "2db1eba02baa29f0286140e41494f83d41396047e9ff5ee8170a537fc67a3b8c"
+        }
+      ],
+      "summary": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/wine02/summary.json",
+      "summary_sha256": "cc7fade591fc9955f23ad5522fd5b825fa385ccafd613c1ca6668d39a30e4e26",
+      "outer_command": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/wine02-command/command.json",
+      "outer_command_sha256": "f4df54d3e35a18ff52d5daff4b121af2ea673005bab9e5208fddd49cbb26b82a",
+      "inputs_unchanged_at_end": true
+    }
+  },
+  "ordinary_oracles_observed": [
+    {
+      "scenario": "whole-three-level-close",
+      "stdin_hex": "30",
+      "stdout": "PIAJBK",
+      "exit_code": 0
+    },
+    {
+      "scenario": "take-refill-independent-leaf",
+      "stdin_hex": "31",
+      "stdout": "tAPIXJBK",
+      "exit_code": 0
+    },
+    {
+      "scenario": "replace-complete-middle",
+      "stdin_hex": "32",
+      "stdout": "IAJBKPLCMDN",
+      "exit_code": 0
+    },
+    {
+      "scenario": "rhs-last-copy-argument-failure",
+      "stdin_hex": "33",
+      "stdout": "EDCIAJBK",
+      "exit_code": 1
+    },
+    {
+      "scenario": "take-child-early-return",
+      "stdin_hex": "34",
+      "stdout": "QIAJBK",
+      "exit_code": 0
+    },
+    {
+      "scenario": "partial-child-early-return",
+      "stdin_hex": "35",
+      "stdout": "RAIJBK",
+      "exit_code": 0
+    },
+    {
+      "scenario": "whole-parent-relay-reassignment",
+      "stdin_hex": "36",
+      "stdout": "HPIAJBK",
+      "exit_code": 0
+    },
+    {
+      "scenario": "replace-child-in-independent-local",
+      "stdin_hex": "37",
+      "stdout": "APICJBK",
+      "exit_code": 0
+    },
+    {
+      "scenario": "invalid-input",
+      "stdin_hex": "39",
+      "stdout": "",
+      "exit_code": 9
+    },
+    {
+      "scenario": "eof",
+      "stdin_hex": "",
+      "stdout": "",
+      "exit_code": 9
+    }
+  ],
+  "layout": {
+    "status": "Pass",
+    "method": "Exact emitted inline LLVM types; Clang17 target-layout constant folding, plus actual source data checks and real consumer execution",
+    "sizes": {
+      "Marker": 4,
+      "Leaf": 48,
+      "Middle": 128,
+      "Root": 128
+    },
+    "root_direct_child_flags": 1,
+    "middle_independent_direct_flags": 5,
+    "leaf_independent_direct_flags": 2,
+    "root_leaf_cleanup_paths": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1,
+        1
+      ],
+      [
+        0,
+        1,
+        3
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        0,
+        3,
+        1
+      ],
+      [
+        0,
+        3,
+        3
+      ],
+      [
+        0,
+        4
+      ]
+    ],
+    "record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/layout02/RESULT.json",
+    "record_sha256": "e9dbc81c3a01f5f6eb3ac78523fb228aec80a2f1f5bdf2bb8c158b39a264bd2e",
+    "native_execution_count": 0
+  },
+  "predecessor_machine": {
+    "source_commit": "822999d5605d4d5a68c4b7ef890d0bd024d71dd5",
+    "tests": {
+      "passed": 1,
+      "failed": 0
+    },
+    "native_executions": 4,
+    "traces": [
+      "YABCD",
+      "XBCAD"
+    ],
+    "receipt": "evidence/impl/206/machine/MACHINE02.json",
+    "not_relabelled": true
+  },
+  "source_negative_observations": {
+    "negative_rejected": 12,
+    "verify_controls": 3,
+    "native": 0,
+    "record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/negative01/ADJUDICATION.json",
+    "record_sha256": "71b5f215e24f243ea5df8958292d5fd945ba39983ca01fd423330e2b87562b9a",
+    "not_new_rust_test_count": true
+  },
+  "compiler_candidates": [
+    {
+      "source_commit": "822999d5605d4d5a68c4b7ef890d0bd024d71dd5",
+      "git_status": "",
+      "binary_path": "/tmp/zil206-cli-57b53442f03419cfd9726c03abf81e05c0dab13a400e87fbd3c3fd722639d4d9",
+      "bytes": 28939992,
+      "sha256": "57b53442f03419cfd9726c03abf81e05c0dab13a400e87fbd3c3fd722639d4d9",
+      "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+      "name": "cli01",
+      "compiler_inputs_count": 182,
+      "identity_record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/cli01/binary.json",
+      "identity_record_sha256": "b7187bbc9931da9026188556cf14d36a75f8a19fb496baac814be9976fa5e13b",
+      "build_command_sha256": "5c25dc421b424578c6c990cfc838c041a418aea97ec54a8364c633cb4352e641",
+      "five_module_acceptance": "NotRun; retained predecessor compiler identity"
+    },
+    {
+      "source_commit": "63eabb166bae84f572607763e94d03b18d879cab",
+      "git_status": "",
+      "binary_path": "/tmp/zil206-cli-8e1eb4616b78bd2680e6b51d0dc6028c9a22f09af0551c7ddc189bdefc7a248b",
+      "bytes": 28941136,
+      "sha256": "8e1eb4616b78bd2680e6b51d0dc6028c9a22f09af0551c7ddc189bdefc7a248b",
+      "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+      "name": "cli02",
+      "compiler_inputs_count": 182,
+      "identity_record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/cli02/binary.json",
+      "identity_record_sha256": "1b2b03fa3af4f94d07e6e9d1d35aa85374fdd5f56cc22f811a0d469be8e2b154",
+      "build_command_sha256": "b124e6f239181d4804c09e5d288bc4ff5b624030a4e5f9ebf83d73f507c25094",
+      "five_module_acceptance": "NotRun; retained predecessor compiler identity"
+    },
+    {
+      "source_commit": "7726490b66794ec7cd1a6f6b0d62e2ca8315ed9b",
+      "git_status": "",
+      "binary_path": "/tmp/zil206-cli-35a2e05f3f296d803e507f70c619262fb9144dabcd03a2906086f4ac6680b6cb",
+      "bytes": 28941136,
+      "sha256": "35a2e05f3f296d803e507f70c619262fb9144dabcd03a2906086f4ac6680b6cb",
+      "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+      "name": "cli03",
+      "compiler_inputs_count": 182,
+      "identity_record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/cli03/binary.json",
+      "identity_record_sha256": "1714c44ae9258d8a7f0b98e26ff56827f69f9bc95c613120c4b85f104a318ece",
+      "build_command_sha256": "451513c836b6228858de7bc8f79186a658b471d181ca667080105050113dedee",
+      "five_module_acceptance": "linux01/wine02"
+    }
+  ],
+  "earlier_failures": [
+    {
+      "name": "machine01",
+      "status": "PreflightFailure",
+      "native_execution": "NotRun",
+      "record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/machine01/INCOMPLETE.json"
+    },
+    {
+      "name": "preflight01",
+      "status": "Fail",
+      "phase": "parse",
+      "verification_runs": 0,
+      "native_execution": "NotRun",
+      "record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/preflight01/RESULT.json",
+      "resolution": "consumer02 adds exactly two grouping parentheses; originalsource/oracle preserved"
+    },
+    {
+      "name": "wine01",
+      "status": "Fail",
+      "accepted_observations": 0,
+      "record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/wine01/summary.json",
+      "resolution": "Four real same-program environment controls, then Wine02 with TMPDIR unset; no production/source/oracle change"
+    },
+    {
+      "name": "layout01",
+      "status": "Fail",
+      "classification": "AuditReaderRegexError",
+      "record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/layout01/RESULT.json",
+      "resolution": "layout02 corrects only diagnostic reader regex; real Clang first compile was already Pass; no native executions"
+    }
+  ],
+  "wine_environment_diagnosis": {
+    "record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/wine-startup01-cases/DIAGNOSIS.json",
+    "record_sha256": "1197069b31ef15514c0b49b84ae88ef21773ea2d59c4ce5a76fbb8e1fd2d9313",
+    "diagnostic_runs": 4,
+    "excluded_from_consumer_acceptance_counts": true
+  },
+  "full_workspace": "Integration owner reports separately; not run by this author",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "performance": "Allocation payload counters and ABI layout only; no timing/RSS or comparative compiler-speed claim",
+  "predeclared_files_byte_exact": {
+    "count": 27,
+    "original_commit": "e699cf438e720f4c3b517a65d08befad5dd96a3c",
+    "record": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/PREDECLARED-PRESERVATION.json",
+    "record_sha256": "d852e7337f534a524f771188cfc5a02e8497677bd5a131ad369cc5246a4c9720"
+  }
+}
