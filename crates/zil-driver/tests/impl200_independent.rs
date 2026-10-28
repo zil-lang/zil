@@ -422,6 +422,55 @@ fn two_noncopy_values_keep_each_field_debt_and_reject_duplicate_actual_arguments
     );
 }
 
+#[test]
+fn two_input_one_field_constructor_cleans_the_unselected_value_on_each_branch() {
+    let source = format!(
+        r#"{PREFIX}{OWNED_FACTORY}
+package One<F>{{manages guard:Ticket;callback:F}}
+fn choose<F:FnMut(i32)->i32>(left:F,right:F,flag:bool)->One<F>{{
+    if flag{{return One::<F>{{guard:Ticket{{code:84}},callback:left}}}}
+    return One::<F>{{guard:Ticket{{code:85}},callback:right}}
+}}
+fn run<G:FnMut(i32)->i32>(state:One<G>)->i32{{
+    var current=state;emit(88);return current.callback(2)
+}}
+fn main()->i32{{return run(choose(handler(65),handler(66),true))-2}}
+"#
+    );
+    native("two-input-one-field-left", &source, "BXATA", 0);
+    native(
+        "two-input-one-field-right",
+        &source.replace("handler(66),true", "handler(66),false"),
+        "AXBUB",
+        0,
+    );
+    let (mut module, plan) = baseline("one-field-branch-cleanup-control", &source);
+    let constructor = constructor_index(&module);
+    let second = module.functions[constructor].parameters[1];
+    let (block, position) = module.functions[constructor]
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, body)| {
+            body.instructions
+                .iter()
+                .position(|i| matches!(i.kind,InstructionKind::DropClosure{local}if local==second))
+                .map(|position| (block, position))
+        })
+        .unwrap();
+    module.functions[constructor].blocks[block]
+        .instructions
+        .remove(position);
+    reject(
+        "one-field-constructor-loses-unused-second-cleanup",
+        module,
+        plan,
+        ResultCategory::SafeReject,
+        "E-VERIFY-RESOURCE",
+        false,
+    );
+}
+
 const ONCE: &str = r#"
 package Capsule<F>{left:F;manages guard:Ticket;right:F}
 fn assemble<F:FnOnce()->i32>(left:F,give guard:Ticket,right:F)->Capsule<F>{
