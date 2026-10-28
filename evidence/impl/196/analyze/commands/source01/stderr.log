@@ -1,0 +1,16 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-verify)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-db)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-lower)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 5.10s
+     Running tests/impl196_analyze_roles.rs (/workspace/scratch/39be3faa4442/targets196/analyze/debug/deps/impl196_analyze_roles-e306cee2e11810a8)
+
+thread 'second_role_write_is_projected_into_the_actual_owned_environment' (420148) panicked at crates/zil-driver/tests/impl196_analyze_roles.rs:52:91:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "only shared finite Copy addresses are implemented", span: Some(Span { file: FileId(0), start: 257, end: 263 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p zil-driver --test impl196_analyze_roles`
