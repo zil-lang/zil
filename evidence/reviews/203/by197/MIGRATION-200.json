@@ -1,0 +1,148 @@
+{
+  "reviewer": "/root/impl197",
+  "kind": "SupplementalRegressionMigrationReview",
+  "reviewed_commit": "d6bd50e14e1749d84d8774f1d6b630cea0a89c07",
+  "original_implementation_commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+  "original_review_commit": "b6a13a81d01b83dcdf38256ebae4448c55ba5a95",
+  "tested_source_commit": "d2924b4fb996c1f43b6fd263cea2e7d99f3b28b4",
+  "spec_hash": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "verdict": "Pass",
+  "scope": "Exact extraction of the original unused two-types constructor into a named source declaration control; all other old-200 test bytes and assertions remain unchanged.",
+  "production_diff_from_ee0": [],
+  "original_input": {
+    "label": "two-types",
+    "bytes": 164,
+    "sha256": "d05800ba09cf1c06878bb83d8914a97e31ebbba8fb0215db4b44d7ba78a4fd92",
+    "byte_identical_to_original": true,
+    "all_other_file_bytes_unchanged_after_exact_remove_and_insert": true
+  },
+  "execution": {
+    "receipt": "migration200/command.json",
+    "git_status": "",
+    "passed": 2,
+    "failed": 0,
+    "filtered_out": 11,
+    "source_compilations": 8,
+    "native_runs": 0,
+    "positive_definition": "Success / Verify / verification_runs=1 / no executable",
+    "not_proven": "This unused main does not instantiate or execute pack. Existing concrete 203 source/native evidence remains separately bound to its earlier exact runs.",
+    "observations": [
+      {
+        "label": "state200-borrowed-environments",
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "source_sha256": "60465de01589d6db8e96666f916ffba3b43b5a9924a14af2f9c574b4b9c7f7c0",
+        "receipt": "migration200-cases/state200-borrowed-environments-765947-7/compile.json"
+      },
+      {
+        "label": "state200-borrowed-inputs",
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "source_sha256": "6894709351c7f935ffc54637a6189413816ee33c10bc0cd28d669f8df73f6e7e",
+        "receipt": "migration200-cases/state200-borrowed-inputs-765947-5/compile.json"
+      },
+      {
+        "label": "state200-state-and-replacement",
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "source_sha256": "5251f83be296a6273532690540cfde459938f39801afc614ba1cbb672df2b05a",
+        "receipt": "migration200-cases/state200-state-and-replacement-765947-3/compile.json"
+      },
+      {
+        "label": "state200-three-fields-original",
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostic_codes": [
+          "E-GENERIC-ARGUMENT"
+        ],
+        "source_sha256": "5e75469111b61d948bf5dda9575a496a75f4b459f182af93b239352fb9990cba",
+        "receipt": "migration200-cases/state200-three-fields-original-765947-0/compile.json"
+      },
+      {
+        "label": "state200-two-states",
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "source_sha256": "e8d620f800b85ff716f621b31a8b186beb8b81b3c0880a4e2e5c99c23dead266",
+        "receipt": "migration200-cases/state200-two-states-765947-4/compile.json"
+      },
+      {
+        "label": "state200-two-types",
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostic_codes": [],
+        "source_sha256": "d05800ba09cf1c06878bb83d8914a97e31ebbba8fb0215db4b44d7ba78a4fd92",
+        "receipt": "migration200-cases/state200-two-types-765947-1/compile.json"
+      },
+      {
+        "label": "state200-unused-copy-operation",
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ],
+        "source_sha256": "0cd42e2b10417c2a7e352a5890e8ad11fe91c64f77a03e1eef3964dd01e07052",
+        "receipt": "migration200-cases/state200-unused-copy-operation-765947-6/compile.json"
+      },
+      {
+        "label": "state200-unused-legacy-shape",
+        "status": "Success",
+        "phase": "types",
+        "verification_runs": 0,
+        "diagnostic_codes": [],
+        "source_sha256": "b1f893888ca192b7496e9988056a777eac97ba125806aea9615fbc7905dda8f5",
+        "receipt": "migration200-cases/state200-unused-legacy-shape-765947-2/compile.json"
+      }
+    ]
+  },
+  "preserved_controls": [
+    "Original three-fields reuse remains Expand/SafeReject/E-GENERIC-ARGUMENT with the Copy diagnostic.",
+    "Unused legacy single-F three-field shape remains Types success with Verify 0; it is not a three-field constructor success.",
+    "State plus replacement, two State inputs, and borrowed callable inputs remain Expand/Unsupported.",
+    "Copy bound still grants no arithmetic; its unused numeric expression remains Expand/Unsupported.",
+    "Borrowed environments remain Types/Unsupported."
+  ],
+  "root_original_failure": {
+    "reported_formal_result": "2402 passed / 1 failed / 0 ignored; 247 groups",
+    "original_receipt": "root-full02-command.json",
+    "original_assertion_excerpt": "root-full02-original-excerpt.txt",
+    "execution_owner": "/root",
+    "status": "Fail, retained; not relabeled by this supplemental review"
+  },
+  "original_203_archive_unchanged": {
+    "bytes": 28868714,
+    "sha256": "9f3591d6e997c386714e0edc03b63a2e1eef76cf034c4e7ea184adea7fefc43f"
+  },
+  "formal_workspace": "NotRun by this reviewer",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "external_evidence": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/203-review-migration200-evidence.zip",
+    "bytes": 59911,
+    "sha256": "aca87b63aae6e0cc7f77d191cb320644c085c477e75cf455c8bb3aeb2efa3f4d",
+    "member_manifest": "ARCHIVE-MANIFEST.json",
+    "integrity": "ZIP CRC and every member SHA256 verified",
+    "execution_artifacts_included": false
+  }
+}

@@ -609,16 +609,27 @@ impl CallHints {
     pub(super) fn symbolic_result(
         &self,
         result: &TypeRef,
-        binder: &str,
+        bindings: &callable::CallableTemplates,
         budget: &mut Budget<'_>,
     ) -> R<Option<TypeRef>> {
         // The type engine owns concrete opaque identities. Only propagate a
         // lexical generic variable through State<F> here, never instantiate a
         // nominal from the visible Fn signature of an opaque factory.
-        if self.found.get(binder).is_some_and(|ty| {
-            matches!(&grouped(ty).kind,
+        let symbolic = |binder: &str| {
+            self.found.get(binder).is_some_and(|ty| {
+                matches!(&grouped(ty).kind,
             TypeKind::Named { path, args } if path.len()==1 && args.is_empty())
-        }) {
+            })
+        };
+        let ready = if let Some(binder) = bindings.single_generic() {
+            symbolic(binder)
+        } else if let Some(names) = bindings.dual_names() {
+            budget.node(result.span, 0)?;
+            symbolic(names[0]) && symbolic(names[1])
+        } else {
+            false
+        };
+        if ready {
             Ok(Some(substituted(result, &self.found, budget)?))
         } else {
             Ok(None)

@@ -326,6 +326,7 @@ mod tests {
             unsupported: vec![],
             functions: vec![CoreFunction {
                 callable_return: None,
+                state_parameters: Vec::new(),
                 type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,

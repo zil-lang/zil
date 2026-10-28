@@ -1,0 +1,48 @@
+{
+  "status": "Pass",
+  "production_commit": "f244694c8191244791bc2aea1c8b92a3b1f5b55f",
+  "normative_hash": "1355ae0d2351199391d65ca4faa4a84ce768ece5c8aaaca465b8de5b20aad65a",
+  "clean_commands": {
+    "freeze01": {
+      "new": {
+        "passed": 13,
+        "failed": 0
+      },
+      "previous202": {
+        "passed": 17,
+        "failed": 0
+      },
+      "lib": {
+        "passed": 0,
+        "failed": 0
+      }
+    },
+    "clippy01": {
+      "status": "Pass"
+    }
+  },
+  "expand_exact_budgets": {
+    "legacy197": 1731,
+    "ordinary_store": 2255,
+    "deferred_store": 8399,
+    "shadow_store": 12755,
+    "popped_helper": 12291,
+    "new_dual": 3753,
+    "new_markers": 4120
+  },
+  "native": "NotRun by this author at this checkpoint",
+  "prior_failures_preserved": [
+    "before01: 0/4 old escaping gate",
+    "check01: one mechanical compile error",
+    "after01: old20217/0 new3/1 unsafe gate"
+  ],
+  "archive": {
+    "file": "203-expand-evidence.zip",
+    "size": 777068,
+    "sha256": "a25b4c3f8e187e0b01959c06ccc66f105d76dae63220a3173d158c95c996030b",
+    "members": 259,
+    "crc_and_member_sha256": "Pass",
+    "executable_artifacts": false
+  },
+  "notes": "All postfreeze claims refer to clean f244694c; prefreeze runs retain their actual dirty identities. Mainline/Types/native acceptance are separate."
+}

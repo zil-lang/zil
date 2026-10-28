@@ -26,6 +26,7 @@ fn callback(count: usize) -> Type {
 fn function() -> CoreFunction {
     CoreFunction {
         callable_return: None,
+        state_parameters: Vec::new(),
         type_parameters: Vec::new(),
         callable_parameters: Vec::new(),
         result_mode: PassingMode::Infer,

@@ -7,6 +7,7 @@ pub(super) struct ParametricTables<'a, 'l> {
     pub nominals: &'a BTreeMap<String, &'l Item>,
     pub enums: &'a BTreeMap<String, &'l EnumDecl>,
     pub signatures: &'a BTreeMap<String, Cow<'l, Function>>,
+    pub foreign_signatures: &'a BTreeMap<&'l str, (&'l str, &'l Function)>,
     pub pattern_types: &'a BTreeMap<String, TypeRef>,
     pub traits: &'a trait_bounds::Index<'l>,
 }
@@ -21,6 +22,7 @@ pub(super) fn validate_parametric<'l>(
         nominals,
         enums,
         signatures,
+        foreign_signatures,
         pattern_types,
         traits,
     } = tables;
@@ -59,6 +61,8 @@ pub(super) fn validate_parametric<'l>(
         nominals,
         enums,
         signatures,
+        foreign_signatures,
+        unsafe_scope: false,
         pattern_types,
         result_mode: stores::result_mode(function)?,
         result: function
@@ -67,6 +71,17 @@ pub(super) fn validate_parametric<'l>(
             .unwrap_or_else(|| unit(function.span)),
         budget,
     };
+    if let Some(bounds) = check.callable.as_ref().filter(|b| b.dual_names().is_some()) {
+        for binding in bounds.bindings() {
+            copy::require(
+                &binding.result,
+                check.nominals,
+                &check.bounds,
+                &check.variables,
+                check.budget,
+            )?;
+        }
+    }
     let mut state = State {
         locals: function
             .params
@@ -97,10 +112,10 @@ pub(super) fn validate_parametric<'l>(
             &check.bounds,
             &check.variables,
             check.budget,
-            check
-                .callable
-                .as_ref()
-                .and_then(callable::CallableTemplates::store_generic),
+            check.callable.as_ref().map_or(
+                callable::StoreCallbacks::None,
+                callable::CallableTemplates::store_callbacks,
+            ),
         )?;
         if stores::element(&parameter.ty).is_some() {
             state.store_origins.insert(id, BTreeSet::from([id]));
@@ -134,10 +149,10 @@ pub(super) fn validate_parametric<'l>(
         &check.bounds,
         &check.variables,
         check.budget,
-        check
-            .callable
-            .as_ref()
-            .and_then(callable::CallableTemplates::store_generic),
+        check.callable.as_ref().map_or(
+            callable::StoreCallbacks::None,
+            callable::CallableTemplates::store_callbacks,
+        ),
     )?;
     if let Some((error, _)) = stores::success(&check.result) {
         stores::copy_error(error, check.nominals, check.budget)?;
@@ -368,12 +383,31 @@ struct Check<'s, 'b, 'l> {
     nominals: &'s BTreeMap<String, &'l Item>,
     enums: &'s BTreeMap<String, &'l EnumDecl>,
     signatures: &'s BTreeMap<String, Cow<'l, Function>>,
+    foreign_signatures: &'s BTreeMap<&'l str, (&'l str, &'l Function)>,
+    unsafe_scope: bool,
     pattern_types: &'s BTreeMap<String, TypeRef>,
     result: TypeRef,
     result_mode: zil_ir::PassingMode,
     budget: &'b mut Budget<'l>,
 }
 impl Check<'_, '_, '_> {
+    fn literal_context<'a>(&self, expected: Option<&'a TypeRef>) -> Option<&'a TypeRef> {
+        if self
+            .callable
+            .as_ref()
+            .is_some_and(|b| b.dual_names().is_some())
+            && let Some(ty) = expected
+            && let TypeKind::Error { error, result } = &group(ty).kind
+            && integer(error) != integer(result)
+        {
+            // An integer payload keeps its concrete width even when the other
+            // alternative is a complete symbolic State. same_return still
+            // validates the original entire union and rejects either-side
+            // mismatch; no generic numeric capability is inferred from a call.
+            return Some(if integer(error) { error } else { result });
+        }
+        expected
+    }
     fn known_copy(&mut self, ty: &TypeRef) -> R<bool> {
         if known_copy(ty, &self.variables, self.nominals) {
             return Ok(true);
@@ -791,9 +825,10 @@ impl Check<'_, '_, '_> {
                 &self.bounds,
                 &self.variables,
                 self.budget,
-                self.callable
-                    .as_ref()
-                    .and_then(callable::CallableTemplates::store_generic),
+                self.callable.as_ref().map_or(
+                    callable::StoreCallbacks::None,
+                    callable::CallableTemplates::store_callbacks,
+                ),
             )?;
         } else if !self
             .callable
@@ -1123,7 +1158,7 @@ impl Check<'_, '_, '_> {
                 if let Some(local) = state.locals.get(target) {
                     self.budget.ty(&local.ty)?;
                     let result = if let Some(bound) = self.callable.as_ref().and_then(|bounds| {
-                        bounds.roles.iter().find(|bound| {
+                        bounds.bindings().find(|bound| {
                             callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
                         })
                     }) {
@@ -1446,6 +1481,7 @@ impl Check<'_, '_, '_> {
                 Ok(ty)
             }
             ExprKind::Literal(Literal::Integer(text)) => {
+                let expected = self.literal_context(expected);
                 if expected.is_some_and(|t| dependent(t, &self.variables)) {
                     return Err(needs_bound());
                 }
@@ -1570,9 +1606,10 @@ impl Check<'_, '_, '_> {
                     &self.bounds,
                     &self.variables,
                     self.budget,
-                    self.callable
-                        .as_ref()
-                        .and_then(callable::CallableTemplates::store_generic),
+                    self.callable.as_ref().map_or(
+                        callable::StoreCallbacks::None,
+                        callable::CallableTemplates::store_callbacks,
+                    ),
                 )?;
                 Ok(result)
             }
@@ -1685,6 +1722,7 @@ impl Check<'_, '_, '_> {
                 op: UnaryOp::Negate,
                 operand,
             } if matches!(operand.kind, ExprKind::Literal(Literal::Integer(_))) => {
+                let expected = self.literal_context(expected);
                 if expected.is_some_and(|t| dependent(t, &self.variables)) {
                     return Err(needs_bound());
                 }
@@ -1809,9 +1847,10 @@ impl Check<'_, '_, '_> {
                         &self.bounds,
                         &self.variables,
                         self.budget,
-                        self.callable
-                            .as_ref()
-                            .and_then(callable::CallableTemplates::store_generic),
+                        self.callable.as_ref().map_or(
+                            callable::StoreCallbacks::None,
+                            callable::CallableTemplates::store_callbacks,
+                        ),
                     )?;
                     if arguments.len() == 2 {
                         let wanted = if name == "store_push" {
@@ -1956,7 +1995,7 @@ impl Check<'_, '_, '_> {
                         ));
                     };
                     let owned_state = bounds.owned_state;
-                    let bound = bounds.roles.iter().find(|bound| {
+                    let bound = bounds.bindings().find(|bound| {
                         callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
                     });
                     let (kind, mode, parameters, result, factory_local) = if let Some(bound) = bound
@@ -2025,6 +2064,76 @@ impl Check<'_, '_, '_> {
                         same(&actual, parameter, argument.span, self.budget)?;
                     }
                     return Ok(result);
+                }
+                if let Some((abi, function)) = self.foreign_signatures.get(target.as_str()) {
+                    if !self
+                        .callable
+                        .as_ref()
+                        .is_some_and(|b| b.dual_names().is_some())
+                    {
+                        return Err(unsupported(
+                            e.span,
+                            "foreign calls in this parametric profile are not implemented",
+                        ));
+                    }
+                    if !self.unsafe_scope {
+                        return Err(error(
+                            e.span,
+                            "foreign call requires an explicit unsafe block",
+                        ));
+                    }
+                    let scalar = |ty: &TypeRef, result: bool| match &group(ty).kind {
+                        TypeKind::Named { path, args } if args.is_empty() => {
+                            matches!(path.as_slice(), [name] if matches!(name.as_str(), "i32" | "i64" | "c_handle")
+                                || result && name == "void")
+                        }
+                        TypeKind::Tuple(fields) if result => fields.is_empty(),
+                        _ => false,
+                    };
+                    self.budget.node(e.span, 0)?;
+                    if *abi != "\"C\""
+                        || explicit.is_some()
+                        || !function.generics.is_empty()
+                        || !function.contract.is_empty()
+                        || !function.where_clause.is_empty()
+                        || function
+                            .params
+                            .iter()
+                            .any(|p| p.give || !scalar(&p.ty, false))
+                        || function
+                            .return_type
+                            .as_ref()
+                            .is_some_and(|ty| !scalar(ty, true))
+                    {
+                        return Err(unsupported(
+                            e.span,
+                            "dual State marker calls require a direct concrete C scalar signature",
+                        ));
+                    }
+                    if arguments.len() != function.params.len()
+                        || arguments.iter().any(|a| a.spread)
+                    {
+                        return Err(error(
+                            e.span,
+                            "foreign call argument count or shape differs",
+                        ));
+                    }
+                    for (argument, parameter) in arguments.iter().zip(&function.params) {
+                        self.budget.ty(&parameter.ty)?;
+                        let actual = self.argument(
+                            &argument.value,
+                            state,
+                            &parameter.ty,
+                            Some(&parameter.ty),
+                        )?;
+                        same(&actual, &parameter.ty, argument.span, self.budget)?;
+                    }
+                    return if let Some(result) = &function.return_type {
+                        self.budget.ty(result)?;
+                        Ok(result.clone())
+                    } else {
+                        Ok(unit(e.span))
+                    };
                 }
                 let function = self
                     .signatures
@@ -2101,11 +2210,11 @@ impl Check<'_, '_, '_> {
                 }
                 let callable = callable::template(function)?;
                 if let Some(callees) = &callable {
-                    for callee in &callees.roles {
+                    for callee in callees.bindings() {
                         self.budget.node(e.span, 0)?;
                         let actual = &found[&callee.generic_name];
                         let caller = self.callable.as_ref().and_then(|bounds| {
-                            bounds.roles.iter().find(|caller| {
+                            bounds.bindings().find(|caller| {
                                 callable::parameter_mode(actual, &caller.generic_name) == Some(None)
                             })
                         });
@@ -2157,9 +2266,10 @@ impl Check<'_, '_, '_> {
                     (
                         &self.bounds,
                         &self.variables,
-                        self.callable
-                            .as_ref()
-                            .and_then(callable::CallableTemplates::store_generic),
+                        self.callable.as_ref().map_or(
+                            callable::StoreCallbacks::None,
+                            callable::CallableTemplates::store_callbacks,
+                        ),
                     ),
                     self.budget,
                     e.span,
@@ -2296,7 +2406,7 @@ impl Check<'_, '_, '_> {
                 }
                 if let Some(local) = package
                     && self.callable.as_ref().is_some_and(|bounds| {
-                        bounds.roles.iter().any(|bound| {
+                        bounds.bindings().any(|bound| {
                             callable::parameter_mode(&ty, &bound.generic_name) == Some(None)
                         })
                     })
@@ -2333,7 +2443,7 @@ impl Check<'_, '_, '_> {
         let Some(bounds) = self.callable.as_ref().filter(|bounds| bounds.owned_state) else {
             return Ok(None);
         };
-        let bound = &bounds.roles[0];
+        let dual = bounds.dual_names().is_some();
         let ExprKind::Member {
             object,
             member: MemberName::Name(member),
@@ -2351,7 +2461,7 @@ impl Check<'_, '_, '_> {
             let window = match &base.kind {
                 ExprKind::Name(name) => state.locals.get(name).is_some_and(|local| {
                     matches!(&group(&local.ty).kind, TypeKind::Reference { inner, .. }
-                        if callable::state_type(inner, &bound.generic_name))
+                        if bounds.store_callbacks().active(inner))
                 }),
                 ExprKind::Call { callee, .. } => {
                     matches!(stores::call_name(callee), Some("store_at" | "store_at_mut"))
@@ -2362,12 +2472,36 @@ impl Check<'_, '_, '_> {
                 return Ok(None);
             }
         }
+        // Only the new two-root path selects from the actual resolved field.
+        // One representative ClosureId or first bound cannot supply its mode.
+        let place = if dual {
+            Some(self.place(callee, state)?)
+        } else {
+            None
+        };
+        let bounds = self.callable.as_ref().expect("owning callable scope");
+        let bound = if let Some((ty, _)) = &place {
+            self.budget.node(callee.span, 0)?;
+            let Some(bound) = bounds
+                .bindings()
+                .find(|bound| callable::parameter_mode(ty, &bound.generic_name) == Some(None))
+            else {
+                return Ok(None);
+            };
+            self.budget.text(&bound.generic_name, callee.span)?;
+            bound
+        } else {
+            &bounds.roles[0]
+        };
         for parameter in &bound.parameters {
             self.budget.ty(parameter)?;
         }
         self.budget.ty(&bound.result)?;
         let bound = bound.clone();
-        let (ty, mutable) = self.place(callee, state)?;
+        let (ty, mutable) = match place {
+            Some(place) => place,
+            None => self.place(callee, state)?,
+        };
         if callable::parameter_mode(&ty, &bound.generic_name) != Some(None) {
             return Ok(None);
         }
@@ -2448,9 +2582,10 @@ impl Check<'_, '_, '_> {
                             &self.bounds,
                             &self.variables,
                             self.budget,
-                            self.callable
-                                .as_ref()
-                                .and_then(callable::CallableTemplates::store_generic),
+                            self.callable.as_ref().map_or(
+                                callable::StoreCallbacks::None,
+                                callable::CallableTemplates::store_callbacks,
+                            ),
                         )?;
                     }
                     let owns_store = self.owning_store_expression(value, state);
@@ -2464,9 +2599,10 @@ impl Check<'_, '_, '_> {
                         &self.bounds,
                         &self.variables,
                         self.budget,
-                        self.callable
-                            .as_ref()
-                            .and_then(callable::CallableTemplates::store_generic),
+                        self.callable.as_ref().map_or(
+                            callable::StoreCallbacks::None,
+                            callable::CallableTemplates::store_callbacks,
+                        ),
                     )?;
                     if let Some(ty) = ty {
                         same(&actual, ty, statement.span, self.budget)?;
@@ -2700,6 +2836,21 @@ impl Check<'_, '_, '_> {
                     let iteration_flow =
                         self.for_range(pattern, iterable, body, state, statement.span)?;
                     flow.returns |= iteration_flow.returns;
+                }
+                StmtKind::Unsafe(body)
+                    if self
+                        .callable
+                        .as_ref()
+                        .is_some_and(|b| b.dual_names().is_some()) =>
+                {
+                    let mut inner = self.clone_state(state)?;
+                    let saved = self.unsafe_scope;
+                    self.unsafe_scope = true;
+                    let inner_flow = self.block(body, &mut inner)?;
+                    self.unsafe_scope = saved;
+                    self.join_states(state, &[&inner], statement.span)?;
+                    flow.fallthrough = inner_flow.fallthrough;
+                    flow.returns |= inner_flow.returns;
                 }
                 StmtKind::Break | StmtKind::Continue => {
                     self.loop_control(

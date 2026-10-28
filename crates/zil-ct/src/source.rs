@@ -21,13 +21,14 @@ pub struct SourceEvaluationUsage {
     pub nodes: usize,
 }
 
-/// A bounded index of raw serializable-value headers. These are type hints, not permissions:
+/// A bounded index of raw value and runtime-template headers. These are type hints, not permissions:
 /// types still checks visibility, aliases, argument types and arity afterwards.
 /// No dependency body is copied or executed while constructing or using it.
 pub struct SourceProgramContext<'a> {
     functions: BTreeMap<(zil_base::ModuleId, &'a str), Option<&'a CoreFunction>>,
-    // Explicit runtime type applications may use ordinary scalar argument
-    // hints from these bounded headers. They never authorize CT execution.
+    // Explicit runtime type applications only target ordinary templates.
+    // Bare calls also use their bounded headers through `functions`; neither
+    // lookup authorizes CT execution or supplies a missing type argument.
     type_templates: BTreeMap<(zil_base::ModuleId, &'a str), Option<&'a CoreFunction>>,
     imports: BTreeMap<(zil_base::ModuleId, &'a str), Option<zil_base::ModuleId>>,
 }
@@ -96,7 +97,38 @@ impl<'a> SourceProgramContext<'a> {
                         .entry((id, function.name.as_str()))
                         .and_modify(|entry| *entry = None)
                         .or_insert(Some(function));
-                    usable = false;
+                    // Full value inference is checked later by Types. Known
+                    // scalar positions still provide runtime argument hints.
+                    usable = true;
+                }
+                if !function.state_parameters.is_empty() {
+                    state_template_shape(function)?;
+                    nodes = nodes
+                        .checked_add(1)
+                        .filter(|n| *n <= limits.max_nodes)
+                        .ok_or_else(limit)?;
+                    work = work.checked_sub(1).ok_or_else(limit)?;
+                    for bound in &function.state_parameters[0].bindings {
+                        if bound.parameters.len() > limits.max_locals {
+                            return Err(limit());
+                        }
+                        nodes = nodes
+                            .checked_add(1 + bound.fields.len())
+                            .filter(|n| *n <= limits.max_nodes)
+                            .ok_or_else(limit)?;
+                        work = work
+                            .checked_sub(1 + bound.fields.len())
+                            .and_then(|n| n.checked_sub(bound.generic_name.len()))
+                            .ok_or_else(limit)?;
+                        hint_type(&bound.result, 0, &mut nodes, &mut work, limits)?;
+                        for ty in &bound.parameters {
+                            hint_type(ty, 0, &mut nodes, &mut work, limits)?;
+                        }
+                    }
+                    // The State binding table has now been bounded as well.
+                    // Preserve scalar hints without treating State as an
+                    // explicit ordinary type-application target.
+                    usable = true;
                 }
                 functions
                     .entry((id, function.name.as_str()))
@@ -155,6 +187,7 @@ fn ordinary_template_shape(function: &CoreFunction) -> CompileResult<()> {
         || function.type_parameters[0].index != 0
         || function.type_parameters[0].name.is_empty()
         || !function.callable_parameters.is_empty()
+        || !function.state_parameters.is_empty()
         || function.callable_return.is_some()
         || function.receiver.is_some()
         || function.foreign.is_some()
@@ -163,6 +196,56 @@ fn ordinary_template_shape(function: &CoreFunction) -> CompileResult<()> {
             function.span,
             "ordinary StoreElement template metadata requires one lexical binder and no callable, receiver or foreign role",
         ));
+    }
+    Ok(())
+}
+
+// This only bounds transport metadata. Types checks actual symbolic fields and
+// declaration capabilities; preserving this table never permits CT execution.
+fn state_template_shape(function: &CoreFunction) -> CompileResult<()> {
+    if function.state_parameters.is_empty() {
+        return Ok(());
+    }
+    let invalid = || {
+        unsupported(
+            function.span,
+            "independent State metadata requires one owner and two ordered field bindings",
+        )
+    };
+    if function.state_parameters.len() != 1
+        || !function.type_parameters.is_empty()
+        || !function.callable_parameters.is_empty()
+        || function.callable_return.is_some()
+        || function.receiver.is_some()
+        || function.foreign.is_some()
+    {
+        return Err(invalid());
+    }
+    let state = &function.state_parameters[0];
+    if state.bindings.len() != 2
+        || !function
+            .parameters
+            .get(state.index as usize)
+            .is_some_and(|p| {
+                matches!(
+                    p.mode,
+                    PassingMode::Infer | PassingMode::Move | PassingMode::Give
+                )
+            })
+    {
+        return Err(invalid());
+    }
+    for (index, bound) in state.bindings.iter().enumerate() {
+        if bound.generic_index as usize != index
+            || bound.generic_name.is_empty()
+            || bound.kind == CallableKind::FunctionPointer
+            || bound.fields.len() != 1
+        {
+            return Err(invalid());
+        }
+    }
+    if state.bindings[0].fields[0] == state.bindings[1].fields[0] {
+        return Err(invalid());
     }
     Ok(())
 }
@@ -359,6 +442,7 @@ fn evaluate_with_context(
         walker.scopes.push(scope);
         functions.push(CoreFunction {
             callable_return: f.callable_return.clone(),
+            state_parameters: f.state_parameters.clone(),
             type_parameters: f.type_parameters.clone(),
             callable_parameters: f.callable_parameters.clone(),
             result_mode: f.result_mode,
@@ -446,6 +530,18 @@ impl<'a> Walker<'a> {
             self.charge(0, f.span)?;
             self.text(&f.name, Some(f.span))?;
             ordinary_template_shape(f)?;
+            if !f.state_parameters.is_empty() {
+                state_template_shape(f)?;
+                self.charge(0, f.span)?;
+                for bound in &f.state_parameters[0].bindings {
+                    self.charge(0, f.span)?;
+                    self.text(&bound.generic_name, Some(f.span))?;
+                    self.parameters(&bound.parameters, &bound.result, f.span)?;
+                    for _ in &bound.fields {
+                        self.charge(0, f.span)?;
+                    }
+                }
+            }
             for parameter in &f.type_parameters {
                 self.charge(0, f.span)?;
                 self.text(&parameter.name, Some(f.span))?;
@@ -1371,7 +1467,7 @@ impl<'a> Walker<'a> {
             self.core
                 .functions
                 .iter()
-                .find(|f| &f.name == name && (!f.type_parameters.is_empty()) == template)
+                .find(|f| &f.name == name && (!template || !f.type_parameters.is_empty()))
         } else {
             None
         }
@@ -1802,6 +1898,7 @@ mod tests {
             unsupported: vec![],
             functions: vec![CoreFunction {
                 callable_return: None,
+                state_parameters: Vec::new(),
                 type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
@@ -2110,6 +2207,107 @@ mod tests {
             );
             assert!(usage.steps > 0);
         }
+    }
+
+    fn assert_runtime_bare_hint203(state: bool, indexed: bool) {
+        // Raw runtime-call normalization only. A scalar argument hint must not
+        // authorize executing either kind of generic template during CT.
+        let mut core = runtime_template202();
+        let CoreStatementKind::Return(Some(call)) = &mut core.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::Call { callee, .. } = &mut call.kind else {
+            panic!()
+        };
+        **callee = expr(CoreExprKind::Name("reserve".into()));
+        if state {
+            let function = &mut core.functions[1];
+            function.type_parameters.clear();
+            function.parameters[0].ty = Type::Package {
+                name: "State".into(),
+                fields: vec![
+                    ("first".into(), Type::Named("F".into())),
+                    ("second".into(), Type::Named("G".into())),
+                ],
+            };
+            function.parameters[0].mode = PassingMode::Infer;
+            function.state_parameters = vec![CoreStateParameter {
+                index: 0,
+                bindings: vec![
+                    CoreStateBinding {
+                        generic_index: 0,
+                        generic_name: "F".into(),
+                        kind: CallableKind::Fn,
+                        parameters: vec![],
+                        result: Type::I32,
+                        fields: vec![0],
+                    },
+                    CoreStateBinding {
+                        generic_index: 1,
+                        generic_name: "G".into(),
+                        kind: CallableKind::FnOnce,
+                        parameters: vec![],
+                        result: Type::I32,
+                        fields: vec![1],
+                    },
+                ],
+            }];
+        }
+        let program = CoreProgram {
+            root: core.module_id,
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core: core.clone(),
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let limits = Limits::default();
+        let context = SourceProgramContext::new(&program, &limits).unwrap();
+        let (normalized, usage) = evaluate_with_context(
+            &core,
+            &TargetProfile::default(),
+            &limits,
+            indexed.then_some(&context),
+            None,
+        )
+        .unwrap();
+        assert_eq!(normalized.functions[1], core.functions[1]);
+        let CoreStatementKind::Return(Some(call)) =
+            &normalized.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::Call { callee, arguments } = &call.kind else {
+            panic!()
+        };
+        assert_eq!(callee.kind, CoreExprKind::Name("reserve".into()));
+        assert_eq!(
+            arguments[1].kind,
+            CoreExprKind::Integer("4294967296i64".into())
+        );
+        assert!(usage.steps > 0);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_ordinary_scalar_hint_plain() {
+        assert_runtime_bare_hint203(false, false);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_ordinary_scalar_hint_indexed() {
+        assert_runtime_bare_hint203(false, true);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_state_scalar_hint_plain() {
+        assert_runtime_bare_hint203(true, false);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_state_scalar_hint_indexed() {
+        assert_runtime_bare_hint203(true, true);
     }
 
     #[test]

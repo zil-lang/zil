@@ -310,6 +310,7 @@ fn resolve_indexed(
     let mut resolver = Resolver {
         ordinary_parameter: None,
         active_callable_parameters: &[],
+        active_state_parameters: &[],
         callable_names: core
             .functions
             .iter()
@@ -319,6 +320,29 @@ fn resolve_indexed(
                     .iter()
                     .flat_map(|m| m.functions.iter())
                     .flat_map(|f| f.callable_parameters.iter().map(|b| b.generic_name.clone())),
+            )
+            .chain(
+                core.functions
+                    .iter()
+                    .flat_map(|f| f.state_parameters.iter())
+                    .flat_map(|state| {
+                        state
+                            .bindings
+                            .iter()
+                            .map(|binding| binding.generic_name.clone())
+                    }),
+            )
+            .chain(
+                project
+                    .iter()
+                    .flat_map(|m| m.functions.iter())
+                    .flat_map(|f| f.state_parameters.iter())
+                    .flat_map(|state| {
+                        state
+                            .bindings
+                            .iter()
+                            .map(|binding| binding.generic_name.clone())
+                    }),
             )
             .collect(),
         declarations,
@@ -347,6 +371,7 @@ fn resolve_indexed(
     let mut functions = core.functions.clone();
     for (f, original) in functions.iter_mut().zip(&core.functions) {
         resolver.active_callable_parameters = &original.callable_parameters;
+        resolver.active_state_parameters = &original.state_parameters;
         store_templates::validate_header(f).map_err(|e| vec![e])?;
         if let Some(parameter) = f.type_parameters.first() {
             resolver.remaining = resolver
@@ -360,6 +385,14 @@ fn resolve_indexed(
                     )]
                 })?;
             resolver.ordinary_parameter = Some(parameter.name.clone());
+        }
+        for state in &mut f.state_parameters {
+            for bound in &mut state.bindings {
+                bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
+                for ty in &mut bound.parameters {
+                    *ty = resolver.ty(ty, 0, f.span).map_err(|e| vec![e])?;
+                }
+            }
         }
         for bound in &mut f.callable_parameters {
             bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
@@ -404,6 +437,7 @@ fn resolve_indexed(
         resolver.block(&mut f.body, 0).map_err(|e| vec![e])?;
         resolver.ordinary_parameter = None;
         resolver.active_callable_parameters = &[];
+        resolver.active_state_parameters = &[];
     }
     *remaining = resolver.remaining;
     let mut aggregates = core.aggregates.clone();
@@ -435,6 +469,7 @@ struct Resolver<'a> {
     callable_names: BTreeSet<String>,
     ordinary_parameter: Option<String>,
     active_callable_parameters: &'a [CoreCallableParameter],
+    active_state_parameters: &'a [CoreStateParameter],
     declarations: BTreeMap<String, &'a CoreAggregate>,
     enum_declarations: BTreeMap<String, &'a CoreEnum>,
     owners: BTreeMap<String, u32>,
@@ -448,7 +483,7 @@ impl Resolver<'_> {
         let Type::Package { fields, .. } = ty else {
             return Ok(false);
         };
-        if self.active_callable_parameters.is_empty() {
+        if self.active_callable_parameters.is_empty() && self.active_state_parameters.is_empty() {
             return Ok(false);
         }
         for (_, field) in fields {
@@ -456,11 +491,15 @@ impl Resolver<'_> {
             if let Type::Named(name) = field {
                 self.remaining = self
                     .remaining
-                    .checked_sub(
-                        name.len()
-                            .saturating_add(1)
-                            .saturating_mul(self.active_callable_parameters.len()),
-                    )
+                    .checked_sub(name.len().saturating_add(1).saturating_mul(
+                        self.active_callable_parameters.len().saturating_add(
+                            if self.active_state_parameters.is_empty() {
+                                0
+                            } else {
+                                2
+                            },
+                        ),
+                    ))
                     .ok_or_else(|| {
                         Diagnostic::limit(
                             Phase::Types,
@@ -470,10 +509,10 @@ impl Resolver<'_> {
                     })?;
             }
         }
-        Ok(dynamic_store::callback_element(
-            ty,
-            |field| matches!(field, Type::Named(name) if self.active_callable_parameters.iter().any(|b| &b.generic_name == name)),
-        ))
+        Ok(dynamic_store::callback_element(ty, |field| {
+            matches!(field, Type::Named(name) if self.active_callable_parameters.iter().any(|b| &b.generic_name == name)
+                || self.active_state_parameters.iter().flat_map(|s| &s.bindings).any(|b| &b.generic_name == name))
+        }))
     }
     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
         let resolved = self.ty(&field.ty, depth, field.span)?;

@@ -64,6 +64,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                     id: NodeId(index as u32),
                     name: format!("f{index}"),
                     callable_return: None,
+                    state_parameters: Vec::new(),
                     type_parameters: Vec::new(),
                     callable_parameters: Vec::new(),
                     foreign: None,
@@ -101,6 +102,7 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
                 Signature {
                     id: Some(FunctionId(i as u32)),
                     callable: Vec::new(),
+                    state_parameter: None,
                     callable_return: None,
                     type_parameter: None,
                     template: None,

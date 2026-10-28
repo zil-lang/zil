@@ -20,6 +20,10 @@ impl Node {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Shape {
     Unknown,
+    Complete {
+        ty: Rc<Type>,
+        work: usize,
+    },
     Environment(ClosureId),
     Package(Vec<(String, ClosureId)>),
     Store(Box<Shape>),
@@ -32,6 +36,7 @@ enum Shape {
 impl Shape {
     fn work(&self) -> usize {
         match self {
+            Self::Complete { work, .. } => *work,
             Self::Package(fields) => fields.iter().fold(1usize, |n, (name, _)| {
                 n.saturating_add(name.len()).saturating_add(1)
             }),
@@ -44,6 +49,28 @@ impl Shape {
     }
     fn environment(&self) -> Option<ClosureId> {
         match self {
+            Self::Complete { ty, .. } => {
+                let ty = if let Type::Address { inner, .. } = ty.as_ref() {
+                    inner.as_ref()
+                } else {
+                    ty.as_ref()
+                };
+                if let Type::Closure(id) = ty {
+                    return Some(*id);
+                }
+                if let Type::Package { fields, .. } = ty {
+                    let mut ids = fields.iter().filter_map(|(_, ty)| {
+                        if let Type::Closure(id) = ty {
+                            Some(*id)
+                        } else {
+                            None
+                        }
+                    });
+                    let first = ids.next()?;
+                    return ids.all(|id| id == first).then_some(first);
+                }
+                None
+            }
             Self::Environment(id) => Some(*id),
             Self::Package(fields) => {
                 let id = fields.first()?.1;
@@ -54,7 +81,7 @@ impl Shape {
     }
 }
 
-pub(super) fn tree_work(count: usize) -> usize {
+pub(crate) fn tree_work(count: usize) -> usize {
     count.checked_ilog2().map_or(1, |n| n as usize + 2)
 }
 
@@ -68,6 +95,8 @@ struct Walk<'a, 'b> {
     state: &'b mut closures::State,
     limits: &'a Limits,
     store_shapes: bool,
+    full_values: bool,
+    restart_full: bool,
 }
 
 impl Walk<'_, '_> {
@@ -119,6 +148,22 @@ impl Walk<'_, '_> {
         depth: usize,
     ) -> R<Shape> {
         self.node(depth, span)?;
+        if self.full_values {
+            let ty = store_templates::resolve_argument(
+                ty,
+                bounds,
+                bindings,
+                self.state,
+                self.limits,
+                span,
+            )?;
+            let work = inference::type_snapshot_work(&ty, span, self.limits)?;
+            self.state.snapshot(work.saturating_add(1), span)?;
+            return Ok(Shape::Complete {
+                ty: Rc::new(ty),
+                work,
+            });
+        }
         Ok(match ty {
             Type::Named(name) => {
                 self.state.snapshot(
@@ -240,6 +285,9 @@ impl Walk<'_, '_> {
         span: Span,
         depth: usize,
     ) -> R<Shape> {
+        if self.full_values {
+            return self.shape(ty, bounds, bindings, span, depth);
+        }
         if let Type::ErrorUnion { error, result } = ty {
             self.node(depth, span)?;
             self.state.snapshot(2, span)?;
@@ -409,6 +457,24 @@ impl Walk<'_, '_> {
                 for argument in arguments {
                     shapes.push(self.expr(argument, depth + 1)?);
                 }
+                if self.full_values
+                    && let Some(name) = dynamic_store::primitive(callee)
+                    && let Some(Shape::Complete { ty, .. }) = shapes.first()
+                    && let Some(element) = dynamic_store::element(ty)
+                {
+                    let work =
+                        inference::type_snapshot_work(element, expression.span, self.limits)?;
+                    self.state
+                        .snapshot(work.saturating_mul(2), expression.span)?;
+                    let result = dynamic_store::result_type(name, element);
+                    return self.shape(
+                        &result,
+                        &[],
+                        Bindings::default(),
+                        expression.span,
+                        depth + 1,
+                    );
+                }
                 if let CoreExprKind::TypeApply {
                     callee: target,
                     type_arguments,
@@ -482,6 +548,76 @@ impl Walk<'_, '_> {
                 self.state.snapshot(1, expression.span)?;
                 let tables = self.tables.clone();
                 if let Some(signature) = self.signature(callee, &tables)? {
+                    if let Some(bound) = &signature.type_parameter {
+                        if !self.full_values {
+                            // The original light plan is unchanged unless an
+                            // actual new bare-template call requires full T.
+                            self.restart_full = true;
+                            return Err(unsupported(
+                                expression.span,
+                                "restart finite planning with complete value types",
+                            ));
+                        }
+                        if arguments.len() != signature.parameters.len() {
+                            return Err(error(
+                                "E-CALL-ARITY",
+                                expression.span,
+                                "ordinary template value argument count differs",
+                            ));
+                        }
+                        let mut actual = None;
+                        for ((pattern, shape), argument) in
+                            signature.parameters.iter().zip(&shapes).zip(arguments)
+                        {
+                            if !store_templates::has_parameter(pattern, &bound.name) {
+                                continue;
+                            }
+                            let Shape::Complete { ty, .. } = shape else {
+                                return Err(unsupported(
+                                    argument.span,
+                                    "complete value type is absent from the finite ordinary template plan",
+                                ));
+                            };
+                            store_templates::infer_argument(
+                                pattern,
+                                ty,
+                                &bound.name,
+                                &mut actual,
+                                self.limits,
+                                argument.span,
+                                &mut |work| self.state.snapshot(work, argument.span),
+                            )?;
+                        }
+                        let actual = actual.ok_or_else(|| error("E-TYPE-APPLICATION", expression.span,
+                            "ordinary template call has no unique complete type constraint from a value argument"))?;
+                        let index = store_templates::intern(
+                            signature.template.expect("ordinary template"),
+                            &actual,
+                            self.state,
+                            self.limits,
+                            expression.span,
+                        )?;
+                        self.state.snapshot(
+                            tree_work(self.found.len()).saturating_add(1),
+                            expression.span,
+                        )?;
+                        self.found.insert(Node::Store(index));
+                        let result = store_templates::substitute_type(
+                            &signature.result,
+                            &bound.name,
+                            &actual,
+                            self.limits,
+                            expression.span,
+                            &mut |work| self.state.snapshot(work, expression.span),
+                        )?;
+                        return self.shape(
+                            &result,
+                            &[],
+                            Bindings::default(),
+                            expression.span,
+                            depth + 1,
+                        );
+                    }
                     if let Some(key) = signature.template {
                         if signature.callable.is_empty() {
                             return Err(unsupported(
@@ -501,7 +637,50 @@ impl Walk<'_, '_> {
                                 )
                             })?;
                             self.state.snapshot(shape.work(), expression.span)?;
-                            let id = shape.environment().ok_or_else(|| unsupported(expression.span,
+                            let selected = if let Some(state) = &signature.state_parameter {
+                                let binding = state
+                                    .bindings
+                                    .iter()
+                                    .find(|b| b.generic_index == bound.generic_index)
+                                    .ok_or_else(|| {
+                                        unsupported(expression.span, "State plan binding is absent")
+                                    })?;
+                                let Type::Package { fields, .. } =
+                                    &signature.parameters[state.index as usize]
+                                else {
+                                    return Err(unsupported(
+                                        expression.span,
+                                        "State plan parameter is not a Package",
+                                    ));
+                                };
+                                let (name, _) = &fields[binding.fields[0] as usize];
+                                self.state.snapshot(
+                                    name.len().saturating_mul(shape.work()),
+                                    expression.span,
+                                )?;
+                                if let Shape::Complete { ty, .. } = shape {
+                                    let Type::Package { fields, .. } = ty.as_ref() else {
+                                        return Err(unsupported(
+                                            expression.span,
+                                            "State plan owner is not a complete Package",
+                                        ));
+                                    };
+                                    fields.iter().find_map(|(field, ty)| match ty {
+                                        Type::Closure(id) if field == name => Some(*id),
+                                        _ => None,
+                                    })
+                                } else if let Shape::Package(actual) = shape {
+                                    actual
+                                        .iter()
+                                        .find(|(field, _)| field == name)
+                                        .map(|(_, id)| *id)
+                                } else {
+                                    None
+                                }
+                            } else {
+                                shape.environment()
+                            };
+                            let id = selected.ok_or_else(|| unsupported(expression.span,
                                 "nested helper environment type cannot be established by the finite instance plan"))?;
                             bindings.bind(bound.generic_index, id, expression.span)?;
                         }
@@ -551,15 +730,35 @@ impl Walk<'_, '_> {
                 // Only the success alternative reaches the continuation. In
                 // particular T!void never becomes a callback Package here.
                 Shape::ErrorUnion { result, .. } => *result,
+                Shape::Complete { ty, .. } if matches!(ty.as_ref(), Type::ErrorUnion { .. }) => {
+                    let Type::ErrorUnion { result, .. } = ty.as_ref() else {
+                        unreachable!()
+                    };
+                    self.shape(result, &[], Bindings::default(), expression.span, depth + 1)?
+                }
                 old_primitive_shape => old_primitive_shape,
             },
-            CoreExprKind::IntegerConvert { value, .. } => {
+            CoreExprKind::IntegerConvert { value, target } => {
                 self.expr(value, depth + 1)?;
-                Shape::Unknown
+                if self.full_values {
+                    self.shape(target, &[], Bindings::default(), expression.span, depth + 1)?
+                } else {
+                    Shape::Unknown
+                }
             }
             CoreExprKind::Member { object, member } => {
                 let shape = self.expr(object, depth + 1)?;
-                if let Shape::Package(fields) = shape {
+                if let Shape::Complete { ty, work } = shape {
+                    self.state
+                        .snapshot(work.saturating_add(member.len()), expression.span)?;
+                    let ty = if let Type::Address { inner, .. } = ty.as_ref() {
+                        inner.as_ref()
+                    } else {
+                        ty.as_ref()
+                    };
+                    let (_, field) = aggregates::field(ty, member, expression.span)?;
+                    self.shape(&field, &[], Bindings::default(), expression.span, depth + 1)?
+                } else if let Shape::Package(fields) = shape {
                     self.state.snapshot(
                         fields.len().saturating_mul(member.len().saturating_add(1)),
                         expression.span,
@@ -640,6 +839,32 @@ impl Walk<'_, '_> {
                     "helper-local nested environments require an additional finite instance contract",
                 ));
             }
+            CoreExprKind::Literal(value) if self.full_values => self.shape(
+                &value.ty(),
+                &[],
+                Bindings::default(),
+                expression.span,
+                depth + 1,
+            )?,
+            CoreExprKind::Bool(_) if self.full_values => self.shape(
+                &Type::Bool,
+                &[],
+                Bindings::default(),
+                expression.span,
+                depth + 1,
+            )?,
+            CoreExprKind::Unit if self.full_values => self.shape(
+                &Type::Unit,
+                &[],
+                Bindings::default(),
+                expression.span,
+                depth + 1,
+            )?,
+            CoreExprKind::Integer(text) if self.full_values => {
+                self.state.snapshot(text.len(), expression.span)?;
+                let ty = integer(text, None, false, expression.span)?.ty();
+                self.shape(&ty, &[], Bindings::default(), expression.span, depth + 1)?
+            }
             _ => Shape::Unknown,
         })
     }
@@ -676,7 +901,8 @@ fn dependencies(
     } else {
         template.function.as_ref()
     };
-    let bounds = &function.callable_parameters;
+    let bounds_view = state_origins::bounds(function);
+    let bounds = bounds_view.as_ref();
     if bounds.is_empty() && matches!(instance, Node::Callable(_)) {
         return Err(unsupported(
             span,
@@ -695,12 +921,28 @@ fn dependencies(
         state,
         limits,
         store_shapes: template.store_shapes,
+        full_values: false,
+        restart_full: false,
     };
     for parameter in &function.parameters {
         let shape = walk.shape(&parameter.ty, bounds, bindings, parameter.span, 0)?;
         walk.bind(&parameter.name, shape, parameter.span)?;
     }
-    walk.block(&function.body, 0)?;
+    let first = walk.block(&function.body, 0);
+    if walk.restart_full {
+        walk.state.snapshot(1, span)?;
+        walk.scopes = vec![BTreeMap::new()];
+        walk.found.clear();
+        walk.full_values = true;
+        walk.restart_full = false;
+        for parameter in &function.parameters {
+            let shape = walk.shape(&parameter.ty, bounds, bindings, parameter.span, 0)?;
+            walk.bind(&parameter.name, shape, parameter.span)?;
+        }
+        walk.block(&function.body, 0)?;
+    } else {
+        first?;
+    }
     walk.state.snapshot(walk.found.len(), span)?;
     Ok(walk.found.into_iter().collect())
 }
@@ -827,6 +1069,8 @@ mod result_shape_tests {
             state: &mut state,
             limits: &limits,
             store_shapes: false,
+            full_values: false,
+            restart_full: false,
         };
         let span = Span::default();
         let pattern = CorePattern {

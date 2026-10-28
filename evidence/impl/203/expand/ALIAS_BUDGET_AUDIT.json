@@ -1,0 +1,22 @@
+{
+  "evidence_level": "Static source recheck; no execution or full independent acceptance",
+  "source_commit": "1846878e3d3e6e4083b102557ae6c98d0dec85f9",
+  "source_file_sha256": "f2bcf83bf6a1cb2e0f58c0a1a0a32ec7a4c6cdcff7e398f92fa5350b8d525120",
+  "production_edits": false,
+  "tests_executed": false,
+  "review_status": "All four identified precharge omissions corrected in the inspected frozen file",
+  "corrected_sites": {
+    "derive_aliases": "ancestor length + 1 reserved before push",
+    "Member projection": "result length + 2 reserved before temporary vector and result extension",
+    "If concatenation": "both vector lengths reserved before extension",
+    "loop previous": "separate bounded BTreeSet construction charge before collect"
+  },
+  "other_scope": "Alias cache/deep clone accounting, monotone generation identity, pre-push parent depth bound, and non203 collect early return reviewed; dynamic validation remains separately attributed.",
+  "archive": {
+    "name": "203-alias-budget-static-review.zip",
+    "bytes": 32341,
+    "sha256": "20dd04f7753cad5c448fe2b587e11a6629dc2633a6bb135465b14b776471946c",
+    "members": 7,
+    "execution_artifacts": false
+  }
+}

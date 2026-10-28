@@ -1,0 +1,70 @@
+{
+  "reviewer": "/root/impl197",
+  "scope": "Read-only equivalence; never substitutes identities of executed runs",
+  "implementation_commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+  "spec_hash": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "current_worktree_commit": "c3b8964c9771baf5a90880cc2927f80afc3194c9",
+  "identity_algorithm": "SHA256 of sorted path + NUL + Git blob object id + LF for all production Rust sources, crate/workspace manifests, build scripts and toolchain inputs",
+  "identities": {
+    "implementation": {
+      "commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+      "file_count": 178,
+      "production_tree_fingerprint_sha256": "661829fb3c69521fe5df9d316ee97ea2c7f79cfd529ebcbe895914526076d3cd",
+      "production_difference": [],
+      "independent_inputs_difference": []
+    },
+    "independent_tests": {
+      "commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+      "file_count": 178,
+      "production_tree_fingerprint_sha256": "661829fb3c69521fe5df9d316ee97ea2c7f79cfd529ebcbe895914526076d3cd",
+      "production_difference": [],
+      "independent_inputs_difference": []
+    },
+    "consumer_checkout": {
+      "commit": "c3b8964c9771baf5a90880cc2927f80afc3194c9",
+      "file_count": 178,
+      "production_tree_fingerprint_sha256": "661829fb3c69521fe5df9d316ee97ea2c7f79cfd529ebcbe895914526076d3cd",
+      "production_difference": [],
+      "independent_inputs_difference": []
+    }
+  },
+  "production_paths": [
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain",
+    "rust-toolchain.toml",
+    ":(glob)crates/*/Cargo.toml",
+    ":(glob)crates/*/build.rs",
+    ":(glob)crates/*/src/**"
+  ],
+  "independent_input_paths": [
+    "crates/zil-driver/tests/impl203_independent.rs",
+    "crates/zil-driver/tests/impl203_ct_independent.rs",
+    "crates/zil-driver/tests/impl203_source.rs",
+    "crates/zil-driver/tests/impl203_fixtures",
+    "tools/language/203/consumer.py",
+    "examples/mainline/state_bindings203"
+  ],
+  "fixtures": {
+    "crates/zil-driver/tests/impl203_fixtures/01_same_factory_distinct_modes.zil": {
+      "bytes": 958,
+      "sha256": "8f9024197e9c5c7f345ff2b52420f23a27bc0a35f5f8acbc03018cb3dc68809b"
+    },
+    "crates/zil-driver/tests/impl203_fixtures/02_once_repeated.zil": {
+      "bytes": 992,
+      "sha256": "bdc671ec4d332343e305dc76fc9a740b4d55db513a81a14b3207bccbc22fe34f"
+    },
+    "crates/zil-driver/tests/impl203_fixtures/03_reversed_declared_modes.zil": {
+      "bytes": 958,
+      "sha256": "f0b9b61807c92a34b64354cddc31e15ebe619c681c8e19e9e067f72ea5367f8c"
+    },
+    "crates/zil-driver/tests/impl203_fixtures/04_mode_cleanup_markers.zil": {
+      "bytes": 1039,
+      "sha256": "4014fa77d574a6a5f008a49bdb89e49c42736195ca9c4babc4ac8bf04ea74000"
+    }
+  },
+  "old_5146_to_4c6e_note": "One cfg(test) Box assignment in zil-ct/src/source.rs differs. source06@5146 is kept independently; source07@4c6e reran all 32 with the exact CLI05 domain. No claim that those two entire src domains were byte-identical.",
+  "condition_fix": "2d90245c07469549f08c7220c7191ad8ab1cf234",
+  "alias_fix": "1846878e3d3e6e4083b102557ae6c98d0dec85f9"
+}

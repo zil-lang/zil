@@ -94,6 +94,7 @@ pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> 
     for parameter in &function.type_parameters {
         budget.work(parameter.name.len().saturating_add(1), function.span)?;
     }
+    state_snapshot(&function.state_parameters, function.span, &mut budget)?;
     for bound in &function.callable_parameters {
         callable_snapshot(bound, function.span, &mut budget)?;
     }
@@ -118,6 +119,9 @@ pub(super) fn signature_snapshot_work(
     validate_type(&signature.result, 0, span, &mut budget)?;
     if let Some(ty) = &signature.receiver {
         validate_type(ty, 0, span, &mut budget)?;
+    }
+    if let Some(state) = &signature.state_parameter {
+        state_snapshot(std::slice::from_ref(state), span, &mut budget)?;
     }
     for bound in &signature.callable {
         callable_snapshot(bound, span, &mut budget)?;
@@ -151,6 +155,35 @@ fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Bud
     validate_type(&bound.result, 0, span, budget)
 }
 
+fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget<'_>) -> R<()> {
+    if states.is_empty() {
+        return Ok(());
+    }
+    let before = budget.work;
+    budget.work(states.len(), span)?;
+    for state in states {
+        budget.work(state.bindings.len().saturating_add(1), span)?;
+        for binding in &state.bindings {
+            budget.work(
+                binding
+                    .generic_name
+                    .len()
+                    .saturating_add(binding.fields.len())
+                    .saturating_add(binding.parameters.len())
+                    .saturating_add(1),
+                span,
+            )?;
+            for parameter in &binding.parameters {
+                validate_type(parameter, 0, span, budget)?;
+            }
+            validate_type(&binding.result, 0, span, budget)?;
+        }
+    }
+    // Both the public source declaration and its private bound view are copied.
+    // Reserve those snapshots before either allocation, including selectors.
+    budget.work((before - budget.work).saturating_mul(2), span)
+}
+
 /// Infer closure-related source types without executing CT or producing a
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
@@ -160,7 +193,10 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
     let flags = core
         .functions
         .iter()
-        .map(|f| contains_closure(&f.body, 0, &mut budget))
+        .map(|f| {
+            contains_closure(&f.body, 0, &mut budget)
+                .map(|found| found || !f.state_parameters.is_empty())
+        })
         .collect::<R<Vec<_>>>()
         .map_err(|e| vec![e])?;
     names::check(core, limits).map_err(|e| vec![e])?;
@@ -280,7 +316,10 @@ pub fn infer_program_closures(
                 .core
                 .functions
                 .iter()
-                .map(|f| contains_closure(&f.body, 0, &mut budget))
+                .map(|f| {
+                    contains_closure(&f.body, 0, &mut budget)
+                        .map(|found| found || !f.state_parameters.is_empty())
+                })
                 .collect::<R<Vec<_>>>()
                 .map_err(|e| vec![e])?,
         );
@@ -387,6 +426,8 @@ fn headers(
     validate_module_metadata(core, budget)?;
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
+        state_snapshot(&function.state_parameters, function.span, budget)?;
+        state_origins::validate_header(function)?;
         if !function.type_parameters.is_empty() {
             budget.work(function.type_parameters.len(), function.span)?;
             store_templates::validate_header(function)?;
@@ -465,20 +506,20 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
-                callable: function.callable_parameters.clone(),
+                callable: state_origins::bounds(function).into_owned(),
+                state_parameter: function.state_parameters.first().cloned(),
                 callable_return: function.callable_return.clone(),
                 type_parameter: function.type_parameters.first().cloned(),
                 template: (!function.callable_parameters.is_empty()
-                    || !function.type_parameters.is_empty())
+                    || !function.type_parameters.is_empty()
+                    || !function.state_parameters.is_empty())
                 .then_some((core.module_id, function.id)),
                 foreign: function.foreign.is_some(),
                 cleanup: core
                     .aggregates
                     .iter()
                     .any(|a| a.teardown.as_ref() == Some(&function.name)),
-                id: function
-                    .type_parameters
-                    .is_empty()
+                id: (function.type_parameters.is_empty() && function.state_parameters.is_empty())
                     .then_some(FunctionId(id)),
                 parameters: function.parameters.iter().map(|p| p.ty.clone()).collect(),
                 result: function.return_type.clone(),
@@ -499,7 +540,7 @@ fn prepare(
     budget: &mut Budget<'_>,
 ) -> R<CoreFunction> {
     // Scalar-only functions retain their existing inference/default behavior.
-    if !has_closure && function.type_parameters.is_empty() {
+    if !has_closure && function.type_parameters.is_empty() && function.state_parameters.is_empty() {
         let dependencies = retained::dependencies(
             function,
             signatures,
@@ -692,6 +733,9 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
     validate_type(&signature.result, 0, span, budget)?;
     for parameter in &signature.parameters {
         validate_type(parameter, 0, span, budget)?;
+    }
+    if let Some(state) = &signature.state_parameter {
+        state_snapshot(std::slice::from_ref(state), span, budget)?;
     }
     for bound in &signature.callable {
         callable_snapshot(bound, span, budget)?;
@@ -946,6 +990,20 @@ enum Term {
         shape: Rc<Type>,
         environment: usize,
     },
+    /// Source identities are attached to real field positions, not merged by
+    /// their eventual shared concrete ClosureId.
+    StatePackage {
+        shape: Rc<Type>,
+        fields: Vec<(u32, usize)>,
+    },
+    // Only new value-inferred ordinary calls need to carry a complete source
+    // State through wrappers before real ClosureIds exist.
+    ValueStore(Rc<Term>, bool),
+    ValueAddress(Rc<Term>, bool),
+    ValueUnion {
+        error: Rc<Term>,
+        result: Rc<Term>,
+    },
     Function(Rc<Signature>),
     /// Nominal receiver already constrained; only valid immediately as a callee.
     Method(Rc<Signature>),
@@ -979,6 +1037,7 @@ struct Solver<'a, 'b, 'c> {
     factory_terms: BTreeMap<FunctionId, usize>,
     ordinary_return_identity: Option<usize>,
     helper_environments: BTreeMap<String, usize>,
+    state_modes: BTreeMap<usize, CallableKind>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     enums: &'a BTreeMap<String, Type>,
@@ -1025,6 +1084,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             factory_terms: BTreeMap::new(),
             ordinary_return_identity: None,
             helper_environments: BTreeMap::new(),
+            state_modes: BTreeMap::new(),
             signatures,
             imports,
             enums,
@@ -1040,8 +1100,27 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             this.graph
                 .set_store_parameter(&parameter.name, function.span)?;
         }
+        if let Some(state) = function.state_parameters.first() {
+            state_origins::validate_shape(function)?;
+            for binding in &state.bindings {
+                this.seed_state_environment(
+                    &binding.generic_name,
+                    binding.kind,
+                    &binding.parameters,
+                    &binding.result,
+                    function.id,
+                    function.span,
+                )?;
+            }
+        }
         for (index, parameter) in function.parameters.iter().enumerate() {
-            let term = if let Some(bound) = function
+            let term = if function
+                .state_parameters
+                .first()
+                .is_some_and(|state| state.index as usize == index)
+            {
+                this.known_term(&parameter.ty, parameter.span)?
+            } else if let Some(bound) = function
                 .callable_parameters
                 .iter()
                 .find(|bound| bound.index as usize == index)
@@ -1065,6 +1144,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         .insert(bound.generic_name.clone(), id);
                     id
                 };
+                if callable_fields::template(function)
+                    && function
+                        .callable_parameters
+                        .iter()
+                        .any(|other| other.generic_index != bound.generic_index)
+                {
+                    this.budget.work(1, parameter.span)?;
+                    this.state_modes.insert(id, bound.kind);
+                }
                 if callable_fields::placeholder_package(&parameter.ty, &bound.generic_name) {
                     this.state_term(&parameter.ty, &bound.generic_name, id, parameter.span)?
                 } else {
@@ -1086,6 +1174,73 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         Ok(this)
     }
+    fn seed_state_environment(
+        &mut self,
+        name: &str,
+        kind: CallableKind,
+        parameters: &[Type],
+        result: &Type,
+        identity: zil_base::NodeId,
+        span: Span,
+    ) -> R<()> {
+        let ty = Type::Opaque {
+            identity,
+            hidden: Box::new(Type::FunctionPointer {
+                parameters: parameters.to_vec(),
+                result: Box::new(result.clone()),
+            }),
+        };
+        let Term::Closure(id) = self.known_term(&ty, span)? else {
+            unreachable!()
+        };
+        self.budget.work(name.len().saturating_add(2), span)?;
+        self.helper_environments.insert(name.to_owned(), id);
+        self.state_modes.insert(id, kind);
+        Ok(())
+    }
+
+    fn state_term_many(&mut self, ty: &Type, bindings: &[(String, usize)], span: Span) -> R<Term> {
+        validate_type(ty, 0, span, self.budget)?;
+        let Type::Package { name, fields } = ty else {
+            return Err(unsupported(span, "State requires a complete Package"));
+        };
+        self.budget.work(
+            fields
+                .len()
+                .saturating_mul(bindings.len().saturating_add(2)),
+            span,
+        )?;
+        let mut sources = Vec::new();
+        let mut shape = Vec::new();
+        for (index, (name, ty)) in fields.iter().enumerate() {
+            let binding = if let Type::Named(name) = ty {
+                bindings.iter().find(|(binder, _)| binder == name)
+            } else {
+                None
+            };
+            let ty = if let Some((_, source)) = binding {
+                sources.push((index as u32, *source));
+                Type::Named("$callback".into())
+            } else {
+                ty.clone()
+            };
+            shape.push((name.clone(), ty));
+        }
+        if sources.len() != 2 {
+            return Err(unsupported(
+                span,
+                "State requires both direct callable fields",
+            ));
+        }
+        Ok(Term::StatePackage {
+            shape: Rc::new(Type::Package {
+                name: callable_fields::nominal_base(name).to_owned(),
+                fields: shape,
+            }),
+            fields: sources,
+        })
+    }
+
     fn known_result(&mut self, signature: &Signature, span: Span) -> R<Term> {
         if matches!(signature.result, Type::Opaque { .. }) {
             if let Some(id) = self.factory_terms.get(&signature.concrete_id(span)?) {
@@ -1138,6 +1293,27 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
 
     fn known_term(&mut self, ty: &Type, span: Span) -> R<Term> {
+        if self.helper_environments.len() > 1
+            && let Type::Package { fields, .. } = ty
+        {
+            self.budget.work(
+                fields.len().saturating_mul(self.helper_environments.len()),
+                span,
+            )?;
+            let mut bindings = Vec::new();
+            for (name, id) in &self.helper_environments {
+                if fields
+                    .iter()
+                    .any(|(_, ty)| matches!(ty, Type::Named(n) if n == name))
+                {
+                    self.budget.work(name.len().saturating_add(1), span)?;
+                    bindings.push((name.clone(), *id));
+                }
+            }
+            if bindings.len() == 2 {
+                return self.state_term_many(ty, &bindings, span);
+            }
+        }
         for (name, id) in &self.helper_environments {
             if matches!(ty,Type::Named(n) if n==name) {
                 return Ok(Term::Closure(*id));
@@ -1237,20 +1413,289 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             }
         };
+        self.bind_source_bound(id, bound, argument.span)?;
+        Ok(id)
+    }
+    fn bind_source_bound(&mut self, id: usize, bound: &CoreCallableParameter, span: Span) -> R<()> {
+        if !self.state_modes.is_empty() {
+            self.budget.work(1, span)?;
+            if self
+                .state_modes
+                .get(&id)
+                .is_some_and(|kind| !helpers::compatible(*kind, bound.kind))
+            {
+                return Err(error(
+                    "E-CLOSURE-MODE",
+                    span,
+                    "the State declaration does not provide the requested callable capability",
+                ));
+            }
+        }
         let parameters = self.closures[id].parameters.clone();
         if parameters.len() != bound.parameters.len() {
             return Err(error(
                 "E-CALL-ARITY",
-                argument.span,
+                span,
                 "closure signature differs from callable bound",
             ));
         }
         for (variable, ty) in parameters.into_iter().zip(&bound.parameters) {
-            self.bind(variable, ty, argument.span)?;
+            self.bind(variable, ty, span)?;
         }
-        self.bind(self.closures[id].result, &bound.result, argument.span)?;
-        Ok(id)
+        self.bind(self.closures[id].result, &bound.result, span)?;
+        Ok(())
     }
+
+    fn state_call(
+        &mut self,
+        signature: &Signature,
+        arguments: &[CoreExpr],
+        depth: usize,
+        span: Span,
+    ) -> R<Term> {
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "State helper argument count differs",
+            ));
+        }
+        self.budget.work(
+            signature.callable.len().saturating_add(arguments.len()),
+            span,
+        )?;
+        let mut sources = Vec::new();
+        for (index, (argument, ty)) in arguments.iter().zip(&signature.parameters).enumerate() {
+            if let Some(state) = &signature.state_parameter
+                && state.index as usize == index
+            {
+                let value = self.expr(argument, depth + 1, false)?;
+                let Term::StatePackage { fields, .. } = &value else {
+                    return Err(error(
+                        "E-TYPE-MISMATCH",
+                        argument.span,
+                        "both State field origins are required",
+                    ));
+                };
+                for (declaration, bound) in state.bindings.iter().zip(&signature.callable) {
+                    let id = fields
+                        .iter()
+                        .find(|(field, _)| *field == declaration.fields[0])
+                        .map(|(_, id)| *id)
+                        .ok_or_else(|| {
+                            error(
+                                "E-TYPE-MISMATCH",
+                                argument.span,
+                                "State selector has no source callable",
+                            )
+                        })?;
+                    self.bind_source_bound(id, bound, argument.span)?;
+                    sources.push((bound.generic_name.clone(), id));
+                }
+                let expected = self.state_term_many(ty, &sources, argument.span)?;
+                self.unify(&value, &expected, argument.span)?;
+            } else if let Some(bound) = signature
+                .callable
+                .iter()
+                .find(|bound| bound.index as usize == index)
+            {
+                let id = self.bind_callable_argument(argument, ty, bound, depth + 1)?;
+                sources.push((bound.generic_name.clone(), id));
+            } else {
+                let value = self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                self.bind_term(&value, ty, argument.span)?;
+            }
+        }
+        self.state_result_term(&signature.result, &sources, span)
+    }
+    fn state_result_term(&mut self, ty: &Type, sources: &[(String, usize)], span: Span) -> R<Term> {
+        if matches!(ty, Type::Package { .. })
+            && sources
+                .iter()
+                .any(|(name, _)| callable_fields::placeholder_package(ty, name))
+        {
+            return self.state_term_many(ty, sources, span);
+        }
+        if let Type::ErrorUnion { error, result } = ty {
+            self.budget.work(2, span)?;
+            let failure = self.state_result_term(error, sources, span)?;
+            let success = self.state_result_term(result, sources, span)?;
+            return Ok(Term::ValueUnion {
+                error: Rc::new(failure),
+                result: Rc::new(success),
+            });
+        }
+        self.known_term(ty, span)
+    }
+
+    fn value_store_element(&mut self, term: &Term, span: Span) -> R<Term> {
+        self.budget.work(1, span)?;
+        match term {
+            Term::ValueStore(element, _) => Ok(element.as_ref().clone()),
+            Term::Resource(variable, _) => {
+                let Some(Type::OwnedStore { element }) = self.graph.ty(*variable)? else {
+                    return Err(error(
+                        "E-TYPE-APPLICATION",
+                        span,
+                        "value argument is not a Store",
+                    ));
+                };
+                validate_type(&element, 0, span, self.budget)?;
+                self.known_term(&element, span)
+            }
+            _ => Err(error(
+                "E-TYPE-APPLICATION",
+                span,
+                "value argument is not a Store",
+            )),
+        }
+    }
+    fn value_union_parts(&mut self, term: &Term, span: Span) -> R<(Term, Term)> {
+        self.budget.work(2, span)?;
+        match term {
+            Term::ValueUnion { error, result } => {
+                Ok((error.as_ref().clone(), result.as_ref().clone()))
+            }
+            Term::Scalar(variable) => {
+                let Type::ErrorUnion { error, result } =
+                    self.graph.injection_type(*variable, span)?
+                else {
+                    return Err(error(
+                        "E-TYPE-APPLICATION",
+                        span,
+                        "value argument is not a complete error union",
+                    ));
+                };
+                Ok((
+                    self.known_term(&error, span)?,
+                    self.known_term(&result, span)?,
+                ))
+            }
+            _ => Err(error(
+                "E-TYPE-APPLICATION",
+                span,
+                "value argument is not a complete error union",
+            )),
+        }
+    }
+    fn infer_value_term(
+        &mut self,
+        pattern: &Type,
+        value: &Term,
+        name: &str,
+        actual: &mut Option<Term>,
+        span: Span,
+    ) -> R<()> {
+        validate_type(pattern, 0, span, self.budget)?;
+        if matches!(pattern, Type::Named(n) if n == name) {
+            if let Some(previous) = actual {
+                self.unify(previous, value, span)?;
+            } else {
+                self.budget.work(1, span)?;
+                *actual = Some(value.clone());
+            }
+            return Ok(());
+        }
+        if let Some(element) = dynamic_store::element(pattern) {
+            let value = self.value_store_element(value, span)?;
+            return self.infer_value_term(element, &value, name, actual, span);
+        }
+        if let Type::ErrorUnion { error, result } = pattern {
+            let (failure, success) = self.value_union_parts(value, span)?;
+            self.infer_value_term(error, &failure, name, actual, span)?;
+            return self.infer_value_term(result, &success, name, actual, span);
+        }
+        self.bind_term(value, pattern, span)
+    }
+    fn applied_value_term(
+        &mut self,
+        pattern: &Type,
+        name: &str,
+        actual: &Term,
+        span: Span,
+    ) -> R<Term> {
+        validate_type(pattern, 0, span, self.budget)?;
+        if matches!(pattern, Type::Named(n) if n == name) {
+            self.budget.work(1, span)?;
+            return Ok(actual.clone());
+        }
+        if let Some(element) = dynamic_store::element(pattern) {
+            let element = self.applied_value_term(element, name, actual, span)?;
+            self.budget.work(1, span)?;
+            return Ok(Term::ValueStore(
+                Rc::new(element),
+                matches!(pattern, Type::Managed(_)),
+            ));
+        }
+        if let Type::ErrorUnion { error, result } = pattern {
+            let failure = self.applied_value_term(error, name, actual, span)?;
+            let success = self.applied_value_term(result, name, actual, span)?;
+            self.budget.work(2, span)?;
+            return Ok(Term::ValueUnion {
+                error: Rc::new(failure),
+                result: Rc::new(success),
+            });
+        }
+        self.known_term(pattern, span)
+    }
+    fn value_type_call(
+        &mut self,
+        signature: &Signature,
+        arguments: &[CoreExpr],
+        depth: usize,
+        span: Span,
+    ) -> R<Term> {
+        let name = &signature
+            .type_parameter
+            .as_ref()
+            .expect("ordinary template")
+            .name;
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "ordinary template value argument count differs",
+            ));
+        }
+        self.budget.work(arguments.len().saturating_mul(2), span)?;
+        let mut actual = None;
+        for (argument, pattern) in arguments.iter().zip(&signature.parameters) {
+            let hint = (!store_templates::has_parameter(pattern, name)).then_some(pattern);
+            let value = self.expr_expected(argument, hint, depth + 1, false)?;
+            self.infer_value_term(pattern, &value, name, &mut actual, argument.span)?;
+        }
+        let actual = actual.ok_or_else(|| error("E-TYPE-APPLICATION", span,
+            "ordinary template call has no unique complete type constraint from a value argument"))?;
+        match &actual {
+            Term::StatePackage { .. } | Term::ClosurePackage { .. } => {}
+            Term::Scalar(variable) => {
+                let ty = self.graph.injection_type(*variable, span)?;
+                validate_type(&ty, 0, span, self.budget)?;
+                if !(self.graph.is_store_parameter(&ty)
+                    || dynamic_store::supported_element(&ty)
+                    || dynamic_store::callback_element(
+                        &ty,
+                        |t| matches!(t, Type::Named(n) if self.helper_environments.contains_key(n)),
+                    ))
+                {
+                    return Err(error(
+                        "E-STORE-TYPE-ARGUMENT",
+                        span,
+                        "inferred value type does not satisfy StoreElement",
+                    ));
+                }
+            }
+            _ => {
+                return Err(error(
+                    "E-STORE-TYPE-ARGUMENT",
+                    span,
+                    "inferred value type is not a complete Store element",
+                ));
+            }
+        }
+        self.applied_value_term(&signature.result, name, &actual, span)
+    }
+
     fn fresh(&mut self, domain: u8, literal: bool, span: Span) -> R<Variable> {
         self.budget.work(1, span)?;
         if self.graph.len() >= self.budget.limits.max_nodes {
@@ -1319,6 +1764,30 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
+        if let Term::ValueStore(element, owned) = term
+            && let Some(wanted) = dynamic_store::element(ty)
+        {
+            if matches!(ty, Type::Managed(_)) && !owned {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "Store description is not an owning carrier",
+                ));
+            }
+            return self.bind_term(element, wanted, span);
+        }
+        if let Term::ValueUnion {
+            error: failure,
+            result,
+        } = term
+            && let Type::ErrorUnion {
+                error,
+                result: wanted,
+            } = ty
+        {
+            self.bind_term(failure, error, span)?;
+            return self.bind_term(result, wanted, span);
+        }
         if self.helper_environments.keys().any(|name| {
             matches!(ty,Type::Named(n) if n==name) || callable_fields::placeholder_package(ty, name)
         }) {
@@ -1376,6 +1845,30 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             return self.graph.unify(a, b, span);
         }
         match (left, right) {
+            (Term::ValueStore(a, _), Term::ValueStore(b, _)) => self.unify(a, b, span),
+            (Term::ValueStore(a, _), Term::Resource(..)) => {
+                let b = self.value_store_element(right, span)?;
+                self.unify(a, &b, span)
+            }
+            (Term::Resource(..), Term::ValueStore(b, _)) => {
+                let a = self.value_store_element(left, span)?;
+                self.unify(&a, b, span)
+            }
+            (
+                Term::ValueUnion {
+                    error: a,
+                    result: b,
+                },
+                _,
+            ) => {
+                let (c, d) = self.value_union_parts(right, span)?;
+                self.unify(a, &c, span)?;
+                self.unify(b, &d, span)
+            }
+            (_, Term::ValueUnion { .. }) => self.unify(right, left, span),
+            (Term::ValueAddress(a, am), Term::ValueAddress(b, bm)) if am == bm => {
+                self.unify(a, b, span)
+            }
             (Term::Scalar(a), Term::Scalar(b)) => self.graph.unify(*a, *b, span),
             (Term::Address(a, am), Term::Address(b, bm)) if am == bm => {
                 self.graph.unify(*a, *b, span)
@@ -1427,6 +1920,29 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     ))
                 }
             }
+            (
+                Term::StatePackage {
+                    shape: a,
+                    fields: af,
+                },
+                Term::StatePackage {
+                    shape: b,
+                    fields: bf,
+                },
+            ) => {
+                validate_type(a, 0, span, self.budget)?;
+                validate_type(b, 0, span, self.budget)?;
+                self.budget.work(af.len().saturating_add(bf.len()), span)?;
+                if a == b && af == bf {
+                    Ok(())
+                } else {
+                    Err(error(
+                        "E-TYPE-MISMATCH",
+                        span,
+                        "State requires the same nominal shape and both field source identities",
+                    ))
+                }
+            }
             (Term::Closure(a), Term::Closure(b)) if a == b => Ok(()),
             (Term::Closure(_), Term::Closure(_)) => Err(error(
                 "E-TYPE-MISMATCH",
@@ -1451,6 +1967,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 | Term::Closure(_)
                 | Term::ClosureArray { .. }
                 | Term::ClosurePackage { .. }
+                | Term::StatePackage { .. }
+                | Term::ValueStore(..)
+                | Term::ValueAddress(..)
+                | Term::ValueUnion { .. }
                 | Term::ClosureAddress(..)
         ) {
             return Err(unsupported(
@@ -1494,6 +2014,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
             if self.owner.is_some()
                 && binding.owner != self.owner
+                && (matches!(
+                    &binding.term,
+                    Term::StatePackage { .. }
+                        | Term::ValueStore(..)
+                        | Term::ValueAddress(..)
+                        | Term::ValueUnion { .. }
+                ) || matches!(&binding.term, Term::Closure(id) | Term::ClosureAddress(id, _) if self.state_modes.contains_key(id)))
+            {
+                return Err(unsupported(
+                    span,
+                    "capturing a new State declaration source is outside the finite preserved capability profile",
+                ));
+            }
+            if self.owner.is_some()
+                && binding.owner != self.owner
                 && let Term::Address(variable, _) = &binding.term
                 && self.graph.is_slice(*variable)
             {
@@ -1507,7 +2042,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             // independently classifies their responsibility slots.
             if write
                 && !binding.mutable
-                && !matches!(binding.term, Term::Address(_, true) | Term::Resource(..))
+                && !matches!(
+                    binding.term,
+                    Term::Address(_, true)
+                        | Term::Resource(..)
+                        | Term::ValueStore(..)
+                        | Term::ValueAddress(_, true)
+                )
             {
                 return Err(error(
                     "E-IMMUTABLE-ASSIGNMENT",
@@ -1517,6 +2058,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
             return Ok(match binding.term {
                 Term::Resource(variable, _) => Term::Resource(variable, false),
+                Term::ValueStore(element, _) => Term::ValueStore(element, false),
                 other => other,
             });
         }
@@ -1934,6 +2476,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             )
         {
             let term = self.expr_raw(expression, None, depth, write)?;
+            if matches!(term, Term::ValueUnion { .. }) {
+                self.bind_term(&term, union, expression.span)?;
+                return Ok(term);
+            }
             let variable = self.scalar(&term, expression.span)?;
             let actual = self.graph.injection_type(variable, expression.span)?;
             errors::injection(&actual, union, expression.span)?;
@@ -1992,6 +2538,29 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
             CoreExprKind::Try(operand) => {
                 let value = self.expr(operand, depth + 1, false)?;
+                if let Term::ValueUnion {
+                    error: failure,
+                    result,
+                } = value
+                {
+                    let enclosing = match self.owner {
+                        Some(owner) => self.graph.ty(self.closures[owner].result)?,
+                        None => Some(self.ordinary_result.clone()),
+                    };
+                    let Some(Type::ErrorUnion {
+                        error: expected, ..
+                    }) = enclosing
+                    else {
+                        return Err(error(
+                            "E-TRY-RETURN-TYPE",
+                            span,
+                            "? requires an explicitly known enclosing error-union result",
+                        ));
+                    };
+                    self.bind_term(&failure, &expected, span)?;
+                    self.budget.work(4, span)?;
+                    return Ok(result.as_ref().clone());
+                }
                 let variable = self.scalar(&value, span)?;
                 let Type::ErrorUnion {
                     error: failure,
@@ -2088,6 +2657,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     };
                     return match self.scopes.iter().rev().find_map(|s| s.get(name)) {
                         Some(Binding {
+                            term: Term::ValueStore(element, true),
+                            ..
+                        }) => Ok(Term::ValueStore(element.clone(), true)),
+                        Some(Binding {
                             term: Term::Resource(variable, true),
                             ..
                         }) => Ok(Term::Resource(*variable, true)),
@@ -2121,6 +2694,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return Err(unsupported(span, "shared borrow requires a place"));
                     }
                     if let Term::Closure(id) = value {
+                        return Ok(Term::ClosureAddress(id, *op == UnaryOp::BorrowMut));
+                    }
+                    if let Term::ClosureAddress(id, available) = value {
+                        if *op == UnaryOp::BorrowMut && !available {
+                            return Err(error(
+                                "E-ADDRESS-PERMISSION",
+                                span,
+                                "a shared callback field cannot grant exclusive access",
+                            ));
+                        }
                         return Ok(Term::ClosureAddress(id, *op == UnaryOp::BorrowMut));
                     }
                     if *op == UnaryOp::Borrow
@@ -2247,6 +2830,42 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return self.known_term(&dynamic_store::result_type(name, element), span);
                     }
                     let first = self.expr(&arguments[0], depth + 1, false)?;
+                    if let Term::ValueStore(element, _) = first {
+                        if arguments.len() == 2 {
+                            if name == "store_push" {
+                                let value = self.expr(&arguments[1], depth + 1, false)?;
+                                self.unify(&value, &element, arguments[1].span)?;
+                            } else {
+                                let value = self.expr_expected(
+                                    &arguments[1],
+                                    Some(&Type::I64),
+                                    depth + 1,
+                                    false,
+                                )?;
+                                self.bind_term(&value, &Type::I64, arguments[1].span)?;
+                            }
+                        }
+                        self.budget.work(4, span)?;
+                        return match name {
+                            "store_pop" => Ok(Term::ValueUnion {
+                                error: Rc::new(self.known_term(&Type::Unit, span)?),
+                                result: element,
+                            }),
+                            "store_push" => Ok(Term::ValueUnion {
+                                error: element,
+                                result: Rc::new(self.known_term(&Type::Unit, span)?),
+                            }),
+                            "store_at" | "store_at_mut" => {
+                                if let Term::Scalar(variable) = element.as_ref() {
+                                    Ok(Term::Address(*variable, name == "store_at_mut"))
+                                } else {
+                                    Ok(Term::ValueAddress(element, name == "store_at_mut"))
+                                }
+                            }
+                            "store_reserve" => self.known_term(&Type::Bool, span),
+                            _ => self.known_term(&Type::I64, span),
+                        };
+                    }
                     let Term::Resource(variable, _) = first else {
                         return Err(error(
                             "E-OWNED-STORE-TYPE",
@@ -2469,12 +3088,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return self.known_term(&Type::I64, span);
                     }
                     Term::Function(signature) => {
+                        if callable_fields::signature(&signature)
+                            && signature.callable.len() == 2
+                            && signature.callable[0].generic_index
+                                != signature.callable[1].generic_index
+                        {
+                            return self.state_call(&signature, arguments, depth, span);
+                        }
                         if signature.type_parameter.is_some() {
-                            return Err(error(
-                                "E-TYPE-APPLICATION",
-                                callee.span,
-                                "ordinary templates require an explicit complete type application",
-                            ));
+                            return self.value_type_call(&signature, arguments, depth, span);
                         }
                         let mut state_environment = None;
                         if arguments.len() != signature.parameters.len() {
@@ -2519,6 +3141,24 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             );
                         }
                         return self.known_result(&signature, span);
+                    }
+                    Term::ClosureAddress(id, _)
+                        if self.state_modes.get(&id) == Some(&CallableKind::FnOnce) =>
+                    {
+                        return Err(error(
+                            "E-CLOSURE-MODE",
+                            span,
+                            "FnOnce State declaration requires an owned callable value",
+                        ));
+                    }
+                    Term::ClosureAddress(id, false)
+                        if self.state_modes.get(&id) == Some(&CallableKind::FnMut) =>
+                    {
+                        return Err(error(
+                            "E-CLOSURE-MODE",
+                            span,
+                            "FnMut State declaration requires an exclusive callback window",
+                        ));
                     }
                     Term::Closure(id) | Term::ClosureAddress(id, _) => {
                         self.budget.work(self.closures[id].parameters.len(), span)?;
@@ -2645,6 +3285,50 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 };
                 let object_type =
                     self.projected_base(object, depth + 1, write && !resource_field)?;
+                if let Term::ValueAddress(inner, mutable) = &object_type {
+                    let (shape, field_sources, one) = match inner.as_ref() {
+                        Term::StatePackage { shape, fields } => (shape, Some(fields), None),
+                        Term::ClosurePackage { shape, environment } => {
+                            (shape, None, Some(*environment))
+                        }
+                        _ => {
+                            return Err(unsupported(
+                                span,
+                                "this inferred Store window has no Package field shape",
+                            ));
+                        }
+                    };
+                    validate_type(shape, 0, span, self.budget)?;
+                    let (index, field) = aggregates::field(shape, member, span)?;
+                    let callback = field_sources
+                        .and_then(|fields| {
+                            fields.iter().find(|(i, _)| *i == index).map(|(_, id)| *id)
+                        })
+                        .or_else(|| {
+                            matches!(&field, Type::Named(n) if n == "$callback")
+                                .then_some(one)
+                                .flatten()
+                        });
+                    if let Some(id) = callback {
+                        return Ok(Term::ClosureAddress(id, *mutable));
+                    }
+                    return self.known_term(&packages::projection_type(field), span);
+                }
+                if let Term::StatePackage { shape, fields } = &object_type {
+                    validate_type(shape, 0, span, self.budget)?;
+                    let (index, field) = aggregates::field(shape, member, span)?;
+                    if let Some((_, source)) = fields.iter().find(|(field, _)| *field == index) {
+                        return Ok(Term::Closure(*source));
+                    }
+                    return self.known_term(
+                        &if write {
+                            field
+                        } else {
+                            packages::projection_type(field)
+                        },
+                        span,
+                    );
+                }
                 if let Term::ClosurePackage { shape, environment } = &object_type {
                     validate_type(shape, 0, span, self.budget)?;
                     let field = aggregates::field(shape, member, span)?.1;

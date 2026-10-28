@@ -18,7 +18,7 @@ pub(super) type Tables = BTreeMap<ModuleId, BTreeMap<String, Signature>>;
 pub(super) struct Bindings(pub [Option<ClosureId>; 2]);
 pub(super) type Instance = (TemplateKey, Bindings);
 impl Bindings {
-    fn bind(&mut self, index: u32, id: ClosureId, span: Span) -> R<()> {
+    pub(super) fn bind(&mut self, index: u32, id: ClosureId, span: Span) -> R<()> {
         let slot = self.0.get_mut(index as usize).ok_or_else(|| {
             unsupported(span, "callable type index is outside the finite profile")
         })?;
@@ -79,6 +79,9 @@ pub(super) fn parameter_mode(ty: &Type, name: &str) -> Option<Option<bool>> {
 }
 
 pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
+    if !function.state_parameters.is_empty() {
+        return state_origins::validate_shape(function);
+    }
     let bounds = &function.callable_parameters;
     if bounds.is_empty() {
         return Ok(());
@@ -196,11 +199,11 @@ pub(super) fn install_single(
     state: &mut closures::State,
     limits: &Limits,
 ) -> R<()> {
-    if core
-        .functions
-        .iter()
-        .all(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
-    {
+    if core.functions.iter().all(|f| {
+        f.callable_parameters.is_empty()
+            && f.type_parameters.is_empty()
+            && f.state_parameters.is_empty()
+    }) {
         return Ok(());
     }
     let span = core.functions[0].span;
@@ -270,11 +273,18 @@ pub(super) fn install(
     limits: &Limits,
 ) -> R<()> {
     for function in &core.functions {
-        if !function.callable_parameters.is_empty() || !function.type_parameters.is_empty() {
+        if !function.callable_parameters.is_empty()
+            || !function.type_parameters.is_empty()
+            || !function.state_parameters.is_empty()
+        {
             validate_template(function)?;
             store_templates::validate_header(function)?;
             let (snapshot_work, store_shapes) = inference::helper_snapshot_work(function, limits)?;
             state.snapshot(snapshot_work.saturating_mul(2), function.span)?;
+            // New State declaration bodies are constrained even when no
+            // concrete instance is requested. No concrete ClosureId is needed
+            // for lexical origins, mode checks or the bounded Once paths.
+            state_origins::collect(function, Bindings::default(), &context, state, limits)?;
             state.helper_templates.insert(
                 (core.module_id, function.id),
                 Template {
@@ -335,7 +345,45 @@ impl Builder<'_, '_> {
             span,
         )?;
         for (index, (argument, ty)) in arguments.iter().zip(&signature.parameters).enumerate() {
-            let (value, actual) = if let Some(bound) = signature
+            let (value, actual) = if signature
+                .state_parameter
+                .as_ref()
+                .is_some_and(|state| state.index as usize == index)
+            {
+                // One actual Package value supplies two type bindings. Evaluate
+                // and stage that owning parameter exactly once.
+                let (value, actual) = self.owned_array_input(argument, None)?;
+                let work =
+                    inference::type_snapshot_work(ty, argument.span, self.limits)?.saturating_add(
+                        inference::type_snapshot_work(&actual, argument.span, self.limits)?,
+                    );
+                self.closures
+                    .snapshot(work.saturating_mul(2), argument.span)?;
+                environments =
+                    state_origins::match_type(ty, &actual, &signature.callable, argument.span)?;
+                for bound in &signature.callable {
+                    let state = signature.state_parameter.as_ref().expect("State source");
+                    let field = state
+                        .bindings
+                        .iter()
+                        .find(|binding| binding.generic_index == bound.generic_index)
+                        .expect("validated binding")
+                        .fields[0];
+                    self.require_state_kind(
+                        argument,
+                        Some(field),
+                        environments.get(bound.generic_index, argument.span)?,
+                        bound.kind,
+                    )?;
+                    self.validate_bound(
+                        environments.get(bound.generic_index, argument.span)?,
+                        bound,
+                        true,
+                        argument.span,
+                    )?;
+                }
+                (value, actual)
+            } else if let Some(bound) = signature
                 .callable
                 .iter()
                 .find(|bound| bound.index as usize == index)
@@ -400,43 +448,8 @@ impl Builder<'_, '_> {
                         }
                     }
                 };
-                if owned_state {
-                    let mut work = self.limits.max_analysis_steps;
-                    retained::self_contained(
-                        &self.closures.pending,
-                        closure,
-                        &mut work,
-                        argument.span,
-                    )?;
-                    self.closures
-                        .snapshot(self.limits.max_analysis_steps - work, argument.span)?;
-                }
-                let pending = self
-                    .closures
-                    .pending
-                    .get_mut(closure.0 as usize)
-                    .ok_or_else(|| unsupported(span, "absent concrete closure"))?;
-                if !compatible(pending.callable_kind(), bound.kind) {
-                    return Err(error(
-                        "E-CLOSURE-MODE",
-                        argument.span,
-                        "concrete environment does not implement the requested callable mode",
-                    ));
-                }
-                if pending.inference.arity() != bound.parameters.len() {
-                    return Err(error(
-                        "E-CALL-ARITY",
-                        argument.span,
-                        "concrete environment signature differs from callable bound",
-                    ));
-                }
-                for (i, ty) in bound.parameters.iter().enumerate() {
-                    pending.inference.argument(i, ty, argument.span)?;
-                }
-                pending
-                    .inference
-                    .expect_result(&bound.result, argument.span)?;
-                self.materialize_closure(closure)?;
+                self.require_state_kind(argument, None, closure, bound.kind)?;
+                self.validate_bound(closure, bound, owned_state, argument.span)?;
                 environments.bind(bound.generic_index, closure, argument.span)?;
                 (value, actual)
             } else {
@@ -493,6 +506,46 @@ impl Builder<'_, '_> {
             let value = self.value(instruction, result.clone(), span)?;
             Ok((value, result))
         }
+    }
+
+    fn validate_bound(
+        &mut self,
+        closure: ClosureId,
+        bound: &CoreCallableParameter,
+        owned_state: bool,
+        span: Span,
+    ) -> R<()> {
+        if owned_state {
+            let mut work = self.limits.max_analysis_steps;
+            retained::self_contained(&self.closures.pending, closure, &mut work, span)?;
+            self.closures
+                .snapshot(self.limits.max_analysis_steps - work, span)?;
+        }
+        let pending = self
+            .closures
+            .pending
+            .get_mut(closure.0 as usize)
+            .ok_or_else(|| unsupported(span, "absent concrete closure"))?;
+        if !compatible(pending.callable_kind(), bound.kind) {
+            return Err(error(
+                "E-CLOSURE-MODE",
+                span,
+                "concrete environment does not implement the requested callable mode",
+            ));
+        }
+        if pending.inference.arity() != bound.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "concrete environment signature differs from callable bound",
+            ));
+        }
+        for (i, ty) in bound.parameters.iter().enumerate() {
+            pending.inference.argument(i, ty, span)?;
+        }
+        pending.inference.expect_result(&bound.result, span)?;
+        self.materialize_closure(closure)?;
+        Ok(())
     }
 
     fn instantiate_helper(
@@ -556,17 +609,45 @@ impl Builder<'_, '_> {
             .cloned()
             .ok_or_else(|| unsupported(span, "callable template definition is absent"))?;
         self.closures.snapshot(template.snapshot_work, span)?;
+        let state_uses = state_origins::collect(
+            &template.function,
+            bindings,
+            &template.context,
+            self.closures,
+            self.limits,
+        )?;
         let mut function = template.function.as_ref().clone();
-        let bounds = &template.function.callable_parameters;
+        let bounds_view = state_origins::bounds(&template.function);
+        let bounds = bounds_view.as_ref();
         let owned_state = callable_fields::template(&function);
         if owned_state {
-            let bound = &bounds[0];
-            callable_fields::specialize(
-                &mut function,
-                &bound.generic_name,
-                bindings.get(bound.generic_index, span)?,
-            );
+            if template.function.state_parameters.is_empty()
+                && bounds
+                    .iter()
+                    .all(|b| b.generic_index == bounds[0].generic_index)
+            {
+                let bound = &bounds[0];
+                callable_fields::specialize(
+                    &mut function,
+                    &bound.generic_name,
+                    bindings.get(bound.generic_index, span)?,
+                );
+            } else {
+                self.closures
+                    .snapshot(bounds.len().saturating_mul(3), span)?;
+                let replacements = bounds
+                    .iter()
+                    .map(|bound| {
+                        Ok((
+                            bound.generic_name.as_str(),
+                            bindings.get(bound.generic_index, span)?,
+                        ))
+                    })
+                    .collect::<R<Vec<_>>>()?;
+                callable_fields::specialize_all(&mut function, &replacements);
+            }
             function.callable_parameters.clear();
+            function.state_parameters.clear();
         } else {
             for bound in bounds {
                 let mode = parameter_mode(
@@ -611,7 +692,8 @@ impl Builder<'_, '_> {
             self.limits,
             self.closures,
         )?;
-        if owned_state {
+        builder.state_uses = state_uses;
+        if owned_state && builder.state_uses.is_none() {
             builder.closures.snapshot(1, span)?;
             let bound = &bounds[0];
             builder.state_callable_mode =
@@ -737,12 +819,17 @@ impl Builder<'_, '_> {
                 if self.lookup(name) == self.function.parameters.get(bound.index as usize).copied())
             })
             .cloned();
+        let declared = self.declared_state_kind(callee, None, id)?;
         let (kind, parameters, result) = if let Some(bound) = parameter_bound {
             (bound.kind, bound.parameters, bound.result)
         } else {
             let pending = &mut self.closures.pending[id.0 as usize];
             let (parameters, result) = pending.inference.resolve(false, span)?;
-            (pending.callable_kind(), parameters, result)
+            (
+                declared.unwrap_or_else(|| pending.callable_kind()),
+                parameters,
+                result,
+            )
         };
         if kind == CallableKind::FnOnce || (kind == CallableKind::FnMut && !mutable) {
             return Err(error(

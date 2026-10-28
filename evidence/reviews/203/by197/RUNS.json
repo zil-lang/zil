@@ -1,0 +1,511 @@
+{
+  "reviewer": "/root/impl197",
+  "rounds": [
+    {
+      "round": "scaffold01",
+      "command_receipt": "scaffold01/command.json",
+      "receipt_sha256": "e561f6537c52706771d3b72731b53a0dc13917c198bfe585535903485ea48e45",
+      "source_commit": "366a6e6d061adbb84951bbc786ff44af271b4f7c",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Expected initial scaffold closure: all four original source inputs were preserved; new State admission was still Unsupported. Not final implementation evidence."
+    },
+    {
+      "round": "scaffold02",
+      "command_receipt": "scaffold02/command.json",
+      "receipt_sha256": "a2e89b89c91487c58b9fa2466baebe71fbccb89b04ab9612986a415dd750428f",
+      "source_commit": "366a6e6d061adbb84951bbc786ff44af271b4f7c",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Reviewer fixture preparation error: raw parameter shape had not been resolved before mutation. Original failure retained."
+    },
+    {
+      "round": "scaffold03",
+      "command_receipt": "scaffold03/command.json",
+      "receipt_sha256": "1f9a7ceda240990c9e963b3e3a1bdc7d79be9957def1a8e9d9fabb5685a0c6af",
+      "source_commit": "cd4e51267201d8cb8c04ed87bb736647bf7e9a27",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Corrected raw control reached the deliberately closed initial Types State gate."
+    },
+    {
+      "round": "raw01",
+      "command_receipt": "raw01/command.json",
+      "receipt_sha256": "a55d0db5f73e1269641c5557818512617b592cd8ebca53e41f2affa640385575",
+      "source_commit": "be78841616e00975d6e59582d299c19aaccb9734",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Partial independent raw qualification and Analyze/Verify-budget pass under the initial 1355 norm; not source or full-slice acceptance."
+    },
+    {
+      "round": "ct01",
+      "command_receipt": "ct01/command.json",
+      "receipt_sha256": "ba657ffe47a64092e6e3f273ff27971f408a0f721133c5d9ee7ffdfef46832f5",
+      "source_commit": "7bb73c45be395c248fce7b559cd298a0eda248ff",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 2,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Fixture expected 42 while existing materialization returns 42i32. Production unchanged; assertion corrected in ct02."
+    },
+    {
+      "round": "ct02",
+      "command_receipt": "ct02/command.json",
+      "receipt_sha256": "1356652860989df7b7fecd5382e6a798530af4795c4175a2052f1474a0779667",
+      "source_commit": "d323860f439db6c7df5e1892d3e43bab01e49b10",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Initial three independent CT cases passed under the initial norm."
+    },
+    {
+      "round": "source01",
+      "command_receipt": "source01/command.json",
+      "receipt_sha256": "d85b9a4444d79f316282190dc4913f6957a984a311178aadaef3252b535f3b81",
+      "source_commit": "e3c6d417cd97f83b9820c19f0ce494fffedd86ad",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [],
+      "execution_interpretation": "Rust compilation stopped before test execution: cache StableCrateId issue and a reviewer fixture struct-field typo. No language outcome."
+    },
+    {
+      "round": "source02",
+      "command_receipt": "source02/command.json",
+      "receipt_sha256": "209dc313d708d7f7a63859d9bc727807ac92afdf96a118f278403ae412faa36f",
+      "source_commit": "cb54c498637932e67f3a3576ea2ac45fc935e264",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [],
+      "execution_interpretation": "Rust compilation stopped before test execution on stale local cache StableCrateId metadata."
+    },
+    {
+      "round": "cache-repair01",
+      "command_receipt": "cache-repair01/command.json",
+      "receipt_sha256": "9656145762c990e16a8421156c80babf116a20334b7ba7b31249d1fa423efaf3",
+      "source_commit": "cb54c498637932e67f3a3576ea2ac45fc935e264",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [],
+      "execution_interpretation": "Only this reviewer target cache packages were rebuilt. Not a language acceptance run."
+    },
+    {
+      "round": "source03",
+      "command_receipt": "source03/command.json",
+      "receipt_sha256": "b9d036ef0b9d74911c017e1e7767149f7fb3812f589368ce0880d77ec8d1a6b0",
+      "source_commit": "cb54c498637932e67f3a3576ea2ac45fc935e264",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 12,
+          "failed": 4,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "First combined source suite exposed incomplete unused Once checking, error-union routing, distinct-environment construction, and one overly late expected rejection phase. Every raw original failure retained."
+    },
+    {
+      "round": "origins01",
+      "command_receipt": "origins01/command.json",
+      "receipt_sha256": "ddf6ae0765b353403ee2ecc540d212c4c0ad333ff9b935b1873d5fb7291e6981",
+      "source_commit": "2ba567f249bfa4f0bc469713d4a15d09f659ac3d",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 2,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Two origin attacks passed; Record attack failed its injection-count assertion because the source value was wrapped in Sequence. Corrected attack later mutates actual values and remains a rejection test."
+    },
+    {
+      "round": "source04",
+      "command_receipt": "source04/command.json",
+      "receipt_sha256": "e35864b004ba04aaf812e1caec4612280ca20ac8abe04fda777cb05c42a3b7b9",
+      "source_commit": "e928a983b3ec3b59e7e04f06bff6767d8e504f93",
+      "git_status": "?? evidence/reviews/203/by197/.rsync-tmp/\n",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 19,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Only original error-payload routing failed in Types. Receipt accurately includes a transient untracked evidence .rsync-tmp directory caused by environment synchronization; it is not reported clean."
+    },
+    {
+      "round": "moves01",
+      "command_receipt": "moves01/command.json",
+      "receipt_sha256": "f10a41e207b1dc38a7ba95eba0db924024de920f75d00fc848057a221500a776",
+      "source_commit": "f3d4a5c27d1288904dcff27b1bcd3401483787b7",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 0,
+          "failed": 2,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Eight invalid unused declaration field-take/helper-transfer patterns were accepted by both Types entries, despite five valid controls. This was a declaration contract gap, not an executed memory-safety exploit."
+    },
+    {
+      "round": "old20001",
+      "command_receipt": "old20001/command.json",
+      "receipt_sha256": "d81770834d107a5f61513b5d8de5fa64b0c91b5015d28ea038443ccf63952c0e",
+      "source_commit": "c08e71c506984e6cc3ab8bfc13b6ef25469ebfd9",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Exact old differently typed second-argument/but-single-root-result constructor attack and capture-graph controls retained their behavior."
+    },
+    {
+      "round": "bare01",
+      "command_receipt": "bare01/command.json",
+      "receipt_sha256": "627622ebc808a90d542d63591b4fb63af593ae046b084d7f2e45d7f04b60d2c8",
+      "source_commit": "c08e71c506984e6cc3ab8bfc13b6ef25469ebfd9",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 0,
+          "failed": 2,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "The new published bare ordinary-call contract had not yet been implemented in the tested candidate. Original positive sources failed before Types."
+    },
+    {
+      "round": "bare02",
+      "command_receipt": "bare02/command.json",
+      "receipt_sha256": "a5a069241bc9757c63605c58029b743fa37a20fad77a44797abeef2c95a56509",
+      "source_commit": "1dab3bb2a1e0126f9fcea673c9a1105ae50bfd68",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Bare full-value inference and the byte-identical original error-side source passed, with 10 native runs and conflict neighbors."
+    },
+    {
+      "round": "ct03",
+      "command_receipt": "ct03/command.json",
+      "receipt_sha256": "645cc9f42489cf4fe9d057654a1b96d42a8851c7094a18f06baa98a28920bc05",
+      "source_commit": "f8c059583152333de1cd2640506c4c2c870dd187",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 1,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Four CT controls and the new exact budget passed. Runtime fixture used i64(4294967296), whose unconstrained operand correctly defaults to i32 and overflows under the existing conversion rules."
+    },
+    {
+      "round": "ct04",
+      "command_receipt": "ct04/command.json",
+      "receipt_sha256": "94d5663c4d7f586b926f61449348c97ed9b57df1a7968ad7291132bf0d52fdb5",
+      "source_commit": "d836f78fff96f247aae1fce5edcfa864782f7383",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Only the fixture operand receives a genuine i64 binding context; exact 64-bit comparison and original failure remain. Two native runs pass."
+    },
+    {
+      "round": "source05",
+      "command_receipt": "source05/command.json",
+      "receipt_sha256": "67746da7b9fd81dd16e22108014969b13d497f5ed7d801a4fc5e773c3ff8379e",
+      "source_commit": "6f6a8b5cbf67b06b44fdf91c0a13f6bbf39233a7",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 26,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Thirty then-existing independent groups passed before later alias gaps were discovered. Not relabeled as final 203 acceptance."
+    },
+    {
+      "round": "alias01",
+      "command_receipt": "alias01/command.json",
+      "receipt_sha256": "232c5ae984606c32cb627f866bfde60e2a2756d22df3aeb1d668bf91af07ce22",
+      "source_commit": "34aefab452a44314390e0ef47ec3d161e3a524f1",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Unused borrowed-field alias after parent take was wrongly accepted. The used counterpart already rejected at Verify E-BORROW-CONFLICT; valid last-use-before-take ran natively."
+    },
+    {
+      "round": "exclusive01",
+      "command_receipt": "exclusive01/command.json",
+      "receipt_sha256": "8a920dc665632334e209e54698cc756e4645849a29406eff283137cf06de6776",
+      "source_commit": "962008f889a206fee266147b755e54e1322fcded",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [
+        {
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Unused exclusive view overlapping direct FnMut was wrongly accepted. The used counterpart already rejected at Verify E-BORROW-CONFLICT; real mutable positive control ran natively."
+    },
+    {
+      "round": "source06",
+      "command_receipt": "source06/command.json",
+      "receipt_sha256": "3deaeece37d1b730e361fc643cc9b08af34f2c318575d999f1b73b086bae379e",
+      "source_commit": "5146e4e8c2d28b5aca7ad19e6355c1e86c7861cb",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 28,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "32 tests passed on 5146 with alias production 184, before the later loop-condition fix; exact source identity retained."
+    },
+    {
+      "round": "source07",
+      "command_receipt": "source07/command.json",
+      "receipt_sha256": "eecd782b753c79dc26c73fdd51734ea936b86f86581582e5f5c8a9eaaba6b444",
+      "source_commit": "4c6e519f5ea809387aa40e33b94643e8586ca7a8",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 28,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "32 tests passed on the complete CLI05 src domain at 4c6e; 54 native runs. Not relabeled with the later condition fix."
+    },
+    {
+      "round": "linux01-command",
+      "command_receipt": "linux01-command/command.json",
+      "receipt_sha256": "80cae3398425e2fefdb6ffc63336febfa73d6ab87182962bb423e6bb1af5c097",
+      "source_commit": "4c6e519f5ea809387aa40e33b94643e8586ca7a8",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [],
+      "execution_interpretation": "CLI05 platform matrix passed 128 executions / 88 real failures. It predates the condition fix and is retained separately."
+    },
+    {
+      "round": "migration202",
+      "command_receipt": "migration202/command.json",
+      "receipt_sha256": "197b696f41bc0f074ed94db50bba9e859f9b14f527b8931ff30e3bff814815c1",
+      "source_commit": "4c6e519f5ea809387aa40e33b94643e8586ca7a8",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Only four exact neighbors were executed: two legal bare-call migrations, unfinished recursive instance rejection, and stale Wire 25 rejection."
+    },
+    {
+      "round": "source08",
+      "command_receipt": "source08/command.json",
+      "receipt_sha256": "7d98d4d4ab8019a24bcd49b9629a2a4a2b71430132cc4156820af836b29f50a4",
+      "source_commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+      "git_status": "",
+      "command_status": "Fail",
+      "exit_code": 101,
+      "reported_test_groups": [],
+      "execution_interpretation": "Rust link-time rlib metadata error before any tests executed; zil_ct rlib existed but was unusable in this local cache. Original logs retained. No language regression count."
+    },
+    {
+      "round": "cache-repair02",
+      "command_receipt": "cache-repair02/command.json",
+      "receipt_sha256": "73c04884b6f62a58043adf3788d263ea99c6e727b346244e89c8fdf514aa4a2f",
+      "source_commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [],
+      "execution_interpretation": "Only this reviewer target zil-ct and zil-driver cache entries were cleared/rebuilt. No source or evidence changed."
+    },
+    {
+      "round": "source09",
+      "command_receipt": "source09/command.json",
+      "receipt_sha256": "91c262c0fbd394dee41a52190278ead2d7a5292c3554a15af689e3d1f1f88517",
+      "source_commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 28,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "Final 32 independent groups at 4eb8 after 2d condition fix; 54 native runs. Production and all independent inputs equal the accepted candidate ee0."
+    },
+    {
+      "round": "condition-review01",
+      "command_receipt": "condition-review01/command.json",
+      "receipt_sha256": "b53656ec5a632ee1fc567da5378229913e5d40fa5ae2e01279be5a5346b142fd",
+      "source_commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "execution_interpretation": "One author-written raw regression group independently replayed after the reviewer-discovered condition gap was fixed. Both public Types entries reject the original condition case, and all its old valid/refill/loop controls remain."
+    },
+    {
+      "round": "linux02-command",
+      "command_receipt": "linux02-command/command.json",
+      "receipt_sha256": "4d64f1768d33d9494a15abb83054af25d66af490d4951c1c84ebd921009daefe",
+      "source_commit": "c3b8964c9771baf5a90880cc2927f80afc3194c9",
+      "git_status": "",
+      "command_status": "Pass",
+      "exit_code": 0,
+      "reported_test_groups": [],
+      "execution_interpretation": "Final CLI06 / source ee0 production, consumer checkout c3: 128 executions, 16 ordinary and 112 probes, 88 actual allocator failures, all live counts zero."
+    }
+  ],
+  "author_condition_baseline": {
+    "path": "author-condition-baseline/command.json",
+    "executed_by": "/root/roles196_frontend",
+    "discovered_by": "/root/impl197",
+    "actual_head": "5e4bd1fb0bac0006a290d5aaaeb9d695cbcc24e8",
+    "tracked_diff_sha256": "b3a94d15486327f1f5987c476999b4e23a734d3b83f117a8a544dc4e2d4b9b4e",
+    "note": "Original dirty fixture-only reproduction on 184 production, 0/1. Copied with SHA proof; never counted as reviewer execution."
+  }
+}

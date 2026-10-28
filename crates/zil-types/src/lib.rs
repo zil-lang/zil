@@ -25,6 +25,7 @@ mod program;
 mod resource_effects;
 mod resources;
 mod retained;
+mod state_origins;
 mod store_templates;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
@@ -32,7 +33,9 @@ type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
     id: Option<FunctionId>,
+    // Effective type bindings; state_parameter keeps their distinct owning source.
     callable: Vec<CoreCallableParameter>,
+    state_parameter: Option<CoreStateParameter>,
     callable_return: Option<CoreCallableReturn>,
     type_parameter: Option<CoreTypeParameter>,
     template: Option<(zil_base::ModuleId, zil_base::NodeId)>,
@@ -95,7 +98,10 @@ fn signatures(
     let mut concrete_index = 0usize;
     for f in &core.functions {
         let i = concrete_index;
-        if f.callable_parameters.is_empty() && f.type_parameters.is_empty() {
+        if f.callable_parameters.is_empty()
+            && f.type_parameters.is_empty()
+            && f.state_parameters.is_empty()
+        {
             concrete_index += 1;
         }
         if let Err(diagnostic) = retained::validate_factory(f) {
@@ -118,25 +124,28 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
-                    callable: f.callable_parameters.clone(),
+                    callable: state_origins::bounds(f).into_owned(),
+                    state_parameter: f.state_parameters.first().cloned(),
                     callable_return: f.callable_return.clone(),
                     type_parameter: f.type_parameters.first().cloned(),
-                    template: (!(f.callable_parameters.is_empty() && f.type_parameters.is_empty()))
-                        .then_some((core.module_id, f.id)),
+                    template: (!(f.callable_parameters.is_empty()
+                        && f.type_parameters.is_empty()
+                        && f.state_parameters.is_empty()))
+                    .then_some((core.module_id, f.id)),
                     foreign: f.foreign.is_some(),
                     cleanup: core
                         .aggregates
                         .iter()
                         .any(|a| a.teardown.as_ref() == Some(&f.name)),
-                    id: f.type_parameters.is_empty().then_some(FunctionId(
-                        u32::try_from(offset + i).map_err(|_| {
+                    id: (f.type_parameters.is_empty() && f.state_parameters.is_empty()).then_some(
+                        FunctionId(u32::try_from(offset + i).map_err(|_| {
                             vec![Diagnostic::limit(
                                 Phase::Types,
                                 "function identity overflow",
                                 Some(f.span),
                             )]
-                        })?,
-                    )),
+                        })?),
+                    ),
                     parameters: f.parameters.iter().map(|p| p.ty.clone()).collect(),
                     result: f.return_type.clone(),
                     public: exports.is_none_or(|ids| ids.contains(&f.id)),
@@ -215,9 +224,12 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         errors.push(unsupported(f.span, "receiver capability typing"))
     }
     for (index, p) in f.parameters.iter().enumerate() {
-        if f.callable_parameters
+        if f.state_parameters
             .iter()
-            .any(|bound| bound.index as usize == index)
+            .any(|state| state.index as usize == index)
+            || f.callable_parameters
+                .iter()
+                .any(|bound| bound.index as usize == index)
         {
             continue;
         }
@@ -273,7 +285,11 @@ pub fn check(
     let concrete_count = core
         .functions
         .iter()
-        .filter(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
+        .filter(|f| {
+            f.callable_parameters.is_empty()
+                && f.type_parameters.is_empty()
+                && f.state_parameters.is_empty()
+        })
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
     closure_state.resource_writes =
@@ -304,7 +320,9 @@ pub fn check(
         .into_iter()
         .map(|id| factory_functions[&id])
         .chain(core.functions.iter().filter(|f| {
-            (f.callable_parameters.is_empty() && f.type_parameters.is_empty())
+            (f.callable_parameters.is_empty()
+                && f.type_parameters.is_empty()
+                && f.state_parameters.is_empty())
                 && f.callable_return.is_none()
         }));
     for f in ordered {
@@ -378,6 +396,7 @@ struct Builder<'a, 'c> {
     // Owning State specialization removes symbolic parameters, but a direct
     // field invocation still uses the mode promised by that static interface.
     state_callable_mode: Option<(ClosureId, CallableKind)>,
+    state_uses: Option<state_origins::Uses>,
     factory_bound: Option<CoreCallableReturn>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
@@ -451,6 +470,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             },
             helper_bounds: f.callable_parameters.clone(),
             state_callable_mode: None,
+            state_uses: None,
             factory_bound: f.callable_return.clone(),
             signatures,
             imports: None,
@@ -1580,11 +1600,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 }
                 let signature = self.resolve_callee(callee)?.clone();
                 if signature.type_parameter.is_some() {
-                    return Err(error(
-                        "E-TYPE-APPLICATION",
-                        callee.span,
-                        "an ordinary template call requires one explicit complete type constraint",
-                    ));
+                    return self
+                        .call_inferred_type_template(signature, arguments, expected, e.span);
                 }
                 if signature.callable_return.is_some()
                     && matches!(signature.result, Type::Opaque { .. })
@@ -1957,6 +1974,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             let function_id = pending.function;
             let function = CoreFunction {
                 callable_return: None,
+                state_parameters: Vec::new(),
                 type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
@@ -2104,6 +2122,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let function_id = pending.function;
         let function = CoreFunction {
             callable_return: None,
+            state_parameters: Vec::new(),
             type_parameters: Vec::new(),
             callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
@@ -2269,7 +2288,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             && let Some(id) = self.closure_slots.get(&local).copied()
         {
             existing_place = None;
-            let kind = self.closures.pending[id.0 as usize].callable_kind();
+            let kind = self
+                .declared_state_kind(callee, None, id)?
+                .unwrap_or_else(|| self.closures.pending[id.0 as usize].callable_kind());
             if kind == CallableKind::FnOnce {
                 let (value, ty) = self.take_closure_slot(local, span)?;
                 (Some(value), ty)
@@ -2311,21 +2332,24 @@ impl<'a, 'c> Builder<'a, 'c> {
                 "called value is not a function pointer or concrete closure",
             ));
         };
-        let kind = field_callee.map_or_else(
-            || {
-                self.helper_bounds
-                    .iter()
-                    .find(|bound| {
-                        existing_place
-                            == self.function.parameters.get(bound.index as usize).copied()
-                    })
-                    .map_or_else(
-                        || self.closures.pending[id.0 as usize].callable_kind(),
-                        |bound| bound.kind,
-                    )
-            },
-            |(_, _, kind)| kind,
-        );
+        let declared_kind = self.declared_state_kind(callee, None, id)?;
+        let kind = declared_kind.unwrap_or_else(|| {
+            field_callee.map_or_else(
+                || {
+                    self.helper_bounds
+                        .iter()
+                        .find(|bound| {
+                            existing_place
+                                == self.function.parameters.get(bound.index as usize).copied()
+                        })
+                        .map_or_else(
+                            || self.closures.pending[id.0 as usize].callable_kind(),
+                            |bound| bound.kind,
+                        )
+                },
+                |(_, _, kind)| kind,
+            )
+        });
         let owns_resources = self.closures.pending[id.0 as usize].owns_resources();
         let lends = self.lending_closure(&Type::Closure(id))?;
         if lends
@@ -2579,6 +2603,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
                 callable_return: None,
+                state_parameters: Vec::new(),
                 type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
