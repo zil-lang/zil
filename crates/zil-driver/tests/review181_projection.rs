@@ -49,10 +49,17 @@ fn check(text: &str, accepted: bool) {
 }
 #[test]
 fn reviewer_generic_value_projection_must_not_duplicate_unconstrained_t() {
-    check(
-        "struct Holder<T>{value:T}fn bad<T>(holder:Holder<T>)->(T,T){return (holder.value,holder.value)}fn main(){}",
-        false,
-    );
+    for definition in [
+        "fn bad<T>(holder:Holder<T>)->(T,T){return (holder.value,holder.value)}",
+        "fn bad<T>(holder:Holder<T>)->(T,T){return ((holder).value,(holder).value)}",
+        "fn bad<T>(holder:Holder<T>)->T{let first=holder.value;return holder.value}",
+        "fn bad<T>(holder:Holder<T>)->Holder<T>{let first=holder.value;return holder}",
+    ] {
+        check(
+            &format!("struct Holder<T>{{value:T}}{definition}fn main(){{}}"),
+            false,
+        );
+    }
 }
 #[test]
 fn reviewer_copy_address_projection_does_not_move_exclusive_address() {
@@ -78,5 +85,54 @@ fn reviewer_borrowed_projection_cannot_grant_managed_or_unknown_copy() {
             ),
             false,
         );
+    }
+}
+
+#[test]
+fn reviewer_effectful_address_base_is_evaluated_once_per_projection() {
+    use std::process::Command;
+    use zil_driver::{Optimization, Stage};
+    let text = "struct Point{x:i32}fn touch(p:&mut Point,n:&mut i32)->&mut Point{*n+=1;return p}fn read<T>(p:&mut Point,n:&mut i32)->i32{return touch(p,n).x+touch(p,n).x}fn main()->i32{var point=Point{x:7};var count=0;let value=read::<i32>(&mut point,&mut count);return value+count-16}";
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir);
+        let path = root.join(format!(
+            "review181-native-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&path).unwrap();
+        fs::write(path.join("input.zil"), text).unwrap();
+        let executable = path.join("program");
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "effect181.zil", text),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization,
+                output: Some(executable.clone()),
+                emit_dir: Some(path.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        fs::write(path.join("compile.json"), report.to_json()).unwrap();
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let observed = Command::new(executable).output().unwrap();
+        fs::write(path.join("stdout"), &observed.stdout).unwrap();
+        fs::write(path.join("stderr"), &observed.stderr).unwrap();
+        fs::write(
+            path.join("exit.txt"),
+            format!("{:?}\n", observed.status.code()),
+        )
+        .unwrap();
+        assert_eq!(observed.status.code(), Some(0));
+        assert!(observed.stdout.is_empty());
+        assert!(observed.stderr.is_empty());
     }
 }
