@@ -26,8 +26,23 @@ fn expand(text: &str) -> CoreModule {
     );
     expanded
         .source_map
-        .validate(&[unit], &Limits::default())
+        .validate(std::slice::from_ref(&unit), &Limits::default())
         .unwrap();
+    if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
+        let path = std::path::PathBuf::from(root).join(format!(
+            "expand202-{}-{}",
+            std::process::id(),
+            unit.fingerprint()
+        ));
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(path.join("main.zil"), &unit.text).unwrap();
+        std::fs::write(path.join("core.txt"), format!("{:#?}\n", expanded.core)).unwrap();
+        std::fs::write(
+            path.join("source-map.txt"),
+            format!("{:#?}\n", expanded.source_map),
+        )
+        .unwrap();
+    }
     expanded.core
 }
 fn function<'a>(core: &'a CoreModule, name: &str) -> &'a CoreFunction {
@@ -314,6 +329,10 @@ fn ordinary_store_calls_stay_eager_with_a_measured_exact_budget() {
     );
     let n = boundary(ORDINARY);
     eprintln!("ordinary_store_expand_n={n}");
+    assert_eq!(
+        n, 2255,
+        "same source measured on pre202 production at 9bc570bc"
+    );
 }
 
 #[test]

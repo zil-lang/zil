@@ -441,7 +441,12 @@ impl<'a> Engine<'a> {
         if let Some(existing) = self.instances.get(&key) {
             return Ok(store_templates::Instantiation::Eager(existing.clone()));
         }
-        if self.instances.len() >= self.limits.max_functions.min(512) {
+        if self
+            .instances
+            .len()
+            .saturating_add(self.retained_stores.len())
+            >= self.limits.max_functions.min(512)
+        {
             return Err(Diagnostic::limit(
                 Phase::Expand,
                 "generic instance budget exceeded",
