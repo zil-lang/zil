@@ -183,14 +183,14 @@ const ORIGINALS: [(&str, &str); 12] = [
 #[test]
 fn original_positive_probes_reach_verify_unchanged() {
     for (index, (label, source)) in ORIGINALS.iter().enumerate() {
-        if ![5, 9, 11].contains(&index) {
+        if ![5, 11].contains(&index) {
             accepted(label, source);
         }
     }
 }
 #[test]
 fn original_alias_and_duplicate_move_probes_reach_security_checks() {
-    for index in [5, 9, 11] {
+    for index in [5, 11] {
         let (label, source) = ORIGINALS[index];
         let case = Case::new(label);
         let report = compile(&case, &[("main", source)], None);
@@ -210,9 +210,14 @@ fn original_alias_and_duplicate_move_probes_reach_security_checks() {
 }
 #[test]
 fn original_positive_probes_execute_o0_o2() {
-    for index in [0, 1, 2, 3, 4, 6, 7, 8, 10] {
+    for index in [0, 1, 2, 3, 4, 6, 7, 8, 9, 10] {
         let (label, source) = ORIGINALS[index];
-        native(label, &[("main", source)], "", 0);
+        native(
+            label,
+            &[("main", source)],
+            "",
+            if index == 9 { 2 } else { 0 },
+        );
     }
 }
 #[test]
@@ -315,7 +320,7 @@ fn same_f_and_f_g_keep_the_copy_data_specialization() {
     let files = [
         (
             "main",
-            r#"import "helpers" as h;fn make()->impl Fn(i32)->i32{return move(x:i32)=>x+1}fn main()->i32{let a=make();let b=make();let data:i64=7;let out=h.same(&a,&b,data);let g=move(x:i32)=>x+2;let other:i32=5;let again=h.mixed(&a,&g,other);if out!=data{return 1};return again-other}"#,
+            r#"import helpers;fn make()->impl Fn(i32)->i32{return move(x:i32)=>x+1}fn main()->i32{let a=make();let b=make();let data:i64=7;let out=helpers.same(&a,&b,data);let g=move(x:i32)=>x+2;let other:i32=5;let again=helpers.mixed(&a,&g,other);if out!=data{return 1};return again-other}"#,
         ),
         (
             "helpers",
@@ -346,7 +351,7 @@ fn multi_role_runtime_loop_has_joint_flow() {
 }
 #[test]
 fn each_owned_role_cleans_its_own_uncalled_environment() {
-    let source = r#"extern "C" fn putchar(n:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}fn make(give r:R)->impl FnOnce()->i32{return move()=>{let x=r.code;drop(give r);return x}}fn choose<F:FnOnce()->i32>(a:F,b:F,flag:bool)->i32{if flag{return a()};return b()}fn main()->i32{let a=make(R{code:65});let b=make(R{code:66});return choose(a,b,true)-65}"#;
+    let source = r#"extern "C" fn putchar(n:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}fn consume(give r:R)->i32{return r.code}fn make(give r:R)->impl FnOnce()->i32{return move()=>consume(give r)}fn choose<F:FnOnce()->i32>(a:F,b:F,flag:bool)->i32{if flag{return a()};return b()}fn main()->i32{let a=make(R{code:65});let b=make(R{code:66});return choose(a,b,true)-65}"#;
     native("owned-choice", &[("main", source)], "AB", 0);
 }
 #[test]
@@ -386,4 +391,23 @@ fn unused_bad_templates_and_extra_roles_do_not_gain_capabilities() {
         assert_eq!(report.phase, Phase::Expand);
         assert_eq!(report.verification_runs, 0);
     }
+}
+
+#[test]
+fn actual_non_copy_once_environment_cannot_fill_two_owned_roles() {
+    let source = "resource R{n:i32}fn consume(give r:R)->i32{return r.n}fn make(give r:R)->impl FnOnce()->i32{return move()=>consume(give r)}fn pair<F:FnOnce()->i32>(a:F,b:F)->i32{return a()+b()}fn main()->i32{let f=make(R{n:3});return pair(f,f)}";
+    let case = Case::new("owned-same-actual");
+    let report = compile(&case, &[("main", source)], None);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        matches!(report.phase, Phase::Analyze | Phase::Verify),
+        "{}",
+        report.to_json()
+    );
+    assert!(!report.artifacts.contains_key("executable"));
 }
