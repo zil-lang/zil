@@ -1,0 +1,23 @@
+{
+  "reviewer": "/root/impl197",
+  "kind": "ReadOnlyRegressionMigrationReview",
+  "reviewed_commit": "70ce00048341484ac54c177ea7e80d733f25d607",
+  "original_implementation_commit": "f250342b695f8b5f5d7d8a6b38f22375c7ee01b1",
+  "spec_hash": "41ceb53bf8c7f83070972fd6a66669c251e7dbf3b4244f7c18ad1f9507c0866c",
+  "normative_hash": "1355ae0d2351199391d65ca4faa4a84ce768ece5c8aaaca465b8de5b20aad65a",
+  "verdict": "Pass",
+  "scope": "Read-only review of the old 201 private Store qualification test migration; not 203 implementation acceptance.",
+  "production_diff": [],
+  "new_execution": "NotRun",
+  "old_failure": "Root reports original f250 assertion failure in run-logs/203-root/old201-layout01; this reviewer did not execute or relabel that run.",
+  "findings": [
+    "The original two callback field ids [0,1] and their closure definitions are unchanged. Only the former is_err expectation becomes successful admission, matching section 8.2.2.",
+    "Original single-root, two fields with the same root, and rejection of three callback fields remain in the same test.",
+    "The test rename describes the new finite two-type gate; new nearby layout tests do not replace the original input.",
+    "This raw private qualification check is not evidence of source declared-mode preservation or native behavior."
+  ],
+  "reviewed_paths": [
+    "crates/zil-verify/src/dynamic_store/tests.rs",
+    "changes/203-store-layout-migration.md"
+  ]
+}
