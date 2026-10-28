@@ -155,34 +155,28 @@ fn pop<T: StoreElement>(items: Store<T>) -> void!T { return store_pop(items) }
 "#;
 
 #[test]
-fn ordinary_store_helper_push_needs_202_type_binding() {
+fn ordinary_store_helper_push_retains_202_complete_type() {
     let source = format!(
         "{STORE_HELPERS}\n{}",
         PAIR_MUT.replace("store_push(items,", "push(items,")
     );
-    // helpers01 preserves the original unsuccessful expectation. 201's frozen
-    // entry does not invent a role or inline this generated function; 202 must
-    // retain its complete source T binding. This is not a safety acceptance.
+    // Original helpers01 source stays byte-identical. 202 promotes this
+    // historical Types boundary; actual Verify/native evidence is separate.
     let case = Case::new("generic-push-boundary");
     let report = compile(&case, &source, Stage::Types, Optimization::O0);
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
     assert_eq!(report.phase, Phase::Types);
     assert_eq!(report.verification_runs, 0);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("error union payloads"))
-    );
+    assert!(report.diagnostics.is_empty());
 }
 
 #[test]
-fn ordinary_store_helper_factory_needs_202_type_binding() {
+fn ordinary_store_helper_factory_retains_202_complete_type() {
     let source = format!(
         "{STORE_HELPERS}\n{}",
         PAIR_MUT
@@ -193,18 +187,13 @@ fn ordinary_store_helper_factory_needs_202_type_binding() {
     let report = compile(&case, &source, Stage::Types, Optimization::O0);
     assert_eq!(
         report.status,
-        ResultCategory::SafeReject,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
     assert_eq!(report.phase, Phase::Types);
     assert_eq!(report.verification_runs, 0);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "E-TYPE-MISMATCH" && d.message.contains("Named(\"F\")"))
-    );
+    assert!(report.diagnostics.is_empty());
 }
 
 #[test]

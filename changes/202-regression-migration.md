@@ -1,0 +1,5 @@
+# 202旧边界迁移
+
+root于clean `288102137e490d052231940ab37509f2c81affd9`定向运行旧201两条ordinary_store_helper探针，实际0/2（14 filtered）。两份原输入均已Types Success、diagnostics空、verification_runs=0；旧测试仍要求Unsupported或SafeReject，因此断言失败。原stdout/stderr/command与源码/IR保留于202-root/legacy201-01，旧输入的实现指纹分别为101580f8d78e661011d3b73f731c4f2f2ae376a408c1cc02c8aa072d4f627bf9和d8fd10675872542e99533ee23957db2c3150760a2f71ea8ff28150ad6c3a7a55。
+
+仅将两个测试名称/说明和结果期望晋升Types Success、空诊断；源生成表达式、STORE_HELPERS与PAIR_MUT原字节、Types阶段、Verify0均保留，其他201测试完全不变。源Verify/native成绩来自202另外的实际命令，不把此Types边界计为机器验收。非作者迁移核和限定复跑分别保存；无生产改动。
