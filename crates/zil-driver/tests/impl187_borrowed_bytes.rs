@@ -422,9 +422,9 @@ fn borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed() 
     );
     rejected(
         "fn main(){let b=bytes_new();let f=(n:&i32)=>i32(bytes_len(b))+*n}",
-        ResultCategory::Unsupported,
+        ResultCategory::SafeReject,
         Phase::Types,
-        "E-UNSUPPORTED",
+        "E-OPERATOR-TYPE",
     );
     rejected(
         "resource R{n:i32}fn inspect<F:Fn()->i32>(f:&F,r:R)->i32{return f()+r.n}fn main()->i32{let a=R{n:21};let f=()=>a.n;return inspect(&f,a)-42}",
