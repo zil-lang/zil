@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 mod summary_graph;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Place {
+pub(super) enum Place {
     Local(LocalId),
     PackageField { local: LocalId, index: u32 },
     ArrayElement { local: LocalId, index: u32 },
@@ -63,7 +63,7 @@ struct Effect {
     borrowed_fields: BTreeSet<u32>,
 }
 type Shapes = BTreeMap<Place, Shape>;
-type Live = BTreeSet<Place>;
+pub(super) type Live = BTreeSet<Place>;
 
 pub(super) fn owned_error(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
@@ -607,6 +607,43 @@ fn afters(
         result.push(rows);
     }
     Ok(result)
+}
+
+/// Strong address windows for the newly qualified owned-Store profile. The
+/// caller supplies actual private Hold roots, never the exported candidate.
+/// Reuse the independently reconstructed last-use walk; an ordinary Desc is
+/// deliberately absent because a weak resource description is not a loan.
+pub(super) fn address_afters(
+    f: &TypedFunction,
+    reachable: &[bool],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<Live>>> {
+    budget.spend(
+        f.locals.len().saturating_add(f.values.len()),
+        "captured Store address shape scan",
+    )?;
+    let mut shapes = BTreeMap::new();
+    for (place, ty) in f.locals.iter().map(|l| (Place::Local(l.id), &l.ty)).chain(
+        f.values
+            .iter()
+            .enumerate()
+            .map(|(index, ty)| (Place::Value(ValueId(index as u32)), ty)),
+    ) {
+        if matches!(ty, Type::Address { .. }) {
+            budget.lookup(shapes.len(), "captured Store address shape insertion")?;
+            shapes.insert(
+                place,
+                Shape {
+                    owned: false,
+                    description: true,
+                },
+            );
+        }
+    }
+    if shapes.is_empty() {
+        return Ok(Vec::new());
+    }
+    afters(f, reachable, &shapes, budget)
 }
 fn live_sources(state: &State, fact: &Fact, budget: &mut Budget) -> CompileResult<()> {
     if fact.sources.is_empty() {

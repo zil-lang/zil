@@ -122,6 +122,85 @@ fn reject(label: &str, source: &str, module: &TypedModule, expected: &str) {
     }
 }
 
+fn typed_window(label: &str, source: &str) -> TypedModule {
+    let case = Case::new(label, source);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "source.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result();
+    case.write("syntax.txt", format!("{syntax:#?}"));
+    let core = zil_expand::expand(&unit, &syntax.unwrap());
+    case.write("core.txt", format!("{core:#?}"));
+    let module = zil_types::check(
+        &core.unwrap(),
+        &TargetProfile::host_llvm(),
+        &Limits::default(),
+    );
+    case.write("types.txt", format!("{module:#?}"));
+    module.unwrap()
+}
+
+#[test]
+fn original_live_capture_window_and_stronger_reserve_neighbor_close_in_analyze() {
+    const ORIGINAL: &str = include_str!("impl204_fixtures/04_take_capture_live_window.zil");
+    for extra_reserve in [false, true] {
+        let source = if extra_reserve {
+            ORIGINAL.replace(
+                "let taken = give items",
+                "let taken = give items\n store_reserve(taken, 8)",
+            )
+        } else {
+            ORIGINAL.to_owned()
+        };
+        let good = source.replace("+ view.value - 42", "+ answer - 42");
+        assert_ne!(good, source);
+        candidate(
+            &format!("window-last-use-before-take-{extra_reserve}"),
+            &good,
+        );
+        let module = typed_window(&format!("window-live-after-take-{extra_reserve}"), &source);
+        reject(
+            &format!("window-live-after-take-{extra_reserve}"),
+            &source,
+            &module,
+            "captured Store transition invalidates a live element window",
+        );
+    }
+}
+
+#[test]
+fn two_same_type_capture_and_package_field_roots_remain_independent() {
+    for package in [false, true] {
+        for mutable in [false, true] {
+            let prepare = "let first:Store<Item> = store_new(); let second:Store<Item> = store_new(); store_reserve(first,1); store_push(first,Item{bytes:bytes_new(),value:42});";
+            let (assembly, borrowed, taken) = if package {
+                (
+                    "let bag=Bag{first:give first,second:give second};",
+                    "bag.first",
+                    "bag.second",
+                )
+            } else {
+                ("", "first", "second")
+            };
+            let borrow = if mutable { "store_at_mut" } else { "store_at" };
+            let source = format!(
+                "package Item{{manages bytes:ByteBuffer;value:i32}} package Bag{{manages first:Store<Item>;manages second:Store<Item>}} fn make()->impl FnOnce()->i32{{{prepare}{assembly}return move()=>{{let view={borrow}({borrowed},0);let taken=give {taken};return view.value+i32(store_len(taken))}}}}fn main()->i32{{let callback=make();return callback()-42}}"
+            );
+            candidate(&format!("independent-field-{package}-{mutable}"), &source);
+            let bad = source.replace(
+                &format!("give {taken};return"),
+                &format!("give {borrowed};return"),
+            );
+            assert_ne!(bad, source);
+            let module = typed_window("same-root-window", &bad);
+            reject(
+                "same-root-window",
+                &bad,
+                &module,
+                "captured Store transition invalidates a live element window",
+            );
+        }
+    }
+}
+
 #[test]
 fn unchanged_originals_pass_analyze_and_independent_raw_and_wire_verify() {
     for (index, source) in ORIGINALS.iter().enumerate() {
