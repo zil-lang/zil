@@ -19,3 +19,9 @@
 结构 preflight 同时给原先未展开的 raw `Opaque.hidden` 加上已有的深度/输入界限，避免后续递归类型比较遇到未经界定的隐藏树。正常 TypedIR 已完成 Opaque 擦除；这是 raw 未降低类型的边界修复，不能宣称任意原 malformed raw 输入费用不变。
 
 Analyze 不重新定义 ABI 字节算法。实际非零布局、字段 flags、步长和后端表示仍由独立 Verify/LLVM 检查；任何 raw 候选必须按实际到达阶段报告。
+
+## 真实 Store capture 窗口反例
+
+前端原 `0ead0009` 源在 `40dddcb5` 被独立复现：FnOnce 内从 capture 借元素后 give 父 Store，再读旧元素，Analyze 与 Verify 均错误通过；原负例不执行机器代码。`windows-before01` 保存原输入与完整报告，正确近邻先读取成 Copy 值再 give 的 O0/O2 已实际通过。
+
+Analyze 的私有 Hold 重建已有精确 `Capture`/`Field` 根，但资源 pass 的 Desc liveness 并不代表元素的强 Address 窗口。修复复用 Analyze 自身私有根及真实 CFG 地址 last-use，在新 Store capture 的拥有转交/结构变更处核窗口，不以导出的 CandidatePlan 或 Verify 结果当授权。新 profile 位来自本核已收费类型遍历；仅该新路径构造地址 liveness，旧无 Store 路径不增加扫描或费用，Package 字段根不在检查前粗化成整个 Local。
