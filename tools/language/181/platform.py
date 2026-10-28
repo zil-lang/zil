@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--linker")
     parser.add_argument("--windows-lib", action="append", default=[])
     parser.add_argument("--wine")
+    parser.add_argument("--wine-library-path", help="isolate Wine shared libraries from compiler libraries")
     parser.add_argument("--case", action="append", choices=["main", "field_exit", "padded"])
     args = parser.parse_args()
     repo, cli, out = args.repo.resolve(), args.cli.resolve(), args.out.resolve()
@@ -57,9 +58,12 @@ def main():
 
     def run(executable, directory, row, fail_at=0):
         argv = [str(executable)]
+        environment = {"ZIL_TEST_FAIL_AT": str(fail_at)}
         if args.wine:
             argv.insert(0, args.wine)
-        return command(argv, directory, row["input"], {"ZIL_TEST_FAIL_AT": str(fail_at)})
+            if args.wine_library_path:
+                environment["LD_LIBRARY_PATH"] = args.wine_library_path
+        return command(argv, directory, row["input"], environment)
 
     def observe(result, name, row, opt, mode, expected, exit_code, allocated=None, fail_at=0):
         if result.returncode != exit_code or result.stdout != expected:
