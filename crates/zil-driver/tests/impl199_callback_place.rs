@@ -192,7 +192,7 @@ fn plain_and_mixed_shared_fields_retain_environment_through_many_calls() {
 #[test]
 fn consuming_field_and_fn_to_once_adapter_settle_before_following_statement() {
     let prefix = format!(
-        "{RESOURCE}package State<F>{{manages ticket:Ticket;callback:F}}fn pack<F:FnOnce()->i32>(callback:F)->State<F>{{return State::<F>{{ticket:Ticket{{code:84}},callback:callback}}}}fn run<G:FnOnce()->i32>(state:State<G>)->i32{{let result=state.callback();unsafe{{putchar(88)}}return result}} "
+        "{RESOURCE}package State<F>{{manages ticket:Ticket;callback:F}}fn pack<F:FnOnce()->i32>(callback:F)->State<F>{{return State::<F>{{ticket:Ticket{{code:84}},callback:callback}}}}fn mark(){{unsafe{{putchar(88)}}}}fn run<G:FnOnce()->i32>(state:State<G>)->i32{{let result=state.callback();mark();return result}} "
     );
     for factory in [
         "fn make()->impl FnOnce()->i32{let r=Ticket{code:65};return move()=>{let taken=give r;return taken.code}}",
@@ -259,23 +259,29 @@ fn ordinary_field_reads_still_take_and_preparation_errors_keep_owned_field() {
 
 #[test]
 fn callee_window_precedes_arguments_and_blocks_reentry_or_parent_move() {
-    for (label, body) in [
+    for (label, body, phase) in [
         (
             "reentrant-argument",
             "return state.callback(state.callback(1))",
+            Phase::Verify,
         ),
         (
             "live-exclusive",
             "let other=&mut state.callback;state.callback(1);return other(1)",
+            Phase::Verify,
         ),
-        ("parent-argument", "return state.callback(consume(state))"),
+        (
+            "parent-argument",
+            "return state.callback(consume(state))",
+            Phase::Analyze,
+        ),
     ] {
         rejected(
             label,
             &format!(
                 "{RESOURCE}{MUTABLE}fn consume<G:FnMut(i32)->i32>(state:State<G>)->i32{{return 1}}fn main()->i32{{var state=pack(make());{body}}}"
             ),
-            Phase::Analyze,
+            phase,
             "",
         );
     }
@@ -308,24 +314,27 @@ fn lending_from_direct_callback_keeps_actual_field_and_parent_alive() {
         "",
         0,
     );
-    for (label, body) in [
+    for (label, body, phase) in [
         (
             "lending-recall",
             "let view=state.callback();state.callback();return i32(view.len())",
+            Phase::Verify,
         ),
         (
             "lending-move",
             "let view=state.callback();let moved=state;return i32(view.len())",
+            Phase::Verify,
         ),
         (
             "lending-replace",
             "let view=state.callback();state.callback=bytes();return i32(view.len())",
+            Phase::Verify,
         ),
     ] {
         rejected(
             label,
             &format!("{prefix}fn main()->i32{{var state=pack(bytes());{body}}}"),
-            Phase::Analyze,
+            phase,
             "",
         );
     }
