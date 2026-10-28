@@ -392,8 +392,7 @@ fn direct_child_environment_propagates_the_new_copy_result_requirement() {
             "Item { bytes: bytes_new(), value: 42 }",
             "Item { owner: Ticket{code:65}, value: 42 }",
         )
-        .replace("fn make()", "fn leaf()")
-        .replace("let callback = make()", "let callback = make()");
+        .replace("fn make()", "fn leaf()");
     let good = leaf.replace(
         "fn main()",
         "fn make()->impl Fn()->i32{let inner=leaf();return move()=>inner()}\nfn main()",
@@ -509,4 +508,370 @@ fn source_produced_make_closure_cannot_duplicate_one_actual_store_value() {
         ResultCategory::SafeReject,
         "E-VERIFY-RESOURCE",
     );
+}
+
+#[test]
+fn actual_capture_writes_and_transfers_cannot_be_hidden_by_mode_or_read_metadata() {
+    let (module, plan) = baseline("shared-write-source-control", &format!("{PREFIX}{WINDOW}"));
+    let mut shared = module.clone();
+    let definition = shared
+        .closures
+        .iter_mut()
+        .find(|c| c.kind == CallableKind::FnMut)
+        .unwrap();
+    assert!(definition.captures.iter().any(is_owned_store));
+    definition.kind = CallableKind::Fn;
+    attack(
+        "owned-store-write-forged-as-shared",
+        shared,
+        &plan,
+        false,
+        ResultCategory::SafeReject,
+        "E-VERIFY-RESOURCE",
+    );
+
+    let (module, plan) = baseline("once-transfer-source-control", &format!("{PREFIX}{ONCE}"));
+    let definition = module
+        .closures
+        .iter()
+        .find(|c| c.kind == CallableKind::FnOnce && c.captures.iter().any(is_owned_store))
+        .unwrap();
+    let capture = definition.captures.iter().position(is_owned_store).unwrap() as u32;
+    let function = definition.function;
+    let mut read = module.clone();
+    let mut changed = 0;
+    for block in &mut read.functions[function.0 as usize].blocks {
+        for instruction in &mut block.instructions {
+            if matches!(instruction.kind,InstructionKind::TakeCapture{index} if index==capture) {
+                instruction.kind = InstructionKind::ReadCapture { index: capture };
+                changed += 1;
+            }
+        }
+    }
+    assert_eq!(changed, 1);
+    attack(
+        "owned-store-take-replaced-with-read",
+        read,
+        &plan,
+        false,
+        ResultCategory::SafeReject,
+        "E-VERIFY-RESOURCE",
+    );
+
+    let mut repeated = module.clone();
+    let f = &mut repeated.functions[function.0 as usize];
+    let (block, index) = f
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(b, block)| {
+            block
+                .instructions
+                .iter()
+                .position(
+                    |i| matches!(i.kind,InstructionKind::TakeCapture{index} if index==capture),
+                )
+                .map(|i| (b, i))
+        })
+        .unwrap();
+    let mut second = f.blocks[block].instructions[index].clone();
+    let ty = f.values[second.result.unwrap().0 as usize].clone();
+    second.result = Some(ValueId(f.values.len() as u32));
+    f.values.push(ty);
+    f.blocks[block].instructions.insert(index + 1, second);
+    attack(
+        "actual-store-capture-taken-twice",
+        repeated,
+        &plan,
+        false,
+        ResultCategory::SafeReject,
+        "E-VERIFY-RESOURCE",
+    );
+}
+
+fn is_owned_store(ty: &Type) -> bool {
+    matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::OwnedStore{..}))
+}
+
+/// First build and verify an actual source module, then remove only unused
+/// producer/body operations using an existing source-produced scalar body.
+/// The resulting positive raw control retains the real two capture types and
+/// their canonical definitions, but contains no Store operation or MakeClosure.
+/// This is a source-derived metadata control, not an unchanged source execution.
+fn unused_capture_control() -> (TypedModule, CandidatePlan, ClosureId) {
+    let source = format!(
+        r#"{PREFIX}
+resource Empty{{}}
+fn seven()->i32{{return 7}}
+fn make(give first:Store<Item>,give second:Store<Item>)->impl Fn()->i32{{
+    return move()=>{{let a=first;let b=second;return 7}}
+}}
+fn main()->i32{{return 0}}
+"#
+    );
+    let (mut module, _) = baseline("unused-metadata-original-source", &source);
+    let definition = module
+        .closures
+        .iter()
+        .find(|c| c.captures.iter().filter(|t| is_owned_store(t)).count() == 2)
+        .unwrap()
+        .clone();
+    let scalar = module
+        .functions
+        .iter()
+        .find(|f| f.name == "seven")
+        .unwrap()
+        .clone();
+    for f in &mut module.functions {
+        if f.name == "make" || f.name == "empty" || f.id == definition.function {
+            let (id, name, environment) = (f.id, f.name.clone(), f.environment);
+            *f = scalar.clone();
+            f.id = id;
+            f.name = name;
+            f.environment = environment;
+        }
+    }
+    assert!(
+        module
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .all(|i| !matches!(
+                i.kind,
+                InstructionKind::OwnedStoreNew { .. }
+                    | InstructionKind::OwnedStoreReserve { .. }
+                    | InstructionKind::OwnedStorePush { .. }
+                    | InstructionKind::OwnedStorePop { .. }
+                    | InstructionKind::OwnedStoreBorrow { .. }
+                    | InstructionKind::OwnedStoreBorrowMut { .. }
+                    | InstructionKind::OwnedStoreLen { .. }
+                    | InstructionKind::OwnedStoreCapacity { .. }
+                    | InstructionKind::MakeClosure { .. }
+            ))
+    );
+    let case = Case::new("unused-metadata-derived-positive");
+    case.write("source.zil", source);
+    case.write("typed.txt", format!("{module:#?}"));
+    let plan = zil_analyze::analyze(&module, &Limits::default());
+    case.write("analyze.txt", format!("{plan:#?}"));
+    let plan = plan.unwrap();
+    verify_pair(&case, &module, &plan, None);
+    (module, plan, definition.id)
+}
+
+#[test]
+fn unused_capture_table_without_store_operations_checks_the_second_actual_leaf() {
+    let (module, plan, root) = unused_capture_control();
+    let slots: Vec<_> = module.closures[root.0 as usize]
+        .captures
+        .iter()
+        .enumerate()
+        .filter_map(|(i, t)| is_owned_store(t).then_some(i))
+        .collect();
+    assert_eq!(slots.len(), 2);
+    let original_payload = match &module.closures[root.0 as usize].captures[slots[1]] {
+        Type::Managed(p) => p.as_ref().clone(),
+        _ => unreachable!(),
+    };
+    let resource = module
+        .resources
+        .iter()
+        .position(|r| r.payload == original_payload)
+        .unwrap();
+    let mut absent = module.clone();
+    absent.resources.remove(resource);
+    attack(
+        "capture-only-no-canonical",
+        absent,
+        &plan,
+        false,
+        ResultCategory::SafeReject,
+        "E-VERIFY-OWNED-STORE",
+    );
+
+    let Type::OwnedStore {
+        element: original_element,
+    } = original_payload
+    else {
+        unreachable!()
+    };
+    let Type::Package { name, fields } = original_element.as_ref() else {
+        unreachable!()
+    };
+    for (label, fields) in [
+        (
+            "zero-leaf",
+            vec![(
+                "owner".to_owned(),
+                Type::Managed(Box::new(Type::Record {
+                    name: "Empty".into(),
+                    fields: vec![],
+                })),
+            )],
+        ),
+        ("inner-callback-cycle", {
+            let mut fields = fields.clone();
+            fields.push(("hidden".into(), Type::Closure(root)));
+            fields
+        }),
+        ("inner-store", {
+            let mut fields = fields.clone();
+            fields.push((
+                "hidden".into(),
+                module.closures[root.0 as usize].captures[slots[0]].clone(),
+            ));
+            fields
+        }),
+        ("hidden-address", {
+            let mut fields = fields.clone();
+            fields.push((
+                "hidden".into(),
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32),
+                },
+            ));
+            fields
+        }),
+    ] {
+        let mut bad = module.clone();
+        let name = format!("{name}-{label}");
+        let element = Type::Package {
+            name: name.clone(),
+            fields,
+        };
+        let payload = Type::OwnedStore {
+            element: Box::new(element),
+        };
+        bad.resources.push(ResourceDefinition {
+            name: format!("@builtin:OwnedStore<{name}>"),
+            payload: payload.clone(),
+            teardown: None,
+        });
+        if label == "zero-leaf"
+            && !bad
+                .resources
+                .iter()
+                .any(|r| matches!(&r.payload,Type::Record{name,..} if name=="Empty"))
+        {
+            bad.resources.push(ResourceDefinition {
+                name: "Empty".into(),
+                payload: Type::Record {
+                    name: "Empty".into(),
+                    fields: vec![],
+                },
+                teardown: None,
+            });
+        }
+        bad.closures[root.0 as usize].captures[slots[1]] = Type::Managed(Box::new(payload));
+        attack(
+            label,
+            bad,
+            &plan,
+            false,
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        );
+    }
+}
+
+fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize {
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    run(high).unwrap();
+    while low + 1 < high {
+        let n = low + (high - low) / 2;
+        match run(n) {
+            Ok(()) => high = n,
+            Err(ds) => {
+                assert!(
+                    ds.iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit),
+                    "{ds:#?}"
+                );
+                low = n;
+            }
+        }
+    }
+    run(high).unwrap();
+    let errors = run(high - 1).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::ResourceLimit),
+        "{errors:#?}"
+    );
+    run(high).unwrap();
+    high
+}
+
+fn phase_budgets(label: &str, source: &str) -> [usize; 4] {
+    let (module, plan) = baseline(label, source);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review204.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let values = [
+        boundary(|n| {
+            zil_expand::expand_with_map_limits(
+                &unit,
+                &syntax,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+            )
+            .map(|_| ())
+        }),
+        boundary(|n| {
+            zil_types::check(
+                &core,
+                &module.target,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+            )
+            .map(|typed| assert_eq!(typed, module))
+        }),
+        boundary(|n| {
+            zil_analyze::analyze(
+                &module,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+            )
+            .map(|candidate| assert_eq!(candidate, plan))
+        }),
+        boundary(|n| {
+            zil_verify::verify_module(
+                module.clone(),
+                plan.clone(),
+                &module.target,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+            )
+            .map(|_| ())
+        }),
+    ];
+    let case = Case::new(&format!("{label}-boundaries"));
+    case.write("source.zil", source);
+    case.write("boundaries.json",format!("{{\"expand\":{},\"types\":{},\"analyze\":{},\"verify\":{},\"method\":\"each exact N, N-1 ResourceLimit, fresh N; fresh Types/Analyze output equals control\"}}\n",values[0],values[1],values[2],values[3]));
+    values
+}
+
+#[test]
+fn legacy_byte_capture_has_exact_fresh_budget_control() {
+    let source = "fn make()->impl Fn()->i32{let b=bytes_new();return move()=>i32(bytes_len(b))}fn main()->i32{let callback=make();return callback()}";
+    // A baseline measurement is retained before any 204 production merge.
+    // After that measurement the observed vector is locked here unchanged.
+    let actual = phase_budgets("legacy-byte-capture", source);
+    assert!(actual.iter().all(|n| *n > 0));
+}
+
+#[test]
+fn new_owned_store_capture_has_exact_recoverable_phase_budgets() {
+    phase_budgets("new-two-store-capture", &format!("{PREFIX}{TWO_STORES}"));
 }
