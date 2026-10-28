@@ -59,6 +59,13 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))
+            {
+                return Err(unsupported(
+                    "borrowed closure capture requires a nested external capture contract",
+                    None,
+                ));
+            }
             if ty.is_package_address() {
                 return Err(unsupported(
                     "Store element address capture requires a separate retained element-window contract",

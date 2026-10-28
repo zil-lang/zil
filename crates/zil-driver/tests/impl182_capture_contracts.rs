@@ -109,6 +109,12 @@ fn native_input(files: &[(&str, &str)], input: &[u8], stdout: &[u8], exit: i32) 
             .unwrap();
         child.stdin.take().unwrap().write_all(input).unwrap();
         let output = child.wait_with_output().unwrap();
+        fs::write(dir.join("stdin"), input).unwrap();
+        fs::write(
+            dir.join("native-command.txt"),
+            format!("{}\n", executable.display()),
+        )
+        .unwrap();
         fs::write(dir.join("stdout"), &output.stdout).unwrap();
         fs::write(dir.join("stderr"), &output.stderr).unwrap();
         fs::write(
@@ -769,4 +775,38 @@ fn per_capture_verification_work_has_an_actual_bounded_failure() {
         )
         .unwrap();
     }
+}
+
+#[test]
+fn raw_and_wire_do_not_open_unimplemented_borrowed_environment_captures() {
+    let source = format!(
+        "{MODEL}fn main()->i32{{let r=R{{code:65,n:1}};let d=r;let n=41;let q=&n;let f=()=>d.n+*q;return apply(&f)-42}}"
+    );
+    let (mut module, plan) = candidate(&source);
+    let closure = module
+        .closures
+        .iter_mut()
+        .find(|c| {
+            c.captures
+                .iter()
+                .any(|t| matches!(t, zil_ir::Type::Address { .. }))
+        })
+        .unwrap();
+    let id = closure.id;
+    let capture = closure
+        .captures
+        .iter_mut()
+        .find(|t| matches!(t, zil_ir::Type::Address { .. }))
+        .unwrap();
+    *capture = zil_ir::Type::Address {
+        mutable: false,
+        inner: Box::new(zil_ir::Type::Closure(id)),
+    };
+    reject_candidate(
+        "nested-borrowed-environment",
+        module,
+        plan,
+        "E-UNSUPPORTED",
+        "nested external capture contract",
+    );
 }
