@@ -125,6 +125,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         strip_expr(&mut query);
         let function = CoreFunction {
             callable_return: None,
+            type_parameters: Vec::new(),
             callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
             foreign: None,

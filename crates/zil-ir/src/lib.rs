@@ -282,8 +282,24 @@ pub struct CoreModule {
     pub enums: Vec<CoreEnum>,
     pub unsupported: Vec<UnsupportedFeature>,
 }
+/// A compiler-reserved source bound. This raw declaration grants no permission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreTypeBound {
+    StoreElement,
+}
+
+/// Lexically scoped ordinary type binder, distinct from actual callable roles.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreTypeParameter {
+    pub index: u32,
+    pub name: String,
+    pub bound: CoreTypeBound,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Retained ordinary template metadata; only a checked full instance may run.
+    pub type_parameters: Vec<CoreTypeParameter>,
     /// Source-declared opaque callable result; still untrusted and unresolved.
     pub callable_return: Option<CoreCallableReturn>,
     pub id: NodeId,
@@ -494,6 +510,11 @@ pub enum CoreExprKind {
         op: BinaryOp,
         left: Box<CoreExpr>,
         right: Box<CoreExpr>,
+    },
+    /// Untrusted complete type constraints, legal only at a static Call callee.
+    TypeApply {
+        callee: Box<CoreExpr>,
+        type_arguments: Vec<Type>,
     },
     Call {
         callee: Box<CoreExpr>,
@@ -1399,7 +1420,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V25\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V26\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
