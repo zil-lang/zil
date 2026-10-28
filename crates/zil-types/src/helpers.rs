@@ -85,7 +85,7 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
     let reject = || {
         unsupported(
             function.span,
-            "one or two finite nonescaping callable roles with Copy results are implemented; lending and owning State retain one role",
+            "one or two finite nonescaping callable roles, a single lending role, or a bounded same-F owning State constructor are implemented",
         )
     };
     if bounds.len() > 2
@@ -97,13 +97,12 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
     }
     let owned_state = callable_fields::template(function);
     if !(function.return_type.is_copy_value()
-        || (bounds.len() == 1
-            && (lending::supported_result(&function.return_type)
-                || (owned_state
-                    && callable_fields::placeholder_package(
-                        &function.return_type,
-                        &bounds[0].generic_name,
-                    )))))
+        || (bounds.len() == 1 && lending::supported_result(&function.return_type))
+        || (owned_state
+            && callable_fields::placeholder_package(
+                &function.return_type,
+                &bounds[0].generic_name,
+            )))
     {
         return Err(reject());
     }
@@ -113,7 +112,7 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
             || bound.generic_name.is_empty()
             || bound.kind == CallableKind::FunctionPointer
             || !closures::supported_signature(&bound.parameters, &bound.result)
-            || (bounds.len() > 1 && !bound.result.is_copy_value())
+            || (bounds.len() > 1 && !owned_state && !bound.result.is_copy_value())
         {
             return Err(reject());
         }
@@ -163,6 +162,19 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
     }
     if !present[0] {
         return Err(reject());
+    }
+    if owned_state
+        && bounds.len() == 2
+        && function.parameters.iter().enumerate().any(|(index, parameter)| {
+            !bounds.iter().any(|bound| bound.index as usize == index)
+                && !(parameter.ty.is_copy_value()
+                    || matches!(&parameter.ty, Type::Managed(_) if resources::supported(&parameter.ty)))
+        })
+    {
+        return Err(unsupported(
+            function.span,
+            "two-input owning State constructors require finite Copy or direct Managed ordinary parameters",
+        ));
     }
     if function.parameters.iter().enumerate().any(|(i,p)|
         !bounds.iter().any(|bound| bound.index as usize == i)
@@ -331,9 +343,10 @@ impl Builder<'_, '_> {
                     parameter_mode(ty, &bound.generic_name)
                         .ok_or_else(|| unsupported(span, "invalid callable template parameter"))?
                 };
-                let (mut value, mut actual) = if owned_state {
-                    self.owned_array_input(argument, None)?
-                } else if mode.is_none() {
+                let (mut value, mut actual) = if mode.is_none() {
+                    // A constructor receives ordinary values. Structural Copy
+                    // environments may be copied into distinct inputs; owning
+                    // environments transfer once through the ordinary path.
                     self.transfer_expr(argument, None)?
                 } else {
                     self.expr(argument, None)?

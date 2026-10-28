@@ -14,7 +14,7 @@ impl Engine<'_> {
         else {
             return Ok(None);
         };
-        if aggregate.kind != AggregateKind::Package || arguments.len() != 2 {
+        if aggregate.kind != AggregateKind::Package || !(1..=2).contains(&arguments.len()) {
             return Ok(None);
         }
         let mut callable_index = None;
@@ -50,11 +50,16 @@ impl Engine<'_> {
                 ));
             }
         }
-        if fields != 1 {
+        if !(1..=2).contains(&fields) {
             return Err(unsupported(
                 span,
-                "mixed owning State requires exactly one callable field",
+                "owning State requires one or two direct fields of its single callable type",
             ));
+        }
+        if arguments.len() == 1 {
+            // The old single-F family has no ordinary data key to preserve.
+            // Its field profile is still checked before returning that route.
+            return Ok(None);
         }
         // Charge the second key copy before allocating it. The original key
         // already paid complete type traversal, including nested nominal args.

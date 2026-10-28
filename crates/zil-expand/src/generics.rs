@@ -519,9 +519,8 @@ impl<'a> Engine<'a> {
             ItemKind::Function(f) => {
                 let saved_callable = std::mem::replace(
                     &mut self.callable_name,
-                    callable::template(f)?.and_then(|bound| {
-                        (bound.roles.len() == 1).then(|| bound.roles[0].generic_name.clone())
-                    }),
+                    callable::template(f)?
+                        .and_then(|bound| bound.single_generic().map(str::to_owned)),
                 );
                 for parameter in &mut f.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
@@ -1600,9 +1599,7 @@ impl<'a> Engine<'a> {
             .map(|f| callable::template(f))
             .transpose()?
             .flatten()
-            .and_then(|bound| {
-                (bound.roles.len() == 1).then(|| bound.roles[0].generic_name.clone())
-            });
+            .and_then(|bound| bound.single_generic().map(str::to_owned));
         if let Some(ty) = self
             .signatures
             .get(name)
