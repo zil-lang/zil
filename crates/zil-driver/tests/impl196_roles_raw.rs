@@ -309,7 +309,7 @@ fn actual_duplicate_exclusive_arguments_do_not_gain_role_separation() {
         changed,
         candidate,
         false,
-        "E-BORROW",
+        "E-VERIFY-MOVE",
     );
 }
 fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize {
