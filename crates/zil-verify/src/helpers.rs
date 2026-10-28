@@ -585,15 +585,14 @@ pub(super) fn check_module(
                     Some(f.span),
                 ));
             }
-            if let Type::Address { mutable, .. } = ty {
-                if !(proposed.kind == CallableKind::Fn && !mutable
+            if let Type::Address { mutable, .. } = ty
+                && !(proposed.kind == CallableKind::Fn && !mutable
                     || proposed.kind == CallableKind::FnMut && *mutable)
-                {
-                    return Err(bad(
-                        f,
-                        "borrowed callback parameter permission must match its exact Fn/FnMut entry",
-                    ));
-                }
+            {
+                return Err(bad(
+                    f,
+                    "borrowed callback parameter permission must match its exact Fn/FnMut entry",
+                ));
             }
             let mut hold = Vec::new();
             let mut call = Vec::new();
