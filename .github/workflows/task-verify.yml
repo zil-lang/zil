@@ -70,13 +70,13 @@ jobs:
           CARGO_BUILD_JOBS: '2'
         run: |
           set -euo pipefail
-          cargo test --locked --workspace 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
+          cargo test --locked --workspace --no-default-features 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
       - name: Clippy without suppressing failures
         if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
-          cargo clippy --locked --workspace --all-targets -- -D warnings 2>&1 | tee "$RUNNER_TEMP/receipts/clippy.log"
+          cargo clippy --locked --workspace --all-targets --no-default-features -- -D warnings 2>&1 | tee "$RUNNER_TEMP/receipts/clippy.log"
       - name: Evidence outside Git
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

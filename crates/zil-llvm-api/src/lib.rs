@@ -1,7 +1,7 @@
 #![deny(unsafe_code)]
 //! LLVM 17.0.6 object-generation boundary. This is NOT a ZIL safety checker.
 //! One call owns one context and returns owned bytes; no LLVM pointer escapes.
-//! Native support is opt-in, so default compiler builds need no libLLVM.
+//! Native support is optional for library/reference builds; the mainline CLI enables it.
 
 #[cfg(feature = "native")]
 #[allow(unsafe_code)]

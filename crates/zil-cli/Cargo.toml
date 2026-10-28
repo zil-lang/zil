@@ -17,5 +17,5 @@ name = "zil"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["llvm-api"]
 llvm-api = ["zil-driver/llvm-api"]

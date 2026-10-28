@@ -1,4 +1,22 @@
-# ZIL — 208 LLVM API首版集成（2026-10-28）
+# ZIL — 209 主线集成：LLVM API研发默认（2026-10-28）
+
+当前源码整合GitHub主线`ab2aaa7…`、语言177/Wire21及LLVM API208。标准CLI构建启用LLVM API，`zil build/run`不再需要`--backend llvm-api`；Clang作为显式差分参考，`--no-default-features`可构建无LLVM动态库的参考版。当前开发宿主验证限Linux x86_64，Windows宿主安装与原生执行没有因此验收。
+
+```sh
+export ZIL_LLVM_LIB_DIR=/opt/llvm-17.0.6/lib
+export LD_LIBRARY_PATH="$ZIL_LLVM_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export ZIL_CLANG=/opt/llvm-17.0.6/bin/clang
+python3 tools/llvm/check_toolchain.py
+cargo build --release --locked --offline -p zil-cli
+./target/release/zil build examples/mainline/zui_language177/main.zil -o out/state
+printf '\003' | ./out/state
+```
+
+预期输出`DEFHZMNOPK`，退出0。API仍通过共用LLVM文本进入内存解析，**直接Builder尚未实现**。研发默认不等于产品性能验收；单模块仍是默认，206的O2多单元运行退化未撤销。安装见[LLVM API说明](docs/LLVM-API.md)，同步与当前状态见[209整合记录](docs/research/209/INTEGRATION.md)。
+
+以下208及更早的测试数字属于各自历史提交，不是209的新验收结果。
+
+## 208历史：LLVM API首版集成（2026-10-28）
 
 本版在语言174–177/Wire21上整合编译专项204/206/207和用户Ante-R1设计义务，增加可选的进程内LLVM API对象后端。用法见[LLVM API安装与使用](docs/LLVM-API.md)，集成范围见[208说明](docs/research/208/INTEGRATION.md)。默认仍为Clang、单代码生成单元；本版尚非直接Builder，不启用原生对象缓存。完整语言/产品门和B0状态不升级。
 
