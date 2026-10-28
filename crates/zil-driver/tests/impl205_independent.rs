@@ -1289,6 +1289,56 @@ fn main()->i32{{
     }
 }
 
+#[test]
+fn legacy_complete_forwarding_keeps_each_factory_and_mutable_value_distinct() {
+    let source = format!(
+        r#"{RESOURCE}
+package State<F>{{manages root:Ticket;a:F;b:F}}
+fn make(code:i32)->impl FnMut(i32)->i32{{let ticket=Ticket{{code:code}};var count=0;return move(delta:i32)=>{{ticket.code;count+=delta;return count}}}}
+fn other(code:i32)->impl FnMut(i32)->i32{{let ticket=Ticket{{code:code}};var count=0;return move(delta:i32)=>{{ticket.code;count+=delta;return count}}}}
+fn pack<F:FnMut(i32)->i32>(a:F,b:F)->State<F>{{return State::<F>{{root:Ticket{{code:90}},a:a,b:b}}}}
+fn relay<F:FnMut(i32)->i32>(state:State<F>)->State<F>{{return state}}
+fn forward<G:FnMut(i32)->i32>(state:State<G>)->State<G>{{var next=state;(next)=relay(next);(next)=relay(next);return next}}
+fn revise<H:FnMut(i32)->i32>(state:State<H>,replacement:H)->State<H>{{
+    var next=forward(state);var incoming=replacement;
+    next.a(1);next.b(10);incoming(100);next.a=incoming;
+    (next)=forward(next);return next
+}}
+fn main()->i32{{
+    var first=revise(pack(make(65),make(66)),make(67));
+    var second=revise(pack(other(68),other(69)),other(70));
+    emit(77);return first.a(1)+first.b(1)+second.a(1)+second.b(1)-224
+}}
+"#
+    );
+    // Both factories have identical layouts and signatures. Their actual
+    // ClosureIds differ; each same-factory a/b/replacement remains a distinct
+    // mutable environment through complete relay returns and local rebinds.
+    native("legacy-forward-two-factories", &source, "ADMZFEZCB", 0);
+    for (label, bad) in [
+        (
+            "legacy-forward-wrong-replacement-factory",
+            source.replace(")),make(67))", ")),other(67))"),
+        ),
+        (
+            "legacy-forward-wrong-second-field-factory",
+            source.replace("pack(other(68),other(69))", "pack(other(68),make(69))"),
+        ),
+    ] {
+        assert_ne!(
+            bad, source,
+            "the counterexample must change the actual input"
+        );
+        reject(
+            label,
+            &bad,
+            &[Phase::Types],
+            ResultCategory::SafeReject,
+            Some("E-TYPE-MISMATCH"),
+        );
+    }
+}
+
 fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize {
     let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
     run(high).unwrap();
