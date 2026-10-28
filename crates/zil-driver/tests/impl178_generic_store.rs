@@ -149,6 +149,95 @@ fn unused_templates_reject_unproven_store_element_or_owner() {
 }
 
 #[test]
+fn unused_create_results_prove_freshness_across_real_transfers_and_joins() {
+    let package = "package Batch<T:StoreElement>{manages items:Store<T>}";
+    for definition in [
+        "fn bad<T:StoreElement>(give incoming:Store<T>)->Store<T> contract{result(create)} { return give incoming }",
+        "fn bad<T:StoreElement>(give incoming:Store<T>)->Store<T> contract{result(create)} { let next=give incoming;return give next }",
+        "fn bad<T:StoreElement>(give incoming:Store<T>)->Store<T> contract{result(create)} { return relay(give incoming) }",
+        "fn bad<T:StoreElement>()->Store<T> contract{result(create)} { let fresh:Store<T>=store_new();let next=relay(give fresh);return give next }",
+        "fn bad<T:StoreElement>(give incoming:Store<T>,flag:bool)->Store<T> contract{result(create)} { var next:Store<T>=store_new();if flag{next=give incoming;}return give next }",
+        "fn bad<T:StoreElement>(give incoming:Store<T>,flag:bool)->Store<T> contract{result(create)} { return if flag{give incoming}else{store_new()} }",
+        "fn bad<T:StoreElement>(incoming:Batch<T>)->Store<T> contract{result(create)} { return give incoming.items }",
+        "fn bad<T:StoreElement>()->Store<T> contract{result(create)} { let p=Batch::<T>{items:store_new()};return give p.items }",
+        "fn bad<T:StoreElement>(give incoming:Store<T>)->Store<T> contract{result(create)} { let p=Batch::<T>{items:give incoming};let next=p;return give next.items }",
+        "fn bad<T:StoreElement>(give incoming:Store<T>)->Store<T> contract{result(create)} { var next:Store<T>=store_new();next=relay(give incoming);return give next }",
+        "fn bad<T:StoreElement>()->Store<T> contract{result(create)} { let fresh:Store<T>=store_new();let alias=fresh;return give alias }",
+    ] {
+        let source = format!("{MODEL}{HELPERS}{package}{definition}fn main(){{}}");
+        let report = check(&[("main", &source)]);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{definition}: {}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            zil_base::Phase::Expand,
+            "{definition}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation() {
+    for (definition, call) in [
+        (
+            "fn good<T:StoreElement>()->Store<T> contract{result(create)} { let fresh:Store<T>=store_new();return give fresh }",
+            "good()",
+        ),
+        (
+            "fn good<T:StoreElement>()->Store<T> contract{result(create)} { let first:Store<T>=store_new();let second=give first;return give second }",
+            "good()",
+        ),
+        (
+            "fn good<T:StoreElement>()->Store<T> contract{result(create)}=>empty()",
+            "good()",
+        ),
+        (
+            "fn good<T:StoreElement>()->Store<T> contract{result(create)} { let fresh:Store<T>=empty();return give fresh }",
+            "good()",
+        ),
+        (
+            "fn good<T:StoreElement>(flag:bool)->Store<T> contract{result(create)} { if flag{let fresh:Store<T>=empty();return give fresh}return store_new() }",
+            "good(true)",
+        ),
+        (
+            "fn good<T:StoreElement>(flag:bool)->Store<T> contract{result(create)} { return if flag{empty()}else{store_new()} }",
+            "good(false)",
+        ),
+        (
+            "fn good<T:StoreElement>(give incoming:Store<T>)->Store<T> contract{result(create)} { return store_new() }",
+            "good(give input)",
+        ),
+    ] {
+        for used in [false, true] {
+            let main = if used {
+                format!("fn main(){{let input:Store<Item>=empty();let output:Store<Item>={call};}}")
+            } else {
+                "fn main(){}".to_owned()
+            };
+            let source = format!("{MODEL}{HELPERS}{definition}\n{main}");
+            let report = check(&[("main", &source)]);
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "used={used} {definition}: {}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+        }
+    }
+    let source = format!(
+        "{MODEL}{HELPERS}fn fresh<T:StoreElement>(flag:bool)->Store<T> contract{{result(create)}}{{if flag{{let first:Store<T>=empty();let second=give first;return give second}}return store_new()}}fn main()->i32{{let a:Store<Item>=fresh(true);reserve(a,1);push(a,item(65));let b:Store<Other>=fresh(false);reserve(b,1);push(b,other(66));return i32(len(a)+len(b))-2}}"
+    );
+    native(&[("main", &source)], b"BA", 0);
+}
+
+#[test]
 fn cross_module_helpers_preserve_two_nominal_elements_and_failure_returns() {
     let model = MODEL
         .replace("resource R", "pub resource R")
@@ -443,6 +532,28 @@ fn generic_source_still_requires_independent_raw_and_wire_ownership() {
         ResultCategory::SafeReject,
         "E-VERIFY-RESOURCE",
         "outstanding",
+    );
+}
+
+#[test]
+fn raw_and_wire_create_mode_cannot_forge_fresh_input_resources() {
+    let source = format!(
+        "{MODEL}{HELPERS}fn main(){{let original:Store<Item>=empty();let next=relay(give original);}}"
+    );
+    let (mut module, plan) = candidate(&source);
+    let relay = module
+        .functions
+        .iter_mut()
+        .find(|f| f.result_mode == zil_ir::PassingMode::Give)
+        .unwrap();
+    relay.result_mode = zil_ir::PassingMode::Create;
+    rejected_candidate(
+        "generic-forged-create-source",
+        module,
+        plan,
+        ResultCategory::SafeReject,
+        "E-VERIFY-RESOURCE",
+        "not independently proven fresh",
     );
 }
 
