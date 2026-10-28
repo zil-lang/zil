@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author181-final/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/language14/wt181/examples/mainline/zui_language181/composed.zil",
+    "--opt",
+    "O0",
+    "--clang",
+    "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/181-composed/final01/linux/composed/O0/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/181-composed/final01/linux/composed/O0/phases",
+    "--json"
+  ],
+  "status": "Completed",
+  "start": 1793152993.6330528,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "389870e4c3641b4893715ba2f531631654d1db0c2d92133e5b52d074cc20d80e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793152993.8811395
+}

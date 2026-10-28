@@ -92,6 +92,20 @@ fn statistic(text: &str, key: &str) -> usize {
         .unwrap()
 }
 
+fn accept(source: &str, label: &str) {
+    let dir = directory(label);
+    fs::write(dir.join("main.zil"), source).unwrap();
+    let report = compile_project(&project(&[("main", source)]), &CompileOptions::default());
+    fs::write(dir.join("compile.json"), report.to_json()).unwrap();
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
 fn native(source: &str, label: &str, expected: &[u8], allocations: Option<usize>) {
     for opt in [Optimization::O0, Optimization::O2] {
         let dir = directory(label);
@@ -234,21 +248,29 @@ fn borrowed_and_nonfield_values_do_not_get_the_new_give_capability() {
         (
             "direct-store-descriptor",
             "fn unused<C:FnMut()->i32>(input:Panel<C>,list:Store<Cell>)->i32{let result=give list;return 0}",
-            "direct Package manages field",
+            "descriptors do not own",
         ),
         (
             "arbitrary-generic-give",
             "fn unused<T>(value:T)->T{return give value}",
-            "owning State profile",
+            "direct Package manages field",
         ),
     ] {
         let source = format!("{MODEL}{function}fn main()->i32=>0");
         reject(
             &[("main", &source)],
             label,
-            ResultCategory::Unsupported,
+            if label == "direct-store-descriptor" {
+                ResultCategory::SafeReject
+            } else {
+                ResultCategory::Unsupported
+            },
             Phase::Expand,
-            "E-UNSUPPORTED",
+            if label == "direct-store-descriptor" {
+                "E-GENERIC-ARGUMENT"
+            } else {
+                "E-UNSUPPORTED"
+            },
             message,
         );
     }
@@ -309,7 +331,7 @@ fn last_store_read_can_end_before_mutable_callback_qualification() {
 }
 
 #[test]
-fn simultaneous_store_window_and_callback_or_parent_mutation_stays_closed() {
+fn independent_callback_field_is_allowed_while_whole_parent_move_stays_closed() {
     for (label, mutation) in [
         (
             "callback-parent-root",
@@ -320,6 +342,10 @@ fn simultaneous_store_window_and_callback_or_parent_mutation_stays_closed() {
         let source = format!(
             "{MODEL}fn main()->i32{{var current=panel(handler());let view=store_at(current.list,0);{mutation}return view.value}}"
         );
+        if label == "callback-parent-root" {
+            accept(&source, label);
+            continue;
+        }
         reject(
             &[("main", &source)],
             label,
@@ -343,20 +369,13 @@ fn simultaneous_store_window_and_callback_or_parent_mutation_stays_closed() {
 }
 
 #[test]
-fn callback_parent_qualification_blocks_sibling_copy_write_before_its_last_use() {
+fn callback_field_qualification_allows_sibling_copy_write_before_its_last_use() {
     // This is the original independent03 positive fixture, retained verbatim.
-    // Its first hits write overlaps the callback's still-live coarse parent root.
+    // 179 proves this Copy field disjoint from the real callback field.
     let source = format!(
         "{MODEL}fn replace<C:FnMut()->i32>(input:Panel<C>)->Panel<C>{{var next=input;let old=give next.tag;next.tag=Tag{{code:89}};let callback=&mut next.callback;next.hits=callback();next.hits=callback();return next}}fn main()->i32{{let current=replace(panel(handler()));return current.hits-2}}"
     );
-    reject(
-        &[("main", &source)],
-        "callback-live-parent-copy-write",
-        ResultCategory::SafeReject,
-        Phase::Verify,
-        "E-BORROW-CONFLICT",
-        "shared address still required",
-    );
+    native(&source, "callback-live-parent-copy-write", b"XYAW", None);
 }
 
 #[test]
@@ -401,6 +420,58 @@ fn independent_raw_and_wire_rebuild_both_composed_loan_kinds() {
     let dir = directory("raw-composed-loans");
     fs::write(dir.join("main.zil"), source).unwrap();
     fs::write(dir.join("candidate.bin"), &bytes).unwrap();
+    // The exact original instruction reorder now proves a valid pair of
+    // sibling-field loans. Hold/root claims still undergo independent checks.
+    for (route, result) in [
+        (
+            "raw",
+            zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&bytes, &target, &limits),
+        ),
+    ] {
+        let verified = result.unwrap();
+        fs::write(
+            dir.join(format!("{route}-accepted.txt")),
+            format!("Success {:?}\n", verified.fingerprint()),
+        )
+        .unwrap();
+    }
+    // Moving cleanup of their common parent before the last uses must still
+    // fail. This is the nearest invalid operation to the valid field reorder.
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, zil_ir::InstructionKind::BorrowPackageField { .. }))
+        })
+        .unwrap();
+    let callback = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, zil_ir::InstructionKind::BorrowPackageField { .. }))
+        .unwrap();
+    let zil_ir::InstructionKind::BorrowPackageField { local, .. } =
+        block.instructions[callback].kind
+    else {
+        unreachable!()
+    };
+    let cleanup = block.instructions.iter().position(|i|
+        matches!(i.kind, zil_ir::InstructionKind::DropPackage { local: owner } if owner == local)).unwrap();
+    let operation = block.instructions.remove(cleanup);
+    block.instructions.insert(callback + 1, operation);
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    fs::write(dir.join("early-parent-cleanup.bin"), &bytes).unwrap();
     for (route, errors) in [
         (
             "raw",
