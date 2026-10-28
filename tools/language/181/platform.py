@@ -25,7 +25,7 @@ def main():
     parser.add_argument("--windows-lib", action="append", default=[])
     parser.add_argument("--wine")
     parser.add_argument("--wine-library-path", help="isolate Wine shared libraries from compiler libraries")
-    parser.add_argument("--case", action="append", choices=["main", "field_exit", "padded"])
+    parser.add_argument("--case", action="append", choices=["main", "field_exit", "padded", "composed"])
     args = parser.parse_args()
     repo, cli, out = args.repo.resolve(), args.cli.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -51,6 +51,19 @@ def main():
     save(out / "summary.json", report)
 
     def scenarios(name):
+        if name == "composed":
+            rows = []
+            for count in (0, 1, 2, 3):
+                output = bytes(range(65, 65 + count)) + b"HZ"
+                failures = [(1, b"H", 0, 1), (2, b"H", 1, 1)]
+                if count:
+                    failures.append((3, b"HZ", 2, 1))
+                failures.append((3 + int(count > 0), output, 2 + int(count > 0), 0))
+                rows.append({"name": f"count-{count}", "input": str(count).encode(),
+                             "stdout": output, "exit": 0, "allocated": 3, "failures": failures})
+            rows.append({"name": "invalid-input", "input": b"9", "stdout": b"", "exit": 9,
+                         "allocated": 0, "failures": [], "ordinary_only": True})
+            return rows
         if name != "padded":
             return old.scenarios(name)
         return [{"name": "padded-item", "input": b"", "stdout": b"CBA", "exit": 0,
@@ -87,8 +100,11 @@ def main():
 
     try:
         for name in selected:
-            source = (repo / "examples/mainline/zui_language181/platform_padded.zil" if name == "padded"
-                      else repo / "examples/mainline/zui_language177" / (name + ".zil"))
+            if name in ["padded", "composed"]:
+                filename = "platform_padded.zil" if name == "padded" else "composed.zil"
+                source = repo / "examples/mainline/zui_language181" / filename
+            else:
+                source = repo / "examples/mainline/zui_language177" / (name + ".zil")
             for opt in ("O0", "O2"):
                 directory = out / name / opt
                 executable = directory / ("program.exe" if args.platform == "win64" else "program")
