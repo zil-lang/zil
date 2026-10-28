@@ -990,11 +990,10 @@ fn main()->i32{{var state=revise(make(67),pack(make(65),make(66)));emit(77);retu
             mutable: true,
             ..
         } = &mut instruction.kind
+            && *index == 2
         {
-            if *index == 2 {
-                *index = 1;
-                redirected += 1;
-            }
+            *index = 1;
+            redirected += 1;
         }
     }
     assert_eq!(
@@ -1066,11 +1065,11 @@ fn main()->i32{{
             .flat_map(|f| &mut f.blocks)
             .flat_map(|b| &mut b.instructions)
         {
-            if let InstructionKind::Call { function, .. } = &mut instruction.kind {
-                if *function == instances[1] {
-                    *function = instances[0];
-                    redirected += 1;
-                }
+            if let InstructionKind::Call { function, .. } = &mut instruction.kind
+                && *function == instances[1]
+            {
+                *function = instances[0];
+                redirected += 1;
             }
         }
         assert_eq!(redirected, 1);
