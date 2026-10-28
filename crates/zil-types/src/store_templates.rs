@@ -32,6 +32,17 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
     Ok(())
 }
 
+/// An ordinary binder is opaque in its own definition. This relation permits
+/// transfer and the existing direct error alternatives, without any fields,
+/// scalar operations, Copy capability, or callable identity for T.
+pub(super) fn symbolic_type(ty: &Type, name: &str) -> bool {
+    let parameter = |ty: &Type| matches!(ty, Type::Named(actual) if actual == name);
+    parameter(ty)
+        || matches!(ty, Type::ErrorUnion { error, result }
+        if (parameter(error) || error.is_copy_value())
+            && (parameter(result) || result.is_copy_value()))
+}
+
 pub(super) fn intern(
     key: helpers::TemplateKey,
     actual: &Type,
@@ -292,6 +303,22 @@ impl Builder<'_, '_> {
                 )
             })?;
         let mut function = specialize(&template, &actual, self.closures, self.limits)?;
+        let mut signature_work =
+            inference::type_snapshot_work(&function.return_type, span, self.limits)?;
+        for parameter in &function.parameters {
+            signature_work = signature_work.saturating_add(inference::type_snapshot_work(
+                &parameter.ty,
+                span,
+                self.limits,
+            )?);
+        }
+        self.closures
+            .snapshot(signature_work.saturating_mul(8), span)?;
+        let mut errors = Vec::new();
+        signature_errors(&function, &mut errors);
+        if let Some(error) = errors.into_iter().next() {
+            return Err(error);
+        }
         let id = self.closures.allocate_function(span)?;
         self.closures
             .snapshot(function.name.len().saturating_add(32), span)?;
@@ -325,6 +352,8 @@ impl Builder<'_, '_> {
         })();
         self.closures.active_helpers.remove(&key);
         let mut typed = result?;
+        self.closures
+            .snapshot(signature_work.saturating_add(128), span)?;
         typed.name = format!(
             "@module{}:type-template{}:instance{}",
             key.0.0, key.1.0, index
