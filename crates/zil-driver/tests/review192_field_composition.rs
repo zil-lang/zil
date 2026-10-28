@@ -164,12 +164,3 @@ fn raw_read_retargeting_keeps_actual_parent_identity() {
         assert_eq!(errors[0].code, "E-BORROW-CONFLICT");
     }
 }
-fn baseline(s: &str) -> (TypedModule, CandidatePlan) {
-    let u = unit(s);
-    let a = zil_syntax::parse(&u).into_result().unwrap();
-    let c = zil_expand::expand(&u, &a).unwrap();
-    let m = zil_types::check(&c, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
-    let p = zil_analyze::analyze(&m, &Limits::default()).unwrap();
-    zil_verify::verify_module(m.clone(), p.clone(), &m.target, &Limits::default()).unwrap();
-    (m, p)
-}
