@@ -254,10 +254,10 @@ fn fixture(
         } else {
             CallableCleanup::Owned
         },
-        traces: vec![CallableTrace {
+        traces: zil_ir::CallableTraces::Finite(vec![CallableTrace {
             calls: vec![requested; count],
             exit: CallableExit::Return,
-        }],
+        }]),
     });
     let helper = helper.finish(result);
     let mut entry = Body::new(1);
@@ -377,14 +377,17 @@ fn forged_count_mode_parameter_identity_cleanup_and_duplicate_traces_fail() {
         let c = raw.module.functions[0].callable_contract.as_mut().unwrap();
         match mutation {
             0 => {
-                c.traces[0].calls.pop();
+                c.traces.as_finite_mut().unwrap()[0].calls.pop();
             }
             1 => c.kind = CallableKind::FnOnce,
             2 => c.parameter = 1,
             3 => c.closure = ClosureId(77),
             4 => c.cleanup = CallableCleanup::Owned,
-            5 => c.traces.push(c.traces[0].clone()),
-            6 => c.traces[0].exit = CallableExit::Trap,
+            5 => {
+                let duplicate = c.traces.as_finite().unwrap()[0].clone();
+                c.traces.as_finite_mut().unwrap().push(duplicate);
+            }
+            6 => c.traces.as_finite_mut().unwrap()[0].exit = CallableExit::Trap,
             _ => unreachable!(),
         }
         raw.reject("E-VERIFY-CALLABLE-CONTRACT");
@@ -474,16 +477,17 @@ fn longer_call_sequence_is_checked_in_full_without_truncation() {
                 .unwrap();
             match mutation {
                 0 => {
-                    claim.traces[0].calls.pop();
+                    claim.traces.as_finite_mut().unwrap()[0].calls.pop();
                 }
                 1 => {
-                    claim.traces[0].calls[count - 1] = CallableKind::FnMut;
+                    claim.traces.as_finite_mut().unwrap()[0].calls[count - 1] = CallableKind::FnMut;
                 }
                 2 => {
-                    claim.traces[0].exit = CallableExit::Trap;
+                    claim.traces.as_finite_mut().unwrap()[0].exit = CallableExit::Trap;
                 }
                 _ => {
-                    claim.traces.push(claim.traces[0].clone());
+                    let duplicate = claim.traces.as_finite().unwrap()[0].clone();
+                    claim.traces.as_finite_mut().unwrap().push(duplicate);
                 }
             }
             changed.reject("E-VERIFY-CALLABLE-CONTRACT");
@@ -528,7 +532,17 @@ fn helper_forwarding_does_not_guess_an_empty_nested_contract() {
             arguments: vec![ValueId(1)],
         },
     ));
-    raw.reject("callback helper forwarding");
+    for result in raw.both() {
+        let errors = result.unwrap_err();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert_eq!(errors[0].phase, Phase::Verify);
+        assert_eq!(errors[0].category, zil_base::ResultCategory::Unsupported);
+        assert_eq!(errors[0].code, "E-UNSUPPORTED");
+        assert_eq!(
+            errors[0].message,
+            "recursive callable helper dependency requires an explicit finite contract"
+        );
+    }
 }
 #[test]
 fn unrelated_function_cannot_forge_a_callback_contract() {
@@ -934,7 +948,7 @@ fn conditional_owned(trap: bool) -> Raw {
             Terminator::Return(Some(ValueId(0)))
         },
     });
-    f.callable_contract.as_mut().unwrap().traces = vec![
+    f.callable_contract.as_mut().unwrap().traces = zil_ir::CallableTraces::Finite(vec![
         CallableTrace {
             calls: vec![],
             exit: if trap {
@@ -947,7 +961,7 @@ fn conditional_owned(trap: bool) -> Raw {
             calls: vec![CallableKind::FnOnce],
             exit: CallableExit::Return,
         },
-    ];
+    ]);
     raw
 }
 #[test]
@@ -960,6 +974,8 @@ fn conditional_zero_call_cleanup_and_one_call_consume_are_both_verified() {
         .as_mut()
         .unwrap()
         .traces
+        .as_finite_mut()
+        .unwrap()
         .remove(0);
     raw.reject("E-VERIFY-CALLABLE-CONTRACT");
 }
@@ -1042,7 +1058,7 @@ fn first_error_stops_second_call() -> Raw {
         instructions: success,
         terminator: Terminator::Return(Some(ValueId(3))),
     });
-    f.callable_contract.as_mut().unwrap().traces = vec![
+    f.callable_contract.as_mut().unwrap().traces = zil_ir::CallableTraces::Finite(vec![
         CallableTrace {
             calls: vec![CallableKind::Fn],
             exit: CallableExit::Return,
@@ -1051,7 +1067,7 @@ fn first_error_stops_second_call() -> Raw {
             calls: vec![CallableKind::Fn, CallableKind::Fn],
             exit: CallableExit::Return,
         },
-    ];
+    ]);
     raw
 }
 #[test]
@@ -1064,6 +1080,8 @@ fn copy_error_return_paths_keep_distinct_one_and_two_call_traces() {
         .as_mut()
         .unwrap()
         .traces
+        .as_finite_mut()
+        .unwrap()
         .remove(0);
     changed.reject("E-VERIFY-CALLABLE-CONTRACT");
 }
@@ -1157,8 +1175,15 @@ fn helper_contract_node_quotas_are_resource_limits_before_identity_checks() {
         let claim = changed.functions[0].callable_contract.as_mut().unwrap();
         match mutation {
             0 => claim.hold = vec![0; 129],
-            1 => claim.traces = vec![claim.traces[0].clone(); 129],
-            _ => claim.traces[0].calls = vec![CallableKind::Fn; 20_000],
+            1 => {
+                claim.traces =
+                    zil_ir::CallableTraces::Finite(vec![
+                        claim.traces.as_finite_mut().unwrap()[0]
+                            .clone();
+                        129
+                    ])
+            }
+            _ => claim.traces.as_finite_mut().unwrap()[0].calls = vec![CallableKind::Fn; 20_000],
         }
         let limits = Limits {
             max_nodes: 128,
@@ -1238,6 +1263,7 @@ fn caller_cannot_drop_owned_environment_before_its_borrowed_call() {
 #[test]
 fn helper_extra_borrowed_parameters_need_a_complete_public_effect_contract() {
     for ty in [desc(), address(Type::I32, false), address(Type::I32, true)] {
+        let copy_address = matches!(ty, Type::Address { .. });
         let mut raw = fixture(CallableKind::Fn, CallableKind::Fn, true, 0, owned());
         let f = &mut raw.module.functions[0];
         f.parameters.push(LocalId(1));
@@ -1248,7 +1274,13 @@ fn helper_extra_borrowed_parameters_need_a_complete_public_effect_contract() {
             mutable: false,
             span: span(),
         });
-        raw.reject("other callback helper parameters");
+        if copy_address {
+            // 189 admitted one explicit Copy address layer. These unused helper
+            // parameters do not acquire any hidden capture or lending effect.
+            raw.accept();
+        } else {
+            raw.reject("other callback helper parameters");
+        }
     }
 }
 #[test]
@@ -1265,7 +1297,17 @@ fn helper_resource_result_is_not_silently_treated_as_a_copy_result() {
         },
     ));
     f.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
-    raw.reject("concrete callback helper results must be finite Copy");
+    for result in raw.both() {
+        let errors = result.unwrap_err();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert_eq!(errors[0].phase, Phase::Verify);
+        assert_eq!(errors[0].category, zil_base::ResultCategory::Unsupported);
+        assert_eq!(errors[0].code, "E-UNSUPPORTED");
+        assert_eq!(
+            errors[0].message,
+            "concrete callback helper results require finite Copy or a borrowed environment lending result"
+        );
+    }
 }
 #[test]
 fn fnmut_address_capture_is_consumed_or_ended_under_fnonce_bound() {

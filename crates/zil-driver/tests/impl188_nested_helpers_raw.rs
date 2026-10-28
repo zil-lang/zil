@@ -97,7 +97,9 @@ fn raw_and_wire_do_not_trust_parent_or_coordinated_child_traces() {
         .callable_contract
         .as_mut()
         .unwrap()
-        .traces[0]
+        .traces
+        .as_finite_mut()
+        .unwrap()[0]
         .calls
         .clear();
     reject(
@@ -110,7 +112,7 @@ fn raw_and_wire_do_not_trust_parent_or_coordinated_child_traces() {
     let mut changed = m.clone();
     for f in &mut changed.functions {
         if let Some(c) = &mut f.callable_contract {
-            for trace in &mut c.traces {
+            for trace in c.traces.as_finite_mut().unwrap() {
                 trace.calls.clear();
             }
         }
@@ -132,7 +134,9 @@ fn raw_and_wire_do_not_trust_parent_or_coordinated_child_traces() {
         .callable_contract
         .as_mut()
         .unwrap()
-        .traces[0]
+        .traces
+        .as_finite_mut()
+        .unwrap()[0]
         .calls[0] = CallableKind::FnMut;
     reject(
         "child-kind-forgery",
@@ -247,6 +251,8 @@ fn raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap() {
         .as_ref()
         .unwrap()
         .traces
+        .as_finite()
+        .unwrap()
         .iter()
         .map(|t| (t.calls.len(), t.exit))
         .collect();
@@ -270,12 +276,16 @@ fn raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap() {
                 .as_mut()
                 .unwrap()
                 .traces
+                .as_finite_mut()
+                .unwrap()
                 .retain(|t| !(t.calls.is_empty() && t.exit == CallableExit::Return)),
             "lost-trap-exit" => changed.functions[leaf]
                 .callable_contract
                 .as_mut()
                 .unwrap()
                 .traces
+                .as_finite_mut()
+                .unwrap()
                 .retain(|t| t.exit != CallableExit::Trap),
             _ => {
                 let trace = changed.functions[middle]
@@ -283,6 +293,8 @@ fn raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap() {
                     .as_mut()
                     .unwrap()
                     .traces
+                    .as_finite_mut()
+                    .unwrap()
                     .iter_mut()
                     .find(|t| t.exit == CallableExit::Trap)
                     .unwrap();
@@ -292,6 +304,8 @@ fn raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap() {
                     .as_mut()
                     .unwrap()
                     .traces
+                    .as_finite_mut()
+                    .unwrap()
                     .sort();
             }
         }
@@ -369,6 +383,8 @@ fn main()->i32{let r=R{n:4};let f=move()=>r.n;return outer(f)-1}
             .as_ref()
             .unwrap()
             .traces
+            .as_finite()
+            .unwrap()
             .iter()
             .all(|t| t.calls.is_empty())
     );
@@ -438,7 +454,7 @@ fn analyze_reconstructs_its_own_callee_order_and_body_counts() {
             "all-claims-empty" => {
                 for f in &mut m.functions {
                     if let Some(c) = &mut f.callable_contract {
-                        for t in &mut c.traces {
+                        for t in c.traces.as_finite_mut().unwrap() {
                             t.calls.clear();
                         }
                     }
@@ -465,7 +481,9 @@ fn analyze_reconstructs_its_own_callee_order_and_body_counts() {
                     .callable_contract
                     .as_mut()
                     .unwrap()
-                    .traces[0]
+                    .traces
+                    .as_finite_mut()
+                    .unwrap()[0]
                     .calls
                     .clear();
                 ResultCategory::SafeReject

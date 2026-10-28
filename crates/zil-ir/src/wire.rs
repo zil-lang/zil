@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 23;
+pub const WIRE_VERSION: u32 = 24;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -21,6 +21,12 @@ fn malformed(code: &str, message: impl Into<String>) -> Diagnostic {
 }
 fn quota(message: impl Into<String>) -> Diagnostic {
     Diagnostic::limit(Phase::Verify, message, None)
+}
+fn flow_count(before: usize, amount: usize, maximum: usize) -> WireResult<usize> {
+    before
+        .checked_add(amount)
+        .filter(|total| *total <= maximum)
+        .ok_or_else(|| quota("candidate callable flow cumulative quota exceeded"))
 }
 fn public<T>(result: WireResult<T>) -> CompileResult<T> {
     result.map_err(|error| vec![error])
@@ -640,18 +646,54 @@ impl<'a> Writer<'a> {
             CallableCleanup::Owned => 0,
             CallableCleanup::Borrowed => 1,
         })?;
-        self.count(c.traces.len(), self.limits.max_analysis_steps)?;
-        for trace in &c.traces {
-            self.count(trace.calls.len(), self.limits.max_instructions)?;
-            for call in &trace.calls {
-                self.u8(callable_kind_tag(*call))?;
+        match &c.traces {
+            CallableTraces::Finite(traces) => {
+                self.u8(0)?;
+                self.count(traces.len(), self.limits.max_analysis_steps)?;
+                for trace in traces {
+                    self.callable_calls(&trace.calls)?;
+                    self.callable_exit(trace.exit)?;
+                }
             }
-            self.u8(match trace.exit {
-                CallableExit::Return => 0,
-                CallableExit::Trap => 1,
-            })?;
+            CallableTraces::Flow(flow) => {
+                self.u8(1)?;
+                self.u32(flow.entry)?;
+                self.count(flow.nodes.len(), self.limits.max_nodes)?;
+                let (mut calls, mut edges) = (0usize, 0usize);
+                for node in &flow.nodes {
+                    calls = flow_count(calls, node.calls.len(), self.limits.max_instructions)?;
+                    self.callable_calls(&node.calls)?;
+                    match &node.next {
+                        CallableFlowNext::Edges(next) => {
+                            self.u8(0)?;
+                            edges = flow_count(edges, next.len(), self.limits.max_analysis_steps)?;
+                            self.count(next.len(), self.limits.max_analysis_steps)?;
+                            for edge in next {
+                                self.u32(*edge)?;
+                            }
+                        }
+                        CallableFlowNext::Exit(exit) => {
+                            self.u8(1)?;
+                            self.callable_exit(*exit)?;
+                        }
+                    }
+                }
+            }
         }
         Ok(())
+    }
+    fn callable_calls(&mut self, calls: &[CallableKind]) -> WireResult<()> {
+        self.count(calls.len(), self.limits.max_instructions)?;
+        for call in calls {
+            self.u8(callable_kind_tag(*call))?;
+        }
+        Ok(())
+    }
+    fn callable_exit(&mut self, exit: CallableExit) -> WireResult<()> {
+        self.u8(match exit {
+            CallableExit::Return => 0,
+            CallableExit::Trap => 1,
+        })
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
         self.boolean(function.callable_return_contract.is_some())?;
@@ -1917,6 +1959,22 @@ impl<'a> Reader<'a> {
         }
         Ok(result)
     }
+    fn callable_exit(&mut self) -> WireResult<CallableExit> {
+        match self.u8()? {
+            0 => Ok(CallableExit::Return),
+            1 => Ok(CallableExit::Trap),
+            _ => Err(malformed("E-WIRE-TAG", "unknown callable exit")),
+        }
+    }
+    fn callable_calls(&mut self, total: &mut usize) -> WireResult<Vec<CallableKind>> {
+        let count = self.count(self.limits.max_instructions, 1)?;
+        *total = flow_count(*total, count, self.limits.max_instructions)?;
+        let mut calls = Vec::with_capacity(count);
+        for _ in 0..count {
+            calls.push(self.callable_kind()?);
+        }
+        Ok(calls)
+    }
     fn callable_contract(&mut self) -> WireResult<CallableParameterContract> {
         let parameter = self.u32()?;
         let closure = ClosureId(self.u32()?);
@@ -1929,21 +1987,52 @@ impl<'a> Reader<'a> {
             1 => CallableCleanup::Borrowed,
             _ => return Err(malformed("E-WIRE-TAG", "unknown callable cleanup")),
         };
-        let count = self.count(self.limits.max_analysis_steps, 5)?;
-        let mut traces = Vec::with_capacity(count);
-        for _ in 0..count {
-            let count = self.count(self.limits.max_instructions, 1)?;
-            let mut calls = Vec::with_capacity(count);
-            for _ in 0..count {
-                calls.push(self.callable_kind()?);
+        let traces = match self.u8()? {
+            0 => {
+                let count = self.count(self.limits.max_analysis_steps, 5)?;
+                let mut traces = Vec::with_capacity(count);
+                for _ in 0..count {
+                    let mut total = 0;
+                    let calls = self.callable_calls(&mut total)?;
+                    let exit = self.callable_exit()?;
+                    traces.push(CallableTrace { calls, exit });
+                }
+                CallableTraces::Finite(traces)
             }
-            let exit = match self.u8()? {
-                0 => CallableExit::Return,
-                1 => CallableExit::Trap,
-                _ => return Err(malformed("E-WIRE-TAG", "unknown callable exit")),
-            };
-            traces.push(CallableTrace { calls, exit });
-        }
+            1 => {
+                let entry = self.u32()?;
+                let count = self.count(self.limits.max_nodes, 6)?;
+                let mut nodes = Vec::with_capacity(count);
+                let (mut call_count, mut edge_count) = (0usize, 0usize);
+                for _ in 0..count {
+                    let calls = self.callable_calls(&mut call_count)?;
+                    let next = match self.u8()? {
+                        0 => {
+                            let count = self.count(self.limits.max_analysis_steps, 4)?;
+                            edge_count =
+                                flow_count(edge_count, count, self.limits.max_analysis_steps)?;
+                            let mut edges = Vec::with_capacity(count);
+                            for _ in 0..count {
+                                edges.push(self.u32()?);
+                            }
+                            CallableFlowNext::Edges(edges)
+                        }
+                        1 => CallableFlowNext::Exit(self.callable_exit()?),
+                        _ => {
+                            return Err(malformed("E-WIRE-TAG", "unknown callable flow successor"));
+                        }
+                    };
+                    nodes.push(CallableFlowNode { calls, next });
+                }
+                CallableTraces::Flow(CallableFlow { entry, nodes })
+            }
+            _ => {
+                return Err(malformed(
+                    "E-WIRE-TAG",
+                    "unknown callable traces representation",
+                ));
+            }
+        };
         Ok(CallableParameterContract {
             parameter,
             closure,
@@ -2594,3 +2683,6 @@ mod type_stack_tests;
 
 #[cfg(test)]
 mod state_field_tests;
+
+#[cfg(test)]
+mod flow_tests;

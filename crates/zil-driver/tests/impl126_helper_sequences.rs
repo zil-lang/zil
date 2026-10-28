@@ -188,6 +188,8 @@ fn nine_distinct_exits_keep_complete_public_sequences() {
     assert_eq!(
         claim
             .traces
+            .as_finite()
+            .unwrap()
             .iter()
             .map(|t| t.calls.len())
             .collect::<Vec<_>>(),
@@ -196,6 +198,8 @@ fn nine_distinct_exits_keep_complete_public_sequences() {
     assert!(
         claim
             .traces
+            .as_finite()
+            .unwrap()
             .iter()
             .all(|t| t.exit == CallableExit::Return
                 && t.calls.iter().all(|k| *k == CallableKind::Fn))
