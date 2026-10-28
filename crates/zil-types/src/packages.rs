@@ -280,7 +280,7 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let (index, id) = (index as u32, *id);
-        let kind = self.field_callable_kind(id, target.span)?;
+        let kind = self.field_callable_kind(id, target)?;
         let value = if kind == CallableKind::FnOnce {
             self.value(
                 InstructionKind::TakePackageField { local, index },
@@ -300,7 +300,11 @@ impl Builder<'_, '_> {
         Ok(Some((value, id, kind)))
     }
 
-    fn field_callable_kind(&mut self, id: ClosureId, span: Span) -> R<CallableKind> {
+    fn field_callable_kind(&mut self, id: ClosureId, target: &CoreExpr) -> R<CallableKind> {
+        let span = target.span;
+        if let Some(kind) = self.declared_state_kind(target, None, id)? {
+            return Ok(kind);
+        }
         let count = self.closures.pending[id.0 as usize].captures.len();
         self.closures
             .snapshot(count.saturating_mul(2).saturating_add(1), span)?;
@@ -382,7 +386,7 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let id = *id;
-        let kind = self.field_callable_kind(id, target.span)?;
+        let kind = self.field_callable_kind(id, target)?;
         if kind == CallableKind::FnOnce {
             return Err(error(
                 "E-CLOSURE-MODE",

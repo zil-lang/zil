@@ -396,6 +396,7 @@ struct Builder<'a, 'c> {
     // Owning State specialization removes symbolic parameters, but a direct
     // field invocation still uses the mode promised by that static interface.
     state_callable_mode: Option<(ClosureId, CallableKind)>,
+    state_uses: Option<state_origins::Uses>,
     factory_bound: Option<CoreCallableReturn>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
@@ -469,6 +470,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             },
             helper_bounds: f.callable_parameters.clone(),
             state_callable_mode: None,
+            state_uses: None,
             factory_bound: f.callable_return.clone(),
             signatures,
             imports: None,
@@ -2289,7 +2291,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             && let Some(id) = self.closure_slots.get(&local).copied()
         {
             existing_place = None;
-            let kind = self.closures.pending[id.0 as usize].callable_kind();
+            let kind = self
+                .declared_state_kind(callee, None, id)?
+                .unwrap_or_else(|| self.closures.pending[id.0 as usize].callable_kind());
             if kind == CallableKind::FnOnce {
                 let (value, ty) = self.take_closure_slot(local, span)?;
                 (Some(value), ty)
@@ -2331,21 +2335,24 @@ impl<'a, 'c> Builder<'a, 'c> {
                 "called value is not a function pointer or concrete closure",
             ));
         };
-        let kind = field_callee.map_or_else(
-            || {
-                self.helper_bounds
-                    .iter()
-                    .find(|bound| {
-                        existing_place
-                            == self.function.parameters.get(bound.index as usize).copied()
-                    })
-                    .map_or_else(
-                        || self.closures.pending[id.0 as usize].callable_kind(),
-                        |bound| bound.kind,
-                    )
-            },
-            |(_, _, kind)| kind,
-        );
+        let declared_kind = self.declared_state_kind(callee, None, id)?;
+        let kind = declared_kind.unwrap_or_else(|| {
+            field_callee.map_or_else(
+                || {
+                    self.helper_bounds
+                        .iter()
+                        .find(|bound| {
+                            existing_place
+                                == self.function.parameters.get(bound.index as usize).copied()
+                        })
+                        .map_or_else(
+                            || self.closures.pending[id.0 as usize].callable_kind(),
+                            |bound| bound.kind,
+                        )
+                },
+                |(_, _, kind)| kind,
+            )
+        });
         let owns_resources = self.closures.pending[id.0 as usize].owns_resources();
         let lends = self.lending_closure(&Type::Closure(id))?;
         if lends

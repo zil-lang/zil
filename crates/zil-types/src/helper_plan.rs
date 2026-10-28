@@ -54,7 +54,7 @@ impl Shape {
     }
 }
 
-pub(super) fn tree_work(count: usize) -> usize {
+pub(crate) fn tree_work(count: usize) -> usize {
     count.checked_ilog2().map_or(1, |n| n as usize + 2)
 }
 
@@ -501,7 +501,39 @@ impl Walk<'_, '_> {
                                 )
                             })?;
                             self.state.snapshot(shape.work(), expression.span)?;
-                            let id = shape.environment().ok_or_else(|| unsupported(expression.span,
+                            let selected = if let Some(state) = &signature.state_parameter {
+                                let binding = state
+                                    .bindings
+                                    .iter()
+                                    .find(|b| b.generic_index == bound.generic_index)
+                                    .ok_or_else(|| {
+                                        unsupported(expression.span, "State plan binding is absent")
+                                    })?;
+                                let Type::Package { fields, .. } =
+                                    &signature.parameters[state.index as usize]
+                                else {
+                                    return Err(unsupported(
+                                        expression.span,
+                                        "State plan parameter is not a Package",
+                                    ));
+                                };
+                                let (name, _) = &fields[binding.fields[0] as usize];
+                                self.state.snapshot(
+                                    name.len().saturating_mul(shape.work()),
+                                    expression.span,
+                                )?;
+                                if let Shape::Package(actual) = shape {
+                                    actual
+                                        .iter()
+                                        .find(|(field, _)| field == name)
+                                        .map(|(_, id)| *id)
+                                } else {
+                                    None
+                                }
+                            } else {
+                                shape.environment()
+                            };
+                            let id = selected.ok_or_else(|| unsupported(expression.span,
                                 "nested helper environment type cannot be established by the finite instance plan"))?;
                             bindings.bind(bound.generic_index, id, expression.span)?;
                         }
@@ -676,7 +708,8 @@ fn dependencies(
     } else {
         template.function.as_ref()
     };
-    let bounds = &function.callable_parameters;
+    let bounds_view = state_origins::bounds(function);
+    let bounds = bounds_view.as_ref();
     if bounds.is_empty() && matches!(instance, Node::Callable(_)) {
         return Err(unsupported(
             span,

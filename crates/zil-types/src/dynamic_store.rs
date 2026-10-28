@@ -38,15 +38,10 @@ pub(super) fn callback_element(ty: &Type, accepts: impl Fn(&Type) -> bool) -> bo
     let Type::Package { fields, .. } = ty else {
         return false;
     };
-    let mut first = None;
     let mut count = 0usize;
     let mut owns = false;
     for (_, field) in fields {
         if accepts(field) {
-            if first.is_some_and(|prior| prior != field) {
-                return false;
-            }
-            first = Some(field);
             count += 1;
         } else if matches!(field, Type::Managed(payload) if **payload == Type::ByteBuffer
             || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))
@@ -87,6 +82,29 @@ fn check_callback_captures(
             }
         })
         .collect::<Vec<_>>();
+    if pending.len() == 2 && pending[0].0 != pending[1].0 {
+        *work = work.checked_sub(2).ok_or_else(exhausted)?;
+        for (id, _) in &pending {
+            let definition = closures
+                .get(id.0 as usize)
+                .filter(|definition| definition.id == *id)
+                .ok_or_else(|| {
+                    error(
+                        "E-CLOSURE-INFERENCE",
+                        span,
+                        "Store callback definition is absent",
+                    )
+                })?;
+            let cost = inference::type_snapshot_work(&definition.result, span, limits)?;
+            *work = work.checked_sub(cost).ok_or_else(exhausted)?;
+            if !definition.result.is_copy_value() {
+                return Err(unsupported(
+                    span,
+                    "two distinct Store callback types require Copy results",
+                ));
+            }
+        }
+    }
     while let Some((id, depth)) = pending.pop() {
         *work = work.checked_sub(1).ok_or_else(exhausted)?;
         if depth > limits.max_call_depth {
@@ -240,7 +258,7 @@ pub(super) fn add_definitions(
                         if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
                             return Err(unsupported(
                                 function.span,
-                                "Store elements require finite direct-Managed Packages with at most two same-type callbacks",
+                                "Store elements require finite direct-Managed Packages with at most two self-contained callbacks",
                             ));
                         }
                         check_callback_captures(
@@ -302,7 +320,7 @@ pub(super) fn add_definitions(
             if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
                 return Err(unsupported(
                     *span,
-                    "StoreElement bindings require finite direct-Managed Packages with at most two same-type callbacks",
+                    "StoreElement bindings require finite direct-Managed Packages with at most two self-contained callbacks",
                 ));
             }
             check_callback_captures(element, closures, &mut work, limits, *span)?;
