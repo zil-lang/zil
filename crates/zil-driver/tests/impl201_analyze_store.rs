@@ -71,6 +71,23 @@ fn run<F:FnMut()->&[u8]>(state:State<F>)->i32{
 }
 fn main()->i32{return run(pack(make()))}
 "#;
+// Byte-identical to preflight201/analyze/cases/02_package_store_capture.zil.
+const PACKAGE_STORE_CAPTURE: &str = r#"package Item { manages bytes: ByteBuffer; value: i32 }
+package Bag { manages items: Store<Item>; manages bytes: ByteBuffer }
+
+fn make() -> impl Fn() -> i32 {
+    let items: Store<Item> = store_new()
+    store_reserve(items, 1)
+    store_push(items, Item { bytes: bytes_new(), value: 42 })
+    let bag = Bag { items: give items, bytes: bytes_new() }
+    return move () => { return i32(store_len(bag.items)) }
+}
+
+fn main() -> i32 {
+    let callback = make()
+    return callback() - 1
+}
+"#;
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 struct Case(PathBuf, bool);
 impl Case {
@@ -132,7 +149,7 @@ fn pair(
     source: &str,
     module: TypedModule,
     mut plan: CandidatePlan,
-    reject: Option<(ResultCategory, &str)>,
+    reject: Option<(ResultCategory, &str, &str)>,
 ) {
     let case = Case::new(label, source);
     let limits = Limits::default();
@@ -143,7 +160,7 @@ fn pair(
         None => {
             plan = analyzed.unwrap();
         }
-        Some((category, message)) => {
+        Some((category, message, _)) => {
             let errors = analyzed.unwrap_err();
             assert!(
                 errors.iter().any(|d| d.phase == Phase::Analyze
@@ -176,14 +193,12 @@ fn pair(
             None => {
                 checked.unwrap();
             }
-            Some(_) => {
+            Some((category, _, code)) => {
                 let errors = checked.unwrap_err();
                 assert!(
                     errors.iter().any(|d| d.phase == Phase::Verify
-                        && matches!(
-                            d.category,
-                            ResultCategory::SafeReject | ResultCategory::Unsupported
-                        )),
+                        && d.category == category
+                        && d.code == code),
                     "{label}/{route}: {errors:?}"
                 );
             }
@@ -267,7 +282,7 @@ fn second_push_cannot_reuse_the_first_runtime_element() {
         SPLIT,
         module,
         plan,
-        Some((ResultCategory::SafeReject, "resource")),
+        Some((ResultCategory::SafeReject, "resource", "E-VERIFY-RESOURCE")),
     );
 }
 
@@ -291,7 +306,7 @@ fn removing_parent_prefix_cleanup_is_a_resource_failure() {
         ORIGINAL,
         module,
         plan,
-        Some((ResultCategory::SafeReject, "resource")),
+        Some((ResultCategory::SafeReject, "resource", "E-VERIFY-RESOURCE")),
     );
 }
 
@@ -311,13 +326,18 @@ fn forged_self_containment_and_borrowed_modes_are_not_authority() {
         ORIGINAL,
         module,
         plan,
-        Some((ResultCategory::Unsupported, "self-contained environment")),
+        Some((
+            ResultCategory::Unsupported,
+            "self-contained environment",
+            "E-UNSUPPORTED",
+        )),
     );
     let (original, plan) = candidate("borrowed-mode-control", WINDOW);
     for kind in [CallableKind::FnOnce, CallableKind::FnMut] {
         let mut module = original.clone();
         let mut changed = false;
         for f in &mut module.functions {
+            let mut shared_callees = vec![];
             for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
                 if let I::CallClosureBorrowed {
                     callee,
@@ -331,9 +351,24 @@ fn forged_self_containment_and_borrowed_modes_are_not_authority() {
                             unreachable!()
                         };
                         *mutable = false;
+                        shared_callees.push(*callee);
                     }
                     changed = true;
                 }
+            }
+            for callee in shared_callees {
+                let reborrow = f
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| i.result == Some(callee))
+                    .unwrap();
+                let I::ReborrowAddress { mutable, .. } = &mut reborrow.kind else {
+                    panic!("callee must be an actual reborrow");
+                };
+                // Change the actual producer too. This valid shared reborrow
+                // must reach the FnMut calling-permission check.
+                *mutable = false;
             }
         }
         assert!(changed);
@@ -342,9 +377,42 @@ fn forged_self_containment_and_borrowed_modes_are_not_authority() {
             WINDOW,
             module,
             plan.clone(),
-            Some((ResultCategory::SafeReject, "exclusive FnMut address")),
+            Some((
+                ResultCategory::SafeReject,
+                "exclusive FnMut address",
+                "E-VERIFY-CLOSURE-CALL",
+            )),
         );
     }
+}
+
+#[test]
+fn original_package_store_capture_remains_closed_at_its_real_types_gate() {
+    let case = Case::new("original-package-store-capture", PACKAGE_STORE_CAPTURE);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "store201-capture.zil",
+        PACKAGE_STORE_CAPTURE,
+    );
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let result = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default());
+    case.write("types.txt", format!("{result:#?}"));
+    let errors = result.unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.phase == Phase::Types
+            && d.category == ResultCategory::Unsupported
+            && d.code == "E-UNSUPPORTED"
+            && d.message.contains(
+                "Package capture with Store fields requires a retained storage protocol"
+            )),
+        "{errors:?}"
+    );
+    case.write(
+        "not-run.txt",
+        "Analyze/Verify/native NotRun: existing source capture gate rejected the original input\n",
+    );
 }
 
 #[test]
