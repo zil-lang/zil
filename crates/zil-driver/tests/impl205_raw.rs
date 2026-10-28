@@ -376,3 +376,148 @@ fn unused_aliases_keep_their_original_parent_across_refill() {
         );
     }
 }
+
+#[test]
+fn legacy_loop_refresh_checks_current_locals_and_keeps_stale_copies_invalid() {
+    let source = "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn recycle<F:Fn()->i32>(state:State<F>,flag:bool)->State<F>{var next=state;var view=&next.a;while view()==0 {let moved=next.a;next.a=moved;view=&next.a}view();return next}fn main(){}";
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "legacy-loop.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let base = zil_expand::expand(&unit, &syntax).unwrap();
+    let index = base
+        .functions
+        .iter()
+        .position(|f| !f.callable_parameters.is_empty())
+        .unwrap();
+    assert!(base.functions[index].state_parameters.is_empty());
+    check("legacy-loop-current-refresh", &base, None);
+
+    for variant in 0..7 {
+        let mut core = base.clone();
+        let a = Ast::new();
+        let statements = &mut core.functions[index].body.statements;
+        if variant <= 2 {
+            statements.insert(2, a.bind("stale", false, a.name("view")));
+        }
+        if variant == 1 {
+            statements.insert(statements.len() - 1, a.use_value(a.call(a.name("stale"))));
+        }
+        let body = statements
+            .iter_mut()
+            .find_map(|statement| match &mut statement.kind {
+                CoreStatementKind::While { body, .. } => Some(body),
+                _ => None,
+            })
+            .unwrap();
+        match variant {
+            // An unused copied address does not make a refreshed local stale.
+            0 | 1 => {}
+            // The copied local will be read again on the backedge.
+            2 => body
+                .statements
+                .insert(0, a.use_value(a.call(a.name("stale")))),
+            // No refresh leaves the actual next condition's local invalid.
+            3 => {
+                body.statements.pop().unwrap();
+            }
+            // A new borrow is not permission to survive another take/refill.
+            4 => {
+                body.statements.push(a.bind("again", false, a.field("a")));
+                body.statements.push(a.assign("a", a.name("again")));
+            }
+            // One branch refreshes after its transfer; the other never moves.
+            5 => {
+                let then_body = body.clone();
+                body.statements = vec![a.statement(CoreStatementKind::If {
+                    condition: a.name("flag"),
+                    then_body,
+                    else_body: None,
+                })];
+            }
+            // A continue backedge carries the freshly rebound local.
+            6 => body
+                .statements
+                .push(a.statement(CoreStatementKind::Continue)),
+            _ => unreachable!(),
+        }
+        check(
+            &format!("legacy-loop-current-variant-{variant}"),
+            &core,
+            if matches!(variant, 0 | 5 | 6) {
+                None
+            } else {
+                Some("E-STATE-ALIAS")
+            },
+        );
+    }
+}
+
+#[test]
+fn both_mixed_headers_are_charged_before_comparing_large_metadata() {
+    for direct in [false, true] {
+        for attack in 0..3 {
+            let (mut core, index) = template(CallableKind::Fn, 2, false);
+            let f = &mut core.functions[index];
+            let (name, parameters, result) = if direct {
+                let bound = &mut f.callable_parameters[0];
+                (
+                    &mut bound.generic_name,
+                    &mut bound.parameters,
+                    &mut bound.result,
+                )
+            } else {
+                let bound = &mut f.state_parameters[0].bindings[0];
+                (
+                    &mut bound.generic_name,
+                    &mut bound.parameters,
+                    &mut bound.result,
+                )
+            };
+            let limits = match attack {
+                0 => {
+                    *name = "caller_source".repeat(1024);
+                    Limits {
+                        max_analysis_steps: 2048,
+                        ..Limits::default()
+                    }
+                }
+                1 => {
+                    *parameters = vec![Type::I32; 1024];
+                    Limits {
+                        max_analysis_steps: 2048,
+                        max_locals: 64,
+                        ..Limits::default()
+                    }
+                }
+                _ => {
+                    *result = Type::I32;
+                    for _ in 0..16 {
+                        *result = Type::Tuple(vec![result.clone()]);
+                    }
+                    Limits {
+                        max_call_depth: 8,
+                        ..Limits::default()
+                    }
+                }
+            };
+            let case = Case::new(&format!("header-budget-{direct}-{attack}"));
+            fs::write(case.0.join("core.txt"), format!("{core:#?}")).unwrap();
+            let target = TargetProfile::host_llvm();
+            let single = zil_types::check(&core, &target, &limits);
+            let project = zil_types::check_program(&program(core.clone()), &target, &limits)
+                .map(|p| p.module);
+            fs::write(
+                case.0.join("types.txt"),
+                format!("limits={limits:#?}\nsingle={single:#?}\nprogram={project:#?}"),
+            )
+            .unwrap();
+            for result in [single, project] {
+                let errors = result.expect_err("oversized raw metadata");
+                assert!(
+                    errors.iter().any(|e| e.phase == zil_base::Phase::Types
+                        && e.category == zil_base::ResultCategory::ResourceLimit),
+                    "{direct}/{attack}: {errors:#?}"
+                );
+            }
+        }
+    }
+}

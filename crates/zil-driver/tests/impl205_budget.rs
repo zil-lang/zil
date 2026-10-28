@@ -45,6 +45,18 @@ fn boundary(label: &str, source: &str) -> usize {
             }
         }
     }
+    // 205 closes the public unused-legacy-State gap. The exact same Core
+    // required 2642 steps before that definition walk; record its actual
+    // ResourceLimit now instead of silently preserving an undercharged path.
+    if label == "old-state" {
+        let prior = check(2642).unwrap_err();
+        assert!(
+            prior
+                .iter()
+                .any(|d| d.category == ResultCategory::ResourceLimit)
+        );
+        fs::write(root.join("prior-N-2642.txt"), format!("{prior:#?}")).unwrap();
+    }
     let exact = check(high).unwrap();
     let below = check(high - 1).unwrap_err();
     assert!(
@@ -68,6 +80,12 @@ fn actual_types_boundaries_cover_new_state_and_legacy_controls() {
         ("ordinary-eager", EAGER),
         ("replacement", NEW),
     ] {
-        boundary(label, source);
+        let expected = match label {
+            "old-state" => 5293,
+            "ordinary-eager" => 88,
+            "replacement" => 4498,
+            _ => unreachable!(),
+        };
+        assert_eq!(boundary(label, source), expected, "{label}");
     }
 }
