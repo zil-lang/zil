@@ -106,9 +106,7 @@ fn public_transport_version_and_verified_target_binding_are_independent() {
     let errors = zil_backend_llvm::emit(&verified, &lir).unwrap_err();
     fs::write(dir.join("lir-target.txt"), format!("{errors:#?}\n")).unwrap();
     assert!(
-        errors.iter().any(|d| d.code == "E-CODEGEN-LIR"
-            || d.code == "E-CODEGEN-TARGET"
-            || d.code == "E-CODEGEN-BINDING"),
+        errors.iter().any(|d| d.code == "E-CODEGEN-UNBOUND-LIR"),
         "{errors:#?}"
     );
 }
