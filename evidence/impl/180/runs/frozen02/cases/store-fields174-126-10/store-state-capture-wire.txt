@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "Package capture with Store fields requires a retained storage protocol",
+        span: None,
+        notes: [],
+    },
+]

@@ -1,0 +1,539 @@
+diff --git a/crates/zil-analyze/src/budget.rs b/crates/zil-analyze/src/budget.rs
+index 9d56d49..915a4f0 100644
+--- a/crates/zil-analyze/src/budget.rs
++++ b/crates/zil-analyze/src/budget.rs
+@@ -212,7 +212,7 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
+     } else if crate::dynamic_store::is_carrier(ty)
+         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+         || ty.is_shared_resource_head_address()
+-        || ty.is_shared_package_address()
++        || ty.is_package_address()
+         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
+             if **inner == Type::ByteBuffer
+                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
+diff --git a/crates/zil-analyze/src/dynamic_store.rs b/crates/zil-analyze/src/dynamic_store.rs
+index c9d413c..39d239b 100644
+--- a/crates/zil-analyze/src/dynamic_store.rs
++++ b/crates/zil-analyze/src/dynamic_store.rs
+@@ -9,7 +9,8 @@ pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
+     match *kind {
+         InstructionKind::OwnedStoreReserve { store, .. }
+         | InstructionKind::OwnedStorePush { store, .. }
+-        | InstructionKind::OwnedStorePop { store } => Some((store, true)),
++        | InstructionKind::OwnedStorePop { store }
++        | InstructionKind::OwnedStoreBorrowMut { store, .. } => Some((store, true)),
+         InstructionKind::OwnedStoreLen { store }
+         | InstructionKind::OwnedStoreCapacity { store }
+         | InstructionKind::OwnedStoreBorrow { store, .. } => Some((store, false)),
+diff --git a/crates/zil-analyze/src/holds.rs b/crates/zil-analyze/src/holds.rs
+index 51791f8..d4c703d 100644
+--- a/crates/zil-analyze/src/holds.rs
++++ b/crates/zil-analyze/src/holds.rs
+@@ -35,7 +35,7 @@ fn head_windows(module: &TypedModule, budget: &mut Budget) -> CompileResult<bool
+             "resource head window discovery",
+         )?;
+         if function.locals.iter().map(|l| &l.ty).chain(&function.values)
+-            .any(|ty| ty.is_shared_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
++            .any(|ty| ty.is_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
+             return Ok(true);
+         }
+     }
+@@ -178,7 +178,8 @@ fn infer(
+                         found.insert(Root::Capture(*index));
+                     }
+                     InstructionKind::ByteBufferBorrow { buffer, .. }
+-                    | InstructionKind::OwnedStoreBorrow { store: buffer, .. } => {
++                    | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
++                    | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
+                         let source = values
+                             .get(buffer.0 as usize)
+                             .ok_or_else(|| bad("ByteBuffer source outside table"))?;
+diff --git a/crates/zil-backend-llvm/src/emit.rs b/crates/zil-backend-llvm/src/emit.rs
+index f49c551..2a2c33b 100644
+--- a/crates/zil-backend-llvm/src/emit.rs
++++ b/crates/zil-backend-llvm/src/emit.rs
+@@ -284,7 +284,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
+                 && !concrete_closure
+                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+                 && !ty.is_shared_resource_head_address()
+-                && !ty.is_shared_package_address()
++                && !ty.is_package_address()
+                 && !resources::supported_type(ty, &lir.resources)
+                 && !packages::supported_type(ty, &lir.resources)
+                 && !errors::supported_type(ty, &lir.resources)
+@@ -565,19 +565,14 @@ impl FunctionEmitter<'_> {
+ 
+     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
+         match &instruction.kind {
+-            InstructionKind::OwnedStoreBorrowMut { .. } => {
+-                return unsupported(
+-                    "exclusive Store window semantics pending",
+-                    Some(instruction.span),
+-                );
+-            }
+             InstructionKind::OwnedStoreNew { .. }
+             | InstructionKind::OwnedStoreReserve { .. }
+             | InstructionKind::OwnedStorePush { .. }
+             | InstructionKind::OwnedStorePop { .. }
+             | InstructionKind::OwnedStoreLen { .. }
+             | InstructionKind::OwnedStoreCapacity { .. }
+-            | InstructionKind::OwnedStoreBorrow { .. } => {
++            | InstructionKind::OwnedStoreBorrow { .. }
++            | InstructionKind::OwnedStoreBorrowMut { .. } => {
+                 self.dynamic_store_instruction(instruction)?;
+             }
+             InstructionKind::ByteBufferNew
+@@ -1681,7 +1676,7 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
+             if inner.is_copy_value()
+                 || matches!(inner.as_ref(), Type::Closure(_))
+                 || ty.is_shared_resource_head_address()
+-                || ty.is_shared_package_address() =>
++                || ty.is_package_address() =>
+         {
+             Ok("ptr".into())
+         }
+@@ -1738,7 +1733,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
+             if inner.is_address_pointee()
+                 || matches!(inner.as_ref(), Type::Closure(_))
+                 || ty.is_shared_resource_head_address()
+-                || ty.is_shared_package_address() =>
++                || ty.is_package_address() =>
+         {
+             Ok(8)
+         }
+diff --git a/crates/zil-backend-llvm/src/emit/dynamic_store.rs b/crates/zil-backend-llvm/src/emit/dynamic_store.rs
+index f7c9dfb..a47fa2f 100644
+--- a/crates/zil-backend-llvm/src/emit/dynamic_store.rs
++++ b/crates/zil-backend-llvm/src/emit/dynamic_store.rs
+@@ -211,7 +211,8 @@ impl FunctionEmitter<'_> {
+             | InstructionKind::OwnedStorePop { store }
+             | InstructionKind::OwnedStoreLen { store }
+             | InstructionKind::OwnedStoreCapacity { store }
+-            | InstructionKind::OwnedStoreBorrow { store, .. } => store,
++            | InstructionKind::OwnedStoreBorrow { store, .. }
++            | InstructionKind::OwnedStoreBorrowMut { store, .. } => store,
+             _ => unreachable!("Store instruction dispatch"),
+         };
+         let Type::Desc(payload) = self.value_type(store)? else {
+@@ -231,7 +232,8 @@ impl FunctionEmitter<'_> {
+                     value(capacity)
+                 ));
+             }
+-            InstructionKind::OwnedStoreBorrow { index, .. } => {
++            InstructionKind::OwnedStoreBorrow { index, .. }
++            | InstructionKind::OwnedStoreBorrowMut { index, .. } => {
+                 let Type::OwnedStore { element } = payload.as_ref() else {
+                     unreachable!("verified Store payload");
+                 };
+diff --git a/crates/zil-lower/src/lib.rs b/crates/zil-lower/src/lib.rs
+index 3bdc2d6..14e1559 100644
+--- a/crates/zil-lower/src/lib.rs
++++ b/crates/zil-lower/src/lib.rs
+@@ -96,7 +96,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
+                 && !concrete_closure
+                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+                 && !ty.is_shared_resource_head_address()
+-                && !ty.is_shared_package_address()
++                && !ty.is_package_address()
+                 && !resource_type(ty, &module.resources)
+                 && !package_type(ty, &module.resources)
+                 && !error_type(ty, &module.resources)
+diff --git a/crates/zil-types/src/addresses.rs b/crates/zil-types/src/addresses.rs
+index 3e89bb9..80c3889 100644
+--- a/crates/zil-types/src/addresses.rs
++++ b/crates/zil-types/src/addresses.rs
+@@ -236,7 +236,7 @@ impl Builder<'_, '_> {
+                 let result = self.expr(operand, None)?;
+                 if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee())
+                     && !result.1.is_shared_resource_head_address()
+-                    && !result.1.is_shared_package_address()
++                    && !result.1.is_package_address()
+                 {
+                     return Err(error(
+                         "E-OPERATOR-TYPE",
+diff --git a/crates/zil-types/src/aggregates.rs b/crates/zil-types/src/aggregates.rs
+index 3c7c152..2100a3c 100644
+--- a/crates/zil-types/src/aggregates.rs
++++ b/crates/zil-types/src/aggregates.rs
+@@ -668,15 +668,11 @@ impl Resolver<'_> {
+                     {
+                         Type::Managed(payload)
+                     }
+-                    Type::Package { .. }
+-                        if !*mutable && dynamic_store::supported_element(&inner) =>
+-                    {
+-                        inner
+-                    }
++                    Type::Package { .. } if dynamic_store::supported_element(&inner) => inner,
+                     Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
+                         return Err(unsupported(
+                             span,
+-                            "head addresses require a shared finite user-resource head; mutable, byte-storage and Package heads are not implemented",
++                            "head addresses require a shared finite user-resource head or a supported Store element; byte-storage and other Package heads are not implemented",
+                         ));
+                     }
+                     other => other,
+diff --git a/crates/zil-types/src/closures.rs b/crates/zil-types/src/closures.rs
+index a4e992a..5f2315b 100644
+--- a/crates/zil-types/src/closures.rs
++++ b/crates/zil-types/src/closures.rs
+@@ -1099,7 +1099,7 @@ impl LocalType {
+                 },
+             ) if (inner.is_address_pointee()
+                 || ty.is_shared_resource_head_address()
+-                || ty.is_shared_package_address())
++                || ty.is_package_address())
+                 && (mutable || !wanted) =>
+             {
+                 graph.bind(variable, inner, span)
+@@ -1278,7 +1278,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                 format!("unknown value {name}"),
+             ));
+         };
+-        if ty.is_shared_package_address() {
++        if ty.is_package_address() {
+             return Err(unsupported(
+                 span,
+                 "Store element address capture requires a separate retained element-window contract",
+@@ -2077,7 +2077,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                     self.visit(depth + 1, callee.span)?;
+                     let arity = match name {
+                         "store_new" => 0,
+-                        "store_reserve" | "store_push" | "store_at" => 2,
++                        "store_reserve" | "store_push" | "store_at" | "store_at_mut" => 2,
+                         _ => 1,
+                     };
+                     if arguments.len() != arity {
+@@ -2115,16 +2115,23 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                         ));
+                     };
+                     self.graph.reserve_type(&element, 0, span)?;
+-                    if matches!(name, "store_reserve" | "store_push" | "store_at") {
+-                        let wanted = if matches!(name, "store_reserve" | "store_at") {
+-                            Type::I64
+-                        } else {
+-                            (*element).clone()
+-                        };
++                    if matches!(
++                        name,
++                        "store_reserve" | "store_push" | "store_at" | "store_at_mut"
++                    ) {
++                        let wanted =
++                            if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
++                                Type::I64
++                            } else {
++                                (*element).clone()
++                            };
+                         let value = self.expr_expected(&arguments[1], Some(&wanted), depth + 1)?;
+                         value.bind(&mut self.graph, &wanted, arguments[1].span)?;
+                     }
+-                    if matches!(name, "store_reserve" | "store_push" | "store_pop") {
++                    if matches!(
++                        name,
++                        "store_reserve" | "store_push" | "store_pop" | "store_at_mut"
++                    ) {
+                         self.mark_resource_write(first, arguments[0].span)?;
+                     }
+                     return self.known(&dynamic_store::result_type(name, &element), span);
+diff --git a/crates/zil-types/src/dynamic_store.rs b/crates/zil-types/src/dynamic_store.rs
+index 7419373..224caca 100644
+--- a/crates/zil-types/src/dynamic_store.rs
++++ b/crates/zil-types/src/dynamic_store.rs
+@@ -52,6 +52,7 @@ pub(super) fn primitive(expression: &CoreExpr) -> Option<&str> {
+             | "store_len"
+             | "store_capacity"
+             | "store_at"
++            | "store_at_mut"
+     )
+     .then_some(name)
+ }
+@@ -59,7 +60,7 @@ pub(super) fn primitive(expression: &CoreExpr) -> Option<&str> {
+ /// Recognize a direct primitive result without cloning its Package type.
+ pub(super) fn borrow_expression(expression: &CoreExpr) -> bool {
+     matches!(&expression.kind, CoreExprKind::Call { callee, .. }
+-        if primitive(callee) == Some("store_at"))
++        if matches!(primitive(callee), Some("store_at" | "store_at_mut")))
+ }
+ 
+ pub(super) fn result_type(name: &str, element: &Type) -> Type {
+@@ -68,8 +69,8 @@ pub(super) fn result_type(name: &str, element: &Type) -> Type {
+             element: Box::new(element.clone()),
+         })),
+         "store_reserve" => Type::Bool,
+-        "store_at" => Type::Address {
+-            mutable: false,
++        "store_at" | "store_at_mut" => Type::Address {
++            mutable: name == "store_at_mut",
+             inner: Box::new(element.clone()),
+         },
+         "store_push" => Type::ErrorUnion {
+@@ -194,7 +195,7 @@ impl Builder<'_, '_> {
+     ) -> R<(ValueId, Type)> {
+         let arity = match name {
+             "store_new" => 0,
+-            "store_reserve" | "store_push" | "store_at" => 2,
++            "store_reserve" | "store_push" | "store_at" | "store_at_mut" => 2,
+             _ => 1,
+         };
+         if arguments.len() != arity {
+@@ -252,10 +253,14 @@ impl Builder<'_, '_> {
+                     self.same(&actual, &element, arguments[1].span)?;
+                     InstructionKind::OwnedStorePush { store, value }
+                 }
+-                "store_at" => {
++                "store_at" | "store_at_mut" => {
+                     let (index, actual) = self.expr(&arguments[1], Some(&Type::I64))?;
+                     self.same(&actual, &Type::I64, arguments[1].span)?;
+-                    InstructionKind::OwnedStoreBorrow { store, index }
++                    if name == "store_at_mut" {
++                        InstructionKind::OwnedStoreBorrowMut { store, index }
++                    } else {
++                        InstructionKind::OwnedStoreBorrow { store, index }
++                    }
+                 }
+                 "store_pop" => InstructionKind::OwnedStorePop { store },
+                 "store_len" => InstructionKind::OwnedStoreLen { store },
+diff --git a/crates/zil-types/src/inference.rs b/crates/zil-types/src/inference.rs
+index 0ee702a..2645fe2 100644
+--- a/crates/zil-types/src/inference.rs
++++ b/crates/zil-types/src/inference.rs
+@@ -1089,7 +1089,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+         } else if let Type::Address { mutable, inner } = ty {
+             if !inner.is_address_pointee()
+                 && !ty.is_shared_resource_head_address()
+-                && !ty.is_shared_package_address()
++                && !ty.is_package_address()
+             {
+                 return Err(unsupported(span, "nested reference signature"));
+             }
+@@ -1240,7 +1240,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                     inner,
+                 } if (inner.is_address_pointee()
+                     || ty.is_shared_resource_head_address()
+-                    || ty.is_shared_package_address())
++                    || ty.is_package_address())
+                     && (*mutable || !wanted) =>
+                 {
+                     self.bind(*variable, inner, span)
+@@ -2064,7 +2064,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                     self.expression_index += 1;
+                     let arity = match name {
+                         "store_new" => 0,
+-                        "store_reserve" | "store_push" | "store_at" => 2,
++                        "store_reserve" | "store_push" | "store_at" | "store_at_mut" => 2,
+                         _ => 1,
+                     };
+                     if arguments.len() != arity {
+@@ -2102,12 +2102,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                         ));
+                     };
+                     validate_type(&element, 0, span, self.budget)?;
+-                    if matches!(name, "store_reserve" | "store_push" | "store_at") {
+-                        let wanted = if matches!(name, "store_reserve" | "store_at") {
+-                            Type::I64
+-                        } else {
+-                            (*element).clone()
+-                        };
++                    if matches!(
++                        name,
++                        "store_reserve" | "store_push" | "store_at" | "store_at_mut"
++                    ) {
++                        let wanted =
++                            if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
++                                Type::I64
++                            } else {
++                                (*element).clone()
++                            };
+                         let term =
+                             self.expr_expected(&arguments[1], Some(&wanted), depth + 1, false)?;
+                         self.bind_term(&term, &wanted, arguments[1].span)?;
+diff --git a/crates/zil-types/src/lib.rs b/crates/zil-types/src/lib.rs
+index 8ca52bd..8030789 100644
+--- a/crates/zil-types/src/lib.rs
++++ b/crates/zil-types/src/lib.rs
+@@ -133,7 +133,7 @@ fn signatures(
+                 format!("function {} is declared twice", f.name),
+             ))
+         }
+-        if f.return_type.is_shared_package_address() {
++        if f.return_type.is_package_address() {
+             errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
+         }
+         if f.return_type.is_shared_resource_head_address()
+@@ -214,7 +214,7 @@ fn signatures(
+                     || p.ty.is_shared_resource_head_address()
+                     || p.ty.is_shared_package_address()))
+                 && !(p.mode == PassingMode::BorrowMut
+-                    && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee()))
++                    && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address()))
+                 && !(p.mode == PassingMode::Give && matches!(p.ty, Type::Managed(_)))
+                 && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
+             {
+@@ -547,7 +547,7 @@ impl<'a, 'c> Builder<'a, 'c> {
+                 .iter()
+                 .map(|local| &local.ty)
+                 .chain(&self.function.values)
+-                .any(Type::is_shared_package_address)
++                .any(Type::is_package_address)
+             {
+                 return Err(unsupported(
+                     body.span,
+diff --git a/crates/zil-verify/src/borrows.rs b/crates/zil-verify/src/borrows.rs
+index ad7e816..d0ac6d8 100644
+--- a/crates/zil-verify/src/borrows.rs
++++ b/crates/zil-verify/src/borrows.rs
+@@ -102,7 +102,7 @@ fn head_windows(module: &TypedModule, budget: &mut Budget) -> Check<bool> {
+                 .saturating_add(1),
+         )?;
+         if function.locals.iter().map(|local| &local.ty).chain(&function.values)
+-            .any(|ty| ty.is_shared_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
++            .any(|ty| ty.is_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
+             return Ok(true);
+         }
+     }
+@@ -647,7 +647,8 @@ fn reconstruct(
+                             row.push(Root::Capture(*index));
+                         }
+                         InstructionKind::ByteBufferBorrow { buffer, .. }
+-                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. } => {
++                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
++                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
+                             roots_join(&mut row, &values[buffer.0 as usize], budget)?;
+                         }
+                         InstructionKind::BorrowOwnedArrayElement { local, .. }
+diff --git a/crates/zil-verify/src/borrows/loans.rs b/crates/zil-verify/src/borrows/loans.rs
+index 9a41a55..3422e80 100644
+--- a/crates/zil-verify/src/borrows/loans.rs
++++ b/crates/zil-verify/src/borrows/loans.rs
+@@ -159,6 +159,7 @@ fn reconstruct(
+                         }
+                         InstructionKind::ByteBufferBorrow { .. }
+                         | InstructionKind::OwnedStoreBorrow { .. }
++                        | InstructionKind::OwnedStoreBorrowMut { .. }
+                         | InstructionKind::BorrowOwnedArrayElement { .. }
+                         | InstructionKind::BorrowPackageField { .. } => {
+                             row.insert(id);
+diff --git a/crates/zil-verify/src/closures.rs b/crates/zil-verify/src/closures.rs
+index b8403cc..bfe7ac1 100644
+--- a/crates/zil-verify/src/closures.rs
++++ b/crates/zil-verify/src/closures.rs
+@@ -59,7 +59,7 @@ pub(super) fn check_definitions(
+         // Capture fields include independently checked finite owning Packages.
+         // Hold, view binding and authority are reconstructed from the raw CFG.
+         for ty in &closure.captures {
+-            if ty.is_shared_package_address() {
++            if ty.is_package_address() {
+                 return Err(unsupported(
+                     "Store element address capture requires a separate retained element-window contract",
+                     None,
+diff --git a/crates/zil-verify/src/dynamic_store.rs b/crates/zil-verify/src/dynamic_store.rs
+index 96a76e3..fc89857 100644
+--- a/crates/zil-verify/src/dynamic_store.rs
++++ b/crates/zil-verify/src/dynamic_store.rs
+@@ -224,7 +224,8 @@ pub(super) fn check_instruction(
+     }
+     let (store, extra) = match instruction.kind {
+         InstructionKind::OwnedStoreReserve { store, capacity } => (store, Some(capacity)),
+-        InstructionKind::OwnedStoreBorrow { store, index } => (store, Some(index)),
++        InstructionKind::OwnedStoreBorrow { store, index }
++        | InstructionKind::OwnedStoreBorrowMut { store, index } => (store, Some(index)),
+         InstructionKind::OwnedStorePush { store, value } => (store, Some(value)),
+         InstructionKind::OwnedStorePop { store }
+         | InstructionKind::OwnedStoreLen { store }
+@@ -244,12 +245,15 @@ pub(super) fn check_instruction(
+             }
+             Type::Bool
+         }
+-        InstructionKind::OwnedStoreBorrow { .. } => {
++        InstructionKind::OwnedStoreBorrow { .. } | InstructionKind::OwnedStoreBorrowMut { .. } => {
+             if value_type(function, extra.expect("element index"), span)? != &Type::I64 {
+                 return Err(bad("Store element index must be i64"));
+             }
+             Type::Address {
+-                mutable: false,
++                mutable: matches!(
++                    instruction.kind,
++                    InstructionKind::OwnedStoreBorrowMut { .. }
++                ),
+                 inner: Box::new(element.clone()),
+             }
+         }
+@@ -280,7 +284,8 @@ pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
+     match *kind {
+         InstructionKind::OwnedStoreReserve { store, .. }
+         | InstructionKind::OwnedStorePush { store, .. }
+-        | InstructionKind::OwnedStorePop { store } => Some((store, true)),
++        | InstructionKind::OwnedStorePop { store }
++        | InstructionKind::OwnedStoreBorrowMut { store, .. } => Some((store, true)),
+         InstructionKind::OwnedStoreLen { store }
+         | InstructionKind::OwnedStoreCapacity { store }
+         | InstructionKind::OwnedStoreBorrow { store, .. } => Some((store, false)),
+diff --git a/crates/zil-verify/src/lib.rs b/crates/zil-verify/src/lib.rs
+index a4d3017..e71da56 100644
+--- a/crates/zil-verify/src/lib.rs
++++ b/crates/zil-verify/src/lib.rs
+@@ -655,7 +655,7 @@ fn check_function_signature_type(
+     budget: &mut Budget,
+ ) -> Check<()> {
+     match ty {
+-        Type::Address { inner, .. } if ty.is_shared_package_address() => {
++        Type::Address { inner, .. } if ty.is_package_address() => {
+             dynamic_store::check_element(module, inner, span, budget)
+         }
+         Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+@@ -684,7 +684,7 @@ fn check_local_type(
+             span,
+             "local closure type references an absent environment",
+         )),
+-        Type::Address { inner, .. } if ty.is_shared_package_address() => {
++        Type::Address { inner, .. } if ty.is_package_address() => {
+             dynamic_store::check_element(module, inner, span, budget)
+         }
+         Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+@@ -761,13 +761,13 @@ fn check_function(
+     }
+     if matches!(function.return_type, Type::Address { .. }) {
+         budget.spend(function.locals.len().saturating_add(function.values.len()))?;
+-        if function.return_type.is_shared_package_address()
++        if function.return_type.is_package_address()
+             || function
+                 .locals
+                 .iter()
+                 .map(|local| &local.ty)
+                 .chain(&function.values)
+-                .any(Type::is_shared_package_address)
++                .any(Type::is_package_address)
+         {
+             return Err(unsupported(
+                 "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
+@@ -1041,19 +1041,14 @@ fn check_instruction(
+ ) -> Check<()> {
+     let span = Some(instruction.span);
+     let expected = match &instruction.kind {
+-        InstructionKind::OwnedStoreBorrowMut { .. } => {
+-            return Err(unsupported(
+-                "exclusive Store window semantics pending",
+-                span,
+-            ));
+-        }
+         InstructionKind::OwnedStoreNew { .. }
+         | InstructionKind::OwnedStoreReserve { .. }
+         | InstructionKind::OwnedStorePush { .. }
+         | InstructionKind::OwnedStorePop { .. }
+         | InstructionKind::OwnedStoreLen { .. }
+         | InstructionKind::OwnedStoreCapacity { .. }
+-        | InstructionKind::OwnedStoreBorrow { .. } => {
++        | InstructionKind::OwnedStoreBorrow { .. }
++        | InstructionKind::OwnedStoreBorrowMut { .. } => {
+             dynamic_store::check_instruction(module, function, instruction, budget)?
+         }
+         InstructionKind::ByteBufferNew
+@@ -1314,7 +1309,7 @@ fn check_instruction(
+             let field = match projected {
+                 Type::Tuple(fields) => fields.get(*index as usize),
+                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
+-                Type::Package { fields, .. } if !*mutable => {
++                Type::Package { fields, .. } => {
+                     dynamic_store::check_element(module, projected, span, budget)?;
+                     fields.get(*index as usize).map(|(_, ty)| ty)
+                 }

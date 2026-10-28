@@ -1,0 +1,744 @@
+[
+    ScalarInterface {
+        callable_returns: None,
+        module: ModuleId(
+            0,
+        ),
+        exports: [],
+        signature_fingerprint: Fingerprint(
+            [
+                214,
+                119,
+                167,
+                95,
+                80,
+                106,
+                102,
+                166,
+                4,
+                254,
+                78,
+                48,
+                74,
+                84,
+                123,
+                68,
+                110,
+                153,
+                65,
+                163,
+                170,
+                88,
+                220,
+                83,
+                192,
+                26,
+                87,
+                226,
+                51,
+                209,
+                10,
+                25,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                40,
+                238,
+                179,
+                191,
+                227,
+                171,
+                88,
+                201,
+                17,
+                13,
+                135,
+                145,
+                206,
+                6,
+                0,
+                89,
+                246,
+                161,
+                99,
+                233,
+                178,
+                198,
+                31,
+                253,
+                61,
+                107,
+                109,
+                230,
+                212,
+                153,
+                100,
+                130,
+            ],
+        ),
+        result_origins: None,
+        contract_fingerprint: None,
+        callable_contracts: None,
+    },
+    ScalarInterface {
+        callable_returns: None,
+        module: ModuleId(
+            1,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "emit",
+                function: FunctionId(
+                    5,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: Unit,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "make",
+                function: FunctionId(
+                    4,
+                ),
+                parameters: [
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: ErrorUnion {
+                    error: Enum {
+                        name: "@module1:$module1_Fault",
+                        variants: [
+                            (
+                                "Memory",
+                                [],
+                            ),
+                            (
+                                "Invalid",
+                                [],
+                            ),
+                        ],
+                    },
+                    result: Package {
+                        name: "@module1:$module1_Item",
+                        fields: [
+                            (
+                                "ticket",
+                                Managed(
+                                    Record {
+                                        name: "@module1:$module1_Ticket",
+                                        fields: [
+                                            (
+                                                "code",
+                                                I32,
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            ),
+                            (
+                                "data",
+                                Managed(
+                                    ByteBuffer,
+                                ),
+                            ),
+                            (
+                                "metadata",
+                                Record {
+                                    name: "@module1:$module1_Metadata",
+                                    fields: [
+                                        (
+                                            "code",
+                                            I32,
+                                        ),
+                                        (
+                                            "coordinates",
+                                            Array {
+                                                element: I32,
+                                                length: 2,
+                                            },
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ],
+                    },
+                },
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                28,
+                121,
+                204,
+                45,
+                111,
+                90,
+                122,
+                149,
+                5,
+                123,
+                158,
+                8,
+                99,
+                24,
+                245,
+                58,
+                25,
+                198,
+                250,
+                13,
+                114,
+                239,
+                86,
+                190,
+                45,
+                224,
+                140,
+                103,
+                239,
+                123,
+                190,
+                253,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                83,
+                200,
+                20,
+                139,
+                203,
+                66,
+                172,
+                39,
+                13,
+                27,
+                150,
+                13,
+                15,
+                143,
+                34,
+                83,
+                100,
+                82,
+                45,
+                74,
+                133,
+                96,
+                15,
+                150,
+                231,
+                68,
+                120,
+                116,
+                33,
+                25,
+                112,
+                224,
+            ],
+        ),
+        result_origins: None,
+        contract_fingerprint: None,
+        callable_contracts: None,
+    },
+    ScalarInterface {
+        callable_returns: None,
+        module: ModuleId(
+            2,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "empty",
+                function: FunctionId(
+                    6,
+                ),
+                parameters: [],
+                result: Managed(
+                    OwnedStore {
+                        element: Package {
+                            name: "@module1:$module1_Item",
+                            fields: [
+                                (
+                                    "ticket",
+                                    Managed(
+                                        Record {
+                                            name: "@module1:$module1_Ticket",
+                                            fields: [
+                                                (
+                                                    "code",
+                                                    I32,
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ),
+                                (
+                                    "data",
+                                    Managed(
+                                        ByteBuffer,
+                                    ),
+                                ),
+                                (
+                                    "metadata",
+                                    Record {
+                                        name: "@module1:$module1_Metadata",
+                                        fields: [
+                                            (
+                                                "code",
+                                                I32,
+                                            ),
+                                            (
+                                                "coordinates",
+                                                Array {
+                                                    element: I32,
+                                                    length: 2,
+                                                },
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            ],
+                        },
+                    },
+                ),
+                result_mode: Create,
+            },
+            ScalarFunction {
+                name: "fill",
+                function: FunctionId(
+                    7,
+                ),
+                parameters: [
+                    (
+                        Describe,
+                        Desc(
+                            OwnedStore {
+                                element: Package {
+                                    name: "@module1:$module1_Item",
+                                    fields: [
+                                        (
+                                            "ticket",
+                                            Managed(
+                                                Record {
+                                                    name: "@module1:$module1_Ticket",
+                                                    fields: [
+                                                        (
+                                                            "code",
+                                                            I32,
+                                                        ),
+                                                    ],
+                                                },
+                                            ),
+                                        ),
+                                        (
+                                            "data",
+                                            Managed(
+                                                ByteBuffer,
+                                            ),
+                                        ),
+                                        (
+                                            "metadata",
+                                            Record {
+                                                name: "@module1:$module1_Metadata",
+                                                fields: [
+                                                    (
+                                                        "code",
+                                                        I32,
+                                                    ),
+                                                    (
+                                                        "coordinates",
+                                                        Array {
+                                                            element: I32,
+                                                            length: 2,
+                                                        },
+                                                    ),
+                                                ],
+                                            },
+                                        ),
+                                    ],
+                                },
+                            },
+                        ),
+                    ),
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: ErrorUnion {
+                    error: Enum {
+                        name: "@module1:$module1_Fault",
+                        variants: [
+                            (
+                                "Memory",
+                                [],
+                            ),
+                            (
+                                "Invalid",
+                                [],
+                            ),
+                        ],
+                    },
+                    result: Unit,
+                },
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                116,
+                26,
+                73,
+                244,
+                116,
+                217,
+                7,
+                208,
+                166,
+                93,
+                149,
+                80,
+                201,
+                44,
+                231,
+                52,
+                149,
+                25,
+                30,
+                218,
+                107,
+                129,
+                65,
+                153,
+                18,
+                223,
+                86,
+                106,
+                218,
+                2,
+                241,
+                1,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                89,
+                124,
+                22,
+                213,
+                175,
+                68,
+                230,
+                233,
+                99,
+                202,
+                63,
+                75,
+                227,
+                188,
+                38,
+                58,
+                2,
+                204,
+                222,
+                37,
+                37,
+                32,
+                103,
+                85,
+                213,
+                69,
+                25,
+                6,
+                182,
+                230,
+                211,
+                124,
+            ],
+        ),
+        result_origins: None,
+        contract_fingerprint: None,
+        callable_contracts: None,
+    },
+    ScalarInterface {
+        callable_returns: None,
+        module: ModuleId(
+            3,
+        ),
+        exports: [
+            ScalarFunction {
+                name: "apply",
+                function: FunctionId(
+                    9,
+                ),
+                parameters: [
+                    (
+                        Describe,
+                        Desc(
+                            OwnedStore {
+                                element: Package {
+                                    name: "@module1:$module1_Item",
+                                    fields: [
+                                        (
+                                            "ticket",
+                                            Managed(
+                                                Record {
+                                                    name: "@module1:$module1_Ticket",
+                                                    fields: [
+                                                        (
+                                                            "code",
+                                                            I32,
+                                                        ),
+                                                    ],
+                                                },
+                                            ),
+                                        ),
+                                        (
+                                            "data",
+                                            Managed(
+                                                ByteBuffer,
+                                            ),
+                                        ),
+                                        (
+                                            "metadata",
+                                            Record {
+                                                name: "@module1:$module1_Metadata",
+                                                fields: [
+                                                    (
+                                                        "code",
+                                                        I32,
+                                                    ),
+                                                    (
+                                                        "coordinates",
+                                                        Array {
+                                                            element: I32,
+                                                            length: 2,
+                                                        },
+                                                    ),
+                                                ],
+                                            },
+                                        ),
+                                    ],
+                                },
+                            },
+                        ),
+                    ),
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "code",
+                function: FunctionId(
+                    10,
+                ),
+                parameters: [
+                    (
+                        Borrow,
+                        Address {
+                            mutable: false,
+                            inner: Package {
+                                name: "@module1:$module1_Item",
+                                fields: [
+                                    (
+                                        "ticket",
+                                        Managed(
+                                            Record {
+                                                name: "@module1:$module1_Ticket",
+                                                fields: [
+                                                    (
+                                                        "code",
+                                                        I32,
+                                                    ),
+                                                ],
+                                            },
+                                        ),
+                                    ),
+                                    (
+                                        "data",
+                                        Managed(
+                                            ByteBuffer,
+                                        ),
+                                    ),
+                                    (
+                                        "metadata",
+                                        Record {
+                                            name: "@module1:$module1_Metadata",
+                                            fields: [
+                                                (
+                                                    "code",
+                                                    I32,
+                                                ),
+                                                (
+                                                    "coordinates",
+                                                    Array {
+                                                        element: I32,
+                                                        length: 2,
+                                                    },
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ],
+                            },
+                        },
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+            ScalarFunction {
+                name: "translate",
+                function: FunctionId(
+                    8,
+                ),
+                parameters: [
+                    (
+                        BorrowMut,
+                        Address {
+                            mutable: true,
+                            inner: Package {
+                                name: "@module1:$module1_Item",
+                                fields: [
+                                    (
+                                        "ticket",
+                                        Managed(
+                                            Record {
+                                                name: "@module1:$module1_Ticket",
+                                                fields: [
+                                                    (
+                                                        "code",
+                                                        I32,
+                                                    ),
+                                                ],
+                                            },
+                                        ),
+                                    ),
+                                    (
+                                        "data",
+                                        Managed(
+                                            ByteBuffer,
+                                        ),
+                                    ),
+                                    (
+                                        "metadata",
+                                        Record {
+                                            name: "@module1:$module1_Metadata",
+                                            fields: [
+                                                (
+                                                    "code",
+                                                    I32,
+                                                ),
+                                                (
+                                                    "coordinates",
+                                                    Array {
+                                                        element: I32,
+                                                        length: 2,
+                                                    },
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ],
+                            },
+                        },
+                    ),
+                    (
+                        Infer,
+                        I32,
+                    ),
+                ],
+                result: I32,
+                result_mode: Infer,
+            },
+        ],
+        signature_fingerprint: Fingerprint(
+            [
+                227,
+                248,
+                114,
+                152,
+                255,
+                177,
+                230,
+                11,
+                230,
+                62,
+                1,
+                211,
+                168,
+                204,
+                153,
+                228,
+                229,
+                117,
+                58,
+                105,
+                99,
+                51,
+                209,
+                217,
+                250,
+                138,
+                206,
+                82,
+                109,
+                97,
+                18,
+                31,
+            ],
+        ),
+        implementation_fingerprint: Fingerprint(
+            [
+                59,
+                78,
+                254,
+                127,
+                132,
+                136,
+                30,
+                234,
+                22,
+                191,
+                197,
+                152,
+                241,
+                104,
+                247,
+                60,
+                127,
+                40,
+                120,
+                98,
+                57,
+                134,
+                116,
+                190,
+                87,
+                20,
+                10,
+                78,
+                229,
+                237,
+                58,
+                67,
+            ],
+        ),
+        result_origins: None,
+        contract_fingerprint: None,
+        callable_contracts: None,
+    },
+]

@@ -1,0 +1,71 @@
+{
+  "status": "Pass",
+  "scope": "180 author bounded source/native/raw/Wire acceptance; not independent review or full-language acceptance",
+  "implementation_author": "/root/restore177_inventory",
+  "implementation_commit": "74254d8da12004519ca342b1c0602a5a90831c44",
+  "baseline": "8c4ed992138fc103c0fbaf6318e2e34d261bda81",
+  "spec_hash": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "normative_hash": "1cf7aadb8800c31436f158ee3cdf78bcea330ed2bfafc29112b8d11211655a6e",
+  "schema_version": 22,
+  "rule_version": "1.4",
+  "new_instruction": "OwnedStoreBorrowMut opcode 88",
+  "tests": {
+    "own": 19,
+    "adjacent": 37,
+    "passed": 56,
+    "failed": 0,
+    "ignored": 0
+  },
+  "observations": {
+    "bounds_native_executions": 10,
+    "source_SafeReject": 24,
+    "rejection_phase_verify": 21,
+    "ordinary_native_executions": 26,
+    "source_Success": 28,
+    "source_Unsupported": 7,
+    "rejection_phase_types": 9,
+    "raw_rejections": 10,
+    "wire_rejections": 10,
+    "rejection_phase_analyze": 1
+  },
+  "native_executions": 36,
+  "native_builds": 28,
+  "raw_wire_rejection_pairs": 10,
+  "fmt": "Pass",
+  "clippy_changed_libraries_and_new_test": "Pass",
+  "full_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "limits": [
+    "Linux x64 Store profile; Win64 belongs to181",
+    "whole-Store conservative exclusive conflict footprint; no index disjointness proof",
+    "Copy projections only; no Managed access/transfer or Package copy",
+    "no Package window returns, direct capture or escape",
+    "no allocation-failure injection or performance comparison in180; error-RHS actual cleanup and native bound traps covered"
+  ],
+  "receipts": [
+    "runs/frozen02/summary.json",
+    "runs/fmt-final01/command.json",
+    "runs/clippy-final01/commands.json",
+    "phase-artifacts.json",
+    "machine-observations.json"
+  ],
+  "preserved_failures": [
+    {
+      "run": "fmt-first01",
+      "reason": "Initial formatting differences before rustfmt"
+    },
+    {
+      "run": "tests01",
+      "reason": "Two assertions incorrectly searched diagnostic text for conflict rather than exact code; one negative placed the last address use before the subsequent window, so it was a valid sequential case; corrected test fixture without production weakening"
+    },
+    {
+      "run": "tests03",
+      "reason": "FnMut child-address callback was bound with let; corrected to var in both matching positive and negative fixtures"
+    },
+    {
+      "run": "frozen01",
+      "reason": "Old175 blanket &mut Package signature Unsupported contradicted new180 contract; original source retained as Success with added shared-to-exclusive SafeReject, under integration authorization; no-fail-fast added for subsequent bounded run"
+    }
+  ]
+}

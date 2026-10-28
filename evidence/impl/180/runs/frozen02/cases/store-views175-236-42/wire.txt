@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-ADDRESS",
+        message: "ReadAddress requires a shared address to a finite Copy value",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 279,
+                end: 282,
+            },
+        ),
+        notes: [],
+    },
+]
