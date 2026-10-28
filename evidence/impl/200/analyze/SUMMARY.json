@@ -1,0 +1,263 @@
+{
+  "schema_version": 1,
+  "task": "200",
+  "component": "Analyze",
+  "implementation_author": "/root/bundle_sync",
+  "status": "Pass",
+  "scope": "Bounded author component checks only; not independent acceptance or full-language completion",
+  "baseline": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
+  "production_commit": "0b7b2e51fcd661e8f8420ad9206e68b579ab7bc6",
+  "tested_candidate": "65e82c62de59149078313ff772920c0f667009df",
+  "production_combination": "8247f3bfcbdd3842aab57c25d31cbeef7e51849f",
+  "spec_hash": "13ea0962a2bf73893a0b03eac133456216856f3748152392c925e95028059c7d",
+  "normative_hash": "4402e04fd45551cbdd8dff92c4ac51af8d8ddd6f87296c17ce3690f55359bff3",
+  "normative_files_recomputed": 7,
+  "public_schema_version": 25,
+  "default_limits_changed": false,
+  "final_groups": {
+    "raw": {
+      "passed": 8,
+      "failed": 0
+    },
+    "source_derived": {
+      "passed": 8,
+      "failed": 0
+    },
+    "legacy_budget_roles_package": {
+      "passed": 27,
+      "failed": 0
+    }
+  },
+  "hand_built_raw_inputs": {
+    "Pass": 9,
+    "SafeReject": 10,
+    "Unsupported": 1
+  },
+  "source_derived_inputs_per_route": {
+    "analyze": {
+      "Pass": 9,
+      "SafeReject": 11
+    },
+    "raw": {
+      "Pass": 8,
+      "SafeReject": 8,
+      "Unsupported": 4
+    },
+    "wire": {
+      "Pass": 8,
+      "SafeReject": 8,
+      "Unsupported": 4
+    }
+  },
+  "source_derived_control_levels": {
+    "actual_source_controls": 7,
+    "mutated_ir_with_uncalled_extra_parameter_control": 1
+  },
+  "interpretation": [
+    "Raw manual constructors are not source/native evidence.",
+    "The three isolated extra-shape cases reach the independent finite constructor signature boundary; their Unsupported status does not establish borrow or cleanup safety.",
+    "Factory capture mutation reaches the earlier retained-factory self-containment boundary.",
+    "The Copy Load publication attack produces an Analyze plan; both Verify routes independently reject E-VERIFY-MOVE.",
+    "Some signature mutations reach Verify call-type consistency before helper gates; exact diagnoses are in SOURCE-DERIVED-OUTCOMES.json."
+  ],
+  "analyze_budget_boundaries": {
+    "raw": [
+      {
+        "closure_inputs": 1,
+        "closure_fields": 1,
+        "managed_input_fields": 1,
+        "N": 1241,
+        "N_minus_1": "ResourceLimit",
+        "fresh_N": "Pass (candidate equal)"
+      },
+      {
+        "closure_inputs": 2,
+        "closure_fields": 1,
+        "managed_input_fields": 1,
+        "N": 1466,
+        "N_minus_1": "ResourceLimit",
+        "fresh_N": "Pass (candidate equal)"
+      },
+      {
+        "closure_inputs": 2,
+        "closure_fields": 2,
+        "managed_input_fields": 1,
+        "N": 1626,
+        "N_minus_1": "ResourceLimit",
+        "fresh_N": "Pass (candidate equal)"
+      }
+    ],
+    "source": [
+      {
+        "source": "single",
+        "N": 11099,
+        "below": "[Diagnostic { phase: Analyze, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"analysis budget exceeded during public Hold projection\", span: None, notes: [] }]",
+        "fresh": "Pass"
+      },
+      {
+        "source": "double",
+        "N": 15920,
+        "below": "[Diagnostic { phase: Analyze, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"analysis budget exceeded during public Hold projection\", span: None, notes: [] }]",
+        "fresh": "Pass"
+      }
+    ],
+    "source_receipt": "analyze/source02/analyze200-source-budget-509502-0/boundaries.json"
+  },
+  "preserved_failures": [
+    {
+      "run": "raw01",
+      "passed": 0,
+      "failed": 8,
+      "reason": "Initial manual Package omitted required Managed field; ordinary helper cleanup order invalid.",
+      "source_commit": "d3da20464932b66c6df1699a35456d50654608ba"
+    },
+    {
+      "run": "raw02",
+      "passed": 7,
+      "failed": 1,
+      "reason": "Duplicate parameter mutation rejected earlier as E-UNINITIALIZED; assertion expected later contract diagnostic.",
+      "source_commit": "ca32fa88ff5cababd965712231e81a315a37342d"
+    },
+    {
+      "run": "source01",
+      "passed": 5,
+      "failed": 1,
+      "reason": "Forged descriptor capture rejected earlier by retained-factory Analyze gate; assertion expected constructor Unsupported.",
+      "source_commit": "ca32fa88ff5cababd965712231e81a315a37342d"
+    }
+  ],
+  "commands": {
+    "raw01": {
+      "path": "analyze/commands/raw01/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl200_constructor",
+        "--",
+        "--nocapture"
+      ],
+      "status": "Fail",
+      "exit_code": 101,
+      "source_commit": "d3da20464932b66c6df1699a35456d50654608ba",
+      "clean_at_start": true
+    },
+    "raw02": {
+      "path": "analyze/commands/raw02/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl200_constructor",
+        "--",
+        "--nocapture"
+      ],
+      "status": "Fail",
+      "exit_code": 101,
+      "source_commit": "ca32fa88ff5cababd965712231e81a315a37342d",
+      "clean_at_start": true
+    },
+    "source01": {
+      "path": "analyze/commands/source01/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_analyze_constructor",
+        "--",
+        "--nocapture"
+      ],
+      "status": "Fail",
+      "exit_code": 101,
+      "source_commit": "ca32fa88ff5cababd965712231e81a315a37342d",
+      "clean_at_start": true
+    },
+    "raw03": {
+      "path": "analyze/commands/raw03/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl200_constructor",
+        "--",
+        "--nocapture"
+      ],
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "65e82c62de59149078313ff772920c0f667009df",
+      "clean_at_start": true
+    },
+    "source02": {
+      "path": "analyze/commands/source02/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_analyze_constructor",
+        "--",
+        "--nocapture"
+      ],
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "65e82c62de59149078313ff772920c0f667009df",
+      "clean_at_start": true
+    },
+    "regression01": {
+      "path": "analyze/commands/regression01/command.json",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "budgets",
+        "--test",
+        "package_budgets",
+        "--test",
+        "impl196_roles",
+        "--",
+        "--nocapture"
+      ],
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "65e82c62de59149078313ff772920c0f667009df",
+      "clean_at_start": true
+    }
+  },
+  "external_evidence": {
+    "file": "200-analyze-evidence.zip",
+    "bytes": 421362,
+    "sha256": "103230bb220cc28eb694f1654108d4d3492fc5593d7ca5460ab7b34276e0ccf3",
+    "payload_files": 348,
+    "execution_artifacts_included": 0,
+    "crc_and_every_payload_sha256_checked": true
+  },
+  "native_executions": 0,
+  "wine_executions": 0,
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "rust_comparison": "No same-contract runtime/RSS, maintenance or compile performance comparison for this component."
+}
