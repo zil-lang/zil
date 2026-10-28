@@ -498,6 +498,10 @@ pub(super) fn check_module(
                     continue;
                 }
                 let ty = &f.locals[local.0 as usize].ty;
+                // The Copy predicate walks a structural type. Pay for that
+                // walk before using it to classify an ordinary input.
+                let work = closures::type_layout_work(ty, budget)?;
+                budget.spend(work)?;
                 if !ty.is_copy_value() && !matches!(ty, Type::Managed(_)) {
                     return Err(unsupported(
                         "two-input owning State constructors require finite Copy or direct Managed ordinary parameters",
