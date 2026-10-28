@@ -1,8 +1,9 @@
 //! Source-to-native controls for one owned State plus a separate replacement.
 use std::{
     fs,
+    io::Write,
     path::PathBuf,
-    process::Command,
+    process::{Command, Stdio},
     sync::atomic::{AtomicUsize, Ordering},
 };
 use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
@@ -206,6 +207,57 @@ fn main()->i32{{let state=pack(make(65),make(66),7);let next=recycle(state);retu
 "#
     );
     native("loop-refresh-instantiated", &source, "AB", 0);
+}
+
+#[test]
+fn refreshed_loop_alias_executes_zero_one_and_three_iterations() {
+    let definitions = "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}\nfn recycle<T:Copy,F:Fn()->i32>(state:State<T,F>)->State<T,F>{var next=state;var view=&next.a;while view()==0 {let moved=next.a;next.a=moved;view=&next.a}view();return next}";
+    let source = format!(
+        r#"{RESOURCE}extern "C" fn getchar()->i32;
+{definitions}
+fn make(label:i32)->impl Fn()->i32{{let ticket=Ticket{{code:label}};return move()=>{{ticket.code;unsafe{{return getchar()}}}}}}
+fn pack<T:Copy,F:Fn()->i32>(a:F,b:F,tag:T)->State<T,F>{{return State::<T,F>{{bytes:bytes_new(),a:a,b:b,tag:tag}}}}
+fn main()->i32{{let state=pack(make(65),make(66),7);let next=recycle(state);return next.tag-7}}
+"#
+    );
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let (directory, report) =
+            compile_optimized("loop-refresh-input", &source, Stage::Build, optimization);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        for iterations in [0, 1, 3] {
+            let mut input = vec![0; iterations];
+            input.extend([1, 1]); // Exit condition, then the post-loop call.
+            let prefix = format!("iterations-{iterations}");
+            fs::write(directory.join(format!("{prefix}.stdin")), &input).unwrap();
+            let mut child = Command::new(&report.artifacts["executable"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            child.stdin.take().unwrap().write_all(&input).unwrap();
+            let output = child.wait_with_output().unwrap();
+            fs::write(directory.join(format!("{prefix}.stdout")), &output.stdout).unwrap();
+            fs::write(directory.join(format!("{prefix}.stderr")), &output.stderr).unwrap();
+            fs::write(
+                directory.join(format!("{prefix}.txt")),
+                format!(
+                    "optimization={optimization:?}\niterations={iterations}\nexit={:?}\nexpected_exit=0\nexpected_stdout=AB\n",
+                    output.status.code()
+                ),
+            )
+            .unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"AB", "{output:?}");
+            assert!(output.stderr.is_empty(), "{output:?}");
+        }
+    }
 }
 
 #[test]
