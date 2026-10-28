@@ -70,6 +70,7 @@ impl<'a> SourceProgramContext<'a> {
                 .checked_sub(module.core.functions.len())
                 .ok_or_else(limit)?;
             for function in &module.core.functions {
+                let header_work = work;
                 work = work
                     .checked_sub(function.name.len())
                     .and_then(|n| n.checked_sub(function.parameters.len()))
@@ -124,6 +125,30 @@ impl<'a> SourceProgramContext<'a> {
                         for ty in &bound.parameters {
                             hint_type(ty, 0, &mut nodes, &mut work, limits)?;
                         }
+                    }
+                    if !function.callable_parameters.is_empty() {
+                        // The finite mixed shape has one separate direct head.
+                        // Bound both sides before any signature/type equality.
+                        let bound = &function.callable_parameters[0];
+                        if bound.parameters.len() > limits.max_locals {
+                            return Err(limit());
+                        }
+                        nodes = nodes
+                            .checked_add(1)
+                            .filter(|n| *n <= limits.max_nodes)
+                            .ok_or_else(limit)?;
+                        work = work
+                            .checked_sub(1)
+                            .and_then(|n| n.checked_sub(bound.generic_name.len()))
+                            .ok_or_else(limit)?;
+                        hint_type(&bound.result, 0, &mut nodes, &mut work, limits)?;
+                        for ty in &bound.parameters {
+                            hint_type(ty, 0, &mut nodes, &mut work, limits)?;
+                        }
+                        // A second header-sized charge prepays the subsequent
+                        // equality and selector scan. Old profiles pay none.
+                        work = work.checked_sub(header_work - work).ok_or_else(limit)?;
+                        mixed_state_signature(function)?;
                     }
                     // The State binding table has now been bounded as well.
                     // Preserve scalar hints without treating State as an
@@ -206,6 +231,9 @@ fn state_template_shape(function: &CoreFunction) -> CompileResult<()> {
     if function.state_parameters.is_empty() {
         return Ok(());
     }
+    if !function.callable_parameters.is_empty() {
+        return mixed_state_shape(function);
+    }
     let invalid = || {
         unsupported(
             function.span,
@@ -246,6 +274,94 @@ fn state_template_shape(function: &CoreFunction) -> CompileResult<()> {
     }
     if state.bindings[0].fields[0] == state.bindings[1].fields[0] {
         return Err(invalid());
+    }
+    Ok(())
+}
+
+// Constant-sized structure only. Names and Type trees are checked for exact
+// equality by mixed_state_signature after each caller has prepaid both heads.
+fn mixed_state_shape(function: &CoreFunction) -> CompileResult<()> {
+    let invalid = || mixed_state_error(function);
+    if function.state_parameters.len() != 1
+        || function.callable_parameters.len() != 1
+        || !function.type_parameters.is_empty()
+        || function.callable_return.is_some()
+        || function.receiver.is_some()
+        || function.foreign.is_some()
+    {
+        return Err(invalid());
+    }
+    let owner = &function.state_parameters[0];
+    let direct = &function.callable_parameters[0];
+    if owner.bindings.len() != 1 || owner.index == direct.index {
+        return Err(invalid());
+    }
+    for index in [owner.index, direct.index] {
+        if !function
+            .parameters
+            .get(index as usize)
+            .is_some_and(|parameter| {
+                matches!(
+                    parameter.mode,
+                    PassingMode::Infer | PassingMode::Move | PassingMode::Give
+                )
+            })
+        {
+            return Err(invalid());
+        }
+    }
+    let bound = &owner.bindings[0];
+    if bound.generic_index != 0
+        || direct.generic_index != 0
+        || bound.generic_name.is_empty()
+        || direct.generic_name.is_empty()
+        || bound.kind == CallableKind::FunctionPointer
+        || direct.kind != bound.kind
+        || !(1..=2).contains(&bound.fields.len())
+        || (bound.fields.len() == 2 && bound.fields[0] >= bound.fields[1])
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn mixed_state_error(function: &CoreFunction) -> Vec<Diagnostic> {
+    vec![Diagnostic::unsupported(
+        Phase::Ct,
+        "mixed State metadata requires one owned State, one identical F replacement and complete field selectors",
+        Some(function.span),
+    )]
+}
+
+// Transport consistency only: no source move/alias or concrete ownership proof.
+// Call only after shape validation and a full bounded traversal of both heads.
+fn mixed_state_signature(function: &CoreFunction) -> CompileResult<()> {
+    let owner = &function.state_parameters[0];
+    let bound = &owner.bindings[0];
+    let direct = &function.callable_parameters[0];
+    let state = &function.parameters[owner.index as usize].ty;
+    if bound.generic_name != direct.generic_name
+        || bound.parameters != direct.parameters
+        || bound.result != direct.result
+        || !matches!(&function.parameters[direct.index as usize].ty,
+            Type::Named(name) if name == &bound.generic_name)
+        || state != &function.return_type
+    {
+        return Err(mixed_state_error(function));
+    }
+    let Type::Package { fields, .. } = state else {
+        return Err(mixed_state_error(function));
+    };
+    let mut selectors = bound.fields.iter();
+    for (index, (_, ty)) in fields.iter().enumerate() {
+        if matches!(ty, Type::Named(name) if name == &bound.generic_name)
+            && selectors.next().copied().map(|field| field as usize) != Some(index)
+        {
+            return Err(mixed_state_error(function));
+        }
+    }
+    if selectors.next().is_some() {
+        return Err(mixed_state_error(function));
     }
     Ok(())
 }
@@ -527,6 +643,7 @@ impl<'a> Walker<'a> {
             )]);
         }
         for f in &core.functions {
+            let header_work = self.work_left;
             self.charge(0, f.span)?;
             self.text(&f.name, Some(f.span))?;
             ordinary_template_shape(f)?;
@@ -569,6 +686,19 @@ impl<'a> Walker<'a> {
                 self.charge(0, f.span)?;
                 self.text(&contract.generic_name, Some(f.span))?;
                 self.parameters(&contract.parameters, &contract.result, f.span)?;
+            }
+            if !f.state_parameters.is_empty() && !f.callable_parameters.is_empty() {
+                self.work_left = self
+                    .work_left
+                    .checked_sub(header_work - self.work_left)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Ct,
+                            "mixed State header comparison budget exceeded",
+                            Some(f.span),
+                        )]
+                    })?;
+                mixed_state_signature(f)?;
             }
             if let Some(foreign) = &f.foreign {
                 self.charge(0, f.span)?;
