@@ -1,4 +1,4 @@
-# LLVM API主路线（210）
+# LLVM API主路线（212）
 
 ## 目标与实际路径
 
@@ -60,6 +60,17 @@ printf '3' | ./out/state
 
 206已观察到的O2多单元运行性能退化没有因为Builder接入而消失。默认并行参数和pipeline不在210改动范围。
 
+## 显式对象复用（212）
+
+在上面的build/run命令追加`--object-cache .zil/native-objects`。首次构建仍生成对象，并在整次
+请求最终发布成功后原子保存；后续相同单元命中时运行当前Verify与机器预检，不再执行Builder、
+LLVM优化及机器码生成，但仍执行Lower、诊断IR与链接。
+
+`native_codegen.object_cache`分别报告命中、缺失、损坏重建与写入失败；命中的对象记录为
+`input_kind="object-cache"`，明确`llvm_verification_this_request=false`，不伪装为新的LLVM核验。
+该路径依赖可信本机缓存和执行期间不可变的工具安装，不面向不可信/共享网络缓存。
+`--cache-dir`仅为既有未核源候选缓存，不隐式启用对象复用。细节见[212机制说明](research/212/CACHE.md)。
+
 ## 回归和复现
 
 ```sh
@@ -82,5 +93,5 @@ python3 tools/research/208/validate.py --repo . --cli target/release/zil \
 - 机器预检不使任意恶意IR成为可信输入，也不隔离LLVM本身的原生错误。原生unsafe仅在登记的适配边界；Verify继续禁止unsafe。
 - 取消是阶段间协作检查，不能立即打断LLVM pass或链接器。失败不会返回旧成功产物作为本次结果；崩溃时暂存目录可能残留。
 - LLVM前后结构核验、对象生成和链接均可失败，任何失败都停止发布。
-- 对象缓存、稳定符号/匿名项身份、按项查询、ThinLTO属于后续专项，不是本轮已完成功能。
+- 212提供显式可信本地对象缓存；稳定符号/匿名项身份、按项查询、ThinLTO仍属于后续专项。
 - 新性能结果仅适用于冻结场景、工具链和资源；没有完成产品级性能门、非作者独立审核或远端CI。
