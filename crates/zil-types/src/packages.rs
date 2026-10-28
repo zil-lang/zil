@@ -231,6 +231,88 @@ impl Builder<'_, '_> {
         Ok(true)
     }
 
+    /// A direct invocation locates its field before evaluating any arguments.
+    /// Ordinary reads still go through package_field and take the environment.
+    /// No temporary, group, projection or Sequence is silently made a place.
+    pub(super) fn package_callable_callee(
+        &mut self,
+        target: &CoreExpr,
+    ) -> R<Option<(ValueId, ClosureId, CallableKind)>> {
+        let CoreExprKind::Member { object, member } = &target.kind else {
+            return Ok(None);
+        };
+        let CoreExprKind::Name(name) = &object.kind else {
+            return Ok(None);
+        };
+        // Bound all newly introduced scope/name and field comparisons before
+        // their lookup. Inspect the borrowed declaration without cloning the
+        // whole Package type or allocating a second projection graph.
+        let depth = self.function.locals.len().saturating_add(1).ilog2() as usize + 1;
+        self.closures.snapshot(
+            self.scopes
+                .len()
+                .saturating_mul(depth)
+                .saturating_mul(name.len().saturating_add(1)),
+            target.span,
+        )?;
+        let Some(local) = self.lookup(name) else {
+            return Ok(None);
+        };
+        let Type::Package { fields, .. } = &self.function.locals[local.0 as usize].ty else {
+            return Ok(None);
+        };
+        self.closures.snapshot(
+            fields.len().saturating_mul(member.len().saturating_add(1)),
+            target.span,
+        )?;
+        let Some((index, (_, Type::Closure(id)))) = fields
+            .iter()
+            .enumerate()
+            .find(|(_, (name, _))| name == member)
+        else {
+            return Ok(None);
+        };
+        let (index, id) = (index as u32, *id);
+        let count = self.closures.pending[id.0 as usize].captures.len();
+        self.closures
+            .snapshot(count.saturating_mul(2).saturating_add(1), target.span)?;
+        for index in 0..count {
+            let work = inference::type_snapshot_work(
+                &self.closures.pending[id.0 as usize].captures[index].ty,
+                target.span,
+                self.limits,
+            )?;
+            // callable_kind and the existing call path inspect stored capture
+            // types. Pay for their snapshots before constructing any of them.
+            self.closures
+                .snapshot(work.saturating_mul(4), target.span)?;
+        }
+        let kind = self
+            .state_callable_mode
+            .filter(|(bound, _)| *bound == id)
+            .map_or_else(
+                || self.closures.pending[id.0 as usize].callable_kind(),
+                |(_, kind)| kind,
+            );
+        let value = if kind == CallableKind::FnOnce {
+            self.value(
+                InstructionKind::TakePackageField { local, index },
+                Type::Closure(id),
+                target.span,
+            )?
+        } else {
+            self.borrow_package_field(
+                local,
+                index,
+                Type::Closure(id),
+                kind == CallableKind::FnMut,
+                target.span,
+            )?
+            .0
+        };
+        Ok(Some((value, id, kind)))
+    }
+
     pub(super) fn package_place(&self, target: &CoreExpr) -> R<Option<(LocalId, u32, Type)>> {
         let CoreExprKind::Member { object, member } = &target.kind else {
             return Ok(None);
