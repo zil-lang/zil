@@ -956,6 +956,9 @@ impl Graph {
             let mut progressed = false;
             for (base, projection, result, span) in pending.drain(..) {
                 self.spend(span)?;
+                let base = self
+                    .address_shape(base, span)?
+                    .map_or(base, |(inner, _)| inner);
                 let base_root = self.root(base);
                 let projected_variable = match (&self.nodes[base_root].shape, &projection) {
                     (Some(Shape::Tuple(fields)), Projection::Field(name)) => name
@@ -975,6 +978,10 @@ impl Graph {
                     continue;
                 }
                 if let Some(ty) = self.ty(base)? {
+                    let ty = match ty {
+                        Type::Address { inner, .. } if inner.is_copy_value() => *inner,
+                        other => other,
+                    };
                     let field = match &projection {
                         Projection::Field(name) => aggregates::field(&ty, name, span)?.1,
                         Projection::Element => match ty {

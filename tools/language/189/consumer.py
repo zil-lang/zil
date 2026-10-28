@@ -76,11 +76,13 @@ def main():
                 case = directory / f"count-{count}"
                 expected = b"A" + bytes(range(66, 66 + count)) + b"H"
                 observe(executable, case / "ordinary", count, expected, 0)
-                observe(probe, case / "allocation", count, expected, 0, (1 + count, 1))
-                for fail_at in range(1, count + 2):
-                    failure = bytes(range(65, 65 + fail_at - 1)) + b"H"
+                observe(probe, case / "allocation", count, expected, 0, (1 + 2 * count, 1 + int(count > 0)))
+                for fail_at in range(1, 2 * count + 2):
+                    complete = 0 if fail_at == 1 else 1 + (fail_at - 2) // 2
+                    failure = bytes(range(65, 65 + complete)) + b"H"
+                    fresh = 0 if fail_at == 1 else 1 + int(fail_at > 3)
                     observe(probe, case / f"failure-{fail_at}", count, failure, 1,
-                            (fail_at, int(fail_at > 1)), fail_at)
+                            (fail_at, fresh), fail_at)
             observe(executable, directory / "invalid", 9, b"", 9)
         report.update(status="Pass", native_executions=len(report["observations"]),
                       fault_executions=sum(r["fail_at"] > 0 for r in report["observations"]))
