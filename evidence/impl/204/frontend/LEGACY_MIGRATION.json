@@ -1,0 +1,222 @@
+{
+  "task": 204,
+  "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "production_change_in_migration": false,
+  "test_commits": [
+    "2a618743",
+    "928c8a25"
+  ],
+  "runs": {
+    "legacy201_before": {
+      "head": "2820c6cdef3f91f74fdfd9d28ad448c131c64726",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked": {},
+      "exit": 101,
+      "stdout_sha256": "89b0da77176fd80db8787ef7a6c9151b0df6f4efbc6834016e1d2f2fbef9b38a",
+      "stderr_sha256": "7e5ec05b5daed6c55e793d562f35689126db8532897a0d57ab3be482a495351c"
+    },
+    "legacy_raw_before": {
+      "head": "2820c6cdef3f91f74fdfd9d28ad448c131c64726",
+      "tracked_diff_sha256": "3a2adb29d1bd7387fb370cd0ea8d16c654404b74ec1cf8967d16592f3eedc154",
+      "untracked": {},
+      "exit": 101,
+      "stdout_sha256": "37e92fcdb230e60ada3fbe062c49071197a9d95a3709b78693526638f7a9ede2",
+      "stderr_sha256": "3045a27d6c8e16ebff3b00b90e8493cdad80215ffc17e0be8cac09d90600bf06"
+    },
+    "legacy174_raw_before": {
+      "head": "2820c6cdef3f91f74fdfd9d28ad448c131c64726",
+      "tracked_diff_sha256": "3a2adb29d1bd7387fb370cd0ea8d16c654404b74ec1cf8967d16592f3eedc154",
+      "untracked": {},
+      "exit": 101,
+      "stdout_sha256": "81e2f96ca4a8aada5e2418a8159cacbc9b0c4a2fcdb5aa0713913829f40931ff",
+      "stderr_sha256": "f82c91a2fa94bd4877cd55303b0decbc7133180eace431a22bdaa74ac26b78f5"
+    },
+    "legacy_raw_after": {
+      "head": "2820c6cdef3f91f74fdfd9d28ad448c131c64726",
+      "tracked_diff_sha256": "b2c3af81c199727c8fa429c5a0922d0a30c0a58d557bef8ec9c77653b9cac000",
+      "untracked": {},
+      "exit": 0,
+      "stdout_sha256": "175a8acc027313af56971dd0bacd6970728c37bad7ab2b069386e499f12d1796",
+      "stderr_sha256": "d294d57495922b1a1a55481f5454135108b2ea814d13cc247755dafee59cb1b1"
+    },
+    "legacy172_source_before": {
+      "head": "995c3ec8e1557d5b449e08d0e6387fc689f9d0d4",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked": {
+        "evidence/impl/203/frontend/.rsync-tmp/LEGACY_ANALYZE_MIGRATION.json": "5d8bd1aa1ea2f65b2eb9978ed91df2176a3b5e038060b814364ab4e424ab3c43",
+        "evidence/impl/203/frontend/.rsync-tmp/LEGACY_CONSTRUCTOR_MIGRATION.json": "7deac7b9a5736673774a8f2f16477ee802f6aa8ab43fb84082a5e88f9a1c0c17"
+      },
+      "exit": 101,
+      "stdout_sha256": "7dc8ee740ff8d40096934b1fddf1666a960f5410fdb20048cc5b724d6bd8a676",
+      "stderr_sha256": "cdacd3f15004e8e45e32fa22d521aaf7acfcfdcb208301e6ea8dee0c8f76098e"
+    },
+    "legacy174_source_before": {
+      "head": "995c3ec8e1557d5b449e08d0e6387fc689f9d0d4",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked": {},
+      "exit": 101,
+      "stdout_sha256": "294ae0a1b2e013dd8c26b4ddf1055c3cfdb648f5736eca4ed51dacd5374d44c5",
+      "stderr_sha256": "665cb2f4f510db8c3866ee27a44224aaed79bbd88964668381fd1f9ce0236187"
+    },
+    "legacy_negative_after": {
+      "head": "928c8a25ec1557d87d13df5a25496d33e3f1bb12",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked": {},
+      "exit": 0,
+      "stdout_sha256": "0438f53a6e27be28a5b1a5fabe92b12d326860cf7c0f03d0cc212932d9f2b6d9",
+      "stderr_sha256": "31c7beec1befa3e9931d018826908bdf78c25b9323bb19f0bb74e4bbdec1f018"
+    },
+    "legacy201_after": {
+      "head": "c85cce519375bff34c569642834b7cdf1de919de",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked": {},
+      "exit": 0,
+      "stdout_sha256": "96dcd4d1c1b0214ed3a0f436a716959ba1f9b2dc7c8788b29cde15af3b88446b",
+      "stderr_sha256": "b0b9a498593fa07a62c9e97348ddb57d1fb051b9f64a4ab56d5574e2278c3a90"
+    },
+    "legacy_promoted_native": {
+      "head": "ece421cb227883db8386455532f01d841aa5ab5c",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked": {},
+      "exit": 0,
+      "stdout_sha256": "69ec46951ff63d365aad062f54f3388f5d809984624e4dcade80e6bdaa49a801",
+      "stderr_sha256": "ed7d975d30997a308921558784828ef853d2f06ba04a07fc43e3a37aef197a91"
+    }
+  },
+  "promoted_original_source_inputs": [
+    {
+      "source_sha256": "e03bbb4e650551bfa77c52d8a195e320725243f7e3aff2418d94da3bdd52fd11",
+      "bytes": 333,
+      "before_path": "legacy172_source_before/owned-store172-802160-1",
+      "before_actual": "Success/Verify/verification_runs=1; old Unsupported assertion failed",
+      "after": [
+        {
+          "path": "legacy_promoted_native/owned-store172-806628-5",
+          "phase": "link",
+          "status": "Success",
+          "verification_runs": 1,
+          "stdout": "",
+          "stderr": "",
+          "exit.txt": "Some(0)\n"
+        },
+        {
+          "path": "legacy_promoted_native/owned-store172-806628-4",
+          "phase": "link",
+          "status": "Success",
+          "verification_runs": 1,
+          "stdout": "",
+          "stderr": "",
+          "exit.txt": "Some(0)\n"
+        },
+        {
+          "path": "legacy_promoted_native/owned-store172-806628-3",
+          "phase": "verify",
+          "status": "Success",
+          "verification_runs": 1
+        }
+      ]
+    },
+    {
+      "source_sha256": "95ab55e93ae30c67259508fb262f8a4047cad221f7e2fc09a8f4e82cc15b1367",
+      "bytes": 341,
+      "before_path": "legacy172_source_before/owned-store172-802160-12",
+      "before_actual": "Success/Verify/verification_runs=1; old Unsupported assertion failed",
+      "after": [
+        {
+          "path": "legacy_promoted_native/owned-store172-806628-2",
+          "phase": "link",
+          "status": "Success",
+          "verification_runs": 1,
+          "stdout": "",
+          "stderr": "",
+          "exit.txt": "Some(0)\n"
+        },
+        {
+          "path": "legacy_promoted_native/owned-store172-806628-1",
+          "phase": "link",
+          "status": "Success",
+          "verification_runs": 1,
+          "stdout": "",
+          "stderr": "",
+          "exit.txt": "Some(0)\n"
+        },
+        {
+          "path": "legacy_promoted_native/owned-store172-806628-0",
+          "phase": "verify",
+          "status": "Success",
+          "verification_runs": 1
+        }
+      ]
+    },
+    {
+      "source_sha256": "48d7ba25d9ba674f0fb3de548d3ef3ef6bfec0eeeda2994c1336bc432497c97b",
+      "bytes": 687,
+      "before_path": "legacy174_source_before/store-fields174-802236-4",
+      "before_actual": "Success/Verify/verification_runs=1; old Unsupported assertion failed",
+      "after": [
+        {
+          "path": "legacy_promoted_native/store-fields174-806647-2",
+          "phase": "link",
+          "status": "Success",
+          "verification_runs": 1,
+          "stdout": "ZAB",
+          "stderr": ""
+        },
+        {
+          "path": "legacy_promoted_native/store-fields174-806647-1",
+          "phase": "link",
+          "status": "Success",
+          "verification_runs": 1,
+          "stdout": "ZAB",
+          "stderr": ""
+        },
+        {
+          "path": "legacy_promoted_native/store-fields174-806647-0",
+          "phase": "verify",
+          "status": "Success",
+          "verification_runs": 1
+        }
+      ]
+    }
+  ],
+  "metadata_attacks_with_original_wire_bytes_compared": [
+    {
+      "label": "closure-store-capture",
+      "before": "legacy_raw_before/owned-store172-800481-4/candidate.bin",
+      "after": "legacy_raw_after/owned-store172-801004-4/candidate.bin",
+      "bytes": 5871,
+      "sha256": "624d447953919bc645ae212c0d911a86dba510763dde88c0c61f6eaa0ce94f59",
+      "actual_rejection": "Verify/SafeReject/E-VERIFY-CAPTURE: capture operand type differs from the environment field",
+      "input_identical": true
+    },
+    {
+      "label": "store-state-capture",
+      "before": "legacy174_raw_before/store-fields174-800566-0/store-state-capture.bin",
+      "after": "legacy_raw_after/store-fields174-801007-0/store-state-capture.bin",
+      "bytes": 10177,
+      "sha256": "b2fb5e54444a8970e0a285e7a66ee2c34867aaf9b925ded88645e7af7787f804",
+      "actual_rejection": "Verify/SafeReject/E-VERIFY-CAPTURE: capture operand type differs from the environment field",
+      "input_identical": true
+    }
+  ],
+  "other_raw_attack": {
+    "label": "closure-package-store-capture",
+    "original_before_run_reached": false,
+    "reason": "The old test stopped at the first direct Store metadata assertion. Original mutation code remained unchanged; the migrated test executes Package raw/Wire rejection.",
+    "after_wire_sha256": "4b139717d23ebf8e187219c529e3f1f60f2bb4c545a3e4163d600dd58b424c9f"
+  },
+  "original_201": {
+    "source_sha256": "5d430f79813e995268368bcbe3c3918e1de093007e5802f79d4f88f196905853",
+    "bytes": 484,
+    "before": "Types Ok; original unwrap_err failed; no original Analyze/Verify execution claimed",
+    "after": "same source accepted by Types, Analyze, raw Verify and Wire Verify; original204 native tests separately execute O0/O2",
+    "before_path": "legacy201_before/analyze201-original-package-store-capture-800110-0",
+    "after_paths": [
+      "legacy201_after/analyze201-original-package-store-capture-204-805253-10",
+      "legacy201_after/analyze201-original-package-store-capture-805253-9"
+    ]
+  },
+  "retained_negative_groups": "Four source-guard groups passed with every remaining phase/code/category expectation unchanged. Original metadata attacks remain rejected. Complete impl201 target passed 7/0; old Analyze N14578/51708/15633 unchanged.",
+  "native_migration_results": "Three exact old172/174 sources each executed O0/O2: six native executions. Original174 exit2/stdoutZAB preserved. Original201 source/raw/Wire counted separately.",
+  "safety_status": "No claim of complete204 acceptance. Separate windows01 TakeCapture/live-window defect remains pending root repair at receipt creation."
+}
