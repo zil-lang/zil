@@ -643,7 +643,11 @@ impl CallHints {
         span: Span,
         budget: &mut Budget<'_>,
     ) -> R<()> {
-        if self.callable.contains(&index) && callable::opaque_signature(actual).is_some() {
+        let environment = match &grouped(actual).kind {
+            TypeKind::Reference { inner, .. } => inner.as_ref(),
+            _ => actual,
+        };
+        if self.callable.contains(&index) && callable::opaque_signature(environment).is_some() {
             // A source factory identity is not an enumerable generic type key.
             // Types binds its opaque origin to the callback State independently.
             return Ok(());
