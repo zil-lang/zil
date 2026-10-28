@@ -297,6 +297,9 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
                     CoreExprKind::Unary { operand, .. }
                     | CoreExprKind::CompileTime(operand)
                     | CoreExprKind::Try(operand)
+                    | CoreExprKind::TypeApply {
+                        callee: operand, ..
+                    }
                     | CoreExprKind::Ascribed { value: operand, .. }
                     | CoreExprKind::IntegerConvert { value: operand, .. } => {
                         pending.push((Visit::Expr(operand), depth + 1))
