@@ -1,0 +1,1 @@
+pub fn make(n:u8)->impl Fn()->&[u8]{let b=bytes_new();bytes_reserve(b,2);bytes_push(b,n);return move()=>bytes_view(b)}

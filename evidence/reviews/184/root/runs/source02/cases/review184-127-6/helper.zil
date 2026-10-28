@@ -1,0 +1,1 @@
+fn one(p:&i32)->&i32{return p}fn two(p:&i32)->&i32{return one(p)}pub fn peek<F:Fn()->&i32>(f:&F)->&i32{return two(f())}

@@ -1,0 +1,22 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-LENDING",
+            message: "lending requires a shared result, a non-consuming entry and explicit environment sources",
+            span: None,
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-LENDING",
+            message: "lending requires a shared result, a non-consuming entry and explicit environment sources",
+            span: None,
+            notes: [],
+        },
+    ],
+]

@@ -1,0 +1,1 @@
+import factory;fn main()->i32{let f=factory.pick(7,11);let a=f(true);let b=f(false);return *a+*b-18}

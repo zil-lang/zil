@@ -1,0 +1,38 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-LENDING",
+            message: "lending result cannot escape a by-value temporary or consuming closure call",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 106,
+                    end: 109,
+                },
+            ),
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-LENDING",
+            message: "lending result cannot escape a by-value temporary or consuming closure call",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 106,
+                    end: 109,
+                },
+            ),
+            notes: [],
+        },
+    ],
+]

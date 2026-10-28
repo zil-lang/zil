@@ -1,0 +1,1 @@
+import factory;import state;fn main()->i32{return state.inspect(state.state(factory.make(7u8)))}
