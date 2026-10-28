@@ -398,6 +398,94 @@ fn resolve<'a>(
         _ => None,
     }
 }
+// Constant-sized structure only. Names and Type trees are checked for exact
+// equality by mixed_state_signature after each caller has prepaid both heads.
+fn mixed_state_shape(function: &CoreFunction) -> CompileResult<()> {
+    let invalid = || mixed_state_error(function);
+    if function.state_parameters.len() != 1
+        || function.callable_parameters.len() != 1
+        || !function.type_parameters.is_empty()
+        || function.callable_return.is_some()
+        || function.receiver.is_some()
+        || function.foreign.is_some()
+    {
+        return Err(invalid());
+    }
+    let owner = &function.state_parameters[0];
+    let direct = &function.callable_parameters[0];
+    if owner.bindings.len() != 1 || owner.index == direct.index {
+        return Err(invalid());
+    }
+    for index in [owner.index, direct.index] {
+        if !function
+            .parameters
+            .get(index as usize)
+            .is_some_and(|parameter| {
+                matches!(
+                    parameter.mode,
+                    PassingMode::Infer | PassingMode::Move | PassingMode::Give
+                )
+            })
+        {
+            return Err(invalid());
+        }
+    }
+    let bound = &owner.bindings[0];
+    if bound.generic_index != 0
+        || direct.generic_index != 0
+        || bound.generic_name.is_empty()
+        || direct.generic_name.is_empty()
+        || bound.kind == CallableKind::FunctionPointer
+        || direct.kind != bound.kind
+        || !(1..=2).contains(&bound.fields.len())
+        || (bound.fields.len() == 2 && bound.fields[0] >= bound.fields[1])
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn mixed_state_error(function: &CoreFunction) -> Vec<Diagnostic> {
+    vec![Diagnostic::unsupported(
+        Phase::Ct,
+        "mixed State metadata requires one owned State, one identical F replacement and complete field selectors",
+        Some(function.span),
+    )]
+}
+
+// Transport consistency only: no source move/alias or concrete ownership proof.
+// Call only after shape validation and a full bounded traversal of both heads.
+fn mixed_state_signature(function: &CoreFunction) -> CompileResult<()> {
+    let owner = &function.state_parameters[0];
+    let bound = &owner.bindings[0];
+    let direct = &function.callable_parameters[0];
+    let state = &function.parameters[owner.index as usize].ty;
+    if bound.generic_name != direct.generic_name
+        || bound.parameters != direct.parameters
+        || bound.result != direct.result
+        || !matches!(&function.parameters[direct.index as usize].ty,
+            Type::Named(name) if name == &bound.generic_name)
+        || state != &function.return_type
+    {
+        return Err(mixed_state_error(function));
+    }
+    let Type::Package { fields, .. } = state else {
+        return Err(mixed_state_error(function));
+    };
+    let mut selectors = bound.fields.iter();
+    for (index, (_, ty)) in fields.iter().enumerate() {
+        if matches!(ty, Type::Named(name) if name == &bound.generic_name)
+            && selectors.next().copied().map(|field| field as usize) != Some(index)
+        {
+            return Err(mixed_state_error(function));
+        }
+    }
+    if selectors.next().is_some() {
+        return Err(mixed_state_error(function));
+    }
+    Ok(())
+}
+
 struct Collector<'a> {
     program: &'a CoreProgram,
     selected: BTreeSet<(ModuleId, String)>,
@@ -457,6 +545,18 @@ impl Collector<'_> {
     // Independently preflight all retained State data before the collector
     // clones even an unused declaration into the runtime normalized program.
     fn state_header(&mut self, function: &CoreFunction) -> CompileResult<()> {
+        if !function.callable_parameters.is_empty() {
+            mixed_state_shape(function)?;
+            self.charge(0)?;
+            let bound = &function.state_parameters[0].bindings[0];
+            self.charge(0)?;
+            self.text(&bound.generic_name)?;
+            self.parameters(&bound.parameters, &bound.result)?;
+            for _ in &bound.fields {
+                self.charge(0)?;
+            }
+            return Ok(());
+        }
         let invalid = || {
             vec![Diagnostic::unsupported(
                 Phase::Ct,
@@ -509,6 +609,7 @@ impl Collector<'_> {
         Ok(())
     }
     fn header(&mut self, function: &CoreFunction) -> CompileResult<()> {
+        let header_work = self.work_left;
         self.charge(0)?;
         self.text(&function.name)?;
         if !function.state_parameters.is_empty() {
@@ -572,6 +673,12 @@ impl Collector<'_> {
             self.charge(0)?;
             self.text(&contract.generic_name)?;
             self.parameters(&contract.parameters, &contract.result)?;
+        }
+        if !function.state_parameters.is_empty() && !function.callable_parameters.is_empty() {
+            // Both raw heads and actual parameter/return types were bounded.
+            // Prepay the full equality and selector scan before using them.
+            self.text_len(header_work - self.work_left)?;
+            mixed_state_signature(function)?;
         }
         if let Some(foreign) = &function.foreign {
             self.charge(0)?;
