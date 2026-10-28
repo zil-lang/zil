@@ -374,7 +374,7 @@ fn two_noncopy_values_keep_each_field_debt_and_reject_duplicate_actual_arguments
         duplicate_call,
         plan.clone(),
         ResultCategory::SafeReject,
-        "E-VERIFY-RESOURCE",
+        "E-VERIFY-MOVE",
         false,
     );
 
@@ -395,7 +395,7 @@ fn two_noncopy_values_keep_each_field_debt_and_reject_duplicate_actual_arguments
         duplicate_field,
         plan.clone(),
         ResultCategory::SafeReject,
-        "E-VERIFY-RESOURCE",
+        "E-VERIFY-MOVE",
         false,
     );
 
@@ -490,8 +490,8 @@ fn declared_once_consumes_real_fields_of_one_actual_fn_type_separately() {
         "once-source-same-field-twice",
         &source.replace("state.left()+state.right()", "state.left()+state.left()"),
         ResultCategory::SafeReject,
-        &[Phase::Analyze],
-        "field",
+        &[Phase::Expand],
+        "E-GENERIC-ARGUMENT",
     );
 
     for (choice, expression, expected) in [
@@ -621,10 +621,6 @@ fn lending_fields_with_one_closure_id_have_separate_origins_but_keep_the_parent(
             "same-field-take",
             "let taken=state.left;let other=state.right()",
         ),
-        (
-            "whole-parent-move",
-            "let moved=state;let other=moved.right()",
-        ),
     ] {
         source_reject(
             label,
@@ -634,6 +630,29 @@ fn lending_fields_with_one_closure_id_have_separate_origins_but_keep_the_parent(
             "E-BORROW-CONFLICT",
         );
     }
+    // Keep the first attempt's immutable-position diagnostic distinct from
+    // the actual owner invalidation test below; it did not reach loan checking.
+    source_reject(
+        "parent-move-immutable-diagnostic",
+        &LENDING.replace(
+            "let other=state.right()",
+            "let moved=state;let other=moved.right()",
+        ),
+        ResultCategory::SafeReject,
+        &[Phase::Types],
+        "E-IMMUTABLE-ASSIGNMENT",
+    );
+    let moved = format!(
+        "{}fn main()->i32{{var state=stitch(make(7u8),make(9u8));let first=state.left();var moved=state;return i32(first[0])+moved.count-7}}",
+        LENDING.split("fn main()").next().unwrap()
+    );
+    source_reject(
+        "live-lending-parent-move",
+        &moved,
+        ResultCategory::SafeReject,
+        &[Phase::Verify],
+        "E-BORROW-CONFLICT",
+    );
     let (mut module, _) = baseline("lending-field-provenance-control", LENDING);
     let main = main_index(&module);
     let state = module.functions[main]
