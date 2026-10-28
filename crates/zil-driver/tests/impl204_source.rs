@@ -105,6 +105,26 @@ fn reject_types(label: &str, source: &str, message: &str) {
     );
 }
 
+fn reject_window(label: &str, source: &str) {
+    let (_, report) = compile(label, source, Stage::Verify);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{}",
+        report.to_json()
+    );
+}
+
 fn through_types(label: &str, source: &str) {
     let (_, report) = compile(label, source, Stage::Types);
     assert_eq!(
@@ -474,4 +494,36 @@ fn run<F: FnMut() -> i32>(state: State<F>) -> i32 {
 fn main() -> i32 { return run(pack(make())) }
 "#;
     native("new-store-old-lending-sibling", source, "", 0);
+}
+
+#[test]
+fn creation_time_transfer_keeps_the_existing_element_parent_window() {
+    let source = format!(
+        "{LEAF} fn main() -> i32 {{ {PREPARE}
+            let view = store_at(items, 0)
+            let answer = view.value
+            let callback = move () => i32(store_len(items))
+            return callback() + answer - 43
+        }}"
+    );
+    native("capture-after-window-last-use", &source, "A", 0);
+    let conflict = source.replace("callback() + answer", "callback() + view.value");
+    reject_window("capture-with-window-live", &conflict);
+}
+
+#[test]
+fn body_take_keeps_the_existing_capture_element_parent_window() {
+    let source = format!(
+        "{LEAF} fn make() -> impl FnOnce() -> i32 {{ {PREPARE}
+            return () => {{
+                let view = store_at(items, 0)
+                let answer = view.value
+                let taken = give items
+                return i32(store_len(taken)) + answer - 42
+            }}
+        }}{MAIN_ONCE}"
+    );
+    native("take-after-window-last-use", &source, "AZ", 0);
+    let conflict = source.replace("+ answer - 42", "+ view.value - 42");
+    reject_window("take-with-window-live", &conflict);
 }
