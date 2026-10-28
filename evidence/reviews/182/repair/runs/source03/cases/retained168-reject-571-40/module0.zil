@@ -1,0 +1,1 @@
+fn make()->impl Fn()->i32{var n=1;let f=()=>n;return move ()=>f()}fn main()->i32{return 0}

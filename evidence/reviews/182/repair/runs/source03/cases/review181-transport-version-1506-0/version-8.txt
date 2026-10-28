@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-WIRE-VERSION",
+        message: "candidate wire version is unsupported",
+        span: None,
+        notes: [],
+    },
+]

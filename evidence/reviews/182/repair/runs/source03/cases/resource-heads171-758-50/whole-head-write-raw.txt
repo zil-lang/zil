@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-ADDRESS",
+        message: "indirect write requires an exclusive address",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 37,
+                end: 40,
+            },
+        ),
+        notes: [],
+    },
+]

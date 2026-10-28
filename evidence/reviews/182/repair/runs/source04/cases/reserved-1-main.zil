@@ -1,0 +1,1 @@
+package store_at{x:i32}fn main(){}

@@ -117,3 +117,82 @@ fn moved_shared_capture_stays_readonly_across_two_helper_reborrows() {
         false,
     );
 }
+
+#[test]
+fn repaired_weak_capture_keeps_the_actual_field_instance_without_a_whole_package_hold() {
+    let source = format!(
+        "{MODEL}package Pair{{manages left:R;manages right:R}}fn main()->i32{{var p=Pair{{left:R{{code:65,n:21}},right:R{{code:66,n:20}}}};let d=p.left;let f=()=>d.n;p.right=R{{code:67,n:1}};return f()-21}}"
+    );
+    check(&source, true);
+    let bad = source.replace("p.right=R{code:67,n:1}", "p.left=R{code:67,n:1}");
+    let p = dir();
+    fs::write(p.join("stale-field.zil"), &bad).unwrap();
+    let r = compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "stale-field.zil", bad.clone()),
+        &CompileOptions::default(),
+    );
+    fs::write(p.join("report.json"), r.to_json()).unwrap();
+    assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
+    assert_eq!(r.phase, Phase::Analyze, "{}", r.to_json());
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains("description required later"))
+    );
+    // Bypass the producer rejection: the independently checked raw and wire
+    // inputs must also reject the old field instance, with the good candidate.
+    let target = zil_base::TargetProfile::host_llvm();
+    let limits = zil_base::Limits::default();
+    let typed = |text: &str| {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "stale-field.zil", text);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand(&source, &syntax).unwrap();
+        zil_types::check(&core, &target, &limits).unwrap()
+    };
+    let good = typed(&source);
+    let mut candidate = zil_analyze::analyze(&good, &limits).unwrap();
+    let forged = typed(&bad);
+    candidate.module_fingerprint = forged.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&forged, &candidate, &limits).unwrap();
+    for (label, result) in [
+        (
+            "raw",
+            zil_verify::verify_module(forged, candidate, &target, &limits),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&wire, &target, &limits),
+        ),
+    ] {
+        let errors = result.unwrap_err();
+        fs::write(p.join(format!("{label}.txt")), format!("{errors:#?}")).unwrap();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-VERIFY-RESOURCE"),
+            "{errors:#?}"
+        );
+    }
+}
+
+#[test]
+fn restored_local_nested_borrow_ends_at_last_call_but_cannot_follow_a_move() {
+    let prefix =
+        format!("{MODEL}fn make()->impl Fn()->i32{{let r=R{{code:65,n:42}};return move ()=>r.n}}");
+    let source = format!(
+        "{prefix}fn main()->i32{{let f=make();let g=()=>f();let n=g();let moved=f;return n+moved()-84}}"
+    );
+    native(&source, b"A");
+    let bad = format!(
+        "{prefix}fn main()->i32{{let f=make();let g=()=>f();let moved=f;return g()+moved()-84}}"
+    );
+    let p = dir();
+    fs::write(p.join("moved-nested.zil"), &bad).unwrap();
+    let r = compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "moved-nested.zil", bad),
+        &CompileOptions::default(),
+    );
+    fs::write(p.join("report.json"), r.to_json()).unwrap();
+    assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
+    assert_eq!(r.phase, Phase::Verify, "{}", r.to_json());
+}

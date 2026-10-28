@@ -1,0 +1,131 @@
+
+running 18 tests
+test packages072_closure_body_owns_its_own_local_package ... ok
+test packages072_active_replacement_and_rhs_self_take ... ok
+test packages072_conditional_empty_slot_can_be_refilled_after_join ... ok
+test packages072_direct_operations_keep_defining_module_field_privacy ... ok
+test packages072_immutable_field_take_preserves_sibling_and_copy_fields ... ok
+test packages072_immutable_shell_resource_payload_writes_match_inside_closures ... ok
+test packages072_live_old_descriptors_aliases_and_captures_block_invalidation ... ok
+test packages072_live_sibling_descriptor_and_finished_old_descriptor_are_allowed ... ok
+test packages072_loop_take_refill_reestablishes_whole_shape ... ok
+test packages072_maybe_missing_field_and_loop_missing_refill_are_rejected ... ok
+test packages072_outer_package_owned_capture_remains_unsupported ... ok
+test packages072_mutability_exact_resource_type_and_ownership_are_preserved ... ok
+test packages072_prepared_owner_precedes_explicit_old_cleanup_and_commit ... ok
+test packages072_raw_field_store_cannot_skip_old_cleanup_or_change_permissions ... ok
+test packages072_partial_whole_boundary_and_repeated_take_are_rejected ... ok
+test packages072_refill_restores_whole_transfer_and_returns ... ok
+test packages072_rhs_moving_shell_cannot_commit_into_it ... ok
+test packages072_replacement_preparation_can_fail_before_or_after_self_take ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+
+running 4 tests
+test packages074_field_preparation_failures_partial_exits_and_refills_drop_once ... ok
+test packages074_new_field_operations_cannot_escape_ct_or_verified_lir_binding ... ok
+test packages074_component_updates_preserve_sibling_descriptions_and_whole_abi ... ok
+test packages074_real_descriptors_close_after_replacement_move_and_partial_cleanup ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+
+
+running 4 tests
+test captures079_real_fd_ownership_survives_return_replacement_and_repeated_calls ... ok
+test captures079_complete_and_partial_env_exits_match_exact_fixed_cleanup_order ... ok
+test captures079_views_are_not_ct_capabilities_or_forgeable_lir_authority ... ok
+test captures079_returned_component_repeats_updates_without_losing_environment_flags ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+
+running 26 tests
+test consumed_callee_is_cleaned_when_later_argument_fails ... ok
+test consuming_subenvironment_is_taken_and_called_exactly_once ... ok
+test consumed_persistent_slot_can_be_refilled_without_rebirth ... ok
+test distinct_source_opaque_factories_cannot_mix_even_when_forwarded ... ok
+test cross_module_forwarding_preserves_public_opaque_result ... ok
+test failed_replacement_keeps_original_slot_responsibility ... ok
+test forward_factories_resolve_reverse_declarations_and_cleanup_once ... ok
+test independent_ownership_checks_run_without_nominal_resources ... ok
+test independent_raw_and_wire_bound_repeated_child_layout_expansion ... ok
+test independent_raw_and_wire_charge_wide_leaf_inside_closure_dag ... ok
+test independent_raw_and_wire_charge_wide_package_array_elements ... ok
+test independent_raw_and_wire_reject_cycles_wrong_capture_indices_and_permissions ... ok
+test independent_raw_and_wire_reject_repeated_nested_take_and_factory_cycles ... ok
+test nested_error_exit_cleans_inner_activation_then_recursive_environment ... ok
+test forwarding_keeps_exact_mutable_and_consuming_factory_kinds ... ok
+test nonmove_inner_borrow_keeps_outer_owned_callback_live ... ok
+test nested_move_creation_transfers_ownership_before_any_call ... ok
+test owned_shared_subenvironment_is_borrowed_and_dropped_recursively ... ok
+test owned_mutable_subenvironment_updates_real_inline_storage ... ok
+test persistent_slot_cannot_replace_a_still_borrowed_element ... ok
+test persistent_slot_move_capture_transfers_the_actual_element ... ok
+test persistent_slot_preserves_cleanup_birth_under_later_guard ... ok
+test recursive_factory_identity_and_escaping_nested_borrow_are_rejected ... ok
+test retained_alias_and_consuming_callback_misuse_are_rejected ... ok
+test same_factory_slot_replacement_drops_previous_after_new_is_ready ... ok
+test uncalled_subenvironment_and_siblings_follow_capture_cleanup_order ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.09s
+
+
+running 17 tests
+test active_head_prevents_write_move_replacement_and_old_address_revival ... ok
+test desc_only_imported_helpers_export_writes_into_caller_head_window ... ok
+test actual_head_trait_and_inherent_methods_and_plain_parameters ... ok
+test descriptor_callback_cannot_use_a_captured_field_address_as_write_permission ... ok
+test descriptor_and_head_parameters_do_not_assume_distinct_origins ... ok
+test descriptor_capturing_callbacks_cannot_write_under_a_live_head ... ok
+test descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls ... ok
+test descriptor_only_helper_exports_its_internal_callback_effect_across_modules ... ok
+test head_metadata_work_has_an_exact_finite_budget_boundary ... ok
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... ok
+test failed_argument_preparation_ends_head_window_and_cleans_owner_once ... ok
+test imported_heads_keep_nominal_identity_visibility_and_actual_storage ... ok
+test original_159_resource_address_receiver_probe_is_unchanged_and_now_supported ... ok
+test last_use_then_descriptor_write_is_allowed ... ok
+test raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head ... ok
+test resource_trait_nonshared_receivers_and_head_indirect_calls_stay_closed ... ok
+test unrelated_owned_callback_and_shared_head_compose ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.49s
+
+
+running 20 tests
+test actual_field_windows_block_mutation_take_replace_and_whole_parent_move ... ok
+test copy_child_address_keeps_a_live_window_through_local_callback ... ok
+test actual_store_fields_preserve_separation_and_last_use_before_parent_move ... ok
+test element_read_respects_actual_package_field_visibility ... ok
+test direct_projection_and_last_use_allow_later_reserve_and_pop ... ok
+test element_shape_mutable_owned_field_return_and_capture_guards_are_explicit ... ok
+test every_intersecting_container_mutation_is_rejected_while_view_is_live ... ok
+test failed_argument_preparation_ends_element_window_and_cleans_prefix_once ... ok
+test old_field_descriptions_cannot_reanimate_element_windows ... FAILED
+test raw_and_wire_rebuild_element_type_index_and_hold_origins ... ok
+test indirect_alias_contract_is_instantiated_from_real_store_roots ... ok
+test raw_and_wire_rebuild_field_separation_and_parent_invalidation ... ok
+test raw_and_wire_reject_container_drop_during_an_active_element_window ... ok
+test raw_and_wire_reject_write_retargeted_behind_an_active_window ... ok
+test runtime_negative_empty_and_end_indices_trap_before_element_access ... ok
+test shared_element_windows_cross_functions_and_keep_one_owner ... ok
+test shared_views_allow_len_capacity_and_unrelated_address_return ... ok
+test verify_window_budget_has_an_exact_n_and_n_minus_one_boundary ... ok
+test view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper ... ok
+test runtime_index_reads_real_metadata_through_four_source_modules ... ok
+
+failures:
+
+---- old_field_descriptions_cannot_reanimate_element_windows stdout ----
+
+thread 'old_field_descriptions_cannot_reanimate_element_windows' (1285) panicked at crates/zil-driver/tests/impl175_store_views.rs:554:9:
+stale-field-description/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-RESOURCE", message: "moving, clearing or reconstructing a resource head would invalidate a live description", span: Some(Span { file: FileId(0), start: 682, end: 688 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    old_field_descriptions_cannot_reanimate_element_windows
+
+test result: FAILED. 19 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.20s
+
