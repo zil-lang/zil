@@ -755,19 +755,17 @@ impl Resolver<'_> {
                     error: Box::new(failure),
                     result: Box::new(result),
                 };
-                let opaque_payload = |ty: &Type| {
-                    self.ordinary_parameter
+                if !errors::supported(&union) {
+                    let symbolic = self
+                        .ordinary_parameter
                         .as_ref()
-                        .is_some_and(|name| matches!(ty, Type::Named(n) if n == name))
-                };
-                let symbolic = matches!(&union, Type::ErrorUnion { error, result }
-                    if (error.is_copy_value() || packages::supported(error) || opaque_payload(error))
-                        && (result.is_copy_value() || packages::supported(result) || opaque_payload(result)));
-                if !errors::supported(&union) && !symbolic {
-                    return Err(unsupported(
-                        span,
-                        "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
-                    ));
+                        .is_some_and(|name| store_templates::symbolic_type(&union, name));
+                    if !symbolic {
+                        return Err(unsupported(
+                            span,
+                            "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+                        ));
+                    }
                 }
                 union
             }
