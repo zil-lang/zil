@@ -1,0 +1,103 @@
+{
+  "reviewer": "/root/impl197",
+  "reviewed_commit": "45c89517a9a723247f62ed96f70c5f0cef3d8243",
+  "production_commits": [
+    "5a58c339d898d53e0cbac00bcc3e9351c560f743",
+    "63d61c770e48a185f4257cafaf2882c8cd627066"
+  ],
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "scope": "Independent cross-layer repair validation, not final consumer or full-workspace acceptance",
+  "original_counterexamples": [
+    {
+      "label": "actual-loop-refresh-author-source",
+      "bytes": 698,
+      "sha256": "a4c9bda2e53625bd14f0d0ea45c40406ade1aa78369b47f022ad9c98d7f21833",
+      "before": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/instantiated-loop01/cases/independent205-actual-loop-refresh-author-source-54-0/source.zil",
+      "after": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/instantiated-loop02/cases/independent205-actual-loop-refresh-author-source-98-0/source.zil",
+      "byte_equal": true,
+      "after_actual": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1
+      }
+    },
+    {
+      "label": "actual-loop-refresh-stale-copy",
+      "bytes": 714,
+      "sha256": "fb947c2364cf1e1649c0f7fcc50f204d30b461b3cac315d7560c5f848cbd4e01",
+      "before": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/instantiated-loop01/cases/independent205-actual-loop-refresh-stale-copy-54-1/source.zil",
+      "after": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/instantiated-loop02/cases/independent205-actual-loop-refresh-stale-copy-98-1/source.zil",
+      "byte_equal": true,
+      "after_actual": {
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0
+      }
+    }
+  ],
+  "own_instantiated_replay": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/instantiated-loop02/command.json",
+      "sha256": "3d07c39fdb8dd7be243915260289ac4f810ef2e08ef5ebad861b7c94b4be1a07",
+      "source_commit": "45c89517a9a723247f62ed96f70c5f0cef3d8243",
+      "source_clean": true,
+      "source_status_after": "",
+      "exit_code": 0
+    },
+    "tests": [
+      1,
+      0
+    ],
+    "native_successes": 2,
+    "stdout": "AB",
+    "runtime_limit": "Factory returns one, so this original runtime input has zero iterations"
+  },
+  "separate_author_fixture_independent_execution": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/types-loop-cross01/command.json",
+      "sha256": "4e03bbbfb53666965802f2ba3264a5853d8b7c31f192bb3a1e187b30cc9107fd",
+      "source_commit": "45c89517a9a723247f62ed96f70c5f0cef3d8243",
+      "source_clean": true,
+      "source_status_after": "",
+      "exit_code": 0
+    },
+    "tests": [
+      3,
+      0
+    ],
+    "raw_inputs": 8,
+    "raw_types_entries_per_input": 2,
+    "native_successes": 8,
+    "stdin_iteration_controls": [
+      {
+        "iterations": 0,
+        "stdout": "CCAB"
+      },
+      {
+        "iterations": 1,
+        "stdout": "CCCAB"
+      },
+      {
+        "iterations": 3,
+        "stdout": "CCCCCAB"
+      }
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "note": "Reviewer executed the three author-authored nearest loop fixtures; no authorship claimed"
+  },
+  "read_only_invariants": [
+    "Only actual Local reads and prepared-callee checks register alias uses; no historical Expression cache is registered as an independent next-iteration value",
+    "The recorded use includes its AliasKey and generation. The entry state must contain that generation at that key; the backedge then checks every current version at the same key, including a fresh borrow invalidated later",
+    "Distinct stale copies retain distinct Local keys and their old invalid epochs; changing one view does not refresh its copy",
+    "Break/continue snapshots are taken before lexical pop_scope. first_local is the monotonic local-id cutoff immediately before this loop body, so retirement cannot discard prior outer owners or their debts",
+    "retire_loop_locals prepays flow.work, removes only inner moved positions and Local entries, and marks every retained alias whose parent belongs to the retired scope invalid using a new monotonic generation. Ancestors and prior invalid epochs are preserved",
+    "Nested loops get their own local cutoff; retirement of an inner loop does not retire locals defined earlier in the outer loop body",
+    "No public Core schema, trusted provenance, runtime permission, default limit, Analyze or Verify production changed"
+  ],
+  "verdict": "Pass for this exact Types loop repair and scoped controls; final ordinary-T consumer connection still pending",
+  "production_authorship": "None",
+  "workspace_full": "NotRun by reviewer"
+}
