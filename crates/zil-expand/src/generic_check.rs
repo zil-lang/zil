@@ -788,6 +788,315 @@ impl Check<'_, '_, '_> {
         }
         Ok(())
     }
+
+    // This lookup supplies only contextual integer widths. It never evaluates
+    // an endpoint, consumes a local or constructs a symbolic field position.
+    // The ordinary expression check below still validates every operation.
+    fn range_hint(&mut self, expression: &Expr, state: &State, depth: usize) -> R<Option<TypeRef>> {
+        self.budget.node(expression.span, depth)?;
+        let span = expression.span;
+        match &expression.kind {
+            ExprKind::Name(name) => {
+                let Some(local) = state.locals.get(name) else {
+                    return Ok(None);
+                };
+                self.budget.ty(&local.ty)?;
+                Ok(Some(local.ty.clone()))
+            }
+            ExprKind::Literal(Literal::Integer(text)) => {
+                self.budget.text(text, span)?;
+                Ok(["u8", "u16", "i32", "i64"]
+                    .into_iter()
+                    .find(|suffix| text.ends_with(suffix))
+                    .map(|suffix| named(suffix, span)))
+            }
+            ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", span))),
+            ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
+                self.range_hint(inner, state, depth + 1)
+            }
+            ExprKind::Unary {
+                op: UnaryOp::Not, ..
+            } => Ok(Some(named("bool", span))),
+            ExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } => {
+                let Some(ty) = self.range_hint(operand, state, depth + 1)? else {
+                    return Ok(None);
+                };
+                let TypeKind::Reference { inner, .. } = &group(&ty).kind else {
+                    return Ok(None);
+                };
+                self.budget.ty(inner)?;
+                Ok(Some(*inner.clone()))
+            }
+            ExprKind::Unary { operand, .. } => self.range_hint(operand, state, depth + 1),
+            ExprKind::Binary {
+                op:
+                    BinaryOp::Equal
+                    | BinaryOp::NotEqual
+                    | BinaryOp::Less
+                    | BinaryOp::LessEqual
+                    | BinaryOp::Greater
+                    | BinaryOp::GreaterEqual
+                    | BinaryOp::And
+                    | BinaryOp::Or,
+                ..
+            } => Ok(Some(named("bool", span))),
+            ExprKind::Binary { left, right, .. } => {
+                if let Some(ty) = self.range_hint(left, state, depth + 1)? {
+                    Ok(Some(ty))
+                } else {
+                    self.range_hint(right, state, depth + 1)
+                }
+            }
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => {
+                if let Some(ty) = self.range_hint(then_value, state, depth + 1)? {
+                    Ok(Some(ty))
+                } else {
+                    self.range_hint(else_value, state, depth + 1)
+                }
+            }
+            ExprKind::Try(operand) => {
+                let Some(ty) = self.range_hint(operand, state, depth + 1)? else {
+                    return Ok(None);
+                };
+                let TypeKind::Error { result, .. } = &group(&ty).kind else {
+                    return Ok(None);
+                };
+                self.budget.ty(result)?;
+                Ok(Some(*result.clone()))
+            }
+            ExprKind::Index { object, .. } | ExprKind::Member { object, .. } => {
+                let Some(ty) = self.range_hint(object, state, depth + 1)? else {
+                    return Ok(None);
+                };
+                let base = match &group(&ty).kind {
+                    TypeKind::Reference { inner, .. } => group(inner),
+                    _ => group(&ty),
+                };
+                let field = match (&expression.kind, &base.kind) {
+                    (ExprKind::Index { .. }, TypeKind::Array { element, .. }) => {
+                        self.budget.ty(element)?;
+                        return Ok(Some(*element.clone()));
+                    }
+                    (
+                        ExprKind::Member {
+                            member: MemberName::TupleIndex(index),
+                            ..
+                        },
+                        TypeKind::Tuple(fields),
+                    ) => fields.get(*index as usize),
+                    (
+                        ExprKind::Member {
+                            member: MemberName::Name(member),
+                            ..
+                        },
+                        TypeKind::Named { path, args },
+                    ) => {
+                        for part in path {
+                            self.budget.text(part, span)?;
+                        }
+                        let Some(Item {
+                            kind: ItemKind::Aggregate(aggregate),
+                            ..
+                        }) = self.nominals.get(&path.join("."))
+                        else {
+                            return Ok(None);
+                        };
+                        for field in &aggregate.fields {
+                            self.budget.text(&field.name, span)?;
+                        }
+                        let Some(field) = aggregate.fields.iter().find(|f| &f.name == member)
+                        else {
+                            return Ok(None);
+                        };
+                        if aggregate.generics.len() != args.len() {
+                            return Ok(None);
+                        }
+                        let mut substitutions = BTreeMap::new();
+                        for (parameter, argument) in aggregate.generics.iter().zip(args) {
+                            let GenericArg::Type(ty) = argument else {
+                                return Ok(None);
+                            };
+                            self.budget.text(&parameter.name, span)?;
+                            self.budget.ty(ty)?;
+                            substitutions.insert(parameter.name.clone(), ty.clone());
+                        }
+                        return substituted_type(&field.ty, &substitutions, self.budget).map(Some);
+                    }
+                    _ => None,
+                };
+                if let Some(field) = field {
+                    self.budget.ty(field)?;
+                }
+                Ok(field.cloned())
+            }
+            ExprKind::Call { callee, arguments } => {
+                if let Some(name) = super::super::integer_conversion_name(callee) {
+                    return Ok(Some(named(name, span)));
+                }
+                if let ExprKind::Member {
+                    object,
+                    member: MemberName::Name(name),
+                } = &callee.kind
+                {
+                    if name == "len"
+                        && self.range_hint(object, state, depth + 1)?.is_some_and(|ty|
+                            matches!(&group(&ty).kind, TypeKind::Reference { inner, .. }
+                                if matches!(group(inner).kind, TypeKind::Array { length: None, .. })))
+                    {
+                        return Ok(Some(named("i64", span)));
+                    }
+                    return Ok(None);
+                }
+                let (target, explicit) = match &callee.kind {
+                    ExprKind::Name(name) => (name, None),
+                    ExprKind::TypeApply { callee, arguments } => match &callee.kind {
+                        ExprKind::Name(name) => (name, Some(arguments)),
+                        _ => return Ok(None),
+                    },
+                    _ => return Ok(None),
+                };
+                if matches!(
+                    target.as_str(),
+                    "bytes_len" | "bytes_capacity" | "store_len" | "store_capacity"
+                ) {
+                    return Ok(Some(named("i64", span)));
+                }
+                if let Some(local) = state.locals.get(target) {
+                    self.budget.ty(&local.ty)?;
+                    let result = if let Some(bound) = &self.callable
+                        && callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
+                    {
+                        Some(&bound.result)
+                    } else {
+                        callable::opaque_signature(&local.ty).map(|(_, _, result)| result)
+                    };
+                    if let Some(result) = result {
+                        self.budget.ty(result)?;
+                    }
+                    return Ok(result.cloned());
+                }
+                let signatures = self.signatures;
+                let Some(function) = signatures.get(target) else {
+                    return Ok(None);
+                };
+                let Some(result) = &function.return_type else {
+                    return Ok(Some(unit(span)));
+                };
+                let mut variables = BTreeSet::new();
+                for parameter in &function.generics {
+                    self.budget.text(&parameter.name, span)?;
+                    variables.insert(parameter.name.clone());
+                }
+                self.budget.ty(result)?;
+                if !dependent(result, &variables) {
+                    self.budget.ty(result)?;
+                    return Ok(Some(result.clone()));
+                }
+                let mut found = BTreeMap::new();
+                if let Some(explicit) = explicit {
+                    if explicit.len() != function.generics.len() {
+                        return Ok(None);
+                    }
+                    for (parameter, argument) in function.generics.iter().zip(explicit) {
+                        let GenericArg::Type(ty) = argument else {
+                            return Ok(None);
+                        };
+                        self.budget.text(&parameter.name, span)?;
+                        self.budget.ty(ty)?;
+                        found.insert(parameter.name.clone(), ty.clone());
+                    }
+                }
+                for (parameter, argument) in function.params.iter().zip(arguments) {
+                    if let Some(actual) = self.range_hint(&argument.value, state, depth + 1)? {
+                        unify(
+                            &parameter.ty,
+                            &actual,
+                            &variables,
+                            &mut found,
+                            span,
+                            self.budget,
+                        )?;
+                    }
+                }
+                let result = substituted_type(result, &found, self.budget)?;
+                Ok((!dependent(&result, &variables)).then_some(result))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn for_range(
+        &mut self,
+        pattern: &Pattern,
+        iterable: &Expr,
+        body: &Block,
+        state: &mut State,
+        span: Span,
+    ) -> R<()> {
+        let PatternKind::Name(name) = &pattern.kind else {
+            return Err(unsupported(
+                pattern.span,
+                "generic for requires a named integer index",
+            ));
+        };
+        let mut range = iterable;
+        while let ExprKind::Group(inner) = &range.kind {
+            self.tick(range.span)?;
+            range = inner;
+        }
+        let ExprKind::Binary {
+            op: BinaryOp::Range,
+            left,
+            right,
+        } = &range.kind
+        else {
+            return Err(unsupported(
+                iterable.span,
+                "generic for requires an integer range",
+            ));
+        };
+        let hint = if let Some(ty) = self.range_hint(left, state, 0)? {
+            Some(ty)
+        } else {
+            self.range_hint(right, state, 0)?
+        };
+        // Endpoints belong to the outer scope, execute once in source order,
+        // and may consume an outer value once before the first loop entry.
+        let ty = self.expr(left, state, hint.as_ref(), false)?;
+        if dependent(&ty, &self.variables) {
+            return Err(unsupported(
+                left.span,
+                "generic range endpoint requires a known integer type",
+            ));
+        }
+        if !integer(&ty) {
+            return Err(error(
+                left.span,
+                "integer range endpoints require u8, u16, i32 or i64",
+            ));
+        }
+        let end = self.expr(right, state, Some(&ty), false)?;
+        same(&end, &ty, right.span, self.budget)?;
+
+        let entry = self.clone_state(state)?;
+        let mut iteration = self.clone_state(&entry)?;
+        self.budget.text(name, pattern.span)?;
+        self.bind_local(&mut iteration, name.clone(), ty)?;
+        if !self.block(body, &mut iteration)? {
+            self.loop_invariant(&entry, &iteration, body.span)?;
+            // Keep only the outer lexical bindings. The iterator and body
+            // locals never replace a shadowed outer binding after the loop.
+            self.join_states(state, &[&entry, &iteration], span)?;
+        }
+        Ok(())
+    }
     // The concrete argument checker reborrows address parameters. Mirror only
     // that written reference shape here; an unconstrained T still consumes its
     // argument and gains no Copy or address capability from an instance.
@@ -2078,6 +2387,11 @@ impl Check<'_, '_, '_> {
                         self.join_states(state, &[&zero, &iteration], statement.span)?;
                     }
                 }
+                StmtKind::For {
+                    pattern,
+                    iterable,
+                    body,
+                } => self.for_range(pattern, iterable, body, state, statement.span)?,
                 _ => {
                     return Err(unsupported(
                         statement.span,
