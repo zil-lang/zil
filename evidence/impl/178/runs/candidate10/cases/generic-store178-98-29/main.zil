@@ -1,0 +1,1 @@
+fn bad<T:StoreElement>(give s:Store<T>){while store_len(s)<2{let moved=give s;}};fn main(){}

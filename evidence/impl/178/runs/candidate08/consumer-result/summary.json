@@ -1,0 +1,41 @@
+{
+  "status": "Fail",
+  "source_commit": "0bf78569396d6975f619013b5ccc86a0cd701f63",
+  "compiler_source_commit": "0bf78569396d6975f619013b5ccc86a0cd701f63",
+  "cli_sha256": "00f55db126b42a4aa36f44fd79e3167529551606a8b5beab335c7a74d9d76db8",
+  "selected": [
+    "main"
+  ],
+  "sources": {
+    "collection.zil": "19e0a2fa65ee8f05bdcd4853bc79a83945c1db63ea3cf0ca25b5e82a2c0c5e45",
+    "main.zil": "607cf8fab4602b0365098cf129abe43a05024b39b59f2e5e2ac403778326b16d",
+    "model.zil": "f076c5056014d40afd43b65595ec51067b94c5d9fec924bd7a09e11ad4177021",
+    "state.zil": "3e0a1e610398e65adbdf46db88cc05a41e5a5e825a3608f071a517b0f8792ef9"
+  },
+  "allocator_sources": {
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5"
+  },
+  "builds": [
+    {
+      "entry": "main",
+      "optimization": "O0",
+      "verification_runs": 1,
+      "llvm_sha256": "541d350538f050ca4317fe335ff8951bbd9173c4615b4ae2dd1d36f734b4d9d4",
+      "executable_sha256": "32c58391bd85dc493f7725ee2be41849ff0d12f05fbb11cc0dec0327fee22df3",
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/language14/wt178/examples/mainline/generic_store178/main.zil",
+        "1": "/workspace/scratch/39be3faa4442/language14/wt178/examples/mainline/generic_store178/model.zil",
+        "2": "/workspace/scratch/39be3faa4442/language14/wt178/examples/mainline/generic_store178/collection.zil",
+        "3": "/workspace/scratch/39be3faa4442/language14/wt178/examples/mainline/generic_store178/state.zil"
+      },
+      "module_count": 4,
+      "allocation_probe_sha256": "be11783ed2cd86c4e60710f708b8a09c09608f94e378045aa2653f9fa54a959f"
+    }
+  ],
+  "observations": [],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "error_type": "RuntimeError",
+  "error": "main/count-0/O0/ordinary: exit=1, stdout=b'H', stderr=b''"
+}

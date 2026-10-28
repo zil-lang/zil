@@ -1,0 +1,37 @@
+    Checking zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-base)
+    Checking zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-syntax)
+    Checking zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-ir)
+    Checking zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-expand)
+error[E0277]: `&zil_syntax::ast::VariantFields` is not an iterator
+   --> crates/zil-expand/src/generic_store.rs:227:42
+    |
+227 | ...                   for field in &variant.fields {
+    |                                    ^^^^^^^^^^^^^^^ `&zil_syntax::ast::VariantFields` is not an iterator
+    |
+    = help: the trait `Iterator` is not implemented for `&zil_syntax::ast::VariantFields`
+    = note: required for `&zil_syntax::ast::VariantFields` to implement `IntoIterator`
+
+error: lifetime may not live long enough
+  --> crates/zil-expand/src/generic_store.rs:94:39
+   |
+91 |     nominals: &BTreeMap<String, &Item>,
+   |                                 - let's call the lifetime of this reference `'1`
+92 |     budget: &mut Budget<'_>,
+   |     ------ has type `&mut budget::Budget<'2>`
+93 | ) -> R<()> {
+94 |     let mut shape = Shape { nominals, budget, active: BTreeSet::new() };
+   |                                       ^^^^^^ this usage requires that `'1` must outlive `'2`
+   |
+   = note: requirement occurs because of a mutable reference to `budget::Budget<'_>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+help: consider introducing a named lifetime parameter
+   |
+89 ~ pub(super) fn concrete_element<'a>(
+90 |     ty: &TypeRef,
+91 ~     nominals: &BTreeMap<String, &'a Item>,
+92 ~     budget: &mut Budget<'a>,
+   |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `zil-expand` (lib) due to 2 previous errors
