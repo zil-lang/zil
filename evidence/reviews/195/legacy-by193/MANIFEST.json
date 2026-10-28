@@ -1,0 +1,22 @@
+{
+  "original_root_logs": [
+    {
+      "path": "root-formal-workspace01/command.json",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/195-integration/formal-workspace01/command/command.json",
+      "bytes": 900,
+      "sha256": "f455f6adae210eb4f0991f895ee348a24a6cd8697863b202f1328e612fb67567"
+    },
+    {
+      "path": "root-formal-workspace01/stdout.log",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/195-integration/formal-workspace01/command/stdout.log",
+      "bytes": 189220,
+      "sha256": "6792bbd72771711166b7dcbf721d04664d202b17254256ee5f9ffeff8973ccde"
+    },
+    {
+      "path": "root-formal-workspace01/stderr.log",
+      "source": "/workspace/scratch/39be3faa4442/run-logs/195-integration/formal-workspace01/command/stderr.log",
+      "bytes": 30900,
+      "sha256": "022fd127840c962d0be01d2f4a22d489c415c3e11f2017d4cf5ed6f21a16d2dd"
+    }
+  ]
+}

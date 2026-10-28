@@ -1,0 +1,132 @@
+diff --git a/changes/195-full-workspace-fixtures.md b/changes/195-full-workspace-fixtures.md
+new file mode 100644
+index 00000000..f22b5f04
+--- /dev/null
++++ b/changes/195-full-workspace-fixtures.md
+@@ -0,0 +1,12 @@
++# 194/195 合流后的既有测试预期迁移
++
++主线 `7d8cea72460d059f76987f076afa147ed68184eb` 在独立空 TMPDIR 的正式全仓执行为 **2059 通过、4 失败、0 忽略**。实际命令与原始输出保留在 `run-logs/195-integration/formal-workspace01`；该次结果保持 Fail。
++
++四项均由原输入与当前设计逐项核对，`/root/resume188_acceptance` 另作只读核验。此次只迁移测试期待，不改生产、源输入、原始 raw 构造、预算、规范或产品门：
++
++1. driver `generics` 的第三个原输入是未使用的合法 `T: Copy` identity。194 已实现结构 Copy，改断言为 Success / Verify / verification_runs=1；前两个泛型参数数目和不同整数类型的反例仍拒绝。
++2. `impl147_static_traits` 的 Copy / Share / Transfer 三个原 format 输入全部保持 SafeReject。Copy 现在由 Expand 更早给出 `E-GENERIC-ARGUMENT`、`Copy is a reserved structural capability name`；Share / Transfer 的 `E-TRAIT-RESERVED` 不变。保留零 Verify 执行。
++3. Expand `generics` 的未使用 Copy bound 原输入合法，核展开成功、无 unsupported、仅实际 sample 函数和有效源映射；未声明 MissingRead、把 struct Read 当 trait 的两个反例继续核原诊断与精确跨度。
++4. Verify `helper_tests` 的原 raw 仍为真实可达自环却声称 Finite。190 已实现 Flow，独立重建后拒绝错误合同；原 raw / Wire 两路均须精确 SafeReject / Verify / `E-VERIFY-CALLABLE-CONTRACT` 和 traces 不一致诊断，不再期待旧“全部循环未实现”的文字。
++
++限定复跑与更新后的正式全仓必须另记实际提交与结果，不能把这份预期迁移说明当作通过。完整语言 NotSatisfied、产品 NotRun、B0 Doing 保持。
+diff --git a/crates/zil-driver/tests/generics.rs b/crates/zil-driver/tests/generics.rs
+index 3bd58ca2..1bcc8344 100644
+--- a/crates/zil-driver/tests/generics.rs
++++ b/crates/zil-driver/tests/generics.rs
+@@ -135,13 +135,23 @@ fn symbolic_result_and_nested_calls_do_not_collapse_distinct_parameters() {
+     }
+ }
+ #[test]
+-fn generic_arity_constraints_and_bounds_fail_closed() {
+-    for text in [
++fn generic_arity_constraints_and_structural_copy_bound() {
++    for (index, text) in [
+         "fn id<T>(x:T)->T=>x\nfn result()->i32=>id::<i32,i64>(1)",
+         "fn choose<T>(x:T,y:T)->T=>x\nfn result()->i32 {let x:i32=1;let y:i64=2;return choose(x,y)}",
+         "fn id<T: Copy>(x:T)->T=>x\nfn result()->i32=>1",
+-    ] {
++    ]
++    .into_iter()
++    .enumerate()
++    {
+         let report = compile_source(&source(text), &CompileOptions::default());
++        if index == 2 {
++            // 194 admits this exact previously unused structural Copy bound.
++            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
++            assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
++            assert_eq!(report.verification_runs, 1);
++            continue;
++        }
+         assert_ne!(
+             report.status,
+             ResultCategory::Success,
+diff --git a/crates/zil-driver/tests/impl147_static_traits.rs b/crates/zil-driver/tests/impl147_static_traits.rs
+index d02a5dc6..2fa12481 100644
+--- a/crates/zil-driver/tests/impl147_static_traits.rs
++++ b/crates/zil-driver/tests/impl147_static_traits.rs
+@@ -171,8 +171,21 @@ fn empty_impl_cannot_manufacture_builtin_capabilities() {
+             "trait {name}{{}}struct C{{x:i32}}impl {name} for C{{}}fn main(){{}}"
+         ));
+         assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
++        assert_eq!(r.verification_runs, 0);
++        let expected_code = if name == "Copy" {
++            // 194 reserves structural Copy before nominal trait processing.
++            assert_eq!(r.phase, zil_base::Phase::Expand, "{}", r.to_json());
++            assert!(
++                r.diagnostics
++                    .iter()
++                    .any(|d| d.message == "Copy is a reserved structural capability name")
++            );
++            "E-GENERIC-ARGUMENT"
++        } else {
++            "E-TRAIT-RESERVED"
++        };
+         assert!(
+-            r.diagnostics.iter().any(|d| d.code == "E-TRAIT-RESERVED"),
++            r.diagnostics.iter().any(|d| d.code == expected_code),
+             "{}",
+             r.to_json()
+         );
+diff --git a/crates/zil-expand/tests/generics.rs b/crates/zil-expand/tests/generics.rs
+index 73f3d6e7..5e6ce374 100644
+--- a/crates/zil-expand/tests/generics.rs
++++ b/crates/zil-expand/tests/generics.rs
+@@ -62,7 +62,7 @@ fn unused_generic_declaration_attributes_are_not_erased() {
+ }
+ 
+ #[test]
+-fn unused_generic_bounds_require_declared_nominal_traits() {
++fn unused_generic_bounds_require_builtin_copy_or_declared_nominal_traits() {
+     for (prefix, bound) in [
+         ("", "Copy"),
+         ("", "MissingRead"),
+@@ -71,6 +71,18 @@ fn unused_generic_bounds_require_declared_nominal_traits() {
+         let text = format!("{prefix}fn id<T: {bound}>(x:T)->T=>x\nfn sample()->i32=>0");
+         let source = SourceUnit::new(FileId(0), ModuleId(0), "bounds.zil", text);
+         let parsed = zil_syntax::parse(&source).into_result().unwrap();
++        if bound == "Copy" {
++            // Keep the original input; structural Copy is now a builtin bound.
++            let expanded = zil_expand::expand_with_map(&source, &parsed).unwrap();
++            assert!(expanded.core.unsupported.is_empty());
++            assert_eq!(expanded.core.functions.len(), 1);
++            assert_eq!(expanded.core.functions[0].name, "sample");
++            expanded
++                .source_map
++                .validate(&[source], &zil_base::Limits::default())
++                .unwrap();
++            continue;
++        }
+         let errors = zil_expand::expand_with_map(&source, &parsed).unwrap_err();
+         assert_eq!(errors.len(), 1, "{bound}: {errors:#?}");
+         let diagnostic = &errors[0];
+diff --git a/crates/zil-verify/src/helper_tests.rs b/crates/zil-verify/src/helper_tests.rs
+index 40366d75..b3ebdfce 100644
+--- a/crates/zil-verify/src/helper_tests.rs
++++ b/crates/zil-verify/src/helper_tests.rs
+@@ -518,7 +518,18 @@ fn finite_contract_cannot_hide_a_reachable_cycle() {
+         instructions: vec![],
+         terminator: Terminator::Return(Some(ValueId(0))),
+     });
+-    raw.reject("acyclic finite call-trace");
++    // 190 independently reconstructs Flow; a Finite claim cannot hide this cycle.
++    for result in raw.both() {
++        let errors = result.unwrap_err();
++        assert!(
++            errors.iter().any(|d| d.phase == zil_base::Phase::Verify
++                && d.category == zil_base::ResultCategory::SafeReject
++                && d.code == "E-VERIFY-CALLABLE-CONTRACT"
++                && d.message
++                    .contains("traces differ from the independent contract")),
++            "{errors:#?}"
++        );
++    }
+ }
+ #[test]
+ fn helper_forwarding_does_not_guess_an_empty_nested_contract() {
