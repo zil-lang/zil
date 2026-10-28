@@ -1,15 +1,8 @@
 --- predeclared/sources/leaf.zil
 +++ consumer02/examples/mainline/package_product206/leaf.zil
-@@ -21,10 +21,10 @@
- }
- 
- pub fn checked(owned: Leaf, data_code: i32, marker_code: i32, capacity: i64) -> Leaf {
+@@ -24 +24 @@
 -    if owned.lead != 7u8 || owned.tail != 513u16
 +    if (owned.lead != 7u8 || owned.tail != 513u16
-         || owned.wide != i64(data_code) * i64(1000000000) + 17
-         || owned.mark.code != marker_code
+@@ -27 +27 @@
 -        || bytes_len(owned.bytes) != 1 || bytes_capacity(owned.bytes) != capacity {
 +        || bytes_len(owned.bytes) != 1 || bytes_capacity(owned.bytes) != capacity) {
-         portable.emit(33)
-     }
-     return owned
