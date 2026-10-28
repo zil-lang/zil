@@ -1,0 +1,89 @@
+Diff in /workspace/scratch/39be3faa4442/language14/wt180/crates/zil-types/src/aggregates.rs:668:
+                     {
+                         Type::Managed(payload)
+                     }
+-                    Type::Package { .. }
+-                        if dynamic_store::supported_element(&inner) =>
+-                    {
+-                        inner
+-                    }
++                    Type::Package { .. } if dynamic_store::supported_element(&inner) => inner,
+                     Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
+                         return Err(unsupported(
+                             span,
+Diff in /workspace/scratch/39be3faa4442/language14/wt180/crates/zil-types/src/closures.rs:2115:
+                         ));
+                     };
+                     self.graph.reserve_type(&element, 0, span)?;
+-                    if matches!(name, "store_reserve" | "store_push" | "store_at" | "store_at_mut") {
+-                        let wanted = if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
+-                            Type::I64
+-                        } else {
+-                            (*element).clone()
+-                        };
++                    if matches!(
++                        name,
++                        "store_reserve" | "store_push" | "store_at" | "store_at_mut"
++                    ) {
++                        let wanted =
++                            if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
++                                Type::I64
++                            } else {
++                                (*element).clone()
++                            };
+                         let value = self.expr_expected(&arguments[1], Some(&wanted), depth + 1)?;
+                         value.bind(&mut self.graph, &wanted, arguments[1].span)?;
+                     }
+Diff in /workspace/scratch/39be3faa4442/language14/wt180/crates/zil-types/src/closures.rs:2127:
+-                    if matches!(name, "store_reserve" | "store_push" | "store_pop" | "store_at_mut") {
++                    if matches!(
++                        name,
++                        "store_reserve" | "store_push" | "store_pop" | "store_at_mut"
++                    ) {
+                         self.mark_resource_write(first, arguments[0].span)?;
+                     }
+                     return self.known(&dynamic_store::result_type(name, &element), span);
+Diff in /workspace/scratch/39be3faa4442/language14/wt180/crates/zil-types/src/inference.rs:2102:
+                         ));
+                     };
+                     validate_type(&element, 0, span, self.budget)?;
+-                    if matches!(name, "store_reserve" | "store_push" | "store_at" | "store_at_mut") {
+-                        let wanted = if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
+-                            Type::I64
+-                        } else {
+-                            (*element).clone()
+-                        };
++                    if matches!(
++                        name,
++                        "store_reserve" | "store_push" | "store_at" | "store_at_mut"
++                    ) {
++                        let wanted =
++                            if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
++                                Type::I64
++                            } else {
++                                (*element).clone()
++                            };
+                         let term =
+                             self.expr_expected(&arguments[1], Some(&wanted), depth + 1, false)?;
+                         self.bind_term(&term, &wanted, arguments[1].span)?;
+Diff in /workspace/scratch/39be3faa4442/language14/wt180/crates/zil-verify/src/borrows.rs:648:
+                         }
+                         InstructionKind::ByteBufferBorrow { buffer, .. }
+                         | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
+-                    | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
++                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
+                             roots_join(&mut row, &values[buffer.0 as usize], budget)?;
+                         }
+                         InstructionKind::BorrowOwnedArrayElement { local, .. }
+Diff in /workspace/scratch/39be3faa4442/language14/wt180/crates/zil-verify/src/dynamic_store.rs:250:
+                 return Err(bad("Store element index must be i64"));
+             }
+             Type::Address {
+-                mutable: matches!(instruction.kind, InstructionKind::OwnedStoreBorrowMut { .. }),
++                mutable: matches!(
++                    instruction.kind,
++                    InstructionKind::OwnedStoreBorrowMut { .. }
++                ),
+                 inner: Box::new(element.clone()),
+             }
+         }

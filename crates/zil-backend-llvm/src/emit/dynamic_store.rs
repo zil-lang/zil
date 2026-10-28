@@ -211,7 +211,8 @@ impl FunctionEmitter<'_> {
             | InstructionKind::OwnedStorePop { store }
             | InstructionKind::OwnedStoreLen { store }
             | InstructionKind::OwnedStoreCapacity { store }
-            | InstructionKind::OwnedStoreBorrow { store, .. } => store,
+            | InstructionKind::OwnedStoreBorrow { store, .. }
+            | InstructionKind::OwnedStoreBorrowMut { store, .. } => store,
             _ => unreachable!("Store instruction dispatch"),
         };
         let Type::Desc(payload) = self.value_type(store)? else {
@@ -231,7 +232,8 @@ impl FunctionEmitter<'_> {
                     value(capacity)
                 ));
             }
-            InstructionKind::OwnedStoreBorrow { index, .. } => {
+            InstructionKind::OwnedStoreBorrow { index, .. }
+            | InstructionKind::OwnedStoreBorrowMut { index, .. } => {
                 let Type::OwnedStore { element } = payload.as_ref() else {
                     unreachable!("verified Store payload");
                 };

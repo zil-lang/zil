@@ -1099,7 +1099,7 @@ impl LocalType {
                 },
             ) if (inner.is_address_pointee()
                 || ty.is_shared_resource_head_address()
-                || ty.is_shared_package_address())
+                || ty.is_package_address())
                 && (mutable || !wanted) =>
             {
                 graph.bind(variable, inner, span)
@@ -1278,7 +1278,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 format!("unknown value {name}"),
             ));
         };
-        if ty.is_shared_package_address() {
+        if ty.is_package_address() {
             return Err(unsupported(
                 span,
                 "Store element address capture requires a separate retained element-window contract",
@@ -2077,7 +2077,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     self.visit(depth + 1, callee.span)?;
                     let arity = match name {
                         "store_new" => 0,
-                        "store_reserve" | "store_push" | "store_at" => 2,
+                        "store_reserve" | "store_push" | "store_at" | "store_at_mut" => 2,
                         _ => 1,
                     };
                     if arguments.len() != arity {
@@ -2115,16 +2115,23 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         ));
                     };
                     self.graph.reserve_type(&element, 0, span)?;
-                    if matches!(name, "store_reserve" | "store_push" | "store_at") {
-                        let wanted = if matches!(name, "store_reserve" | "store_at") {
-                            Type::I64
-                        } else {
-                            (*element).clone()
-                        };
+                    if matches!(
+                        name,
+                        "store_reserve" | "store_push" | "store_at" | "store_at_mut"
+                    ) {
+                        let wanted =
+                            if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
+                                Type::I64
+                            } else {
+                                (*element).clone()
+                            };
                         let value = self.expr_expected(&arguments[1], Some(&wanted), depth + 1)?;
                         value.bind(&mut self.graph, &wanted, arguments[1].span)?;
                     }
-                    if matches!(name, "store_reserve" | "store_push" | "store_pop") {
+                    if matches!(
+                        name,
+                        "store_reserve" | "store_push" | "store_pop" | "store_at_mut"
+                    ) {
                         self.mark_resource_write(first, arguments[0].span)?;
                     }
                     return self.known(&dynamic_store::result_type(name, &element), span);
