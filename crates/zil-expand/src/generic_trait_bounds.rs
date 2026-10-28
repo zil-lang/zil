@@ -212,7 +212,7 @@ impl<'a> Index<'a> {
         &self,
         parameters: &[GenericParam],
         found: &BTreeMap<String, TypeRef>,
-        (available, variables): (&Bounds, &BTreeSet<String>),
+        (available, variables, callback): (&Bounds, &BTreeSet<String>, Option<&str>),
         budget: &mut Budget<'_>,
         span: Span,
         retained: Option<&callable::CallableTemplates>,
@@ -236,7 +236,7 @@ impl<'a> Index<'a> {
                     let actual = found.get(&parameter.name).ok_or_else(|| {
                         error(span, "StoreElement argument has no unique symbolic type")
                     })?;
-                    self.store_element(actual, available, variables, budget)?;
+                    self.store_element(actual, available, variables, budget, callback)?;
                     continue;
                 }
                 let declaration = self.declaration(bound, budget)?;
@@ -315,6 +315,7 @@ impl<'a> Index<'a> {
         available: &Bounds,
         variables: &BTreeSet<String>,
         budget: &mut Budget<'_>,
+        callback: Option<&str>,
     ) -> R<()> {
         budget.ty(ty)?;
         if let Some(variable) = plain(ty).filter(|name| variables.contains(*name)) {
@@ -329,7 +330,7 @@ impl<'a> Index<'a> {
                 "Store<T> requires a declared StoreElement bound; nominal traits do not grant element ownership",
             ));
         }
-        stores::concrete_element(ty, &self.nominals, budget)
+        stores::concrete_element(ty, &self.nominals, budget, (available, variables, callback))
     }
 
     /// Validate written Store applications even in unused templates. A plain
@@ -340,6 +341,7 @@ impl<'a> Index<'a> {
         available: &Bounds,
         variables: &BTreeSet<String>,
         budget: &mut Budget<'_>,
+        callback: Option<&str>,
     ) -> R<()> {
         budget.ty(ty)?;
         let mut pending = vec![ty];
@@ -354,7 +356,7 @@ impl<'a> Index<'a> {
                         let element = stores::element(ty).ok_or_else(|| {
                             error(ty.span, "Store requires exactly one element type")
                         })?;
-                        self.store_element(element, available, variables, budget)?;
+                        self.store_element(element, available, variables, budget, callback)?;
                     }
                     if let Some(Item {
                         kind: ItemKind::Aggregate(declaration),
@@ -366,7 +368,7 @@ impl<'a> Index<'a> {
                                 && bounds.iter().any(stores::is_bound)
                                 && let GenericArg::Type(actual) = argument
                             {
-                                self.store_element(actual, available, variables, budget)?;
+                                self.store_element(actual, available, variables, budget, callback)?;
                             }
                         }
                     }
