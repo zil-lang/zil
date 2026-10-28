@@ -166,8 +166,10 @@ fn package_store_fields(ty: &Type) -> bool {
 
 fn error_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
-        if (error.is_copy_value() || package_type(error, resources))
+        if ((error.is_copy_value() || package_type(error, resources))
             && (result.is_copy_value() || package_type(result, resources)))
+            || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
+                && resource_type(result, resources)))
 }
 
 fn owned_array_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {

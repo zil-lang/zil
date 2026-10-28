@@ -167,11 +167,12 @@ fn signatures(
         }
         if matches!(f.result_mode, PassingMode::Create | PassingMode::Give)
             && !matches!(f.return_type, Type::Managed(_))
+            && !errors::managed_success(&f.return_type)
         {
             errors.push(error(
                 "E-RESOURCE-RESULT-MODE",
                 f.span,
-                "create/give result requires a managed resource",
+                "create/give result requires a managed resource or direct owned success payload",
             ));
         }
         if f.receiver.as_ref().is_some_and(|r| {
@@ -215,7 +216,8 @@ fn signatures(
                     || p.ty.is_shared_package_address()))
                 && !(p.mode == PassingMode::BorrowMut
                     && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee()))
-                && !(p.mode == PassingMode::Give && matches!(p.ty, Type::Managed(_)))
+                && !(p.mode == PassingMode::Give
+                    && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
                 && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
             {
                 errors.push(unsupported(p.span, "resource/address parameter mode"))
@@ -1228,7 +1230,20 @@ impl<'a, 'c> Builder<'a, 'c> {
                 CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
             )
         {
-            let (value, actual) = self.expr_raw(e, None)?;
+            // A sealed Store constructor has no operands from which to infer
+            // its element. A direct owned-success signature is an explicit
+            // expected resource shape, just like a direct create signature.
+            let payload_expected = match (&e.kind, union) {
+                (CoreExprKind::Call { callee, .. }, Type::ErrorUnion { result, .. })
+                    if dynamic_store::primitive(callee) == Some("store_new")
+                        && matches!(result.as_ref(), Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::OwnedStore { .. })) =>
+                {
+                    Some(result.as_ref())
+                }
+                _ => None,
+            };
+            let (value, actual) = self.expr_raw(e, payload_expected)?;
             return self.inject_error_union(value, actual, union, e.span);
         }
         self.expr_raw(e, expected)
