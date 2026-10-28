@@ -244,3 +244,284 @@ fn legacy_single_field_state_preserves_exact_expand_budget() {
     );
     check(1731).unwrap();
 }
+
+const ORDINARY: &str = r#"
+resource Token { value: i32 }
+impl Drop for Token { fn drop(self: Self) {} }
+package Element { manages token: Token; value: i32 }
+fn empty<T: StoreElement>() -> Store<T> contract { result(create) } { return store_new() }
+fn reserve<T: StoreElement>(items: Store<T>, count: i64) -> bool { return store_reserve(items, count) }
+fn push<T: StoreElement>(items: Store<T>, value: T) -> T!void { return store_push(items, value) }
+fn main() -> i32 {
+    let items: Store<Element> = empty()
+    if !reserve(items, 2) { return 1 }
+    push(items, Element { token: Token { value: 1 }, value: 2 })
+    return 0
+}
+"#;
+
+fn boundary(text: &str) -> usize {
+    let unit = source(text);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let check = |n| {
+        zil_expand::expand_with_map_limits(
+            &unit,
+            &syntax,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+    };
+    let mut high = Limits::default().max_analysis_steps;
+    check(high).unwrap();
+    let mut low = 0;
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        match check(middle) {
+            Ok(_) => high = middle,
+            Err(diagnostics) => {
+                assert!(
+                    diagnostics
+                        .iter()
+                        .all(|d| d.category == ResultCategory::ResourceLimit),
+                    "{diagnostics:?}"
+                );
+                low = middle;
+            }
+        }
+    }
+    check(high).unwrap();
+    assert!(
+        check(high - 1)
+            .unwrap_err()
+            .iter()
+            .all(|d| d.category == ResultCategory::ResourceLimit)
+    );
+    check(high).unwrap();
+    high
+}
+
+#[test]
+fn ordinary_store_calls_stay_eager_with_a_measured_exact_budget() {
+    let core = expand(ORDINARY);
+    assert!(core.functions.iter().all(|f| f.type_parameters.is_empty()));
+    assert!(
+        !core
+            .functions
+            .iter()
+            .any(|f| ["empty", "reserve", "push"].contains(&f.name.as_str()))
+    );
+    let n = boundary(ORDINARY);
+    eprintln!("ordinary_store_expand_n={n}");
+}
+
+#[test]
+fn empty_factory_forwards_the_outer_binder_without_rebinding_same_name() {
+    for binder in ["T", "U"] {
+        let outer = format!(
+            "fn outer<{binder}: StoreElement>() -> Store<{binder}> contract {{ result(create) }} {{ return empty::<{binder}>() }}\n"
+        );
+        let text = format!(
+            "{HELPERS}{outer}{}",
+            PAIR.replace("= store_new()", "= outer()")
+        );
+        let core = expand(&text);
+        let outer = function(&core, "outer");
+        assert_eq!(outer.type_parameters[0].name, binder);
+        assert_eq!(
+            applications(&outer.body, "empty"),
+            vec![&[Type::Named(binder.into())][..]]
+        );
+        assert_eq!(
+            applications(&function(&core, "run").body, "outer"),
+            vec![std::slice::from_ref(caller_element(&core))]
+        );
+    }
+}
+
+#[test]
+fn phantom_ordinary_arguments_keep_distinct_complete_element_identities() {
+    let text = format!(
+        r#"{HELPERS}
+resource Token {{ value: i32 }}
+impl Drop for Token {{ fn drop(self: Self) {{}} }}
+package State<F> {{ manages token: Token; callback: F }}
+package Phantom<T,F> {{ manages token: Token; callback: F }}
+fn run<F: Fn() -> i32>(state: State<F>) {{
+    let a: Store<Phantom<i32,F>> = empty()
+    let b: Store<Phantom<i64,F>> = empty()
+}}
+fn main() {{}}
+"#
+    );
+    let core = expand(&text);
+    let calls = applications(&function(&core, "run").body, "empty");
+    assert_eq!(calls.len(), 2);
+    assert_ne!(calls[0], calls[1]);
+    let fields = |args: &[Type]| {
+        let Type::Named(name) = &args[0] else {
+            panic!("nominal element: {args:?}")
+        };
+        &core
+            .aggregates
+            .iter()
+            .find(|a| a.name == *name)
+            .unwrap()
+            .fields
+    };
+    assert!(
+        fields(calls[0])
+            .iter()
+            .zip(fields(calls[1]))
+            .all(|(a, b)| a.name == b.name && a.ty == b.ty)
+    );
+}
+
+#[test]
+fn new_template_work_has_a_fresh_exact_boundary() {
+    let text = format!(
+        "{HELPERS}\n{}",
+        PAIR.replace("= store_new()", "= empty()")
+            .replace("store_reserve(items, 2)", "reserve(items, 2)")
+    );
+    eprintln!("deferred_store_expand_n={}", boundary(&text));
+}
+
+#[test]
+fn imported_template_stays_in_its_definition_module_and_keeps_caller_type() {
+    use zil_ir::CoreImport;
+    let app = format!(
+        "import ops\n{}",
+        PAIR.replace("store_reserve(items, 2)", "ops.reserve(items, 2)")
+    );
+    let helper = "pub fn reserve<T: StoreElement>(items: Store<T>, count: i64) -> bool { return store_reserve(items, count) }";
+    let sources = [
+        source(&app),
+        SourceUnit::new(FileId(1), ModuleId(1), "ops.zil", helper),
+    ];
+    let syntax = sources
+        .iter()
+        .map(|s| zil_syntax::parse(s).into_result().unwrap())
+        .collect::<Vec<_>>();
+    let imports = [
+        vec![CoreImport {
+            alias: "ops".into(),
+            module: ModuleId(1),
+            span: syntax[0].span,
+        }],
+        vec![],
+    ];
+    let modules = zil_expand::expand_program_with_limits(
+        &sources,
+        &syntax.iter().collect::<Vec<_>>(),
+        &imports,
+        &Limits::default(),
+    )
+    .unwrap();
+    let caller = &modules[0].0.core;
+    let owner = &modules[1].0;
+    let retained = function(&owner.core, "reserve");
+    assert_header(retained);
+    assert_eq!(retained.span.file, FileId(1));
+    assert!(owner.exports.contains(&retained.id));
+    assert!(!caller.functions.iter().any(|f| f.name == "reserve"));
+    let condition = function(caller, "run")
+        .body
+        .statements
+        .iter()
+        .find_map(|s| match &s.kind {
+            CoreStatementKind::If { condition, .. } => Some(condition),
+            _ => None,
+        })
+        .unwrap();
+    let CoreExprKind::Unary { operand, .. } = &condition.kind else {
+        panic!("{condition:?}")
+    };
+    let CoreExprKind::Call { callee, .. } = &operand.kind else {
+        panic!("{operand:?}")
+    };
+    let CoreExprKind::TypeApply {
+        callee,
+        type_arguments,
+    } = &callee.kind
+    else {
+        panic!("{callee:?}")
+    };
+    assert_eq!(type_arguments, &vec![caller_element(caller).clone()]);
+    assert!(
+        matches!(&callee.kind, CoreExprKind::Member { object, member }
+        if member == "reserve" && matches!(&object.kind, CoreExprKind::Name(name) if name == "ops"))
+    );
+    for (_, map) in &modules {
+        map.validate(&sources, &Limits::default()).unwrap();
+    }
+
+    let private = SourceUnit::new(
+        FileId(1),
+        ModuleId(1),
+        "ops.zil",
+        helper.strip_prefix("pub ").unwrap(),
+    );
+    let private_syntax = zil_syntax::parse(&private).into_result().unwrap();
+    let errors = zil_expand::expand_program_with_limits(
+        &[sources[0].clone(), private],
+        &[&syntax[0], &private_syntax],
+        &imports,
+        &Limits::default(),
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.code == "E-MODULE-PRIVATE" && d.category == ResultCategory::SafeReject),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn explicit_constraints_cannot_disagree_with_real_arguments_or_result() {
+    for body in [
+        PAIR.replace("= store_new()", "= empty::<Item<i64,F>>()"),
+        PAIR.replace(
+            "store_reserve(items, 2)",
+            "reserve::<Item<i64,F>>(items, 2)",
+        ),
+        PAIR.replace("= store_new()", "= empty::<Item<i32,F>,i32>()"),
+    ] {
+        let unit = source(&format!("{HELPERS}\n{body}"));
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let errors = zil_expand::expand(&unit, &syntax).unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Expand
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-GENERIC-ARGUMENT"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn deferred_mixed_generic_head_does_not_become_a_supported_template() {
+    let helpers = HELPERS.replace(
+        "fn reserve<T: StoreElement>",
+        "fn reserve<T: StoreElement, N: Copy>",
+    );
+    let text = format!(
+        "{helpers}\n{}",
+        PAIR.replace(
+            "store_reserve(items, 2)",
+            "reserve::<Item<i32,F>,i32>(items, 2)"
+        )
+    );
+    let unit = source(&text);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let errors = zil_expand::expand(&unit, &syntax).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::Unsupported
+                && d.message.contains("exactly one StoreElement")),
+        "{errors:?}"
+    );
+}
