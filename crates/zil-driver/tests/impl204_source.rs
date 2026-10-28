@@ -2,10 +2,13 @@
 use std::{
     fs,
     path::PathBuf,
+    process::Command,
     sync::atomic::{AtomicUsize, Ordering},
 };
 use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
-use zil_driver::{CompileOptions, CompileReport, ProjectSources, Stage, compile_project};
+use zil_driver::{
+    CompileOptions, CompileReport, Optimization, ProjectSources, Stage, compile_project,
+};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 const ORIGINALS: [&str; 4] = [
@@ -16,6 +19,15 @@ const ORIGINALS: [&str; 4] = [
 ];
 
 fn compile(label: &str, source: &str, stage: Stage) -> (PathBuf, CompileReport) {
+    compile_optimized(label, source, stage, Optimization::O0)
+}
+
+fn compile_optimized(
+    label: &str,
+    source: &str,
+    stage: Stage,
+    optimization: Optimization,
+) -> (PathBuf, CompileReport) {
     let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
@@ -34,6 +46,8 @@ fn compile(label: &str, source: &str, stage: Stage) -> (PathBuf, CompileReport) 
         },
         &CompileOptions {
             stop_after: stage,
+            optimization,
+            output: (stage == Stage::Build).then(|| directory.join("program")),
             emit_dir: Some(directory.join("phases")),
             ..CompileOptions::default()
         },
@@ -42,9 +56,63 @@ fn compile(label: &str, source: &str, stage: Stage) -> (PathBuf, CompileReport) 
     (directory, report)
 }
 
+fn native(label: &str, source: &str, stdout: &str, exit: i32) {
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let (directory, report) = compile_optimized(label, source, Stage::Build, optimization);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let output = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        fs::write(directory.join("stdout.log"), &output.stdout).unwrap();
+        fs::write(directory.join("stderr.log"), &output.stderr).unwrap();
+        fs::write(
+            directory.join("native.txt"),
+            format!(
+                "optimization={optimization:?}\nexit={:?}\nexpected_exit={exit}\nexpected_stdout={stdout:?}\n",
+                output.status.code()
+            ),
+        )
+        .unwrap();
+        assert_eq!(output.status.code(), Some(exit), "{label}: {output:?}");
+        assert_eq!(output.stdout, stdout.as_bytes(), "{label}: {output:?}");
+        assert!(output.stderr.is_empty(), "{label}: {output:?}");
+    }
+}
+
+fn reject_types(label: &str, source: &str, message: &str) {
+    let (_, report) = compile(label, source, Stage::Verify);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains(message)),
+        "{}",
+        report.to_json()
+    );
+}
+
 fn through_types(label: &str, source: &str) {
     let (_, report) = compile(label, source, Stage::Types);
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     assert_eq!(report.phase, Phase::Types);
     assert_eq!(report.verification_runs, 0);
 }
@@ -67,4 +135,142 @@ fn original_package_store_capture_reaches_types() {
 #[test]
 fn original_mutating_store_capture_reaches_types() {
     through_types("original-mutating", ORIGINALS[3]);
+}
+
+const LEAF: &str = r#"
+extern "C" fn putchar(n: i32) -> i32;
+resource Ticket { code: i32 }
+impl Drop for Ticket { fn drop(self: Self) { unsafe { putchar(.code) } } }
+package Item { manages ticket: Ticket; value: i32 }
+package Bag { manages items: Store<Item>; manages side: Ticket }
+"#;
+const PREPARE: &str = r#"
+    let items: Store<Item> = store_new()
+    store_reserve(items, 1)
+    store_push(items, Item { ticket: Ticket { code: 65 }, value: 42 })
+"#;
+const MAIN_ONCE: &str = r#"
+fn main() -> i32 {
+    let callback = make()
+    let value = callback()
+    unsafe { putchar(90) }
+    return value - 1
+}
+"#;
+
+fn direct_once(move_capture: bool) -> String {
+    format!(
+        "{LEAF}fn make() -> impl FnOnce() -> i32 {{ {PREPARE}
+            return {} () => {{ let local = give items; return i32(store_len(local)) }}
+        }}{MAIN_ONCE}",
+        if move_capture { "move" } else { "" }
+    )
+}
+
+fn package_once(move_capture: bool, whole: bool) -> String {
+    let body = if whole {
+        "let local = bag; return i32(store_len(local.items))"
+    } else {
+        "let local = give bag.items; return i32(store_len(local))"
+    };
+    format!(
+        "{LEAF}fn make() -> impl FnOnce() -> i32 {{ {PREPARE}
+            let bag = Bag {{ items: give items, side: Ticket {{ code: 66 }} }}
+            return {} () => {{ {body} }}
+        }}{MAIN_ONCE}",
+        if move_capture { "move" } else { "" }
+    )
+}
+
+#[test]
+fn actual_direct_give_infers_creation_time_ownership() {
+    through_types("direct-auto-give", &direct_once(false));
+    through_types("direct-explicit-give", &direct_once(true));
+}
+
+#[test]
+fn actual_package_field_give_and_whole_value_infer_ownership() {
+    for whole in [false, true] {
+        for moved in [false, true] {
+            through_types(
+                &format!("package-{whole}-{moved}"),
+                &package_once(moved, whole),
+            );
+        }
+    }
+}
+
+#[test]
+fn ordinary_description_and_readonly_package_do_not_gain_ownership() {
+    for index in [1, 2] {
+        let source = ORIGINALS[index].replace("return move ()", "return ()");
+        reject_types(&format!("nonowning-{index}"), &source, "Store");
+    }
+}
+
+#[test]
+fn direct_store_lending_result_does_not_escape_the_new_profile() {
+    let source = format!(
+        "{LEAF}fn make() -> impl Fn() -> &[u8] {{ {PREPARE}
+            let bytes = bytes_new()
+            return move () => {{ store_len(items); return bytes_view(bytes) }}
+        }}fn main() {{ let callback = make(); }}"
+    );
+    reject_types("new-lending-result", &source, "Copy results");
+    let old = source.replace("store_len(items); ", "");
+    through_types("old-lending-control", &old);
+}
+
+#[test]
+fn direct_child_environment_transmits_only_the_new_result_restriction() {
+    let factory = &ORIGINALS[1][..ORIGINALS[1].find("fn main").unwrap()];
+    let source = format!(
+        "{factory}fn wrapped() -> impl Fn() -> &[u8] {{
+            let child = make()
+            let bytes = bytes_new()
+            return move () => {{ child(); return bytes_view(bytes) }}
+        }}fn main() {{ let callback = wrapped(); }}"
+    );
+    reject_types("child-new-lending-result", &source, "Copy results");
+    let copy = source
+        .replace("impl Fn() -> &[u8]", "impl Fn() -> i32")
+        .replace("child(); return bytes_view(bytes)", "return child()");
+    through_types("child-copy-result", &copy);
+}
+
+#[test]
+fn nested_body_give_preserves_the_actual_package_transfer() {
+    let source = package_once(false, false).replace(
+        "return  () => { let local = give bag.items; return i32(store_len(local)) }",
+        "return () => { let inner = () => { let local = give bag.items; return i32(store_len(local)) }; return inner() }",
+    );
+    assert!(source.contains("let inner"));
+    through_types("nested-auto-package", &source);
+}
+
+#[test]
+fn original_sources_complete_verify_and_native() {
+    for (index, source) in ORIGINALS.iter().enumerate() {
+        native(&format!("original-{index}-native"), source, "", 0);
+    }
+}
+
+#[test]
+fn once_take_and_package_sibling_cleanup_execute() {
+    native("direct-auto-native", &direct_once(false), "AZ", 0);
+    native("direct-move-native", &direct_once(true), "AZ", 0);
+    native(
+        "package-auto-field-native",
+        &package_once(false, false),
+        "ABZ",
+        0,
+    );
+    native(
+        "package-auto-whole-native",
+        &package_once(false, true),
+        "ABZ",
+        0,
+    );
+    let unused = package_once(false, false).replace("let value = callback()", "let value = 1");
+    native("package-auto-unused-native", &unused, "ZAB", 0);
 }
