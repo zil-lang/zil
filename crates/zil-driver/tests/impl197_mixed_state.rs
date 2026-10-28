@@ -214,7 +214,7 @@ fn original_corrected_preflight_inputs_reach_verify_unchanged() {
                     (
                         name.clone(),
                         if name == "model" {
-                            text.replace("value:i32", "pub value:i32")
+                            text.replace("n:i32", "pub n:i32")
                         } else {
                             text.clone()
                         },
