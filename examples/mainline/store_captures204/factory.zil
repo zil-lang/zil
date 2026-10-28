@@ -33,7 +33,7 @@ pub fn active(label: i32) -> impl FnMut(&mut [u8]) -> i32 {
 pub fn once(label: i32) -> impl FnOnce() -> i32 {
     let ticket = Ticket { code: label + 32 }
     let items: Store<Item> = store_new()
-    return () => {
+    return move () => {
         portable.emit(ticket.code - 32)
         if !store_reserve(items, 1) { return -1 }
         let local = give items
