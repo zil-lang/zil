@@ -135,7 +135,7 @@ fn zero_payload_package_capture_still_has_actual_environment_live_flags() {
 }
 
 #[test]
-fn one_type_binding_keeps_both_fields_and_rejects_extra_or_heterogeneous_fields() {
+fn one_or_two_type_bindings_keep_both_fields_and_reject_extra_fields() {
     let mut m = module(vec![Type::I64]);
     let limits = Limits::default();
     admit(&m, &element(&[0]), &limits).unwrap();
@@ -146,7 +146,8 @@ fn one_type_binding_keeps_both_fields_and_rejects_extra_or_heterogeneous_fields(
         function: FunctionId(1),
         ..m.closures[0].clone()
     });
-    assert!(admit(&m, &element(&[0, 1]), &limits).is_err());
+    // 203 explicitly promotes this original two-root input; three fields stay closed.
+    admit(&m, &element(&[0, 1]), &limits).unwrap();
 }
 
 #[test]
@@ -220,4 +221,160 @@ fn early_resource_admission_bounds_capture_shape_and_layout_arithmetic() {
             .message
             .contains("layout exceeds target address range")
     );
+}
+
+fn two_roots() -> TypedModule {
+    let mut m = module(vec![Type::Managed(Box::new(Type::ByteBuffer))]);
+    m.closures.push(ClosureDefinition {
+        id: ClosureId(1),
+        function: FunctionId(1),
+        captures: vec![Type::U16, Type::Unit],
+        ..m.closures[0].clone()
+    });
+    m
+}
+
+#[test]
+fn impl203_two_actual_layout_roots_include_each_environment_and_flags() {
+    let m = two_roots();
+    let limits = Limits::default();
+    let mut budget = Budget::new(&limits);
+    let layouts = closure_layouts_pair(
+        &m,
+        ClosureId(0),
+        Some(ClosureId(1)),
+        Some(&limits),
+        &mut budget,
+    )
+    .unwrap();
+    assert_eq!(layouts, vec![Some((32, 8)), Some((4, 2))]);
+    assert_eq!(
+        layout(&element(&[0, 1]), Some(&layouts), &mut budget).unwrap(),
+        (40, 8)
+    );
+    admit(&m, &element(&[0, 1]), &limits).unwrap();
+    admit(&m, &element(&[1, 0]), &limits).unwrap();
+    // Independent environments can share an already sized child type. Both
+    // root layouts still include their own child bytes and child live flag.
+    let mut shared = module(vec![Type::Managed(Box::new(Type::ByteBuffer))]);
+    for (id, tail) in [(1, Type::U8), (2, Type::I64)] {
+        shared.closures.push(ClosureDefinition {
+            id: ClosureId(id),
+            function: FunctionId(id),
+            captures: vec![Type::Closure(ClosureId(0)), tail],
+            ..shared.closures[0].clone()
+        });
+    }
+    let layouts = closure_layouts_pair(
+        &shared,
+        ClosureId(1),
+        Some(ClosureId(2)),
+        Some(&limits),
+        &mut budget,
+    )
+    .unwrap();
+    assert_eq!(layouts, vec![Some((32, 8)), Some((40, 8)), Some((48, 8))]);
+    assert_eq!(
+        layout(&element(&[1, 2]), Some(&layouts), &mut budget).unwrap(),
+        (88, 8)
+    );
+    admit(&shared, &element(&[1, 2]), &limits).unwrap();
+}
+
+#[test]
+fn impl203_bad_second_capture_root_never_hides_behind_a_valid_first() {
+    let limits = Limits::default();
+    let store = Type::Managed(Box::new(Type::OwnedStore {
+        element: Box::new(element(&[0])),
+    }));
+    let cases = [
+        (
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            },
+            "E-UNSUPPORTED",
+        ),
+        (store.clone(), "E-UNSUPPORTED"),
+        (
+            Type::Package {
+                name: "Bag".into(),
+                fields: vec![("items".into(), store)],
+            },
+            "E-UNSUPPORTED",
+        ),
+        (Type::Closure(ClosureId(1)), "E-VERIFY-CLOSURE-LAYOUT"),
+        (Type::Closure(ClosureId(99)), "E-VERIFY-CLOSURE"),
+    ];
+    for (capture, code) in cases {
+        let mut m = two_roots();
+        m.closures[1].captures = vec![capture];
+        assert_eq!(
+            admit(&m, &element(&[0, 1]), &limits).unwrap_err().code,
+            code
+        );
+    }
+    let mut m = two_roots();
+    m.closures[1].id = ClosureId(0);
+    assert_eq!(
+        admit(&m, &element(&[0, 1]), &limits).unwrap_err().code,
+        "E-VERIFY-CLOSURE"
+    );
+}
+
+#[test]
+fn impl203_heterogeneous_results_are_copy_and_preflighted_before_recursion() {
+    let limits = Limits::default();
+    for changed in [0, 1] {
+        let mut m = two_roots();
+        m.closures[changed].result = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let error = admit(&m, &element(&[0, 1]), &limits).unwrap_err();
+        assert!(error.message.contains("Copy results for both"));
+        // Qualification of the original single/same-root lending profile is
+        // unchanged. This raw control does not assert executable loan safety.
+        admit(&m, &element(&[changed as u32, changed as u32]), &limits).unwrap();
+    }
+    let mut m = two_roots();
+    m.closures[1].result = Type::Tuple(vec![Type::Tuple(vec![Type::Tuple(vec![Type::I32])])]);
+    let error = admit(
+        &m,
+        &element(&[0, 1]),
+        &Limits {
+            max_call_depth: 1,
+            ..limits
+        },
+    )
+    .unwrap_err();
+    assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+}
+
+#[test]
+fn impl203_two_root_qualification_has_an_exact_fresh_work_boundary() {
+    let m = two_roots();
+    let ty = element(&[0, 1]);
+    let limits = Limits::default();
+    let mut budget = Budget::new(&limits);
+    check_element_with_limits(&m, &ty, None, Some(&limits), &mut budget).unwrap();
+    let n = limits.max_analysis_steps - budget.remaining;
+    let exact = Limits {
+        max_analysis_steps: n,
+        ..limits.clone()
+    };
+    for _ in 0..2 {
+        admit(&m, &ty, &exact).unwrap();
+    }
+    let error = admit(
+        &m,
+        &ty,
+        &Limits {
+            max_analysis_steps: n - 1,
+            ..limits
+        },
+    )
+    .unwrap_err();
+    assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+    println!("impl203 independent two-root qualification work={n}");
 }
