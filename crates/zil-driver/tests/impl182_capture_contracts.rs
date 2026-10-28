@@ -628,7 +628,7 @@ fn raw_and_wire_preserve_capture_indices_hold_and_public_upper_bounds() {
     let mut module = original.clone();
     for function in &mut module.functions {
         if let Some(contract) = &mut function.callable_contract {
-            for trace in &mut contract.traces {
+            for trace in contract.traces.as_finite_mut().unwrap() {
                 trace.calls.clear();
             }
         }

@@ -11,7 +11,7 @@ pub(super) fn publish(
     interfaces: &mut [ScalarInterface],
 ) -> CompileResult<()> {
     for interface in interfaces {
-        let mut bytes = b"ZIL-VERIFIED-CALL-CONTRACT-3\0".to_vec();
+        let mut bytes = b"ZIL-VERIFIED-CALL-CONTRACT-4\0".to_vec();
         bytes.extend_from_slice(&interface.signature_fingerprint.0);
         let mut results = Vec::with_capacity(interface.exports.len());
         let mut callables = Vec::new();
@@ -89,12 +89,8 @@ pub(super) fn callable_json(interface: &ScalarInterface) -> String {
     interface.callable_contracts.as_ref().map_or_else(|| "null".into(), |contracts| {
         format!("[{}]", contracts.iter().map(|entry| {
             let c = &entry.contract;
-            let traces = c.traces.iter().map(|trace| format!(
-                "{{\"calls\":[{}],\"exit\":{}}}",
-                trace.calls.iter().map(|mode| json_string(&format!("{mode:?}"))).collect::<Vec<_>>().join(","),
-                json_string(&format!("{:?}", trace.exit))
-            )).collect::<Vec<_>>().join(",");
-            format!("{{\"name\":{},\"parameter\":{},\"closure\":{},\"kind\":{},\"hold\":{:?},\"call\":{:?},\"writes\":{:?},\"cleanup\":{},\"traces\":[{}]}}",
+            let traces = traces_json(&c.traces);
+            format!("{{\"name\":{},\"parameter\":{},\"closure\":{},\"kind\":{},\"hold\":{:?},\"call\":{:?},\"writes\":{:?},\"cleanup\":{},\"traces\":{}}}",
                 json_string(&entry.name), c.parameter, c.closure.0, json_string(&format!("{:?}", c.kind)),
                 c.hold, c.call, c.writes, json_string(&format!("{:?}", c.cleanup)), traces)
         }).collect::<Vec<_>>().join(","))
@@ -111,4 +107,50 @@ pub(super) fn callable_return_json(interface: &ScalarInterface) -> String {
                 c.hold, c.call, c.writes, c.cleanup, c.lending_captures)
         }).collect::<Vec<_>>().join(","))
     })
+}
+
+fn traces_json(traces: &zil_ir::CallableTraces) -> String {
+    use super::json_string;
+    use zil_ir::{CallableFlowNext, CallableTraces};
+    let calls = |calls: &[zil_ir::CallableKind]| {
+        calls
+            .iter()
+            .map(|mode| json_string(&format!("{mode:?}")))
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    match traces {
+        CallableTraces::Finite(traces) => format!(
+            "{{\"kind\":\"Finite\",\"paths\":[{}]}}",
+            traces
+                .iter()
+                .map(|trace| format!(
+                    "{{\"calls\":[{}],\"exit\":{}}}",
+                    calls(&trace.calls),
+                    json_string(&format!("{:?}", trace.exit))
+                ))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        CallableTraces::Flow(flow) => format!(
+            "{{\"kind\":\"Flow\",\"entry\":{},\"nodes\":[{}]}}",
+            flow.entry,
+            flow.nodes
+                .iter()
+                .map(|node| {
+                    let next = match &node.next {
+                        CallableFlowNext::Edges(edges) => {
+                            format!("{{\"kind\":\"Edges\",\"targets\":{edges:?}}}")
+                        }
+                        CallableFlowNext::Exit(exit) => format!(
+                            "{{\"kind\":\"Exit\",\"exit\":{}}}",
+                            json_string(&format!("{exit:?}"))
+                        ),
+                    };
+                    format!("{{\"calls\":[{}],\"next\":{}}}", calls(&node.calls), next)
+                })
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    }
 }
