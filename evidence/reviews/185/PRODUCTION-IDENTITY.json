@@ -1,0 +1,28 @@
+{
+  "production_source": "6f0c77612b504de74e50ee147d124eb303b4ff6a",
+  "earlier_source": "0bb75c0d71c806738989b3447999db88677a864e",
+  "review_source": "88a83a3d974f81ce95d9d93bdacfb1f8bc27e6cb",
+  "identical_crate_source_trees": {
+    "crates/zil-analyze/src": "c73e04dd89f46cf3e45bfe97df638e2427e1ddf5",
+    "crates/zil-backend-llvm/src": "416460d9347ceede4d748c95cb52f23bd7759ffa",
+    "crates/zil-base/src": "ef169ec028c319177e2e494d090fee0c7eb03203",
+    "crates/zil-cli/src": "2d63d4e811893b18cd8e0807d7ac7e783cee84f7",
+    "crates/zil-ct/src": "a12aab86fa3caad229e98bf65a0a51dc4941c53c",
+    "crates/zil-db/src": "dfdb4be094e8583ade23b57aa7a90174385f0f80",
+    "crates/zil-driver/src": "47d7f940f5195d5fce4e7d6bb9a2663092911399",
+    "crates/zil-expand/src": "045348cc7ecc02c38b1fd731dbd26afebfbcec72",
+    "crates/zil-ide/src": "a10c51492cd8153d169227c64488118f3a83ac40",
+    "crates/zil-ir/src": "8a4ed3dbfc6c4d64f1f21427f6341a66a64843ce",
+    "crates/zil-lower/src": "283f64067ac1d58d51dfdd6d063dfdbe389f8c21",
+    "crates/zil-syntax/src": "71cb2c71d07466193c64af6a92157ff5b6779e76",
+    "crates/zil-types/src": "159fdf88f9de344e11a97fd69f5d38e710b8b18c",
+    "crates/zil-verify/src": "860a97a36b1eb31da5f65eb0d93d9de536598869"
+  },
+  "production_modified_by_reviewer": false,
+  "earlier_to_final_change": [
+    "crates/zil-driver/tests/impl185_lending_schema.rs"
+  ],
+  "author_to_review_change": [
+    "crates/zil-driver/tests/review185_lending_transport.rs"
+  ]
+}

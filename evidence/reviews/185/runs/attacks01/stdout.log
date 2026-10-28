@@ -1,0 +1,8 @@
+
+running 3 tests
+test reviewer_both_wire_count_fields_are_checked_before_allocation ... ok
+test reviewer_in_range_duplicate_and_unsorted_claims_cannot_hide_behind_bounds ... ok
+test reviewer_same_length_source_indices_and_record_positions_have_distinct_identity ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

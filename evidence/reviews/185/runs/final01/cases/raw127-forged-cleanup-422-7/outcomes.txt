@@ -1,0 +1,3 @@
+analyze=Err([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "callable return cleanup differs from owned capture indices", span: None, notes: [] }])
+raw=Err([Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CALLABLE-CONTRACT", message: "callable result cleanup must name every owned capture exactly in field order", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }])
+wire=Err([Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CALLABLE-CONTRACT", message: "callable result cleanup must name every owned capture exactly in field order", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }])

@@ -1,0 +1,3 @@
+analyze=Err([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "closure result has no public callable return contract", span: None, notes: [] }])
+raw=Err([Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CALLABLE-CONTRACT", message: "a callable result requires its independently checkable return contract", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }])
+wire=Err([Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CALLABLE-CONTRACT", message: "a callable result requires its independently checkable return contract", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }])

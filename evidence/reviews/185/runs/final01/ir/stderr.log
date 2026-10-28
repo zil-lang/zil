@@ -1,0 +1,7 @@
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-ir)
+    Finished `test` profile [unoptimized] target(s) in 1.31s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets178/review185-schema/debug/deps/zil_ir-601477dc999eefd3)
+     Running tests/impl092_slice_wire.rs (/workspace/scratch/39be3faa4442/targets178/review185-schema/debug/deps/impl092_slice_wire-da5a3021bb4add30)
+     Running tests/impl096_byte_buffer_wire.rs (/workspace/scratch/39be3faa4442/targets178/review185-schema/debug/deps/impl096_byte_buffer_wire-47700b34149ccde6)
+     Running tests/review092_slice_transport.rs (/workspace/scratch/39be3faa4442/targets178/review185-schema/debug/deps/review092_slice_transport-f723623e6b01ce74)
+   Doc-tests zil_ir

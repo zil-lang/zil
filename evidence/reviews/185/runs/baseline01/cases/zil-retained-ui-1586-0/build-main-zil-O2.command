@@ -1,0 +1,1 @@
+"clang" "-x" "ir" "-O2" "/workspace/scratch/39be3faa4442/runs178/review185-schema/baseline01/cases/zil-retained-ui-1586-0/main-zil-O0.ll" "-o" "/workspace/scratch/39be3faa4442/runs178/review185-schema/baseline01/cases/zil-retained-ui-1586-0/main-zil-O2"

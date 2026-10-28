@@ -1,0 +1,19 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review185-schema/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 8.28s
+     Running tests/impl070_retained.rs (/workspace/scratch/39be3faa4442/targets178/review185-schema/debug/deps/impl070_retained-e288f22da3bca16f)
+     Running tests/impl127_raw_factory.rs (/workspace/scratch/39be3faa4442/targets178/review185-schema/debug/deps/impl127_raw_factory-546609b9378cb505)
+     Running tests/impl185_lending_schema.rs (/workspace/scratch/39be3faa4442/targets178/review185-schema/debug/deps/impl185_lending_schema-8fec89d5447e07f8)
+error: test failed, to rerun pass `-p zil-driver --test impl185_lending_schema`
+error: 1 target failed:
+    `-p zil-driver --test impl185_lending_schema`
