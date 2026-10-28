@@ -427,6 +427,24 @@ fn headers(
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
         state_snapshot(&function.state_parameters, function.span, budget)?;
+        if !function.state_parameters.is_empty() && !function.callable_parameters.is_empty() {
+            // The mixed header compares both declarations and the actual
+            // owned parameter types. Reserve these complete inputs first.
+            budget.work(
+                function
+                    .callable_parameters
+                    .len()
+                    .saturating_add(function.parameters.len()),
+                function.span,
+            )?;
+            for bound in &function.callable_parameters {
+                callable_snapshot(bound, function.span, budget)?;
+            }
+            for parameter in &function.parameters {
+                validate_type(&parameter.ty, 0, parameter.span, budget)?;
+            }
+            validate_type(&function.return_type, 0, function.span, budget)?;
+        }
         state_origins::validate_header(function)?;
         if !function.type_parameters.is_empty() {
             budget.work(function.type_parameters.len(), function.span)?;
@@ -1507,6 +1525,52 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
         }
         self.state_result_term(&signature.result, &sources, span)
+    }
+
+    fn replacement_call(
+        &mut self,
+        signature: &Signature,
+        arguments: &[CoreExpr],
+        depth: usize,
+        span: Span,
+    ) -> R<Term> {
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "State replacement argument count differs",
+            ));
+        }
+        self.budget.work(
+            arguments
+                .len()
+                .saturating_mul(signature.callable.len().saturating_add(1)),
+            span,
+        )?;
+        let mut environment = None;
+        for (index, (argument, ty)) in arguments.iter().zip(&signature.parameters).enumerate() {
+            if let Some(bound) = signature
+                .callable
+                .iter()
+                .find(|bound| bound.index as usize == index)
+            {
+                let id = self.bind_callable_argument(argument, ty, bound, depth + 1)?;
+                if let Some(previous) = environment {
+                    self.unify(&Term::Closure(previous), &Term::Closure(id), argument.span)?;
+                } else {
+                    environment = Some(id);
+                }
+            } else {
+                let value = self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                self.bind_term(&value, ty, argument.span)?;
+            }
+        }
+        self.state_term(
+            &signature.result,
+            &signature.callable[0].generic_name,
+            environment.ok_or_else(|| unsupported(span, "State replacement source is absent"))?,
+            span,
+        )
     }
     fn state_result_term(&mut self, ty: &Type, sources: &[(String, usize)], span: Span) -> R<Term> {
         if matches!(ty, Type::Package { .. })
@@ -3088,6 +3152,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return self.known_term(&Type::I64, span);
                     }
                     Term::Function(signature) => {
+                        if state_origins::replacement_signature(&signature) {
+                            return self.replacement_call(&signature, arguments, depth, span);
+                        }
                         if callable_fields::signature(&signature)
                             && signature.callable.len() == 2
                             && signature.callable[0].generic_index
