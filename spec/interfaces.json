@@ -966,6 +966,13 @@
       "requirement": "Separate parent-shell liveness from exact Local+Field footprint; reconstructed sibling fields can be disjoint, whole-parent operations still intersect.",
       "authority": "No field/parameter string inequality, payload-type difference or candidate singleton substitutes actual projection and One/mapping proof.",
       "effects": "Hold, Call and Cleanup remain separate; current callback captures/explicit parameters are checked together."
+    },
+    "owned_success22": {
+      "type": "Existing ErrorUnion(error:finite Copy,result:Managed<supported direct resource>) is an ordinary non-Copy Value; no new wire opcode.",
+      "source": "Explicit result(create/give) on E!R applies to its successful direct resource payload; absent mode keeps default Desc.",
+      "responsibility": "Only the actual active tag owns its payload; Make transfers once, Take consumes once, Drop pays only the active obligation. Failure injection creates no success obligation.",
+      "authority": "Types/Analyze and independent Verify reconstruct real source, mode, tag and cleanup. Schema registration is not implementation completion.",
+      "boundary": "ByteBuffer and finite user resources first; Store only with whole-path receipts. No automatic resource error side or arbitrary nested owning Sum."
     }
   }
 }
