@@ -1,0 +1,52 @@
+{
+  "source_commit": "2ce2ea72b941f9b9323d24eb141e5321171adc24",
+  "status": "Pass",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit": 0
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-j2",
+        "--lib",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl182_capture_contracts",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0
+    }
+  ],
+  "time": 1793152349.4349854
+}

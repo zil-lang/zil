@@ -1,0 +1,182 @@
+
+running 13 tests
+test branch_and_shadowed_local_have_distinct_places ... ok
+test borrowed_and_move_environments_keep_distinct_semantics ... ok
+test conflicting_writes_include_alias_copies_and_loop_backedges ... ok
+test exclusive_capture_calls_require_mutable_environments_and_escape_stays_closed ... ok
+test loop_local_storage_restarts_and_control_exits_end_it ... ok
+test one_shared_root_with_many_unrelated_locals_and_blocks_fits_default_budget ... ok
+test ordinary_capture_and_all_copies_end_at_last_use ... ok
+test raw_address_access_requires_real_address_type ... ok
+test raw_dead_storage_and_reactivation_cannot_hide_a_live_reference ... ok
+test parameter_address_has_distinct_native_stack_instances ... ok
+test raw_hold_rows_bind_every_value_and_external_capture ... ok
+test unit_address_has_real_storage_and_unit_abi_is_erased ... ok
+test short_circuit_loop_temps_and_rhs_last_use_preserve_storage ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+
+running 17 tests
+test helper065_analyze_reconstructs_hold_and_call_paths ... ok
+test helper065_copy_error_callbacks_are_instantiated_and_verified ... ok
+test helper065_error_callback_stops_trace_and_late_argument_is_guarded ... FAILED
+test helper065_generic_body_reads_known_resource_field ... FAILED
+test helper065_cross_module_interfaces_include_actual_environment_layout ... ok
+test helper065_helper_does_not_extend_resource_or_address_lifetimes ... ok
+test helper065_instances_are_cached_and_new_identities_are_bounded ... ok
+test helper065_mutable_borrow_updates_actual_environment ... ok
+test helper065_nearest_callable_admission_rejections ... ok
+test helper065_owned_environment_shared_borrow_and_reuse ... ok
+test helper065_mutable_target_loan_ends_after_owned_zero_or_one_call ... ok
+test helper065_raw_callable_metadata_is_bounded_before_instantiation ... ok
+test helper065_owned_fn_can_adapt_to_borrowed_fnmut_then_be_reused ... ok
+test helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces ... ok
+test helper065_same_name_in_distinct_modules_keeps_definition_identity ... ok
+test helper065_shared_and_copy_arguments ... ok
+test helper065_value_condition_and_consume_adaptation ... ok
+
+failures:
+
+---- helper065_error_callback_stops_trace_and_late_argument_is_guarded stdout ----
+
+thread 'helper065_error_callback_stops_trace_and_late_argument_is_guarded' (523) panicked at crates/zil-driver/tests/impl065_helpers.rs:15:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"generic give parameter requires a direct Store carrier","span":{"file":0,"start":115,"end":123},"notes":[]}],"artifacts":{},"input_fingerprint":"d62fe2ed732315f0f72c0bb719cf5348122376702fbe69eb0b88b07d672f0e10","seconds":0.000419148,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"helpers065.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- helper065_generic_body_reads_known_resource_field stdout ----
+
+thread 'helper065_generic_body_reads_known_resource_field' (524) panicked at crates/zil-driver/tests/impl065_helpers.rs:15:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"generic give parameter requires a direct Store carrier","span":{"file":0,"start":49,"end":60},"notes":[]}],"artifacts":{},"input_fingerprint":"2cb690450b6db444ebd469658ba6adbd842f5837f941a79570aaab5c71b0716f","seconds":0.000498835,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"helpers065.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+
+
+failures:
+    helper065_error_callback_stops_trace_and_late_argument_is_guarded
+    helper065_generic_body_reads_known_resource_field
+
+test result: FAILED. 15 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+
+running 16 tests
+test capturing_a_callable_environment_and_function_pointer_captures_remain_rejected ... ok
+test independent_verify_rejects_forged_shared_kind_and_second_capture_transfer ... ok
+test inner_borrowed_writes_persist_in_outer_owned_copy_capture ... ok
+test activation_local_managed_owner_moves_into_inner_environment ... ok
+test inner_move_promotes_an_outer_nonmove_managed_capture ... ok
+test nested_closure_function_and_depth_budgets_remain_enforced ... ok
+test inner_unused_environment_and_outer_unused_environment_drop_once ... ok
+test nested_move_snapshot_is_distinct_from_borrowed_writeback ... ok
+test nested_error_exit_cleans_only_actual_remaining_owners ... ok
+test nested_move_transfers_outer_owned_capture_once ... ok
+test nested_owning_buffer_replacement_cleans_real_slots ... ok
+test nested_package_move_and_inner_refill_keep_distinct_responsibilities ... ok
+test nested_shadowed_parameters_and_locals_do_not_capture_outer_names ... ok
+test nested_transfer_and_shared_alias_misuse_are_rejected ... ok
+test nested_signatures_infer_across_three_lexical_layers ... ok
+test outer_package_refill_after_nested_move_keeps_fnmut ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.43s
+
+
+running 17 tests
+test active_head_prevents_write_move_replacement_and_old_address_revival ... ok
+test desc_only_imported_helpers_export_writes_into_caller_head_window ... ok
+test actual_head_trait_and_inherent_methods_and_plain_parameters ... ok
+test descriptor_callback_cannot_use_a_captured_field_address_as_write_permission ... ok
+test descriptor_and_head_parameters_do_not_assume_distinct_origins ... ok
+test descriptor_capturing_callbacks_cannot_write_under_a_live_head ... ok
+test descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls ... ok
+test descriptor_only_helper_exports_its_internal_callback_effect_across_modules ... ok
+test head_metadata_work_has_an_exact_finite_budget_boundary ... ok
+test failed_argument_preparation_ends_head_window_and_cleans_owner_once ... ok
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... ok
+test last_use_then_descriptor_write_is_allowed ... ok
+test original_159_resource_address_receiver_probe_is_unchanged_and_now_supported ... ok
+test imported_heads_keep_nominal_identity_visibility_and_actual_storage ... ok
+test raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head ... ok
+test resource_trait_nonshared_receivers_and_head_indirect_calls_stay_closed ... ok
+test unrelated_owned_callback_and_shared_head_compose ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.56s
+
+
+running 10 tests
+test borrowed_callback_capture_cannot_acquire_owning_field_authority ... ok
+test callback_loan_allows_actual_sibling_store_and_copy_fields ... ok
+test callback_loan_survives_sibling_replacement_and_failing_preparation ... ok
+test generic_state_body_uses_same_field_precision ... ok
+test raw_wire_cannot_hide_a_current_overlapping_callback_loan ... ok
+test raw_wire_rebuild_field_origin_and_keep_parent_hold ... ok
+test same_field_parent_movement_and_simultaneous_exclusive_use_still_reject ... ok
+test helper_effects_and_current_call_reject_real_overlap ... ok
+test shared_callback_and_callback_replacement_preserve_sibling_windows ... ok
+test store_window_keeps_its_real_field_while_copy_and_callback_are_updated ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.44s
+
+
+running 19 tests
+test cross_function_aliases_cannot_hide_mutation_or_second_window ... ok
+test actual_copy_scalar_array_and_record_fields_update_in_place ... ok
+test index_evaluation_cannot_consume_the_previously_evaluated_store ... ok
+test live_exclusive_window_blocks_structure_metadata_and_responsibility_changes ... ok
+test index_effect_runs_before_window_and_error_rhs_cleans_store ... ok
+test managed_fields_whole_packages_and_escaping_windows_remain_closed ... ok
+test raw_and_wire_cannot_write_after_consistently_downgrading_the_window ... ok
+test raw_and_wire_rebuild_mutability_index_shape_and_actual_holds ... ok
+test raw_and_wire_reject_resource_projection_and_early_owner_drop ... ok
+test raw_and_wire_retargeted_structure_write_cannot_cross_exclusive_window ... ok
+test projected_copy_slice_keeps_then_releases_exclusive_permission ... ok
+test receiver_index_and_rhs_are_evaluated_once_and_in_source_order ... ok
+test rhs_and_child_capture_cannot_hide_a_live_window ... ok
+test runtime_index_traps_before_address_even_when_capacity_has_spare_slots ... ok
+test separate_store_fields_and_parameter_apart_checks_preserve_updates ... ok
+test shared_windows_cannot_be_upgraded_or_written ... ok
+test synchronous_helper_reborrows_then_last_use_allows_reserve_and_pop ... ok
+test whole_store_exclusive_loan_blocks_shared_and_other_exclusive_views ... ok
+test runtime_updates_cross_four_modules_without_moving_element_resources ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.26s
+
+
+running 19 tests
+test conditional_and_looping_callback_effects_cover_every_reachable_path ... ok
+test callback_error_and_late_argument_failure_cleanup_once ... ok
+test copy_argument_preparation_still_observes_the_captured_shared_window ... ok
+test current_explicit_arguments_do_not_end_before_a_direct_helper_returns ... ok
+test final_call_cannot_use_its_shared_capture_as_desc_write_permission ... ok
+test mixed_capture_contracts_substitute_actual_normal_function_parameters ... ok
+test each_desc_capture_keeps_its_own_read_or_write_origin ... ok
+test mutable_address_capture_reborrows_and_releases_after_last_call ... ok
+test owning_once_cleanup_and_error_exit_keep_other_capture_dependencies ... ok
+test per_capture_verification_work_has_an_actual_bounded_failure ... ok
+test raw_and_wire_preserve_capture_indices_hold_and_public_upper_bounds ... ok
+test raw_and_wire_reconstruct_new_desc_writes_in_the_actual_entry ... ok
+test recursive_helper_effects_include_its_reachable_callback_prefix ... ok
+test original_probes_keep_inputs_and_remove_the_unrelated_head_switch ... ok
+test same_origin_shared_desc_and_copy_address_read_on_the_final_call ... ok
+test two_layers_of_desc_helpers_export_internal_callback_accesses ... ok
+test unused_cleanup_does_not_turn_a_desc_into_a_strong_hold ... ok
+test runtime_mixed_capture_consumer_uses_four_actual_modules ... ok
+test zero_call_contract_does_not_execute_a_captured_write ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.85s
+
+
+running 9 tests
+test bool_unit_and_i64_reference_types_preserve_operand_inference ... ok
+test branch_shadow_loop_and_scalar_parameter_storage ... ok
+test every_live_address_and_mixed_closure_alias_keeps_its_source ... ok
+test mixed_environment_and_capture_hold_cannot_be_erased_or_forged ... ok
+test address_constraints_apply_before_ct_and_inside_closure_body ... ok
+test mixed_move_environment_keeps_pointer_and_snapshot_distinct ... ok
+test storage_end_cannot_leave_an_address_or_captured_address_live ... ok
+test scalar_address_copies_overwrites_and_rhs_last_use ... ok
+test unsupported_reference_contracts_and_authority_remain_explicit ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s
+

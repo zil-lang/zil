@@ -1,0 +1,1 @@
+fn main()->i32{let x=10;let f=a=>{let g=b=>{let h=c=>x+a+b+c;return h(4)};return g(8)};return f(20)-42}

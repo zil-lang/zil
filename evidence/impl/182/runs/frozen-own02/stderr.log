@@ -1,0 +1,7 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182/crates/zil-verify)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182/crates/zil-lower)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.05s
+     Running tests/impl182_capture_contracts.rs (/workspace/scratch/39be3faa4442/targets178/author182/debug/deps/impl182_capture_contracts-e0324ece1d1073c5)

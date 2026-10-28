@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-PACKAGE",
+        message: "package field index is outside its declaration",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 892,
+                end: 906,
+            },
+        ),
+        notes: [],
+    },
+]

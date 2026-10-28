@@ -1,0 +1,1 @@
+fn main()->i32{var b=bytes_new();bytes_reserve(b,64);bytes_push(b,42u8);var f=move()=>{var g=move()=>{if bytes_len(b)!=1{return 1};b=bytes_new();bytes_reserve(b,64);bytes_push(b,7u8);return i32(bytes_view(b)[0])-7};return g()};return f()}

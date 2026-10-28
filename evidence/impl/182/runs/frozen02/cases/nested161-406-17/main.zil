@@ -1,0 +1,1 @@
+fn main()->i32{var x=100;let f=x=>{let g=x=>{let h=()=>x+1;return h()};return g(x)+1};if f(40)!=42||x!=100{return 1};let unused=bytes_new();let h=()=>{let unused=7;let i=()=>unused;return i()};return h()-7}
