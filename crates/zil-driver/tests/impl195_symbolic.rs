@@ -131,12 +131,23 @@ fn returning_paths_do_not_pollute_surviving_break_and_continue_states() {
     for definition in [
         "fn good<T>(value:T,flag:bool)->T{for index in 0..2{if flag{return value}else{break}}return value}",
         "fn good<T>(value:T,flag:bool)->T{for index in 0..2{match flag{true=>{return value},false=>{continue}}}return value}",
-        "fn good<T>(value:T)->T{var current=value;for index in 0..2{let temporary=current;current=temporary;continue}return current}",
         "fn good<T>(value:T)->T{for index in 0..2{let value=0;if index==0{continue};break}return value}",
         "fn good<T>(value:T){for index in 0..2{let consumed=value;break}}",
     ] {
         accepted("return-excluded", &format!("{definition}fn main(){{}}"));
     }
+}
+
+#[test]
+fn a_previously_moved_generic_local_retains_its_existing_reinitialization_boundary() {
+    // This was an overbroad new positive oracle in symbolic01. Keep its exact
+    // original input: generic place checking rejects before loop-control work.
+    rejected(
+        "restore-moved-local-boundary",
+        "fn good<T>(value:T)->T{var current=value;for index in 0..2{let temporary=current;current=temporary;continue}return current}fn main(){}",
+        ResultCategory::SafeReject,
+        "generic place used after move",
+    );
 }
 
 #[test]
