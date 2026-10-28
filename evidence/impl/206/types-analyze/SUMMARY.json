@@ -1,0 +1,89 @@
+{
+  "scope": "Author Types/Analyze 206 only; no independent Verify, Lower/LLVM, native execution or language/product acceptance claimed here",
+  "production_commit": "7b2b1f58a5b9d14a027f67ec746eb375328dc94f",
+  "baseline205": "61c2d2522496347386039eb0ee4e260e6ea61e93",
+  "spec_hash": "f26a0d8701b9a00a38286f486b7bcae1b96cf1d9254add7c48d395bb3e6ccbc3",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "final_commands": {
+    "final01": {
+      "status": "Pass",
+      "tests_passed": 11,
+      "failed": 0,
+      "ignored": 0
+    },
+    "clippy02": {
+      "status": "Pass",
+      "warnings_denied": true
+    }
+  },
+  "legacy_exact_boundary": {
+    "source": "same literal FLAT in impl206_budget.rs",
+    "accepted205": {
+      "types": 418,
+      "analyze": 8673,
+      "command": "baseline205-flat01",
+      "production_dirty": false,
+      "test_overlay": "exact budget probe plus nine fixtures untracked, retained in baseline205-inputs"
+    },
+    "candidate206": {
+      "types": 418,
+      "analyze": 8673,
+      "command": "final01"
+    },
+    "protocol": "N accepted equals default output; N-1 ResourceLimit; fresh N exact output equality"
+  },
+  "product_boundaries": [
+    {
+      "source": "01_mixed_child_created.zil",
+      "types": 753,
+      "analyze": 21120
+    },
+    {
+      "source": "02_whole_transfer_twice_created.zil",
+      "types": 796,
+      "analyze": 27114
+    },
+    {
+      "source": "03_child_only_wrappers_created.zil",
+      "types": 752,
+      "analyze": 26951
+    }
+  ],
+  "preserved_failures": [
+    {
+      "command": "parent-gates01",
+      "source_commit": "d3fb0712172fa36b2f3af1c49df67d34c0e50ee8",
+      "actual": "raw borrowed Address<new Product> admitted by Analyze",
+      "status": "Fail",
+      "repair": "c6281a5900abc52bc51b39e91e8a7dc3b798abc1",
+      "followup": "parent-gates02 Pass; final01 Pass",
+      "note": "test aborted at first address; no claim that original Store case executed or failed"
+    },
+    {
+      "command": "origins-metadata01",
+      "source_commit": "838e29529ca1a0e32d0d7f57d5a6c0f277c2186d",
+      "actual": "unused resource.payload with new Product admitted by Analyze",
+      "status": "Fail 6/1",
+      "repair": "e4112ad4160fa7e62f21b1a3e388775f7995567b",
+      "followup": "origins-metadata02 11/0; final01 11/0",
+      "note": "source test binary not reached after Analyze binary failed"
+    },
+    {
+      "command": "clippy01",
+      "source_commit": "e4112ad4160fa7e62f21b1a3e388775f7995567b",
+      "actual": "clippy::type_complexity on direct/deep origin return tuple",
+      "status": "Fail",
+      "repair": "7b2b1f58a5b9d14a027f67ec746eb375328dc94f",
+      "followup": "clippy02 Pass"
+    }
+  ],
+  "limits": [
+    "Types first run types01 used old206 norm20e0ebc805 and remains so; later runs use d71ea98d7c",
+    "Incoming source cases reaching Types are admission positives only; Analyze rejects create claims",
+    "no default budget increase",
+    "no schema, ABI or deep Place extension",
+    "old capture, Store, owning-array, ErrorUnion and resource-head qualification kept closed to new Product",
+    "unknown ordinary Package call result remains Incoming",
+    "full1.4 NotSatisfied; B0 Doing; product/native Windows NotRun"
+  ]
+}
