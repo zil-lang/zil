@@ -146,6 +146,112 @@ fn invocation(
     }
 }
 
+fn dependency_order(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    budget: &mut Budget,
+) -> Check<Vec<usize>> {
+    let count = module.functions.len();
+    budget.spend(count.saturating_mul(4))?;
+    let mut predecessors = vec![0usize; count];
+    let mut consumers = vec![Vec::new(); count];
+    for (caller, f) in module.functions.iter().enumerate() {
+        if f.callable_contract.is_none() {
+            continue;
+        }
+        budget.spend(f.blocks.len())?;
+        for (b, block) in f.blocks.iter().enumerate() {
+            if !graphs[caller].reachable[b] {
+                continue;
+            }
+            for instruction in &block.instructions {
+                budget.spend(1)?;
+                if let InstructionKind::Call {
+                    function: callee, ..
+                } = instruction.kind
+                {
+                    let callee = callee.0 as usize;
+                    if module.functions[callee].callable_contract.is_some() {
+                        budget.spend(2)?;
+                        predecessors[caller] += 1;
+                        consumers[callee].push(caller);
+                    }
+                }
+            }
+        }
+    }
+    let mut frontier: VecDeque<_> = predecessors
+        .iter()
+        .enumerate()
+        .filter_map(|(i, degree)| (*degree == 0).then_some(i))
+        .collect();
+    let mut order = Vec::with_capacity(count);
+    while let Some(callee) = frontier.pop_front() {
+        budget.spend(consumers[callee].len().saturating_add(1))?;
+        order.push(callee);
+        for &caller in &consumers[callee] {
+            predecessors[caller] -= 1;
+            if predecessors[caller] == 0 {
+                frontier.push_back(caller);
+            }
+        }
+    }
+    if order.len() != count {
+        return Err(unsupported(
+            "recursive callable helper dependency requires an explicit finite contract",
+            None,
+        ));
+    }
+    Ok(order)
+}
+
+fn forwarded<'a>(
+    module: &'a TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    origins: &EnvironmentOrigins,
+    kind: CallableKind,
+    checked: &[bool],
+    budget: &mut Budget,
+) -> Check<Option<&'a [CallableTrace]>> {
+    let InstructionKind::Call {
+        function: callee,
+        arguments,
+    } = &instruction.kind
+    else {
+        return Ok(None);
+    };
+    budget.spend(arguments.len())?;
+    let mut environment = None;
+    for (index, value) in arguments.iter().enumerate() {
+        if parameter_type(&f.values[value.0 as usize]).is_some()
+            && environment.replace((index, *value)).is_some()
+        {
+            return Err(bad(f, "nested helper forwards more than one environment"));
+        }
+    }
+    let Some((parameter, value)) = environment else {
+        return Ok(None);
+    };
+    let target = &module.functions[callee.0 as usize];
+    let claim = target
+        .callable_contract
+        .as_ref()
+        .ok_or_else(|| bad(f, "forwarded helper has no finite contract"))?;
+    if !checked[callee.0 as usize]
+        || claim.parameter as usize != parameter
+        || claim.kind != kind
+        || origins.marks[origins.values_at + value.0 as usize] != 1
+        || parameter_type(&f.values[value.0 as usize]).map(|(id, _)| id) != Some(claim.closure)
+    {
+        return Err(bad(
+            f,
+            "nested helper must forward its actual parameter to an independently checked matching contract",
+        ));
+    }
+    Ok(Some(&claim.traces))
+}
+
 /// Each reachable block is processed after all its predecessors. Trace sets
 /// merge equal prefixes, instead of enumerating duplicate syntactic paths.
 /// Cycles are a reported scope limit, never an empty or truncated contract.
@@ -155,6 +261,7 @@ fn traces(
     graph: &FunctionGraph,
     parameter: LocalId,
     expected_kind: CallableKind,
+    checked: &[bool],
     budget: &mut Budget,
 ) -> Check<Vec<CallableTrace>> {
     let origins = environment_origins(module, f, parameter, budget)?;
@@ -212,17 +319,36 @@ fn traces(
                     Some(instruction.span),
                 ));
             }
-            if let InstructionKind::Call { arguments, .. } = &instruction.kind {
-                budget.spend(arguments.len())?;
-                if arguments
-                    .iter()
-                    .any(|v| parameter_type(&f.values[v.0 as usize]).is_some())
-                {
-                    return Err(unsupported(
-                        "callback helper forwarding and recursive helper contracts are not in this finite slice",
-                        Some(instruction.span),
-                    ));
+            if let Some(children) = forwarded(
+                module,
+                f,
+                instruction,
+                &origins,
+                expected_kind,
+                checked,
+                budget,
+            )? {
+                let mut returning = BTreeSet::new();
+                for prefix in &states {
+                    for child in children {
+                        budget.spend(1)?;
+                        let count = prefix
+                            .checked_add(child.calls.len())
+                            .ok_or_else(|| limit("nested helper call count overflow"))?;
+                        if expected_kind == CallableKind::FnOnce && count > 1 {
+                            return Err(bad(f, "helper consumes its callback more than once"));
+                        }
+                        if child.exit == CallableExit::Trap {
+                            budget.spend(count_tree_work(exits.len()))?;
+                            exits.insert((count, 1));
+                        } else {
+                            budget.spend(count_tree_work(returning.len()))?;
+                            returning.insert(count);
+                        }
+                    }
                 }
+                states = returning;
+                continue;
             }
             if let Some(kind) = invocation(f, instruction, &origins)? {
                 if kind != expected_kind {
@@ -237,7 +363,11 @@ fn traces(
                     if kind == CallableKind::FnOnce && count != 0 {
                         return Err(bad(f, "helper consumes its callback more than once"));
                     }
-                    next.insert(count.saturating_add(1));
+                    next.insert(
+                        count
+                            .checked_add(1)
+                            .ok_or_else(|| limit("helper call count overflow"))?,
+                    );
                 }
                 states = next;
             }
@@ -314,7 +444,12 @@ pub(super) fn check_module(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<()> {
-    for (f, graph) in module.functions.iter().zip(graphs) {
+    let order = dependency_order(module, graphs, budget)?;
+    budget.spend(module.functions.len())?;
+    let mut checked = vec![false; module.functions.len()];
+    for index in order {
+        let f = &module.functions[index];
+        let graph = &graphs[index];
         let mut parameter = None;
         for (index, local) in f.parameters.iter().enumerate() {
             let ty = &f.locals[local.0 as usize].ty;
@@ -435,6 +570,7 @@ pub(super) fn check_module(
             graph,
             f.parameters[parameter as usize],
             claim.kind,
+            &checked,
             budget,
         )?;
         if traces.iter().any(|trace| {
@@ -477,6 +613,7 @@ pub(super) fn check_module(
                 "callback Hold/Call/write bound/Cleanup/traces differ from the independent contract",
             ));
         }
+        checked[index] = true;
     }
     Ok(())
 }
