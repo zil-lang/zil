@@ -1,0 +1,33 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl188_nested_helpers",
+    "an_unused_recursive",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt188",
+  "start": 1793156988.5021741,
+  "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+  "git_status": " M crates/zil-analyze/src/helpers.rs\n M crates/zil-expand/src/generic_check.rs\n M crates/zil-expand/src/generic_helper_graph.rs\n M crates/zil-expand/src/generics.rs\n M crates/zil-types/src/helpers.rs\n M crates/zil-verify/src/helpers.rs\n?? crates/zil-driver/tests/impl188_nested_helpers.rs\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author188",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/188-author/recursive02/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793156989.085374,
+  "stdout.log_sha256": "1866742536a47b78bb1e3fd198f4a452604aec398af61135af40174282d45fd1",
+  "stderr.log_sha256": "c06ea64a5ce6fb4ae9e70c9167ce53277a1bd3c0b273b95d09a0a4c4127c4db0"
+}

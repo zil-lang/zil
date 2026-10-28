@@ -1,0 +1,1 @@
+fn identity(p:&i32)->&i32{return p}pub fn pick(a:i32,b:i32)->impl Fn(bool)->&i32{return move(flag)=>{if flag{return identity(&a)}return identity(&b)}}

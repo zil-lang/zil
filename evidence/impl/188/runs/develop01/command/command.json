@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl188_nested_helpers",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt188",
+  "start": 1793156781.1216106,
+  "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+  "git_status": " M crates/zil-analyze/src/helpers.rs\n M crates/zil-expand/src/generic_check.rs\n M crates/zil-expand/src/generic_helper_graph.rs\n M crates/zil-expand/src/generics.rs\n M crates/zil-types/src/helpers.rs\n M crates/zil-verify/src/helpers.rs\n?? crates/zil-driver/tests/impl188_nested_helpers.rs\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author188",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/188-author/develop01/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Fail",
+  "exit_code": 101,
+  "end": 1793156789.3828359,
+  "stdout.log_sha256": "2ebe464eaab2dcc1a66d84cac224bfe302735272bcbf7a477f9781403419fe47",
+  "stderr.log_sha256": "9bd6e3ef42f9c6c03021b063c2ce75262f95441a3bbdf0d3a0dbf10ff04359e1"
+}

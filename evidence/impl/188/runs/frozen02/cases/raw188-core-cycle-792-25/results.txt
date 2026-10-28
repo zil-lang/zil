@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Types,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "recursive concrete helper dependency has no finite instance plan",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 186,
+                end: 195,
+            },
+        ),
+        notes: [],
+    },
+]

@@ -1,0 +1,1 @@
+fn make(seed:i64)->impl FnMut(i64)->i64{var n=seed;return move (delta:i64)=>{n+=delta;return n}}fn run<F:Fn()->i64>(f:&F)->i64{let local=make(2);return local(1)+f()}fn main()->i32{return 0}
