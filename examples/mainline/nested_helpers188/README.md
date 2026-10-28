@@ -31,6 +31,14 @@ when the child never invokes the callback. The verifier reconstructs callee
 bodies and actual parameter origins before using their trace claims; the same
 ClosureId does not make two runtime instances interchangeable.
 
+Concrete Types instances also use an explicit dependency plan. The plan tracks
+definition/module identity, lexical shadowing, environment aliases, direct State
+fields and already checked factory return types. Each normal Builder completes
+after its child instances; a missing instance is rejected instead of recursively
+entering another Builder. Dependency depth still pays the existing limit. The
+non-author 24-layer stack-overflow reproducer is retained, with additional
+64-layer alias/shadowing and default 256/257 depth-boundary controls.
+
 The existing owning State loop is separate from a callback helper's finite
 contract. A cyclic callback helper body or a recursive helper dependency remains
 Unsupported. Mixed bound kinds, multiple callback parameters, unknown or mixed

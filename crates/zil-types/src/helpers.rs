@@ -392,16 +392,36 @@ impl Builder<'_, '_> {
         closure: ClosureId,
         span: Span,
     ) -> R<FunctionId> {
+        self.closures
+            .snapshot(plan::tree_work(self.closures.helper_instances.len()), span)?;
         if let Some(id) = self.closures.helper_instances.get(&(key, closure)) {
             return Ok(*id);
         }
-        if self.closures.active_helpers.len() >= self.limits.max_call_depth {
-            return Err(Diagnostic::limit(
-                Phase::Types,
-                "callable State helper nesting exceeds selected bound",
-                Some(span),
+        if !self.closures.active_helpers.is_empty() {
+            return Err(unsupported(
+                span,
+                "actual helper instance is not available from the finite dependency plan",
             ));
         }
+        let order = plan::order((key, closure), self.closures, self.limits, span)?;
+        for (key, closure) in order {
+            self.instantiate_ready_helper(key, closure, span)?;
+        }
+        self.closures
+            .snapshot(plan::tree_work(self.closures.helper_instances.len()), span)?;
+        self.closures
+            .helper_instances
+            .get(&(key, closure))
+            .copied()
+            .ok_or_else(|| unsupported(span, "completed helper instance is absent from its plan"))
+    }
+
+    fn instantiate_ready_helper(
+        &mut self,
+        key: TemplateKey,
+        closure: ClosureId,
+        span: Span,
+    ) -> R<FunctionId> {
         let template = self
             .closures
             .helper_templates

@@ -316,3 +316,75 @@ fn nested_helpers_keep_current_call_and_lending_result_loans() {
         "active address window",
     );
 }
+
+#[test]
+fn independent_24_layer_reproducer_uses_the_default_test_stack() {
+    // Exact source structure and arithmetic from the non-author SIGABRT case.
+    let mut source = String::new();
+    for i in 0..24 {
+        if i == 23 {
+            source.push_str(&format!("fn h{i}<F:Fn()->i32>(f:&F)->i32{{return f()}}"));
+        } else {
+            source.push_str(&format!(
+                "fn h{i}<F:Fn()->i32>(f:&F)->i32{{return h{}(f)+1}}",
+                i + 1
+            ));
+        }
+    }
+    source.push_str("fn main()->i32{let value=5;let f=()=>value;return h0(&f)-28}");
+    native("independent-depth-24", &[("main", &source)], b"", 0);
+}
+
+#[test]
+fn long_alias_chain_respects_a_callback_that_shadows_a_helper_name() {
+    let mut source = String::new();
+    for i in 0..64 {
+        let body = if i == 63 {
+            "let h0=f;return h0()".to_string()
+        } else {
+            format!("let next=f;return h{}(next)+1", i + 1)
+        };
+        source.push_str(&format!("fn h{i}<F:Fn()->i32>(f:&F)->i32{{{body}}}\n"));
+    }
+    source.push_str("fn main()->i32{let f=move()=>5;return h0(&f)-68}");
+    native("alias-depth-64", &[("main", &source)], b"", 0);
+}
+
+#[test]
+fn owning_state_can_schedule_helpers_for_a_different_checked_factory_type() {
+    let source = r#"
+package State<F>{manages storage:ByteBuffer;callback:F}
+fn pack<F:Fn()->i32>(callback:F)->State<F>{return State::<F>{storage:bytes_new(),callback:callback}}
+fn read<F:Fn()->i32>(state:State<F>)->i32{let callback=&state.callback;return callback()}
+fn make(n:i32)->impl Fn()->i32{return move()=>n}
+fn run<F:Fn()->i32>(state:State<F>)->i32 {
+    let other=make(20)
+    let next=pack(other)
+    return read(next)+read(state)
+}
+fn main()->i32{let seed=3;let first=move()=>seed;return run(pack(first))-23}
+"#;
+    native("state-distinct-factory-type", &[("main", source)], b"", 0);
+}
+
+#[test]
+fn planning_a_known_factory_type_does_not_establish_parameter_origin() {
+    for factory in ["make", "other"] {
+        let source = format!(
+            r#"
+fn make(n:i32)->impl Fn()->i32{{return move()=>n}}
+fn other(n:i32)->impl Fn()->i32{{return move()=>n+1}}
+fn leaf<F:Fn()->i32>(f:&F)->i32=>f()
+fn middle<F:Fn()->i32>(f:&F)->i32{{let unrelated={factory}(99);return leaf(&unrelated)}}
+fn main()->i32{{let f=make(4);return middle(&f)}}
+"#
+        );
+        rejected(
+            "planned-factory-is-not-parameter",
+            &source,
+            Phase::Types,
+            ResultCategory::Unsupported,
+            "not the actual supplied parameter",
+        );
+    }
+}
