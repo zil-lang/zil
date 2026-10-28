@@ -9,7 +9,7 @@ pub fn active(label: i32) -> impl FnMut(i32) -> i32 {
     portable.emit(78)
     portable.emit(label)
     let items: Store<Item> = store_new()
-    let bag = Bag { items: give items, side: Ticket { code: label + 32 }, counter: 0 }
+    var bag = Bag { items: give items, side: Ticket { code: label + 32 }, counter: 0 }
     return move (step: i32) => {
         let prior = store_len(bag.items)
         if !store_reserve(bag.items, prior + 1) { return -1 }
