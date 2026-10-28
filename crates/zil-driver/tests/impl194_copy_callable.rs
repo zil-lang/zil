@@ -188,6 +188,46 @@ fn ordinary_copy_bound_duplicates_only_its_declared_structural_values() {
 }
 
 #[test]
+fn finite_nested_same_nominal_is_not_a_recursive_layout() {
+    for (label, declaration) in [
+        ("nested-box-control", "fn id<T>(x:T)->T=>x;"),
+        ("nested-box-copy", "fn id<T:Copy>(x:T)->T=>x;"),
+    ] {
+        let text = format!(
+            "struct Box<T>{{value:T}}{declaration}fn main()->i32{{let x=Box::<Box<i32>>{{value:Box::<i32>{{value:7}}}};let y=id(x);return y.value.value-7}}"
+        );
+        native(label, &[("main", &text)], "");
+    }
+    native(
+        "nested-box-duplicate",
+        &[(
+            "main",
+            "struct Box<T>{value:T}fn duplicate<T:Copy>(x:T)->(T,T)=>(x,x);fn main()->i32{let x=Box::<Box<i32>>{value:Box::<i32>{value:7}};let y=duplicate(x);return y.0.value.value+y.1.value.value-14}",
+        )],
+        "",
+    );
+    native(
+        "nested-box-callable-extra",
+        &[(
+            "main",
+            "struct Box<T>{value:T}fn keep<T:Copy,F:Fn()->i32>(f:&F,x:T)->T{f();return x}fn main()->i32{let f=move()=>1;let x=Box::<Box<i32>>{value:Box::<i32>{value:7}};let y=keep(&f,x);return y.value.value-7}",
+        )],
+        "",
+    );
+}
+
+#[test]
+fn copy_nested_instance_fix_does_not_change_the_store_element_profile() {
+    rejected(
+        "store-nominal-rule-unchanged",
+        "struct Box<T>{value:T}resource R{code:i32}package Item{manages r:R;data:Box<Box<i32>>}fn size<T:StoreElement>(x:T)->i32=>0;fn main()->i32{let x=Item{r:R{code:65},data:Box::<Box<i32>>{value:Box::<i32>{value:7}}};return size(x)}",
+        Phase::Expand,
+        ResultCategory::SafeReject,
+        "StoreElement requires a finite nonrecursive layout",
+    );
+}
+
+#[test]
 fn same_closure_extra_data_does_not_erase_width_or_nominal_identity() {
     native(
         "same-env-multiple-data",
@@ -409,6 +449,32 @@ fn copy_bound_does_not_admit_other_categories_or_resource_descriptions() {
             "Copy",
         );
     }
+}
+
+#[test]
+fn closure_environment_is_not_inferred_to_be_a_copy_code_pointer() {
+    rejected(
+        "local-closure-data",
+        "fn id<T:Copy>(x:T)->T=>x;fn main()->i32{let n=7;let f=move()=>n;let g=id(f);return g()-7}",
+        Phase::Expand,
+        ResultCategory::SafeReject,
+        "cannot be inferred",
+    );
+    rejected(
+        "opaque-closure-data",
+        "fn id<T:Copy>(x:T)->T=>x;fn make()->impl Fn()->i32{let n=7;return move()=>n}fn main()->i32{let f=make();let g=id(f);return g()-7}",
+        Phase::Expand,
+        ResultCategory::Unsupported,
+        "additional type resolution",
+    );
+    native(
+        "explicit-code-pointer-data",
+        &[(
+            "main",
+            "fn id<T:Copy>(x:T)->T=>x;fn main()->i32{let f:fn()->i32=()=>7;let g=id(f);return g()-7}",
+        )],
+        "",
+    );
 }
 
 #[test]
