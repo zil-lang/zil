@@ -9,7 +9,10 @@ use std::{
 use zil_base::{
     Diagnostic, FileId, Limits, ModuleId, NodeId, Phase, ResultCategory, SourceUnit, TargetProfile,
 };
-use zil_driver::{CompileOptions, CompileReport, Optimization, Stage, compile_source};
+use zil_driver::{
+    CompileOptions, CompileReport, Optimization, ProjectSources, Stage, compile_project,
+    compile_source,
+};
 use zil_ir::*;
 
 const ORIGINAL_PUSH: &str = include_str!("impl202_fixtures/01_original_push.zil");
@@ -219,6 +222,25 @@ fn caller_binders_nominal_names_and_child_binders_have_lexical_identity() {
     );
 }
 
+fn shadow_without_nominal() -> String {
+    SHADOW
+        .replace(
+            "struct T { value:i32 }\nfn concrete(value:T)->i32{return value.value}\n",
+            "",
+        )
+        .replace("concrete(T{value:0})+", "")
+}
+
+#[test]
+fn same_named_child_binders_execute_without_an_unrelated_nominal_collision() {
+    let source = shadow_without_nominal();
+    assert_ne!(source, SHADOW);
+    native("nested-no-nominal-collision", &source, "1A2BZ", 0);
+    let inferred = source.replace("nested_empty::<Item<i32,T>>()", "nested_empty()");
+    assert_ne!(inferred, source);
+    native("nested-result-inferred-no-nominal", &inferred, "1A2BZ", 0);
+}
+
 fn nominal_pair_source(phantom: bool, reversed: bool) -> String {
     let mut prefix = PAIR[..PAIR.find("fn run<").unwrap()].to_owned();
     if phantom {
@@ -278,7 +300,11 @@ fn full_nominal_and_phantom_data_arguments_are_not_a_closure_only_instance_key()
 
 #[test]
 fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
-    native("desc-write-before-window", SHADOW, "1A2BZ", 0);
+    // Isolate actual parameter-remapped writes from the separate nominal-name
+    // collision test; both must pass, but one early failure must not hide the
+    // other independent borrow-checking obligation.
+    let control = shadow_without_nominal();
+    native("desc-write-before-window", &control, "1A2BZ", 0);
     for (label, changed) in [
         (
             "nested-reserve",
@@ -293,7 +319,7 @@ fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
             "let first = store_at_mut(items, 0)\nshifted(0,items,-1)",
         ),
     ] {
-        let source = SHADOW.replace("let first = store_at_mut(items, 0)", changed);
+        let source = control.replace("let first = store_at_mut(items, 0)", changed);
         reject_source(label, &source, &[Phase::Verify], Some("E-BORROW-CONFLICT"));
     }
 }
@@ -317,6 +343,225 @@ return store_len(items)+i64(zero)
         )
     );
     native("ordinary-factory-callable-plan", &source, "1A2BZ", 0);
+}
+
+#[test]
+fn identical_template_names_in_two_modules_keep_their_definition_identity() {
+    let library = r#"
+pub fn empty<T:StoreElement>()->Store<T> contract{result(create)}{return store_new()}
+fn reserve<T:StoreElement>(items:Store<T>,count:i64)->bool{return store_reserve(items,count)}
+pub fn shifted<T:StoreElement>(tag:i32,items:Store<T>,count:i64)->bool{tag;return reserve::<T>(items,count)}
+pub fn push<T:StoreElement>(items:Store<T>,value:T)->T!void{return store_push(items,value)}
+pub fn count<T:StoreElement>(items:Store<T>)->i64{return store_len(items)}
+"#;
+    let other = "pub fn count<U:StoreElement>(items:Store<U>)->i64{return store_len(items)+1}";
+    let main=format!("import left\nimport right\n{}",PAIR
+        .replace("= store_new()","= left.empty()")
+        .replace("store_reserve(items, 2)","left.shifted(0,items,2)")
+        .replace("store_push(items,","left.push(items,")
+        .replace("let first = store_at_mut(items, 0)","if left.count(items)!=2||right.count(items)!=3{return 6}\nlet first = store_at_mut(items, 0)"));
+    for opt in [Optimization::O0, Optimization::O2] {
+        let case = Case::new("two-module-same-template-name");
+        let files = [("main", main.as_str()), ("left", library), ("right", other)];
+        for (name, source) in files {
+            case.write(&format!("{name}.zil"), source);
+        }
+        let project = ProjectSources {
+            root: ModuleId(0),
+            modules: files
+                .iter()
+                .enumerate()
+                .map(|(i, (name, text))| {
+                    SourceUnit::new(
+                        FileId(i as u32),
+                        ModuleId(i as u32),
+                        format!("{name}.zil"),
+                        *text,
+                    )
+                })
+                .collect(),
+            paths: files
+                .iter()
+                .enumerate()
+                .skip(1)
+                .map(|(i, (name, _))| (vec![name.to_string()], ModuleId(i as u32)))
+                .collect(),
+        };
+        let r = compile_project(
+            &project,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization: opt,
+                output: Some(case.0.join("program")),
+                emit_dir: Some(case.0.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        case.write("compile.json", r.to_json());
+        assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+        assert_eq!(r.verification_runs, 1);
+        let output = Command::new(&r.artifacts["executable"]).output().unwrap();
+        case.write("stdout.log", &output.stdout);
+        case.write("stderr.log", &output.stderr);
+        case.write(
+            "native.txt",
+            format!(
+                "optimization={opt:?}\nexit={:?}\nexpected_exit=0\nexpected_stdout=1A2BZ\n",
+                output.status.code()
+            ),
+        );
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(output.stdout, b"1A2BZ");
+        assert!(output.stderr.is_empty());
+    }
+}
+
+const IDENTITY_ONLY: &str = r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Empty{}
+impl Drop for Empty{fn drop(self:Self){unsafe{putchar(65)}}}
+package State<F>{manages empty:Empty;callback:F}
+fn make()->impl Fn()->i32{return ()=>7}
+fn pack<F:Fn()->i32>(callback:F)->State<F>{return State::<F>{empty:Empty{},callback:callback}}
+fn identity<T:StoreElement>(value:T)->T{return value}
+fn run<F:Fn()->i32>(state:State<F>)->i32{let retained=identity(state);return retained.callback()-7}
+fn main()->i32{return run(pack(make()))}
+"#;
+
+fn no_store_qualification(label: &str, source: &str) -> (CoreModule, TypedModule, CandidatePlan) {
+    let core = expanded(label, source);
+    let case = Case::new(&format!("{label}-qualification"));
+    let typed = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default());
+    case.write("typed.txt", format!("{typed:#?}"));
+    let typed = typed.unwrap();
+    let identity=typed.functions.iter().find(|f| f.parameters.len()==1 && matches!(f.return_type,Type::Package{..}) && f.locals[f.parameters[0].0 as usize].ty==f.return_type).expect("actual concrete identity parameter/result, without inferring it from its generated name");
+    assert!(identity.callable_contract.is_none());
+    let actual = &identity.return_type;
+    let Type::Package { name, .. } = actual else {
+        unreachable!()
+    };
+    assert!(
+        typed
+            .resources
+            .iter()
+            .any(|r| r.name == format!("@builtin:OwnedStore<{name}>")
+                && matches!(&r.payload,Type::OwnedStore{element} if element.as_ref()==actual)),
+        "exact full T must survive in its canonical qualification definition"
+    );
+    assert!(
+        !typed
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(
+                i.kind,
+                InstructionKind::OwnedStoreNew { .. }
+                    | InstructionKind::OwnedStoreReserve { .. }
+                    | InstructionKind::OwnedStorePush { .. }
+                    | InstructionKind::OwnedStorePop { .. }
+                    | InstructionKind::OwnedStoreLen { .. }
+                    | InstructionKind::OwnedStoreCapacity { .. }
+                    | InstructionKind::OwnedStoreBorrow { .. }
+                    | InstructionKind::OwnedStoreBorrowMut { .. }
+            )),
+        "metadata cannot silently construct a Store value or use a runtime Store operation"
+    );
+    let plan = zil_analyze::analyze(&typed, &Limits::default());
+    case.write("analyze.txt", format!("{plan:#?}"));
+    (core, typed, plan.unwrap())
+}
+
+#[test]
+fn a_no_store_identity_still_carries_independent_actual_element_qualification() {
+    let direct = IDENTITY_ONLY.replace("let retained=identity(state)", "let retained=state");
+    native("zero-layout-without-store-bound-control", &direct, "A", 0);
+    reject_source(
+        "zero-layout-with-store-bound",
+        IDENTITY_ONLY,
+        &[Phase::Verify],
+        Some("E-UNSUPPORTED"),
+    );
+    let (_, typed, plan) =
+        no_store_qualification("zero-layout-bound-no-store-operations", IDENTITY_ONLY);
+    let case = Case::new("no-store-zero-layout-raw-wire");
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+    case.write("candidate.wire", &bytes);
+    assert_eq!(
+        zil_ir::wire::decode_module_candidate(&bytes, &Limits::default()).unwrap(),
+        (typed.clone(), plan.clone())
+    );
+    let raw = zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default());
+    let wire = zil_verify::verify_module_bytes(&bytes, &typed.target, &Limits::default());
+    case.write("verify.txt", format!("raw={raw:#?}\nwire={wire:#?}"));
+    for result in [raw, wire] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == ResultCategory::Unsupported
+                && d.message.contains("nonzero actual inline layout")),
+            "{errors:#?}"
+        );
+    }
+    let nonzero = IDENTITY_ONLY.replace(
+        "fn make()->impl Fn()->i32{return ()=>7}",
+        "fn make()->impl Fn()->i32{let n=7;return move()=>n}",
+    );
+    native("nonzero-layout-bound-no-store-operations", &nonzero, "A", 0);
+    let (_, typed, plan) = no_store_qualification("nonzero-layout-bound", &nonzero);
+    let case = Case::new("no-store-nonzero-layout-raw-wire");
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+    case.write("candidate.wire", &bytes);
+    let raw = zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default());
+    let wire = zil_verify::verify_module_bytes(&bytes, &typed.target, &Limits::default());
+    case.write("verify.txt", format!("raw={raw:#?}\nwire={wire:#?}"));
+    raw.unwrap();
+    wire.unwrap();
+    // We do not call removal of an unused constraint an unsafe IR bypass:
+    // Verify does not prove arbitrary raw IR equivalent to the source program.
+}
+
+#[test]
+fn qualification_only_instances_charge_and_replay_their_complete_definition() {
+    let source = IDENTITY_ONLY.replace(
+        "fn make()->impl Fn()->i32{return ()=>7}",
+        "fn make()->impl Fn()->i32{let n=7;return move()=>n}",
+    );
+    let (core, typed, plan) = no_store_qualification("qualification-budget-control", &source);
+    let types = boundary(|n| {
+        zil_types::check(
+            &core,
+            &typed.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual, typed))
+    });
+    let analyze = boundary(|n| {
+        zil_analyze::analyze(
+            &typed,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual, plan))
+    });
+    let verify = boundary(|n| {
+        zil_verify::verify_module(
+            typed.clone(),
+            plan.clone(),
+            &typed.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|_| ())
+    });
+    Case::new("qualification-only-exact-budgets").write("boundaries.json",format!("{{\"types\":{types},\"analyze\":{analyze},\"verify\":{verify},\"checks\":\"N, N-1 ResourceLimit, fresh N; Types and Analyze output exactly equals default\",\"runtime_store_operations\":0}}\n"));
 }
 
 #[test]
@@ -570,6 +815,128 @@ fn raw_template_headers_and_lexical_free_binders_are_checked_in_both_entries() {
             true,
         );
     }
+}
+
+#[test]
+fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
+    let mut core = expanded("unused-raw-template", ORIGINAL_PUSH);
+    let mut unused = core
+        .functions
+        .iter()
+        .find(|f| !f.type_parameters.is_empty())
+        .unwrap()
+        .clone();
+    unused.id = NodeId(core.functions.iter().map(|f| f.id.0).max().unwrap() + 1);
+    unused.name = "unused_ordinary_template".into();
+    let unused_index = core.functions.len();
+    core.functions.push(unused);
+    let mut identity = core.functions[unused_index].clone();
+    identity.id = NodeId(identity.id.0 + 1);
+    identity.name = "unused_identity_template".into();
+    let binder = identity.type_parameters[0].name.clone();
+    identity.parameters = vec![CoreParameter {
+        name: "value".into(),
+        ty: Type::Named(binder.clone()),
+        mode: PassingMode::Infer,
+        span: identity.span,
+    }];
+    identity.return_type = Type::Named(binder);
+    identity.result_mode = PassingMode::Infer;
+    identity.body.statements.truncate(1);
+    identity.body.statements[0].kind = CoreStatementKind::Return(Some(CoreExpr {
+        id: NodeId(920003),
+        span: identity.span,
+        kind: CoreExprKind::Name("value".into()),
+    }));
+    let identity_index = core.functions.len();
+    core.functions.push(identity);
+    raw_types(
+        "unused-raw-template-valid",
+        &core,
+        &Limits::default(),
+        false,
+    );
+    let mut accepted = Vec::new();
+    for attack in [
+        "foreign-binder-in-unused-signature",
+        "wrong-target-in-unused-body",
+        "foreign-binder-in-unused-identity",
+        "foreign-target-in-unused-body",
+    ] {
+        let mut changed = core.clone();
+        let index = if attack == "foreign-binder-in-unused-identity" {
+            identity_index
+        } else {
+            unused_index
+        };
+        let unused = &mut changed.functions[index];
+        if attack.starts_with("foreign-binder-") {
+            // Every occurrence of the original T now belongs to another
+            // definition; this otherwise unused template only declares U.
+            assert_ne!(unused.type_parameters[0].name, "UnusedU");
+            unused.type_parameters[0].name = "UnusedU".into();
+        } else {
+            let mut mutated = 0;
+            visit_block(&mut unused.body, &mut |expr| {
+                let CoreExprKind::Call { callee, .. } = &mut expr.kind else {
+                    return false;
+                };
+                if mutated == 0 {
+                    let target = CoreExpr {
+                        id: NodeId(920001),
+                        span: callee.span,
+                        kind: CoreExprKind::Name(
+                            if attack == "foreign-target-in-unused-body" {
+                                "putchar"
+                            } else {
+                                "make"
+                            }
+                            .into(),
+                        ),
+                    };
+                    callee.kind = CoreExprKind::TypeApply {
+                        callee: Box::new(target),
+                        type_arguments: vec![Type::Named(unused.type_parameters[0].name.clone())],
+                    };
+                    mutated += 1;
+                    true
+                } else {
+                    false
+                }
+            });
+            assert_eq!(mutated, 1);
+        }
+        let case = Case::new(attack);
+        case.write("core.txt", format!("{changed:#?}"));
+        let single = zil_types::check(&changed, &TargetProfile::host_llvm(), &Limits::default());
+        let multiple = zil_types::check_program(
+            &program(changed),
+            &TargetProfile::host_llvm(),
+            &Limits::default(),
+        );
+        case.write("single.txt", format!("{single:#?}"));
+        case.write("program.txt", format!("{multiple:#?}"));
+        for (entry, result) in [
+            ("single", single.map(|_| ())),
+            ("program", multiple.map(|_| ())),
+        ] {
+            match result {
+                Ok(_) => accepted.push(format!("{attack}/{entry}")),
+                Err(ds) => assert!(
+                    ds.iter().any(|d| d.phase == Phase::Types
+                        && matches!(
+                            d.category,
+                            ResultCategory::SafeReject | ResultCategory::Unsupported
+                        )),
+                    "{attack}/{entry}: {ds:#?}"
+                ),
+            }
+        }
+    }
+    assert!(
+        accepted.is_empty(),
+        "unused raw metadata accepted: {accepted:?}"
+    );
 }
 
 #[test]
