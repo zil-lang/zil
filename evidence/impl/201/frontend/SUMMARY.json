@@ -1,0 +1,733 @@
+{
+  "implementation": "201 frontend / Types / source / actual consumer",
+  "author": "/root/roles196_frontend",
+  "production_candidate": "d55c3d9bd0f59745b331757f422e6d1793554907",
+  "final_test_commit": "f484589dc4c08ee695f93d36171542482b113134",
+  "source06_identity": {
+    "actual_head": "d55c3d9bd0f59745b331757f422e6d1793554907",
+    "actual_tracked_diff_sha256": "70643818c63708aac89bd83f878e10ced8584ec0c2decfd7c39faf8f4aabab2c",
+    "equal_to_committed_d55_to_f484_diff": true,
+    "production_changes": false
+  },
+  "spec_sha256": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
+  "final_normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
+  "early_normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+  "schema": 25,
+  "author_final_tests": {
+    "passed": 16,
+    "failed": 0,
+    "native_o0_o2": 32,
+    "explicit_deferred_202_boundary_tests": 2,
+    "boundary_tests_are_not_safety_acceptance": true
+  },
+  "existing_178_expand_guard": {
+    "passed": 1,
+    "failed": 0,
+    "current_N": 2873,
+    "current_N_minus_1": 2872,
+    "historical_fixed_N": null,
+    "equal_historical_budget_claimed": false
+  },
+  "clippy": {
+    "crates": [
+      "zil-expand",
+      "zil-types"
+    ],
+    "scope": "--lib -D warnings",
+    "result": "Pass"
+  },
+  "budgets": {
+    "lending": {
+      "expand_work": 2529,
+      "types_work": 4129,
+      "types_locals": 14,
+      "checks": "N, N-1 ResourceLimit, fresh N; exact/fresh/default modules equal",
+      "source_sha256": "b44497ba6525da92590436d7980d386cb1f1b00aeae0179ffeb0c8aad1648397"
+    },
+    "nested-helper": {
+      "expand_work": 7283,
+      "types_work": 11792,
+      "types_locals": 40,
+      "checks": "N, N-1 ResourceLimit, fresh N; exact/fresh/default modules equal",
+      "source_sha256": "2e59bac9e5b55e2300f255040b7acb62dfef986714eb5b2165ec55ace7bfd87b"
+    },
+    "original02": {
+      "expand_work": 3095,
+      "types_work": 4241,
+      "types_locals": 16,
+      "checks": "N, N-1 ResourceLimit, fresh N; exact/fresh/default modules equal",
+      "source_sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8"
+    },
+    "two-elements": {
+      "expand_work": 6680,
+      "types_work": 11851,
+      "types_locals": 39,
+      "checks": "N, N-1 ResourceLimit, fresh N; exact/fresh/default modules equal",
+      "source_sha256": "ca1e30fdce8bebc1c337ddeba934603496eaef21d041fd99d3130eaabfad7969"
+    }
+  },
+  "consumers": {
+    "linux": {
+      "status": "Pass",
+      "source_commit": "d55c3d9bd0f59745b331757f422e6d1793554907",
+      "cli_sha256": "e49b7fb470835f6a759978191c061cc33b61ee268ac8d53fcd6368bce218eb7c",
+      "sources": {
+        "factory.zil": "e8aa8e86d30a40d2842bcdb16824eed54f032a95b6d561c481d19db05b38b234",
+        "main.zil": "6cceae7b3e58474012fcf731c3f77622100013d9e8f45e47b65819e331e456ea",
+        "portable.zil": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c",
+        "state.zil": "55369f303f95a53856e62c369ef6f900af322a4b3822d95efa0dbe3402f63bc4"
+      },
+      "executions": 118,
+      "native_executions": 118,
+      "wine_executions": 0,
+      "ordinary_executions": 14,
+      "instrumented_executions": 104,
+      "actual_allocation_failures": 84,
+      "native_windows": "NotRun",
+      "summary_sha256": "499e1a693a4e72f33013a629fcdc2324c0cfdf77485d46753e3d46189a0f253c"
+    },
+    "win64-wine": {
+      "status": "Pass",
+      "source_commit": "d55c3d9bd0f59745b331757f422e6d1793554907",
+      "cli_sha256": "e49b7fb470835f6a759978191c061cc33b61ee268ac8d53fcd6368bce218eb7c",
+      "sources": {
+        "factory.zil": "e8aa8e86d30a40d2842bcdb16824eed54f032a95b6d561c481d19db05b38b234",
+        "main.zil": "6cceae7b3e58474012fcf731c3f77622100013d9e8f45e47b65819e331e456ea",
+        "portable.zil": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c",
+        "state.zil": "55369f303f95a53856e62c369ef6f900af322a4b3822d95efa0dbe3402f63bc4"
+      },
+      "executions": 118,
+      "native_executions": 0,
+      "wine_executions": 118,
+      "ordinary_executions": 14,
+      "instrumented_executions": 104,
+      "actual_allocation_failures": 84,
+      "native_windows": "NotRun",
+      "summary_sha256": "31abff2ba440f5ac5bbde505f8ccea393606f7febae0291a7585ddaacb905faf"
+    }
+  },
+  "earlier_runs": {
+    "cache-repair01": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "clean",
+          "-p",
+          "zil-driver"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/cache-repair01"
+        },
+        "head": "d55c3d9bd0f59745b331757f422e6d1793554907",
+        "tracked_diff_sha256": "70643818c63708aac89bd83f878e10ced8584ec0c2decfd7c39faf8f4aabab2c",
+        "started_utc": "2026-10-28T09:55:09Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [],
+      "native_executions": 0
+    },
+    "check01": {
+      "command": null,
+      "exit": null,
+      "test_results": [],
+      "native_executions": 0
+    },
+    "check02": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexport TMPDIR=/dev/shm/zil201-frontend CARGO_TARGET_DIR=/workspace/scratch/39be3faa4442/targets200/frontend CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0\ncargo check --offline -p zil-expand -p zil-types"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "head": "6f71bdf4d328243d43760dfac0832c6ebef22338",
+        "diff_sha256": "b4f7da05770b7c7fbd8e9d3519ff0b280c42031bb51845f46afcff49d6aa3895",
+        "started_utc": "2026-10-28T09:29:10Z"
+      },
+      "exit": 0,
+      "test_results": [],
+      "native_executions": 0
+    },
+    "cli01": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "build",
+          "--offline",
+          "-p",
+          "zil-cli"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/cli01"
+        },
+        "head": "d55c3d9bd0f59745b331757f422e6d1793554907",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T09:50:20Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [],
+      "native_executions": 0
+    },
+    "clippy01": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "clippy",
+          "--offline",
+          "-p",
+          "zil-expand",
+          "-p",
+          "zil-types",
+          "--lib",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/clippy01"
+        },
+        "head": "f484589dc4c08ee695f93d36171542482b113134",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T09:55:54Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [],
+      "native_executions": 0
+    },
+    "consumer-linux01": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "python3",
+          "tools/language/201/consumer.py",
+          "--repo",
+          "/workspace/scratch/39be3faa4442/language14/wt195",
+          "--cli",
+          "/workspace/scratch/39be3faa4442/targets200/frontend/debug/zil",
+          "--out",
+          "/dev/shm/zil201-frontend/consumer-linux01/result",
+          "--platform",
+          "linux"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/consumer-linux01"
+        },
+        "head": "d55c3d9bd0f59745b331757f422e6d1793554907",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T09:50:46Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [],
+      "native_executions": 0
+    },
+    "consumer-wine01": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "env",
+          "-u",
+          "TMPDIR",
+          "WINEPREFIX=/workspace/scratch/39be3faa4442/toolchains178/wine-prefix-review181",
+          "WINEDEBUG=-all",
+          "WINESERVER=/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wineserver",
+          "WINELOADER=/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+          "python3",
+          "tools/language/201/consumer.py",
+          "--repo",
+          "/workspace/scratch/39be3faa4442/language14/wt195",
+          "--cli",
+          "/workspace/scratch/39be3faa4442/targets200/frontend/debug/zil",
+          "--out",
+          "/dev/shm/zil201-frontend/consumer-wine01/result",
+          "--platform",
+          "win64",
+          "--wine",
+          "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+          "--wine-library-path",
+          "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu",
+          "--linker",
+          "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/lld-link",
+          "--windows-lib",
+          "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernel32.lib",
+          "--windows-lib",
+          "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/msvcrt.lib",
+          "--windows-lib",
+          "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernelbase.lib"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/consumer-wine01"
+        },
+        "head": "d55c3d9bd0f59745b331757f422e6d1793554907",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T09:51:22Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [],
+      "native_executions": 0
+    },
+    "guards01": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl178_generic_store",
+          "bounded_element_shape_work_has_an_exact_definition_time_boundary",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/guards01"
+        },
+        "head": "f484589dc4c08ee695f93d36171542482b113134",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T09:55:34Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.02s"
+      ],
+      "native_executions": 0
+    },
+    "helpers01": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl201_source",
+          "ordinary_store_helper",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/helpers01"
+        },
+        "head": "c9b6d757ca8039f562aa7352fdd2d7d799f9f378",
+        "tracked_diff_sha256": "175d598b2b1fe11f7249ee67eb3df0775a36890a94df46c2b39e9ab43d479e08",
+        "started_utc": "2026-10-28T09:33:12Z",
+        "untracked": {}
+      },
+      "exit": 101,
+      "test_results": [
+        "test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.03s"
+      ],
+      "native_executions": 0
+    },
+    "nested01": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl201_source",
+          "nested_sync_helper",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/nested01"
+        },
+        "head": "c129af3cc02da646e6eb69db0da2e34c0bda860f",
+        "tracked_diff_sha256": "239952272cd67032cc63672fff9f20f37f8167ac41bbf62d40940d3ba4a60623",
+        "started_utc": "2026-10-28T09:39:30Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s"
+      ],
+      "native_executions": 0
+    },
+    "nested02": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl201_source",
+          "nested_sync_helper",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/nested02"
+        },
+        "head": "c129af3cc02da646e6eb69db0da2e34c0bda860f",
+        "tracked_diff_sha256": "f4cf7909e95527d67ab04072f9bbb633453e65fe65eef43c8c46a4b584021fd8",
+        "started_utc": "2026-10-28T09:39:50Z",
+        "untracked": {}
+      },
+      "exit": 101,
+      "test_results": [
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.03s"
+      ],
+      "native_executions": 0
+    },
+    "nested03": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl201_source",
+          "nested_sync_helper",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/nested03"
+        },
+        "head": "c129af3cc02da646e6eb69db0da2e34c0bda860f",
+        "tracked_diff_sha256": "d0b651820d9752fa0afa5a39af65562217a8478f26a503ce1cdfadc4a9375a44",
+        "started_utc": "2026-10-28T09:43:02Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.37s"
+      ],
+      "native_executions": 2
+    },
+    "source01": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexport TMPDIR=/dev/shm/zil201-frontend CARGO_TARGET_DIR=/workspace/scratch/39be3faa4442/targets200/frontend CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 ZIL_TEST_REPORT_DIR=/dev/shm/zil201-frontend/source01\ncargo test --offline -p zil-driver --test impl201_source types -- --nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "head": "6f71bdf4d328243d43760dfac0832c6ebef22338",
+        "diff_sha256": "b4f7da05770b7c7fbd8e9d3519ff0b280c42031bb51845f46afcff49d6aa3895",
+        "started_utc": "2026-10-28T09:30:17Z"
+      },
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.04s"
+      ],
+      "native_executions": 0
+    },
+    "source02": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexport TMPDIR=/dev/shm/zil201-frontend CARGO_TARGET_DIR=/workspace/scratch/39be3faa4442/targets200/frontend CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 ZIL_TEST_REPORT_DIR=/dev/shm/zil201-frontend/source02\ncargo test --offline -p zil-driver --test impl201_source -- --nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "head": "c9b6d757ca8039f562aa7352fdd2d7d799f9f378",
+        "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T09:31:56Z"
+      },
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s"
+      ],
+      "native_executions": 4
+    },
+    "source03": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl201_source",
+          "--",
+          "--skip",
+          "ordinary_store_helper",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/source03"
+        },
+        "head": "c9b6d757ca8039f562aa7352fdd2d7d799f9f378",
+        "tracked_diff_sha256": "58e7ae562431966d8a0fecf42b8aee305cf6442d2f6368205554071e66ec47e6",
+        "started_utc": "2026-10-28T09:35:31Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.64s"
+      ],
+      "native_executions": 18
+    },
+    "source04": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl201_source",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/source04"
+        },
+        "head": "c129af3cc02da646e6eb69db0da2e34c0bda860f",
+        "tracked_diff_sha256": "09ea3da0aa445e9fc3be00893338cd505e39f41c5a735e76288ec8b1c6c07df4",
+        "started_utc": "2026-10-28T09:48:21Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.82s"
+      ],
+      "native_executions": 24
+    },
+    "source05": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl201_source",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/source05"
+        },
+        "head": "d55c3d9bd0f59745b331757f422e6d1793554907",
+        "tracked_diff_sha256": "70643818c63708aac89bd83f878e10ced8584ec0c2decfd7c39faf8f4aabab2c",
+        "started_utc": "2026-10-28T09:54:00Z",
+        "untracked": {}
+      },
+      "exit": 101,
+      "test_results": [],
+      "native_executions": 0
+    },
+    "source06": {
+      "command": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil201",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl201_source",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil201-frontend",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil201-frontend/source06"
+        },
+        "head": "d55c3d9bd0f59745b331757f422e6d1793554907",
+        "tracked_diff_sha256": "70643818c63708aac89bd83f878e10ced8584ec0c2decfd7c39faf8f4aabab2c",
+        "started_utc": "2026-10-28T09:55:09Z",
+        "untracked": {}
+      },
+      "exit": 0,
+      "test_results": [
+        "test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.39s"
+      ],
+      "native_executions": 32
+    }
+  },
+  "failures_and_corrections": [
+    "check01 rustc E0614: usize was incorrectly dereferenced. Original stdout/stderr retained; no structured command/exit receipt existed for that first call.",
+    "helpers01 actual 0/2: ordinary T:StoreElement helper instantiation loses complete dependent T/F identity. Still deferred to 202; retained as explicit unsupported-boundary tests, never safety Pass.",
+    "nested01 ran zero tests because the new Rust test had accidentally been inserted inside a raw ZIL string. It is not a passing test execution.",
+    "nested02 actual 0/1: finite helper plan could not establish a callback reached through a Store view. Fixed by 66c1d1de; nested03 and later real native executions pass.",
+    "Independent review zero_capture01 retained old State O0/O2 successes and a Store Types Unsupported; 66c1d1de separates captured Package shape from whole element nonzero layout. Review originals belong to reviewer receipt, not this archive.",
+    "source05 Rust test build stopped with E0463 cannot find crate zil_driver. No language test ran. cache-repair01 cleaned only zil-driver regenerable outputs; identical source06 then ran 16/0. No production source changed for this repair."
+  ],
+  "remaining": [
+    "ordinary T:StoreElement helper with callback-dependent actual T; explicit nested Store<State<F>> callable generic parameter/result",
+    "inline Store field call currently classifies named Store carriers or named element views; no claim of arbitrary effectful/compound carrier expressions",
+    "direct Store / Store-owning Package capture, retained addresses, unsupported nested callable capture, F/G persistent State, dyn/async",
+    "Native Windows NotRun; full language NotSatisfied; product NotRun; formal fullworkspace and independent acceptance owned by root"
+  ],
+  "evidence_archive": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/201-frontend/201-author-evidence.zip",
+    "bytes": 7320525,
+    "sha256": "2b32598da8b265473b92bc7eb2842b660928aa19bd29c8a11c44bcb4aa463868",
+    "manifest_sha256": "bc1654b2c1b1828470b057a0f974acaabdcee4180fd82be691ecfda0c5f0bf35",
+    "included_files": 2604,
+    "excluded_execution_artifacts": 92,
+    "every_payload_sha256_verified": true
+  }
+}
