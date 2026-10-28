@@ -190,6 +190,42 @@ fn plain_and_mixed_shared_fields_retain_environment_through_many_calls() {
 }
 
 #[test]
+fn all_state_modes_settle_loop_exits_and_error_returns() {
+    for mixed in [false, true] {
+        for mode in ["Fn", "FnMut"] {
+            let generic = if mixed { "T:Copy," } else { "" };
+            let data = if mixed { "T" } else { "i32" };
+            let state_f = if mixed { "State<T,F>" } else { "State<F>" };
+            let state_g = if mixed { "State<T,G>" } else { "State<G>" };
+            let state_value = if mixed { "State::<T,F>" } else { "State::<F>" };
+            let factory = if mode == "Fn" {
+                "fn make()->impl Fn(i32)->i32{let r=Ticket{code:65};return move(delta:i32)=>{r.code;return delta+4}}"
+            } else {
+                "fn make()->impl FnMut(i32)->i32{let r=Ticket{code:65};var n=0;return move(delta:i32)=>{r.code;n+=delta;return n}}"
+            };
+            let prefix = format!(
+                "{RESOURCE}enum E{{Fail}}fn fail()->E!i32{{return E.Fail}}package {state_f}{{manages ticket:Ticket;callback:F;value:{data}}}fn pack<{generic}F:{mode}(i32)->i32>(callback:F,value:{data})->{state_f}{{return {state_value}{{ticket:Ticket{{code:84}},callback:callback,value:value}}}}{factory}fn run<{generic}G:{mode}(i32)->i32>(state:{state_g},error:bool)->E!i32{{var current=state;var i=0;var sum=0;while i<7{{i+=1;if i==2{{continue}}sum+=current.callback(1);if i==3&&error{{fail()?}}if i==4{{break}}}}return sum}}"
+            );
+            let expected = if mode == "Fn" { 15 } else { 6 };
+            native(
+                &format!("exits-{mixed}-{mode}"),
+                &format!(
+                    "{prefix}fn main()->E!i32{{return run(pack(make(),0),false)?-{expected}}}"
+                ),
+                "TA",
+                0,
+            );
+            native(
+                &format!("error-{mixed}-{mode}"),
+                &format!("{prefix}fn main()->E!i32{{return run(pack(make(),0),true)?}}"),
+                "TA",
+                1,
+            );
+        }
+    }
+}
+
+#[test]
 fn consuming_field_and_fn_to_once_adapter_settle_before_following_statement() {
     let prefix = format!(
         "{RESOURCE}package State<F>{{manages ticket:Ticket;callback:F}}fn pack<F:FnOnce()->i32>(callback:F)->State<F>{{return State::<F>{{ticket:Ticket{{code:84}},callback:callback}}}}fn mark(){{unsafe{{putchar(88)}}}}fn run<G:FnOnce()->i32>(state:State<G>)->i32{{let result=state.callback();mark();return result}} "
@@ -217,6 +253,14 @@ fn consuming_field_and_fn_to_once_adapter_settle_before_following_statement() {
             ),
             Phase::Expand,
             "callback field used after",
+        );
+        rejected(
+            "once-partial-transfer",
+            &format!(
+                "{prefix}{factory}fn transfer<G:FnOnce()->i32>(state:State<G>)->State<G>{{state.callback();return state}}fn main()->i32{{let moved=transfer(pack(make()));return 0}}"
+            ),
+            Phase::Expand,
+            "partial callable State must be refilled",
         );
     }
 }
@@ -338,4 +382,23 @@ fn lending_from_direct_callback_keeps_actual_field_and_parent_alive() {
             "address",
         );
     }
+}
+
+#[test]
+fn last_use_in_argument_cannot_precede_the_exclusive_callee_place() {
+    let prefix = "fn make()->impl FnMut(i32)->&[u8]{let b=bytes_new();return move(n:i32)=>{bytes_reserve(b,bytes_len(b)+1);bytes_push(b,u8(n));return bytes_view(b)}}package State<F>{manages storage:ByteBuffer;callback:F}fn pack<F:FnMut(i32)->&[u8]>(callback:F)->State<F>{return State::<F>{storage:bytes_new(),callback:callback}}";
+    let source = format!(
+        "{prefix}fn main()->i32{{var state=pack(make());let view=state.callback(7);let value=i32(view[0]);let next=state.callback(value);return i32(next.len())-2}}"
+    );
+    native("last-use-ended-before-callee", &source, "", 0);
+    let overlapping = source.replace(
+        "let value=i32(view[0]);let next=state.callback(value)",
+        "let next=state.callback(i32(view[0]))",
+    );
+    rejected(
+        "last-use-argument",
+        &overlapping,
+        Phase::Verify,
+        "active address window",
+    );
 }
