@@ -948,6 +948,59 @@ fn main()->i32{{let state=revise(pack(make(65),make(66),0),make(67));emit(77);re
 }
 
 #[test]
+fn prepared_mutable_callee_keeps_its_actual_field_during_argument_preparation() {
+    let source = format!(
+        r#"{RESOURCE}
+package State<F>{{manages root:Ticket;a:F;b:F}}
+fn pack<F:FnMut(i32)->i32>(a:F,b:F)->State<F>{{return State::<F>{{root:Ticket{{code:90}},a:a,b:b}}}}
+fn make(code:i32)->impl FnMut(i32)->i32{{let ticket=Ticket{{code:code}};var count=0;return move(delta:i32)=>{{ticket.code;count+=delta;return count}}}}
+fn revise<F:FnMut(i32)->i32>(replacement:F,state:State<F>)->State<F>{{var next=state;let view=&mut next.a;view(next.b(2));next.a=replacement;return next}}
+fn main()->i32{{var state=revise(make(67),pack(make(65),make(66)));emit(77);return state.a(1)+state.b(1)-4}}
+"#
+    );
+    native("prepared-callee-sibling-control", &source, "AMZCB", 0);
+    let (typed, candidate) = typed_control("prepared-callee-sibling", &source);
+    let index = typed
+        .functions
+        .iter()
+        .position(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::StorePackageField { .. }))
+        })
+        .unwrap();
+    let mut changed = typed.clone();
+    let mut redirected = 0;
+    for instruction in changed.functions[index]
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+    {
+        if let InstructionKind::BorrowPackageField {
+            index,
+            mutable: true,
+            ..
+        } = &mut instruction.kind
+        {
+            if *index == 2 {
+                *index = 1;
+                redirected += 1;
+            }
+        }
+    }
+    assert_eq!(
+        redirected, 1,
+        "the sibling argument must originate at its real field"
+    );
+    typed_attack(
+        "argument-reborrow-conflicts-with-prepared-callee",
+        &changed,
+        &candidate,
+    );
+}
+
+#[test]
 fn nominal_and_phantom_data_identity_survives_same_f_replacement_specialization() {
     for phantom in [false, true] {
         let state = if phantom {
