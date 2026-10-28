@@ -124,7 +124,7 @@ pub fn emit_with_options(
     }
     text.push_str("declare void @llvm.trap()\n");
     text.push_str(&byte_buffer::runtime(lir)?);
-    text.push_str(&dynamic_store::runtime(lir)?);
+    text.push_str(&dynamic_store::runtime(lir, &closures)?);
     for (operation, bits) in intrinsics {
         text.push_str(&format!(
             "declare {{ i{bits}, i1 }} @llvm.{operation}.with.overflow.i{bits}(i{bits}, i{bits})\n"
