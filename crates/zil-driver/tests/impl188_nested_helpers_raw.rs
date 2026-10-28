@@ -568,3 +568,81 @@ fn deep_finite_dependencies_pay_the_existing_instantiation_depth_bound() {
     );
     zil_types::check(&core, &target, &Limits::default()).unwrap();
 }
+
+#[test]
+fn the_default_helper_depth_boundary_returns_a_diagnostic_without_host_recursion() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let path = directory("default-depth-boundary");
+    for count in [limits.max_call_depth, limits.max_call_depth + 1] {
+        let mut source = String::new();
+        for i in 0..count {
+            let call = if i + 1 == count {
+                "f()".into()
+            } else {
+                format!("level{}(f)", i + 1)
+            };
+            source.push_str(&format!("fn level{i}<F:Fn()->i32>(f:&F)->i32=>{call}\n"));
+        }
+        source.push_str("fn main()->i32{let f=move()=>4;return level0(&f)-4}");
+        fs::write(path.join(format!("depth-{count}.zil")), &source).unwrap();
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "default-depth188.zil", source);
+        let ast = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = zil_expand::expand(&unit, &ast).unwrap();
+        let result = zil_types::check(&core, &target, &limits);
+        if count == limits.max_call_depth {
+            let module = result.unwrap();
+            let plan = zil_analyze::analyze(&module, &limits).unwrap();
+            zil_verify::verify_module(module, plan, &target, &limits).unwrap();
+            fs::write(
+                path.join(format!("depth-{count}.txt")),
+                "Types/Analyze/Verify Success\n",
+            )
+            .unwrap();
+        } else {
+            let errors = result.unwrap_err();
+            fs::write(
+                path.join(format!("depth-{count}.txt")),
+                format!("{errors:#?}"),
+            )
+            .unwrap();
+            assert!(
+                errors.iter().any(|d| d.phase == Phase::Types
+                    && d.category == ResultCategory::ResourceLimit
+                    && d.message.contains("helper nesting")),
+                "{errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn raw_core_dependency_cycles_do_not_rely_on_expand_or_the_host_stack() {
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "core-cycle188.zil", SOURCE);
+    let ast = zil_syntax::parse(&source).into_result().unwrap();
+    let mut core = zil_expand::expand(&source, &ast).unwrap();
+    let middle = core
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "middle")
+        .unwrap();
+    let zil_ir::CoreStatementKind::Return(Some(value)) = &mut middle.body.statements[0].kind else {
+        panic!("middle return")
+    };
+    let zil_ir::CoreExprKind::Call { callee, .. } = &mut value.kind else {
+        panic!("middle helper call")
+    };
+    callee.kind = zil_ir::CoreExprKind::Name("middle".into());
+    let errors =
+        zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap_err();
+    let path = directory("core-cycle");
+    fs::write(path.join("source.zil"), SOURCE).unwrap();
+    fs::write(path.join("core.txt"), format!("{core:#?}")).unwrap();
+    fs::write(path.join("results.txt"), format!("{errors:#?}")).unwrap();
+    assert!(
+        errors.iter().any(|d| d.phase == Phase::Types
+            && d.category == ResultCategory::Unsupported
+            && d.message.contains("recursive concrete helper dependency")),
+        "{errors:?}"
+    );
+}
