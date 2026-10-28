@@ -862,9 +862,11 @@ fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
         "wrong-target-in-unused-body",
         "foreign-binder-in-unused-identity",
         "foreign-target-in-unused-body",
+        "unearned-field-in-unused-identity",
+        "unearned-call-in-unused-identity",
     ] {
         let mut changed = core.clone();
-        let index = if attack == "foreign-binder-in-unused-identity" {
+        let index = if attack.ends_with("-unused-identity") {
             identity_index
         } else {
             unused_index
@@ -875,6 +877,28 @@ fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
             // definition; this otherwise unused template only declares U.
             assert_ne!(unused.type_parameters[0].name, "UnusedU");
             unused.type_parameters[0].name = "UnusedU".into();
+        } else if attack.starts_with("unearned-") {
+            let value = CoreExpr {
+                id: NodeId(920004),
+                span: unused.span,
+                kind: CoreExprKind::Name("value".into()),
+            };
+            let kind = if attack == "unearned-field-in-unused-identity" {
+                CoreExprKind::Member {
+                    object: Box::new(value),
+                    member: "secret".into(),
+                }
+            } else {
+                CoreExprKind::Call {
+                    callee: Box::new(value),
+                    arguments: vec![],
+                }
+            };
+            unused.body.statements[0].kind = CoreStatementKind::Return(Some(CoreExpr {
+                id: NodeId(920005),
+                span: unused.span,
+                kind,
+            }));
         } else {
             let mut mutated = 0;
             visit_block(&mut unused.body, &mut |expr| {
