@@ -649,4 +649,30 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn ct202_fresh_ids_include_the_static_callee_inside_type_application() {
+        let mut core = input();
+        core.functions[0].body.statements.push(statement(
+            401,
+            CoreStatementKind::Expression(expression(
+                402,
+                CoreExprKind::TypeApply {
+                    callee: Box::new(expression(9000, CoreExprKind::Name("target".into()))),
+                    type_arguments: vec![Type::Named("T".into())],
+                },
+            )),
+        ));
+        assert_eq!(first_free_id(&core, &Limits::default()).unwrap(), 9001);
+        let CoreStatementKind::Expression(application) =
+            &mut core.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::TypeApply { callee, .. } = &mut application.kind else {
+            panic!()
+        };
+        callee.id = NodeId(u32::MAX);
+        assert!(first_free_id(&core, &Limits::default()).is_err());
+    }
 }
