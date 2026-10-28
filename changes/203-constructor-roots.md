@@ -1,0 +1,7 @@
+# 203 异类型 owning State 构造边界
+
+真实源码已通过Types，但不同factory的F/G在Analyze停止为`callable parameter has no public helper contract`。原因是旧200双输入构造例外只接受相同ClosureId。root和Types作者分别定位到该入口；作者原失败及独审零stride入口被阻的原收据保留。
+
+新增分支仅在两个实际、不同类型的按值Closure参数和完整有限Package结果之间建立拥有边界：结果恰好两个直接callback字段，分别覆盖两个实际类型各一次，含直接Managed资源，其余字段为有限Copy/直接Managed。两个环境结果Copy并自含；参数、移动、实际字段构造、失效、错误出口和清理继续由原资源/指令检查核对。没有给它发布空helper事件合同，也没有把两个实际输入或字段责任合并。
+
+Analyze和Verify各自重建上述关系。只删除相同id判断会漏掉结果仍为旧同F、参数却被换为另一个C的伪造输入，因此新分支有完整字段覆盖检查。旧同根例外保持原费用和行为；旧200这种不一致raw变异继续拒绝，不能因203开放不同C而晋升其结果。新类型布局/Copy判断与两根检查均预费。
