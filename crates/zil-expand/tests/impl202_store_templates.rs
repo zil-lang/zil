@@ -26,8 +26,23 @@ fn expand(text: &str) -> CoreModule {
     );
     expanded
         .source_map
-        .validate(&[unit], &Limits::default())
+        .validate(std::slice::from_ref(&unit), &Limits::default())
         .unwrap();
+    if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
+        let path = std::path::PathBuf::from(root).join(format!(
+            "expand202-{}-{}",
+            std::process::id(),
+            unit.fingerprint()
+        ));
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(path.join("main.zil"), &unit.text).unwrap();
+        std::fs::write(path.join("core.txt"), format!("{:#?}\n", expanded.core)).unwrap();
+        std::fs::write(
+            path.join("source-map.txt"),
+            format!("{:#?}\n", expanded.source_map),
+        )
+        .unwrap();
+    }
     expanded.core
 }
 fn function<'a>(core: &'a CoreModule, name: &str) -> &'a CoreFunction {
@@ -314,6 +329,10 @@ fn ordinary_store_calls_stay_eager_with_a_measured_exact_budget() {
     );
     let n = boundary(ORDINARY);
     eprintln!("ordinary_store_expand_n={n}");
+    assert_eq!(
+        n, 2255,
+        "same source measured on pre202 production at 9bc570bc"
+    );
 }
 
 #[test]
@@ -524,4 +543,152 @@ fn deferred_mixed_generic_head_does_not_become_a_supported_template() {
                 && d.message.contains("exactly one StoreElement")),
         "{errors:?}"
     );
+}
+
+#[test]
+fn five_module_consumer_preserves_all_six_ordinary_helpers() {
+    use zil_ir::CoreImport;
+    let entries = [
+        (
+            "main",
+            include_str!("../../../examples/mainline/store_template202/main.zil"),
+        ),
+        (
+            "factory",
+            include_str!("../../../examples/mainline/store_template202/factory.zil"),
+        ),
+        (
+            "state",
+            include_str!("../../../examples/mainline/store_template202/state.zil"),
+        ),
+        (
+            "portable",
+            include_str!("../../../examples/mainline/store_template202/portable.zil"),
+        ),
+        (
+            "store_helpers",
+            include_str!("../../../examples/mainline/store_template202/store_helpers.zil"),
+        ),
+    ];
+    let sources = entries
+        .iter()
+        .enumerate()
+        .map(|(i, (name, text))| {
+            SourceUnit::new(
+                FileId(i as u32),
+                ModuleId(i as u32),
+                format!("{name}.zil"),
+                *text,
+            )
+        })
+        .collect::<Vec<_>>();
+    let syntax = sources
+        .iter()
+        .map(|s| zil_syntax::parse(s).into_result().unwrap())
+        .collect::<Vec<_>>();
+    let edges: &[&[usize]] = &[&[1, 2, 3], &[3], &[3, 4], &[], &[]];
+    let imports = edges
+        .iter()
+        .enumerate()
+        .map(|(owner, targets)| {
+            targets
+                .iter()
+                .map(|&target| CoreImport {
+                    alias: entries[target].0.into(),
+                    module: ModuleId(target as u32),
+                    span: sources[owner].span(),
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let modules = zil_expand::expand_program_with_limits(
+        &sources,
+        &syntax.iter().collect::<Vec<_>>(),
+        &imports,
+        &Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(modules.len(), 5);
+    let helper_module = &modules[4].0;
+    for name in ["empty", "reserve", "push", "pop", "len", "capacity"] {
+        let helper = function(&helper_module.core, name);
+        assert_header(helper);
+        assert!(helper_module.exports.contains(&helper.id));
+    }
+    for (index, (module, map)) in modules.iter().enumerate() {
+        assert!(
+            module.core.unsupported.is_empty(),
+            "{:?}",
+            module.core.unsupported
+        );
+        map.validate(&sources, &Limits::default()).unwrap();
+        if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
+            let path = std::path::PathBuf::from(root)
+                .join(format!("consumer202-expand-{}", std::process::id()));
+            std::fs::create_dir_all(&path).unwrap();
+            std::fs::write(
+                path.join(format!("{}.zil", entries[index].0)),
+                &sources[index].text,
+            )
+            .unwrap();
+            std::fs::write(
+                path.join(format!("{}.core.txt", entries[index].0)),
+                format!("{:#?}\n", module.core),
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn callable_binder_shadows_a_real_nominal_before_aggregate_instantiation() {
+    let body = PAIR
+        .replace("Item<T,F>", "Item<D,F>")
+        .replace("value: T", "value: D")
+        .replace("<F", "<T")
+        .replace(",F", ",T")
+        .replace("callback: F", "callback: T")
+        .replace("first: F", "first: T")
+        .replace("second: F", "second: T")
+        .replace("= store_new()", "= empty::<Item<i32,T>>()")
+        .replace("return run(", "return concrete(T { value: 0 }) + run(");
+    let text = format!(
+        "{HELPERS}\nstruct T {{ value: i32 }}\nfn concrete(value:T)->i32 {{ return value.value }}\n{body}"
+    );
+    let core = expand(&text);
+    let run = function(&core, "run");
+    assert_eq!(run.callable_parameters[0].generic_name, "T");
+    let Type::Named(pair) = &run.parameters[0].ty else {
+        panic!("{run:#?}")
+    };
+    let pair = core
+        .aggregates
+        .iter()
+        .find(|aggregate| aggregate.name == *pair)
+        .unwrap();
+    assert_eq!(pair.fields[1].ty, Type::Named("T".into()));
+    assert_eq!(pair.fields[2].ty, Type::Named("T".into()));
+    let concrete = function(&core, "concrete");
+    let Type::Named(nominal) = &concrete.parameters[0].ty else {
+        panic!("{concrete:#?}")
+    };
+    assert_ne!(nominal, "T");
+    assert!(
+        core.aggregates
+            .iter()
+            .any(|aggregate| &aggregate.name == nominal
+                && aggregate.fields.len() == 1
+                && aggregate.fields[0].ty == Type::I32)
+    );
+    assert!(
+        !core
+            .aggregates
+            .iter()
+            .any(|aggregate| aggregate.name == "T")
+    );
+    assert_eq!(
+        applications(&run.body, "empty"),
+        vec![std::slice::from_ref(caller_element(&core))]
+    );
+    eprintln!("shadow_store_expand_n={}", boundary(&text));
 }
