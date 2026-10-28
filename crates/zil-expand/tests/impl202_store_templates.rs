@@ -250,14 +250,17 @@ fn legacy_single_field_state_preserves_exact_expand_budget() {
             },
         )
     };
-    check(1731).unwrap();
-    let errors = check(1730).unwrap_err();
+    // 205 closes an observed unused-definition alias hole on this real
+    // borrow/sibling input. Its pre-fix N1731 baseline is retained separately;
+    // the new actual window walk is charged, with defaults unchanged.
+    check(1938).unwrap();
+    let errors = check(1937).unwrap_err();
     assert!(
         errors
             .iter()
             .any(|d| d.category == ResultCategory::ResourceLimit)
     );
-    check(1731).unwrap();
+    check(1938).unwrap();
 }
 
 const ORDINARY: &str = r#"
