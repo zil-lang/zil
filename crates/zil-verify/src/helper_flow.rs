@@ -62,7 +62,6 @@ impl Allowance {
     fn child(
         &mut self,
         child: &CallableTraces,
-        expected: CallableKind,
         limits: &Limits,
         budget: &mut Budget,
         f: &TypedFunction,
@@ -84,9 +83,6 @@ impl Allowance {
                     .ok_or_else(|| limit("helper child edge count overflow"))?;
                 for path in paths {
                     budget.spend(path.calls.len())?;
-                    if path.calls.iter().any(|kind| *kind != expected) {
-                        return Err(bad(f, "nested callback kind differs"));
-                    }
                     calls = calls
                         .checked_add(path.calls.len())
                         .ok_or_else(|| limit("helper child event count overflow"))?;
@@ -107,9 +103,6 @@ impl Allowance {
                     .ok_or_else(|| limit("helper child node count overflow"))?;
                 for node in &flow.nodes {
                     budget.spend(node.calls.len())?;
-                    if node.calls.iter().any(|kind| *kind != expected) {
-                        return Err(bad(f, "nested callback kind differs"));
-                    }
                     calls = calls
                         .checked_add(node.calls.len())
                         .ok_or_else(|| limit("helper child event count overflow"))?;
@@ -164,13 +157,12 @@ enum Destination {
 pub(super) fn reconstruct(
     module: &TypedModule,
     f: &TypedFunction,
-    parameter: LocalId,
-    kind: CallableKind,
+    roles: &[CallableRole],
     checked: &[bool],
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<CallableTraces> {
-    let origins = environment_origins(module, f, parameter, budget)?;
+    let origins = environment_origins(module, f, roles, budget)?;
     let mut allowance = Allowance::default();
     allowance.add(f.blocks.len(), 0, 0, limits, budget)?;
     let mut ids = BTreeMap::new();
@@ -203,9 +195,9 @@ pub(super) fn reconstruct(
                         ));
                     }
                     if let Some(child) =
-                        forwarded(module, f, instruction, &origins, kind, checked, budget)?
+                        forwarded(module, f, instruction, &origins, roles, checked, budget)?
                     {
-                        allowance.child(child, kind, limits, budget, f)?;
+                        allowance.child(child.traces, limits, budget, f)?;
                         child_destination = Some(Destination::Sites(vec![Site::Child {
                             block,
                             call: position,
@@ -214,7 +206,10 @@ pub(super) fn reconstruct(
                         break;
                     }
                     if let Some(actual) = invocation(f, instruction, &origins)? {
-                        if actual != kind {
+                        budget.spend(roles.len())?;
+                        if !roles.iter().any(|role| {
+                            role.parameter == actual.parameter && role.kind == actual.kind
+                        }) {
                             return Err(bad(
                                 f,
                                 "helper callback use differs from its requested bound",
@@ -264,22 +259,21 @@ pub(super) fn reconstruct(
                 (calls, destination)
             }
             Site::Child { block, call, node } => {
-                let InstructionKind::Call {
-                    function: callee, ..
-                } = f.blocks[block].instructions[call].kind
-                else {
-                    unreachable!("child site comes only from a checked direct call");
-                };
-                let child = &module.functions[callee.0 as usize]
-                    .callable_contract
-                    .as_ref()
-                    .expect("independently checked child")
-                    .traces;
+                let child = forwarded(
+                    module,
+                    f,
+                    &f.blocks[block].instructions[call],
+                    &origins,
+                    roles,
+                    checked,
+                    budget,
+                )?
+                .ok_or_else(|| bad(f, "child site has no actual role mapping"))?;
                 let continuation = Site::Body {
                     block,
                     from: call + 1,
                 };
-                match child {
+                match child.traces {
                     CallableTraces::Finite(paths) if node == 0 => {
                         let next = (1..=paths.len())
                             .map(|node| Site::Child { block, call, node })
@@ -293,7 +287,7 @@ pub(super) fn reconstruct(
                         } else {
                             Destination::Exit(CallableExit::Trap)
                         };
-                        (path.calls.clone(), next)
+                        (child.remap(&path.calls, budget, f)?, next)
                     }
                     CallableTraces::Flow(flow) => {
                         let source = &flow.nodes[node];
@@ -315,7 +309,7 @@ pub(super) fn reconstruct(
                                 Destination::Exit(CallableExit::Trap)
                             }
                         };
-                        (source.calls.clone(), next)
+                        (child.remap(&source.calls, budget, f)?, next)
                     }
                 }
             }
@@ -340,12 +334,12 @@ pub(super) fn reconstruct(
         nodes.push(CallableFlowNode { calls, next });
         cursor += 1;
     }
-    classify(CallableFlow { entry: 0, nodes }, kind, limits, budget, f)
+    classify(CallableFlow { entry: 0, nodes }, roles, limits, budget, f)
 }
 
 fn classify(
     flow: CallableFlow,
-    kind: CallableKind,
+    roles: &[CallableRole],
     limits: &Limits,
     budget: &mut Budget,
     f: &TypedFunction,
@@ -381,7 +375,7 @@ fn classify(
         }
     }
     if cyclic {
-        if kind == CallableKind::FnOnce {
+        if roles.iter().any(|role| role.kind == CallableKind::FnOnce) {
             return Err(unsupported(
                 "cyclic FnOnce helper requires an additional consumption contract",
                 Some(f.span),
@@ -389,52 +383,68 @@ fn classify(
         }
         return Ok(CallableTraces::Flow(flow));
     }
-    budget.spend(n)?;
-    let mut at = vec![BTreeSet::<usize>::new(); n];
-    at[0].insert(0);
+    budget.spend(n.saturating_add(1))?;
+    let mut at = vec![BTreeSet::<Vec<CallEvent>>::new(); n];
+    at[0].insert(Vec::new());
     let mut finished = BTreeSet::new();
     for index in postorder.into_iter().rev() {
         budget.spend(1)?;
         let node = &flow.nodes[index];
         let prefixes = std::mem::take(&mut at[index]);
-        for before in prefixes {
-            budget.spend(1)?;
-            let count = before
+        for mut calls in prefixes {
+            let count = calls
+                .len()
                 .checked_add(node.calls.len())
-                .ok_or_else(|| limit("helper call count overflow"))?;
-            if kind == CallableKind::FnOnce && count > 1 {
-                return Err(bad(f, "helper consumes its callback more than once"));
+                .filter(|n| *n <= limits.max_nodes)
+                .ok_or_else(|| limit("finite helper call allowance exhausted"))?;
+            budget.spend(
+                node.calls
+                    .len()
+                    .saturating_add(count.saturating_mul(roles.len())),
+            )?;
+            calls.extend_from_slice(&node.calls);
+            for role in roles {
+                if role.kind == CallableKind::FnOnce
+                    && calls
+                        .iter()
+                        .filter(|event| event.parameter == role.parameter)
+                        .count()
+                        > 1
+                {
+                    return Err(bad(f, "helper consumes a callback role more than once"));
+                }
             }
             match &node.next {
                 CallableFlowNext::Exit(exit) => {
-                    budget.spend(count_tree_work(finished.len()))?;
-                    finished.insert((count, *exit));
+                    budget.spend(
+                        count_tree_work(finished.len()).saturating_mul(count.saturating_add(1)),
+                    )?;
+                    let path = CallableTrace { calls, exit: *exit };
+                    if !finished.contains(&path) && finished.len() >= limits.max_nodes {
+                        return Err(limit("finite helper path allowance exhausted"));
+                    }
+                    finished.insert(path);
                 }
                 CallableFlowNext::Edges(targets) => {
                     for target in targets {
-                        budget.spend(count_tree_work(at[*target as usize].len()))?;
-                        at[*target as usize].insert(count);
+                        let dest = &mut at[*target as usize];
+                        budget.spend(
+                            count_tree_work(dest.len())
+                                .saturating_mul(count.saturating_add(1))
+                                .saturating_mul(2),
+                        )?;
+                        if !dest.contains(&calls) && dest.len() >= limits.max_nodes {
+                            return Err(limit("finite helper path allowance exhausted"));
+                        }
+                        budget.spend(count.saturating_add(1))?;
+                        dest.insert(calls.clone());
                     }
                 }
             }
         }
     }
-    if finished.len() > limits.max_nodes {
-        return Err(limit("finite helper path allowance exhausted"));
-    }
     budget.spend(finished.len())?;
-    let mut paths = Vec::with_capacity(finished.len());
-    for (count, exit) in finished {
-        if count > limits.max_nodes {
-            return Err(limit("finite helper call allowance exhausted"));
-        }
-        budget.spend(count.saturating_add(1))?;
-        paths.push(CallableTrace {
-            calls: vec![kind; count],
-            exit,
-        });
-    }
-    Ok(CallableTraces::Finite(paths))
+    Ok(CallableTraces::Finite(finished.into_iter().collect()))
 }
 
 pub(super) fn comparison_work(traces: &CallableTraces, budget: &mut Budget) -> Check<()> {
