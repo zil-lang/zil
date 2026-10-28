@@ -1,0 +1,1 @@
+import factory;fn main()->i32{var f=factory.counter(4);let a=f();let old=*a;let b=f();return old+*b-11}

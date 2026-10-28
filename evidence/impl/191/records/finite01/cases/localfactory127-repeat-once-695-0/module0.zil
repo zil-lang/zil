@@ -1,0 +1,1 @@
+resource Token{n:i64}fn consume(give t:Token)->i64{return t.n}fn make(seed:i64)->impl FnOnce()->i64{let t=Token{n:seed};return move ()=>consume(give t)}fn run<F:Fn()->i64>(f:&F)->i64{let local=make(2);return local()+local()+f()}fn main()->i32{return 0}

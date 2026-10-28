@@ -1,0 +1,1 @@
+fn batch<F:Fn()->i32>(f:&F)->i32{var n=0;while n<3{n+=f()}return n}fn main()->i32{let x=1;let f=()=>x;return batch(&f)}

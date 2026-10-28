@@ -1,0 +1,1 @@
+fn make()->impl Fn()->i64{return make()}fn value()->i64{return 0}

@@ -1,0 +1,1 @@
+fn apply<F:Fn()->i64>(f:&F)->i64{let dependent=make();return f()}fn make()->impl Fn()->i64{let init=()=>42;let n=apply(&init);return move ()=>n}fn value()->i64{return 0}
