@@ -1,0 +1,8 @@
+--- predeclared/sources/leaf.zil
++++ consumer02/examples/mainline/package_product206/leaf.zil
+@@ -24 +24 @@
+-    if owned.lead != 7u8 || owned.tail != 513u16
++    if (owned.lead != 7u8 || owned.tail != 513u16
+@@ -27 +27 @@
+-        || bytes_len(owned.bytes) != 1 || bytes_capacity(owned.bytes) != capacity {
++        || bytes_len(owned.bytes) != 1 || bytes_capacity(owned.bytes) != capacity) {
