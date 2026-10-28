@@ -773,7 +773,19 @@ emit(projected());next.a=replacement;return next"#;
         "{RESOURCE}{STATE}{}fn main()->i32{{let state=revise(pack(make(65),make(66),0),make(67),true);emit(77);return state.a()+state.b()-133}}",
         function(&direct)
     );
-    native("direct-copied-projected-alias", &direct_source, "AAMZCB", 0);
+    reject(
+        "closed-direct-copied-projected-alias",
+        &direct_source,
+        &[Phase::Types],
+        ResultCategory::SafeReject,
+        Some("E-OPERATOR-TYPE"),
+    );
+    let copied = direct.replace("let projected=&*copied", "let projected=copied");
+    let copied_source = format!(
+        "{RESOURCE}{STATE}{}fn main()->i32{{let state=revise(pack(make(65),make(66),0),make(67),true);emit(77);return state.a()+state.b()-133}}",
+        function(&copied)
+    );
+    native("direct-copied-alias", &copied_source, "AAMZCB", 0);
     accepted(
         "conditional-alias-definition-positive",
         &format!("{RESOURCE}{STATE}{}fn main(){{}}", function(body)),
