@@ -366,7 +366,7 @@ fn view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper() {
         ResultCategory::SafeReject,
         zil_base::Phase::Verify,
         "E-BORROW-CONFLICT",
-        "alias",
+        "access overlaps",
     );
     let source = format!(
         "{PACKAGE}{helper}fn main()->i32{{{SETUP}let other=empty();let view=store_at(s,0);return use_pair(view,other)-65}}"
