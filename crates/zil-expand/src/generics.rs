@@ -16,6 +16,8 @@ mod aliases;
 mod bytes;
 #[path = "generic_callable.rs"]
 pub(super) mod callable;
+#[path = "generic_helper_graph.rs"]
+mod helper_graph;
 #[path = "generic_enum.rs"]
 mod enums;
 #[path = "generic_store.rs"]
