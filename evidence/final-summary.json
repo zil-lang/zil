@@ -1,10 +1,10 @@
 {
-  "source_commit": "893ea73eb4d86717476504c39562d32d87e1337e",
-  "result_path": "evidence/integration/201/final/RESULT.json",
+  "source_commit": "b73ba8a764ee605c1ba8e3a651eb2c6baece8197",
+  "result_path": "evidence/integration/202/final/RESULT.json",
   "draft_gate": "NotRun",
   "full_workspace_gate": "Pass",
   "full_language_gate": "NotSatisfied",
   "product_gate": "NotRun",
-  "schema_version": 25,
-  "note": "201 finite callback Store accepted, full workspace2250/0. Ordinary dependent StoreElement helper binding and heterogeneous persistent State remain; failures and exact migration receipts retained."
+  "schema_version": 26,
+  "note": "202 ordinary complete StoreElement template binding accepted, full workspace2319/0. Different F/G persistent State and bounded heterogeneous callback Store are next; all remaining1.4 obligations, native Windows and product status remain explicit."
 }

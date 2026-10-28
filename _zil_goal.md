@@ -96,3 +96,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-28：201 callback Store接受，完整T绑定接续
 
 201有限同F回调元素的真实拥有、字段窗口、前缀清理与allocator故障已非作者验收；最终clean893ea73e全仓2250/0/0。原始02晋升成功、零payload Package捕获误拒修复和旧175/180诊断迁移均保留精确收据。见docs/LANGUAGE-201.md。下一202优先普通T:StoreElement模板的完整类型绑定；不同F/G持久State、一般抽象/卫生Syntax/保留与挂起并发义务不删除。完整语言NotSatisfied、产品NotRun、B0 Doing；编译专项独立。
+
+## 2026-10-28：202 完整普通T模板接受
+
+202的caller词法作用域、完整名义T实例、未用定义检查、真实Desc效果、无Store操作的资格核、CT边界和IDE失效均完成有限验收。最终clean b73ba8a7全仓2319/0/0；五模块Linux/Wine各126/0、各86真实分配失败，非作者另行Linux126通过。原四类实现缺陷、夹具/环境失败与迁移按原身份保留，详见docs/LANGUAGE-202.md。下一203同批推进F/G持久State、声明模式来源与最多两种具体callback的有限Store资格，使普通T组合继续按声明约束检查。完整1.4 NotSatisfied、产品/原生Windows NotRun、B0 Doing，编译专项独立。
