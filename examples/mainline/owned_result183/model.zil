@@ -8,6 +8,7 @@ impl Drop for Mark {
 }
 
 pub fn marker(code:i32)->Mark contract { result(create) } => Mark { code:code }
+pub fn emit(code:i32) { unsafe { putchar(code) } }
 
 pub package Item {
     lead:u8;
