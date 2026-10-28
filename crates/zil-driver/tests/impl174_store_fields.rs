@@ -359,14 +359,6 @@ fn source_rejects_borrowed_store_fields_and_unsupported_nested_storage() {
         ),
         (
             format!(
-                "{MODEL} fn main()->i32{{let s=state(90,65,66);let f=move ()=>i32(store_len(s.items));return f()}}"
-            ),
-            ResultCategory::Unsupported,
-            "E-UNSUPPORTED",
-            "Package capture with Store fields",
-        ),
-        (
-            format!(
                 "{MODEL} fn main()->i32{{let s=state(90,65,66);let d=s.items;let moved=give d;return 0}}"
             ),
             ResultCategory::SafeReject,
@@ -386,6 +378,24 @@ fn source_rejects_borrowed_store_fields_and_unsupported_nested_storage() {
         );
         assert!(report.commands.is_empty());
     }
+}
+
+#[test]
+fn original_complete_store_state_capture_is_supported_since_204() {
+    let source = format!(
+        "{MODEL} fn main()->i32{{let s=state(90,65,66);let f=move ()=>i32(store_len(s.items));return f()}}"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Verify);
+    assert_eq!(report.verification_runs, 1);
+    // Preserve the original return value rather than rewriting its source.
+    native(&[("main", &source)], b"ZAB", 2);
 }
 
 #[test]
