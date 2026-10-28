@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "task": "206",
+  "scope": "Limited existing Lower/LLVM regression only",
+  "status": "Pass",
+  "source_commit": "8cc6917feedcc694671bff623e5a0e709d596be4",
+  "git_status": "",
+  "spec_hash": "f26a0d8701b9a00a38286f486b7bcae1b96cf1d9254add7c48d395bb3e6ccbc3",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "clippy": {
+    "command": [
+      "cargo",
+      "clippy",
+      "-p",
+      "zil-lower",
+      "-p",
+      "zil-backend-llvm",
+      "--all-targets",
+      "--offline",
+      "--locked",
+      "-j2",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "status": "Pass",
+    "receipt": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/legacy01/clippy/command.json",
+    "sha256": "36253c81364c7e0fa3ecb62228f03adb600462e231ed7d08d87202e3777fe19e"
+  },
+  "tests": {
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "zil-lower",
+      "-p",
+      "zil-backend-llvm",
+      "--lib",
+      "--offline",
+      "--locked",
+      "-j2",
+      "--",
+      "--nocapture"
+    ],
+    "passed": 21,
+    "failed": 0,
+    "ignored": 0,
+    "binaries": [
+      {
+        "crate": "zil-backend-llvm",
+        "passed": 18
+      },
+      {
+        "crate": "zil-lower",
+        "passed": 3
+      }
+    ],
+    "receipt": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/legacy01/tests/command.json",
+    "sha256": "ba6829cd7f0613904348adde757a79457ec26a4f9a939852f4e599513b721eb1",
+    "native_detail": "Existing backend unit fixtures internally assert native outputs and remove their temporary files; not counted as new206 source/machine evidence"
+  },
+  "new_product_source_acceptance": "NotRun in this command",
+  "new_product_native": "NotRun",
+  "full_workspace": "NotRun by author",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun"
+}
