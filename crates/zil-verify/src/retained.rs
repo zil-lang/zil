@@ -15,11 +15,17 @@ pub(super) fn check_claim(
     budget: &mut Budget,
 ) -> Check<()> {
     if let Some(c) = &f.callable_return_contract {
-        for indices in [&c.hold, &c.call, &c.writes, &c.cleanup] {
+        for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
             if indices.len() > limits.max_locals {
                 return Err(limit("callable result index vector exceeds local bound"));
             }
             budget.spend(indices.len().saturating_add(1))?;
+        }
+        if !c.lending_captures.is_empty() {
+            return Err(unsupported(
+                "opaque environment lending requires its independently checked result and loan protocol",
+                Some(f.span),
+            ));
         }
     }
     let Type::Closure(id) = f.return_type else {

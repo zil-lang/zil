@@ -783,6 +783,7 @@ fn package_and_capture_cannot_hide_borrowed_byte_storage() {
     let f = Body::new(0, Type::Unit);
     let mut t = case(vec![f.finish(None)]);
     t.module.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(0),
         captures: vec![desc()],

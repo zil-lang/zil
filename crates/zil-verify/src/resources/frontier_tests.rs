@@ -237,6 +237,7 @@ fn unreachable_call_does_not_create_a_summary_consumer() {
 fn every_concrete_closure_call_has_its_entry_dependency() {
     let mut module = fixture(&[vec![], vec![]], &[0, 1]);
     module.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(1),
         kind: CallableKind::FnMut,
@@ -358,6 +359,7 @@ fn transitive_owned_write_is_rejected_after_convergence_and_borrowed_write_is_le
                 };
             }
             module.closures.push(ClosureDefinition {
+                lending_captures: Vec::new(),
                 id: ClosureId(0),
                 function: FunctionId(0),
                 kind,

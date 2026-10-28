@@ -384,6 +384,7 @@ mod tests {
             span: Span::default(),
         });
         module.closures.push(ClosureDefinition {
+            lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(1),
             captures: vec![Type::I32],

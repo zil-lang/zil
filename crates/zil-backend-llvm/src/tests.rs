@@ -1164,6 +1164,7 @@ fn runtime_closure_environments_are_independent_copies_and_repeatable() {
     let verified = checked_with_closures(
         vec![check, calculate, closure],
         vec![ClosureDefinition {
+            lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(2),
             captures: vec![Type::I64],
@@ -1332,6 +1333,7 @@ fn empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi() {
         vec![check, mixed, unit, empty],
         vec![
             ClosureDefinition {
+                lending_captures: Vec::new(),
                 id: ClosureId(0),
                 function: FunctionId(1),
                 captures: vec![Type::Unit, Type::Bool, Type::I32, Type::I64, Type::Unit],
@@ -1340,6 +1342,7 @@ fn empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi() {
                 kind: CallableKind::Fn,
             },
             ClosureDefinition {
+                lending_captures: Vec::new(),
                 id: ClosureId(1),
                 function: FunctionId(2),
                 captures: vec![],
@@ -1348,6 +1351,7 @@ fn empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi() {
                 kind: CallableKind::Fn,
             },
             ClosureDefinition {
+                lending_captures: Vec::new(),
                 id: ClosureId(2),
                 function: FunctionId(3),
                 captures: vec![],
@@ -1395,6 +1399,7 @@ fn empty_closure_fixture(environment_name: &str) -> VerifiedModule {
     checked_with_closures(
         vec![check, closure],
         vec![ClosureDefinition {
+            lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(1),
             captures: vec![],

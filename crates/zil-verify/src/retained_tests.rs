@@ -40,6 +40,7 @@ pub(super) fn fixture(kind: CallableKind, captures: usize) -> TypedModule {
     factory.name = "factory".into();
     factory.return_type = Type::Closure(ClosureId(0));
     factory.callable_return_contract = Some(CallableReturnContract {
+        lending_captures: Vec::new(),
         closure: ClosureId(0),
         kind,
         hold: vec![],
