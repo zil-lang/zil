@@ -639,3 +639,56 @@ fn five_module_consumer_preserves_all_six_ordinary_helpers() {
         }
     }
 }
+
+#[test]
+fn callable_binder_shadows_a_real_nominal_before_aggregate_instantiation() {
+    let body = PAIR
+        .replace("Item<T,F>", "Item<D,F>")
+        .replace("value: T", "value: D")
+        .replace("<F", "<T")
+        .replace(",F", ",T")
+        .replace("callback: F", "callback: T")
+        .replace("first: F", "first: T")
+        .replace("second: F", "second: T")
+        .replace("= store_new()", "= empty::<Item<i32,T>>()")
+        .replace("return run(", "return concrete(T { value: 0 }) + run(");
+    let text = format!(
+        "{HELPERS}\nstruct T {{ value: i32 }}\nfn concrete(value:T)->i32 {{ return value.value }}\n{body}"
+    );
+    let core = expand(&text);
+    let run = function(&core, "run");
+    assert_eq!(run.callable_parameters[0].generic_name, "T");
+    let Type::Named(pair) = &run.parameters[0].ty else {
+        panic!("{run:#?}")
+    };
+    let pair = core
+        .aggregates
+        .iter()
+        .find(|aggregate| aggregate.name == *pair)
+        .unwrap();
+    assert_eq!(pair.fields[1].ty, Type::Named("T".into()));
+    assert_eq!(pair.fields[2].ty, Type::Named("T".into()));
+    let concrete = function(&core, "concrete");
+    let Type::Named(nominal) = &concrete.parameters[0].ty else {
+        panic!("{concrete:#?}")
+    };
+    assert_ne!(nominal, "T");
+    assert!(
+        core.aggregates
+            .iter()
+            .any(|aggregate| &aggregate.name == nominal
+                && aggregate.fields.len() == 1
+                && aggregate.fields[0].ty == Type::I32)
+    );
+    assert!(
+        !core
+            .aggregates
+            .iter()
+            .any(|aggregate| aggregate.name == "T")
+    );
+    assert_eq!(
+        applications(&run.body, "empty"),
+        vec![std::slice::from_ref(caller_element(&core))]
+    );
+    eprintln!("shadow_store_expand_n={}", boundary(&text));
+}
