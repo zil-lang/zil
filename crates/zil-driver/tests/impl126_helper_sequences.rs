@@ -281,23 +281,14 @@ fn new_sequences_still_pay_three_independent_budgets() {
     case.write("boundaries.json", format!("[{}]\n", records.join(",")));
 }
 #[test]
-fn consumed_and_cyclic_nearest_neighbors_still_reject() {
-    for (label, text, phase, category, needle) in [
-        (
-            "once",
-            "fn batch<F:FnOnce()->i32>(f:F)->i32{return f()+f()+f()} fn main()->i32{return 0}",
-            Phase::Expand,
-            ResultCategory::SafeReject,
-            "consumed",
-        ),
-        (
-            "loop",
-            "fn batch<F:Fn()->i32>(f:&F)->i32{var n=0;while n<3{n+=f()}return n}fn main()->i32{let x=1;let f=()=>x;return batch(&f)}",
-            Phase::Types,
-            ResultCategory::Unsupported,
-            "cyclic callable helper trace requires a loop contract",
-        ),
-    ] {
+fn consuming_reuse_rejects_and_the_original_cyclic_neighbor_runs() {
+    for (label, text, phase, category, needle) in [(
+        "once",
+        "fn batch<F:FnOnce()->i32>(f:F)->i32{return f()+f()+f()} fn main()->i32{return 0}",
+        Phase::Expand,
+        ResultCategory::SafeReject,
+        "consumed",
+    )] {
         let case = Case::new(label);
         let report = compile(&project(&[("main", text)]), &case, None);
         assert_eq!(report.status, category, "{}", report.to_json());
@@ -310,4 +301,11 @@ fn consumed_and_cyclic_nearest_neighbors_still_reject() {
             report.to_json()
         );
     }
+    // Task190 admits the original loop through a checked Flow; the source and
+    // its observable return value are unchanged from the former scope probe.
+    let source = "fn batch<F:Fn()->i32>(f:&F)->i32{var n=0;while n<3{n+=f()}return n}fn main()->i32{let x=1;let f=()=>x;return batch(&f)}";
+    let input = project(&[("main", source)]);
+    let case = Case::new("loop");
+    success(&compile(&input, &case, None));
+    native(&input, "original-loop190", "", 3);
 }
