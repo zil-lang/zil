@@ -447,21 +447,33 @@ pub(super) fn preflight(
             )?;
         }
         if let Some(contract) = &function.callable_contract {
+            count(0, contract.roles.len(), limits.max_locals, "callable role")?;
             budget.input(
-                contract
-                    .hold
-                    .len()
-                    .saturating_add(contract.call.len())
-                    .saturating_add(contract.writes.len())
-                    .saturating_add(5),
-                "callable contract metadata",
+                contract.roles.len().saturating_add(1),
+                "callable role table",
             )?;
+            for role in &contract.roles {
+                budget.input(
+                    role.hold
+                        .len()
+                        .saturating_add(role.call.len())
+                        .saturating_add(role.writes.len())
+                        .saturating_add(5),
+                    "callable role metadata",
+                )?;
+            }
             match &contract.traces {
                 CallableTraces::Finite(traces) => {
                     budget.input(traces.len(), "callable finite trace count")?;
                     for trace in traces {
+                        count(
+                            0,
+                            trace.calls.len(),
+                            limits.max_instructions,
+                            "callable finite events",
+                        )?;
                         budget.input(
-                            trace.calls.len().saturating_add(1),
+                            trace.calls.len().saturating_mul(2).saturating_add(1),
                             "callable trace metadata",
                         )?;
                     }
@@ -481,7 +493,7 @@ pub(super) fn preflight(
                             "callable flow call",
                         )?;
                         budget.input(
-                            node.calls.len().saturating_add(1),
+                            node.calls.len().saturating_mul(2).saturating_add(1),
                             "callable flow calls and next tag",
                         )?;
                         match &node.next {
