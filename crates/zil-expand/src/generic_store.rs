@@ -171,7 +171,11 @@ pub(super) fn concrete_element(
     ty: &TypeRef,
     nominals: &BTreeMap<String, &Item>,
     budget: &mut Budget<'_>,
-    context: (&trait_bounds::Bounds, &BTreeSet<String>, Option<&str>),
+    context: (
+        &trait_bounds::Bounds,
+        &BTreeSet<String>,
+        callable::StoreCallbacks<'_>,
+    ),
 ) -> R<()> {
     let mut shape = Shape { nominals, budget };
     let (aggregate, substitutions) = shape.aggregate(ty, AggregateKind::Package)?;
@@ -179,8 +183,13 @@ pub(super) fn concrete_element(
     // syntactic classification. F grants neither Copy nor StoreElement: only
     // its direct occurrences in the existing owning State family are admitted.
     let (available, variables, callback) = context;
-    let callback = callback.filter(|name| callable::state_type(ty, name));
-    if callback.is_some() {
+    let callback = if callback.active(ty) {
+        callback
+    } else {
+        callable::StoreCallbacks::None
+    };
+    let active = !matches!(callback, callable::StoreCallbacks::None);
+    if active {
         shape.budget.ty(ty)?;
     }
     let mut callbacks = 0usize;
@@ -192,24 +201,22 @@ pub(super) fn concrete_element(
         if field.manages {
             owns = true;
             storage |= shape.resource(&field_type)?;
-        } else if callback
-            .is_some_and(|name| callable::parameter_mode(&field_type, name) == Some(None))
-        {
+        } else if callback.field(&field_type) {
             shape.budget.ty(&field_type)?;
             callbacks += 1;
             // Concrete environment layout and nonzero size are checked again
             // after F is resolved; a source name is not a layout certificate.
             storage = true;
-        } else if callback.is_some() && check::dependent(&field_type, variables) {
+        } else if active && check::dependent(&field_type, variables) {
             copy::require(&field_type, nominals, available, variables, shape.budget)?;
         } else {
             storage |= shape.copy(&field_type)?;
         }
     }
-    if callback.is_some() && !(1..=2).contains(&callbacks) {
+    if active && !(1..=2).contains(&callbacks) {
         return Err(error(
             ty.span,
-            "callback Store elements require one or two direct fields of one F type",
+            "callback Store elements require one or two direct fields of declared callable types",
         ));
     }
     if !owns || !storage {
