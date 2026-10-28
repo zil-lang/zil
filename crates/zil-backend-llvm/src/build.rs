@@ -160,18 +160,11 @@ pub fn build_with_cancellation(
         ));
     }
     let machine = crate::emit::lower_with_options(verified, lir, &options.emit)?;
-    zil_llvm_api::validate_module(&machine)
-        .map_err(|e| infra("E-LLVM-API-VERIFY", e.to_string()))?;
-    // Diagnostic/reference output only. The API consumes the owned machine IR.
+    // Diagnostic/reference output only. API preflight runs once per owned unit,
+    // immediately before its LLVMBuilder calls; it cannot be bypassed.
     let llvm = machine.to_text();
-    let plan = if options.codegen.units > 1 {
-        crate::machine_cgu::partition(&machine, lir, options.emit.entry, options.codegen.units)
-    } else {
-        crate::machine_cgu::Plan {
-            units: Vec::new(),
-            fallback: None,
-        }
-    };
+    let plan =
+        crate::machine_cgu::partition(machine, lir, options.emit.entry, options.codegen.units);
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(
             Phase::Codegen,
@@ -241,9 +234,10 @@ pub fn build_with_cancellation(
         Optimization::O2 => "-O2",
     };
     let mut commands = Vec::new();
-    let split = !plan.units.is_empty();
+    let split = plan.units.len() > 1;
     let objects = if !split && options.backend == NativeBackend::Clang {
         // Keep the legacy one-process Unix path exactly, including its flags.
+        drop(plan.units);
         let mut command = Command::new(&options.clang);
         command
             .arg(format!("--target={}", lir.target.triple))
@@ -261,7 +255,7 @@ pub fn build_with_cancellation(
         commands.push(run_command(&mut command, "E-LLVM-COMPILE")?);
         vec![object_path]
     } else {
-        let units = if split { plan.units } else { vec![machine] };
+        let units = plan.units;
         let inputs = units
             .into_iter()
             .enumerate()

@@ -475,13 +475,27 @@ pub struct Function {
 }
 impl Function {
     pub fn declaration(&self) -> Self {
-        let mut f = self.clone();
-        f.linkage = Linkage::External;
-        f.blocks = None;
-        for p in &mut f.signature.params {
-            p.name = None;
+        Self {
+            name: self.name.clone(),
+            linkage: Linkage::External,
+            signature: Signature {
+                result: self.signature.result.clone(),
+                result_attrs: self.signature.result_attrs.clone(),
+                params: self
+                    .signature
+                    .params
+                    .iter()
+                    .map(|p| Param {
+                        ty: p.ty.clone(),
+                        name: None,
+                        attrs: p.attrs.clone(),
+                    })
+                    .collect(),
+                variadic: self.signature.variadic,
+            },
+            attrs: self.attrs.clone(),
+            blocks: None,
         }
-        f
     }
     pub fn references(&self) -> BTreeSet<String> {
         let mut refs = BTreeSet::new();
@@ -512,10 +526,15 @@ pub struct Global {
 }
 impl Global {
     pub fn declaration(&self) -> Self {
-        let mut g = self.clone();
-        g.linkage = Linkage::External;
-        g.initializer = None;
-        g
+        Self {
+            name: self.name.clone(),
+            linkage: Linkage::External,
+            ty: self.ty.clone(),
+            initializer: None,
+            constant: self.constant,
+            unnamed_addr: self.unnamed_addr,
+            alignment: self.alignment,
+        }
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
