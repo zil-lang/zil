@@ -391,6 +391,10 @@ Types独立核完整类型实参与所有实际值参数/明确结果约束；�
 
 push/pop/reserve前缀、父窗口、声明序清理、callee先于参数准备与失败责任沿既有规则；新表不替代Analyze/Verify具体指令核验。raw TypedIR只携带实际能力，其内存安全判定不得冒称恢复源级较弱bound。新增元数据和双根图的长度、名字、类型、selectors、比较/复制与队列在分配/展开前计费，旧无新表和单根路径保持原费用。CT运行时正规化完整保留表并预费；CT执行State模板及wrapper隐藏执行明确E-CT-FORBIDDEN。公共schema/Wire27及新指纹域登记不表示验收，不为Core表伪造TypedIR opcode。一般异类型lending、dyn、保留、挂起和并发义务仍未由本片完成。
 
+203还扩展普通StoreElement模板的调用推导：静态解析到既有一个retained T:StoreElement模板的裸Call，可从实际值参数依声明T、Store<T>及已有错误联合包装唯一推得完整T；所有参数约束必须一致。显式TypeApply仍施加完整精确约束，不能被值推导覆盖。无唯一值约束的empty等调用继续拒绝，裸模板不能成为值/函数指针/动态callee，也不能从已见实例或未声明F/G猜测。此条是对202裸Call关闭规则的具名有限扩展，不改变调用者词法binder权限。
+
+新值推导与计划必须保持真实定义身份、完整名义/普通/phantom类型、两个有序环境及当前声明来源；不得以只存ClosureId的形状代替完整T。实际参数按原顺序只求值、准备和转交一次，必要的暂存保留同一值。所有新的完整类型快照、比较、替换和队列预费，旧无新裸模板路径的费用保持。每个实际T仍登记canonical OwnedStore资格定义并由独立核检查；opaque T没有字段或调用权限。CT按真实模板头拒绝执行，wrapper及裸Call不构成豁免。缺失/冲突实参、错误target、跨定义binder、递归和未用非法定义仍必须拒绝。
+
 ### 8.3 有限错误联合的直接拥有成功载荷
 
 在错误侧E为已支持有限Copy值、成功侧R为已支持直接资源的`E!R`返回中，显式`contract { result(create) }`或`result(give)`作用于成功载荷R，形成普通非Copy联合Value `Sum(E, Managed<R>)`；外层联合本身不是资源Desc或额外Managed。未声明拥有模式仍按R的默认类别解析，不从资源描述自动创造管理责任。create/give继续要求真实来源、实际转交和唯一清理。
