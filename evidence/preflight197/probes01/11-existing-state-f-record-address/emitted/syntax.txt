@@ -1,0 +1,4216 @@
+[
+    ParseResult {
+        module: Module {
+            id: ModuleId(
+                0,
+            ),
+            items: [
+                Item {
+                    kind: Aggregate(
+                        Aggregate {
+                            kind: Struct,
+                            name: "Data",
+                            generics: [],
+                            fields: [
+                                Field {
+                                    name: "wide",
+                                    ty: TypeRef {
+                                        kind: Named {
+                                            path: [
+                                                "i64",
+                                            ],
+                                            args: [],
+                                        },
+                                        span: Span {
+                                            file: FileId(
+                                                0,
+                                            ),
+                                            start: 17,
+                                            end: 20,
+                                        },
+                                    },
+                                    default: None,
+                                    public: false,
+                                    manages: false,
+                                    attributes: [],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 12,
+                                        end: 21,
+                                    },
+                                },
+                                Field {
+                                    name: "n",
+                                    ty: TypeRef {
+                                        kind: Named {
+                                            path: [
+                                                "i32",
+                                            ],
+                                            args: [],
+                                        },
+                                        span: Span {
+                                            file: FileId(
+                                                0,
+                                            ),
+                                            start: 23,
+                                            end: 26,
+                                        },
+                                    },
+                                    default: None,
+                                    public: false,
+                                    manages: false,
+                                    attributes: [],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 21,
+                                        end: 26,
+                                    },
+                                },
+                            ],
+                            methods: [],
+                        },
+                    ),
+                    attributes: [],
+                    public: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 0,
+                        end: 27,
+                    },
+                },
+                Item {
+                    kind: Aggregate(
+                        Aggregate {
+                            kind: Package,
+                            name: "State",
+                            generics: [
+                                GenericParam {
+                                    name: "F",
+                                    kind: Type(
+                                        [],
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 42,
+                                        end: 43,
+                                    },
+                                },
+                            ],
+                            fields: [
+                                Field {
+                                    name: "bytes",
+                                    ty: TypeRef {
+                                        kind: Named {
+                                            path: [
+                                                "ByteBuffer",
+                                            ],
+                                            args: [],
+                                        },
+                                        span: Span {
+                                            file: FileId(
+                                                0,
+                                            ),
+                                            start: 59,
+                                            end: 69,
+                                        },
+                                    },
+                                    default: None,
+                                    public: false,
+                                    manages: true,
+                                    attributes: [],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 45,
+                                        end: 70,
+                                    },
+                                },
+                                Field {
+                                    name: "callback",
+                                    ty: TypeRef {
+                                        kind: Named {
+                                            path: [
+                                                "F",
+                                            ],
+                                            args: [],
+                                        },
+                                        span: Span {
+                                            file: FileId(
+                                                0,
+                                            ),
+                                            start: 79,
+                                            end: 80,
+                                        },
+                                    },
+                                    default: None,
+                                    public: false,
+                                    manages: false,
+                                    attributes: [],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 70,
+                                        end: 81,
+                                    },
+                                },
+                                Field {
+                                    name: "value",
+                                    ty: TypeRef {
+                                        kind: Named {
+                                            path: [
+                                                "Data",
+                                            ],
+                                            args: [],
+                                        },
+                                        span: Span {
+                                            file: FileId(
+                                                0,
+                                            ),
+                                            start: 87,
+                                            end: 91,
+                                        },
+                                    },
+                                    default: None,
+                                    public: false,
+                                    manages: false,
+                                    attributes: [],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 81,
+                                        end: 91,
+                                    },
+                                },
+                            ],
+                            methods: [],
+                        },
+                    ),
+                    attributes: [],
+                    public: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 28,
+                        end: 92,
+                    },
+                },
+                Item {
+                    kind: Function(
+                        Function {
+                            name: "make",
+                            generics: [
+                                GenericParam {
+                                    name: "F",
+                                    kind: Type(
+                                        [
+                                            TypeRef {
+                                                kind: Named {
+                                                    path: [
+                                                        "FnMut",
+                                                    ],
+                                                    args: [
+                                                        Type(
+                                                            TypeRef {
+                                                                kind: Tuple(
+                                                                    [
+                                                                        TypeRef {
+                                                                            kind: Reference {
+                                                                                lifetime: None,
+                                                                                mutable: true,
+                                                                                inner: TypeRef {
+                                                                                    kind: Named {
+                                                                                        path: [
+                                                                                            "Data",
+                                                                                        ],
+                                                                                        args: [],
+                                                                                    },
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 114,
+                                                                                        end: 118,
+                                                                                    },
+                                                                                },
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 109,
+                                                                                end: 118,
+                                                                            },
+                                                                        },
+                                                                    ],
+                                                                ),
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 108,
+                                                                    end: 119,
+                                                                },
+                                                            },
+                                                        ),
+                                                        Type(
+                                                            TypeRef {
+                                                                kind: Named {
+                                                                    path: [
+                                                                        "i32",
+                                                                    ],
+                                                                    args: [],
+                                                                },
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 121,
+                                                                    end: 124,
+                                                                },
+                                                            },
+                                                        ),
+                                                    ],
+                                                },
+                                                span: Span {
+                                                    file: FileId(
+                                                        0,
+                                                    ),
+                                                    start: 103,
+                                                    end: 124,
+                                                },
+                                            },
+                                        ],
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 101,
+                                        end: 124,
+                                    },
+                                },
+                            ],
+                            params: [
+                                Param {
+                                    name: "callback",
+                                    ty: TypeRef {
+                                        kind: Named {
+                                            path: [
+                                                "F",
+                                            ],
+                                            args: [],
+                                        },
+                                        span: Span {
+                                            file: FileId(
+                                                0,
+                                            ),
+                                            start: 135,
+                                            end: 136,
+                                        },
+                                    },
+                                    give: false,
+                                    attributes: [],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 126,
+                                        end: 136,
+                                    },
+                                },
+                            ],
+                            return_type: Some(
+                                TypeRef {
+                                    kind: Named {
+                                        path: [
+                                            "State",
+                                        ],
+                                        args: [
+                                            Type(
+                                                TypeRef {
+                                                    kind: Named {
+                                                        path: [
+                                                            "F",
+                                                        ],
+                                                        args: [],
+                                                    },
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 145,
+                                                        end: 146,
+                                                    },
+                                                },
+                                            ),
+                                        ],
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 139,
+                                        end: 147,
+                                    },
+                                },
+                            ),
+                            where_clause: [],
+                            contract: [],
+                            body: Block(
+                                Block {
+                                    statements: [
+                                        Stmt {
+                                            kind: Return(
+                                                Some(
+                                                    Expr {
+                                                        kind: Record {
+                                                            ty: Some(
+                                                                Expr {
+                                                                    kind: TypeApply {
+                                                                        callee: Expr {
+                                                                            kind: Name(
+                                                                                "State",
+                                                                            ),
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 155,
+                                                                                end: 160,
+                                                                            },
+                                                                        },
+                                                                        arguments: [
+                                                                            Type(
+                                                                                TypeRef {
+                                                                                    kind: Named {
+                                                                                        path: [
+                                                                                            "F",
+                                                                                        ],
+                                                                                        args: [],
+                                                                                    },
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 163,
+                                                                                        end: 164,
+                                                                                    },
+                                                                                },
+                                                                            ),
+                                                                        ],
+                                                                    },
+                                                                    span: Span {
+                                                                        file: FileId(
+                                                                            0,
+                                                                        ),
+                                                                        start: 155,
+                                                                        end: 165,
+                                                                    },
+                                                                },
+                                                            ),
+                                                            base: None,
+                                                            fields: [
+                                                                RecordField {
+                                                                    name: "bytes",
+                                                                    value: Some(
+                                                                        Expr {
+                                                                            kind: Call {
+                                                                                callee: Expr {
+                                                                                    kind: Name(
+                                                                                        "bytes_new",
+                                                                                    ),
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 172,
+                                                                                        end: 181,
+                                                                                    },
+                                                                                },
+                                                                                arguments: [],
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 172,
+                                                                                end: 183,
+                                                                            },
+                                                                        },
+                                                                    ),
+                                                                    span: Span {
+                                                                        file: FileId(
+                                                                            0,
+                                                                        ),
+                                                                        start: 166,
+                                                                        end: 183,
+                                                                    },
+                                                                },
+                                                                RecordField {
+                                                                    name: "callback",
+                                                                    value: Some(
+                                                                        Expr {
+                                                                            kind: Name(
+                                                                                "callback",
+                                                                            ),
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 193,
+                                                                                end: 201,
+                                                                            },
+                                                                        },
+                                                                    ),
+                                                                    span: Span {
+                                                                        file: FileId(
+                                                                            0,
+                                                                        ),
+                                                                        start: 184,
+                                                                        end: 201,
+                                                                    },
+                                                                },
+                                                                RecordField {
+                                                                    name: "value",
+                                                                    value: Some(
+                                                                        Expr {
+                                                                            kind: Record {
+                                                                                ty: Some(
+                                                                                    Expr {
+                                                                                        kind: Name(
+                                                                                            "Data",
+                                                                                        ),
+                                                                                        span: Span {
+                                                                                            file: FileId(
+                                                                                                0,
+                                                                                            ),
+                                                                                            start: 208,
+                                                                                            end: 212,
+                                                                                        },
+                                                                                    },
+                                                                                ),
+                                                                                base: None,
+                                                                                fields: [
+                                                                                    RecordField {
+                                                                                        name: "wide",
+                                                                                        value: Some(
+                                                                                            Expr {
+                                                                                                kind: Literal(
+                                                                                                    Integer(
+                                                                                                        "7",
+                                                                                                    ),
+                                                                                                ),
+                                                                                                span: Span {
+                                                                                                    file: FileId(
+                                                                                                        0,
+                                                                                                    ),
+                                                                                                    start: 218,
+                                                                                                    end: 219,
+                                                                                                },
+                                                                                            },
+                                                                                        ),
+                                                                                        span: Span {
+                                                                                            file: FileId(
+                                                                                                0,
+                                                                                            ),
+                                                                                            start: 213,
+                                                                                            end: 219,
+                                                                                        },
+                                                                                    },
+                                                                                    RecordField {
+                                                                                        name: "n",
+                                                                                        value: Some(
+                                                                                            Expr {
+                                                                                                kind: Literal(
+                                                                                                    Integer(
+                                                                                                        "41",
+                                                                                                    ),
+                                                                                                ),
+                                                                                                span: Span {
+                                                                                                    file: FileId(
+                                                                                                        0,
+                                                                                                    ),
+                                                                                                    start: 222,
+                                                                                                    end: 224,
+                                                                                                },
+                                                                                            },
+                                                                                        ),
+                                                                                        span: Span {
+                                                                                            file: FileId(
+                                                                                                0,
+                                                                                            ),
+                                                                                            start: 220,
+                                                                                            end: 224,
+                                                                                        },
+                                                                                    },
+                                                                                ],
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 208,
+                                                                                end: 225,
+                                                                            },
+                                                                        },
+                                                                    ),
+                                                                    span: Span {
+                                                                        file: FileId(
+                                                                            0,
+                                                                        ),
+                                                                        start: 202,
+                                                                        end: 225,
+                                                                    },
+                                                                },
+                                                            ],
+                                                        },
+                                                        span: Span {
+                                                            file: FileId(
+                                                                0,
+                                                            ),
+                                                            start: 155,
+                                                            end: 226,
+                                                        },
+                                                    },
+                                                ),
+                                            ),
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 148,
+                                                end: 226,
+                                            },
+                                        },
+                                    ],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 147,
+                                        end: 227,
+                                    },
+                                },
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 93,
+                                end: 227,
+                            },
+                        },
+                    ),
+                    attributes: [],
+                    public: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 93,
+                        end: 227,
+                    },
+                },
+                Item {
+                    kind: Function(
+                        Function {
+                            name: "run",
+                            generics: [
+                                GenericParam {
+                                    name: "F",
+                                    kind: Type(
+                                        [
+                                            TypeRef {
+                                                kind: Named {
+                                                    path: [
+                                                        "FnMut",
+                                                    ],
+                                                    args: [
+                                                        Type(
+                                                            TypeRef {
+                                                                kind: Tuple(
+                                                                    [
+                                                                        TypeRef {
+                                                                            kind: Reference {
+                                                                                lifetime: None,
+                                                                                mutable: true,
+                                                                                inner: TypeRef {
+                                                                                    kind: Named {
+                                                                                        path: [
+                                                                                            "Data",
+                                                                                        ],
+                                                                                        args: [],
+                                                                                    },
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 248,
+                                                                                        end: 252,
+                                                                                    },
+                                                                                },
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 243,
+                                                                                end: 252,
+                                                                            },
+                                                                        },
+                                                                    ],
+                                                                ),
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 242,
+                                                                    end: 253,
+                                                                },
+                                                            },
+                                                        ),
+                                                        Type(
+                                                            TypeRef {
+                                                                kind: Named {
+                                                                    path: [
+                                                                        "i32",
+                                                                    ],
+                                                                    args: [],
+                                                                },
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 255,
+                                                                    end: 258,
+                                                                },
+                                                            },
+                                                        ),
+                                                    ],
+                                                },
+                                                span: Span {
+                                                    file: FileId(
+                                                        0,
+                                                    ),
+                                                    start: 237,
+                                                    end: 258,
+                                                },
+                                            },
+                                        ],
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 235,
+                                        end: 258,
+                                    },
+                                },
+                            ],
+                            params: [
+                                Param {
+                                    name: "state",
+                                    ty: TypeRef {
+                                        kind: Named {
+                                            path: [
+                                                "State",
+                                            ],
+                                            args: [
+                                                Type(
+                                                    TypeRef {
+                                                        kind: Named {
+                                                            path: [
+                                                                "F",
+                                                            ],
+                                                            args: [],
+                                                        },
+                                                        span: Span {
+                                                            file: FileId(
+                                                                0,
+                                                            ),
+                                                            start: 272,
+                                                            end: 273,
+                                                        },
+                                                    },
+                                                ),
+                                            ],
+                                        },
+                                        span: Span {
+                                            file: FileId(
+                                                0,
+                                            ),
+                                            start: 266,
+                                            end: 274,
+                                        },
+                                    },
+                                    give: false,
+                                    attributes: [],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 260,
+                                        end: 274,
+                                    },
+                                },
+                            ],
+                            return_type: Some(
+                                TypeRef {
+                                    kind: Named {
+                                        path: [
+                                            "i32",
+                                        ],
+                                        args: [],
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 277,
+                                        end: 280,
+                                    },
+                                },
+                            ),
+                            where_clause: [],
+                            contract: [],
+                            body: Block(
+                                Block {
+                                    statements: [
+                                        Stmt {
+                                            kind: Binding {
+                                                mutable: true,
+                                                pattern: Pattern {
+                                                    kind: Name(
+                                                        "current",
+                                                    ),
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 285,
+                                                        end: 292,
+                                                    },
+                                                },
+                                                ty: None,
+                                                value: Expr {
+                                                    kind: Name(
+                                                        "state",
+                                                    ),
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 293,
+                                                        end: 298,
+                                                    },
+                                                },
+                                            },
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 281,
+                                                end: 299,
+                                            },
+                                        },
+                                        Stmt {
+                                            kind: Binding {
+                                                mutable: false,
+                                                pattern: Pattern {
+                                                    kind: Name(
+                                                        "callback",
+                                                    ),
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 303,
+                                                        end: 311,
+                                                    },
+                                                },
+                                                ty: None,
+                                                value: Expr {
+                                                    kind: Unary {
+                                                        op: BorrowMut,
+                                                        operand: Expr {
+                                                            kind: Member {
+                                                                object: Expr {
+                                                                    kind: Name(
+                                                                        "current",
+                                                                    ),
+                                                                    span: Span {
+                                                                        file: FileId(
+                                                                            0,
+                                                                        ),
+                                                                        start: 317,
+                                                                        end: 324,
+                                                                    },
+                                                                },
+                                                                member: Name(
+                                                                    "callback",
+                                                                ),
+                                                            },
+                                                            span: Span {
+                                                                file: FileId(
+                                                                    0,
+                                                                ),
+                                                                start: 317,
+                                                                end: 333,
+                                                            },
+                                                        },
+                                                    },
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 312,
+                                                        end: 333,
+                                                    },
+                                                },
+                                            },
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 299,
+                                                end: 334,
+                                            },
+                                        },
+                                        Stmt {
+                                            kind: Binding {
+                                                mutable: false,
+                                                pattern: Pattern {
+                                                    kind: Name(
+                                                        "value",
+                                                    ),
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 338,
+                                                        end: 343,
+                                                    },
+                                                },
+                                                ty: None,
+                                                value: Expr {
+                                                    kind: Unary {
+                                                        op: BorrowMut,
+                                                        operand: Expr {
+                                                            kind: Member {
+                                                                object: Expr {
+                                                                    kind: Name(
+                                                                        "current",
+                                                                    ),
+                                                                    span: Span {
+                                                                        file: FileId(
+                                                                            0,
+                                                                        ),
+                                                                        start: 349,
+                                                                        end: 356,
+                                                                    },
+                                                                },
+                                                                member: Name(
+                                                                    "value",
+                                                                ),
+                                                            },
+                                                            span: Span {
+                                                                file: FileId(
+                                                                    0,
+                                                                ),
+                                                                start: 349,
+                                                                end: 362,
+                                                            },
+                                                        },
+                                                    },
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 344,
+                                                        end: 362,
+                                                    },
+                                                },
+                                            },
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 334,
+                                                end: 363,
+                                            },
+                                        },
+                                        Stmt {
+                                            kind: Return(
+                                                Some(
+                                                    Expr {
+                                                        kind: Call {
+                                                            callee: Expr {
+                                                                kind: Name(
+                                                                    "callback",
+                                                                ),
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 370,
+                                                                    end: 378,
+                                                                },
+                                                            },
+                                                            arguments: [
+                                                                Argument {
+                                                                    spread: false,
+                                                                    value: Expr {
+                                                                        kind: Name(
+                                                                            "value",
+                                                                        ),
+                                                                        span: Span {
+                                                                            file: FileId(
+                                                                                0,
+                                                                            ),
+                                                                            start: 379,
+                                                                            end: 384,
+                                                                        },
+                                                                    },
+                                                                    span: Span {
+                                                                        file: FileId(
+                                                                            0,
+                                                                        ),
+                                                                        start: 379,
+                                                                        end: 384,
+                                                                    },
+                                                                },
+                                                            ],
+                                                        },
+                                                        span: Span {
+                                                            file: FileId(
+                                                                0,
+                                                            ),
+                                                            start: 370,
+                                                            end: 385,
+                                                        },
+                                                    },
+                                                ),
+                                            ),
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 363,
+                                                end: 385,
+                                            },
+                                        },
+                                    ],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 280,
+                                        end: 386,
+                                    },
+                                },
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 228,
+                                end: 386,
+                            },
+                        },
+                    ),
+                    attributes: [],
+                    public: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 228,
+                        end: 386,
+                    },
+                },
+                Item {
+                    kind: Function(
+                        Function {
+                            name: "factory",
+                            generics: [],
+                            params: [],
+                            return_type: Some(
+                                TypeRef {
+                                    kind: Impl(
+                                        [
+                                            TypeRef {
+                                                kind: Named {
+                                                    path: [
+                                                        "FnMut",
+                                                    ],
+                                                    args: [
+                                                        Type(
+                                                            TypeRef {
+                                                                kind: Tuple(
+                                                                    [
+                                                                        TypeRef {
+                                                                            kind: Reference {
+                                                                                lifetime: None,
+                                                                                mutable: true,
+                                                                                inner: TypeRef {
+                                                                                    kind: Named {
+                                                                                        path: [
+                                                                                            "Data",
+                                                                                        ],
+                                                                                        args: [],
+                                                                                    },
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 417,
+                                                                                        end: 421,
+                                                                                    },
+                                                                                },
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 412,
+                                                                                end: 421,
+                                                                            },
+                                                                        },
+                                                                    ],
+                                                                ),
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 411,
+                                                                    end: 422,
+                                                                },
+                                                            },
+                                                        ),
+                                                        Type(
+                                                            TypeRef {
+                                                                kind: Named {
+                                                                    path: [
+                                                                        "i32",
+                                                                    ],
+                                                                    args: [],
+                                                                },
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 424,
+                                                                    end: 427,
+                                                                },
+                                                            },
+                                                        ),
+                                                    ],
+                                                },
+                                                span: Span {
+                                                    file: FileId(
+                                                        0,
+                                                    ),
+                                                    start: 406,
+                                                    end: 427,
+                                                },
+                                            },
+                                        ],
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 401,
+                                        end: 427,
+                                    },
+                                },
+                            ),
+                            where_clause: [],
+                            contract: [],
+                            body: Block(
+                                Block {
+                                    statements: [
+                                        Stmt {
+                                            kind: Binding {
+                                                mutable: true,
+                                                pattern: Pattern {
+                                                    kind: Name(
+                                                        "count",
+                                                    ),
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 432,
+                                                        end: 437,
+                                                    },
+                                                },
+                                                ty: None,
+                                                value: Expr {
+                                                    kind: Literal(
+                                                        Integer(
+                                                            "0",
+                                                        ),
+                                                    ),
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 438,
+                                                        end: 439,
+                                                    },
+                                                },
+                                            },
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 428,
+                                                end: 440,
+                                            },
+                                        },
+                                        Stmt {
+                                            kind: Return(
+                                                Some(
+                                                    Expr {
+                                                        kind: Closure {
+                                                            move_capture: true,
+                                                            params: [
+                                                                ClosureParam {
+                                                                    name: "value",
+                                                                    ty: Some(
+                                                                        TypeRef {
+                                                                            kind: Reference {
+                                                                                lifetime: None,
+                                                                                mutable: true,
+                                                                                inner: TypeRef {
+                                                                                    kind: Named {
+                                                                                        path: [
+                                                                                            "Data",
+                                                                                        ],
+                                                                                        args: [],
+                                                                                    },
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 463,
+                                                                                        end: 467,
+                                                                                    },
+                                                                                },
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 458,
+                                                                                end: 467,
+                                                                            },
+                                                                        },
+                                                                    ),
+                                                                    span: Span {
+                                                                        file: FileId(
+                                                                            0,
+                                                                        ),
+                                                                        start: 452,
+                                                                        end: 467,
+                                                                    },
+                                                                },
+                                                            ],
+                                                            return_type: None,
+                                                            body: Block(
+                                                                Block {
+                                                                    statements: [
+                                                                        Stmt {
+                                                                            kind: Assign {
+                                                                                target: Expr {
+                                                                                    kind: Name(
+                                                                                        "count",
+                                                                                    ),
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 471,
+                                                                                        end: 476,
+                                                                                    },
+                                                                                },
+                                                                                op: Add,
+                                                                                value: Expr {
+                                                                                    kind: Literal(
+                                                                                        Integer(
+                                                                                            "1",
+                                                                                        ),
+                                                                                    ),
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 478,
+                                                                                        end: 479,
+                                                                                    },
+                                                                                },
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 471,
+                                                                                end: 480,
+                                                                            },
+                                                                        },
+                                                                        Stmt {
+                                                                            kind: Assign {
+                                                                                target: Expr {
+                                                                                    kind: Member {
+                                                                                        object: Expr {
+                                                                                            kind: Name(
+                                                                                                "value",
+                                                                                            ),
+                                                                                            span: Span {
+                                                                                                file: FileId(
+                                                                                                    0,
+                                                                                                ),
+                                                                                                start: 480,
+                                                                                                end: 485,
+                                                                                            },
+                                                                                        },
+                                                                                        member: Name(
+                                                                                            "n",
+                                                                                        ),
+                                                                                    },
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 480,
+                                                                                        end: 487,
+                                                                                    },
+                                                                                },
+                                                                                op: Add,
+                                                                                value: Expr {
+                                                                                    kind: Literal(
+                                                                                        Integer(
+                                                                                            "1",
+                                                                                        ),
+                                                                                    ),
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 489,
+                                                                                        end: 490,
+                                                                                    },
+                                                                                },
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 480,
+                                                                                end: 491,
+                                                                            },
+                                                                        },
+                                                                        Stmt {
+                                                                            kind: Return(
+                                                                                Some(
+                                                                                    Expr {
+                                                                                        kind: Member {
+                                                                                            object: Expr {
+                                                                                                kind: Name(
+                                                                                                    "value",
+                                                                                                ),
+                                                                                                span: Span {
+                                                                                                    file: FileId(
+                                                                                                        0,
+                                                                                                    ),
+                                                                                                    start: 498,
+                                                                                                    end: 503,
+                                                                                                },
+                                                                                            },
+                                                                                            member: Name(
+                                                                                                "n",
+                                                                                            ),
+                                                                                        },
+                                                                                        span: Span {
+                                                                                            file: FileId(
+                                                                                                0,
+                                                                                            ),
+                                                                                            start: 498,
+                                                                                            end: 505,
+                                                                                        },
+                                                                                    },
+                                                                                ),
+                                                                            ),
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 491,
+                                                                                end: 505,
+                                                                            },
+                                                                        },
+                                                                    ],
+                                                                    span: Span {
+                                                                        file: FileId(
+                                                                            0,
+                                                                        ),
+                                                                        start: 470,
+                                                                        end: 506,
+                                                                    },
+                                                                },
+                                                            ),
+                                                        },
+                                                        span: Span {
+                                                            file: FileId(
+                                                                0,
+                                                            ),
+                                                            start: 447,
+                                                            end: 506,
+                                                        },
+                                                    },
+                                                ),
+                                            ),
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 440,
+                                                end: 506,
+                                            },
+                                        },
+                                    ],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 427,
+                                        end: 507,
+                                    },
+                                },
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 387,
+                                end: 507,
+                            },
+                        },
+                    ),
+                    attributes: [],
+                    public: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 387,
+                        end: 507,
+                    },
+                },
+                Item {
+                    kind: Function(
+                        Function {
+                            name: "main",
+                            generics: [],
+                            params: [],
+                            return_type: Some(
+                                TypeRef {
+                                    kind: Named {
+                                        path: [
+                                            "i32",
+                                        ],
+                                        args: [],
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 519,
+                                        end: 522,
+                                    },
+                                },
+                            ),
+                            where_clause: [],
+                            contract: [],
+                            body: Block(
+                                Block {
+                                    statements: [
+                                        Stmt {
+                                            kind: Return(
+                                                Some(
+                                                    Expr {
+                                                        kind: Binary {
+                                                            op: Subtract,
+                                                            left: Expr {
+                                                                kind: Call {
+                                                                    callee: Expr {
+                                                                        kind: Name(
+                                                                            "run",
+                                                                        ),
+                                                                        span: Span {
+                                                                            file: FileId(
+                                                                                0,
+                                                                            ),
+                                                                            start: 530,
+                                                                            end: 533,
+                                                                        },
+                                                                    },
+                                                                    arguments: [
+                                                                        Argument {
+                                                                            spread: false,
+                                                                            value: Expr {
+                                                                                kind: Call {
+                                                                                    callee: Expr {
+                                                                                        kind: Name(
+                                                                                            "make",
+                                                                                        ),
+                                                                                        span: Span {
+                                                                                            file: FileId(
+                                                                                                0,
+                                                                                            ),
+                                                                                            start: 534,
+                                                                                            end: 538,
+                                                                                        },
+                                                                                    },
+                                                                                    arguments: [
+                                                                                        Argument {
+                                                                                            spread: false,
+                                                                                            value: Expr {
+                                                                                                kind: Call {
+                                                                                                    callee: Expr {
+                                                                                                        kind: Name(
+                                                                                                            "factory",
+                                                                                                        ),
+                                                                                                        span: Span {
+                                                                                                            file: FileId(
+                                                                                                                0,
+                                                                                                            ),
+                                                                                                            start: 539,
+                                                                                                            end: 546,
+                                                                                                        },
+                                                                                                    },
+                                                                                                    arguments: [],
+                                                                                                },
+                                                                                                span: Span {
+                                                                                                    file: FileId(
+                                                                                                        0,
+                                                                                                    ),
+                                                                                                    start: 539,
+                                                                                                    end: 548,
+                                                                                                },
+                                                                                            },
+                                                                                            span: Span {
+                                                                                                file: FileId(
+                                                                                                    0,
+                                                                                                ),
+                                                                                                start: 539,
+                                                                                                end: 548,
+                                                                                            },
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                                span: Span {
+                                                                                    file: FileId(
+                                                                                        0,
+                                                                                    ),
+                                                                                    start: 534,
+                                                                                    end: 549,
+                                                                                },
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 534,
+                                                                                end: 549,
+                                                                            },
+                                                                        },
+                                                                    ],
+                                                                },
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 530,
+                                                                    end: 550,
+                                                                },
+                                                            },
+                                                            right: Expr {
+                                                                kind: Literal(
+                                                                    Integer(
+                                                                        "42",
+                                                                    ),
+                                                                ),
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 551,
+                                                                    end: 553,
+                                                                },
+                                                            },
+                                                        },
+                                                        span: Span {
+                                                            file: FileId(
+                                                                0,
+                                                            ),
+                                                            start: 530,
+                                                            end: 553,
+                                                        },
+                                                    },
+                                                ),
+                                            ),
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 523,
+                                                end: 553,
+                                            },
+                                        },
+                                    ],
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 522,
+                                        end: 554,
+                                    },
+                                },
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 508,
+                                end: 554,
+                            },
+                        },
+                    ),
+                    attributes: [],
+                    public: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 508,
+                        end: 554,
+                    },
+                },
+            ],
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 0,
+                end: 555,
+            },
+        },
+        tokens: [
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 0,
+                    end: 6,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 6,
+                    end: 7,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 7,
+                    end: 11,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 11,
+                    end: 12,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 12,
+                    end: 16,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 16,
+                    end: 17,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 17,
+                    end: 20,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Semicolon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 20,
+                    end: 21,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 21,
+                    end: 22,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 22,
+                    end: 23,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 23,
+                    end: 26,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 26,
+                    end: 27,
+                },
+            },
+            Token {
+                kind: Newline,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 27,
+                    end: 28,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 28,
+                    end: 35,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 35,
+                    end: 36,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 36,
+                    end: 41,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Lt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 41,
+                    end: 42,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 42,
+                    end: 43,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Gt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 43,
+                    end: 44,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 44,
+                    end: 45,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 45,
+                    end: 52,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 52,
+                    end: 53,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 53,
+                    end: 58,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 58,
+                    end: 59,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 59,
+                    end: 69,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Semicolon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 69,
+                    end: 70,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 70,
+                    end: 78,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 78,
+                    end: 79,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 79,
+                    end: 80,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Semicolon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 80,
+                    end: 81,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 81,
+                    end: 86,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 86,
+                    end: 87,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 87,
+                    end: 91,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 91,
+                    end: 92,
+                },
+            },
+            Token {
+                kind: Newline,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 92,
+                    end: 93,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 93,
+                    end: 95,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 95,
+                    end: 96,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 96,
+                    end: 100,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Lt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 100,
+                    end: 101,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 101,
+                    end: 102,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 102,
+                    end: 103,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 103,
+                    end: 108,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 108,
+                    end: 109,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Amp,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 109,
+                    end: 110,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 110,
+                    end: 113,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 113,
+                    end: 114,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 114,
+                    end: 118,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 118,
+                    end: 119,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Arrow,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 119,
+                    end: 121,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 121,
+                    end: 124,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Gt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 124,
+                    end: 125,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 125,
+                    end: 126,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 126,
+                    end: 134,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 134,
+                    end: 135,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 135,
+                    end: 136,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 136,
+                    end: 137,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Arrow,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 137,
+                    end: 139,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 139,
+                    end: 144,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Lt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 144,
+                    end: 145,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 145,
+                    end: 146,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Gt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 146,
+                    end: 147,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 147,
+                    end: 148,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 148,
+                    end: 154,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 154,
+                    end: 155,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 155,
+                    end: 160,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    ColonColon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 160,
+                    end: 162,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Lt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 162,
+                    end: 163,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 163,
+                    end: 164,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Gt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 164,
+                    end: 165,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 165,
+                    end: 166,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 166,
+                    end: 171,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 171,
+                    end: 172,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 172,
+                    end: 181,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 181,
+                    end: 182,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 182,
+                    end: 183,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Comma,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 183,
+                    end: 184,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 184,
+                    end: 192,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 192,
+                    end: 193,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 193,
+                    end: 201,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Comma,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 201,
+                    end: 202,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 202,
+                    end: 207,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 207,
+                    end: 208,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 208,
+                    end: 212,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 212,
+                    end: 213,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 213,
+                    end: 217,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 217,
+                    end: 218,
+                },
+            },
+            Token {
+                kind: Integer,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 218,
+                    end: 219,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Comma,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 219,
+                    end: 220,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 220,
+                    end: 221,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 221,
+                    end: 222,
+                },
+            },
+            Token {
+                kind: Integer,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 222,
+                    end: 224,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 224,
+                    end: 225,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 225,
+                    end: 226,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 226,
+                    end: 227,
+                },
+            },
+            Token {
+                kind: Newline,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 227,
+                    end: 228,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 228,
+                    end: 230,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 230,
+                    end: 231,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 231,
+                    end: 234,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Lt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 234,
+                    end: 235,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 235,
+                    end: 236,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 236,
+                    end: 237,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 237,
+                    end: 242,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 242,
+                    end: 243,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Amp,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 243,
+                    end: 244,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 244,
+                    end: 247,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 247,
+                    end: 248,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 248,
+                    end: 252,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 252,
+                    end: 253,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Arrow,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 253,
+                    end: 255,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 255,
+                    end: 258,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Gt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 258,
+                    end: 259,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 259,
+                    end: 260,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 260,
+                    end: 265,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 265,
+                    end: 266,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 266,
+                    end: 271,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Lt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 271,
+                    end: 272,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 272,
+                    end: 273,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Gt,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 273,
+                    end: 274,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 274,
+                    end: 275,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Arrow,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 275,
+                    end: 277,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 277,
+                    end: 280,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 280,
+                    end: 281,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 281,
+                    end: 284,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 284,
+                    end: 285,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 285,
+                    end: 292,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Eq,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 292,
+                    end: 293,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 293,
+                    end: 298,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Semicolon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 298,
+                    end: 299,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 299,
+                    end: 302,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 302,
+                    end: 303,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 303,
+                    end: 311,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Eq,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 311,
+                    end: 312,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Amp,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 312,
+                    end: 313,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 313,
+                    end: 316,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 316,
+                    end: 317,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 317,
+                    end: 324,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Dot,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 324,
+                    end: 325,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 325,
+                    end: 333,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Semicolon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 333,
+                    end: 334,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 334,
+                    end: 337,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 337,
+                    end: 338,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 338,
+                    end: 343,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Eq,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 343,
+                    end: 344,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Amp,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 344,
+                    end: 345,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 345,
+                    end: 348,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 348,
+                    end: 349,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 349,
+                    end: 356,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Dot,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 356,
+                    end: 357,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 357,
+                    end: 362,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Semicolon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 362,
+                    end: 363,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 363,
+                    end: 369,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 369,
+                    end: 370,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 370,
+                    end: 378,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 378,
+                    end: 379,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 379,
+                    end: 384,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 384,
+                    end: 385,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 385,
+                    end: 386,
+                },
+            },
+            Token {
+                kind: Newline,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 386,
+                    end: 387,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 387,
+                    end: 389,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 389,
+                    end: 390,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 390,
+                    end: 397,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 397,
+                    end: 398,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 398,
+                    end: 399,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Arrow,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 399,
+                    end: 401,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 401,
+                    end: 405,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 405,
+                    end: 406,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 406,
+                    end: 411,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 411,
+                    end: 412,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Amp,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 412,
+                    end: 413,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 413,
+                    end: 416,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 416,
+                    end: 417,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 417,
+                    end: 421,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 421,
+                    end: 422,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Arrow,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 422,
+                    end: 424,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 424,
+                    end: 427,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 427,
+                    end: 428,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 428,
+                    end: 431,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 431,
+                    end: 432,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 432,
+                    end: 437,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Eq,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 437,
+                    end: 438,
+                },
+            },
+            Token {
+                kind: Integer,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 438,
+                    end: 439,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Semicolon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 439,
+                    end: 440,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 440,
+                    end: 446,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 446,
+                    end: 447,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 447,
+                    end: 451,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 451,
+                    end: 452,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 452,
+                    end: 457,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Colon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 457,
+                    end: 458,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Amp,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 458,
+                    end: 459,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 459,
+                    end: 462,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 462,
+                    end: 463,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 463,
+                    end: 467,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 467,
+                    end: 468,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    FatArrow,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 468,
+                    end: 470,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 470,
+                    end: 471,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 471,
+                    end: 476,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    PlusEq,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 476,
+                    end: 478,
+                },
+            },
+            Token {
+                kind: Integer,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 478,
+                    end: 479,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Semicolon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 479,
+                    end: 480,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 480,
+                    end: 485,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Dot,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 485,
+                    end: 486,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 486,
+                    end: 487,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    PlusEq,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 487,
+                    end: 489,
+                },
+            },
+            Token {
+                kind: Integer,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 489,
+                    end: 490,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Semicolon,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 490,
+                    end: 491,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 491,
+                    end: 497,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 497,
+                    end: 498,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 498,
+                    end: 503,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Dot,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 503,
+                    end: 504,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 504,
+                    end: 505,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 505,
+                    end: 506,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 506,
+                    end: 507,
+                },
+            },
+            Token {
+                kind: Newline,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 507,
+                    end: 508,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 508,
+                    end: 510,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 510,
+                    end: 511,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 511,
+                    end: 515,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 515,
+                    end: 516,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 516,
+                    end: 517,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Arrow,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 517,
+                    end: 519,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 519,
+                    end: 522,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 522,
+                    end: 523,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 523,
+                    end: 529,
+                },
+            },
+            Token {
+                kind: Whitespace,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 529,
+                    end: 530,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 530,
+                    end: 533,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 533,
+                    end: 534,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 534,
+                    end: 538,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 538,
+                    end: 539,
+                },
+            },
+            Token {
+                kind: Identifier,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 539,
+                    end: 546,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    LParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 546,
+                    end: 547,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 547,
+                    end: 548,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 548,
+                    end: 549,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RParen,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 549,
+                    end: 550,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    Minus,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 550,
+                    end: 551,
+                },
+            },
+            Token {
+                kind: Integer,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 551,
+                    end: 553,
+                },
+            },
+            Token {
+                kind: Symbol(
+                    RBrace,
+                ),
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 553,
+                    end: 554,
+                },
+            },
+            Token {
+                kind: Newline,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 554,
+                    end: 555,
+                },
+            },
+            Token {
+                kind: Eof,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 555,
+                    end: 555,
+                },
+            },
+        ],
+        diagnostics: [],
+        deferred_attributes: [],
+        cfg_removed: [],
+    },
+]

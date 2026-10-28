@@ -1,0 +1,30 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author194/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/main.zil",
+    "--stop-after",
+    "verify",
+    "--json",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/emitted"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address",
+  "source_commit": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+  "source_status_at_build": "",
+  "cli_sha256": "029543198554cd97118e2f4bc4a5b75ef0767ea5cbbf872f5e4fa075439ab119",
+  "cli_bytes": 25447872,
+  "phase_limit": "Verify",
+  "inputs": {
+    "main.zil": "b1f0ec18be4f14d8d944eb99d84add70c969d98f767b1e584801f5cedbfe3bc5"
+  },
+  "start_epoch": 1793166688.0203497,
+  "environment": {
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "scope": "197 read-only preflight, no compiler rebuild or production edits",
+  "exit_code": 0,
+  "end_epoch": 1793166688.0426486,
+  "stdout_sha256": "fe7822bb0f0b44f7c817fb7b3952fcf543f5ad06573283bedd5d8abe5a626607",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

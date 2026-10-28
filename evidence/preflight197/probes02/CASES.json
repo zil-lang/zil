@@ -1,0 +1,107 @@
+{
+  "kind": "PreflightInputs",
+  "task": "197",
+  "case_count": 12,
+  "cases": [
+    {
+      "name": "01-existing-state-f-sibling",
+      "purpose": "Existing State<F> owning callback and concrete i32 sibling address control",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "02-copy-t-package-no-callback",
+      "purpose": "Ordinary Copy T package and field control without a callable role",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "03-state-t-f-construction",
+      "purpose": "Actual i32 State<T,F> factory result and direct field call",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "04-state-t-f-input-signature",
+      "purpose": "Unused mixed State<T,F> input signature still requires definition-time admission",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "05-copy-t-with-old-state-f",
+      "purpose": "Old owning State<F> plus ordinary Copy T must keep the explicit 194 boundary",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "06-phantom-t-f-first",
+      "purpose": "Same F with phantom data T still needs distinct nominal identity; reversed declaration order",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "07-same-f-different-width-t",
+      "purpose": "Same factory ClosureId with distinct i32/i64 State data; T absent from the F bound",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "08-same-f-nominal-a-b",
+      "purpose": "Same layout nominal A/B and same F require separate State instances",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "09-cross-module-copy-state",
+      "purpose": "Three real modules export and instantiate State<T,F> with a nominal Copy record",
+      "modules": [
+        "main.zil",
+        "model.zil",
+        "state.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "10-mixed-callback-value-address",
+      "purpose": "Copy T sibling address beside callback and separate ByteBuffer owner",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "11-existing-state-f-record-address",
+      "purpose": "192 existing State<F> record sibling borrow control",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    },
+    {
+      "name": "12-mixed-held-field-window-negative",
+      "purpose": "Nearest forbidden alias: retained shared T field window overlaps later exclusive callback argument",
+      "modules": [
+        "main.zil"
+      ],
+      "entry": "main.zil"
+    }
+  ],
+  "executed": false,
+  "correction": "Same twelve positions. Package data parameters use unbounded <T,F>; Copy remains only on function parameters. Existing package profile requires a manages field, which is added where omitted. Original bytes remain in probes01."
+}
