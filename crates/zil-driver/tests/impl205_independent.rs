@@ -752,6 +752,10 @@ fn verify_pair(label: &str, module: &TypedModule, candidate: &CandidatePlan, acc
         } else {
             let errors = result.unwrap_err();
             assert!(
+                !errors.iter().any(|d| d.code == "E-VERIFY-PLAN-IDENTITY"),
+                "{label}: identity alone does not exercise the ownership kernel: {errors:#?}"
+            );
+            assert!(
                 errors
                     .iter()
                     .any(|d| d.phase == Phase::Verify && d.category == ResultCategory::SafeReject),
@@ -785,12 +789,11 @@ fn typed_attack(label: &str, module: &TypedModule, original: &CandidatePlan) {
             false,
         );
     }
-    verify_pair(
-        &format!("{label}-untrusted-original-candidate"),
-        module,
-        original,
-        false,
-    );
+    // Candidate fields are untrusted. Give the hostile module its matching
+    // public identity so this attack reaches the independent semantic kernel.
+    let mut forged = original.clone();
+    forged.module_fingerprint = module.fingerprint();
+    verify_pair(&format!("{label}-forged-candidate"), module, &forged, false);
 }
 
 #[test]
