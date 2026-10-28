@@ -377,6 +377,20 @@ Types独立核完整类型实参与所有实际值参数/明确结果约束；�
 
 新增表、节点、类型树、名字、实例复制/比较、替换展开、队列及效应传播均在分配或展开前计费；raw Core入口同样有界，不以正常前端输出代替检查。原默认限额和产品阈值保持。运行时源CT正规化保留表及全部实参，CT执行普通StoreElement模板或TypeApply本片明确E-CT-FORBIDDEN；包装不能隐藏运行时资源或foreign调用。公共Core合同发布采用schema/Wire26及新指纹域；没有为新Core节点伪造TypedIR opcode。登记本条不是实现验收，须原失败源、模块/作用域/名义身份、raw元数据、机器/故障清理和非作者证据闭合。
 
+#### 8.2.2 独立 State 绑定与有限双环境元素（203）
+
+在201/202有限入口之上，新增恰好两个callable声明F/G的拥有State合同。CoreFunction.state_parameters独立于direct callable_parameters；首片非空表恰好一个真实拥有参数及两个CoreStateBinding。每个binding记录generic_index、词法名字、kind、完整签名及直接字段selectors；按函数callable声明顺序index0/1排列。selectors非空、有序、互不交叠、完整对应实际符号Package字段的Named binder；新入口总计两个callback字段，各F/G一项。一个State实参只求值和拥有转交一次，不虚构两个运行时角色或联合helper事件。构造器两个真实direct F/G输入仍走原表，拥有State结果单独分类。
+
+非空State表与retained普通type_parameters、direct callable_parameters、callable_return、foreign及receiver互斥；可含197已有限特化的普通Copy T。旧单F State继续空新表、原lending与原费用。新双F/G bound结果限Copy。绑定声明身份与实际ClosureId分开：两个不同拥有值即使同为C，F:Fn与G:FnOnce仍是两个声明槽；不能用实际C更强的能力替代G限制。
+
+名义实例保留定义身份、完整普通T与固定字段声明顺序中的两个实际callback类型。通过真实selectors映射函数声明顺序，一次同时替换；交换State<F,G>/State<G,F>或改变函数binder声明顺序均不得错误合并。phantom T、模块身份和同布局异名类型保持。实际[C,C]不合并字段、实例值或责任。
+
+声明模式来源属于当前函数实例的原符号字段。局部Name、move、let、完整注解、字段取出、普通完整T helper/TypeApply、Store与错误联合两侧均保留此来源；?只投影成功侧。来源只选择既有调用模式，不产生loan或拥有权限；取出G再调用及作为direct helper实参仍核声明能力。借入G:FnOnce不能消费，拥有pop得到的完整值可以按G声明调用。进入本片不能保存声明来源的closure capture、opaque返回、函数指针等擦除通道明确Unsupported。不能从全局具体Package/ClosureId反推来源，也不能在来源缺失时静默回退到实际更强kind；raw重复节点身份出现冲突来源须拒绝。进入另一函数后依据其自身声明表核对。
+
+有限StoreElement同批扩展为总计一或两个直接callback字段、最多两个不同的具体自含ClosureId；其他字段保持201有限Copy/直接Managed形状。新异环境路径的两个实际callback结果须Copy，旧单根/同根lending保持。符号F/G定义按声明满足资格，不以某次实际C=C作为放行条件。Types、Analyze、Verify各自检查全部实际捕获根、未用资源定义及既有capture关闭边界；Verify独立重建两根capture DAG、实际flags、完整非零元素大小/对齐。合法公共子图的类型布局可以复用，各实际值/字段/元素的借用、移动和清理责任不可去重。直接Store及含Store Package capture、递归拥有、未开放的嵌套callback Package capture仍关闭。
+
+push/pop/reserve前缀、父窗口、声明序清理、callee先于参数准备与失败责任沿既有规则；新表不替代Analyze/Verify具体指令核验。raw TypedIR只携带实际能力，其内存安全判定不得冒称恢复源级较弱bound。新增元数据和双根图的长度、名字、类型、selectors、比较/复制与队列在分配/展开前计费，旧无新表和单根路径保持原费用。CT运行时正规化完整保留表并预费；CT执行State模板及wrapper隐藏执行明确E-CT-FORBIDDEN。公共schema/Wire27及新指纹域登记不表示验收，不为Core表伪造TypedIR opcode。一般异类型lending、dyn、保留、挂起和并发义务仍未由本片完成。
+
 ### 8.3 有限错误联合的直接拥有成功载荷
 
 在错误侧E为已支持有限Copy值、成功侧R为已支持直接资源的`E!R`返回中，显式`contract { result(create) }`或`result(give)`作用于成功载荷R，形成普通非Copy联合Value `Sum(E, Managed<R>)`；外层联合本身不是资源Desc或额外Managed。未声明拥有模式仍按R的默认类别解析，不从资源描述自动创造管理责任。create/give继续要求真实来源、实际转交和唯一清理。
