@@ -45,5 +45,8 @@
   "registry_matches_actual": true,
   "production_and_tests_identical_to_original_reviewed_candidate": true,
   "new_discovery_not_covered_by_original_review": "184 source implementation found Analyze preflight had not charged the new lending vectors; old185 raw attack evidence covers Verify and Wire only. 184 repairs and tests Analyze separately.",
-  "test_reruns": "NotRun: only registry and evidence changed; exact source identity checked."
+  "test_reruns": "NotRun: only registry and evidence changed; exact source identity checked.",
+  "implementation_commit": "3c18ce7884351f1f234b36f38e31c9dad1450e3d",
+  "original_review_receipt": "evidence/reviews/185/REVIEW.json",
+  "binding_note": "The standard implementation_commit key binds this metadata-only followup to3c18. Original execution receipts remain at6f/88a; production/test byte identity above is the only bridge, not a rerun or added Analyze coverage."
 }
