@@ -741,6 +741,76 @@ fn repaired_legacy_definition_check_preserves_actual_lending_callback_use() {
     native("legacy-lending-after-definition-repair", source, "", 0);
 }
 
+#[test]
+fn conditional_alias_copy_and_dereference_preserve_both_real_field_origins() {
+    let body = r#"var next=state;
+let first=&next.a;let second=&next.b;
+let selected=if flag{first}else{second};let copied=selected;let projected=&*copied;
+emit(projected());next.a=replacement;return next"#;
+    let function = |body: &str| {
+        format!(
+            "fn revise<T:Copy,F:Fn()->i32>(state:State<T,F>,replacement:F,flag:bool)->State<T,F>{{{body}}}"
+        )
+    };
+    for (flag, expected) in [(true, "AAMZCB"), (false, "BAMZCB")] {
+        let source = format!(
+            "{RESOURCE}{STATE}{}fn main()->i32{{let state=revise(pack(make(65),make(66),0),make(67),{flag});emit(77);return state.a()+state.b()-133}}",
+            function(body)
+        );
+        native(
+            &format!("conditional-copied-projected-alias-{flag}"),
+            &source,
+            expected,
+            0,
+        );
+    }
+    let sibling = body.replace("emit(projected());", "next.tag=next.tag;emit(projected());");
+    accepted(
+        "conditional-copied-alias-sibling-write",
+        &format!("{RESOURCE}{STATE}{}fn main(){{}}", function(&sibling)),
+    );
+    let bad = body.replace(
+        "emit(projected());next.a=replacement;",
+        "next.a=replacement;emit(projected());",
+    );
+    reject(
+        "conditional-copied-projected-alias-after-refill",
+        &format!("{RESOURCE}{STATE}{}fn main(){{}}", function(&bad)),
+        &[Phase::Expand],
+        ResultCategory::SafeReject,
+        Some("E-GENERIC-ARGUMENT"),
+    );
+}
+
+#[test]
+fn alias_join_excludes_returned_branches_and_keeps_fresh_pointer_assignments() {
+    let function = |body: &str| {
+        format!(
+            "{RESOURCE}{STATE}fn revise<T:Copy,F:Fn()->i32>(state:State<T,F>,replacement:F,flag:bool)->State<T,F>{{var next=state;{body}}}fn main(){{}}"
+        )
+    };
+    let returned = "let view=&next.a;if flag{next.a=replacement;return next}view();return next";
+    accepted("alias-returned-invalid-branch-is-dead", &function(returned));
+    let fresh = "var view=&next.a;if flag{let moved=next.a;next.a=moved;view=&next.a}else{view=&next.b}view();return next";
+    accepted("alias-conditional-fresh-assignment", &function(fresh));
+    let no_refresh = fresh.replace("next.a=moved;view=&next.a", "next.a=moved");
+    reject(
+        "alias-conditional-one-stale-assignment",
+        &function(&no_refresh),
+        &[Phase::Expand],
+        ResultCategory::SafeReject,
+        Some("E-GENERIC-ARGUMENT"),
+    );
+    let not_returned = returned.replace("next.a=replacement;return next", "next.a=replacement");
+    reject(
+        "alias-reachable-invalid-branch",
+        &function(&not_returned),
+        &[Phase::Expand],
+        ResultCategory::SafeReject,
+        Some("E-GENERIC-ARGUMENT"),
+    );
+}
+
 fn verify_pair(label: &str, module: &TypedModule, candidate: &CandidatePlan, accept: bool) {
     let case = Case::new(label);
     let limits = Limits::default();
