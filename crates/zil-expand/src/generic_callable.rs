@@ -19,6 +19,14 @@ pub(crate) struct CallableTemplates {
     pub roles: Vec<CallableTemplate>,
     pub state_bindings: Vec<CallableTemplate>,
     pub owned_state: bool,
+    /// One type slot, but two real owning inputs. Syntax classification keeps
+    /// its old role storage until the paid selector pass publishes the owner.
+    pub state_replacement: Option<StateReplacement>,
+}
+#[derive(Clone, Copy)]
+pub(crate) struct StateReplacement {
+    pub owner: usize,
+    pub replacement: usize,
 }
 /// A borrowed lexical capability set. This is never an ownership certificate.
 /// Empty/single paths preserve their previous traversal and accounting.
@@ -315,6 +323,85 @@ pub(crate) fn expanded_template(
         })
     })?;
     if let Some(bounds) = classified.as_mut()
+        && let Some(profile) = bounds.state_replacement
+    {
+        let owner = &function.params[profile.owner].ty;
+        let result = function.return_type.as_ref().ok_or_else(|| {
+            error(
+                function.span,
+                "State replacement requires its complete State result",
+            )
+        })?;
+        let (
+            TypeKind::Named { path, args },
+            TypeKind::Named {
+                path: result_path,
+                args: result_args,
+            },
+        ) = (&grouped(owner).kind, &grouped(result).kind)
+        else {
+            return Err(unsupported(
+                owner.span,
+                "State replacement requires a direct complete Package",
+            ));
+        };
+        let aggregate = (path.len() == 1 && args.is_empty())
+            .then(|| declarations.get(&path[0]))
+            .flatten()
+            .filter(|aggregate| aggregate.kind == AggregateKind::Package)
+            .ok_or_else(|| {
+                unsupported(owner.span, "State replacement requires a complete Package")
+            })?;
+        let name = bounds
+            .single_generic()
+            .expect("classified single-F replacement");
+        let work = aggregate
+            .fields
+            .len()
+            .saturating_add(name.len())
+            .saturating_add(path[0].len())
+            .saturating_add(result_path.iter().map(String::len).sum::<usize>())
+            .saturating_add(6);
+        *remaining = remaining.checked_sub(work).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "State replacement selector work budget exceeded",
+                Some(owner.span),
+            )
+        })?;
+        if path != result_path || !result_args.is_empty() {
+            return Err(unsupported(
+                result.span,
+                "State replacement must return the same complete nominal State type",
+            ));
+        }
+        let mut fields = Vec::new();
+        for (index, field) in aggregate.fields.iter().enumerate() {
+            if parameter_mode(&field.ty, name) == Some(None) && !field.manages {
+                fields.push(index as u32);
+            } else if refers(&field.ty, name) {
+                return Err(unsupported(
+                    field.span,
+                    "State replacement requires direct callback fields",
+                ));
+            }
+        }
+        if !(1..=2).contains(&fields.len()) {
+            return Err(unsupported(
+                owner.span,
+                "State replacement requires one or two direct fields of its single callable type",
+            ));
+        }
+        let position = bounds
+            .roles
+            .iter()
+            .position(|role| role.index == profile.owner)
+            .expect("classified State owner");
+        let mut binding = bounds.roles.remove(position);
+        binding.fields = fields;
+        bounds.state_bindings.push(binding);
+    }
+    if let Some(bounds) = classified.as_mut()
         && let Some(names) = bounds.dual_names()
     {
         // Only the new two-root profile scans and copies selectors here. Pay
@@ -416,6 +503,7 @@ fn template_with_state(
     }
     let mut roles = Vec::new();
     let mut state_bindings = Vec::new();
+    let mut state_replacement = None;
     let dual = callables.len() == 2;
     let mut owned_state = false;
     for (generic_index, parameter) in callables.iter().enumerate() {
@@ -466,25 +554,33 @@ fn template_with_state(
             .iter()
             .any(|p| is_state(&p.ty, &parameter.name, dual));
         let owning = returns_state || takes_state;
-        // Two occurrences of one F are admitted only at the complete owning
-        // constructor boundary. A State plus another F, or two State inputs,
-        // still requires a distinct profile and cannot use this exception.
+        // Two direct F inputs remain the constructor profile. A single State
+        // and a direct owned F have a separate, complete-returning boundary.
         let constructor = returns_state && !takes_state;
         owned_state |= owning;
         let mut count = 0;
         let mut first_mode = None;
+        let mut state_owner = None;
+        let mut direct_owner = None;
         for (index, input) in function.params.iter().enumerate() {
             if !refers(&input.ty, &parameter.name) && !is_state(&input.ty, &parameter.name, dual) {
                 continue;
             }
             let mode = parameter_mode(&input.ty, &parameter.name);
-            if (mode.is_none() && !is_state(&input.ty, &parameter.name, dual)) || input.give {
+            let state_input = mode.is_none() && is_state(&input.ty, &parameter.name, dual);
+            if (mode.is_none() && !state_input) || input.give {
                 return Err(unsupported(
                     input.span,
                     "callable parameter must be F, &F, &mut F or a single owning State",
                 ));
             }
-            if owning && count != 0 && !constructor {
+            let mixed_pair = !dual
+                && returns_state
+                && takes_state
+                && count == 1
+                && ((state_input && direct_owner.is_some() && state_owner.is_none())
+                    || (mode == Some(None) && state_owner.is_some() && direct_owner.is_none()));
+            if owning && count != 0 && !constructor && !mixed_pair {
                 return Err(unsupported(
                     input.span,
                     "owning State operations require one State input; two direct F inputs require a complete State result",
@@ -504,6 +600,11 @@ fn template_with_state(
                 ));
             }
             first_mode = Some(mode);
+            if state_input {
+                state_owner = Some(index);
+            } else if mode.is_none() {
+                direct_owner = Some(index);
+            }
             match (kind, mode) {
                 (CallableKind::FnMut, None) if !owning => {
                     return Err(unsupported(
@@ -557,6 +658,12 @@ fn template_with_state(
                 "callable bound requires a concrete environment parameter",
             ));
         }
+        if !dual && returns_state && takes_state && count == 2 {
+            state_replacement = Some(StateReplacement {
+                owner: state_owner.expect("mixed profile has one State"),
+                replacement: direct_owner.expect("mixed profile has one owned F"),
+            });
+        }
     }
     if dual && owned_state {
         if !state_bindings.is_empty() {
@@ -581,5 +688,6 @@ fn template_with_state(
         roles,
         state_bindings,
         owned_state,
+        state_replacement,
     }))
 }
