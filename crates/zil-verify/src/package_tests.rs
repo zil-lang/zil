@@ -290,7 +290,6 @@ fn package_names_field_names_and_manages_admission_are_checked() {
             fields: vec![("r".into(), owned()), ("r".into(), Type::I32)],
         },
     ] {
-        let nested = matches!(&extra, Type::Package { .. });
         let mut m = plain();
         m.functions[0].locals[0].ty = ty;
         rejected(m, "E-VERIFY-PACKAGE");
@@ -349,6 +348,7 @@ fn package_fields_reject_noncopy_and_nested_owners() {
         let Type::Package { fields, .. } = &mut m.functions[0].locals[0].ty else {
             unreachable!()
         };
+        let nested = matches!(&extra, Type::Package { .. });
         fields[2].1 = extra;
         if nested {
             // 206 admits this complete nested type, but the unchanged raw
