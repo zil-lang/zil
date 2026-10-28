@@ -1,0 +1,12 @@
+
+running 7 tests
+test a_nonreturning_prefix_still_writes_its_actual_desc_source ... ok
+test all_three_phases_enforce_twenty_four_static_helpers_at_the_exact_depth ... ok
+test exact_four_node_loop_distinguishes_prefix_body_and_return_suffix ... ok
+test exact_work_frontiers_are_independent_and_fresh_requests_recover ... ok
+test finite_once_zero_or_one_calls_keeps_its_original_trace_domain ... ok
+test no_return_child_keeps_its_prefix_but_never_reaches_the_parent_suffix ... ok
+test two_loop_call_sites_preserve_argument_order_environment_and_single_cleanup ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+

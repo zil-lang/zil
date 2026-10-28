@@ -1,0 +1,38 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-CALLABLE-CONTRACT",
+            message: "callback Hold/Call/write bound/Cleanup/traces differ from the independent contract",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 1,
+                    end: 92,
+                },
+            ),
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-CALLABLE-CONTRACT",
+            message: "callback Hold/Call/write bound/Cleanup/traces differ from the independent contract",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 1,
+                    end: 92,
+                },
+            ),
+            notes: [],
+        },
+    ],
+]
