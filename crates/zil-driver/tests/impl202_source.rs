@@ -212,3 +212,140 @@ fn reserve<U: StoreElement>(items: Store<U>, count: i64) -> bool { return child:
 "#);
     native("ordinary-alpha-forward", &source, "1A2BZ", 0);
 }
+
+#[test]
+fn pop_template_success_retains_its_owned_callback_for_a_nested_helper() {
+    let prefix = &FACTORY[..FACTORY.find("fn run<").unwrap()];
+    let source = format!(
+        r#"{prefix}
+fn invoke<F: FnMut() -> i32>(callback: &mut F) -> i32 {{ return callback() }}
+fn run<F: FnMut() -> i32>(pair: Pair<F>) -> void!i32 {{
+    let items: Store<Item<i32,F>> = empty()
+    if !reserve(items,2) {{ return () }}
+    push(items, Item::<i32,F>{{root:Ticket{{code:49}},callback:pair.first,value:10}})
+    push(items, Item::<i32,F>{{root:Ticket{{code:50}},callback:pair.second,value:20}})
+    var last = pop(items)?
+    return invoke(&mut last.callback) - 21
+}}
+fn main() -> void!i32 {{ return run(pair(make(65,10),make(66,20))) }}
+"#
+    );
+    native("pop-then-nested-helper", &source, "2B1AZ", 0);
+    let annotated = source.replace(
+        "var last = pop(items)?",
+        "let pending: void!Item<i32,F> = pop(items); var last = pending?",
+    );
+    native("pop-annotated-then-nested-helper", &annotated, "2B1AZ", 0);
+    let wrong_side = annotated.replace("void!Item<i32,F>", "Item<i32,F>!void");
+    let case = Case::new("pop-wrong-annotated-side");
+    let report = compile(&case, &wrong_side, Stage::Verify, Optimization::O0);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0, "{}", report.to_json());
+}
+
+#[test]
+fn five_module_consumer_preserves_pop_success_and_push_error_responsibility() {
+    use std::{io::Write, process::Stdio};
+    let sources = [
+        (
+            "main",
+            include_str!("../../../examples/mainline/store_template202/main.zil"),
+        ),
+        (
+            "factory",
+            include_str!("../../../examples/mainline/store_template202/factory.zil"),
+        ),
+        (
+            "state",
+            include_str!("../../../examples/mainline/store_template202/state.zil"),
+        ),
+        (
+            "portable",
+            include_str!("../../../examples/mainline/store_template202/portable.zil"),
+        ),
+        (
+            "store_helpers",
+            include_str!("../../../examples/mainline/store_template202/store_helpers.zil"),
+        ),
+    ];
+    let project = ProjectSources {
+        root: ModuleId(0),
+        modules: sources
+            .iter()
+            .enumerate()
+            .map(|(i, (name, source))| {
+                SourceUnit::new(
+                    FileId(i as u32),
+                    ModuleId(i as u32),
+                    format!("{name}.zil"),
+                    *source,
+                )
+            })
+            .collect(),
+        paths: sources
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _))| (vec![name.to_string()], ModuleId(i as u32)))
+            .collect(),
+    };
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let case = Case::new("five-module");
+        for (name, source) in &sources {
+            fs::write(case.0.join(format!("{name}.zil")), source).unwrap();
+        }
+        let report = compile_project(
+            &project,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization,
+                output: Some(case.0.join("program")),
+                emit_dir: Some(case.0.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        fs::write(case.0.join("compile.json"), report.to_json()).unwrap();
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        for (input, expected) in [(b'0', "2b1aZ"), (b'1', "ABBAB2b1aZ"), (b'6', "2b1aZ")] {
+            let mut child = Command::new(&report.artifacts["executable"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            child.stdin.take().unwrap().write_all(&[input]).unwrap();
+            let output = child.wait_with_output().unwrap();
+            fs::write(
+                case.0.join(format!("input-{input}-stdout.log")),
+                &output.stdout,
+            )
+            .unwrap();
+            fs::write(
+                case.0.join(format!("input-{input}-stderr.log")),
+                &output.stderr,
+            )
+            .unwrap();
+            fs::write(
+                case.0.join(format!("input-{input}-native.txt")),
+                format!(
+                    "optimization={optimization:?}\nexit={:?}\nexpected_stdout={expected:?}\n",
+                    output.status.code()
+                ),
+            )
+            .unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, expected.as_bytes(), "{output:?}");
+            assert!(output.stderr.is_empty(), "{output:?}");
+        }
+    }
+}
