@@ -12,29 +12,35 @@ impl Expander<'_> {
             self.diagnostics.push(primitive_name_error(&f.name, f.span));
             return;
         }
-        let callable_parameter = match generics::callable::expanded_template(
+        let callable_parameters = match generics::callable::expanded_template(
             f,
             &self.declarations,
             &mut self.callable_work,
         ) {
-            Ok(Some(template)) if prefix.is_none() => Some(CoreCallableParameter {
-                index: template.index as u32,
-                generic_name: template.generic_name,
-                kind: template.kind,
-                parameters: template.parameters.iter().map(type_ref).collect(),
-                result: type_ref(&template.result),
-            }),
-            Ok(None) => None,
+            Ok(Some(template)) if prefix.is_none() => template
+                .roles
+                .into_iter()
+                .map(|role| CoreCallableParameter {
+                    index: role.index as u32,
+                    generic_index: role.generic_index,
+                    generic_name: role.generic_name,
+                    kind: role.kind,
+                    parameters: role.parameters.iter().map(type_ref).collect(),
+                    result: type_ref(&role.result),
+                })
+                .collect(),
+            Ok(None) => Vec::new(),
             Ok(Some(_)) => {
                 self.unsupported("callable helper methods are not implemented", f.span);
-                None
+                Vec::new()
             }
             Err(diagnostic) => {
                 self.diagnostics.push(diagnostic);
-                None
+                Vec::new()
             }
         };
-        if (callable_parameter.is_none() && !f.generics.is_empty()) || !f.where_clause.is_empty() {
+        if (callable_parameters.is_empty() && !f.generics.is_empty()) || !f.where_clause.is_empty()
+        {
             self.unsupported("generic function specialization", f.span);
         }
         let result_mode = self.resource_result_mode(f);
@@ -97,7 +103,7 @@ impl Expander<'_> {
             .return_type
             .as_ref()
             .and_then(|ty| self.callable_return(ty));
-        if callable_return.is_some() && (callable_parameter.is_some() || host.is_some()) {
+        if callable_return.is_some() && (!callable_parameters.is_empty() || host.is_some()) {
             self.unsupported(
                 "opaque callable factories must be ordinary nongeneric functions",
                 f.span,
@@ -131,7 +137,7 @@ impl Expander<'_> {
         };
         self.functions.push(CoreFunction {
             callable_return,
-            callable_parameter,
+            callable_parameters,
             result_mode,
             foreign: None,
             id,

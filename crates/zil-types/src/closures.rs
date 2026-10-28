@@ -98,7 +98,7 @@ pub(super) struct State {
     pub helper_templates: BTreeMap<helpers::TemplateKey, helpers::Template>,
     pub active_helpers: std::collections::BTreeSet<helpers::TemplateKey>,
     pub helper_tables: std::rc::Rc<helpers::Tables>,
-    pub helper_instances: BTreeMap<(helpers::TemplateKey, ClosureId), FunctionId>,
+    pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
     pub helper_functions: Vec<TypedFunction>,
     pub helper_exports: Vec<helpers::Export>,
     pub pending: Vec<Pending>,

@@ -31,7 +31,7 @@ type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
     id: FunctionId,
-    callable: Option<CoreCallableParameter>,
+    callable: Vec<CoreCallableParameter>,
     callable_return: Option<CoreCallableReturn>,
     template: Option<(zil_base::ModuleId, zil_base::NodeId)>,
     foreign: bool,
@@ -82,7 +82,7 @@ fn signatures(
     let mut concrete_index = 0usize;
     for f in &core.functions {
         let i = concrete_index;
-        if f.callable_parameter.is_none() {
+        if f.callable_parameters.is_empty() {
             concrete_index += 1;
         }
         if let Err(diagnostic) = retained::validate_factory(f) {
@@ -102,12 +102,9 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
-                    callable: f.callable_parameter.clone(),
+                    callable: f.callable_parameters.clone(),
                     callable_return: f.callable_return.clone(),
-                    template: f
-                        .callable_parameter
-                        .as_ref()
-                        .map(|_| (core.module_id, f.id)),
+                    template: (!f.callable_parameters.is_empty()).then_some((core.module_id, f.id)),
                     foreign: f.foreign.is_some(),
                     cleanup: core
                         .aggregates
@@ -186,9 +183,9 @@ fn signatures(
             errors.push(unsupported(f.span, "receiver capability typing"))
         }
         for (index, p) in f.parameters.iter().enumerate() {
-            if f.callable_parameter
-                .as_ref()
-                .is_some_and(|bound| bound.index as usize == index)
+            if f.callable_parameters
+                .iter()
+                .any(|bound| bound.index as usize == index)
             {
                 continue;
             }
@@ -249,7 +246,7 @@ pub fn check(
     let concrete_count = core
         .functions
         .iter()
-        .filter(|f| f.callable_parameter.is_none())
+        .filter(|f| f.callable_parameters.is_empty())
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
     closure_state.resource_writes =
@@ -280,7 +277,7 @@ pub fn check(
         .chain(
             core.functions
                 .iter()
-                .filter(|f| f.callable_parameter.is_none() && f.callable_return.is_none()),
+                .filter(|f| f.callable_parameters.is_empty() && f.callable_return.is_none()),
         );
     for f in ordered {
         match Builder::new(
@@ -339,7 +336,7 @@ pub fn check(
 }
 struct Builder<'a, 'c> {
     function: TypedFunction,
-    helper_bound: Option<CoreCallableParameter>,
+    helper_bounds: Vec<CoreCallableParameter>,
     factory_bound: Option<CoreCallableReturn>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
@@ -411,7 +408,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 entry: BlockId(0),
                 span: f.span,
             },
-            helper_bound: f.callable_parameter.clone(),
+            helper_bounds: f.callable_parameters.clone(),
             factory_bound: f.callable_return.clone(),
             signatures,
             imports: None,
@@ -1535,7 +1532,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         "callable factory result identity has not been resolved",
                     ));
                 }
-                if signature.callable.is_some() {
+                if !signature.callable.is_empty() {
                     return self.call_helper(&signature, arguments, expected, e.span);
                 }
                 if arguments.len() != signature.parameters.len() {
@@ -1898,7 +1895,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             let function_id = pending.function;
             let function = CoreFunction {
                 callable_return: None,
-                callable_parameter: None,
+                callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
                 id: zil_base::NodeId(0),
@@ -2044,7 +2041,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let function_id = pending.function;
         let function = CoreFunction {
             callable_return: None,
-            callable_parameter: None,
+            callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
             foreign: None,
             id: zil_base::NodeId(0),
@@ -2243,9 +2240,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             ));
         };
         let kind = self
-            .helper_bound
-            .as_ref()
-            .filter(|bound| {
+            .helper_bounds
+            .iter()
+            .find(|bound| {
                 existing_place == self.function.parameters.get(bound.index as usize).copied()
             })
             .map_or_else(
@@ -2505,7 +2502,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
                 callable_return: None,
-                callable_parameter: None,
+                callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
                 id: NodeId(0),

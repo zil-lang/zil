@@ -7,23 +7,27 @@ pub(super) fn placeholder_package(ty: &Type, name: &str) -> bool {
 }
 
 pub(super) fn template(function: &CoreFunction) -> bool {
-    function.callable_parameter.as_ref().is_some_and(|bound| {
-        placeholder_package(&function.return_type, &bound.generic_name)
-            || function
-                .parameters
-                .iter()
-                .any(|p| placeholder_package(&p.ty, &bound.generic_name))
-    })
+    (function.callable_parameters.len() == 1)
+        .then(|| &function.callable_parameters[0])
+        .is_some_and(|bound| {
+            placeholder_package(&function.return_type, &bound.generic_name)
+                || function
+                    .parameters
+                    .iter()
+                    .any(|p| placeholder_package(&p.ty, &bound.generic_name))
+        })
 }
 
 pub(super) fn signature(signature: &Signature) -> bool {
-    signature.callable.as_ref().is_some_and(|bound| {
-        placeholder_package(&signature.result, &bound.generic_name)
-            || signature
-                .parameters
-                .iter()
-                .any(|p| placeholder_package(p, &bound.generic_name))
-    })
+    (signature.callable.len() == 1)
+        .then(|| &signature.callable[0])
+        .is_some_and(|bound| {
+            placeholder_package(&signature.result, &bound.generic_name)
+                || signature
+                    .parameters
+                    .iter()
+                    .any(|p| placeholder_package(p, &bound.generic_name))
+        })
 }
 
 pub(super) fn nominal_base(name: &str) -> &str {
