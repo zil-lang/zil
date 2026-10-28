@@ -416,7 +416,7 @@ fn raw_closure_address_parameter_cannot_disagree_with_its_entry() {
     let error =
         zil_verify::verify_module(module.clone(), plan, &module.target, &limits).unwrap_err();
     assert_eq!(error[0].category, ResultCategory::SafeReject);
-    assert_eq!(error[0].phase, Phase::Verify);
+    assert_eq!(error[0].phase, zil_base::Phase::Verify);
     assert_eq!(error[0].code, "E-VERIFY-CLOSURE-ENTRY");
     assert_eq!(
         error[0].message,
