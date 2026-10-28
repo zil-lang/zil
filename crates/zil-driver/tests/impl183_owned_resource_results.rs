@@ -6,7 +6,9 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
-use zil_driver::{CompileOptions, Optimization, Stage, compile_project, compile_source};
+use zil_driver::{
+    CompileOptions, Optimization, ProjectSources, Stage, compile_project, compile_source,
+};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 fn directory(label: &str) -> PathBuf {
@@ -24,12 +26,13 @@ fn directory(label: &str) -> PathBuf {
 fn check(label: &str, source: &str) -> zil_driver::CompileReport {
     let dir = directory(label);
     fs::write(dir.join("main.zil"), source).unwrap();
-    let report = compile_source(source, &CompileOptions::default());
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", source);
+    let report = compile_source(&source, &CompileOptions::default());
     fs::write(dir.join("compile.json"), report.to_json()).unwrap();
     report
 }
 fn native(label: &str, files: &[(&str, &str)], stdout: &[u8], exit: i32) -> Vec<PathBuf> {
-    let project = files
+    let modules = files
         .iter()
         .enumerate()
         .map(|(i, (name, source))| {
@@ -41,6 +44,16 @@ fn native(label: &str, files: &[(&str, &str)], stdout: &[u8], exit: i32) -> Vec<
             )
         })
         .collect::<Vec<_>>();
+    let project = ProjectSources {
+        root: ModuleId(0),
+        modules,
+        paths: files
+            .iter()
+            .enumerate()
+            .skip(1)
+            .map(|(i, (name, _))| (vec![name.to_string()], ModuleId(i as u32)))
+            .collect(),
+    };
     let mut dirs = Vec::new();
     for optimization in [Optimization::O0, Optimization::O2] {
         let dir = directory(label);
