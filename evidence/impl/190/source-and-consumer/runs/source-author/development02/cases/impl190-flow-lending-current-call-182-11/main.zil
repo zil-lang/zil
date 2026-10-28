@@ -1,0 +1,1 @@
+fn make()->impl FnMut()->&i32{var step=0;return move()=>{step+=1;return &step}}fn run<F:FnMut()->&i32>(f:&mut F,n:i32)->i32{var total=0;var i=0;while i<n{let view=f();total+=*view;i+=1}return total}fn main()->i32{var f=make();let held=f();let later=run(&mut f,2);return *held+later}

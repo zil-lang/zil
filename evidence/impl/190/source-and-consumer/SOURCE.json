@@ -1,0 +1,125 @@
+{
+  "source_commit": "7491c212d392b12bb90f735b90f535066fa00a47",
+  "consumer_source_commit": "8644848b80f09a0507f47054830f56f1ef193c9d",
+  "production": [
+    {
+      "path": "crates/zil-expand/src/generic_check.rs",
+      "sha256": "0bf8dcf6084226449c858d255be3a8e04e8418244d735f72c925d4a204c7d7f4",
+      "bytes": 105397
+    },
+    {
+      "path": "crates/zil-expand/src/generics.rs",
+      "sha256": "35a5e4477351fc4b42863543357c937474b5f81b0f1bb677a0f9b6d396e51fc0",
+      "bytes": 83752
+    },
+    {
+      "path": "crates/zil-types/src/helpers.rs",
+      "sha256": "2ab6ddd45c4441443c2693aaca8e737d21caa0243ff981048ffd0da25da951d9",
+      "bytes": 30751
+    },
+    {
+      "path": "crates/zil-types/src/helper_flow.rs",
+      "sha256": "80e1b872630d131dfcaa3cf99848de2c753f246f013e94d130c837a0aa9fd668",
+      "bytes": 18272
+    },
+    {
+      "path": "crates/zil-analyze/src/helpers.rs",
+      "sha256": "f4f215da440db91503c406e777ec766f4754253338e17a79fd3ed4ad214f6a45",
+      "bytes": 16343
+    },
+    {
+      "path": "crates/zil-analyze/src/helper_flow.rs",
+      "sha256": "abd52846a5bea3ca5d3e58725baa16fa1f4248ba4d57fe1fefe2f785b45c74d5",
+      "bytes": 16367
+    },
+    {
+      "path": "crates/zil-analyze/src/budget.rs",
+      "sha256": "6a817bdfe78c7fdbeb0fe861c2fb5f409c962fbd60fbb6966c7c8a269db8364a",
+      "bytes": 27510
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "sha256": "cbbdd0fe374b6305952c382d7b1353a6be731de446a441f601f365057c233fcf",
+      "bytes": 116656
+    },
+    {
+      "path": "crates/zil-verify/src/helpers.rs",
+      "sha256": "4980f24e17f6096eb937db4a7c7bf844f8b3dce2729a44295d2cd09b2540d03a",
+      "bytes": 18707
+    },
+    {
+      "path": "crates/zil-verify/src/helper_flow.rs",
+      "sha256": "edc73a7c4b93a72a127c444c4033a19a18a57473a455934998e246825c887774",
+      "bytes": 17639
+    },
+    {
+      "path": "crates/zil-verify/src/lib.rs",
+      "sha256": "a5aa33b326e096b48fee11f89e8799f2ab68e4c8841aad662607d75bbb2dc4d6",
+      "bytes": 100244
+    },
+    {
+      "path": "crates/zil-verify/src/resources.rs",
+      "sha256": "4c2229314a4710f85713b56321a8a15e756c02eff4496296ee7201b1b8161e7f",
+      "bytes": 85379
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "crates/zil-driver/tests/impl190_flow_source.rs",
+      "sha256": "b1e22bf8ce79aba75a01b260b678f45ad90b692eb5573bcddce7686f5da800d0",
+      "bytes": 16924
+    },
+    {
+      "path": "tools/language/190/consumer.py",
+      "sha256": "7ab8e2da103b53f527b7c0b303f20de2322417342ee9526f0506ecdad113e33e",
+      "bytes": 6250
+    },
+    {
+      "path": "tools/language/178/consumer.py",
+      "sha256": "0efe5c8ae17ee431c773c7c677f96e67888dcdeda50078677033d5eeedad7754",
+      "bytes": 8512
+    },
+    {
+      "path": "tools/language/178/run_command.py",
+      "sha256": "feccfe3ba9dca5bc5954f884d52e09ad8cce04cee1c6e10a80b1098b421463e8",
+      "bytes": 2397
+    },
+    {
+      "path": "tools/language/173/allocator_probe.c",
+      "sha256": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+      "bytes": 446
+    },
+    {
+      "path": "examples/mainline/loop_helpers190/factory.zil",
+      "sha256": "f2fff48d35d70b0065e145c4a77a00701f68e24f86c797430c9b516beb038064",
+      "bytes": 477
+    },
+    {
+      "path": "examples/mainline/loop_helpers190/helpers.zil",
+      "sha256": "1a80977c65152e53b6dca590e1080a705284252bffedccb07b2db09c2365ea00",
+      "bytes": 742
+    },
+    {
+      "path": "examples/mainline/loop_helpers190/main.zil",
+      "sha256": "989445fa8fd4dd092120c9df76e6e937947f90bc66983444b9dba353e3a62090",
+      "bytes": 486
+    },
+    {
+      "path": "examples/mainline/loop_helpers190/state.zil",
+      "sha256": "07274f81c8e378db4ca6aa2f4b82c3cb5819e648393fd5e7189e9a43aebc7a02",
+      "bytes": 443
+    }
+  ],
+  "normative_files": {
+    "_zil_design.md": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+    "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+    "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+    "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+    "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+    "spec/interfaces.json": "25bc567b892a748865b0a6b00106f7cc99f260da13a4e6ab3c16a3a613c2fbc0",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+  },
+  "equivalence_diff": [
+    "crates/zil-driver/tests/impl190_flow_raw.rs"
+  ]
+}

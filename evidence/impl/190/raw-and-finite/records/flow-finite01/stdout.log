@@ -1,0 +1,137 @@
+
+running 5 tests
+test consumed_and_cyclic_nearest_neighbors_still_reject ... FAILED
+test nine_distinct_exits_keep_complete_public_sequences ... ok
+test new_sequences_still_pay_three_independent_budgets ... ok
+test four_module_event_batch_preserves_success_error_and_cleanup ... ok
+test three_four_sixteen_calls_update_actual_mutable_state ... ok
+
+failures:
+
+---- consumed_and_cyclic_nearest_neighbors_still_reject stdout ----
+
+thread 'consumed_and_cyclic_nearest_neighbors_still_reject' (178) panicked at crates/zil-driver/tests/impl126_helper_sequences.rs:303:9:
+assertion `left == right` failed: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/sequence126-loop-177-5/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/sequence126-loop-177-5/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/sequence126-loop-177-5/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/sequence126-loop-177-5/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/sequence126-loop-177-5/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/sequence126-loop-177-5/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/sequence126-loop-177-5/phases/typed.txt","verified":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/sequence126-loop-177-5/phases/verified.txt","verified-interfaces":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/sequence126-loop-177-5/phases/verified-interfaces.txt"},"input_fingerprint":"4b5648dad9733c87832e50cbd63471a0234885c463bbc0d7254f1e0d9578243b","seconds":0.01356277,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19","implementation_fingerprint":"4675262d94c0c3a322c1437ca71ee6da938fdf524a2454705f87676e7d9e3068","contract_fingerprint":"b22de8009aee52a1637343be4c015789b55ccac916f670bdc5ef2edcd92800e3","result_origins":[],"callable_contracts":[],"callable_returns":[],"exports":[]}]}
+  left: Success
+ right: Unsupported
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    consumed_and_cyclic_nearest_neighbors_still_reject
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+
+
+running 14 tests
+test an_unused_recursive_definition_is_rejected_without_instantiating_it ... ok
+test finite_nesting_does_not_admit_recursion_loops_or_mixed_kinds ... FAILED
+test mutable_reborrows_keep_call_order_and_release_after_the_outer_call ... ok
+test nested_helpers_keep_current_call_and_lending_result_loans ... ok
+test independent_24_layer_reproducer_uses_the_default_test_stack ... ok
+test cross_module_state_uses_nested_lending_helpers_and_a_disjoint_counter ... ok
+test planning_a_known_factory_type_does_not_establish_parameter_origin ... ok
+test nested_exhaustive_matches_keep_their_defensive_trap_prefix ... ok
+test consumed_environments_are_settled_once_even_when_the_leaf_never_calls ... ok
+test branches_keep_zero_one_and_multiple_actual_calls ... ok
+test an_error_return_cuts_off_later_nested_calls_and_cleans_owned_locals ... ok
+test owning_state_can_schedule_helpers_for_a_different_checked_factory_type ... ok
+test long_alias_chain_respects_a_callback_that_shadows_a_helper_name ... ok
+test the_original_minimal_helper_composes_through_multiple_levels ... ok
+
+failures:
+
+---- finite_nesting_does_not_admit_recursion_loops_or_mixed_kinds stdout ----
+
+thread 'finite_nesting_does_not_admit_recursion_loops_or_mixed_kinds' (229) panicked at crates/zil-driver/tests/impl188_nested_helpers.rs:74:5:
+assertion `left == right` failed: nested-loop: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/impl188-nested-loop-223-9/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/impl188-nested-loop-223-9/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/impl188-nested-loop-223-9/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/impl188-nested-loop-223-9/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/impl188-nested-loop-223-9/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/impl188-nested-loop-223-9/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/impl188-nested-loop-223-9/phases/typed.txt","verified":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/impl188-nested-loop-223-9/phases/verified.txt","verified-interfaces":"/workspace/scratch/39be3faa4442/run-logs/190-author/flow-finite01/cases/impl188-nested-loop-223-9/phases/verified-interfaces.txt"},"input_fingerprint":"0cd289cb37a40fef8cee29adf51a77c3e506af2cde35f83e2ff12a0fbcd0f1af","seconds":0.021172495,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19","implementation_fingerprint":"2eefdfbfea42c73b81f202321ca87457fff881376055f41c4a84fdf5d1bb47a6","contract_fingerprint":"b22de8009aee52a1637343be4c015789b55ccac916f670bdc5ef2edcd92800e3","result_origins":[],"callable_contracts":[],"callable_returns":[],"exports":[]}]}
+  left: Success
+ right: Unsupported
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    finite_nesting_does_not_admit_recursion_loops_or_mixed_kinds
+
+test result: FAILED. 13 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+
+running 12 tests
+test deep_finite_dependencies_pay_the_existing_instantiation_depth_bound ... ok
+test analyze_reconstructs_its_own_callee_order_and_body_counts ... ok
+test another_factory_instance_with_the_same_closure_id_is_not_the_parameter ... ok
+test nested_result_still_requires_the_actual_environment_hold ... ok
+test raw_core_dependency_cycles_do_not_rely_on_expand_or_the_host_stack ... ok
+test empty_child_traces_do_not_authorize_reusing_an_owned_environment ... ok
+test raw_and_wire_do_not_trust_parent_or_coordinated_child_traces ... ok
+test raw_and_wire_reject_recursive_actual_edges_despite_finite_claims ... ok
+test raw_and_wire_check_actual_nested_edges_and_child_instructions ... ok
+test raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap ... ok
+test dag_construction_and_trace_composition_pay_each_phase_budget ... ok
+test the_default_helper_depth_boundary_returns_a_diagnostic_without_host_recursion ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+
+running 14 tests
+test direct_shared_and_exclusive_arguments_reborrow_the_same_input_sequentially ... ok
+test copy_aggregate_addresses_use_actual_inline_layout ... ok
+test cross_module_opaque_factory_and_borrowed_helper_preserve_parameter_types ... ok
+test address_parameter_results_and_unsupported_shapes_remain_closed ... ok
+test multiple_shared_arguments_may_alias_and_exclusive_arguments_use_distinct_storage ... ok
+test current_call_includes_captured_address_qualification ... ok
+test inferred_copy_projections_keep_address_shape_and_permission ... ok
+test unused_generic_helpers_are_checked_and_shared_inputs_cannot_grant_mutability ... ok
+test one_signature_is_inferred_from_body_and_actual_address_calls ... ok
+test mutable_and_consuming_environments_keep_their_own_independent_modes ... ok
+test helper_extra_address_arguments_and_zero_call_paths_keep_actual_effects ... ok
+test current_call_includes_desc_capture_and_explicit_shared_argument ... ok
+test byte_description_writes_are_checked_against_explicit_element_windows ... ok
+test every_environment_call_form_checks_the_current_argument_window ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+
+
+running 5 tests
+test raw_and_wire_do_not_trust_the_claimed_parameter_qualification ... ok
+test raw_and_wire_reconstruct_capture_aliases_against_actual_arguments ... ok
+test raw_and_wire_keep_explicit_parameter_holds_and_closed_shapes ... ok
+test raw_and_wire_rebuild_hidden_writes_through_a_borrowed_helper ... ok
+test actual_address_call_work_has_a_measured_bounded_failure ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 10 tests
+test original_runtime_helper_range_reaches_the_independent_contract_stage ... ok
+test backedges_cannot_repeat_a_noncopy_or_once_consumption ... ok
+test unsupported_loop_control_is_not_treated_as_an_ordinary_statement ... ok
+test index_mutability_scope_widths_and_known_integer_requirements_are_checked ... ok
+test endpoint_calls_happen_once_in_order_and_the_iterator_does_not_escape ... ok
+test range_width_hints_cover_arithmetic_calls_and_copy_projections ... ok
+test empty_and_reversed_ranges_still_check_the_body_and_leave_the_outer_binding ... ok
+test an_endpoint_may_consume_a_symbolic_value_once_before_the_backedge ... ok
+test an_unconditional_return_body_keeps_the_existing_finite_once_contract ... ok
+test every_integer_width_infers_unsuffixed_bounds_without_borrowing_authority ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.89s
+
+
+running 2 tests
+test raw_graph_bounds_precede_stale_identity_and_fresh_retry_is_unchanged ... ok
+test flow_transport_roundtrip_does_not_grant_analysis_or_verification ... FAILED
+
+failures:
+
+---- flow_transport_roundtrip_does_not_grant_analysis_or_verification stdout ----
+
+thread 'flow_transport_roundtrip_does_not_grant_analysis_or_verification' (700) panicked at crates/zil-driver/tests/impl191_flow_transport.rs:72:9:
+[Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "acyclic helper requires its exact Finite contract", span: None, notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    flow_transport_roundtrip_does_not_grant_analysis_or_verification
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

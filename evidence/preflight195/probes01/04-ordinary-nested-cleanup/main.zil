@@ -1,0 +1,1 @@
+extern "C" fn putchar(n:i32)->i32;fn emit(n:i32){unsafe{putchar(n)}}resource R{code:i32}impl Drop for R{fn drop(self:Self){emit(.code)}}fn main()->i32{for outer in 0..2{let a=R{code:65+outer};for inner in 0..3{let b=R{code:48+inner};if inner==0{continue};break}}return 0}

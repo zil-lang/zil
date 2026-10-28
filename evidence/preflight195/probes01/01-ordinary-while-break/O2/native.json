@@ -1,0 +1,11 @@
+{
+  "optimization": "O2",
+  "build_status": "Success",
+  "build_phase": "link",
+  "verification_runs": 1,
+  "exit_code": 0,
+  "stdout_hex": "",
+  "expected_exit": 0,
+  "expected_stdout_hex": "",
+  "matched": true
+}

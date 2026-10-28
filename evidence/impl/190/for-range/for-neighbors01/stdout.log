@@ -1,0 +1,101 @@
+
+running 6 tests
+test generic_instance_growth_is_bounded_before_type_building ... ok
+test symbolic_result_and_nested_calls_do_not_collapse_distinct_parameters ... ok
+test generic_arity_constraints_and_bounds_fail_closed ... ok
+test generic_body_cannot_gain_operations_or_copy_from_an_instance ... ok
+test concrete_instantiations_inference_recursive_reuse_and_hygiene ... ok
+test bool_and_distinct_integer_instantiations ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+
+running 14 tests
+test aggregate_constraint_expansion_obeys_selected_work_and_depth ... ok
+test aggregate_projection_constraints_reject_conflicts_and_bad_fields ... ok
+test frozen_closure_and_frozen_capture_are_rejected ... ok
+test move_aggregate_readonly_and_projected_parameter_inference ... ok
+test compound_projection_indices_evaluate_once_before_rhs ... ok
+test default_writes_update_external_state_and_nested_address_capture_stays_closed ... ok
+test raw_capture_write_cannot_use_readonly_entry_or_invalid_field ... ok
+test raw_mutability_and_by_value_mut_call_forgery_fail ... ok
+test raw_capture_address_cannot_be_overwritten ... ok
+test mutable_bool_unit_and_temporary_environments ... ok
+test inferred_array_capture_and_projected_assignment ... ok
+test nested_record_array_tuple_environment_and_aggregate_result ... ok
+test mixed_address_and_owned_state_keep_hold_until_actual_last_call ... ok
+test mutable_counter_updates_and_independent_copy ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+
+running 4 tests
+test raw_projection_type_and_hold_claims_are_independently_checked ... ok
+test projected_borrows_keep_whole_object_origins ... ok
+test shared_projection_and_receiver_end_to_end ... ok
+test tuple_unit_field_and_zero_length_bounds ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+
+running 13 tests
+test endpoint_order_is_base_then_left_then_right_without_implicit_reborrow ... ok
+test cross_module_parameter_and_result_contracts_keep_element_identity ... ok
+test public_ct_preflight_bounds_slice_element_trees_before_copying ... ok
+test one_ordinary_signature_handles_runtime_windows_and_preserves_origins ... ok
+test range_endpoints_are_not_erased_before_name_checking ... ok
+test foreign_abi_and_closure_windows_remain_closed ... ok
+test closure_local_windows_do_not_escape_the_environment_boundary ... ok
+test scalar_ct_endpoints_work_while_ct_slice_execution_is_closed ... ok
+test ordinary_len_methods_and_non_slice_closures_keep_their_meaning ... ok
+test ownership_and_whole_base_exclusivity_are_independently_verified ... ok
+test views_require_real_places_integer_bounds_and_matching_mutability ... ok
+test suspended_parent_cannot_read_explicit_or_implicit_slice_metadata ... ok
+test all_endpoint_forms_reborrow_and_existing_copy_shapes_are_admitted ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 15 tests
+test actual_generic_calls_do_not_merge_distinct_nominal_elements ... ok
+test bounded_element_shape_work_has_an_exact_definition_time_boundary ... ok
+test raw_and_wire_create_mode_cannot_forge_fresh_input_resources ... ok
+test descriptor_aliases_do_not_revive_after_give_or_replacement ... ok
+test generic_source_still_requires_independent_raw_and_wire_ownership ... ok
+test element_bound_checks_real_shapes_and_never_grants_copy_or_members ... ok
+test unused_package_fields_keep_mode_and_instance_identity ... ok
+test unused_templates_reject_unproven_store_element_or_owner ... ok
+test unused_create_results_prove_freshness_across_real_transfers_and_joins ... ok
+test real_copy_shapes_including_static_foreign_values_remain_elements ... ok
+test generic_prefix_drain_repeats_with_real_item_cleanup ... ok
+test cross_module_helpers_preserve_two_nominal_elements_and_failure_returns ... ok
+test two_element_shapes_use_the_same_actual_generic_helpers ... ok
+test generic_owning_package_and_concrete_callback_state_compose ... ok
+test fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+
+
+running 2 tests
+test give_does_not_turn_unknown_or_copy_values_into_resources ... ok
+test concrete_byte_buffer_uses_existing_helper_owned_parameter_contract ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 4 tests
+test unused_generic_bounds_require_declared_nominal_traits ... ok
+test unused_generic_declaration_attributes_are_not_erased ... ok
+test generic_records_use_structural_arguments_and_fresh_source_inexpressible_names ... ok
+test unused_generic_with_declared_bound_checks_its_symbolic_method_body ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+test reserved_byte_storage_names_survive_erased_declarations ... ok
+test unused_templates_cannot_invent_mutability_copy_or_index_types ... ok
+test unused_parametric_places_have_real_symbolic_rules ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

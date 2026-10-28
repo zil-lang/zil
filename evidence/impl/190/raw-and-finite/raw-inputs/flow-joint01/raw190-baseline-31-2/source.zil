@@ -1,0 +1,1 @@
+resource R{n:i32}fn run<F:Fn()->i32>(f:&F,n:i32)->i32{var i=0;var sum=0;while i<n{sum+=f();i+=1}return sum}fn main()->i32{let owned=R{n:4};let f=move()=>{let scratch=R{n:99};return owned.n};return run(&f,3)-12}

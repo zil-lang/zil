@@ -1,0 +1,1 @@
+fn read<F:Fn()->i32>(f:&F)->i32=>f();fn update<F:FnMut()->i32>(f:&mut F)->i32=>f();fn main()->i32{var f=move()=>7;let a=read(&f);return a+update(&mut f)-14}

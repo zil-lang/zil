@@ -3,6 +3,8 @@
 //! producer solver or callee body inlining supplies authority to a caller.
 use super::*;
 use std::collections::VecDeque;
+#[path = "helper_flow.rs"]
+mod flow;
 
 fn bad(f: &TypedFunction, message: impl Into<String>) -> Diagnostic {
     reject("E-VERIFY-CALLABLE-CONTRACT", Some(f.span), message)
@@ -149,15 +151,21 @@ fn invocation(
 fn dependency_order(
     module: &TypedModule,
     graphs: &[FunctionGraph],
+    limits: &Limits,
     budget: &mut Budget,
 ) -> Check<Vec<usize>> {
     let count = module.functions.len();
     budget.spend(count.saturating_mul(4))?;
+    let mut depths: Option<Vec<usize>> = None;
     let mut predecessors = vec![0usize; count];
     let mut consumers = vec![Vec::new(); count];
     for (caller, f) in module.functions.iter().enumerate() {
         if f.callable_contract.is_none() {
             continue;
+        }
+        if depths.is_none() {
+            budget.spend(count)?;
+            depths = Some(vec![1usize; count]);
         }
         budget.spend(f.blocks.len())?;
         for (b, block) in f.blocks.iter().enumerate() {
@@ -190,6 +198,12 @@ fn dependency_order(
         budget.spend(consumers[callee].len().saturating_add(1))?;
         order.push(callee);
         for &caller in &consumers[callee] {
+            let depth = depths.as_mut().expect("helper edges have a depth table");
+            let next_depth = depth[callee]
+                .checked_add(1)
+                .filter(|n| *n <= limits.max_call_depth)
+                .ok_or_else(|| limit("helper dependency call depth exhausted"))?;
+            depth[caller] = depth[caller].max(next_depth);
             predecessors[caller] -= 1;
             if predecessors[caller] == 0 {
                 frontier.push_back(caller);
@@ -202,6 +216,9 @@ fn dependency_order(
             None,
         ));
     }
+    if depths.is_some() && limits.max_call_depth == 0 {
+        return Err(limit("helper dependency call depth exhausted"));
+    }
     Ok(order)
 }
 
@@ -213,7 +230,7 @@ fn forwarded<'a>(
     kind: CallableKind,
     checked: &[bool],
     budget: &mut Budget,
-) -> Check<Option<&'a [CallableTrace]>> {
+) -> Check<Option<&'a CallableTraces>> {
     let InstructionKind::Call {
         function: callee,
         arguments,
@@ -249,166 +266,7 @@ fn forwarded<'a>(
             "nested helper must forward its actual parameter to an independently checked matching contract",
         ));
     }
-    let finite = claim.traces.as_finite().ok_or_else(|| {
-        unsupported(
-            "cyclic callable Flow semantics are not implemented",
-            Some(instruction.span),
-        )
-    })?;
-    Ok(Some(finite))
-}
-
-/// Each reachable block is processed after all its predecessors. Trace sets
-/// merge equal prefixes, instead of enumerating duplicate syntactic paths.
-/// Cycles are a reported scope limit, never an empty or truncated contract.
-fn traces(
-    module: &TypedModule,
-    f: &TypedFunction,
-    graph: &FunctionGraph,
-    parameter: LocalId,
-    expected_kind: CallableKind,
-    checked: &[bool],
-    budget: &mut Budget,
-) -> Check<Vec<CallableTrace>> {
-    let origins = environment_origins(module, f, parameter, budget)?;
-    let n = f.blocks.len();
-    budget.spend(n.saturating_mul(3))?;
-    let mut degree = vec![0usize; n];
-    let mut reachable_count = 0usize;
-    for b in 0..n {
-        if !graph.reachable[b] {
-            continue;
-        }
-        reachable_count += 1;
-        for &next in &graph.successors[b] {
-            budget.spend(1)?;
-            degree[next] += 1;
-        }
-    }
-    let mut ready = VecDeque::new();
-    for (b, incoming) in degree.iter().enumerate() {
-        if graph.reachable[b] && *incoming == 0 {
-            ready.push_back(b);
-        }
-    }
-    let mut order = Vec::with_capacity(reachable_count);
-    while let Some(b) = ready.pop_front() {
-        budget.spend(1)?;
-        order.push(b);
-        for &next in &graph.successors[b] {
-            budget.spend(1)?;
-            degree[next] -= 1;
-            if degree[next] == 0 {
-                ready.push_back(next);
-            }
-        }
-    }
-    if order.len() != reachable_count {
-        return Err(unsupported(
-            "concrete callback helpers require an acyclic finite call-trace CFG",
-            Some(f.span),
-        ));
-    }
-    // An exact count is sufficient only because each actual invocation below
-    // must have the same independently checked kind. Public traces stay full.
-    let mut inputs: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); n];
-    inputs[f.entry.0 as usize].insert(0);
-    let mut exits = BTreeSet::<(usize, u8)>::new();
-    for b in order {
-        budget.spend(inputs[b].len().saturating_add(1))?;
-        let mut states = std::mem::take(&mut inputs[b]);
-        for instruction in &f.blocks[b].instructions {
-            budget.spend(1)?;
-            if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
-                return Err(unsupported(
-                    "helper-local nested environments require an additional contract",
-                    Some(instruction.span),
-                ));
-            }
-            if let Some(children) = forwarded(
-                module,
-                f,
-                instruction,
-                &origins,
-                expected_kind,
-                checked,
-                budget,
-            )? {
-                let mut returning = BTreeSet::new();
-                for prefix in &states {
-                    for child in children {
-                        budget.spend(1)?;
-                        let count = prefix
-                            .checked_add(child.calls.len())
-                            .ok_or_else(|| limit("nested helper call count overflow"))?;
-                        if expected_kind == CallableKind::FnOnce && count > 1 {
-                            return Err(bad(f, "helper consumes its callback more than once"));
-                        }
-                        if child.exit == CallableExit::Trap {
-                            budget.spend(count_tree_work(exits.len()))?;
-                            exits.insert((count, 1));
-                        } else {
-                            budget.spend(count_tree_work(returning.len()))?;
-                            returning.insert(count);
-                        }
-                    }
-                }
-                states = returning;
-                continue;
-            }
-            if let Some(kind) = invocation(f, instruction, &origins)? {
-                if kind != expected_kind {
-                    return Err(bad(
-                        f,
-                        "helper callback use differs from its requested bound",
-                    ));
-                }
-                let mut next = BTreeSet::new();
-                for count in states {
-                    budget.spend(count_tree_work(next.len()))?;
-                    if kind == CallableKind::FnOnce && count != 0 {
-                        return Err(bad(f, "helper consumes its callback more than once"));
-                    }
-                    next.insert(
-                        count
-                            .checked_add(1)
-                            .ok_or_else(|| limit("helper call count overflow"))?,
-                    );
-                }
-                states = next;
-            }
-        }
-        match f.blocks[b].terminator {
-            Terminator::Return(_) | Terminator::Trap => {
-                let exit = u8::from(matches!(f.blocks[b].terminator, Terminator::Trap));
-                for trace in states {
-                    budget.spend(count_tree_work(exits.len()))?;
-                    exits.insert((trace, exit));
-                }
-            }
-            _ => {
-                for &next in &graph.successors[b] {
-                    for trace in &states {
-                        budget.spend(count_tree_work(inputs[next].len()))?;
-                        inputs[next].insert(*trace);
-                    }
-                }
-            }
-        }
-    }
-    let mut result = Vec::new();
-    for (count, exit) in exits {
-        budget.spend(count.saturating_add(1))?;
-        result.push(CallableTrace {
-            calls: vec![expected_kind; count],
-            exit: if exit == 0 {
-                CallableExit::Return
-            } else {
-                CallableExit::Trap
-            },
-        });
-    }
-    Ok(result)
+    Ok(Some(&claim.traces))
 }
 
 /// Bound raw metadata before the module fingerprint walks it. A raw Rust API
@@ -478,14 +336,14 @@ pub(super) fn check_claim_shape(
 pub(super) fn check_module(
     module: &TypedModule,
     graphs: &[FunctionGraph],
+    limits: &Limits,
     budget: &mut Budget,
 ) -> Check<()> {
-    let order = dependency_order(module, graphs, budget)?;
+    let order = dependency_order(module, graphs, limits, budget)?;
     budget.spend(module.functions.len())?;
     let mut checked = vec![false; module.functions.len()];
     for index in order {
         let f = &module.functions[index];
-        let graph = &graphs[index];
         let mut parameter = None;
         for (index, local) in f.parameters.iter().enumerate() {
             let ty = &f.locals[local.0 as usize].ty;
@@ -564,12 +422,6 @@ pub(super) fn check_module(
                 "callback helper is missing its independently checkable contract",
             ));
         };
-        let CallableTraces::Finite(claim_traces) = &claim.traces else {
-            return Err(unsupported(
-                "cyclic callable Flow semantics are not implemented",
-                Some(f.span),
-            ));
-        };
         if !closures::supports(definition.kind, claim.kind) {
             return Err(bad(
                 f,
@@ -612,24 +464,15 @@ pub(super) fn check_module(
                 writes.push(index as u32);
             }
         }
-        let traces = traces(
+        let traces = flow::reconstruct(
             module,
             f,
-            graph,
             f.parameters[parameter as usize],
             claim.kind,
             &checked,
+            limits,
             budget,
         )?;
-        if traces.iter().any(|trace| {
-            trace.calls.iter().any(|mode| *mode != claim.kind)
-                || claim.kind == CallableKind::FnOnce && trace.calls.len() > 1
-        }) {
-            return Err(bad(
-                f,
-                "helper callback use differs from its requested bound or consumes more than once",
-            ));
-        }
         let expected = CallableParameterContract {
             parameter,
             closure,
@@ -642,19 +485,16 @@ pub(super) fn check_module(
             } else {
                 CallableCleanup::Owned
             },
-            traces: CallableTraces::Finite(traces),
+            traces,
         };
         budget.spend(
             claim
                 .hold
                 .len()
                 .saturating_add(claim.call.len())
-                .saturating_add(claim.writes.len())
-                .saturating_add(claim_traces.len()),
+                .saturating_add(claim.writes.len()),
         )?;
-        for trace in claim_traces {
-            budget.spend(trace.calls.len())?;
-        }
+        flow::comparison_work(&claim.traces, budget)?;
         if claim != &expected {
             return Err(bad(
                 f,

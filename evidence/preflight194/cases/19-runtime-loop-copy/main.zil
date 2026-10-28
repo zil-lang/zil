@@ -1,0 +1,1 @@
+fn repeat<T:Copy,F:Fn(T)->T>(f:&F,x:T,n:i32)->T{var value=x;var i=n;while i>0{value=f(value);i-=1}return value}fn main()->i32{let f=move(n:i32)=>n+1;return repeat(&f,4,3)-7}
