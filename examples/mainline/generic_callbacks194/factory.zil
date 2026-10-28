@@ -1,0 +1,20 @@
+import helpers
+
+resource Ticket { code: i32 }
+impl Drop for Ticket { fn drop(self: Self) { helpers.emit(.code) } }
+
+pub fn make() -> impl FnMut(&mut [u8]) -> i32 {
+    let ticket = Ticket { code: 90 }
+    let log = bytes_new()
+    return move (values: &mut [u8]) => {
+        ticket.code
+        if !bytes_reserve(log, bytes_len(log) + 1) { return -1 }
+        if !bytes_push(log, values[0]) { return -2 }
+        var at: i64 = 0
+        while at < values.len() {
+            values[at] += 1u8
+            at += 1
+        }
+        return i32(bytes_len(log))
+    }
+}
