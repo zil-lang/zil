@@ -11,3 +11,12 @@ fixtures, environment and order before primary timing; no concurrent heavy jobs.
 Compare native output and final machine/text artifacts. Check cancellation/failure controls.
 Independent review and product acceptance are NotRun. Re-read remote main immediately
 before packaging. Export only normal descendant history; never force-push.
+
+Primary schedule: 5 paired ABBA/BAAB blocks, 400 builds, case order seed 211.
+For each project/request/arm use the median of 5 per-block pair means;
+weight those absolute seconds before taking B/A. Also retain all raw block
+ratios, CPU totals, outcomes and an exploratory paired-block bootstrap (seed211).
+No compiler object caching; unchanged source still invokes the compiler.
+Preflight: all 5 projects x 3 source versions x 2 binaries (30 builds).
+Correctness differential: 63 real entry points x O0/O2 x 1/8 CGUs x 2 binaries;
+check native outcomes plus exact emitted text and executable bytes, not just timing.

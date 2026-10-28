@@ -231,9 +231,9 @@ def summarize(args: argparse.Namespace) -> None:
         key=(row["block"],row["case"],row["request"],row["arm"])
         actual[key]=actual.get(key,0)+1
     complete=actual==required and len(rows)==plan["expected_builds"] and all(r["pass"] for r in rows)
-    result={"schema":"zil-native-perf210-summary/1","plan_sha256":sha(args.plan),"records_sha256":sha(args.records),
+    result={"schema":"zil-native-perf211-summary/1","plan_sha256":sha(args.plan),"records_sha256":sha(args.records),
             "rows":len(rows),"expected":plan["expected_builds"],"failures":sum(not r["pass"] for r in rows),
-            "complete":complete,"result":None,"confidence":"exploratory, three paired blocks on shared host; not product gate"}
+            "complete":complete,"result":None,"confidence":"exploratory, five paired blocks on shared host; not product gate"}
     if complete:
         result["result"]=aggregate(plan,rows,list(range(plan["blocks"])))
         for r in rows: r["cpu_seconds"]=r["cpu_user"]+r["cpu_system"]
