@@ -1,0 +1,1274 @@
+{
+  "schema_version": 1,
+  "implementation_commit": "7d690f67d76d665bf2e383ffab2c071d05685ecd",
+  "tested_source_commit": "7d690f67d76d665bf2e383ffab2c071d05685ecd",
+  "source_was_clean_at_every_final_run": true,
+  "formal_201_baseline": "0b41f02af45d3ee834b3b6327e0fb444ce659183",
+  "production_components": {
+    "frontend_initial": "462f7e6a6f7ab502b8c946fc785b0f3fc829fe7e",
+    "frontend_actual_store_helper_plan_and_zero_package_capture_fix": "66c1d1de0f507ff15f8448e898999182194d6062",
+    "analyze": "064f96cf318b1a9121a3591bc4b64a3246d41439",
+    "verify_and_llvm": "63a90ad9fed8ee526cb47a6317a25f95a26d7f56",
+    "verify_semantically_unchanged_clippy_cleanup": "f1fcd5fe59c0511746ef3e3a3c4d47b5abaf4dd0",
+    "zero_payload_live_flags_unit_neighbor": "5e147ee31e26c4ceaa017125e0d515c23878f3ad"
+  },
+  "public_schema_version": 25,
+  "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
+  "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
+  "normative_files_actual_sha256": {
+    "_zil_design.md": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
+    "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+    "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+    "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+    "spec/interfaces.json": "da8209c31cd8e8466e4a4c17652ed88c37b3bcaa6d9d80900aa363516f5e606b",
+    "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+  },
+  "registry_matches_disk_and_tested_tree": true,
+  "production_changes_relative_to_formal_201_baseline": [
+    "crates/zil-analyze/src/budget.rs",
+    "crates/zil-analyze/src/dynamic_store.rs",
+    "crates/zil-analyze/src/resources.rs",
+    "crates/zil-backend-llvm/src/emit.rs",
+    "crates/zil-backend-llvm/src/emit/dynamic_store.rs",
+    "crates/zil-expand/src/generic_callable.rs",
+    "crates/zil-expand/src/generic_check.rs",
+    "crates/zil-expand/src/generic_store.rs",
+    "crates/zil-expand/src/generic_trait_bounds.rs",
+    "crates/zil-expand/src/generics.rs",
+    "crates/zil-types/src/addresses.rs",
+    "crates/zil-types/src/aggregates.rs",
+    "crates/zil-types/src/dynamic_store.rs",
+    "crates/zil-types/src/helper_plan.rs",
+    "crates/zil-types/src/helpers.rs",
+    "crates/zil-types/src/inference.rs",
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/packages.rs",
+    "crates/zil-types/src/program.rs",
+    "crates/zil-verify/src/borrows/captures.rs",
+    "crates/zil-verify/src/borrows/loans.rs",
+    "crates/zil-verify/src/dynamic_store.rs",
+    "crates/zil-verify/src/helpers.rs",
+    "crates/zil-verify/src/lib.rs",
+    "crates/zil-verify/src/resources.rs"
+  ],
+  "scoped_equivalence": {
+    "compared_commit": "e5737621a4513ff6e7d9a978f16be209cbf65bc6",
+    "scope_description": "Tracked crates/<crate>/src files (including unit tests), actual crate/root Cargo manifests and lock, available toolchain/config, public spec/design/dependency/product inputs, four consumer sources, runner and allocator probe sources. Historical evidence Cargo manifests and the subsequently changed impl201_source.rs integration test are excluded.",
+    "paths": [
+      "Cargo.lock",
+      "Cargo.toml",
+      "_zil_design.md",
+      "crates/zil-analyze/Cargo.toml",
+      "crates/zil-analyze/src/budget.rs",
+      "crates/zil-analyze/src/callable_fields.rs",
+      "crates/zil-analyze/src/dynamic_store.rs",
+      "crates/zil-analyze/src/helper_flow.rs",
+      "crates/zil-analyze/src/helpers.rs",
+      "crates/zil-analyze/src/holds.rs",
+      "crates/zil-analyze/src/lib.rs",
+      "crates/zil-analyze/src/resource_tests.rs",
+      "crates/zil-analyze/src/resources.rs",
+      "crates/zil-analyze/src/resources/frontier_tests.rs",
+      "crates/zil-analyze/src/resources/summary_graph.rs",
+      "crates/zil-analyze/src/retained.rs",
+      "crates/zil-analyze/src/scopes.rs",
+      "crates/zil-backend-llvm/Cargo.toml",
+      "crates/zil-backend-llvm/src/build.rs",
+      "crates/zil-backend-llvm/src/emit.rs",
+      "crates/zil-backend-llvm/src/emit/arrays.rs",
+      "crates/zil-backend-llvm/src/emit/byte_buffer.rs",
+      "crates/zil-backend-llvm/src/emit/dynamic_store.rs",
+      "crates/zil-backend-llvm/src/emit/enums.rs",
+      "crates/zil-backend-llvm/src/emit/errors.rs",
+      "crates/zil-backend-llvm/src/emit/foreign.rs",
+      "crates/zil-backend-llvm/src/emit/packages.rs",
+      "crates/zil-backend-llvm/src/emit/resource_closures.rs",
+      "crates/zil-backend-llvm/src/emit/resources.rs",
+      "crates/zil-backend-llvm/src/emit/slices.rs",
+      "crates/zil-backend-llvm/src/lib.rs",
+      "crates/zil-backend-llvm/src/tests.rs",
+      "crates/zil-base/Cargo.toml",
+      "crates/zil-base/src/lib.rs",
+      "crates/zil-base/src/sha256.rs",
+      "crates/zil-base/src/source_map.rs",
+      "crates/zil-cli/Cargo.toml",
+      "crates/zil-cli/src/main.rs",
+      "crates/zil-cli/src/qc.rs",
+      "crates/zil-ct/Cargo.toml",
+      "crates/zil-ct/src/lib.rs",
+      "crates/zil-ct/src/materialize.rs",
+      "crates/zil-ct/src/program.rs",
+      "crates/zil-ct/src/source.rs",
+      "crates/zil-db/Cargo.toml",
+      "crates/zil-db/src/cache.rs",
+      "crates/zil-db/src/lib.rs",
+      "crates/zil-db/src/tests.rs",
+      "crates/zil-driver/Cargo.toml",
+      "crates/zil-driver/src/artifacts.rs",
+      "crates/zil-driver/src/contracts.rs",
+      "crates/zil-driver/src/ct_program.rs",
+      "crates/zil-driver/src/lib.rs",
+      "crates/zil-driver/src/project.rs",
+      "crates/zil-driver/src/session.rs",
+      "crates/zil-driver/src/tests.rs",
+      "crates/zil-expand/Cargo.toml",
+      "crates/zil-expand/src/enums.rs",
+      "crates/zil-expand/src/foreign.rs",
+      "crates/zil-expand/src/generic_alias.rs",
+      "crates/zil-expand/src/generic_budget.rs",
+      "crates/zil-expand/src/generic_bytes.rs",
+      "crates/zil-expand/src/generic_callable.rs",
+      "crates/zil-expand/src/generic_check.rs",
+      "crates/zil-expand/src/generic_check_enum.rs",
+      "crates/zil-expand/src/generic_copy.rs",
+      "crates/zil-expand/src/generic_enum.rs",
+      "crates/zil-expand/src/generic_helper_graph.rs",
+      "crates/zil-expand/src/generic_loop_control.rs",
+      "crates/zil-expand/src/generic_places.rs",
+      "crates/zil-expand/src/generic_state.rs",
+      "crates/zil-expand/src/generic_store.rs",
+      "crates/zil-expand/src/generic_trait_bounds.rs",
+      "crates/zil-expand/src/generics.rs",
+      "crates/zil-expand/src/lib.rs",
+      "crates/zil-expand/src/mapping.rs",
+      "crates/zil-expand/src/modules.rs",
+      "crates/zil-expand/src/receivers.rs",
+      "crates/zil-expand/src/records.rs",
+      "crates/zil-expand/src/resources.rs",
+      "crates/zil-expand/src/static_traits.rs",
+      "crates/zil-ide/Cargo.toml",
+      "crates/zil-ide/src/lib.rs",
+      "crates/zil-ir/Cargo.toml",
+      "crates/zil-ir/src/lib.rs",
+      "crates/zil-ir/src/program.rs",
+      "crates/zil-ir/src/wire.rs",
+      "crates/zil-ir/src/wire/flow_tests.rs",
+      "crates/zil-ir/src/wire/owned_carrier_tests.rs",
+      "crates/zil-ir/src/wire/state_field_tests.rs",
+      "crates/zil-ir/src/wire/store_tests.rs",
+      "crates/zil-ir/src/wire/tests.rs",
+      "crates/zil-ir/src/wire/type_stack_tests.rs",
+      "crates/zil-lower/Cargo.toml",
+      "crates/zil-lower/src/lib.rs",
+      "crates/zil-syntax/Cargo.toml",
+      "crates/zil-syntax/src/ast.rs",
+      "crates/zil-syntax/src/attributes/config.rs",
+      "crates/zil-syntax/src/attributes/mod.rs",
+      "crates/zil-syntax/src/attributes/registry.rs",
+      "crates/zil-syntax/src/format.rs",
+      "crates/zil-syntax/src/lexer.rs",
+      "crates/zil-syntax/src/lib.rs",
+      "crates/zil-syntax/src/parser/expr.rs",
+      "crates/zil-syntax/src/parser/items.rs",
+      "crates/zil-syntax/src/parser/mod.rs",
+      "crates/zil-syntax/src/parser/stmt.rs",
+      "crates/zil-syntax/src/parser/types.rs",
+      "crates/zil-syntax/src/token.rs",
+      "crates/zil-syntax/src/unicode.rs",
+      "crates/zil-types/Cargo.toml",
+      "crates/zil-types/src/addresses.rs",
+      "crates/zil-types/src/aggregates.rs",
+      "crates/zil-types/src/byte_buffer.rs",
+      "crates/zil-types/src/callable_fields.rs",
+      "crates/zil-types/src/closures.rs",
+      "crates/zil-types/src/closures/methods.rs",
+      "crates/zil-types/src/closures/package_effects.rs",
+      "crates/zil-types/src/closures/patterns.rs",
+      "crates/zil-types/src/closures/slots.rs",
+      "crates/zil-types/src/conditions.rs",
+      "crates/zil-types/src/dynamic_store.rs",
+      "crates/zil-types/src/enums.rs",
+      "crates/zil-types/src/errors.rs",
+      "crates/zil-types/src/foreign.rs",
+      "crates/zil-types/src/functions.rs",
+      "crates/zil-types/src/helper_flow.rs",
+      "crates/zil-types/src/helper_plan.rs",
+      "crates/zil-types/src/helpers.rs",
+      "crates/zil-types/src/inference.rs",
+      "crates/zil-types/src/lending.rs",
+      "crates/zil-types/src/lib.rs",
+      "crates/zil-types/src/managed_slots.rs",
+      "crates/zil-types/src/names.rs",
+      "crates/zil-types/src/packages.rs",
+      "crates/zil-types/src/program.rs",
+      "crates/zil-types/src/resource_effects.rs",
+      "crates/zil-types/src/resource_effects_worklist_tests.rs",
+      "crates/zil-types/src/resources.rs",
+      "crates/zil-types/src/retained.rs",
+      "crates/zil-verify/Cargo.toml",
+      "crates/zil-verify/src/borrows.rs",
+      "crates/zil-verify/src/borrows/buffer_effects.rs",
+      "crates/zil-verify/src/borrows/captures.rs",
+      "crates/zil-verify/src/borrows/loans.rs",
+      "crates/zil-verify/src/borrows/roots.rs",
+      "crates/zil-verify/src/byte_buffers.rs",
+      "crates/zil-verify/src/c_layout.rs",
+      "crates/zil-verify/src/cleanup.rs",
+      "crates/zil-verify/src/closure_tests.rs",
+      "crates/zil-verify/src/closures.rs",
+      "crates/zil-verify/src/ct_program.rs",
+      "crates/zil-verify/src/dynamic_store.rs",
+      "crates/zil-verify/src/dynamic_store/tests.rs",
+      "crates/zil-verify/src/error_scope_tests.rs",
+      "crates/zil-verify/src/errors.rs",
+      "crates/zil-verify/src/foreign.rs",
+      "crates/zil-verify/src/helper_flow.rs",
+      "crates/zil-verify/src/helper_tests.rs",
+      "crates/zil-verify/src/helpers.rs",
+      "crates/zil-verify/src/lib.rs",
+      "crates/zil-verify/src/native_values.rs",
+      "crates/zil-verify/src/package_tests.rs",
+      "crates/zil-verify/src/package_tests/captures.rs",
+      "crates/zil-verify/src/package_tests/fields.rs",
+      "crates/zil-verify/src/packages.rs",
+      "crates/zil-verify/src/resource_closure_tests.rs",
+      "crates/zil-verify/src/resource_tests.rs",
+      "crates/zil-verify/src/resources.rs",
+      "crates/zil-verify/src/resources/arrays.rs",
+      "crates/zil-verify/src/resources/frontier_tests.rs",
+      "crates/zil-verify/src/retained.rs",
+      "crates/zil-verify/src/retained_tests.rs",
+      "crates/zil-verify/src/slices.rs",
+      "crates/zil-verify/src/tests.rs",
+      "examples/mainline/callback_store201/factory.zil",
+      "examples/mainline/callback_store201/main.zil",
+      "examples/mainline/callback_store201/portable.zil",
+      "examples/mainline/callback_store201/state.zil",
+      "policy/dependencies.json",
+      "rust-toolchain.toml",
+      "spec/attributes.json",
+      "spec/diagnostics.json",
+      "spec/grammar.ebnf",
+      "spec/interfaces.json",
+      "tools/language/173/allocator_probe.c",
+      "tools/language/181/heap_probe.c",
+      "tools/language/201/consumer.py",
+      "validation/product-gates.json"
+    ],
+    "count": 189,
+    "differences": [],
+    "digest_algorithm": "sha256 of sorted UTF-8 path + NUL + file sha256 + LF",
+    "sha256": "40d6ea96068ae9ca036765bd47eb69cde02d5fa5fb8a9fe45538920ce7f4c5d6",
+    "execution_boundary": "Read-only object comparison. Root full-workspace execution is not this reviewer execution.",
+    "additional_read_only_equivalent_commit": "893ea73eb4d86717476504c39562d32d87e1337e",
+    "root_formal_result_not_reviewer_execution": "Root reports workspace02 2250/0/0 on 893ea73e; not included in reviewer test counts."
+  },
+  "source_and_test_files": {
+    "Cargo.lock": {
+      "git_blob": "38a62627c9e74866270068f2594959001ee00fe3",
+      "sha256": "76ff89481c963f58a5006edf64c4340d871a66a2ed7c8b2fd9bf984582fe69e6",
+      "bytes": 1543
+    },
+    "Cargo.toml": {
+      "git_blob": "71adfaea2deb83d99a108a0aa43e6c47937fe3b5",
+      "sha256": "295899fb51d7793ae4dbc61b93ccc9a1a0c374b01007ced4541a5e5354874f0b",
+      "bytes": 1204
+    },
+    "_zil_design.md": {
+      "git_blob": "a325ffe3739eaf0aea3ef5b746486c0ae2d1cac4",
+      "sha256": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
+      "bytes": 122200
+    },
+    "crates/zil-analyze/Cargo.toml": {
+      "git_blob": "df900e4c508b38301f8b21c630f92d819942fc66",
+      "sha256": "e4a2cac7cfafc7b5e4fcd093a1355e2c4090a66e12a37f9624ffba0781b757c6",
+      "bytes": 228
+    },
+    "crates/zil-analyze/src/budget.rs": {
+      "git_blob": "7ebf72e32f8e0650ee46fced83e7fd98a2b19a64",
+      "sha256": "8b73041552c936ca4aadb42e1a94c7c3615485cda2e5ece896f94434a92918ec",
+      "bytes": 29623
+    },
+    "crates/zil-analyze/src/callable_fields.rs": {
+      "git_blob": "fc62ec13f498b98dbc488b77394967bc3d7088a4",
+      "sha256": "6dbf395d4644f2d1cba9a46722522ae4e2c105f4c6cc8aa0a21387f48026eb37",
+      "bytes": 2494
+    },
+    "crates/zil-analyze/src/dynamic_store.rs": {
+      "git_blob": "7fa5a0f9b864deabd5707b947db2a2da1779eba5",
+      "sha256": "07be989e29cb8c6d73dd70ce3ac4ba74d6022ee4d4ac146e6005cd6da62aff8c",
+      "bytes": 3235
+    },
+    "crates/zil-analyze/src/helper_flow.rs": {
+      "git_blob": "5cafd5bc4d8b6aa07b4d841af672bc9c6401e8f9",
+      "sha256": "55602c259c6a3441abec24f132d758b9391d666e2ec76ee61a6966176f8c4fda",
+      "bytes": 18123
+    },
+    "crates/zil-analyze/src/helpers.rs": {
+      "git_blob": "cb199fc9e27fe992cb6fa44ff3d0ffb28ccd9a6a",
+      "sha256": "b4a736cc70795ab66de888922ee3f89aed5babd664f363b421f1d2259f90b245",
+      "bytes": 21792
+    },
+    "crates/zil-analyze/src/holds.rs": {
+      "git_blob": "5c3c9b12c33b121530da17a96f578b3a5fb2170e",
+      "sha256": "529cce2395e3cffa3cdfb80be1872a859fa6b0ddbc85971314a216253e4a095b",
+      "bytes": 29950
+    },
+    "crates/zil-analyze/src/lib.rs": {
+      "git_blob": "40b0c2b68d40133918ff69c56767356c9a63a27c",
+      "sha256": "bb6108e347d0a0b006ea6becfcc0eda12956e6081f2ef892299f0aef50a628c1",
+      "bytes": 16729
+    },
+    "crates/zil-analyze/src/resource_tests.rs": {
+      "git_blob": "428fa72da2abb66d98b72a313bdc22fb5811af71",
+      "sha256": "6abc8d64c5df7485d0f0c1f272474ea40633fb14ebccef127c9d0e12ecf375d5",
+      "bytes": 11745
+    },
+    "crates/zil-analyze/src/resources.rs": {
+      "git_blob": "aac238065879cc503bd4a7da2fe6db8ada29f2a8",
+      "sha256": "922b5452827d226442d56082012f88d2d62800f716217aa11db12177912d9de1",
+      "bytes": 119142
+    },
+    "crates/zil-analyze/src/resources/frontier_tests.rs": {
+      "git_blob": "022abdf2d856684f971dab9bb0b977d4a484a123",
+      "sha256": "ddec14c63dde99eba4bdcfaa4d73e89251539ac180fe8f58aeab9f56df9eb7d7",
+      "bytes": 16284
+    },
+    "crates/zil-analyze/src/resources/summary_graph.rs": {
+      "git_blob": "9e379f49d554890de31deaf2784dffdacb551beb",
+      "sha256": "97cb60c86c69f627a5b4e397ad39310d2568d4b970ba5b302b7f715640bec98a",
+      "bytes": 4291
+    },
+    "crates/zil-analyze/src/retained.rs": {
+      "git_blob": "7d46c13aeeaa7bdc112d06c72132dff03ff84e10",
+      "sha256": "0726ff13ff7aaa3093982b76930e1b0fb41edef624a80130ee88dada75cdb42e",
+      "bytes": 5709
+    },
+    "crates/zil-analyze/src/scopes.rs": {
+      "git_blob": "0765eae6f163d41724af30b89e1c62bbfeefccb1",
+      "sha256": "1661bcb8e4ece88d689a0a0caeefc17b1a7e88b915fdca83fda881669671dc49",
+      "bytes": 14191
+    },
+    "crates/zil-analyze/tests/impl201_store.rs": {
+      "git_blob": "8f0713a930ed63bbd92bae8d1e4a653eff453bc3",
+      "sha256": "479e6114e13e313a1aea7396afce3f2b001055554cb3fbdb6069b4a46a090062",
+      "bytes": 17731
+    },
+    "crates/zil-backend-llvm/Cargo.toml": {
+      "git_blob": "afc208fbf5efc5049898cf23c442e458001ea860",
+      "sha256": "4d9fa8fd320f7a2362254229ec1b094949d852debadb427224b7829de4ef42d8",
+      "bytes": 261
+    },
+    "crates/zil-backend-llvm/src/build.rs": {
+      "git_blob": "7bbe7d2ce8a028b085d75dfb715e7217b1a9f589",
+      "sha256": "f0c434eb94463de07586dc308bf1bd5cfab98c5e0bb09207dc88499ca458995d",
+      "bytes": 8401
+    },
+    "crates/zil-backend-llvm/src/emit.rs": {
+      "git_blob": "ee985df05d4e96ed4b0ad4ff22dac3797c8e44ee",
+      "sha256": "6232917f0642cc9d14026ad2002b76f7bcd08a5ae65822114bc47f03eea0c8a7",
+      "bytes": 75438
+    },
+    "crates/zil-backend-llvm/src/emit/arrays.rs": {
+      "git_blob": "e4c7222080b6ad3a38a0d2917df4309770cd82f4",
+      "sha256": "f8c5334628750e1c843dddb72cfd8e7798e0429487bb7b0c1ad6425da9a23888",
+      "bytes": 10598
+    },
+    "crates/zil-backend-llvm/src/emit/byte_buffer.rs": {
+      "git_blob": "53f563c22041ff9a10cb54b2d65f1b9eb6da7d6e",
+      "sha256": "afc95e6c656aa33ca9ea468fe4c2c1488c466e663a4d73832a0a877f98a28093",
+      "bytes": 10642
+    },
+    "crates/zil-backend-llvm/src/emit/dynamic_store.rs": {
+      "git_blob": "bce3cde41ff8cb234f062bd2c2a7d5add08ce394",
+      "sha256": "44012bca22e3c8f7c442e1889eeca74a0cf60bf2d57949f18cb2671f82594844",
+      "bytes": 12660
+    },
+    "crates/zil-backend-llvm/src/emit/enums.rs": {
+      "git_blob": "ef5d7cc127ce248328c3cc9ddbb5c5770dc26417",
+      "sha256": "21e03f9c69ddd85777f97849852ef8375d87fc7163943ff4691d49d5e0aa7a54",
+      "bytes": 12924
+    },
+    "crates/zil-backend-llvm/src/emit/errors.rs": {
+      "git_blob": "1a62cb8883ad6d0f23e732446ca952b8929d0f2a",
+      "sha256": "7ca9bcf5281947998f7cd4714a6cffed9cb854cf4462f36c63b269ec33151504",
+      "bytes": 8008
+    },
+    "crates/zil-backend-llvm/src/emit/foreign.rs": {
+      "git_blob": "71b88fb4789d0bdc32d656cc9f1d0e6615a93377",
+      "sha256": "f03350f1875b4fc49928213456ed50f0429216c36b6dabe283f192bc2682a079",
+      "bytes": 2818
+    },
+    "crates/zil-backend-llvm/src/emit/packages.rs": {
+      "git_blob": "1d6ea4d2d9e7390d1d4a32f07b6d5d4eb0aaeb67",
+      "sha256": "068c554465180565da9393838ed025b11b522b027301137646271f3075c1b455",
+      "bytes": 14766
+    },
+    "crates/zil-backend-llvm/src/emit/resource_closures.rs": {
+      "git_blob": "f519996b601b897e60814bdb3a989842e2d84a97",
+      "sha256": "67e13c4685fdae95ced4a1c8b7a1878b797a0906e6bfb4885fb1fcd30793b4ab",
+      "bytes": 17669
+    },
+    "crates/zil-backend-llvm/src/emit/resources.rs": {
+      "git_blob": "44c90be1af9684ed80a6ff4abd18e01dfb591267",
+      "sha256": "ffd49f2a61fe2daf9a2c52677dfeb1b4a9cd0dea48ef4924fcf203e63051ec52",
+      "bytes": 5484
+    },
+    "crates/zil-backend-llvm/src/emit/slices.rs": {
+      "git_blob": "b8153e380b809cae73a3f5a6210a0bc1a4b74fb6",
+      "sha256": "c7bca7b01c17b65fda8952927d9eafeae633ebdc0f927b7cee7302e54bbb1a8f",
+      "bytes": 4415
+    },
+    "crates/zil-backend-llvm/src/lib.rs": {
+      "git_blob": "59e5ea905ffd3302a91aba59d67a50e2c50ca487",
+      "sha256": "50ca3af8b65e2063fd195a2ab8c5399615331de1478f8591a52a2a58d41070b4",
+      "bytes": 2073
+    },
+    "crates/zil-backend-llvm/src/tests.rs": {
+      "git_blob": "1db8b3df41137c2998eb5e842c1dd3ee68d3769c",
+      "sha256": "ad6d1eb3b94dc49f1c2b04cd6af6a735e800a60daa7dc1d51b7ecb05b74caaec",
+      "bytes": 47647
+    },
+    "crates/zil-base/Cargo.toml": {
+      "git_blob": "882bb11a4a30934088abc6cd3a06f67fd016c38a",
+      "sha256": "7eae24124d86c3db6aedcf7326cdbe69548a30454d1dbecab41f1ddc1789d100",
+      "bytes": 175
+    },
+    "crates/zil-base/src/lib.rs": {
+      "git_blob": "6bbf90e6a160fd1b62b5414add891897c9d05181",
+      "sha256": "10347ee2f9dcfea0ee796ea67d6408da3228c9ce3bd15b8c8b0d5c65f2d11377",
+      "bytes": 13543
+    },
+    "crates/zil-base/src/sha256.rs": {
+      "git_blob": "e208f3f4cf3c4a7b1920ac87a54746d11dd88140",
+      "sha256": "17c76c54c6266a9c874704801d7ad235ae0f75d2adf9511fbe16bb37d31a912f",
+      "bytes": 3373
+    },
+    "crates/zil-base/src/source_map.rs": {
+      "git_blob": "16e4f787c30ad4034871cff97212fa5de71cfe21",
+      "sha256": "7447480de4b4d829a50ea5cbc50d55471275fc3b4d0d5fc34a07d6c2e1a20b6f",
+      "bytes": 10010
+    },
+    "crates/zil-cli/Cargo.toml": {
+      "git_blob": "77643d9530c29400a88fc4bea68b157111e5c24c",
+      "sha256": "ff7683a0399230433b0439373cd02a3451c4aa819bfe0343e5e505cf516d649a",
+      "bytes": 271
+    },
+    "crates/zil-cli/src/main.rs": {
+      "git_blob": "63ecd6eca17e05c5b8bb732a88d6cc6ab3b32f29",
+      "sha256": "28312fc7cf9663fd89d4f7b67c48b23a58a0e13505cc24ba72d7681fabc71f0b",
+      "bytes": 12881
+    },
+    "crates/zil-cli/src/qc.rs": {
+      "git_blob": "3c330baa8b6bd02403878eee164ff5b7d6c2f599",
+      "sha256": "50b547d409bdea20a82e84d00ddc2dc5e28d985fea9b50d7c1abd9cc4d5cfe29",
+      "bytes": 2914
+    },
+    "crates/zil-ct/Cargo.toml": {
+      "git_blob": "77e4cf5f913dd41531f5c4e0bb3aa2214bca2cf4",
+      "sha256": "08e8c13a09cee48a8ca2210b6586a7a4a4ac3bfe98e3034e7e6ade49dee171fb",
+      "bytes": 251
+    },
+    "crates/zil-ct/src/lib.rs": {
+      "git_blob": "60c603bfd8db31935b8aa6b079d2af521ddba382",
+      "sha256": "c697c9044fdb63dcf79c82d840d92307d777e5c5692ec724044b5d40025ce8c5",
+      "bytes": 8837
+    },
+    "crates/zil-ct/src/materialize.rs": {
+      "git_blob": "d7a75522908a020086ad950d56eb36f137358eda",
+      "sha256": "ce0b1d8e571b9699033aba8afca75e627374377e6bda630a6dbf563b489d7446",
+      "bytes": 25231
+    },
+    "crates/zil-ct/src/program.rs": {
+      "git_blob": "adca2b8fcde05571d163c5d90dd1c08719ac28d3",
+      "sha256": "2824ba4773087e5d725a1d5d6ca43a379f2bfae95a46ebe225a98e1c53ddcbd7",
+      "bytes": 17551
+    },
+    "crates/zil-ct/src/source.rs": {
+      "git_blob": "70b8f53bc2b509fbba6d8c0c377f6437c22fa4dc",
+      "sha256": "8ddafe1fbd5916718ae99ad2901ec08fc78eceb52b0c691427d79a572ab13975",
+      "bytes": 74571
+    },
+    "crates/zil-db/Cargo.toml": {
+      "git_blob": "dd8456c5bec7dde8683cb0631d2e0b30a4f78ca7",
+      "sha256": "9824d0a6685429730d419397cd9f7776a50e44130d998e21d5e549a2f79038a5",
+      "bytes": 199
+    },
+    "crates/zil-db/src/cache.rs": {
+      "git_blob": "d2c5f64a71b253f8da100ce81ca846935caf59e2",
+      "sha256": "ff79c1b73e4e7f563e64b65ad3c7fe8f2a5bc51c8afa89fcca1a164a9511c7e2",
+      "bytes": 10177
+    },
+    "crates/zil-db/src/lib.rs": {
+      "git_blob": "97f7998b6dad8195c7dbccab19367121c711f420",
+      "sha256": "2a07435a5d585581219bea2cc8aa70d9dbd62fe9cb3e0555f2a2913563e768e4",
+      "bytes": 9601
+    },
+    "crates/zil-db/src/tests.rs": {
+      "git_blob": "a85f91fbe29f40a1e2b7bbb5f3afdd360f777d8a",
+      "sha256": "4dbb8006dc7decb62c0686b653849ba3f24e18cfe01cb76db38b32da3a95a510",
+      "bytes": 13327
+    },
+    "crates/zil-driver/Cargo.toml": {
+      "git_blob": "863383ba15d4cc0434388be319fe5b398f2533fa",
+      "sha256": "627bc678a20ca9da923a9ffd73b96e07257b08e6634aa99e3d0766efb9549dd6",
+      "bytes": 476
+    },
+    "crates/zil-driver/src/artifacts.rs": {
+      "git_blob": "94a6196c3021499ecd1f7cd580016fabb9f0ced2",
+      "sha256": "afabc775571be7143b04d03db70bd2905de1dab96436864efb66c4a1b19684d7",
+      "bytes": 19816
+    },
+    "crates/zil-driver/src/contracts.rs": {
+      "git_blob": "2f6975cb9f3bf2abe0d0ffbeea082d3c076f1b8e",
+      "sha256": "afa4ad387603187029b314fc794fd3ca55a2e9c71ead4bc5f5c17465254d2980",
+      "bytes": 7097
+    },
+    "crates/zil-driver/src/ct_program.rs": {
+      "git_blob": "2018b3bbccfa18c2fde5474b3b7f48fb05b6e6f6",
+      "sha256": "a5e66a189b745b7d49f492d4d2a225daf0cc36fe7f1fa235f2c15b18d00b9ffe",
+      "bytes": 46060
+    },
+    "crates/zil-driver/src/lib.rs": {
+      "git_blob": "689e93ee4353442232fa293789475065ae2c509b",
+      "sha256": "cb7b412c50a6763aa30e8d4122c82be04648cea5f5275159e1170b0c8cab96f8",
+      "bytes": 10183
+    },
+    "crates/zil-driver/src/project.rs": {
+      "git_blob": "4e7e2bf9529d41c33792eb36c040a20a2d5b2bfd",
+      "sha256": "b05e995ca2bb55e69451a4f50135ea5128a71c3e829379a8a99c1c2037d0f752",
+      "bytes": 35613
+    },
+    "crates/zil-driver/src/session.rs": {
+      "git_blob": "80f00414f1822da81f94d5a57f0bd079af52bb7f",
+      "sha256": "fbf9d80e6f3464cb68a7fdacacff909b26f78ffe299732eddef51218e3d07851",
+      "bytes": 28446
+    },
+    "crates/zil-driver/src/tests.rs": {
+      "git_blob": "e2d2699c05fa84d36be7638e79fbddadee183e2d",
+      "sha256": "37176735debb6b809b396ae95803b99f5b32dc634b857f2d2e64acd080aa20dd",
+      "bytes": 23615
+    },
+    "crates/zil-driver/tests/impl178_generic_store.rs": {
+      "git_blob": "c1751c20570b0026b88e18f0086fd0cff4b02a59",
+      "sha256": "009ddb8f1fb9981e1219d9d4723f6957b3b1462b9118871b15181cadfa61a974",
+      "bytes": 26044
+    },
+    "crates/zil-driver/tests/impl197_cases/01-existing-state-f-sibling/main.zil": {
+      "git_blob": "821af697c3941101b92499e2be26728ca3bc8b77",
+      "sha256": "7cedc0a7d37056c9a4dea902c0e5475768296b83cdb8e9c91c6f3492e0fcb251",
+      "bytes": 505
+    },
+    "crates/zil-driver/tests/impl200_fixtures/00_single_callback_state.zil": {
+      "git_blob": "da6b270bd75c909132b7386e68772068c435d20e",
+      "sha256": "56cfb56651a856772561c3587819140974c214ce5edbeaba9541e89eb3cc2116",
+      "bytes": 559
+    },
+    "crates/zil-driver/tests/impl200_fixtures/01_same_f_two_callback_state.zil": {
+      "git_blob": "1e15707430c1e403901ac044f45718d2de137566",
+      "sha256": "73a0a0fa1fb97e9efd28e42a86f3e91560256dcb7cee69b570d5806db23b916f",
+      "bytes": 630
+    },
+    "crates/zil-driver/tests/impl200_fixtures/02_store_of_callback_state.zil": {
+      "git_blob": "99dea05423f4291b1196b7f4d151960da7aa5b3d",
+      "sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+      "bytes": 626
+    },
+    "crates/zil-driver/tests/impl200_independent.rs": {
+      "git_blob": "1aab1818934ac9dc22537dfc2bba0f3e5e0ca85d",
+      "sha256": "14966b706a0ead774df0c866c59b074d1144783e8e8f77b4ca04f896a9e770d2",
+      "bytes": 32233
+    },
+    "crates/zil-driver/tests/impl200_state_source.rs": {
+      "git_blob": "82f05d32eb2741d714d582a1f7d165abae3df250",
+      "sha256": "2940dd8418d7c458c567ea393a732d71f51b669c1b429da9c2b8479f1abe37d6",
+      "bytes": 25171
+    },
+    "crates/zil-driver/tests/impl201_analyze_store.rs": {
+      "git_blob": "f17364abc56ca35704c3f85e7c0cca458a16e535",
+      "sha256": "e19c2d26e60309541ea0c5c2dd185ae51b7fc320bead52baa60dfa506b2a6acb",
+      "bytes": 16906
+    },
+    "crates/zil-driver/tests/impl201_independent.rs": {
+      "git_blob": "daf6c905fcc7ca465aae5c692a85e2676f5612c0",
+      "sha256": "a0fc5fcaaa301cb7fbe3462a4a09425b9c301192189a58a64ebb9dbf41088e38",
+      "bytes": 28694
+    },
+    "crates/zil-driver/tests/impl201_source.rs": {
+      "git_blob": "67cdf2ab3a49f5d7c89358eeecf8d341226492d9",
+      "sha256": "d132a846e045ad758d8b97b718984c4beec95e32241633903fd34fa229272055",
+      "bytes": 14081
+    },
+    "crates/zil-expand/Cargo.toml": {
+      "git_blob": "159afad934bf1b7827a250d69d3d139a8f1ac710",
+      "sha256": "2241fce02e77acf41d395f76d3f1ffd9d2d883a28a9fd12c43a0edcd0554ae99",
+      "bytes": 255
+    },
+    "crates/zil-expand/src/enums.rs": {
+      "git_blob": "9158b2888a04417e090c1caee4ba4e1e1798e7e7",
+      "sha256": "c3ee6ee223f8a8be09fc816cb21987fd54abdf7f0f571fcf7275aca1bb94e9bf",
+      "bytes": 3659
+    },
+    "crates/zil-expand/src/foreign.rs": {
+      "git_blob": "ef8f225e0d866a1a296f00ef10450ec91a9522ab",
+      "sha256": "a03e4fa9c9e66cc40f8a2d8cf67424d4c51e7d4cf3b97482aa8dd00a706bdd77",
+      "bytes": 14815
+    },
+    "crates/zil-expand/src/generic_alias.rs": {
+      "git_blob": "95814b567d7ee2d14eb0173e0f1d57e2177e9425",
+      "sha256": "d743f4586408927910f88c6cb52ce328c1c6c8e18e4abdc7a26e94b77b5e17c6",
+      "bytes": 29673
+    },
+    "crates/zil-expand/src/generic_budget.rs": {
+      "git_blob": "9d3db5ad9d1fe042075ec0ae9918245874cec1cf",
+      "sha256": "32b6dc12e0857a34b6b22da401a869964b5c2ac055f036984d36a079b8e83203",
+      "bytes": 24864
+    },
+    "crates/zil-expand/src/generic_bytes.rs": {
+      "git_blob": "986f7018734ca3cd10d72ea384c64c4158550723",
+      "sha256": "65cb4b1a2f014a56cf5e8d6fc0f21f818da04d31871ef768e1864ab1032b3cc0",
+      "bytes": 1316
+    },
+    "crates/zil-expand/src/generic_callable.rs": {
+      "git_blob": "ec28f25e3f16d85c2f2ce24442b3a4f171eb909e",
+      "sha256": "4acbbd9f3ee1b7185ac0fa834e74cd1728ad9ff650ded40f9f95ae6a34ac30b3",
+      "bytes": 13818
+    },
+    "crates/zil-expand/src/generic_check.rs": {
+      "git_blob": "338322126b497e67b6c89bda4cbf9f5a0af228ba",
+      "sha256": "8729cb7e3baf1cc7f4dc9fc67ed8813eb6ca5d070fc9b0c94effad2b27beee34",
+      "bytes": 117424
+    },
+    "crates/zil-expand/src/generic_check_enum.rs": {
+      "git_blob": "039ddea83413737f66fd2a0426c2ae00b1f04895",
+      "sha256": "2c7e823f82a6dcd1bd883769de6d2f0af9a93b696f6626fac03f903c72e955db",
+      "bytes": 14214
+    },
+    "crates/zil-expand/src/generic_copy.rs": {
+      "git_blob": "f5de31b645b6a5b6c453bd87e5830514b610f88b",
+      "sha256": "9d9e85b7b6905fc0db144c6d3e217c6d728f6187fe818038df73c8391fde9d05",
+      "bytes": 10876
+    },
+    "crates/zil-expand/src/generic_enum.rs": {
+      "git_blob": "38505c0b537ace15485822337e4c4d9fa2ac634f",
+      "sha256": "56ad0f59d81f5aefd73e4996d1cb2ff3364fc9aa3ba544c6c7287b12ef6ff16d",
+      "bytes": 23845
+    },
+    "crates/zil-expand/src/generic_helper_graph.rs": {
+      "git_blob": "3edf13c54811960948e4a44fdd026c94bc760a55",
+      "sha256": "e1b794a954bbb31d1192310ce62a10580dc2ae59e904fe3ae042cf098baf4155",
+      "bytes": 3402
+    },
+    "crates/zil-expand/src/generic_loop_control.rs": {
+      "git_blob": "9a9a06536f537f68e7b2d8bf90087bd5c84eb021",
+      "sha256": "98aedf0ba66d9046859b7eb70a09c45cd097de2b4326ca7573062a86aa7935de",
+      "bytes": 4553
+    },
+    "crates/zil-expand/src/generic_places.rs": {
+      "git_blob": "8428fb710b1901925b37b273f5787395af07ba11",
+      "sha256": "cdadee0e1007883bd2e45fbddad471c343753c22de007354f20fe20a92b907de",
+      "bytes": 7338
+    },
+    "crates/zil-expand/src/generic_state.rs": {
+      "git_blob": "35cab6b747e7e8e2f28c22e3312fef045bbba380",
+      "sha256": "8eb55946304bd0fbc4763e315156aa0106be4d6e8aef70bc7c20170b47056352",
+      "bytes": 3117
+    },
+    "crates/zil-expand/src/generic_store.rs": {
+      "git_blob": "feabb0e687951b6cfd896a3f3d3313a195a26632",
+      "sha256": "86a59562123f6cfd2edbc43c8d34fe5a1738df09284d1cb5209393cac8f1dccb",
+      "bytes": 10108
+    },
+    "crates/zil-expand/src/generic_trait_bounds.rs": {
+      "git_blob": "642112ea7f1e2b439ccb01e991f3eaf07c83d883",
+      "sha256": "45f738f86d9ab3056cbec7b089d4edda2c568b42d5242c7f93c99bc291cbaa31",
+      "bytes": 16029
+    },
+    "crates/zil-expand/src/generics.rs": {
+      "git_blob": "53e8307cb0ad78851591887b4703ca63b834989d",
+      "sha256": "57453112604ddf1ffdca231a135f9076ef7a5ddae47070ab824ec64675decdd9",
+      "bytes": 90972
+    },
+    "crates/zil-expand/src/lib.rs": {
+      "git_blob": "eefc20f15dcaf149c9f3339f2b2b8cc367b86b79",
+      "sha256": "b85b7fff177ee39d8b26a8a3eeca2b3e562844e04b8eb241cf2fe65e6c7e0cf0",
+      "bytes": 46217
+    },
+    "crates/zil-expand/src/mapping.rs": {
+      "git_blob": "c04617df05e4a63ff9ad6487d67dbc895163a723",
+      "sha256": "da6560b21aee953cf780256d09d7c6f91a771bc88ff125eff4e1f9362b44b537",
+      "bytes": 2432
+    },
+    "crates/zil-expand/src/modules.rs": {
+      "git_blob": "1dc8c168b4dbf034859a740973c307868a1f7f2b",
+      "sha256": "9b740a46a77ee7c940c2f78002f91b9909e00caa0b7e165e542095cf58eeecc8",
+      "bytes": 39049
+    },
+    "crates/zil-expand/src/receivers.rs": {
+      "git_blob": "b20b60c75237677ae08b91045e231f98707a4b08",
+      "sha256": "a8c4e38d9ede0ebd1cd79730df973f23989e74ab976ade189bba1fd2ebf74190",
+      "bytes": 10813
+    },
+    "crates/zil-expand/src/records.rs": {
+      "git_blob": "34f9dec54a09337efafd4f29906aeb6d99ca883f",
+      "sha256": "cc95014f31838ab9900390ffc3265b7a88536289f022ad5d6a7970961aaf1829",
+      "bytes": 11116
+    },
+    "crates/zil-expand/src/resources.rs": {
+      "git_blob": "b038a058ac49bb1b559885c6b9512faa0b695f48",
+      "sha256": "91afc69213732b3efc3cf730ce84d7f4e1cece5bd05edb9bf2556ebc173e1096",
+      "bytes": 5142
+    },
+    "crates/zil-expand/src/static_traits.rs": {
+      "git_blob": "580a1650f3b9b0734efd05a5216b505ef2cb24f2",
+      "sha256": "892ba1ef6862f2b6029fd6214e1e66afaf0ef83c6dac312e91f983b4e59993c5",
+      "bytes": 15372
+    },
+    "crates/zil-ide/Cargo.toml": {
+      "git_blob": "835e5b337f06fec842c3b1a317de22b7b1e9d70b",
+      "sha256": "f4f5cf2d9d62065a712ad454691c53aeed44c3ca35f54af7036ba1db6b1973e2",
+      "bytes": 228
+    },
+    "crates/zil-ide/src/lib.rs": {
+      "git_blob": "bd2538b2d9fcc78e60b030a44a52f85dd75da521",
+      "sha256": "b8a4761c358ee4bc57e8690eedf63ffdacee14a030f023957ed2c11a05ade3a0",
+      "bytes": 4434
+    },
+    "crates/zil-ir/Cargo.toml": {
+      "git_blob": "087d7c512b74a88e16f1e91e44a80e8203d96d74",
+      "sha256": "7a7692cb5cec45b0e8dddfffd4851d883ccaf05fcef20c8464cc276eaf1c96fe",
+      "bytes": 199
+    },
+    "crates/zil-ir/src/lib.rs": {
+      "git_blob": "dfff825506d3a6d48a53e7053ddbacebacd7af4d",
+      "sha256": "8bec975bb593fc4b9b819318e9e546f1594fdc64e667f10a61458a231efb4277",
+      "bytes": 72593
+    },
+    "crates/zil-ir/src/program.rs": {
+      "git_blob": "a93ce68090ee74b554c834984ee2966ed1a8d9e2",
+      "sha256": "faf6d430a202892500079a03048269c46370a63b54ec81309a50a2f732f9c0d2",
+      "bytes": 2196
+    },
+    "crates/zil-ir/src/wire.rs": {
+      "git_blob": "365122f9093f8e2b217a33e575585c4ad1ae6c7a",
+      "sha256": "066573ac13167efea61b74fb771b13986c6e09ec8de01ff045e34c82620be516",
+      "bytes": 101797
+    },
+    "crates/zil-ir/src/wire/flow_tests.rs": {
+      "git_blob": "6b2a0c3d0e8d6dd8231cd39597672452ca4ac41b",
+      "sha256": "93432ed562948159ea84dc34374ab7f6a0f785eb432b4f92649c4cdd61f2cc34",
+      "bytes": 8633
+    },
+    "crates/zil-ir/src/wire/owned_carrier_tests.rs": {
+      "git_blob": "9d1324800895dd3094f80174087a6f4482da5fd4",
+      "sha256": "cc3384c0138cefce52f4d5d626e79a83203a41feb70f2c265e29c30c813d51e1",
+      "bytes": 9056
+    },
+    "crates/zil-ir/src/wire/state_field_tests.rs": {
+      "git_blob": "22d085b314c705915c4dcd118fb31bedac6a04b6",
+      "sha256": "4eb4a4d7c70ee437a48fc3e63d2b418975b62db268c2195669135d59e65194a5",
+      "bytes": 6347
+    },
+    "crates/zil-ir/src/wire/store_tests.rs": {
+      "git_blob": "46ac80d5c80392580403f0bfd840964f1b649dff",
+      "sha256": "5a1f510eb14dcaa1da6b3be295c810274697e87ec3d82f64a6eb31a4c7508ec5",
+      "bytes": 7138
+    },
+    "crates/zil-ir/src/wire/tests.rs": {
+      "git_blob": "153fadb4557f3a19dbb080cb63f79288d386d3b7",
+      "sha256": "1963bbf0df2f91da9bbaa53ef6f5ef1aa80341314b5c48bd439a41a930d0671b",
+      "bytes": 31943
+    },
+    "crates/zil-ir/src/wire/type_stack_tests.rs": {
+      "git_blob": "ed9888958621997d0d16126e161d50aaefb7a73c",
+      "sha256": "3cd4df6ac4e3e0df707663f6cbddd3586c19a4c0ee91c80c4c92efd14fd00af6",
+      "bytes": 2981
+    },
+    "crates/zil-lower/Cargo.toml": {
+      "git_blob": "9b737603e458bf4f8a69b37f746ca420a6524f0e",
+      "sha256": "629b59aeeefab243b4b7ad9111eb2143ef51ab9badc040eb0e790076373535d4",
+      "bytes": 254
+    },
+    "crates/zil-lower/src/lib.rs": {
+      "git_blob": "43f648e441879ca057248e9513aad1b084e3451f",
+      "sha256": "343ee2a268eeadeccaeb2637b356bd787349846ec7ff5c5b1ee8b9d183e57c8d",
+      "bytes": 16858
+    },
+    "crates/zil-syntax/Cargo.toml": {
+      "git_blob": "45f7d601308d982e4bae74e6ae49e2fdf61209ae",
+      "sha256": "ed2d1d2833378bb1edaa8978f1b41cdc458ba616b0df49494237ca3c31dfafba",
+      "bytes": 203
+    },
+    "crates/zil-syntax/src/ast.rs": {
+      "git_blob": "73c10950301ad29a2d9ad62e4edcb9d55f03ed1b",
+      "sha256": "e027ab4e952e122a972b11c98d00ae27162b779d40388cc6eb35ebbe34d61980",
+      "bytes": 11401
+    },
+    "crates/zil-syntax/src/attributes/config.rs": {
+      "git_blob": "bad9d02d756c2c117b1d00d231594fcbe1a58171",
+      "sha256": "471837895a762fc23474809c4d897551dc92cfb39530507ef05853570006b156",
+      "bytes": 4786
+    },
+    "crates/zil-syntax/src/attributes/mod.rs": {
+      "git_blob": "de86b7ad01f2ea0b050624fb1ac796e04784dcf8",
+      "sha256": "f2bc1689bc6dd0606a8bc4b3dd7d191395f2f5de8b45bd55ced3a874639df6da",
+      "bytes": 16030
+    },
+    "crates/zil-syntax/src/attributes/registry.rs": {
+      "git_blob": "ca866f35ee704f4508ad815a3fca4ed88bf2e6ca",
+      "sha256": "0fca9d64aee85225044b2e7445b77b1ebfe8011ea9141dcc498f7dce532d43b4",
+      "bytes": 2720
+    },
+    "crates/zil-syntax/src/format.rs": {
+      "git_blob": "b558334774fc820defa352addd6de1d46e28c57d",
+      "sha256": "3efdc673f19c41a2321bb1576d5c2d373f0cfeba08c2b301c1dfc8003788c3c1",
+      "bytes": 4907
+    },
+    "crates/zil-syntax/src/lexer.rs": {
+      "git_blob": "3da52fc9e9574de0e9d9aa0564bd8a3b88b566ba",
+      "sha256": "a05810a2c77590ace029d643dbcd324b9be1cdfaa4529480e4d5aa05d8c2f714",
+      "bytes": 16764
+    },
+    "crates/zil-syntax/src/lib.rs": {
+      "git_blob": "e76d49329cba8a57083fce53f05c84490ccf2ff1",
+      "sha256": "3a933eb81cac5de91a1100d4333fcd8e2dbd6bb62a4f474fb88f57291dc4fa61",
+      "bytes": 2725
+    },
+    "crates/zil-syntax/src/parser/expr.rs": {
+      "git_blob": "c82caa076ee35da44f182af31244866a753c4804",
+      "sha256": "5b1067d94b9c48f21650cb3059e52a6e21cbee6fd1a35d01982f0854151881a1",
+      "bytes": 23065
+    },
+    "crates/zil-syntax/src/parser/items.rs": {
+      "git_blob": "39c2871750ff20a3769123aa656a9aa48feb8676",
+      "sha256": "0c07ab627ea2d34a8da5934d528f23c11e64db0b4de8856dc5d16941a290b21f",
+      "bytes": 21415
+    },
+    "crates/zil-syntax/src/parser/mod.rs": {
+      "git_blob": "9b43e2a20b1136e8f5a57ffde979f1ebe3f10dd5",
+      "sha256": "5179ce26ef9e695361fdd1dc7d274edc210ae28fb45a5a5b4eca8d2f75ecf58f",
+      "bytes": 17798
+    },
+    "crates/zil-syntax/src/parser/stmt.rs": {
+      "git_blob": "a8834441f72c85454ddd207cc4e87caf71de0f31",
+      "sha256": "c0403efa2c80698f6bcf83496b91df0c0f8b1d44f2613a6f4c08de41d363cc97",
+      "bytes": 16992
+    },
+    "crates/zil-syntax/src/parser/types.rs": {
+      "git_blob": "584f48e8288b2e7268a44d5f92f11a26814d5e79",
+      "sha256": "57a3f9bc61790345b23d72ef3af0e31af1a28af4cc0c0ea2f5f8cba8d102c2fc",
+      "bytes": 13247
+    },
+    "crates/zil-syntax/src/token.rs": {
+      "git_blob": "ca5e618a6a59dfc646182779abdbea15d32e0aad",
+      "sha256": "e515c82116d140d233e9c3ae34d405169ebf7b5961ac1b438fa2dca4f7791105",
+      "bytes": 1440
+    },
+    "crates/zil-syntax/src/unicode.rs": {
+      "git_blob": "33855ce17e96537554986e1fc3ef3b6917a38c28",
+      "sha256": "ad37a735644eff46a6b4279f76b7f9b0edc32d353d8d2260537d11c6f8711a7b",
+      "bytes": 34543
+    },
+    "crates/zil-types/Cargo.toml": {
+      "git_blob": "643bc07ecbcf9d9a13119dbe7c33dd16a5e51a01",
+      "sha256": "48186032e93628d30b9eabfacc845bb484af69e7373a515b4cf63296c1c69df9",
+      "bytes": 254
+    },
+    "crates/zil-types/src/addresses.rs": {
+      "git_blob": "0a8ffba68c4db60e4934e65bcc851b449eb14e2d",
+      "sha256": "a6239b55c8b0f58ece5584d14d4410a6af518dc2b3a109cd965b63f986cf270c",
+      "bytes": 21366
+    },
+    "crates/zil-types/src/aggregates.rs": {
+      "git_blob": "4e971a0cb1fb4c3f38e7dc6266b833d1c072f628",
+      "sha256": "e21c8af07a9567f94a10ff31b953c06169702741a5a84e67ab6270f3c0787c03",
+      "bytes": 61325
+    },
+    "crates/zil-types/src/byte_buffer.rs": {
+      "git_blob": "6163b2a8280af68c5c6906edca1b0167c3e900ed",
+      "sha256": "1fbb3a1ec6d59fc6f7d86e4fa0344ac5b8700260e5e8fe34908845b66ce3d905",
+      "bytes": 6876
+    },
+    "crates/zil-types/src/callable_fields.rs": {
+      "git_blob": "294ae7280788d130f52163e3380f14752bbbc1be",
+      "sha256": "b3990279a756ae48e7b44a6249ab625dc3c3b777007a7746e30c8b0c25c2043d",
+      "bytes": 12287
+    },
+    "crates/zil-types/src/closures.rs": {
+      "git_blob": "a34d340c5c1c5498a10c106214c587404bc750c5",
+      "sha256": "96a048ef7d58fe66933b53e578e0fe1609740874f7982914c4123a8e9712393f",
+      "bytes": 118820
+    },
+    "crates/zil-types/src/closures/methods.rs": {
+      "git_blob": "d398a48cefa5811ff7fafb9815cf2faec684dc14",
+      "sha256": "997ad8fbb3e844c6ae50ed5b496c2034c6db9308efb78bae172ccdfb67f9aa87",
+      "bytes": 3384
+    },
+    "crates/zil-types/src/closures/package_effects.rs": {
+      "git_blob": "eee0c1e92a89e07188a2642db87c380fece711a3",
+      "sha256": "5f9c99169781fb635d605b4feebaa09942b425c2d27f746e0582089c15bbd254",
+      "bytes": 23203
+    },
+    "crates/zil-types/src/closures/patterns.rs": {
+      "git_blob": "28e5c8d35b7e29b90ffef5e26369feb38113e816",
+      "sha256": "7f4848429b1f780b4a705c0fa710014d82825a1c05c3c65a1b7a537b1287b123",
+      "bytes": 4226
+    },
+    "crates/zil-types/src/closures/slots.rs": {
+      "git_blob": "d4dec733572cbc7158e76a87a3a6bf546452b108",
+      "sha256": "a11d1888b0c4d1f90b5f08ca47309f10695f54d9bbace1752b1fbd7fee706776",
+      "bytes": 2822
+    },
+    "crates/zil-types/src/conditions.rs": {
+      "git_blob": "b38c3a5f8cb6b493524b3d8a1b2c4e2496ea4351",
+      "sha256": "2564ccabae4d6f8e6b973dfe8037275c59dc28f4c5e9de243c55ab0f77593795",
+      "bytes": 3368
+    },
+    "crates/zil-types/src/dynamic_store.rs": {
+      "git_blob": "00317d16ad53ca85034e71abd1d202ddb31aefc4",
+      "sha256": "06a611e626392f5eb2bf67cf52b92a92eddc7035edfa06d96a900ee0c0517b23",
+      "bytes": 15228
+    },
+    "crates/zil-types/src/enums.rs": {
+      "git_blob": "8d604dfd4b78facbefda9611a7e4047690f7ac0a",
+      "sha256": "064f544df2f8330b47d5d703737f9c254186b39441813811f5cd88bc36113471",
+      "bytes": 21348
+    },
+    "crates/zil-types/src/errors.rs": {
+      "git_blob": "2ab720d703b06db1f8f4622aff7748f2870d16cc",
+      "sha256": "470df4355c59c332fba569a88af3df67dd5d7610770a66e726ce1d3c5e13e631",
+      "bytes": 5672
+    },
+    "crates/zil-types/src/foreign.rs": {
+      "git_blob": "8286a0cb3a4ade4aec3f94873f6abcb4be2449d3",
+      "sha256": "aee774541d9b440973b4535420f9d1e9db89b72b400f647444d85b65158f0eb6",
+      "bytes": 10033
+    },
+    "crates/zil-types/src/functions.rs": {
+      "git_blob": "1ccedf8e86c9b4169fea2bedd5c9b9a62016d6f4",
+      "sha256": "83ee64107c4daf3c7abfc330b7f19eafb4e76e63ed704926573f78b91e163bf4",
+      "bytes": 3071
+    },
+    "crates/zil-types/src/helper_flow.rs": {
+      "git_blob": "859f819f0ac730439a4aefe829978cecaf3be964",
+      "sha256": "b72e83be497a15b4c76b8e31aa6a7e0938068e9888fda9ce88b48615a80715fc",
+      "bytes": 20621
+    },
+    "crates/zil-types/src/helper_plan.rs": {
+      "git_blob": "5d50242aad6db7a8fdcca77086a1d997ef7767f7",
+      "sha256": "1561b64e79826a56b8914713360d8b27fe22d669f972d596664d33067e3bc6a0",
+      "bytes": 25231
+    },
+    "crates/zil-types/src/helpers.rs": {
+      "git_blob": "24c4b934ff0eaf941b8712810caf44f8fe064af9",
+      "sha256": "35c80938a2b84651a459105c78e429524674723ff3533401f671e3f03832133e",
+      "bytes": 37650
+    },
+    "crates/zil-types/src/inference.rs": {
+      "git_blob": "f93608443c6f25aada4e80867e6129dbe47dd75a",
+      "sha256": "ed2911832c5b3d3d33f9a67a500b642721a6c7da7bb3c799661474ec0fe020af",
+      "bytes": 130479
+    },
+    "crates/zil-types/src/lending.rs": {
+      "git_blob": "0f6bbb5d531a1c339987727e19debe2bce1cdc37",
+      "sha256": "d0983196dfa012199e5901ac8328a3d9345696e3c00369f4a0995426c1da656b",
+      "bytes": 12553
+    },
+    "crates/zil-types/src/lib.rs": {
+      "git_blob": "b12e01a779876b72fe4e89af932d00eacb60af06",
+      "sha256": "2fa564a6a77130475d165d0f3b7293b61c02c7b5855afbae2b85d449ae524a61",
+      "bytes": 105153
+    },
+    "crates/zil-types/src/managed_slots.rs": {
+      "git_blob": "89d753afbb1914eda0f1d5841250e4cd68887a37",
+      "sha256": "63570d4e5572aab437734349d5ce3f0eba304c3cb6f9178e00dc87e59d57af87",
+      "bytes": 19950
+    },
+    "crates/zil-types/src/names.rs": {
+      "git_blob": "b45821741162f91f64f6dca48a38ccee01d54482",
+      "sha256": "3c5122d225646f78e4c0dc969dee1baa8894accd4fb647c30e82cac7ca87819e",
+      "bytes": 13350
+    },
+    "crates/zil-types/src/packages.rs": {
+      "git_blob": "d56d8bd69cdcf0901da0a133e268fc772f791e29",
+      "sha256": "12cf0e4a2fe4e56a598d25a46901d98a850653cf5441991e8bbe2c34cc746694",
+      "bytes": 20091
+    },
+    "crates/zil-types/src/program.rs": {
+      "git_blob": "fef2971e13a4a64ff3ec906c6cf68bee0d9f5c3b",
+      "sha256": "2e5cf21109c433c446d96dd72fb14d978502f9243648660d4792a7b3284c6076",
+      "bytes": 21036
+    },
+    "crates/zil-types/src/resource_effects.rs": {
+      "git_blob": "cb2ca91c4d5e912235eb4415485e07c58dacd342",
+      "sha256": "241986459f7ce876a3841711ea09685f9813f74b359d1e5d2a0d03b67b3ffe47",
+      "bytes": 31959
+    },
+    "crates/zil-types/src/resource_effects_worklist_tests.rs": {
+      "git_blob": "ca7cfab5bdacd6c8cc8a246076b68570d747452a",
+      "sha256": "607297f9cb2f68bceee72a611c0c8a4667ecdbec1fb1b62cfdd06687c3d793ec",
+      "bytes": 24775
+    },
+    "crates/zil-types/src/resources.rs": {
+      "git_blob": "dfbba7b2b47e72edf3bfbfed43bd4334659c92db",
+      "sha256": "3f63da5547ae7c188af8fd1efaaa2f84af989f4cca7c13d3bcf7c7e318dedbd1",
+      "bytes": 9122
+    },
+    "crates/zil-types/src/retained.rs": {
+      "git_blob": "9bc498e51937062422b26d1d4d40284080b0f490",
+      "sha256": "2228dacf0c450ff28e8be39a715f776e8940fc06e644f881b49280c673e075c3",
+      "bytes": 20595
+    },
+    "crates/zil-verify/Cargo.toml": {
+      "git_blob": "c4d16ca4f436175d2a0fd296b61257f5b1eb8fb5",
+      "sha256": "923a34cf372b236e1955935ababb8fff631bb8fbcbba256f50b949a84cbf20e9",
+      "bytes": 227
+    },
+    "crates/zil-verify/src/borrows.rs": {
+      "git_blob": "36b537d47ea1dfd52022eff1348d3000c560d488",
+      "sha256": "6b62f2c516fa78f745a1468bb7db398b69389813f2c37bee3207dba9e4fca905",
+      "bytes": 50930
+    },
+    "crates/zil-verify/src/borrows/buffer_effects.rs": {
+      "git_blob": "247269a37786fd29c2c1a08ccc087868eb0fd2e4",
+      "sha256": "7d3a86cbaaa7cf6a0e8636f6f34207e8cccbfddd5b4151d1d01baec9daba6c32",
+      "bytes": 5839
+    },
+    "crates/zil-verify/src/borrows/captures.rs": {
+      "git_blob": "cbc78a64b61e3c386fad1e0f348a508fbb15c730",
+      "sha256": "bee7159b39cb4faadb2c461890683be0ffb5123f8509abf31975d9439979ead1",
+      "bytes": 23157
+    },
+    "crates/zil-verify/src/borrows/loans.rs": {
+      "git_blob": "a61e5897a87e7f1827ecac7400bd427db9a15c7a",
+      "sha256": "a8820f6033215121d345caa379169ade272feb0ba20c83f9585ce02b6c418b6c",
+      "bytes": 45702
+    },
+    "crates/zil-verify/src/borrows/roots.rs": {
+      "git_blob": "236c4c7a44b96d42813745b2107a6395e2367230",
+      "sha256": "972d1662dba801ca972161ff3e8e8322c64946bbc8fa20ca8a01d2eb2bf0a692",
+      "bytes": 4410
+    },
+    "crates/zil-verify/src/byte_buffers.rs": {
+      "git_blob": "706654cf5b2312d54a36d47968eaaa9614972174",
+      "sha256": "5130588bdb30a0c64472c3303ab1f88b3850a04d946f34b9068d98a7c2ac32d6",
+      "bytes": 4388
+    },
+    "crates/zil-verify/src/c_layout.rs": {
+      "git_blob": "80efd994a26796549ee96873e0fbc0a981a2a995",
+      "sha256": "e1c8c2284e306317a4327df9a214189101f74d02aadd299746f17ced6e2e2b79",
+      "bytes": 6647
+    },
+    "crates/zil-verify/src/cleanup.rs": {
+      "git_blob": "081339b11134dd298e316108595e9c7be025dab8",
+      "sha256": "3e628b3fb129cef6b725fad8f7422d625ae7dfe9fcc8be180c0570bdf84cfe9f",
+      "bytes": 16015
+    },
+    "crates/zil-verify/src/closure_tests.rs": {
+      "git_blob": "69925828b5a550f80e06bc90064a584f19c0b65e",
+      "sha256": "535e383950b26e099638af4f19a4f94ed6bfb633e834d557a16ef3cd275c56a8",
+      "bytes": 14993
+    },
+    "crates/zil-verify/src/closures.rs": {
+      "git_blob": "fbdadd6329f4e86af165b6d4821cac5c63b968ed",
+      "sha256": "4050477053150f20f9235a8244acfdbfdf1c653148bd0b45c209bab0f127bc33",
+      "bytes": 28021
+    },
+    "crates/zil-verify/src/ct_program.rs": {
+      "git_blob": "bc6587ea1aa5afe8fc10488dc94b8ec4ab3ad203",
+      "sha256": "0fe123f19a0c1d458a44957d731e87f0284d068cda6547b2761b2bc2f2d7d1eb",
+      "bytes": 5958
+    },
+    "crates/zil-verify/src/dynamic_store.rs": {
+      "git_blob": "fcf0ac46bc3f1f6cf955ca0940ed4afb2021d5df",
+      "sha256": "0a9bde8fa311c96d59cca64fd2aea486d1c3bd3a9d0c0cfab8e23587d5d2a886",
+      "bytes": 17160
+    },
+    "crates/zil-verify/src/dynamic_store/tests.rs": {
+      "git_blob": "aada6b2767e29c4ad36b905915342d1e15ef8f2d",
+      "sha256": "22259c0bf71b6b40f8e868f040283d103d41d9ab7c8d8a5f80a9a9c1d2eb566c",
+      "bytes": 7525
+    },
+    "crates/zil-verify/src/error_scope_tests.rs": {
+      "git_blob": "dc09f23c56846985860b95a9342cfd5cfb0a996a",
+      "sha256": "66f72d835f4a2d7974594ca1a2321dda2465a95f303fa0475c275760ddaf4ffb",
+      "bytes": 27004
+    },
+    "crates/zil-verify/src/errors.rs": {
+      "git_blob": "1e629349975e66ac42b88dab24df0279dc9b7ca4",
+      "sha256": "029cc6b48efdf7da0c08d9f9d7baee0e52cf54076374d52302f382306db388da",
+      "bytes": 5262
+    },
+    "crates/zil-verify/src/foreign.rs": {
+      "git_blob": "35aa5d8db5a7280d1c7e44a067853193092bd86e",
+      "sha256": "1b30a4668283a1f1dfecf4a25c856f0bb982a064c490f316acaef9fc2ff40aa3",
+      "bytes": 13966
+    },
+    "crates/zil-verify/src/helper_flow.rs": {
+      "git_blob": "0c036357c5ca8a1cfa4d2040361d9bdc3a5687a1",
+      "sha256": "65d28ec8450f82e095e58eac35937535f1d04b7df392610b9488585f6eac513c",
+      "bytes": 18310
+    },
+    "crates/zil-verify/src/helper_tests.rs": {
+      "git_blob": "46656f18b0dc9e07b4065d37dae9ce6ce4b3ea6b",
+      "sha256": "0d88711f7b617cac5a7d639d2a17d156740f41bb797d4b631070b57978061353",
+      "bytes": 44600
+    },
+    "crates/zil-verify/src/helpers.rs": {
+      "git_blob": "c82c336d730e3d412821c4ab320d3c4ce75ac58d",
+      "sha256": "de899e61fd3744e4f68e39921a69393d8223d6d5e88046babd94965390c45702",
+      "bytes": 24803
+    },
+    "crates/zil-verify/src/lib.rs": {
+      "git_blob": "b4376f4ca2be905cd47120571dcbd81f905f8dbc",
+      "sha256": "aef2f342acff8f7c41e520c018da3ce107ea459606cf2a5a6d45628a5e0a305e",
+      "bytes": 100690
+    },
+    "crates/zil-verify/src/native_values.rs": {
+      "git_blob": "7acee51e3768714310e5971748c12c3f72d7a25c",
+      "sha256": "4ccf0d9bdc6303207f36d7e9350d7a8daeb80ca6a8bcb4f47825366a6a887772",
+      "bytes": 3815
+    },
+    "crates/zil-verify/src/package_tests.rs": {
+      "git_blob": "e3dbb1f50931f3d86f77e55af28be71b6fa705c5",
+      "sha256": "c93da24d70902ef4eb03c1930bf30bac7b2c7b1152a7a0d557455929afeb0e72",
+      "bytes": 41281
+    },
+    "crates/zil-verify/src/package_tests/captures.rs": {
+      "git_blob": "a872783d44fa71fdd67b90f8484aa891e197e455",
+      "sha256": "f494b785f0ab737c142bad6fe673b550ad0f0f9d15e4dd3188e6394d9179cb64",
+      "bytes": 34175
+    },
+    "crates/zil-verify/src/package_tests/fields.rs": {
+      "git_blob": "c6e51a0891e39d1f087b738a1de6dec4fd3c31fd",
+      "sha256": "ebce163f27e4d6d73dbf709d758306251cbb4bda3b201e0f1430c4384ab7edd5",
+      "bytes": 30171
+    },
+    "crates/zil-verify/src/packages.rs": {
+      "git_blob": "08aee2d76ad3d8971988b17465331a6284f21958",
+      "sha256": "718fb9d9c0bf5e701c5c3a3013ce427f5c4a96cfc3432c2814ca52df91917ba0",
+      "bytes": 17435
+    },
+    "crates/zil-verify/src/resource_closure_tests.rs": {
+      "git_blob": "78bb85327a69fe9e2870b0479eda973cbb335126",
+      "sha256": "4f2bcadfad614f93d7fb8c070b3ff93826f2d58540a4f232d5222a35c8e10fb4",
+      "bytes": 16825
+    },
+    "crates/zil-verify/src/resource_tests.rs": {
+      "git_blob": "6c8a0d14c318968b2a4f2e75d258c6dff9078115",
+      "sha256": "093622bfd5096e4c02c37e71ef36ee0968911ffb388d1db6ab347a7410711200",
+      "bytes": 24975
+    },
+    "crates/zil-verify/src/resources.rs": {
+      "git_blob": "6fde9f47501b9f75743bd4f9344d4f9b11a3f0d1",
+      "sha256": "f7b4d40efba352fbeab5dbac63885ba881219be91b4930c5d2dac43a1792839a",
+      "bytes": 87243
+    },
+    "crates/zil-verify/src/resources/arrays.rs": {
+      "git_blob": "62036c47ce2ca53a8f231d87191018c9e054ca53",
+      "sha256": "09528b2ca0402a0fbb1f225eab9a5859d2cef5de86951e1c7f2e3a4fda0a97b7",
+      "bytes": 6645
+    },
+    "crates/zil-verify/src/resources/frontier_tests.rs": {
+      "git_blob": "aaadc71c378783b93e6b5e672a34ae54617dfb5d",
+      "sha256": "7c873d88039ebac4dc029ebd3c3179b7c5b899fbbe49c559b28604cc4ada4cb8",
+      "bytes": 13877
+    },
+    "crates/zil-verify/src/retained.rs": {
+      "git_blob": "3d2d7d3cdd7e5f6c13b1b4e0c7c074927cf31a8c",
+      "sha256": "95755ce283323d09f7e9ca7c9b135e1ad8546944b81dc857214d283239e336c5",
+      "bytes": 8225
+    },
+    "crates/zil-verify/src/retained_tests.rs": {
+      "git_blob": "3c3a8d3553bc2272203156e9040423c27dda434e",
+      "sha256": "01368443215905bc842e2664312232331ffdfa6c6a8f721065bac4f495a61a4d",
+      "bytes": 11918
+    },
+    "crates/zil-verify/src/slices.rs": {
+      "git_blob": "67c9d6cf20f87abf59efe41a8de08c5f2cb2d06d",
+      "sha256": "e80b26fb4470a2417b7069243a2b319b99c29d0694f73dcf0f84943ee35ca875",
+      "bytes": 1167
+    },
+    "crates/zil-verify/src/tests.rs": {
+      "git_blob": "434f2734fc0aba84b7968a180f1403232aea97a7",
+      "sha256": "013171ce9af37a7fd49919362adc5f8d5fa988cdd0cba18c6c1e1ecc2c34dd06",
+      "bytes": 22667
+    },
+    "data/normative-inputs.json": {
+      "git_blob": "4987b8fddf57a514d43b562e177e39452f4d9f08",
+      "sha256": "2bf284ef675a9a79454b33e8c63dc36e30b88868573ccee188abb71d5640a285",
+      "bytes": 876
+    },
+    "examples/mainline/callback_store201/factory.zil": {
+      "git_blob": "7ad70a219fe3cb1421d44aee35854605f4c159c3",
+      "sha256": "e8aa8e86d30a40d2842bcdb16824eed54f032a95b6d561c481d19db05b38b234",
+      "bytes": 627
+    },
+    "examples/mainline/callback_store201/main.zil": {
+      "git_blob": "6bc2c6efadc1543149f93bb9a3e67dfa1af5a3c4",
+      "sha256": "6cceae7b3e58474012fcf731c3f77622100013d9e8f45e47b65819e331e456ea",
+      "bytes": 830
+    },
+    "examples/mainline/callback_store201/portable.zil": {
+      "git_blob": "61400389ac630f17cf30c1a1d8b29d8a78105706",
+      "sha256": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c",
+      "bytes": 237
+    },
+    "examples/mainline/callback_store201/state.zil": {
+      "git_blob": "610c9269ce96f273af3eda0e385b913db0547c38",
+      "sha256": "55369f303f95a53856e62c369ef6f900af322a4b3822d95efa0dbe3402f63bc4",
+      "bytes": 2522
+    },
+    "policy/dependencies.json": {
+      "git_blob": "59fbacb84e9daa791c501fa94eac41ff01cdb7e4",
+      "sha256": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+      "bytes": 1782
+    },
+    "rust-toolchain.toml": {
+      "git_blob": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c",
+      "sha256": "d13306be0ecda81ce779baa290ffb417380d525928477f16200884b5169cca33",
+      "bytes": 86
+    },
+    "spec/attributes.json": {
+      "git_blob": "94c9170704e0d733c77da52d8d5e2f70c9b35a53",
+      "sha256": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "bytes": 2400
+    },
+    "spec/diagnostics.json": {
+      "git_blob": "e61cf634143cda7783df2e8d757b5240ce607cdb",
+      "sha256": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+      "bytes": 16992
+    },
+    "spec/grammar.ebnf": {
+      "git_blob": "8a136721bf16241c371e3c3362fa2377f2ec1bb9",
+      "sha256": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "bytes": 8152
+    },
+    "spec/interfaces.json": {
+      "git_blob": "7e4fa7aa09e084ea0c26b59d85736fc9d82737af",
+      "sha256": "da8209c31cd8e8466e4a4c17652ed88c37b3bcaa6d9d80900aa363516f5e606b",
+      "bytes": 89085
+    },
+    "tools/language/173/allocator_probe.c": {
+      "git_blob": "54af1bbd829ed71ad74766e7f1348c95cecda509",
+      "sha256": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+      "bytes": 446
+    },
+    "tools/language/181/heap_probe.c": {
+      "git_blob": "574cf1450d720421d446500be388c662bf36ae67",
+      "sha256": "aa078bd0c5247d0ed0bb4baa2dbf56f9c765940b2ef06b248177a12537d5fd03",
+      "bytes": 4584
+    },
+    "tools/language/201/consumer.py": {
+      "git_blob": "a7130e8e0aa6e86ee9c96f6a406f66da5dac4e07",
+      "sha256": "e87b7d8145020b1f69c2c24dab07d9fedb64bf00106734a7c4fcf03a45f9779a",
+      "bytes": 14322
+    },
+    "validation/product-gates.json": {
+      "git_blob": "14d352d66503ba948a55b673ccb913ffb3e5842e",
+      "sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+      "bytes": 1932
+    },
+    "crates/zil-driver/tests/impl201_fixtures/01_pair_store_mut.zil": {
+      "git_blob": "c4e170abda3274a4480794a7b80f52ccba8727bd",
+      "sha256": "ca1e30fdce8bebc1c337ddeba934603496eaef21d041fd99d3130eaabfad7969",
+      "bytes": 1293
+    }
+  },
+  "cli_build": {
+    "receipt": "raw/build-cli01/result.json",
+    "sha256": "e49b7fb470835f6a759978191c061cc33b61ee268ac8d53fcd6368bce218eb7c"
+  },
+  "post_test_changes": "Only reviewer documentation follows tested_source_commit on this branch; no result is relabeled to those later commits."
+}
