@@ -2220,7 +2220,7 @@ mod tests {
         let CoreExprKind::Call { callee, .. } = &mut call.kind else {
             panic!()
         };
-        *callee = Box::new(expr(CoreExprKind::Name("reserve".into())));
+        **callee = expr(CoreExprKind::Name("reserve".into()));
         if state {
             let function = &mut core.functions[1];
             function.type_parameters.clear();
