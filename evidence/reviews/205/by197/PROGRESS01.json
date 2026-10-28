@@ -1,0 +1,255 @@
+{
+  "reviewer": "/root/impl197",
+  "scope": "Interim factual observations only; 205 independent acceptance is not finished",
+  "current_normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "historical_sources_and_norms": "Every run retains its actual recorded commit; frozen 204 CLI baselines retain 92c5, never relabeled as 205",
+  "runs": [
+    {
+      "run": "source01",
+      "source_commit": "7e0c5a421848cadbf132c69d04f41193aa696793",
+      "status": "Failed",
+      "tests": [
+        2,
+        7
+      ],
+      "native_runs": 0,
+      "reason": "One genuine unused alias acceptance; six LLVM shared-library environment failures",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/source01/command.json",
+      "command_receipt_sha256": "8037a60c98621f72a45c0f1236557d830d4e30e9dc50f27e35200826bb317903"
+    },
+    {
+      "run": "source02",
+      "source_commit": "989f4042ebce5a5e83d3792c274a91e637dbaea9",
+      "status": "Passed",
+      "tests": [
+        6,
+        0
+      ],
+      "native_runs": 22,
+      "scope": "Owning replacement, distinct runtime values, reversed FnMut, declared Once, Unit, wrong-factory, ordinary argument-failure cleanup",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/source02/command.json",
+      "command_receipt_sha256": "156a1a6a7c274063410ec8aeee6336c9c7ed8bee176a34aab4cdb4666a3e7b9c"
+    },
+    {
+      "run": "raw01",
+      "source_commit": "b5ea82b735170872759a6345b1ad6c3bedac5e94",
+      "status": "Passed",
+      "tests": [
+        2,
+        0
+      ],
+      "scope": "Both Types entries: per-value transfers and declared Once positions",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/raw01/command.json",
+      "command_receipt_sha256": "2caaadf3f7ca78a96dfe63eabb17f2453e7041725b36806661288b5027bfb678"
+    },
+    {
+      "run": "ct01",
+      "source_commit": "b5ea82b735170872759a6345b1ad6c3bedac5e94",
+      "status": "Failed",
+      "tests": [
+        3,
+        1
+      ],
+      "reason": "Observer fixture used scalar fast fold, so compiler callback was not entered",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/ct01/command.json",
+      "command_receipt_sha256": "a0a2e90426e89d40acb3f1f4242ec9d007d34743cec8aa0c26d90b837dd6c7f0"
+    },
+    {
+      "run": "ct02",
+      "source_commit": "4cca99cf0321292ebfb30c1b1821d18ec8856774",
+      "status": "Passed",
+      "tests": [
+        4,
+        0
+      ],
+      "scope": "Reversed nonadjacent indices, imported i64 hints, CT execution prohibition, prepayment, N40/N-1/fresh",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/ct02/command.json",
+      "command_receipt_sha256": "62d2b3193346e089af54ed47f181075e886e4fd7e435942beb5c3d5174ba123c"
+    },
+    {
+      "run": "wire01",
+      "source_commit": "2ada1872bdd10bfd392c5e9dac7e3fb72305f178",
+      "status": "CompileFailed",
+      "reason": "Review fixture used a struct form for the existing tuple Load variant; no tests executed",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/wire01/command.json",
+      "command_receipt_sha256": "35ec244119665f172ef60932982387bacad1c919c732eb6783706d5029e30254"
+    },
+    {
+      "run": "wire02",
+      "source_commit": "cfaddee3c7827bd1a53e1fec4bdba247691150bc",
+      "status": "PassedLimited",
+      "tests": [
+        2,
+        0
+      ],
+      "native_runs": 4,
+      "scope": "Fresh Analyze rejects five actual debts; raw/Wire only reached stale-plan identity, not semantic proof",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/wire02/command.json",
+      "command_receipt_sha256": "cce77bb1c0e93ab482c07ae668423b7c89692ca37484ac052282d61f72c389be"
+    },
+    {
+      "run": "wire03",
+      "source_commit": "8b0de390f6b6e1edc4ad915fc7840029a3980041",
+      "status": "Passed",
+      "tests": [
+        2,
+        0
+      ],
+      "native_runs": 4,
+      "scope": "Matching forged candidate identity; five real raw/Wire debt attacks E-VERIFY-MOVE or E-VERIFY-RESOURCE",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/wire03/command.json",
+      "command_receipt_sha256": "7767cec90839ef0cfd9be3ba080e1bb7a363eae17e9a237632de927411f958b6"
+    },
+    {
+      "run": "legacy-raw01",
+      "source_commit": "71a3b24a12788a87a9f81c30ae1fcc7af2a4e5bb",
+      "status": "Failed",
+      "tests": [
+        0,
+        1
+      ],
+      "scope": "Valid old single-State last-use Core control passes; misplaced alias accepted by both public Types entries; body omitted from Typed, no native",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/legacy-raw01/command.json",
+      "command_receipt_sha256": "2bc0a78837a68782aded9d89a302d7c4473f2ccfe09a19b553b51cdda4efee8c"
+    },
+    {
+      "run": "legacy-raw02",
+      "source_commit": "1774f912fdad2ce081f53c161e1567abfe637686",
+      "status": "Passed",
+      "tests": [
+        1,
+        0
+      ],
+      "scope": "Byte-identical old public Types attack rejected after 58937526; same positive preserved",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/legacy-raw02/command.json",
+      "command_receipt_sha256": "526d4b3e583ba10d6c5ff05fb8f495494cbaf7308af992e92094f772bd622476"
+    },
+    {
+      "run": "alias-condition01",
+      "source_commit": "8b0de390f6b6e1edc4ad915fc7840029a3980041",
+      "status": "Failed",
+      "tests": [
+        0,
+        1
+      ],
+      "scope": "Break-only/sibling controls pass; old T alias used in while condition across take/refill falsely accepted; no native",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/alias-condition01/command.json",
+      "command_receipt_sha256": "235990e484cb7400c1cd2652bf86a194a7267e9da7be8cf11f1d7517c40ed703"
+    },
+    {
+      "run": "callee-alias01",
+      "source_commit": "8b0de390f6b6e1edc4ad915fc7840029a3980041",
+      "status": "Failed",
+      "tests": [
+        0,
+        1
+      ],
+      "scope": "Precomputed/sibling argument controls pass; saved callee conflicting argument falsely accepted in unused definition; no native",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/callee-alias01/command.json",
+      "command_receipt_sha256": "e5ef0cd230c4c1a1bd8c14ac71327317c160fc3bf0f3e8f8732c2260ecb35115"
+    },
+    {
+      "run": "nominal01",
+      "source_commit": "09b6af7c102885b627937f444e66542a904376c2",
+      "status": "Passed",
+      "tests": [
+        1,
+        0
+      ],
+      "native_runs": 4,
+      "scope": "Actual nominal/phantom T mixed instances remain distinct; wrong function target raw/Wire rejects",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/nominal01/command.json",
+      "command_receipt_sha256": "fc66c0c375a1e9221e4ea2166cb5622d33a5c05a7b2675c4e8ce2baa1de7c8cf"
+    },
+    {
+      "run": "header-budget01",
+      "source_commit": "69ec74e3a1a231b2e197c1cd87b9d680a48f353e",
+      "status": "FixtureFailed",
+      "tests": [
+        0,
+        1
+      ],
+      "reason": "Review test expected resolved Package at Expand Core boundary; actual Core correctly retains its nominal reference",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/header-budget01/command.json",
+      "command_receipt_sha256": "f3d50e908954fe10f422e62d67d81ddf5b81f763e3489b01d04b3f513c108d57"
+    },
+    {
+      "run": "header-budget02",
+      "source_commit": "d137d5651388aafc5c74dfa7534648f8d41c6d38",
+      "status": "Passed",
+      "tests": [
+        1,
+        0
+      ],
+      "scope": "Real Core nominal preserved; matching long names default control and both header deep trees bounded in both Types entries",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/header-budget02/command.json",
+      "command_receipt_sha256": "c8eed2cafbc5c14c46ef30548e236759d47270026a28d2fe46f2c7b4cde93adc"
+    },
+    {
+      "run": "callee-wire01",
+      "source_commit": "04622a858378fe94a93e2d538a029e18a3134f34",
+      "status": "Passed",
+      "tests": [
+        1,
+        0
+      ],
+      "native_runs": 2,
+      "scope": "Sibling source succeeds; actual same-field argument reborrow produces fresh Analyze candidate but raw/Wire reject E-BORROW-CONFLICT",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/callee-wire01/command.json",
+      "command_receipt_sha256": "9934f4e2686c05d57c2df7bff5bd5f566189001c5359000200c18e0d7e19a51c"
+    },
+    {
+      "run": "old-budget01",
+      "source_commit": "2ada1872bdd10bfd392c5e9dac7e3fb72305f178",
+      "status": "Passed",
+      "tests": [
+        1,
+        0
+      ],
+      "scope": "Pre-alias-repair exact old Expand1731/1730/fresh1731 using unchanged impl197 input",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/old-budget01/command.json",
+      "command_receipt_sha256": "c43e22d9421a252d8c697a2efcd5c9cb604dd51d3c9ed301a9fc2fece4016c06"
+    },
+    {
+      "run": "legacy-lending02",
+      "source_commit": "a2c072323b5f03407866accdf3c79cce6192f5f8",
+      "status": "NotRun",
+      "reason": "Automatic scratch sync transient appeared in evidence/.rsync-tmp; guard stopped before Cargo",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/legacy-lending02/command.json",
+      "command_receipt_sha256": "0467cf3f6deac838dbe610f0dd9cf18ef5cc8449d97fde592a50a6bf60864f46"
+    },
+    {
+      "run": "legacy-lending03",
+      "source_commit": "a2c072323b5f03407866accdf3c79cce6192f5f8",
+      "status": "Passed",
+      "tests": [
+        1,
+        0
+      ],
+      "native_runs": 2,
+      "scope": "Byte-identical old lending helper remains native-correct after Types declaration repair",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/legacy-lending03/command.json",
+      "command_receipt_sha256": "e88dd6daa2a9b233368c43a9115ad92fba90580b025a7deb3c6620e7a239d521"
+    },
+    {
+      "run": "types-budget01",
+      "source_commit": "a2c072323b5f03407866accdf3c79cce6192f5f8",
+      "status": "Passed",
+      "tests": [
+        1,
+        0
+      ],
+      "scope": "Independent execution of author exact Types fixture; old State5293, ordinary88, replacement4498 with N/N-1/fresh",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/types-budget01/command.json",
+      "command_receipt_sha256": "00b0ff3bcd3e53dde2fd8a26b53b58791105a953b1974c8963b4ded13c96c3ba"
+    }
+  ],
+  "remaining": [
+    "Expand alias repair and exact original-source/condition/callee replay",
+    "Actual final new-phase budgets and legacy Expand budget migration",
+    "Final clean combined independent tests and frozen Linux consumer",
+    "Final source/normative/fixture identity review and external evidence archive"
+  ],
+  "production_authorship": "None",
+  "workspace_full": "NotRun by this reviewer"
+}
