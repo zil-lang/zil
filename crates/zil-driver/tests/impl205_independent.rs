@@ -1233,6 +1233,62 @@ fn main()->i32{{
     }
 }
 
+#[test]
+fn single_f_producers_keep_all_complete_type_constraints_through_bare_t_calls() {
+    for phantom in [false, true] {
+        let state = if phantom {
+            STATE.replace(";tag:T", "").replace("tag:tag,", "")
+        } else {
+            STATE.to_owned()
+        };
+        let source = format!(
+            r#"{RESOURCE}{state}
+struct Left{{value:i32}}
+struct Right{{value:i32}}
+fn make_other(code:i32)->impl Fn()->i32{{let ticket=Ticket{{code:code}};return move()=>ticket.code}}
+fn identity<U:StoreElement>(value:U)->U{{return value}}
+fn choose<U:StoreElement>(left:U,right:U,first:bool)->U{{if first{{return left}}return right}}
+fn revise<T:Copy,F:Fn()->i32>(state:State<T,F>,replacement:F)->State<T,F>{{var next=state;next.a=replacement;return next}}
+fn main()->i32{{
+    let left=identity(revise(identity(pack(make(65),make(66),Left{{value:1}})),make(67)));
+    let right=identity(revise(identity(pack(make(68),make(69),Left{{value:2}})),make(70)));
+    let selected=choose(left,right,true);
+    emit(77);return selected.a()+selected.b()-133
+}}
+"#
+        );
+        // No caller F or explicit TypeApply is supplied. Both actual values
+        // must independently constrain complete U before the branch runs.
+        native(
+            &format!("single-producer-complete-t-control-{phantom}"),
+            &source,
+            "ADZFEMZCB",
+            0,
+        );
+        let wrong_data = source.replace("Left{value:2}", "Right{value:2}");
+        reject(
+            &format!("single-producer-nominal-t-conflict-{phantom}"),
+            &wrong_data,
+            &[Phase::Types],
+            ResultCategory::SafeReject,
+            None,
+        );
+        let wrong_callback = source
+            .replace(
+                "pack(make(68),make(69)",
+                "pack(make_other(68),make_other(69)",
+            )
+            .replace(")),make(70)", ")),make_other(70)");
+        reject(
+            &format!("single-producer-concrete-f-conflict-{phantom}"),
+            &wrong_callback,
+            &[Phase::Types],
+            ResultCategory::SafeReject,
+            None,
+        );
+    }
+}
+
 fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize {
     let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
     run(high).unwrap();
