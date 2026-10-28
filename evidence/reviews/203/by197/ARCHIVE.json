@@ -1,0 +1,20 @@
+{
+  "scope": "evidence packaging only",
+  "status": "ArchivedAndVerified",
+  "archive": "203-review-by197-evidence.zip",
+  "bytes": 28868714,
+  "sha256": "9f3591d6e997c386714e0edc03b63a2e1eef76cf034c4e7ea184adea7fefc43f",
+  "included_files": 8352,
+  "included_bytes": 588491474,
+  "omitted_execution_artifacts": 300,
+  "omitted_execution_bytes": 5286232,
+  "full_manifest": "ARCHIVE-MANIFEST.json inside archive",
+  "absolute_path": "/workspace/scratch/39be3faa4442/deliverables/203-review-by197-evidence.zip",
+  "under_50_decimal_MB": true,
+  "original_evidence_directory": "/workspace/scratch/39be3faa4442/run-logs/203-review-by197-archived01",
+  "preserved_failed_and_earlier_successful_rounds": true,
+  "verification": "ZIP CRC and every included member SHA256 verified by review_collect.py; old checkpoint members and moved final members separately hash-verified before assembly",
+  "excluded": "300 ELF/PE/archive/object execution artifacts omitted; their hashes and byte sizes remain in ARCHIVE-MANIFEST.json",
+  "review_snapshot_member": "review-summary/REVIEW-SNAPSHOT.json",
+  "review_snapshot_sha256": "47b1efd34a6e6ee401f063385ee73193d8ecabba6b8f3a5d65b293c11aa0b784"
+}
