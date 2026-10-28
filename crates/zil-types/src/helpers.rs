@@ -224,13 +224,17 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        if self.helper_bound.is_some() {
+        let bound = signature.callable.as_ref().expect("template signature");
+        if self
+            .helper_bound
+            .as_ref()
+            .is_some_and(|caller| caller.kind != bound.kind)
+        {
             return Err(unsupported(
                 span,
-                "recursive or nested callable helper contracts are not implemented",
+                "nested callable helpers require the same declared callable kind",
             ));
         }
-        let bound = signature.callable.as_ref().expect("template signature");
         let owned_state = callable_fields::signature(signature);
         if !owned_state && let Some(expected) = expected {
             self.same(&signature.result, expected, span)?;
@@ -389,16 +393,36 @@ impl Builder<'_, '_> {
         closure: ClosureId,
         span: Span,
     ) -> R<FunctionId> {
+        self.closures
+            .snapshot(plan::tree_work(self.closures.helper_instances.len()), span)?;
         if let Some(id) = self.closures.helper_instances.get(&(key, closure)) {
             return Ok(*id);
         }
-        if self.closures.active_helpers.len() >= self.limits.max_call_depth {
-            return Err(Diagnostic::limit(
-                Phase::Types,
-                "callable State helper nesting exceeds selected bound",
-                Some(span),
+        if !self.closures.active_helpers.is_empty() {
+            return Err(unsupported(
+                span,
+                "actual helper instance is not available from the finite dependency plan",
             ));
         }
+        let order = plan::order((key, closure), self.closures, self.limits, span)?;
+        for (key, closure) in order {
+            self.instantiate_ready_helper(key, closure, span)?;
+        }
+        self.closures
+            .snapshot(plan::tree_work(self.closures.helper_instances.len()), span)?;
+        self.closures
+            .helper_instances
+            .get(&(key, closure))
+            .copied()
+            .ok_or_else(|| unsupported(span, "completed helper instance is absent from its plan"))
+    }
+
+    fn instantiate_ready_helper(
+        &mut self,
+        key: TemplateKey,
+        closure: ClosureId,
+        span: Span,
+    ) -> R<FunctionId> {
         let template = self
             .closures
             .helper_templates
@@ -716,6 +740,99 @@ fn environment_origins(
     Ok((locals, values))
 }
 
+fn forwarded_traces(
+    function: &TypedFunction,
+    instruction: &Instruction,
+    origins: &[u8],
+    kind: CallableKind,
+    state: &mut closures::State,
+) -> R<Option<Vec<CallableTrace>>> {
+    let InstructionKind::Call {
+        function: callee,
+        arguments,
+    } = &instruction.kind
+    else {
+        return Ok(None);
+    };
+    state.snapshot(arguments.len(), instruction.span)?;
+    let mut environment = None;
+    for (index, value) in arguments.iter().enumerate() {
+        if environment_type(&function.values[value.0 as usize])
+            && environment.replace((index, *value)).is_some()
+        {
+            return Err(unsupported(
+                instruction.span,
+                "nested helper forwarding requires exactly one environment",
+            ));
+        }
+    }
+    let Some((parameter, value)) = environment else {
+        return Ok(None);
+    };
+    if origins[value.0 as usize] != 1 {
+        return Err(unsupported(
+            instruction.span,
+            "nested helper environment is not the actual supplied parameter",
+        ));
+    }
+    state.snapshot(state.helper_functions.len(), instruction.span)?;
+    let position = state
+        .helper_functions
+        .iter()
+        .position(|f| f.id == *callee)
+        .ok_or_else(|| {
+            unsupported(
+                instruction.span,
+                "nested helper has no completed finite callable contract",
+            )
+        })?;
+    let contract = state.helper_functions[position]
+        .callable_contract
+        .as_ref()
+        .ok_or_else(|| unsupported(instruction.span, "nested helper contract is absent"))?;
+    if contract.parameter as usize != parameter || contract.kind != kind {
+        return Err(unsupported(
+            instruction.span,
+            "nested helper parameter or declared callable kind differs",
+        ));
+    }
+    let count = contract.traces.len();
+    state.snapshot(count, instruction.span)?;
+    for index in 0..count {
+        let length = state.helper_functions[position]
+            .callable_contract
+            .as_ref()
+            .unwrap()
+            .traces[index]
+            .calls
+            .len();
+        // Charge the following kind check and owned trace clone separately.
+        state.snapshot(length.saturating_mul(2).saturating_add(1), instruction.span)?;
+        if state.helper_functions[position]
+            .callable_contract
+            .as_ref()
+            .unwrap()
+            .traces[index]
+            .calls
+            .iter()
+            .any(|mode| *mode != kind)
+        {
+            return Err(unsupported(
+                instruction.span,
+                "nested helper contains a different invocation kind",
+            ));
+        }
+    }
+    Ok(Some(
+        state.helper_functions[position]
+            .callable_contract
+            .as_ref()
+            .unwrap()
+            .traces
+            .clone(),
+    ))
+}
+
 fn traces(
     function: &TypedFunction,
     bound: &CoreCallableParameter,
@@ -727,7 +844,8 @@ fn traces(
     // Only actual parameter invocations enter this trace. Local self-contained
     // factories keep their own kinds and ordinary resource checks. A count is
     // exact for the resulting single-kind parameter sequence.
-    let mut pending = vec![(function.entry, 0usize, BTreeSet::new())];
+    state.snapshot(2, span)?;
+    let mut pending = vec![(function.entry, BTreeSet::from([0usize]), BTreeSet::new())];
     let mut result = BTreeSet::new();
     while let Some((block, mut calls, mut active)) = pending.pop() {
         state.snapshot(active.len().saturating_add(1), span)?;
@@ -740,6 +858,45 @@ fn traces(
         let block = &function.blocks[block.0 as usize];
         for instruction in &block.instructions {
             state.snapshot(1, instruction.span)?;
+            if let Some(children) =
+                forwarded_traces(function, instruction, &values, bound.kind, state)?
+            {
+                let mut continuing = BTreeSet::new();
+                for prefix in &calls {
+                    for child in &children {
+                        state.snapshot(1, instruction.span)?;
+                        let count = prefix.checked_add(child.calls.len()).ok_or_else(|| {
+                            Diagnostic::limit(
+                                Phase::Types,
+                                "nested helper call count overflow",
+                                Some(instruction.span),
+                            )
+                        })?;
+                        if bound.kind == CallableKind::FnOnce && count > 1 {
+                            return Err(unsupported(
+                                instruction.span,
+                                "finite helper supports at most one consumed call",
+                            ));
+                        }
+                        let size = if child.exit == CallableExit::Trap {
+                            result.len()
+                        } else {
+                            continuing.len()
+                        };
+                        state.snapshot(
+                            size.checked_ilog2().map_or(1, |n| n as usize + 2),
+                            instruction.span,
+                        )?;
+                        if child.exit == CallableExit::Trap {
+                            result.insert((count, CallableExit::Trap));
+                        } else {
+                            continuing.insert(count);
+                        }
+                    }
+                }
+                calls = continuing;
+                continue;
+            }
             let invocation = match instruction.kind {
                 InstructionKind::CallClosure { callee, .. } => {
                     Some((values[callee.0 as usize], CallableKind::Fn, false))
@@ -775,38 +932,62 @@ fn traces(
                         "helper callback mode differs from its bound",
                     ));
                 }
-                calls = calls.saturating_add(1);
-                if bound.kind == CallableKind::FnOnce && calls > 1 {
-                    return Err(unsupported(
-                        span,
-                        "finite helper supports at most one consumed call",
-                    ));
+                let mut next = BTreeSet::new();
+                for count in calls {
+                    state.snapshot(
+                        next.len().checked_ilog2().map_or(1, |n| n as usize + 2),
+                        instruction.span,
+                    )?;
+                    if bound.kind == CallableKind::FnOnce && count != 0 {
+                        return Err(unsupported(
+                            span,
+                            "finite helper supports at most one consumed call",
+                        ));
+                    }
+                    next.insert(count.checked_add(1).ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "helper call count overflow",
+                            Some(instruction.span),
+                        )
+                    })?);
                 }
+                calls = next;
             }
         }
         match block.terminator {
             Terminator::Return(_) => {
-                state.snapshot(
-                    result.len().checked_ilog2().map_or(1, |n| n as usize + 2),
-                    span,
-                )?;
-                result.insert((calls, CallableExit::Return));
+                for count in calls {
+                    state.snapshot(
+                        result.len().checked_ilog2().map_or(1, |n| n as usize + 2),
+                        span,
+                    )?;
+                    result.insert((count, CallableExit::Return));
+                }
             }
             Terminator::Trap => {
-                state.snapshot(
-                    result.len().checked_ilog2().map_or(1, |n| n as usize + 2),
-                    span,
-                )?;
-                result.insert((calls, CallableExit::Trap));
+                for count in calls {
+                    state.snapshot(
+                        result.len().checked_ilog2().map_or(1, |n| n as usize + 2),
+                        span,
+                    )?;
+                    result.insert((count, CallableExit::Trap));
+                }
             }
-            Terminator::Jump(target) => pending.push((target, calls, active)),
+            Terminator::Jump(target) => {
+                state.snapshot(1, span)?;
+                pending.push((target, calls, active));
+            }
             Terminator::Branch {
                 then_block,
                 else_block,
                 ..
             } => {
-                state.snapshot(active.len().saturating_add(1), span)?;
-                pending.push((then_block, calls, active.clone()));
+                state.snapshot(
+                    active.len().saturating_add(calls.len()).saturating_add(2),
+                    span,
+                )?;
+                pending.push((then_block, calls.clone(), active.clone()));
                 pending.push((else_block, calls, active));
             }
             Terminator::Unreachable => {
