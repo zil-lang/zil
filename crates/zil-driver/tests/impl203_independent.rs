@@ -1301,6 +1301,73 @@ fn unused_raw_state_value_helper_transfer_cannot_leave_the_source_usable() {
 }
 
 #[test]
+fn unused_raw_field_borrow_alias_keeps_its_original_parent_position() {
+    let (mut core, index) = unused_state_core();
+    let f = &mut core.functions[index];
+    let span = f.span;
+    let end = f.body.statements.last().unwrap().clone();
+    let mut borrowed = raw_state_field_take(f, "view", "first", 993000);
+    let CoreStatementKind::Binding { initializer, .. } = &mut borrowed.kind else {
+        unreachable!()
+    };
+    *initializer = Some(CoreExpr {
+        id: NodeId(993003),
+        span,
+        kind: CoreExprKind::Unary {
+            op: UnaryOp::Borrow,
+            operand: Box::new(initializer.take().unwrap()),
+        },
+    });
+    let take = raw_state_field_take(f, "taken", "first", 993010);
+    let call = CoreStatement {
+        id: NodeId(993020),
+        span,
+        kind: CoreStatementKind::Expression(CoreExpr {
+            id: NodeId(993021),
+            span,
+            kind: CoreExprKind::Call {
+                callee: Box::new(CoreExpr {
+                    id: NodeId(993022),
+                    span,
+                    kind: CoreExprKind::Name("view".into()),
+                }),
+                arguments: vec![],
+            },
+        }),
+    };
+    f.body.statements = vec![borrowed.clone(), call.clone(), take.clone(), end.clone()];
+    raw_types(
+        "unused-borrow-last-use-before-take",
+        &core,
+        &Limits::default(),
+        false,
+    );
+    core.functions[index].body.statements = vec![borrowed, take, call, end];
+    let accepted = inspect_origin_attack("unused-borrow-used-after-parent-field-take", &core);
+
+    let prefix = &ORIGINAL[..ORIGINAL.find("fn run<").unwrap()];
+    let positive = format!(
+        "{prefix}\nfn run<T:Copy,F:Fn()->i32,G:FnOnce()->i32>(state:State<T,F,G>)->i32{{\nlet view=&state.first\nlet first=view()\nlet taken=state.first\nreturn first\n}}\nfn main()->i32{{return run(pack(make(65,10),make(66,20),17))-10}}\n"
+    );
+    native("used-borrow-last-use-before-take", &positive, "AZB", 0);
+    let negative = positive.replace(
+        "let first=view()\nlet taken=state.first",
+        "let taken=state.first\nlet first=view()",
+    );
+    assert_ne!(positive, negative);
+    reject_source(
+        "used-borrow-used-after-parent-field-take",
+        &negative,
+        &[Phase::Expand, Phase::Types, Phase::Analyze, Phase::Verify],
+        None,
+    );
+    assert!(
+        !accepted,
+        "an unused declaration cannot use a field alias after its parent value is moved"
+    );
+}
+
+#[test]
 fn unused_state_second_binder_metadata_has_a_real_early_budget() {
     let (core, index) = unused_state_core();
     raw_types(
@@ -1764,5 +1831,213 @@ fn declared_callee_mode_is_prepared_before_fallible_argument_cleanup() {
                 i32::from(fail),
             );
         }
+    }
+}
+
+fn value_inferred_identity_source(distinct: bool) -> String {
+    let mut prefix = ORIGINAL_MARKERS[..ORIGINAL_MARKERS.find("fn main()").unwrap()].replace(
+        "    let ticket = Ticket { code: label }",
+        "    unsafe { putchar(label + 32) }\n    let ticket = Ticket { code: label }",
+    );
+    let second = if distinct {
+        let start = prefix.find("fn make(").unwrap();
+        let end = prefix.find("fn pack<").unwrap();
+        let other = prefix[start..end]
+            .replace("fn make(", "fn other(")
+            .replace(
+                "    let ticket = Ticket",
+                "    let padding:i64=1\n    let ticket = Ticket",
+            )
+            .replace("ticket.code; return", "ticket.code; padding; return");
+        prefix.push_str(&other);
+        "other"
+    } else {
+        "make"
+    };
+    format!(
+        "{prefix}\nfn identity<T:StoreElement>(value:T)->T{{return value}}\nfn main()->i32{{\n    let prepared=identity(pack(make(65,10),{second}(66,20),17))\n    let first=prepared.second()\n    let again=prepared.second()\n    if first+again!=40{{return 2}}\n    let result=run(prepared)\n    if result.1!=17{{return 1}}\n    return result.0\n}}\n"
+    )
+}
+
+#[test]
+fn value_inferred_ordinary_identity_prepares_once_without_global_bound_taint() {
+    for distinct in [false, true] {
+        // Main has no F/G declaration: its actual Fn values remain callable.
+        // Entering run restores that function's distinct Fn/FnOnce sources.
+        // Lowercase bytes also catch duplicate argument preparation at inference.
+        native(
+            &format!("value-inferred-identity-distinct-{distinct}"),
+            &value_inferred_identity_source(distinct),
+            "abMPBQZA",
+            0,
+        );
+    }
+}
+
+fn value_inferred_choice_source(phantom: bool, second_type: &str) -> String {
+    let nominal = nominal_source(phantom);
+    let prefix = &nominal[..nominal.find("fn main()").unwrap()];
+    format!(
+        "{prefix}\nfn choose<T:StoreElement>(first:T,second:T)->T{{return first}}\nfn main()->i32{{\n    let chosen=choose(pack(make(65,10),make(66,20),Left{{value:1}}),pack(make(67,10),make(68,20),{second_type}{{value:1}}))\n    return run(chosen)\n}}\n"
+    )
+}
+
+#[test]
+fn value_inferred_ordinary_calls_unify_every_argument_and_keep_nominal_identity() {
+    for phantom in [false, true] {
+        let source = value_inferred_choice_source(phantom, "Left");
+        // The unselected owning argument is cleaned before the returned value.
+        native(
+            &format!("value-inferred-choice-phantom-{phantom}"),
+            &source,
+            "ZCDMPBQZA",
+            0,
+        );
+        reject_source(
+            &format!("value-inferred-conflicting-nominal-phantom-{phantom}"),
+            &value_inferred_choice_source(phantom, "Right"),
+            &[Phase::Expand, Phase::Types],
+            None,
+        );
+    }
+    let control = value_inferred_identity_source(false);
+    for (label, source) in [
+        (
+            "value-inferred-explicit-constraint-conflicts",
+            control.replace("identity(pack(", "identity::<i32>(pack("),
+        ),
+        (
+            "value-inferred-template-cannot-be-value",
+            control.replace(
+                "    let prepared=identity(pack(",
+                "    let function=identity\n    let prepared=function(pack(",
+            ),
+        ),
+        (
+            "value-inferred-no-argument-no-type-constraint",
+            format!(
+                "fn empty<T:StoreElement>()->Store<T> contract{{result(create)}}{{return store_new()}}\n{}",
+                control.replace(
+                    "    let prepared=",
+                    "    let unconstrained=empty()\n    let prepared="
+                )
+            ),
+        ),
+    ] {
+        assert_ne!(source, control);
+        reject_source(&label, &source, &[Phase::Expand, Phase::Types], None);
+    }
+}
+
+#[test]
+fn value_inferred_complete_argument_work_has_an_exact_new_path_boundary() {
+    let source = value_inferred_choice_source(true, "Left");
+    let (core, typed, _) = typed_control("value-inferred-budget-control", &source);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent203.zil", &source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let expand = boundary(|n| {
+        zil_expand::expand_with_map_limits(
+            &unit,
+            &syntax,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual.core, core))
+    });
+    let types = boundary(|n| {
+        zil_types::check(
+            &core,
+            &typed.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual, typed))
+    });
+    Case::new("value-inferred-full-argument-exact-budgets").write(
+        "boundaries.json",
+        format!("{{\"expand\":{expand},\"types\":{types},\"checks\":\"N, N-1 ResourceLimit, fresh N equal result\",\"scope\":\"new bare complete value inference, not an old profile budget claim\"}}\n"),
+    );
+}
+
+#[test]
+fn imported_runtime_templates_keep_scalar_ct_arguments_in_i64_context() {
+    let state = ORIGINAL_MARKERS[..ORIGINAL_MARKERS.find("fn main()").unwrap()]
+        .replace("package State", "pub package State")
+        .replace("fn make(", "pub fn make(")
+        .replace("fn pack<", "pub fn pack<")
+        .replace("fn run<", "pub fn run<")
+        .replace("state: State<T,F,G>)", "state: State<T,F,G>, count:i64)")
+        .replace(
+            "    let tag = state.tag",
+            "    let expected:i64=4294967296\n    if count != expected { return (9,state.tag) }\n    let tag = state.tag",
+        );
+    let files = [
+        (
+            "main",
+            "import state\nimport ordinary\nfn main()->i32{\nlet next=ordinary.identity(state.pack(state.make(65,10),state.make(66,20),17),#(4294967296))\nlet result=state.run(next,#(4294967296))\nif result.1!=17{return 1}\nreturn result.0\n}",
+        ),
+        ("state", state.as_str()),
+        (
+            "ordinary",
+            "pub fn identity<T:StoreElement>(value:T,count:i64)->T{count;return value}",
+        ),
+    ];
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let case = Case::new("imported-template-runtime-i64-ct-argument");
+        for (name, source) in files {
+            case.write(&format!("{name}.zil"), source);
+        }
+        let project = ProjectSources {
+            root: ModuleId(0),
+            modules: files
+                .iter()
+                .enumerate()
+                .map(|(i, (name, source))| {
+                    SourceUnit::new(
+                        FileId(i as u32),
+                        ModuleId(i as u32),
+                        format!("{name}.zil"),
+                        *source,
+                    )
+                })
+                .collect(),
+            paths: files
+                .iter()
+                .enumerate()
+                .skip(1)
+                .map(|(i, (name, _))| (vec![name.to_string()], ModuleId(i as u32)))
+                .collect(),
+        };
+        let report = compile_project(
+            &project,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization,
+                output: Some(case.0.join("program")),
+                emit_dir: Some(case.0.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        case.write("compile.json", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let output = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        case.write("stdout.log", &output.stdout);
+        case.write("stderr.log", &output.stderr);
+        case.write("native.txt",format!("optimization={optimization:?}\nexit={:?}\nexpected_exit=0\nexpected_stdout=MPBQZA\n",output.status.code()));
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(output.stdout, b"MPBQZA");
+        assert!(output.stderr.is_empty());
     }
 }

@@ -294,3 +294,159 @@ fn independent203_runtime_folding_preserves_both_selectors_and_modes_exactly() {
         );
     }
 }
+
+#[test]
+fn independent203_imported_value_template_hints_do_not_execute_or_ignore_shadowing() {
+    let root = module(
+        0,
+        "fn entry(value:i32)->i64{return child.accept(value,7)}fn main()->i32{return 0}",
+    );
+    let child = module(1, "pub fn accept(value:i32,count:i64)->i64{return count}");
+    let span = root.functions[0].span;
+    let mut p = program(root);
+    p.modules[0].imports.push(CoreImport {
+        alias: "child".into(),
+        module: ModuleId(1),
+        span,
+    });
+    p.modules.push(ProgramModule {
+        exports: child.functions.iter().map(|f| f.id).collect(),
+        imports: vec![],
+        core: child,
+    });
+    let mut q = query(&p, "entry");
+    let CoreExprKind::Call { arguments, .. } = &mut q.kind else {
+        unreachable!()
+    };
+    arguments.push(CoreExpr {
+        id: NodeId(980003),
+        span,
+        kind: CoreExprKind::Integer("1".into()),
+    });
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let case = Case::new("imported-value-argument-concrete-ct-control");
+    case.write("program.txt", format!("{p:#?}"));
+    case.write("query.txt", format!("{q:#?}"));
+    let positive = adapter::Compiler {
+        program: &p,
+        module: p.root,
+        target: &target,
+    }
+    .compile(&q, Some(&Type::I64), &limits);
+    case.write("compile.txt", format!("{positive:#?}"));
+    let verified = zil_verify::verify_ct_program(positive.unwrap(), &target, &limits).unwrap();
+    let evaluation = zil_ct::evaluate_program(&verified).unwrap();
+    case.write("evaluation.txt", format!("{evaluation:#?}"));
+    assert_eq!(
+        evaluation.value,
+        zil_ct::CompileTimeValue::Scalar(Constant::I64(7))
+    );
+
+    let function = &mut p.modules[1].core.functions[0];
+    function.type_parameters = vec![CoreTypeParameter {
+        index: 0,
+        name: "T".into(),
+        bound: CoreTypeBound::StoreElement,
+    }];
+    function.parameters[0].ty = Type::Named("T".into());
+    let case = Case::new("imported-value-inferred-template-ct-forbidden");
+    let forbidden = adapter::Compiler {
+        program: &p,
+        module: p.root,
+        target: &target,
+    }
+    .compile(&q, Some(&Type::I64), &limits);
+    case.write("program.txt", format!("{p:#?}"));
+    case.write("query.txt", format!("{q:#?}"));
+    case.write("compile.txt", format!("{forbidden:#?}"));
+    assert!(
+        forbidden
+            .unwrap_err()
+            .iter()
+            .any(|d| d.phase == Phase::Ct && d.code == "E-CT-FORBIDDEN")
+    );
+
+    p.modules[0].core = module(
+        0,
+        "fn entry(value:i32)->i64{return child.accept(value,#(4294967296))}fn main()->i32{return 0}",
+    );
+    let context = zil_ct::SourceProgramContext::new(&p, &limits).unwrap();
+    let normalized = zil_ct::evaluate_source_constants_with_context(
+        &p.modules[0].core,
+        &target,
+        &limits,
+        &context,
+    );
+    let case = Case::new("imported-ordinary-runtime-i64-hint");
+    case.write("program.txt", format!("{p:#?}"));
+    case.write("normalized.txt", format!("{normalized:#?}"));
+    let normalized = normalized.unwrap().0;
+    let CoreStatementKind::Return(Some(CoreExpr {
+        kind: CoreExprKind::Call { callee, arguments },
+        ..
+    })) = &normalized.functions[0].body.statements[0].kind
+    else {
+        unreachable!()
+    };
+    assert!(
+        matches!(&callee.kind,CoreExprKind::Member{object,member} if member=="accept" && matches!(&object.kind,CoreExprKind::Name(name) if name=="child"))
+    );
+    assert_eq!(
+        arguments[1].kind,
+        CoreExprKind::Integer("4294967296i64".into())
+    );
+    assert_eq!(
+        normalized.functions[0].parameters,
+        p.modules[0].core.functions[0].parameters
+    );
+
+    for local in [false, true] {
+        let mut shadow = p.clone();
+        let function = &mut shadow.modules[0].core.functions[0];
+        if local {
+            function.body.statements.insert(
+                0,
+                CoreStatement {
+                    id: NodeId(980010),
+                    span,
+                    kind: CoreStatementKind::Binding {
+                        name: "child".into(),
+                        mutable: false,
+                        ty: Some(Type::I32),
+                        initializer: Some(CoreExpr {
+                            id: NodeId(980011),
+                            span,
+                            kind: CoreExprKind::Integer("0".into()),
+                        }),
+                    },
+                },
+            );
+        } else {
+            function.parameters.push(CoreParameter {
+                name: "child".into(),
+                ty: Type::I32,
+                mode: PassingMode::Infer,
+                span,
+            });
+        }
+        let context = zil_ct::SourceProgramContext::new(&shadow, &limits).unwrap();
+        let result = zil_ct::evaluate_source_constants_with_context(
+            &shadow.modules[0].core,
+            &target,
+            &limits,
+            &context,
+        );
+        let case = Case::new(&format!("runtime-header-shadow-local-{local}"));
+        case.write("program.txt", format!("{shadow:#?}"));
+        case.write("normalized.txt", format!("{result:#?}"));
+        // Only a CT normalization assertion: the shadowed call is not claimed
+        // to be a well-typed runtime program. It cannot borrow an import hint.
+        assert!(
+            result
+                .unwrap_err()
+                .iter()
+                .any(|d| d.phase == Phase::Ct && d.code == "E-INTEGER-RANGE")
+        );
+    }
+}
