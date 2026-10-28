@@ -1,0 +1,164 @@
+{
+  "status": "Pass",
+  "scope": "204 finite leaf Store owned capture and complete Package capture under actual ownership inference; not complete1.4 or product acceptance",
+  "source_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
+  "source_clean": true,
+  "integration_merge": "41203778f1757089f5ba6be966662d3d21ab2867",
+  "production_freeze": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+  "production_input_count": 178,
+  "compiler_input_sha256_equal_to_frozen_cli": true,
+  "post_test_changes": "Receipt/documentation and evidence-container tools only; consumer README adds outcome text, so whole examples tree identity is not claimed. All compiler and Rust test files and .zil examples are unchanged.",
+  "spec_hash": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0",
+  "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "schema_version": 27,
+  "wire_version": 27,
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--no-fail-fast"
+  ],
+  "passed": 2469,
+  "failed": 0,
+  "ignored": 0,
+  "test_result_groups": 252,
+  "duration_seconds": 127.2104377746582,
+  "stdout_log_sha256": "87b190f122b0f05e7ec74d63f64318d61e68fcdf5437988f86c2aa314403b62b",
+  "stderr_log_sha256": "535abe2d186417ea5a3b72426d4439b0acaacc696609e9cd78fb7c8cc99896a7",
+  "clippy": {
+    "status": "Pass",
+    "source_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
+    "command": [
+      "cargo",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--offline",
+      "--locked",
+      "-j2",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "receipt": "clippy01/command.json",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "dbc68daf5be02e5e096c724d6cf3392c44257c1bec6df6bc19999e3bb59f560a"
+  },
+  "compiler": {
+    "source_commit": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+    "git_status": "",
+    "binary_path": "/tmp/zil204-cli-baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d",
+    "bytes": 28264144,
+    "sha256": "baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d",
+    "execution": "NotRun at build time; exact consumers retain own subsequent receipts"
+  },
+  "independent_review": {
+    "reviewer": "/root/impl197",
+    "implementation_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
+    "review_commit": "b0f8e999b6a5e81cc307b44d27d11bb121a3e585",
+    "receipt": "evidence/reviews/204/by197/REVIEW.json",
+    "actual_source_and_consumer_commit": "694940eda0f7a9e5f9f999f8f2b107f4550d84fb",
+    "source_groups": 21,
+    "native_source_executions": 46,
+    "raw_wire_pairs": 33,
+    "raw_wire_controls": 15,
+    "raw_wire_attacks": 18,
+    "linux_consumer_executions": 148,
+    "actual_allocation_failures": 108,
+    "all_live_zero": true,
+    "not_added_to_author_or_workspace_counts": true
+  },
+  "author_evidence": {
+    "frontend": "evidence/impl/204/frontend/SUMMARY.json",
+    "frontend_source_groups": 20,
+    "frontend_budget_groups": 2,
+    "frontend_native_executions": 32,
+    "analyze": "evidence/impl/204/analyze/RESULT.json",
+    "analyze_raw_groups": 7,
+    "analyze_source_groups": 7,
+    "analyze_callee_native_executions": 4,
+    "consumer": "evidence/impl/204/consumer/RESULT.json",
+    "linux_executions": 148,
+    "wine_executions": 148,
+    "ordinary_per_platform": 16,
+    "instrumented_per_platform": 132,
+    "actual_allocation_failures_per_platform": 108,
+    "all_final_live_zero": true,
+    "wine_bad_operations_zero": true,
+    "peak_requested_live_payload_bytes": 528,
+    "peak_live_allocations": 4,
+    "peak_is_not_process_RSS": true,
+    "counts_overlap_and_are_not_summed": true
+  },
+  "real_window_defect": {
+    "original_failure": "evidence/reviews/204/by197/TAKE_WINDOW01_FAILURE.json",
+    "original_bad_source_raw_wire_wrongly_accepted": true,
+    "invalid_native_execution": "NotRun",
+    "final_source": "Analyze/SafeReject/E-ANALYZE-IR",
+    "independent_hostile_plan_raw_and_wire": "Verify/SafeReject/E-BORROW-CONFLICT",
+    "repairs": [
+      "eac981270c6b488d108f8fdbc9a18eac69e646e2",
+      "6654830229e1351fa03c9a1fa8cfc5b55cf84da5",
+      "70678a8dbad7f1da27730fec301712a36b851520"
+    ]
+  },
+  "exact_independent_budget_boundaries": {
+    "method": "Each N succeeds, N-1 is ResourceLimit, fresh N succeeds; fresh Types/Analyze outputs equal the control. Source hashes and complete records are in SOURCE06 and the external archive.",
+    "old_byte_capture": {
+      "Expand": 2,
+      "Types": 196,
+      "Analyze": 2230,
+      "Verify": 2490,
+      "scope": "One frozen pre204 source; no blanket claim about every old profile."
+    },
+    "new_two_store_capture": {
+      "Expand": 8,
+      "Types": 2692,
+      "Analyze": 21195,
+      "Verify": 52430
+    },
+    "new_store_take_window": {
+      "Expand": 8,
+      "Types": 1691,
+      "Analyze": 12981,
+      "Verify": 27265
+    },
+    "unused_no_store_op_no_makeclosure": {
+      "Analyze": 3252,
+      "Verify_raw": 5658,
+      "Verify_wire": 5658
+    }
+  },
+  "migrations": [
+    "evidence/impl/204/frontend/LEGACY_MIGRATION.json",
+    "evidence/impl/204/frontend/WINDOW_REPAIR.json",
+    "evidence/reviews/204/by197/MIGRATION01.json",
+    "evidence/reviews/204/by197/MIGRATION02.json",
+    "evidence/impl/204/analyze/LEGACY201_MIGRATION.json"
+  ],
+  "prior_full_run": {
+    "run": "workspace01",
+    "status": "Fail",
+    "source_commit": "057e7f67cd6fee9dc80c9cf31fe7af5cbc6bf1b3",
+    "passed": 2468,
+    "failed": 1,
+    "ignored": 0,
+    "groups": 252,
+    "cause": "One old Analyze201 exact diagnostic expectation; five hostile raw results remain Unsupported and one old control remains Success after the test-only migration. No production repair after this run.",
+    "stdout_sha256": "1a5b9abedb7c7c89305cb5fad241887c9850f29581bb587642008334cd60a05e",
+    "stderr_sha256": "8808b0ba4f15863f02166d2f5e8ecafd9fd3f0c145a4f56b8048ef2aae12b7cb",
+    "complete_raw_backup": "See ARCHIVE.json and workspace01-temp-reclaimed.json; complete valid oversized ZIP was retained before duplicate temporary files were reclaimed."
+  },
+  "other_failures": "Original Types/Lower/LLVM gates, source/raw window misacceptance, test fixture mistakes, exact rejection-phase migrations and Wine01 IPC failure retain their actual identities; earlier Fail is never relabeled.",
+  "evidence_delivery": "Source Git contains compact receipts only. Full source/raw/Wire/IR/binary test I/O/commands/results are stored outside Git; execution products and Cargo caches are not shipped. Container compression is independent of language execution. Final identities are in ARCHIVE.json.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "native_windows": "NotRun",
+  "formal_draft_product_pipeline": "NotRun",
+  "compiler_speed_claim": "None; separate workstream",
+  "remaining_priority": "205 one complete State<T,F> plus one independently owned replacement:F; remaining full1.4 obligations retained"
+}
