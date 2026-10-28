@@ -7,7 +7,8 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 use zil_base::{
-    FileId, Limits, ModuleId, NodeId, Phase, ResultCategory, SourceUnit, Span, TargetProfile,
+    Diagnostic, FileId, Limits, ModuleId, NodeId, Phase, ResultCategory, SourceUnit, Span,
+    TargetProfile,
 };
 use zil_driver::{CompileOptions, CompileReport, Optimization, Stage, compile_source};
 use zil_ir::*;
@@ -732,6 +733,14 @@ fn raw_legacy_single_state_alias_cannot_depend_on_expand_having_checked_the_body
     );
 }
 
+#[test]
+fn repaired_legacy_definition_check_preserves_actual_lending_callback_use() {
+    // This exact source was independently accepted by frozen 204 CLI05 before
+    // the old single-State raw definition check was activated in 205.
+    let source = include_str!("impl205_independent_fixtures/05_legacy_state_lending.zil");
+    native("legacy-lending-after-definition-repair", source, "", 0);
+}
+
 fn verify_pair(label: &str, module: &TypedModule, candidate: &CandidatePlan, accept: bool) {
     let case = Case::new(label);
     let limits = Limits::default();
@@ -944,4 +953,274 @@ fn main()->i32{{let state=revise(pack(make(65),make(66),0),make(67));emit(77);re
         &sibling,
         &candidate,
     );
+}
+
+#[test]
+fn prepared_mutable_callee_keeps_its_actual_field_during_argument_preparation() {
+    let source = format!(
+        r#"{RESOURCE}
+package State<F>{{manages root:Ticket;a:F;b:F}}
+fn pack<F:FnMut(i32)->i32>(a:F,b:F)->State<F>{{return State::<F>{{root:Ticket{{code:90}},a:a,b:b}}}}
+fn make(code:i32)->impl FnMut(i32)->i32{{let ticket=Ticket{{code:code}};var count=0;return move(delta:i32)=>{{ticket.code;count+=delta;return count}}}}
+fn revise<F:FnMut(i32)->i32>(replacement:F,state:State<F>)->State<F>{{var next=state;let view=&mut next.a;view(next.b(2));next.a=replacement;return next}}
+fn main()->i32{{var state=revise(make(67),pack(make(65),make(66)));emit(77);return state.a(1)+state.b(1)-4}}
+"#
+    );
+    native("prepared-callee-sibling-control", &source, "AMZCB", 0);
+    let (typed, candidate) = typed_control("prepared-callee-sibling", &source);
+    let index = typed
+        .functions
+        .iter()
+        .position(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::StorePackageField { .. }))
+        })
+        .unwrap();
+    let mut changed = typed.clone();
+    let mut redirected = 0;
+    for instruction in changed.functions[index]
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+    {
+        if let InstructionKind::BorrowPackageField {
+            index,
+            mutable: true,
+            ..
+        } = &mut instruction.kind
+        {
+            if *index == 2 {
+                *index = 1;
+                redirected += 1;
+            }
+        }
+    }
+    assert_eq!(
+        redirected, 1,
+        "the sibling argument must originate at its real field"
+    );
+    typed_attack(
+        "argument-reborrow-conflicts-with-prepared-callee",
+        &changed,
+        &candidate,
+    );
+}
+
+#[test]
+fn nominal_and_phantom_data_identity_survives_same_f_replacement_specialization() {
+    for phantom in [false, true] {
+        let state = if phantom {
+            STATE.replace(";tag:T", "").replace("tag:tag,", "")
+        } else {
+            STATE.to_owned()
+        };
+        let source = format!(
+            r#"{RESOURCE}{state}
+struct Left{{value:i32}}
+struct Right{{value:i32}}
+fn revise<T:Copy,F:Fn()->i32>(state:State<T,F>,replacement:F)->State<T,F>{{var next=state;next.a=replacement;return next}}
+fn main()->i32{{
+    let left=revise(pack(make(65),make(66),Left{{value:1}}),make(67));
+    let right=revise(pack(make(68),make(69),Right{{value:1}}),make(70));
+    emit(77);return left.a()+left.b()+right.a()+right.b()-272
+}}
+"#
+        );
+        native(
+            &format!("nominal-phantom-{phantom}"),
+            &source,
+            "ADMZFEZCB",
+            0,
+        );
+        let (typed, candidate) = typed_control(&format!("nominal-family-{phantom}"), &source);
+        let instances = typed
+            .functions
+            .iter()
+            .filter(|f| {
+                f.parameters.len() == 2
+                    && f.parameters
+                        .iter()
+                        .filter(|id| matches!(f.locals[id.0 as usize].ty, Type::Package { .. }))
+                        .count()
+                        == 1
+                    && f.parameters
+                        .iter()
+                        .filter(|id| matches!(f.locals[id.0 as usize].ty, Type::Closure(_)))
+                        .count()
+                        == 1
+            })
+            .map(|f| f.id)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            instances.len(),
+            2,
+            "complete T must remain in each mixed instance identity"
+        );
+        let mut changed = typed.clone();
+        let mut redirected = 0;
+        for instruction in changed
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|b| &mut b.instructions)
+        {
+            if let InstructionKind::Call { function, .. } = &mut instruction.kind {
+                if *function == instances[1] {
+                    *function = instances[0];
+                    redirected += 1;
+                }
+            }
+        }
+        assert_eq!(redirected, 1);
+        typed_attack(
+            &format!("wrong-nominal-mixed-instance-{phantom}"),
+            &changed,
+            &candidate,
+        );
+    }
+}
+
+fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize {
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    run(high).unwrap();
+    while low + 1 < high {
+        let n = low + (high - low) / 2;
+        match run(n) {
+            Ok(()) => high = n,
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit),
+                    "{errors:#?}"
+                );
+                low = n;
+            }
+        }
+    }
+    run(high).unwrap();
+    let errors = run(high - 1).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::ResourceLimit)
+    );
+    run(high).unwrap();
+    high
+}
+
+#[test]
+fn mixed_state_alias_work_has_exact_phase_limits_and_fresh_outputs() {
+    let source = r#"
+package State<F>{manages bytes:ByteBuffer;a:F;b:F}
+fn make(value:i32)->impl Fn()->i32{return move()=>value}
+fn pack<F:Fn()->i32>(a:F,b:F)->State<F>{return State::<F>{bytes:bytes_new(),a:a,b:b}}
+fn revise<F:Fn()->i32>(replacement:F,flag:bool,state:State<F>)->State<F>{
+    var next=state;let view=&next.a;view();if flag{next.a=replacement}return next
+}
+fn main()->i32{let state=revise(make(3),true,pack(make(1),make(2)));return state.a()+state.b()-5}
+"#;
+    let (typed, candidate) = typed_control("phase-budget-mixed-alias", source);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent205.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let wire =
+        zil_ir::wire::encode_module_candidate(&typed, &candidate, &Limits::default()).unwrap();
+    let limits = |n| Limits {
+        max_analysis_steps: n,
+        ..Limits::default()
+    };
+    let expand = boundary(|n| {
+        zil_expand::expand_with_map_limits(&unit, &syntax, &limits(n))
+            .map(|actual| assert_eq!(actual.core, core))
+    });
+    let types = boundary(|n| {
+        zil_types::check(&core, &typed.target, &limits(n)).map(|actual| assert_eq!(actual, typed))
+    });
+    let analyze = boundary(|n| {
+        zil_analyze::analyze(&typed, &limits(n)).map(|actual| assert_eq!(actual, candidate))
+    });
+    let verify = boundary(|n| {
+        zil_verify::verify_module(typed.clone(), candidate.clone(), &typed.target, &limits(n))
+            .map(|_| ())
+    });
+    let wire_verify =
+        boundary(|n| zil_verify::verify_module_bytes(&wire, &typed.target, &limits(n)).map(|_| ()));
+    let case = Case::new("mixed-alias-work-boundaries");
+    case.write("source.zil", source);
+    case.write("boundaries.json",format!("{{\"expand\":{expand},\"types\":{types},\"analyze\":{analyze},\"verify\":{verify},\"verify_wire\":{wire_verify},\"method\":\"exact N, N-1 ResourceLimit, fresh N; Core/Typed/Candidate unchanged\"}}\n"));
+}
+
+#[test]
+fn raw_mixed_header_trees_are_bounded_before_signature_matching() {
+    let original = expanded("raw-header-work-control", ORIGINAL);
+    let target = TargetProfile::host_llvm();
+    let index = original
+        .functions
+        .iter()
+        .position(|f| f.name == "replace")
+        .unwrap();
+    types_pair("raw-header-work-control", &original, None);
+    for label in [
+        "matching-long-names",
+        "state-type-tree",
+        "replacement-type-tree",
+    ] {
+        let mut core = original.clone();
+        let f = &mut core.functions[index];
+        let limits = if label == "matching-long-names" {
+            let name = "f".repeat(8192);
+            f.callable_parameters[0].generic_name = name.clone();
+            f.state_parameters[0].bindings[0].generic_name = name.clone();
+            f.parameters[1].ty = Type::Named(name.clone());
+            let Type::Named(state_name) = &f.parameters[0].ty else {
+                unreachable!()
+            };
+            let aggregate = core
+                .aggregates
+                .iter_mut()
+                .find(|a| &a.name == state_name)
+                .unwrap();
+            aggregate.fields[1].ty = Type::Named(name.clone());
+            aggregate.fields[2].ty = Type::Named(name);
+            Limits {
+                max_analysis_steps: 1024,
+                ..Limits::default()
+            }
+        } else {
+            let mut nested = Type::I32;
+            for _ in 0..18 {
+                nested = Type::Array {
+                    element: Box::new(nested),
+                    length: 1,
+                };
+            }
+            if label == "state-type-tree" {
+                f.state_parameters[0].bindings[0].result = nested;
+            } else {
+                f.callable_parameters[0].result = nested;
+            }
+            Limits {
+                max_call_depth: 8,
+                ..Limits::default()
+            }
+        };
+        if label == "matching-long-names" {
+            types_pair("long-matching-headers-default-control", &core, None);
+        }
+        let a = zil_types::check(&core, &target, &limits);
+        let b =
+            zil_types::check_program(&program(core.clone()), &target, &limits).map(|p| p.module);
+        let case = Case::new(label);
+        case.write("core.txt", format!("{core:#?}"));
+        case.write("limits.txt", format!("{limits:#?}"));
+        case.write("single.txt", format!("{a:#?}"));
+        case.write("program.txt", format!("{b:#?}"));
+        for result in [a, b] {
+            let errors = result.unwrap_err();
+            assert!(errors.iter().any(|d|d.phase==Phase::Types&&d.category==ResultCategory::ResourceLimit),"{label}: {errors:#?}");
+        }
+    }
 }
