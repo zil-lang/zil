@@ -1,0 +1,43 @@
+{
+  "task": "201",
+  "reviewer": "/root/impl197",
+  "kind": "independent read-only migration review; no execution for this receipt",
+  "reviewed_commit": "b2ed3f9d469860e43e0ca9edd7278f4341997d93",
+  "original_implementation_commit": "b14b9d5f313e93d744b81e50f7bd5a64a6e1d895",
+  "verdict": "Pass for the exact test-only migration",
+  "changed_paths": [
+    "changes/201-regression-migration.md",
+    "crates/zil-driver/tests/impl200_state_source.rs"
+  ],
+  "production_diff": [],
+  "outside_original_two_test_bodies_unchanged": true,
+  "original_fixtures": [
+    {
+      "path": "crates/zil-driver/tests/impl200_fixtures/00_single_callback_state.zil",
+      "bytes": 559,
+      "sha256": "56cfb56651a856772561c3587819140974c214ce5edbeaba9541e89eb3cc2116",
+      "identical_to_formal_200_b9c006b0": true
+    },
+    {
+      "path": "crates/zil-driver/tests/impl200_fixtures/01_same_f_two_callback_state.zil",
+      "bytes": 630,
+      "sha256": "73a0a0fa1fb97e9efd28e42a86f3e91560256dcb7cee69b570d5806db23b916f",
+      "identical_to_formal_200_b9c006b0": true
+    },
+    {
+      "path": "crates/zil-driver/tests/impl200_fixtures/02_store_of_callback_state.zil",
+      "bytes": 626,
+      "sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+      "identical_to_formal_200_b9c006b0": true
+    }
+  ],
+  "findings": [
+    "The Types-only loop now requires all three unchanged original inputs to succeed and still asserts verification_runs=0.",
+    "The native loop now covers all three original inputs; its unchanged helper builds O0/O2, requires verification_runs=1, and checks actual exit/stdout/stderr.",
+    "Only the obsolete Expand rejection for original 02 is removed; no input is deleted, no test is ignored, and no production, default limit or product gate is changed.",
+    "Historical 200 evidence remains bound to its original source; this review does not relabel it as callback Store success."
+  ],
+  "executed_commands": [],
+  "execution_boundary": "This receipt inspects Git objects and fixture hashes only. Separate reviewer source03 at 249719e6 executed the same original02 independently; it is not an execution of b2ed3f9d or of its migrated test bodies.",
+  "source_review_commit": "249719e61250d64fdabdf8eadb5fc2979bbed1ed"
+}
