@@ -462,3 +462,11 @@ fn actual_four_module_consumer_uses_direct_state_field_addresses() {
     assert_eq!(report.verification_runs, 1);
     assert_eq!(report.source_files.len(), 4);
 }
+
+#[test]
+fn shared_entry_may_borrow_a_fresh_local_package_without_mutating_its_environment() {
+    let source = format!(
+        "{SIMPLE}fn main()->i32{{let amount=20;let f=move()=>{{var local=make();let p=&mut local.x;*p+=amount;return *p}};return f()+f()-80}}"
+    );
+    native(&[("main", &source)], b"", 0);
+}

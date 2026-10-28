@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute the actual actual Package Copy field addresses and its allocation failure paths."""
+"""Execute the actual Package Copy field addresses and their allocation failure paths."""
 import argparse
 import importlib.util
 import json

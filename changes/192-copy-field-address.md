@@ -34,3 +34,5 @@
 ## 恢复后的中间发现（未终审）
 
 恢复时已有7处生产修改未提交。development04原17组全部通过，保留原owned Package字段借址输入。development05补充检查后源17组仍全过；新raw组3过2失败：一条父清理输入更早被E-VERIFY-INITIALIZATION正确拒绝，需要精确校正测试诊断；另一条将实际有独占字段借址的拥有Package闭包从FnMut重标Fn，独立Verify错误接受。该事实说明既有Shared Package写集合漏列`BorrowPackageField { mutable:true }`，不能把此候选作为完成状态。接续在已授权的Analyze/Verify资源文件分别补实际绑定view的资格检查；无新增公共schema和默认额度变化。当前先提交可恢复WIP，后续独立冻验才出最终源码。
+
+中间缺陷已在Analyze和独立Verify的既有Shared Package视图检查分别补齐：只对实际绑定捕获view的独占字段地址拒绝，普通函数或共享闭包内部新建的局部Package仍可取得独占字段地址。development06保持所有原输入，源18组及raw5组全过；raw误标Fn现在分别被Analyze和raw/Wire Verify拒绝。父对象已清理/未初始化保持原输入，断言改为实际更早的E-VERIFY-INITIALIZATION。该运行仍是未提交工作区的开发检查，最终事实以随后干净冻结执行为准。

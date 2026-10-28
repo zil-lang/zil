@@ -869,7 +869,12 @@ impl Transfer<'_> {
                     | InstructionKind::StorePackageField { local, .. }
                     | InstructionKind::TakeLocal { local }
                     | InstructionKind::DropPackage { local }
-                    | InstructionKind::Store { local, .. } => slots.view(local).is_some(),
+                    | InstructionKind::Store { local, .. }
+                    | InstructionKind::BorrowPackageField {
+                        local,
+                        mutable: true,
+                        ..
+                    } => slots.view(local).is_some(),
                     _ => false,
                 };
                 if written_view {

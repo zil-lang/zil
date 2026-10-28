@@ -850,7 +850,12 @@ impl Flow<'_> {
                     | InstructionKind::DropPackage { local }
                     | InstructionKind::TakePackageField { local, .. }
                     | InstructionKind::DropPackageField { local, .. }
-                    | InstructionKind::StorePackageField { local, .. } => Some(local),
+                    | InstructionKind::StorePackageField { local, .. }
+                    | InstructionKind::BorrowPackageField {
+                        local,
+                        mutable: true,
+                        ..
+                    } => Some(local),
                     _ => None,
                 };
                 budget.lookup(self.views.len(), "Shared Package view mutation")?;

@@ -7,7 +7,7 @@ use std::{
 use zil_base::{
     Diagnostic, FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile,
 };
-use zil_ir::{CallableKind, CandidatePlan, InstructionKind as I, Type, TypedModule};
+use zil_ir::{CallableKind, CandidatePlan, InstructionKind as I, TypedModule};
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 const MODEL: &str =
     "resource R{n:i32}package P{manages r:R;x:i32;y:i32}fn make()->P{return P{r:R{n:1},x:20,y:1}}";
@@ -242,7 +242,7 @@ fn parent_initialization_and_cleanup_cannot_be_skipped_by_copy_field_borrows() {
             &source,
             changed,
             plan.clone(),
-            Some("E-VERIFY-RESOURCE"),
+            Some("E-VERIFY-INITIALIZATION"),
         );
     }
 }
@@ -255,12 +255,24 @@ fn owned_package_environment_does_not_become_a_shared_entry_by_relabeling() {
     assert_eq!(module.closures.len(), 1);
     assert_eq!(module.closures[0].kind, CallableKind::FnMut);
     module.closures[0].kind = CallableKind::Fn;
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    let p = directory("shared-view-analysis");
+    fs::write(p.join("source.zil"), &source).unwrap();
+    fs::write(p.join("analysis.txt"), format!("{errors:#?}")).unwrap();
+    assert_eq!(errors[0].phase, Phase::Analyze);
+    assert_eq!(errors[0].category, ResultCategory::SafeReject);
+    assert!(
+        errors[0]
+            .message
+            .contains("Shared entry cannot change a Package capture"),
+        "{errors:?}"
+    );
     pair(
         "shared-owned-package-entry",
         &source,
         module,
         plan,
-        Some("E-VERIFY-PACKAGE"),
+        Some("E-VERIFY-RESOURCE"),
     );
 }
 fn limit_record(label: &str, low: usize, high: usize, errors: &[Diagnostic]) {
