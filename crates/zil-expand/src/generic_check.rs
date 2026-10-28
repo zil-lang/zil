@@ -1731,6 +1731,9 @@ impl Check<'_, '_, '_> {
                     member: MemberName::Name(name),
                 } = &callee.kind
                 {
+                    if let Some(result) = self.state_field_call(callee, arguments, state)? {
+                        return Ok(result);
+                    }
                     let ty = self.expr(object, state, None, true)?;
                     if name == "len"
                         && matches!(&group(&ty).kind, TypeKind::Reference { inner, .. } if matches!(group(inner).kind, TypeKind::Array { length: None, .. }))
@@ -2168,6 +2171,70 @@ impl Check<'_, '_, '_> {
                 "this generic expression requires additional symbolic checking",
             )),
         }
+    }
+    /// A direct callable field is a value invocation, not a trait method.
+    /// Resolve the actual Package place and its declared field before using
+    /// the existing symbolic F bound; the concrete pipeline still proves its
+    /// environment, alias windows and cleanup obligations independently.
+    fn state_field_call(
+        &mut self,
+        callee: &Expr,
+        arguments: &[Argument],
+        state: &mut State,
+    ) -> R<Option<TypeRef>> {
+        let Some(bound) = self.callable.as_ref().filter(|bound| bound.owned_state) else {
+            return Ok(None);
+        };
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(member),
+        } = &callee.kind
+        else {
+            return Ok(None);
+        };
+        let Some(owner) = self.package_local(object, state) else {
+            return Ok(None);
+        };
+        for parameter in &bound.parameters {
+            self.budget.ty(parameter)?;
+        }
+        self.budget.ty(&bound.result)?;
+        let bound = bound.clone();
+        let (ty, mutable) = self.place(callee, state)?;
+        if callable::parameter_mode(&ty, &bound.generic_name) != Some(None) {
+            return Ok(None);
+        }
+        let slot = self.field_slot(owner, member, callee.span)?;
+        if state.moved.contains(&slot) {
+            return Err(error(
+                callee.span,
+                "callback field used after its environment was moved",
+            ));
+        }
+        match bound.kind {
+            zil_ir::CallableKind::Fn => {}
+            zil_ir::CallableKind::FnMut if mutable => {}
+            zil_ir::CallableKind::FnOnce => {
+                state.moved.insert(slot);
+            }
+            _ => {
+                return Err(error(
+                    callee.span,
+                    "mutable callback field requires a mutable owning State",
+                ));
+            }
+        }
+        if arguments.len() != bound.parameters.len() {
+            return Err(error(callee.span, "callable field argument count differs"));
+        }
+        for (argument, parameter) in arguments.iter().zip(&bound.parameters) {
+            if argument.spread {
+                return Err(unsupported(argument.span, "callable State tuple spread"));
+            }
+            let actual = self.argument(&argument.value, state, parameter, Some(parameter))?;
+            same(&actual, parameter, argument.span, self.budget)?;
+        }
+        Ok(Some(bound.result))
     }
     // Return true when every path through this block has returned. Branches
     // keep separate move states, so a returning arm cannot consume the value
