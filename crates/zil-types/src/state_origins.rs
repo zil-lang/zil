@@ -709,16 +709,37 @@ impl MoveWalk<'_, '_> {
         }
         Ok(())
     }
+    fn repeated_condition(
+        &mut self,
+        value: &CoreExpr,
+        depth: usize,
+    ) -> R<std::collections::BTreeSet<u64>> {
+        self.state
+            .snapshot(self.loop_alias_uses.len().saturating_add(1), value.span)?;
+        self.loop_alias_uses.push(Default::default());
+        self.expr(value, Access::Move, depth + 1)?;
+        Ok(self
+            .loop_alias_uses
+            .pop()
+            .expect("State condition alias uses"))
+    }
     fn loop_body(
         &mut self,
         body: &CoreBlock,
         before: MoveFlow,
         exit: MoveFlow,
+        condition_uses: std::collections::BTreeSet<u64>,
         depth: usize,
     ) -> R<()> {
-        self.state.snapshot(2, body.span)?;
+        self.state.snapshot(
+            self.loops
+                .len()
+                .saturating_add(self.loop_alias_uses.len())
+                .saturating_add(2),
+            body.span,
+        )?;
         self.loops.push((None, None));
-        self.loop_alias_uses.push(Default::default());
+        self.loop_alias_uses.push(condition_uses);
         self.block(body, depth + 1)?;
         let (breaks, continues) = self.loops.pop().expect("State move loop");
         let used = self.loop_alias_uses.pop().expect("State alias loop");
@@ -872,9 +893,9 @@ impl MoveWalk<'_, '_> {
                 }
                 CoreStatementKind::While { condition, body } => {
                     let before = self.snapshot_flow(statement.span)?;
-                    self.expr(condition, Access::Move, depth + 1)?;
+                    let condition_uses = self.repeated_condition(condition, depth)?;
                     let exit = self.snapshot_flow(statement.span)?;
-                    self.loop_body(body, before, exit, depth + 1)?;
+                    self.loop_body(body, before, exit, condition_uses, depth + 1)?;
                 }
                 CoreStatementKind::WhileLet {
                     pattern,
@@ -882,12 +903,12 @@ impl MoveWalk<'_, '_> {
                     body,
                 } => {
                     let before = self.snapshot_flow(statement.span)?;
-                    self.expr(value, Access::Move, depth + 1)?;
+                    let condition_uses = self.repeated_condition(value, depth)?;
                     let exit = self.snapshot_flow(statement.span)?;
                     self.state.snapshot(1, statement.span)?;
                     self.scopes.push(BTreeMap::new());
                     self.pattern(pattern, depth + 1)?;
-                    self.loop_body(body, before, exit, depth + 1)?;
+                    self.loop_body(body, before, exit, condition_uses, depth + 1)?;
                     self.pop_scope(statement.span)?;
                 }
                 CoreStatementKind::ForRange {
@@ -903,7 +924,7 @@ impl MoveWalk<'_, '_> {
                     self.state.snapshot(1, statement.span)?;
                     self.scopes.push(BTreeMap::new());
                     self.bind(name, statement.span)?;
-                    self.loop_body(body, before, exit, depth + 1)?;
+                    self.loop_body(body, before, exit, Default::default(), depth + 1)?;
                     self.pop_scope(statement.span)?;
                 }
                 CoreStatementKind::Match { value, arms } => {
