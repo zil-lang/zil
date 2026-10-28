@@ -114,14 +114,12 @@ fn source_reject(label: &str, source: &str, phase: Phase, code: &str) {
     let case = Case::new(label);
     let report = compile(&case, source, None);
     assert_eq!(report.phase, phase, "{}", report.to_json());
-    assert!(
-        matches!(
-            report.status,
-            ResultCategory::SafeReject | ResultCategory::Unsupported
-        ),
-        "{}",
-        report.to_json()
-    );
+    let category = if code == "E-UNSUPPORTED" {
+        ResultCategory::Unsupported
+    } else {
+        ResultCategory::SafeReject
+    };
+    assert_eq!(report.status, category, "{}", report.to_json());
     assert!(
         report.diagnostics.iter().any(|d| d.code == code),
         "{}",
@@ -191,7 +189,7 @@ fn attack(
     label: &str,
     module: TypedModule,
     original: &CandidatePlan,
-    require_fresh: bool,
+    require_analyze_window_rejection: bool,
     category: ResultCategory,
     code: &str,
 ) {
@@ -207,11 +205,23 @@ fn attack(
             "Analyze rejected; original control plan with attacked module fingerprint, not a fresh proof\n"
         },
     );
-    let mut plan = if require_fresh {
-        analyzed.expect("this particular attack must reach Verify with a fresh Analyze candidate")
-    } else {
-        analyzed.unwrap_or_else(|_| original.clone())
-    };
+    if require_analyze_window_rejection {
+        let errors = analyzed
+            .as_ref()
+            .expect_err("the repaired producer must reject the actual captured Store window");
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Analyze
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-ANALYZE-IR"
+                && d.message == "captured Store transition invalidates a live element window"),
+            "{errors:#?}"
+        );
+    }
+    // A producer rejection must not skip the independent raw/Wire verifier.
+    // All three window mutations preserve original ValueIds and operation
+    // types, so the source control's full candidate remains a useful hostile
+    // claim; only its module fingerprint is updated, never its authority.
+    let mut plan = analyzed.unwrap_or_else(|_| original.clone());
     plan.module_fingerprint = module.fingerprint();
     verify_pair(&case, &module, &plan, Some((category, code)));
 }
@@ -381,8 +391,8 @@ fn captured_store_windows_keep_the_parent_until_the_last_real_use() {
     source_reject(
         "capture-window-live-across-reserve",
         &source.replace("return answer\n", "return view.value\n"),
-        Phase::Verify,
-        "E-BORROW-CONFLICT",
+        Phase::Analyze,
+        "E-ANALYZE-IR",
     );
 }
 
@@ -394,8 +404,8 @@ fn take_capture_cannot_leave_a_window_valid_for_a_reallocated_local_owner() {
     source_reject(
         "take-capture-window-after-local-reserve",
         &source.replace("return answer\n", "return view.value\n"),
-        Phase::Verify,
-        "E-BORROW-CONFLICT",
+        Phase::Analyze,
+        "E-ANALYZE-IR",
     );
 }
 
@@ -452,7 +462,7 @@ fn raw_take_capture_keeps_the_original_element_parent_after_local_reserve() {
         "take-capture-then-local-reserve-before-element-read",
         module,
         &plan,
-        false,
+        true,
         ResultCategory::SafeReject,
         "E-BORROW-CONFLICT",
     );
