@@ -1,0 +1,41 @@
+{
+  "stage": 206,
+  "candidate": "CLI04",
+  "status": "Pass",
+  "frozen": true,
+  "source_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+  "compiler_source_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+  "execution_checkout": "/tmp/zil206-consumer-final-source",
+  "checkout_git_status": "",
+  "compiler": {
+    "binary_path": "/tmp/zil206-cli-3bc6fc0a23aee0058ebd25fb941d9110d9432252fcf5ba1d302a8e457990a491",
+    "bytes": 28941608,
+    "sha256": "3bc6fc0a23aee0058ebd25fb941d9110d9432252fcf5ba1d302a8e457990a491",
+    "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d"
+  },
+  "compiler_identity_record": {
+    "path": "run-logs/206-root/cli04/binary.json",
+    "sha256": "fa3cffd01551ed6fa3dfba94a005fbf1d83434864435b71e6439a141278b0d41"
+  },
+  "compiler_build_receipt": {
+    "path": "run-logs/206-root/cli04/command.json",
+    "sha256": "018d66979a386d9b0045a031b361f2462299f7e96a0e5b03dac2d6de633b05e7"
+  },
+  "compiler_inputs_checked": 182,
+  "identity_check": {
+    "path": "run-logs/206-consumer-final/IDENTITY-CHECK02.json",
+    "sha256": "22debe7d15c44372338fd60ae1d76502d7a89fc75ead1c80bf0a6ba24bf5510d"
+  },
+  "five_module_source_manifest_sha256": "e691a94f6fa9ee451dee11225a45437c3aed328d9c2ebf5c8b46ce30da9e123a",
+  "predeclared_oracle_sha256": "956e2142fc79cd4ea0431c5cfecdaa8d54d47072873795e88a3c8d1df929ec6d",
+  "relative_to_cli03": {
+    "changed_compiler_inputs": [
+      "crates/zil-verify/src/closures.rs",
+      "crates/zil-verify/src/package_tests.rs"
+    ],
+    "reason": "The final independent Verify local capture gate has production changes. CLI04 was rebuilt; fresh executions were required. Earlier CLI03 results retain their original source/binary identity."
+  },
+  "execution_isolation": "An exact detached bf44 source checkout was created after both first attempts rejected a dirty worktree before compiler/native invocation; clean checks were not weakened.",
+  "wine_environment": "TMPDIR explicitly unset; existing Wine prefix and pinned Wine/LLVM tools retained.",
+  "legacy_evidence": "run-logs/206-machine-consumer is unchanged and remains frozen."
+}
