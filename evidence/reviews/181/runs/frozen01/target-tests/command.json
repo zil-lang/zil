@@ -1,0 +1,19 @@
+{
+  "name": "target-tests",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl181_win64_store",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "exit_code": 0,
+  "status": "Pass",
+  "elapsed_seconds": 9.503906965255737
+}

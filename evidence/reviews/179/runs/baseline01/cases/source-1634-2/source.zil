@@ -1,0 +1,1 @@
+package P{manages b:ByteBuffer;manages c:ByteBuffer}fn make()->P{return P{b:bytes_new(),c:bytes_new()}}resource R{x:i32}impl Drop for R{fn drop(self:Self){}}package Q{manages b:ByteBuffer;manages r:R}fn value()->i64{var p=Q{b:bytes_new(),r:R{x:0}};let s=bytes_view(p.b);p.r=R{x:1};return s.len()}

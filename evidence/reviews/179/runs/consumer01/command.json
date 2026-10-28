@@ -1,0 +1,27 @@
+{
+  "command": [
+    "python3",
+    "tools/language/179/consumer.py",
+    "--repo",
+    "/workspace/scratch/39be3faa4442/language14/review179-by178",
+    "--compiler",
+    "/workspace/scratch/39be3faa4442/targets178/review179-by178/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/runs178/review179-by178/consumer01/result"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/review179-by178",
+  "source_commit": "204fea481d8770bf53f2e81324830b4f375d954e",
+  "dirty": "",
+  "spec_sha256": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review179-by178",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/runs178/review179-by178/baseline01/cases"
+  },
+  "exit_code": 2,
+  "elapsed_seconds": 0.048866987228393555,
+  "status": "Fail"
+}

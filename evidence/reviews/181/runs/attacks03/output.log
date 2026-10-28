@@ -1,0 +1,11 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.18s
+     Running tests/review181_by179.rs (/workspace/scratch/39be3faa4442/targets178/review181-by179/debug/deps/review181_by179-810defe3a4e2005c)
+
+running 3 tests
+test public_transport_version_and_verified_target_binding_are_independent ... ok
+test unregistered_target_aliases_cannot_use_a_checked_win64_layout ... ok
+test store_only_windows_module_emits_real_heap_abi_and_rejects_symbol_conflicts ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

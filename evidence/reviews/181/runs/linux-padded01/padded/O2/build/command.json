@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/review181-by179/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/language14/review181-by179/examples/mainline/zui_language181/platform_padded.zil",
+    "--opt",
+    "O2",
+    "--clang",
+    "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/181-review179/linux-padded01/padded/O2/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/181-review179/linux-padded01/padded/O2/phases",
+    "--json"
+  ],
+  "status": "Completed",
+  "start": 1793151319.6996305,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "6c129ba30a9705f9b858fff6791850971cb93a2829282d67a5d28f0e573b7dd6",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793151319.8298814
+}

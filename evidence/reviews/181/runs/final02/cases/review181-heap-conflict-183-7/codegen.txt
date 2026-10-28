@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Codegen,
+        category: SafeReject,
+        code: "E-CODEGEN-FOREIGN",
+        message: "HeapFree conflicts with the byte-storage allocator ABI",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 11,
+                end: 35,
+            },
+        ),
+        notes: [],
+    },
+]

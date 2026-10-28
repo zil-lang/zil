@@ -1,0 +1,17 @@
+{
+  "status": "Pass",
+  "scope": "178 author bounded acceptance after returned repair, not full language",
+  "implementation_commit": "24402e17e1e248fb88a9a69fc5ec961388005e72",
+  "implementation_author": "/root/history178_audit",
+  "source_record": "evidence/impl/178/SUMMARY.json",
+  "source_record_sha256": "c0fe3488e4b088592b09166c3d935d6de81296fff0cfd3edd386b2d4181af126",
+  "original_status": "AuthorScopedPassAfterIndependentRevision",
+  "tests": {
+    "groups": 5,
+    "passed": 62,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 1
+  },
+  "review_record": "evidence/reviews/178/review.json"
+}

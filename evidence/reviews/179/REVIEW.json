@@ -1,0 +1,105 @@
+{
+  "reviewer": "/root/history178_audit",
+  "implementation_author": "/root/design14_acceptance",
+  "implementation_commit": "204fea481d8770bf53f2e81324830b4f375d954e",
+  "tested_production_commit": "204fea481d8770bf53f2e81324830b4f375d954e",
+  "author_evidence_commit": "aeab71735fa538e6a0355694ecb8c9aeba13d50a",
+  "verdict": "Pass",
+  "scope": "179 finite actual field access footprints separated from whole-parent lifetime; independent limited review only",
+  "spec_hash": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "normative_hash": "1cf7aadb8800c31436f158ee3cdf78bcea330ed2bfafc29112b8d11211655a6e",
+  "rule_version": "ZIL-LANG-1.4",
+  "schema_wire_version": 22,
+  "target": "x86_64-unknown-linux-gnu",
+  "review_test_commit": "1b7ecf7813e49ed12e38edc65279045f405d0506",
+  "source_test": "crates/zil-driver/tests/review179_borrows.rs",
+  "source_test_sha256": "afd266ba0f65307bb8e6024c6f3f53647b3405c59a78c6b8b922534210d68a21",
+  "production_modified_by_reviewer": false,
+  "production_identity": "production-identity.json",
+  "author_and_adjacent_replay": {
+    "command": "runs/baseline01/command.json",
+    "source_commit": "204fea481d8770bf53f2e81324830b4f375d954e",
+    "groups": 8,
+    "passed": 91,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "groups_by_name": {
+      "impl120_field_backing": 8,
+      "impl120_field_backing_native": 4,
+      "impl166_owned_results": 13,
+      "impl174_store_fields": 13,
+      "impl175_store_views": 20,
+      "impl176_callable_fields": 12,
+      "impl177_state_composition": 11,
+      "impl179_field_precision": 10
+    }
+  },
+  "independent": {
+    "command": "runs/final-attacks/command.json",
+    "groups": 1,
+    "passed": 4,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "native_executions": 4,
+    "source_semantic_rejections": 1,
+    "raw_candidates": 3,
+    "raw_and_wire_rejections": 6,
+    "recomputed_fingerprints": true
+  },
+  "total_current_scoped_tests_passed": 95,
+  "consumer": {
+    "summary": "runs/consumer02/result/summary.json",
+    "native_executions": 18,
+    "allocation_failure_executions": 8,
+    "module_count": 4,
+    "cli_sha256": "8ddb5982fe24c10190a6ac45503f557229b80586230cf17ffd9749896f7344e2",
+    "all_measured_live_zero": true,
+    "all_measured_allocations_freed": true
+  },
+  "quality_commands": [
+    "runs/fmt/command.json",
+    "runs/clippy/command.json"
+  ],
+  "findings": [],
+  "observations": [
+    "Analyze records an actual inline callback Field(LocalId,index) privately, while public HoldRoot remains the whole parent lifetime upper bound.",
+    "Verify independently validates exact Package field type and self-contained Closure definition before rebuilding field roots; a legal Copy index cannot masquerade as callback.",
+    "Finite Copy aggregate replacement, sibling ByteBuffer replacement and live Store view coexist with the same actual callback loan; O0/O2 observes BA.",
+    "Root::Local overlaps all Field roots on that same local, so whole-parent cleanup moved before the callback last use rejects in raw/Wire with E-BORROW-CONFLICT.",
+    "A current address argument cannot hide the write of a distinct parameter reached through two ordinary helper calls; raw/Wire alias retarget and equivalent real source reject.",
+    "Parent hold deletion, out-of-range field indices, same-field take/replace, simultaneous exclusive loans, descriptor aliases and unknown cleanup conservatism are covered by independent replay and code review.",
+    "General borrowed Store element captures remain explicitly Unsupported; this slice does not claim mixed borrowed/owning callback environments."
+  ],
+  "fixture_failures_preserved": [
+    {
+      "command": "runs/consumer01/command.json",
+      "exit_code": 2,
+      "cause": "Reviewer used --compiler instead of the documented --cli option; no consumer program ran. Corrected command passes as consumer02."
+    },
+    {
+      "command": "runs/attacks01/command.json",
+      "passed": 3,
+      "failed": 1,
+      "cause": "Reviewer looked for DropManaged while an owning State uses DropPackage; no production change."
+    },
+    {
+      "command": "runs/attacks02/command.json",
+      "passed": 3,
+      "failed": 1,
+      "cause": "Moving parent cleanup before a later Copy read triggered earlier E-VERIFY-INITIALIZATION. Removed that incidental parent read to target the live callback Hold, retaining stricter original rejection."
+    }
+  ],
+  "handoff": "runs/handoff records inherited integrity Fail; no global handoff or full-workspace claim",
+  "limitations": [
+    "One finite self-contained concrete callback field profile; mixed/general captured descriptor environments remain outside this slice.",
+    "Unknown user-resource cleanup retains whole-parent conservative root.",
+    "Whole-State replacement of an unpaid responsibility remains an earlier Analyze rejection, as in original author scope.",
+    "Independent current-call helper attack exercises a real Store view argument and transitively written descriptor; it does not claim Store element capture support.",
+    "No full workspace, performance comparison, native Windows or product gate was run."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}

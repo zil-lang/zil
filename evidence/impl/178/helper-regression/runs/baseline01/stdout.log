@@ -1,0 +1,44 @@
+
+running 17 tests
+test helper065_analyze_reconstructs_hold_and_call_paths ... ok
+test helper065_copy_error_callbacks_are_instantiated_and_verified ... ok
+test helper065_error_callback_stops_trace_and_late_argument_is_guarded ... FAILED
+test helper065_generic_body_reads_known_resource_field ... FAILED
+test helper065_cross_module_interfaces_include_actual_environment_layout ... ok
+test helper065_helper_does_not_extend_resource_or_address_lifetimes ... ok
+test helper065_instances_are_cached_and_new_identities_are_bounded ... ok
+test helper065_mutable_borrow_updates_actual_environment ... ok
+test helper065_nearest_callable_admission_rejections ... ok
+test helper065_owned_environment_shared_borrow_and_reuse ... ok
+test helper065_owned_fn_can_adapt_to_borrowed_fnmut_then_be_reused ... ok
+test helper065_raw_callable_metadata_is_bounded_before_instantiation ... ok
+test helper065_mutable_target_loan_ends_after_owned_zero_or_one_call ... ok
+test helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces ... ok
+test helper065_same_name_in_distinct_modules_keeps_definition_identity ... ok
+test helper065_shared_and_copy_arguments ... ok
+test helper065_value_condition_and_consume_adaptation ... ok
+
+failures:
+
+---- helper065_error_callback_stops_trace_and_late_argument_is_guarded stdout ----
+
+thread 'helper065_error_callback_stops_trace_and_late_argument_is_guarded' (1528) panicked at crates/zil-driver/tests/impl065_helpers.rs:15:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"generic give parameter requires a direct Store carrier","span":{"file":0,"start":115,"end":123},"notes":[]}],"artifacts":{},"input_fingerprint":"d62fe2ed732315f0f72c0bb719cf5348122376702fbe69eb0b88b07d672f0e10","seconds":0.000399369,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"helpers065.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- helper065_generic_body_reads_known_resource_field stdout ----
+
+thread 'helper065_generic_body_reads_known_resource_field' (1529) panicked at crates/zil-driver/tests/impl065_helpers.rs:15:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"generic give parameter requires a direct Store carrier","span":{"file":0,"start":49,"end":60},"notes":[]}],"artifacts":{},"input_fingerprint":"2cb690450b6db444ebd469658ba6adbd842f5837f941a79570aaab5c71b0716f","seconds":0.000372379,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"helpers065.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+
+
+failures:
+    helper065_error_callback_stops_trace_and_late_argument_is_guarded
+    helper065_generic_body_reads_known_resource_field
+
+test result: FAILED. 15 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

@@ -1,0 +1,26 @@
+{
+  "status": "Pass",
+  "scope": "179 author bounded field precision acceptance, not full language",
+  "implementation_commit": "204fea481d8770bf53f2e81324830b4f375d954e",
+  "implementation_author": "/root/design14_acceptance",
+  "source_record": "evidence/impl/179/summary.json",
+  "source_record_sha256": "f4d3a1f4b39ef9111a468f12d0ba62df45627e92b09532eb3a0e2a2bb2ef95a2",
+  "original_status": "AuthorLimitedPass",
+  "tests": {
+    "passed": 95,
+    "failed": 0,
+    "ignored": 0,
+    "groups": {
+      "impl120_field_backing": 8,
+      "impl120_field_backing_native": 4,
+      "impl171_resource_heads": 17,
+      "impl174_store_fields": 13,
+      "impl175_store_views": 20,
+      "impl176_callable_fields": 12,
+      "impl177_state_composition": 11,
+      "impl179_field_precision": 10
+    },
+    "new_test_native_executions": 16
+  },
+  "review_record": "evidence/reviews/179/REVIEW.json"
+}
