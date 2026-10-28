@@ -1108,7 +1108,7 @@ impl Check<'_, '_, '_> {
         let end = self.expr(right, state, Some(&ty), false)?;
         same(&end, &ty, right.span, self.budget)?;
 
-        let mut iteration = self.clone_state(state)?;
+        let mut iteration = self.clone_loop_state(state, span)?;
         self.budget.text(name, pattern.span)?;
         self.bind_local(&mut iteration, name.clone(), ty)?;
         // The concrete For continue edge goes through its increment block.
@@ -2395,7 +2395,7 @@ impl Check<'_, '_, '_> {
                     condition: Condition::Expression(condition),
                     body,
                 } => {
-                    let entry = self.clone_state(state)?;
+                    let entry = self.clone_loop_state(state, condition.span)?;
                     let actual = self.expr(
                         condition,
                         state,
@@ -2409,7 +2409,7 @@ impl Check<'_, '_, '_> {
                         self.budget,
                     )?;
                     self.loop_invariant(&entry, state, condition.span)?;
-                    let iteration = self.clone_state(state)?;
+                    let iteration = self.clone_loop_state(state, body.span)?;
                     let iteration_flow = self.loop_body(body, state, iteration, statement.span)?;
                     flow.returns |= iteration_flow.returns;
                 }
