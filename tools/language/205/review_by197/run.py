@@ -32,6 +32,8 @@ def main():
         "CARGO_PROFILE_TEST_DEBUG": "0",
         "ZIL_TEST_REPORT_DIR": str(out / "cases"),
         "ZIL_CLANG": str(repo.parents[1] / "toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"),
+        "LD_LIBRARY_PATH": str(repo.parents[1] / "toolchains178/llvm-17.0.6/usr/lib/x86_64-linux-gnu")
+        + (os.pathsep + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else ""),
     }
     env.update(delta)
     env["PATH"] = str(toolchain) + os.pathsep + env.get("PATH", "")
