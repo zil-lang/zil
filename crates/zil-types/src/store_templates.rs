@@ -18,6 +18,7 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
         || function.type_parameters[0].index != 0
         || function.type_parameters[0].name.is_empty()
         || !function.callable_parameters.is_empty()
+        || !function.state_parameters.is_empty()
         || function.callable_return.is_some()
         || function.foreign.is_some()
         || function.receiver.is_some()

@@ -25,6 +25,7 @@ mod program;
 mod resource_effects;
 mod resources;
 mod retained;
+mod state_origins;
 mod store_templates;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
@@ -32,7 +33,9 @@ type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
     id: Option<FunctionId>,
+    // Effective type bindings; state_parameter keeps their distinct owning source.
     callable: Vec<CoreCallableParameter>,
+    state_parameter: Option<CoreStateParameter>,
     callable_return: Option<CoreCallableReturn>,
     type_parameter: Option<CoreTypeParameter>,
     template: Option<(zil_base::ModuleId, zil_base::NodeId)>,
@@ -95,7 +98,10 @@ fn signatures(
     let mut concrete_index = 0usize;
     for f in &core.functions {
         let i = concrete_index;
-        if f.callable_parameters.is_empty() && f.type_parameters.is_empty() {
+        if f.callable_parameters.is_empty()
+            && f.type_parameters.is_empty()
+            && f.state_parameters.is_empty()
+        {
             concrete_index += 1;
         }
         if let Err(diagnostic) = retained::validate_factory(f) {
@@ -118,25 +124,28 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
-                    callable: f.callable_parameters.clone(),
+                    callable: state_origins::bounds(f).into_owned(),
+                    state_parameter: f.state_parameters.first().cloned(),
                     callable_return: f.callable_return.clone(),
                     type_parameter: f.type_parameters.first().cloned(),
-                    template: (!(f.callable_parameters.is_empty() && f.type_parameters.is_empty()))
-                        .then_some((core.module_id, f.id)),
+                    template: (!(f.callable_parameters.is_empty()
+                        && f.type_parameters.is_empty()
+                        && f.state_parameters.is_empty()))
+                    .then_some((core.module_id, f.id)),
                     foreign: f.foreign.is_some(),
                     cleanup: core
                         .aggregates
                         .iter()
                         .any(|a| a.teardown.as_ref() == Some(&f.name)),
-                    id: f.type_parameters.is_empty().then_some(FunctionId(
-                        u32::try_from(offset + i).map_err(|_| {
+                    id: (f.type_parameters.is_empty() && f.state_parameters.is_empty()).then_some(
+                        FunctionId(u32::try_from(offset + i).map_err(|_| {
                             vec![Diagnostic::limit(
                                 Phase::Types,
                                 "function identity overflow",
                                 Some(f.span),
                             )]
-                        })?,
-                    )),
+                        })?),
+                    ),
                     parameters: f.parameters.iter().map(|p| p.ty.clone()).collect(),
                     result: f.return_type.clone(),
                     public: exports.is_none_or(|ids| ids.contains(&f.id)),
@@ -215,9 +224,12 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         errors.push(unsupported(f.span, "receiver capability typing"))
     }
     for (index, p) in f.parameters.iter().enumerate() {
-        if f.callable_parameters
+        if f.state_parameters
             .iter()
-            .any(|bound| bound.index as usize == index)
+            .any(|state| state.index as usize == index)
+            || f.callable_parameters
+                .iter()
+                .any(|bound| bound.index as usize == index)
         {
             continue;
         }
@@ -273,7 +285,11 @@ pub fn check(
     let concrete_count = core
         .functions
         .iter()
-        .filter(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
+        .filter(|f| {
+            f.callable_parameters.is_empty()
+                && f.type_parameters.is_empty()
+                && f.state_parameters.is_empty()
+        })
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
     closure_state.resource_writes =
@@ -304,7 +320,9 @@ pub fn check(
         .into_iter()
         .map(|id| factory_functions[&id])
         .chain(core.functions.iter().filter(|f| {
-            (f.callable_parameters.is_empty() && f.type_parameters.is_empty())
+            (f.callable_parameters.is_empty()
+                && f.type_parameters.is_empty()
+                && f.state_parameters.is_empty())
                 && f.callable_return.is_none()
         }));
     for f in ordered {
