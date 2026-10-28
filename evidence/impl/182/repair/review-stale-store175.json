@@ -1,0 +1,20 @@
+{
+  "reviewer": "/root/restore177_inventory",
+  "verdict": "Pass",
+  "reviewed_commit": "be0351abad9c4c6c759b4a19002efc1c3da5afbb",
+  "scope": "root tests-only migration of impl175 stale-field-description expectation; excludes reviewer-authored182production",
+  "input_unchanged": true,
+  "mutation_unchanged": "later OwnedStoreBorrow is retargeted to old SSA Store Desc from a replaced Package field",
+  "expected_category": "SafeReject",
+  "expected_phase": "Verify",
+  "expected_code": "E-VERIFY-RESOURCE",
+  "expected_message_fragment": "invalidate a live description",
+  "rationale": "Precise resource instance invalidation continues to reject the same illegal program. Weak Desc is no longer promoted to address Hold, so E-BORROW-CONFLICT is not the first diagnostic. New expectation is more specific than an arbitrary rejection.",
+  "original_failure": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/182-repair-review/source02/command",
+    "source_commit": "d24b6c4aca41b9f1fa55b785535f8b71c469fab5",
+    "stdout_sha256": "e122eec42dc568c83f209cb557cce14bf181d2bace4af1a65fae97beb0779231",
+    "command_sha256": "ad265d03a91484f7460a93356c576c3f45206a08a2f3bb4c1de27e3826a5cbcf"
+  },
+  "additional_execution": "NotRun; independent diff and original failure receipt inspected"
+}
