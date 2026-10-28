@@ -1,0 +1,20 @@
+{
+  "reviewer": "/root/impl197",
+  "verdict": "Pass byte-identity audit; no new execution",
+  "implementation_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
+  "actual_test_and_consumer_source": "694940eda0f7a9e5f9f999f8f2b107f4550d84fb",
+  "actual_compiler_source": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+  "domain_entries_reference": "CANDIDATE057_EQUIVALENCE.json",
+  "domain_entries_reference_sha256": "2e64e21604de8690bd1cc06d77e1f90eaa7ccecfea76112000ee1eaa26283235",
+  "domains_checked_again": {
+    "production": 178,
+    "normative": 8,
+    "independent_inputs": 7,
+    "consumer_inputs": 9
+  },
+  "method": "For each listed path, independently compare Git mode/type/blob and recompute SHA256 from candidate bytes. Production also exactly matches CLI05 source. Candidate registry is recomputed from its actual seven normative files.",
+  "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "candidate_legacy201_test_equals_reviewed_fd6": true,
+  "all_other_changed_paths": "M\t.task/impl/204.md\nM\tcrates/zil-analyze/tests/impl201_store.rs\nM\tcrates/zil-driver/tests/impl204_analyze_capture.rs\nA\tevidence/impl/204/frontend/ARTIFACT.json\nA\tevidence/impl/204/frontend/SUMMARY.json\nA\tevidence/impl/204/frontend/WINDOW_REPAIR.json\nA\tevidence/reviews/204/by197/CANDIDATE057_EQUIVALENCE.json\nA\tevidence/reviews/204/by197/CONSUMER.json\nA\tevidence/reviews/204/by197/SOURCE06.json\nA\ttools/language/204/compact_evidence.py\nA\ttools/language/204/test_compact_evidence.py\n",
+  "scope": "New test-only migration, evidence packing tools, receipts and documentation are not substituted for the actual694 execution identity. No compiler production, frozen source/raw test input or consumer bytes changed."
+}
