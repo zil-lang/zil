@@ -271,7 +271,7 @@ fn two_role_entries_cannot_name_one_actual_parameter_local() {
         module,
         candidate,
         ResultCategory::SafeReject,
-        "E-VERIFY-CALLABLE-CONTRACT",
+        "E-VERIFY-PARAMETER",
         true,
     );
 }
@@ -354,7 +354,7 @@ fn second_role_descriptor_write_conflicts_with_the_first_roles_current_capture()
 fn ordinary_window(alias: bool) -> String {
     let written = if alias { "other" } else { "origin" };
     format!(
-        "resource R{{n:i32}}fn pair<F:Fn()->i32,G:Fn()->i32>(reader:&F,writer:&G,edit:R)->i32{{edit.n+=1;return reader()+writer()+edit.n}}fn main()->i32{{let origin=R{{n:1}};let other=R{{n:8}};let edit={written};let held=&other;let view=&held.n;let reader=()=>*view;let writer=move()=>1;return pair(&reader,&writer,edit)-11}}"
+        "resource R{{n:i32}}fn pair<F:Fn()->i32,G:Fn()->i32>(reader:&F,writer:&G,edit:R)->i32{{var target=edit;target.n+=1;return reader()+writer()+target.n}}fn main()->i32{{let origin=R{{n:1}};let other=R{{n:8}};let edit={written};let held=&other;let view=&held.n;let reader=()=>*view;let writer=move()=>1;return pair(&reader,&writer,edit)-11}}"
     )
 }
 
