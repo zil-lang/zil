@@ -1861,3 +1861,116 @@ fn value_inferred_ordinary_calls_unify_every_argument_and_keep_nominal_identity(
         reject_source(&label, &source, &[Phase::Expand, Phase::Types], None);
     }
 }
+
+#[test]
+fn value_inferred_complete_argument_work_has_an_exact_new_path_boundary() {
+    let source = value_inferred_choice_source(true, "Left");
+    let (core, typed, _) = typed_control("value-inferred-budget-control", &source);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent203.zil", &source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let expand = boundary(|n| {
+        zil_expand::expand_with_map_limits(
+            &unit,
+            &syntax,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual.core, core))
+    });
+    let types = boundary(|n| {
+        zil_types::check(
+            &core,
+            &typed.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual, typed))
+    });
+    Case::new("value-inferred-full-argument-exact-budgets").write(
+        "boundaries.json",
+        format!("{{\"expand\":{expand},\"types\":{types},\"checks\":\"N, N-1 ResourceLimit, fresh N equal result\",\"scope\":\"new bare complete value inference, not an old profile budget claim\"}}\n"),
+    );
+}
+
+#[test]
+fn imported_runtime_templates_keep_scalar_ct_arguments_in_i64_context() {
+    let state = ORIGINAL_MARKERS[..ORIGINAL_MARKERS.find("fn main()").unwrap()]
+        .replace("package State", "pub package State")
+        .replace("fn make(", "pub fn make(")
+        .replace("fn pack<", "pub fn pack<")
+        .replace("fn run<", "pub fn run<")
+        .replace("state: State<T,F,G>)", "state: State<T,F,G>, count:i64)")
+        .replace(
+            "    let tag = state.tag",
+            "    if count != i64(4294967296) { return (9,state.tag) }\n    let tag = state.tag",
+        );
+    let files = [
+        (
+            "main",
+            "import state\nimport ordinary\nfn main()->i32{\nlet next=ordinary.identity(state.pack(state.make(65,10),state.make(66,20),17),#(4294967296))\nlet result=state.run(next,#(4294967296))\nif result.1!=17{return 1}\nreturn result.0\n}",
+        ),
+        ("state", state.as_str()),
+        (
+            "ordinary",
+            "pub fn identity<T:StoreElement>(value:T,count:i64)->T{count;return value}",
+        ),
+    ];
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let case = Case::new("imported-template-runtime-i64-ct-argument");
+        for (name, source) in files {
+            case.write(&format!("{name}.zil"), source);
+        }
+        let project = ProjectSources {
+            root: ModuleId(0),
+            modules: files
+                .iter()
+                .enumerate()
+                .map(|(i, (name, source))| {
+                    SourceUnit::new(
+                        FileId(i as u32),
+                        ModuleId(i as u32),
+                        format!("{name}.zil"),
+                        *source,
+                    )
+                })
+                .collect(),
+            paths: files
+                .iter()
+                .enumerate()
+                .skip(1)
+                .map(|(i, (name, _))| (vec![name.to_string()], ModuleId(i as u32)))
+                .collect(),
+        };
+        let report = compile_project(
+            &project,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization,
+                output: Some(case.0.join("program")),
+                emit_dir: Some(case.0.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        case.write("compile.json", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let output = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        case.write("stdout.log", &output.stdout);
+        case.write("stderr.log", &output.stderr);
+        case.write("native.txt",format!("optimization={optimization:?}\nexit={:?}\nexpected_exit=0\nexpected_stdout=MPBQZA\n",output.status.code()));
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(output.stdout, b"MPBQZA");
+        assert!(output.stderr.is_empty());
+    }
+}
