@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Independently exercise Flow, State sibling fields and slice callback composition.
+"""Independently exercise Flow, State sibling fields and slice callbacks.
 
-Every ordinary executable is the unmodified compiler output. Separate probes
-redirect only allocator imports and check all reserve failures, successful
-cleanup and a failure index past the final allocation. Portable source checks
-fat-window ABI, evaluation order, zero-size elements, Fn/FnMut/FnOnce and helper
-composition before the observable owned-buffer loop. This is language evidence,
-not native Windows or a comparative performance measurement.
+The four actual modules borrow callback, mutable byte window and mutable Copy
+counter from one State, use nested Finite/Flow helpers, and grow an owned
+callback buffer. Each normal executable is unmodified compiler output; a
+separate allocation probe checks every actual failure and final cleanup.
+This is language evidence, not native Windows or a performance comparison.
 """
 import argparse
 import hashlib

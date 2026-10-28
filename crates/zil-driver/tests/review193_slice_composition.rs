@@ -150,11 +150,11 @@ fn two_distinct_slice_operands_cannot_relabel_one_actual_backing() {
         .iter_mut()
         .flat_map(|b| &mut b.instructions)
     {
-        if let I::BorrowLocalMut { local } = &mut i.kind {
-            if *local == origins[1] {
-                *local = origins[0];
-                changed += 1;
-            }
+        if let I::BorrowLocalMut { local } = &mut i.kind
+            && *local == origins[1]
+        {
+            *local = origins[0];
+            changed += 1;
         }
     }
     assert_eq!(changed, 1);
