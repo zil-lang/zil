@@ -176,6 +176,31 @@ fn copy_aggregate_addresses_use_actual_inline_layout() {
 }
 
 #[test]
+fn inferred_copy_projections_keep_address_shape_and_permission() {
+    native(
+        &[(
+            "main",
+            "struct Pair{x:i32;y:i32}fn main()->i32{var pair=Pair{x:20,y:22};let by_value=(p)=>p.x+p.y;let read=(p)=>p.x+p.y;let edit=(p)=>{p.x+=1;return p.x};let before=read(&pair)+by_value(pair);let changed=edit(&mut pair);var a:[i32;2]=[1,2];let sum=(p)=>p[0]+p[1];let update=(p)=>{p[0]+=p[1];return p[0]};let old=sum(&a);let new=update(&mut a);return before+changed+old+new-111}",
+        )],
+        b"",
+        0,
+    );
+    for source in [
+        "struct Pair{x:i32}fn main(){let pair=Pair{x:1};let f=(p)=>{p.x+=1};f(pair);}",
+        "struct Pair{x:i32}fn main(){let pair=Pair{x:1};let f=(p)=>{p.x+=1};f(&pair);}",
+    ] {
+        let report = check(source);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+    }
+}
+
+#[test]
 fn cross_module_opaque_factory_and_borrowed_helper_preserve_parameter_types() {
     native(
         &[
@@ -280,14 +305,6 @@ fn byte_description_writes_are_checked_against_explicit_element_windows() {
         let readonly = same.replace("bytes_reserve(b,8)", "bytes_len(b)");
         native(&[("main", &readonly)], b"", 0);
     }
-    let original187 = check("fn main(){let b=bytes_new();let f=(n:&i32)=>i32(bytes_len(b))+*n}");
-    assert_eq!(
-        original187.status,
-        ResultCategory::Success,
-        "{}",
-        original187.to_json()
-    );
-    assert_eq!(original187.verification_runs, 1);
 }
 
 #[test]

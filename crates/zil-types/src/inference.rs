@@ -1486,6 +1486,49 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         self.known_term(ty, span)
     }
+    fn projected_base(&mut self, object: &CoreExpr, depth: usize, write: bool) -> R<Term> {
+        // An immutable, unannotated callback parameter can be written through
+        // a projection only when its eventual argument is an exclusive address.
+        // Ordinary Value bindings still retain their existing mutability rule.
+        let mut inferred = None;
+        if write
+            && let Some(owner) = self.owner
+            && let CoreExprKind::Name(name) = &object.kind
+        {
+            self.budget
+                .work(name.len().saturating_add(1), object.span)?;
+            let parameter = self
+                .scopes
+                .iter()
+                .rev()
+                .find_map(|scope| scope.get(name))
+                .and_then(|binding| match binding.term {
+                    Term::Scalar(variable) if !binding.mutable && binding.owner == Some(owner) => {
+                        Some(variable)
+                    }
+                    _ => None,
+                });
+            if let Some(variable) = parameter {
+                self.budget
+                    .work(self.closures[owner].parameters.len(), object.span)?;
+                if self.closures[owner].parameters.contains(&variable)
+                    && self.graph.ty(variable)?.is_none()
+                {
+                    inferred = Some(variable);
+                }
+            }
+        }
+        let term = self.expr(object, depth, write && inferred.is_none())?;
+        if let Some(variable) = inferred {
+            let inner = self.fresh(VALUE, false, object.span)?;
+            self.graph
+                .address(variable, inner, Some(true), object.span)?;
+            Ok(Term::Address(inner, true))
+        } else {
+            Ok(term)
+        }
+    }
+
     fn block(&mut self, block: &CoreBlock, depth: usize) -> R<()> {
         self.budget.node(depth, block.span)?;
         self.scopes.push(BTreeMap::new());
@@ -2422,7 +2465,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 } else {
                     false
                 };
-                let object_type = self.expr(object, depth + 1, write && !resource_field)?;
+                let object_type =
+                    self.projected_base(object, depth + 1, write && !resource_field)?;
                 if let Term::ClosurePackage { shape, environment } = &object_type {
                     validate_type(shape, 0, span, self.budget)?;
                     let field = aggregates::field(shape, member, span)?.1;
@@ -2611,7 +2655,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 Ok(base)
             }
             CoreExprKind::Index { object, index } => {
-                let base = self.expr(object, depth + 1, write)?;
+                let base = self.projected_base(object, depth + 1, write)?;
                 let index_term = self.expr(index, depth + 1, false)?;
                 let index_variable = self.scalar(&index_term, index.span)?;
                 self.graph.constrain(index_variable, INTEGER, index.span)?;
