@@ -42,7 +42,18 @@ fn candidate(source: &str) -> (TypedModule, CandidatePlan) {
     (module, plan)
 }
 
-fn reject(label: &str, module: TypedModule, mut plan: CandidatePlan, code: &str, message: &str) {
+fn reject(label: &str, module: TypedModule, plan: CandidatePlan, code: &str, message: &str) {
+    reject_source(label, SOURCE, module, plan, code, message)
+}
+
+fn reject_source(
+    label: &str,
+    source: &str,
+    module: TypedModule,
+    mut plan: CandidatePlan,
+    code: &str,
+    message: &str,
+) {
     let limits = Limits::default();
     let target = module.target.clone();
     // Mutations do not rerun Analyze. Neither a new fingerprint nor the old
@@ -51,7 +62,7 @@ fn reject(label: &str, module: TypedModule, mut plan: CandidatePlan, code: &str,
     let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
     let dir = directory(label);
     fs::write(dir.join("candidate.bin"), &bytes).unwrap();
-    fs::write(dir.join("main.zil"), SOURCE).unwrap();
+    fs::write(dir.join("main.zil"), source).unwrap();
     for (route, result) in [
         (
             "raw",
@@ -292,5 +303,80 @@ fn generic_origin_does_not_replace_actual_tag_descriptor_or_cleanup_checks() {
         plan,
         "E-VERIFY-RESOURCE",
         "responsibility",
+    );
+}
+
+const FIELD_SOURCE: &str = r#"
+resource R{n:i32}package P{manages r:R;pub n:i32}
+package Pair{manages old:R;manages fresh:R}enum E{Fail}
+fn package_input(p:P)->R contract{result(give)}{let moved=p;return give moved.r}
+fn construct_old(give old:R)->R contract{result(give)}{let p=P{r:give old,n:7};let moved=p;return give moved.r}
+fn replace_old(give old:R)->R contract{result(give)}{var r:R=R{n:1};r=give old;return give r}
+fn mixed(give old:R,flag:bool)->E!R contract{result(give)}{var r:R=R{n:1};if flag{r=give old};return give r}
+fn unknown_package()->P=>P{r:R{n:1},n:7}
+fn unknown()->R contract{result(give)}{let p=unknown_package();return give p.r}
+fn fields(give old:R)->E!R contract{result(create)}{let p=Pair{old:give old,fresh:R{n:2}};let moved=p;return give moved.fresh}
+fn main(){}
+"#;
+
+#[test]
+fn package_fields_cannot_launder_inputs_or_joined_old_sources_into_create() {
+    let (original, plan) = candidate(FIELD_SOURCE);
+    for name in [
+        "package_input",
+        "construct_old",
+        "replace_old",
+        "mixed",
+        "unknown",
+    ] {
+        let mut module = original.clone();
+        module
+            .functions
+            .iter_mut()
+            .find(|f| f.name == name)
+            .unwrap()
+            .result_mode = PassingMode::Create;
+        reject_source(
+            &format!("package-input-create-{name}"),
+            FIELD_SOURCE,
+            module,
+            plan.clone(),
+            "E-VERIFY-RESOURCE",
+            "proven fresh",
+        );
+    }
+    let (f, b, i) = locate(&original, |f, i| {
+        f.name == "fields" && matches!(i.kind, I::TakePackageField { index: 1, .. })
+    });
+    let mut module = original;
+    let I::TakePackageField { index, .. } = &mut module.functions[f].blocks[b].instructions[i].kind
+    else {
+        unreachable!()
+    };
+    *index = 0;
+    reject_source(
+        "same-typed-old-sibling-as-create",
+        FIELD_SOURCE,
+        module,
+        plan,
+        "E-VERIFY-RESOURCE",
+        "proven fresh",
+    );
+}
+
+#[test]
+fn actual_package_field_source_does_not_authorize_duplicate_movement() {
+    let (mut module, mut plan) = candidate(FIELD_SOURCE);
+    let position = locate(&module, |f, i| {
+        f.name == "fields" && matches!(i.kind, I::TakePackageField { index: 1, .. })
+    });
+    duplicate_result(&mut module, &mut plan, position);
+    reject_source(
+        "created-field-double-take",
+        FIELD_SOURCE,
+        module,
+        plan,
+        "E-VERIFY-RESOURCE",
+        "live field",
     );
 }
