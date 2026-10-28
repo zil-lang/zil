@@ -252,7 +252,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             || !closure.parameters.iter().all(|ty| {
                 ty.is_copy_value()
                     || (closure.result.is_copy_value()
-                        && matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()))
+                        && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
         {
             return unsupported("LLVM finite resource closure representation", None);
