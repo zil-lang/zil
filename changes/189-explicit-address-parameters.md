@@ -37,3 +37,11 @@ Lower 与 LLVM 只准入已核验的现有指针参数表示，沿用直接传�
 ## 187 候选串行吸收
 
 在自身签名/实参检查点 `67a095e1` 后合入集成方指定的 187 冻结源码 `472b3ce052b850ef51fbfa3f8d818c51e080a112`，不把在途独审预先计作完成。三个冲突按功能块处理：Analyze/Verify helper 额外参数准入同时保留 187 的精确 `Desc<ByteBuffer>` 与 189 的一层 Copy Address；loans 的 Shared/Mut 调用保留 184 对实际环境位置的访问检查，并采用 187 带 module 的独立分离来源接口。187 的 Capture/ParameterCapture 分离义务、callee Effects 替换和公开合同原义不改。后续统一 Address 实参检查与完整组合测试另行记录。
+
+## 实际消费者与仍未开放的字段借址
+
+四个真实模块将拥有 Ticket 和 ByteBuffer 的 `FnMut(&mut i32) -> i32` 工厂结果先经借入 helper 调用，再装入有独立 ByteBuffer 的泛型 State；运行时循环借入 callback 字段，以局部 Copy 地址传参，将结果回写 State，并通过真实 Buffer view 输出。每个显式分配失败分支都返回 Copy 错误码，调用者据此结束，两个 Buffer 与 Ticket 仍按所有权路径清理。原生执行与失败注入由 `tools/language/189/consumer.py` 留存逐次命令和分配事实。
+
+`7e7aba61` 的首次四模块输入曾直接写 `let next = &mut current.next`。该输入真实在 Types 受既有 Package 字段借址门拒绝：`BorrowPackageField` 目前只准入 callback 字段，Copy sibling 的读写与取得地址是不同能力。原源码提交、失败命令和诊断保留。集成方确认本片不扩大这条跨层协议；实际消费者改为读出 Copy 局部、借给 callback、写回字段，不能把它声称为已支持 Package 两个字段同时借址。消除这段回写代码与验证 Parent/field 活性、重借、清理边界属于后续独立 192 工单。
+
+无注释的 callback 参数既可从解引用、也可从 Copy record/array 投影约束推得一层地址。只有本闭包的未定型参数可以由投影写入推得独占地址；普通按值 Copy 绑定不因此取得可变权限。最终限定测试保留按值投影、地址投影、共享写入拒绝和同一签名不能换 pointee 的对照。

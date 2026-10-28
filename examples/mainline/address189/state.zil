@@ -10,12 +10,14 @@ pub fn run<F: FnMut(&mut i32) -> i32>(state: State<F>, count: i64) -> i32 {
     var current = state
     while current.count < count {
         let callback = &mut current.callback
-        let next = &mut current.next
-        let length = callback(next)
+        var next = current.next
+        let length = callback(&mut next)
+        if length < 0 { return 1 }
+        current.next = next
         current.count += 1
         if i64(length) != current.count + 1 { return 7 }
-        bytes_reserve(current.observed, current.count)
-        bytes_push(current.observed, u8(current.next - 1))
+        if !bytes_reserve(current.observed, current.count) { return 1 }
+        if !bytes_push(current.observed, u8(current.next - 1)) { return 2 }
         let view = bytes_view(current.observed)
         helpers.emit(i32(view[current.count - 1]))
     }

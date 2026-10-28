@@ -8,8 +8,8 @@ pub fn make() -> impl FnMut(&mut i32) -> i32 {
     let bytes = bytes_new()
     return move (value: &mut i32) => {
         ticket.code
-        bytes_reserve(bytes, bytes_len(bytes) + 1)
-        bytes_push(bytes, u8(*value))
+        if !bytes_reserve(bytes, bytes_len(bytes) + 1) { return -1 }
+        if !bytes_push(bytes, u8(*value)) { return -2 }
         *value += 1
         return i32(bytes_len(bytes))
     }
