@@ -1,6 +1,7 @@
 //! A deliberately closed parametric admission check. Unconstrained T is not
 //! presumed numeric, Copy, or equipped with members because one instance is.
 use super::*;
+use loop_control::BlockFlow;
 
 pub(super) struct ParametricTables<'a, 'l> {
     pub nominals: &'a BTreeMap<String, &'l Item>,
@@ -54,6 +55,7 @@ pub(super) fn validate_parametric<'l>(
         traits,
         next_local: function.params.len(),
         package_slots: BTreeMap::new(),
+        loops: Vec::new(),
         nominals,
         enums,
         signatures,
@@ -127,7 +129,7 @@ pub(super) fn validate_parametric<'l>(
     }
     match &function.body {
         FunctionBody::Block(body) => {
-            if !check.block(body, &mut state)? {
+            if check.block(body, &mut state)?.fallthrough {
                 same(&unit(body.span), &check.result, body.span, check.budget)?;
             }
         }
@@ -337,6 +339,7 @@ struct Check<'s, 'b, 'l> {
     traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
     package_slots: BTreeMap<(usize, String), usize>,
+    loops: Vec<loop_control::LoopFrame>,
     nominals: &'s BTreeMap<String, &'l Item>,
     enums: &'s BTreeMap<String, &'l EnumDecl>,
     signatures: &'s BTreeMap<String, Cow<'l, Function>>,
@@ -1080,7 +1083,7 @@ impl Check<'_, '_, '_> {
         body: &Block,
         state: &mut State,
         span: Span,
-    ) -> R<()> {
+    ) -> R<BlockFlow> {
         let PatternKind::Name(name) = &pattern.kind else {
             return Err(unsupported(
                 pattern.span,
@@ -1126,17 +1129,12 @@ impl Check<'_, '_, '_> {
         let end = self.expr(right, state, Some(&ty), false)?;
         same(&end, &ty, right.span, self.budget)?;
 
-        let entry = self.clone_state(state)?;
-        let mut iteration = self.clone_state(&entry)?;
+        let mut iteration = self.clone_loop_state(state, span)?;
         self.budget.text(name, pattern.span)?;
         self.bind_local(&mut iteration, name.clone(), ty)?;
-        if !self.block(body, &mut iteration)? {
-            self.loop_invariant(&entry, &iteration, body.span)?;
-            // Keep only the outer lexical bindings. The iterator and body
-            // locals never replace a shadowed outer binding after the loop.
-            self.join_states(state, &[&entry, &iteration], span)?;
-        }
-        Ok(())
+        // The concrete For continue edge goes through its increment block.
+        // Here each such edge must retain the same outer symbolic obligations.
+        self.loop_body(body, state, iteration, span)
     }
     // The concrete argument checker reborrows address parameters. Mirror only
     // that written reference shape here; an unconstrained T still consumes its
@@ -2174,12 +2172,12 @@ impl Check<'_, '_, '_> {
     // Return true when every path through this block has returned. Branches
     // keep separate move states, so a returning arm cannot consume the value
     // on a distinct fallthrough path.
-    fn block(&mut self, block: &Block, state: &mut State) -> R<bool> {
+    fn block(&mut self, block: &Block, state: &mut State) -> R<BlockFlow> {
         self.tick(block.span)?;
-        let mut returned = false;
+        let mut flow = BlockFlow::NEXT;
         for statement in &block.statements {
             self.tick(statement.span)?;
-            if returned {
+            if !flow.fallthrough {
                 return Err(unsupported(
                     statement.span,
                     "unreachable-statement type checking",
@@ -2359,7 +2357,8 @@ impl Check<'_, '_, '_> {
                     } else {
                         same(&actual, &expected, statement.span, self.budget)?;
                     }
-                    returned = true;
+                    flow.fallthrough = false;
+                    flow.returns = true;
                 }
                 StmtKind::Expression(e) => {
                     self.expr(e, state, None, false)?;
@@ -2383,10 +2382,10 @@ impl Check<'_, '_, '_> {
                     )?;
                     let mut a = self.clone_state(state)?;
                     let mut b = self.clone_state(state)?;
-                    let returns_a = self.block(then_body, &mut a)?;
-                    let returns_b = match else_body {
+                    let flow_a = self.block(then_body, &mut a)?;
+                    let flow_b = match else_body {
                         Some(ElseBranch::Block(block)) => self.block(block, &mut b)?,
-                        None => false,
+                        None => BlockFlow::NEXT,
                         Some(ElseBranch::If(statement)) => self.block(
                             &Block {
                                 span: statement.span,
@@ -2395,23 +2394,27 @@ impl Check<'_, '_, '_> {
                             &mut b,
                         )?,
                     };
-                    match (returns_a, returns_b) {
-                        (true, true) => returned = true,
-                        (true, false) => self.join_states(state, &[&b], statement.span)?,
-                        (false, true) => self.join_states(state, &[&a], statement.span)?,
-                        (false, false) => {
+                    flow.returns |= flow_a.returns || flow_b.returns;
+                    flow.fallthrough = flow_a.fallthrough || flow_b.fallthrough;
+                    match (flow_a.fallthrough, flow_b.fallthrough) {
+                        (false, false) => {}
+                        (false, true) => self.join_states(state, &[&b], statement.span)?,
+                        (true, false) => self.join_states(state, &[&a], statement.span)?,
+                        (true, true) => {
                             self.join_states(state, &[&a, &b], statement.span)?;
                         }
                     }
                 }
                 StmtKind::Match { value, arms } => {
-                    returned = self.enum_match(value, arms, state)?;
+                    let matched = self.enum_match(value, arms, state)?;
+                    flow.fallthrough = matched.fallthrough;
+                    flow.returns |= matched.returns;
                 }
                 StmtKind::While {
                     condition: Condition::Expression(condition),
                     body,
                 } => {
-                    let entry = self.clone_state(state)?;
+                    let entry = self.clone_loop_state(state, condition.span)?;
                     let actual = self.expr(
                         condition,
                         state,
@@ -2425,19 +2428,27 @@ impl Check<'_, '_, '_> {
                         self.budget,
                     )?;
                     self.loop_invariant(&entry, state, condition.span)?;
-                    let mut iteration = self.clone_state(state)?;
-                    let exits = self.block(body, &mut iteration)?;
-                    if !exits {
-                        self.loop_invariant(state, &iteration, body.span)?;
-                        let zero = self.clone_state(state)?;
-                        self.join_states(state, &[&zero, &iteration], statement.span)?;
-                    }
+                    let iteration = self.clone_loop_state(state, body.span)?;
+                    let iteration_flow = self.loop_body(body, state, iteration, statement.span)?;
+                    flow.returns |= iteration_flow.returns;
                 }
                 StmtKind::For {
                     pattern,
                     iterable,
                     body,
-                } => self.for_range(pattern, iterable, body, state, statement.span)?,
+                } => {
+                    let iteration_flow =
+                        self.for_range(pattern, iterable, body, state, statement.span)?;
+                    flow.returns |= iteration_flow.returns;
+                }
+                StmtKind::Break | StmtKind::Continue => {
+                    self.loop_control(
+                        state,
+                        matches!(statement.kind, StmtKind::Continue),
+                        statement.span,
+                    )?;
+                    flow.fallthrough = false;
+                }
                 _ => {
                     return Err(unsupported(
                         statement.span,
@@ -2446,12 +2457,15 @@ impl Check<'_, '_, '_> {
                 }
             }
         }
-        Ok(returned)
+        Ok(flow)
     }
 }
 
 #[path = "generic_check_enum.rs"]
 mod enums;
+
+#[path = "generic_loop_control.rs"]
+mod loop_control;
 
 #[path = "generic_places.rs"]
 mod places;
