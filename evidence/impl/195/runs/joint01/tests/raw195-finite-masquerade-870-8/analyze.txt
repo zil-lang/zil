@@ -1,0 +1,12 @@
+Err(
+    [
+        Diagnostic {
+            phase: Analyze,
+            category: SafeReject,
+            code: "E-ANALYZE-IR",
+            message: "cyclic helper requires its exact Flow contract",
+            span: None,
+            notes: [],
+        },
+    ],
+)

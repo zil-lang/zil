@@ -1,0 +1,204 @@
+{
+  "status": "Pass",
+  "scope": "195 author limited candidate; independent review and main integration pending",
+  "task": "195",
+  "implementation_author": "/root/resume190",
+  "implementation_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+  "baseline": "40abb53527aa45c89f6249162c9a69fea5fd80ad",
+  "schema": 24,
+  "specification": {
+    "spec_hash": "48641079ef2ecc84aa50a0a9eafd83ae844f0d3de7924fcc8cb3e2fef3f9db5f",
+    "normative_hash": "6488fa9f20121c4268f13153c6daecbfd20da5eb5e8aa86630620413d41edadb"
+  },
+  "joint": {
+    "command": "runs/joint01/command/command.json",
+    "suites": [
+      {
+        "name": "generic_regressions",
+        "status": "ok",
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "name": "generics",
+        "status": "ok",
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "name": "impl178_generic_store",
+        "status": "ok",
+        "passed": 15,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "name": "impl186_generic_owned_success",
+        "status": "ok",
+        "passed": 16,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "name": "impl190_flow_source",
+        "status": "ok",
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "name": "impl190_for_ranges",
+        "status": "ok",
+        "passed": 10,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "name": "impl195_loop_control_raw",
+        "status": "ok",
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "name": "impl195_loop_control_source",
+        "status": "ok",
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "name": "impl195_symbolic",
+        "status": "ok",
+        "passed": 11,
+        "failed": 0,
+        "ignored": 0
+      }
+    ],
+    "passed": 104,
+    "failed": 0,
+    "ignored": 0,
+    "new_tests": 31,
+    "neighbor_tests": 73
+  },
+  "source_native": {
+    "count": 82,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "platform": "Linux x86_64",
+    "source_commit": "1a890dabc4eb04b26570439718b0a9432511fa95"
+  },
+  "consumer": {
+    "summary": "runs/consumer03/run/summary.json",
+    "native_executions": 72,
+    "actual_allocation_fault_executions": 50,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "platform": "Linux x86_64",
+    "source_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+    "cli_source_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+    "cli_sha256": "c6e85adbb018f73709103bda438d1009394bf69e690557aab0fa4a0c76aea4ac",
+    "allocated_equals_frees": true,
+    "live_allocations_at_exit": 0
+  },
+  "new_native_total": 154,
+  "clippy": {
+    "status": "Pass",
+    "source_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+    "command": "runs/clippy01/command/command.json"
+  },
+  "frontiers": [
+    {
+      "path": "joint01/tests/symbolic195-work-1076-33/frontier.json",
+      "metric": "work",
+      "wire": null,
+      "minimum": 2242,
+      "n_minus_one_rejects": true,
+      "fresh_retry": true
+    },
+    {
+      "path": "joint01/tests/symbolic195-nodes-1076-7/frontier.json",
+      "metric": "nodes",
+      "wire": null,
+      "minimum": 769,
+      "n_minus_one_rejects": true,
+      "fresh_retry": true
+    },
+    {
+      "path": "joint01/tests/raw195-work-frontier-870-18/frontier.json",
+      "metric": "Verify work",
+      "wire": false,
+      "minimum": 44926,
+      "n_minus_one_rejects": true,
+      "fresh_retry": true
+    },
+    {
+      "path": "joint01/tests/raw195-work-frontier-870-19/frontier.json",
+      "metric": "Verify work",
+      "wire": true,
+      "minimum": 44926,
+      "n_minus_one_rejects": true,
+      "fresh_retry": true
+    }
+  ],
+  "retained_history": [
+    {
+      "run": "symbolic01",
+      "source": "59683f43a29e26f0f4bc926d99ffefed6e7a4c28",
+      "tests_passed": 19,
+      "tests_failed": 1,
+      "reason": "New positive oracle wrongly assumed reinitialization of an already moved unconstrained local. Existing generic_places rejects before continue; exact input is now retained as the existing boundary negative. Production did not open that boundary."
+    },
+    {
+      "run": "source01",
+      "source": "7e5bf589285e73e25738e504c615347b6dd03422",
+      "tests_passed": 10,
+      "tests_failed": 2,
+      "reason": "New max-i64 literal used unsupported suffix spelling, and the test wrote stdin to a static program which had already exited. Original sources and failures retained; fixed literal spelling and explicit no-input harness only."
+    },
+    {
+      "run": "consumer01",
+      "source": "da076c94c0f8edc2e92485d0362cc610d51fb85c",
+      "language_executions": 0,
+      "reason": "Unmatched Python parenthesis in the new consumer runner. Failed before any ZIL invocation."
+    },
+    {
+      "run": "consumer02",
+      "source": "bdf4062e56fa938ab0d6e74935f9aa0684e99aa7",
+      "status": "Pass",
+      "native_executions": 72,
+      "fault_executions": 50,
+      "cli_source_commit": "da076c94c0f8edc2e92485d0362cc610d51fb85c",
+      "reason": "Pre-final accounting candidate. Final actual rerun is consumer03; do not add repeats as distinct coverage."
+    },
+    {
+      "source": "1a890dabc4eb04b26570439718b0a9432511fa95",
+      "reason": "Author review charged complete State copies at loop entry/join as well as saved control exits. Existing default budgets remain unchanged; final exact frontiers measured after this change."
+    },
+    {
+      "run": "joint01",
+      "reason": "Shared disk reached zero free space after the complete Pass. No command in this receipt failed for disk space; root cleared closed build caches before final CLI/consumer/Clippy. No source/evidence was removed."
+    }
+  ],
+  "limits": [
+    "No full-workspace acceptance claimed",
+    "No Win64 or Wine execution in this author receipt",
+    "No claim of generic moved-local reinitialization support",
+    "No label/value breaks, loop expression, new borrowing escape, general iterator, unsafe/defer or new callable signature admission",
+    "Actual cyclic FnOnce remains closed; an acyclic zero-or-one-call break source is verified as Finite",
+    "No comparative Rust performance, memory, maintenance or compilation measurement",
+    "Full language NotSatisfied; product NotRun; B0 Doing"
+  ],
+  "delivery": {
+    "executable_files_included": false,
+    "all_original_file_hashes": "ORIGINAL-FILES.json",
+    "source_manifest": "SOURCE.json",
+    "included_file_manifest": "FILES.json"
+  }
+}

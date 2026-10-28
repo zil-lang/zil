@@ -1,0 +1,1 @@
+fn bad<F:FnOnce()->i32>(f:F,flag:bool)->i32{var total=0;for index in 0..2{total+=f();continue}return total}fn main(){}

@@ -1,0 +1,29 @@
+{
+  "command": [
+    "python3",
+    "tools/language/195/consumer.py",
+    "--repo",
+    "/workspace/scratch/39be3faa4442/language14/wt195",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets178/author195/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/run-logs/195-author/consumer03/run"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+  "start": 1793165569.3869457,
+  "source_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+  "git_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author195",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": null,
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793165570.7303393,
+  "stdout.log_sha256": "9df78cd50a3b31fe1163991669ff45d56102568f3d133d357bdf90336816d8af",
+  "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,23 @@
+
+running 12 tests
+test for_continue_steps_once_at_the_integer_maximum_and_keeps_outer_bindings ... FAILED
+test original_once_consumption_before_continue_remains_closed ... ok
+test control_flow_does_not_separate_an_explicit_argument_from_the_same_capture ... ok
+test both_original_held_lending_inputs_reach_the_real_borrow_conflict ... ok
+test an_unconditional_break_keeps_an_actually_finite_once_contract ... ok
+test runtime_while_control_runs_only_the_selected_callbacks ... ok
+test mixed_match_return_break_and_continue_keep_real_cleanup_edges ... ok
+test an_error_after_continue_cleans_the_live_iteration_and_outer_owners ... ok
+test nested_while_and_for_control_only_the_nearest_loop ... ok
+test flow_children_keep_their_continuations_when_the_parent_skips_or_breaks ... ok
+test owned_and_borrowed_environments_cleanup_after_all_loop_exit_kinds ... ok
+test original_preflight_helper_programs_now_execute_with_their_exact_inputs ... FAILED
+
+failures:
+
+failures:
+    for_continue_steps_once_at_the_integer_maximum_and_keeps_outer_bindings
+    original_preflight_helper_programs_now_execute_with_their_exact_inputs
+
+test result: FAILED. 10 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.49s
+

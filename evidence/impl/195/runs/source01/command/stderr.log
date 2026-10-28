@@ -1,0 +1,13 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt195/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.49s
+     Running tests/impl195_loop_control_source.rs (/workspace/scratch/39be3faa4442/targets178/author195/debug/deps/impl195_loop_control_source-bd84e41436bd6321)
+
+thread 'for_continue_steps_once_at_the_integer_maximum_and_keeps_outer_bindings' (77) panicked at crates/zil-driver/tests/impl195_loop_control_source.rs:88:9:
+assertion `left == right` failed: maximum-step-once: {"status":"SafeReject","phase":"lex","diagnostics":[{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":245,"end":267},"notes":[]},{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":276,"end":298},"notes":[]},{"phase":"lex","category":"SafeReject","code":"E-LEX-NUMBER","message":"invalid number spelling, suffix, or separator","span":{"file":0,"start":408,"end":430},"notes":[]}],"artifacts":{},"input_fingerprint":"b62b64e0ff5c5470bdd2bd5097383e3ad4f0148e3e729d9d117ca8c6cfa0a9d5","seconds":0.00238155,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'original_preflight_helper_programs_now_execute_with_their_exact_inputs' (81) panicked at crates/zil-driver/tests/impl195_loop_control_source.rs:117:18:
+called `Result::unwrap()` on an `Err` value: Os { code: 32, kind: BrokenPipe, message: "Broken pipe" }
+error: test failed, to rerun pass `-p zil-driver --test impl195_loop_control_source`

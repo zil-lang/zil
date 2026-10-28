@@ -1,0 +1,1 @@
+fn bad<T:StoreElement>(give incoming:Store<T>,flag:bool)->Store<T>contract{result(create)}{var next:Store<T>=store_new();for index in 0..2{if flag{next=give incoming;break}else{continue}}return give next}fn main(){}

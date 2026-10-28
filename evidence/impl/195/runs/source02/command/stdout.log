@@ -1,0 +1,33 @@
+
+running 12 tests
+test control_flow_does_not_separate_an_explicit_argument_from_the_same_capture ... ok
+test original_once_consumption_before_continue_remains_closed ... ok
+test both_original_held_lending_inputs_reach_the_real_borrow_conflict ... ok
+test for_continue_steps_once_at_the_integer_maximum_and_keeps_outer_bindings ... ok
+test an_unconditional_break_keeps_an_actually_finite_once_contract ... ok
+test flow_children_keep_their_continuations_when_the_parent_skips_or_breaks ... ok
+test mixed_match_return_break_and_continue_keep_real_cleanup_edges ... ok
+test an_error_after_continue_cleans_the_live_iteration_and_outer_owners ... ok
+test nested_while_and_for_control_only_the_nearest_loop ... ok
+test runtime_while_control_runs_only_the_selected_callbacks ... ok
+test owned_and_borrowed_environments_cleanup_after_all_loop_exit_kinds ... ok
+test original_preflight_helper_programs_now_execute_with_their_exact_inputs ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.81s
+
+
+running 11 tests
+test a_previously_moved_generic_local_retains_its_existing_reinitialization_boundary ... ok
+test loop_control_keeps_index_mutability_and_scope_checks ... ok
+test loop_control_outside_a_loop_is_rejected_even_in_unused_templates ... ok
+test continuation_does_not_make_a_once_callback_repeatable ... ok
+test loop_exits_do_not_supply_function_return_or_allow_unreachable_uses ... ok
+test break_keeps_invalidated_store_observations_and_unproven_create_origins ... ok
+test store_carriers_and_managed_fields_cannot_be_consumed_on_continue_edges ... ok
+test every_break_state_participates_in_post_loop_may_move_join ... ok
+test every_continue_path_preserves_outer_noncopy_consumption ... ok
+test loop_exit_state_collections_have_exact_existing_budget_frontiers ... ok
+test returning_paths_do_not_pollute_surviving_break_and_continue_states ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

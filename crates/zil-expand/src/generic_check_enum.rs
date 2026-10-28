@@ -189,11 +189,14 @@ impl Check<'_, '_, '_> {
         value: &Expr,
         arms: &[MatchArm],
         state: &mut State,
-    ) -> R<bool> {
+    ) -> R<BlockFlow> {
         let ty = self.expr(value, state, None, false)?;
         let mut rows = Vec::new();
         let mut continuing = Vec::new();
-        let mut all_return = true;
+        let mut flow = BlockFlow {
+            fallthrough: false,
+            returns: false,
+        };
         for arm in arms {
             let mut branch = self.clone_state(state)?;
             let p = self.pattern(&arm.pattern, &ty, &mut branch, &mut BTreeSet::new())?;
@@ -212,15 +215,16 @@ impl Check<'_, '_, '_> {
                 ));
             }
             rows.push(vec![p]);
-            let returned = match &arm.body {
+            let branch_flow = match &arm.body {
                 ArrowBody::Block(b) => self.block(b, &mut branch)?,
                 ArrowBody::Expression(e) => {
                     self.expr(e, &mut branch, None, false)?;
-                    false
+                    BlockFlow::NEXT
                 }
             };
-            if !returned {
-                all_return = false;
+            flow.returns |= branch_flow.returns;
+            if branch_flow.fallthrough {
+                flow.fallthrough = true;
                 continuing.push(branch);
             }
         }
@@ -232,10 +236,10 @@ impl Check<'_, '_, '_> {
                 "generic match does not cover every possible value",
             ));
         }
-        if !all_return {
+        if flow.fallthrough {
             self.join_states(state, &continuing.iter().collect::<Vec<_>>(), value.span)?;
         }
-        Ok(all_return)
+        Ok(flow)
     }
     fn charge_pattern(&mut self, p: &Pat, depth: usize, span: Span) -> R<()> {
         self.budget.node(span, depth)?;

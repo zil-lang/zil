@@ -1,0 +1,13 @@
+
+running 8 tests
+test source_control_edges_have_real_cleanup_and_independent_wire_verification ... ok
+test actual_cyclic_control_and_callbacks_cannot_be_replaced_by_a_finite_claim ... ok
+test control_cleanup_cannot_leave_storage_live_or_close_the_wrong_scope ... ok
+test a_control_jump_cannot_claim_to_be_a_function_return_cleanup ... ok
+test changed_break_or_continue_targets_invalidate_the_original_flow_claim ... ok
+test omitting_scope_exit_after_break_or_continue_does_not_restore_entry_state ... ok
+test loop_exit_storage_markers_do_not_discharge_a_missing_owned_drop ... ok
+test independent_raw_and_wire_control_checks_keep_exact_work_frontiers ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
