@@ -559,6 +559,26 @@
       ]
     },
     {
+      "code": "E-OWNED-STORE-NAME",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES"
+      ]
+    },
+    {
+      "code": "E-OWNED-STORE-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD"
+      ]
+    },
+    {
       "code": "E-PARSE-CALLABLE-SYNTAX",
       "phases": [
         "parse"
@@ -941,6 +961,17 @@
       ]
     },
     {
+      "code": "E-VERIFY-OWNED-STORE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP",
+        "ZIL-ARCH"
+      ]
+    },
+    {
       "code": "E-VERIFY-PACKAGE",
       "phases": [
         "verify"
@@ -980,37 +1011,6 @@
       "requirements": [
         "ZIL-ARCH",
         "ZIL-CLEANUP"
-      ]
-    },
-    {
-      "code": "E-OWNED-STORE-NAME",
-      "phases": [
-        "expand",
-        "types"
-      ],
-      "requirements": [
-        "ZIL-MODES"
-      ]
-    },
-    {
-      "code": "E-OWNED-STORE-TYPE",
-      "phases": [
-        "types"
-      ],
-      "requirements": [
-        "ZIL-MODES",
-        "ZIL-RECORD"
-      ]
-    },
-    {
-      "code": "E-VERIFY-OWNED-STORE",
-      "phases": [
-        "verify"
-      ],
-      "requirements": [
-        "ZIL-MODES",
-        "ZIL-CLEANUP",
-        "ZIL-ARCH"
       ]
     }
   ]
