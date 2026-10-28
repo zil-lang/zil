@@ -1,0 +1,1 @@
+fn main()->i32{let a=[1,2];let p=&a[..];let f=(q:&mut[i32])=>{q[0]+=1;return q[0]};return f(p)}

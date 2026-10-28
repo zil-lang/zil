@@ -1,0 +1,25 @@
+
+running 7 tests
+test current_call_checks_shared_exclusive_and_whole_backing_aliases ... ok
+test explicit_mutable_arguments_do_not_upgrade_shared_inputs ... ok
+test helper_actual_capture_and_slice_backing_are_instantiated_together ... ok
+test new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes ... ok
+test original_nineteen_preflight_inputs_now_reach_the_promised_stage_unchanged ... ok
+test sequential_slice_reborrows_and_dead_last_use_preserve_backing ... ok
+test slice_parameter_index_and_range_checks_reach_machine_traps ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+
+
+running 8 tests
+test a_raw_write_through_a_shared_slice_element_is_not_admitted ... ok
+test actual_slice_work_has_measured_raw_and_wire_n_and_n_minus_one_boundaries ... ok
+test captured_desc_aliasing_is_rebuilt_from_actual_executable_backing ... ok
+test entry_and_actual_parent_permissions_are_checked_independently ... ok
+test raw_parameter_count_and_slice_type_depth_exhaust_bounds_before_entry_checks ... ok
+test raw_range_operand_types_and_hold_rows_are_independent ... ok
+test raw_unsupported_shapes_and_capture_or_lending_claims_stay_closed ... ok
+test replacing_an_explicit_operand_with_its_exclusive_sibling_preserves_aliases ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+

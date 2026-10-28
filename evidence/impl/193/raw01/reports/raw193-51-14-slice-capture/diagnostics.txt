@@ -1,0 +1,22 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: Unsupported,
+            code: "E-UNSUPPORTED",
+            message: "borrowed slice captures are outside the finite slice profile",
+            span: None,
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: Unsupported,
+            code: "E-UNSUPPORTED",
+            message: "borrowed slice captures are outside the finite slice profile",
+            span: None,
+            notes: [],
+        },
+    ],
+]

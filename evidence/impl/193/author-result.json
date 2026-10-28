@@ -1,0 +1,297 @@
+{
+  "format": "zil-language193-author/1",
+  "status": "Pass",
+  "scope": "Author bounded acceptance only; root independent review and integration pending",
+  "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "production_commit": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+  "base_commit": "c860a100677c15b19ee1694aa66ddf81d8aee926",
+  "spec_hash": "d66bf6d16f2c1adecc4fe8e03d4898560acc88e6406e798c1c13f424287f7f64",
+  "normative_hash": "d20398d8a0291e1e8eef74bf74c557e992fa176e7e5abe09f924071fd1cc2a25",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "production_unchanged_after_first_commit": true,
+  "default_limits_changed": false,
+  "schema_changed": false,
+  "loan_implementation_changed": false,
+  "checks": [
+    {
+      "name": "final-driver01",
+      "status": "Pass",
+      "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "suites": 9,
+      "passed": 92,
+      "failed": 0,
+      "receipt": "final-driver01/command/command.json"
+    },
+    {
+      "name": "final-verify01",
+      "status": "Pass",
+      "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "suites": 2,
+      "passed": 264,
+      "failed": 0,
+      "receipt": "final-verify01/command/command.json"
+    },
+    {
+      "name": "final-build01",
+      "status": "Pass",
+      "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "receipt": "final-build01/command/command.json"
+    },
+    {
+      "name": "clippy-core01",
+      "status": "Pass",
+      "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "receipt": "clippy-core01/command/command.json"
+    },
+    {
+      "name": "clippy-tests01",
+      "status": "Pass",
+      "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "receipt": "clippy-tests01/command/command.json"
+    },
+    {
+      "name": "fmt01",
+      "status": "Pass",
+      "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "receipt": "fmt01/command/command.json"
+    }
+  ],
+  "suite_count": 11,
+  "unit_tests_passed": 356,
+  "unit_tests_failed": 0,
+  "new193_suites": {
+    "source": 7,
+    "raw_wire": 8
+  },
+  "original_19_inputs_unchanged": [
+    {
+      "name": "ordinary_shared",
+      "source_sha256": "c43ec2e843a640f19bfa4469473bcb93fa7ecb1a220715a545c8d97074a5b07f",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-15-ordinary_shared/compile.json"
+    },
+    {
+      "name": "ordinary_exclusive",
+      "source_sha256": "5a0a16cfa1c5c69394010ddea9fd6ddbd67d4b7ede1b9bbf633abdebaf7bc5f0",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-16-ordinary_exclusive/compile.json"
+    },
+    {
+      "name": "ordinary_shared_write",
+      "source_sha256": "16aeaeefc0eb8ae0657e04ae8fe7934870f9027a60881982fdb9a48b62a3c59f",
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "record": "final-driver01/reports/slice193-587-17-ordinary_shared_write/compile.json"
+    },
+    {
+      "name": "ordinary_desc_same",
+      "source_sha256": "54207ba7a88a6f98729db95bcd00933d0fe78f30e67bb375b3b3f1cf4159f80b",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-18-ordinary_desc_same/compile.json"
+    },
+    {
+      "name": "ordinary_desc_other",
+      "source_sha256": "a0c5be947a197eeac2343798138443c491004fa29445acb0b0a1b8a3d53e09fa",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-19-ordinary_desc_other/compile.json"
+    },
+    {
+      "name": "ordinary_desc_read",
+      "source_sha256": "a0c89d514977ae8789a61026041b5b3a85e9c0794afcaeaa022b1949711937b7",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-20-ordinary_desc_read/compile.json"
+    },
+    {
+      "name": "callback_shared",
+      "source_sha256": "0de81822b11778c4c8bd116375a9c1376c410c70e06bfeaab52f4543f90deb3e",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-21-callback_shared/compile.json"
+    },
+    {
+      "name": "callback_exclusive",
+      "source_sha256": "cb426654b5714a63a8ffdacf016c2535c24d5c2d429ca8c66616bfe80ee47f0a",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-22-callback_exclusive/compile.json"
+    },
+    {
+      "name": "callback_unused",
+      "source_sha256": "c6e860ff4f3f6106529136df6c6280c9b2f5e28500595aeadd09078d118f018d",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-23-callback_unused/compile.json"
+    },
+    {
+      "name": "callback_shared_write",
+      "source_sha256": "055efc860a8a7f901b7bea729b02fd237767804f1fd06d92ea65f79cb5cca8c8",
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "record": "final-driver01/reports/slice193-587-24-callback_shared_write/compile.json"
+    },
+    {
+      "name": "helper_shared",
+      "source_sha256": "de038274221c6bb63a36214b49dfe56dec6d5b0477b5bc77ba7f0b4d735dddc8",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-25-helper_shared/compile.json"
+    },
+    {
+      "name": "helper_exclusive",
+      "source_sha256": "44a642e82f840f852a1263c8ee00ec0a200df4502f39447f9a124880241c4717",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-26-helper_exclusive/compile.json"
+    },
+    {
+      "name": "helper_extra_only",
+      "source_sha256": "56748eb7c7fa2c5f35a1cd4c6464056a8c80dc077f4a335f181aec5d383c9515",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-27-helper_extra_only/compile.json"
+    },
+    {
+      "name": "factory_signature",
+      "source_sha256": "0f980f9396776d969528e8fa82a9967e3775c2e7f6a6d72215e15842b1b2e78f",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-28-factory_signature/compile.json"
+    },
+    {
+      "name": "callback_desc_same",
+      "source_sha256": "df1f957d9f7e891905fe53dcebaa426d7ef5285cde244dac9983ed1231ec18c3",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-29-callback_desc_same/compile.json"
+    },
+    {
+      "name": "callback_desc_other",
+      "source_sha256": "00b2de2271d15c538a8b91830893eebf6d2c251cd51a38b7c0ad1cae3e554642",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-30-callback_desc_other/compile.json"
+    },
+    {
+      "name": "callback_desc_read",
+      "source_sha256": "1836dbfb234534a4a6768b6f526911212d8a551d117e025a8ea4fc1443224ef6",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-31-callback_desc_read/compile.json"
+    },
+    {
+      "name": "callback_exclusive_same",
+      "source_sha256": "03e50239d0c692806af35ff521e233a04e228563d4f97d548a5e83d5b152671f",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-32-callback_exclusive_same/compile.json"
+    },
+    {
+      "name": "callback_exclusive_other",
+      "source_sha256": "e1928140a86006a066279e2d48f2648c49de4f4fd737a567c3ec40b6214e895a",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "record": "final-driver01/reports/slice193-587-33-callback_exclusive_other/compile.json"
+    }
+  ],
+  "platforms": [
+    {
+      "platform": "linux",
+      "execution": "native",
+      "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "executions": 40,
+      "native_executions": 40,
+      "wine_executions": 0,
+      "ordinary_executions": 12,
+      "instrumented_executions": 28,
+      "actual_allocation_failures": 12,
+      "native_windows": "NotRun"
+    },
+    {
+      "platform": "win64",
+      "execution": "Wine compatibility",
+      "source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "executions": 40,
+      "native_executions": 0,
+      "wine_executions": 40,
+      "ordinary_executions": 12,
+      "instrumented_executions": 28,
+      "actual_allocation_failures": 12,
+      "native_windows": "NotRun"
+    }
+  ],
+  "final_consumer_executions": 80,
+  "final_actual_allocation_failures": 24,
+  "additional_193_native_boundary_executions": 8,
+  "budgets": [
+    {
+      "path": "final-driver01/reports/raw193-627-1-raw-budget-11616-reject-11617-accept",
+      "input": "raw",
+      "n_minus_one": 11616,
+      "n": 11617
+    },
+    {
+      "path": "final-driver01/reports/raw193-627-2-wire-budget-11616-reject-11617-accept",
+      "input": "wire",
+      "n_minus_one": 11616,
+      "n": 11617
+    }
+  ],
+  "historical_failures_preserved": [
+    "consumer-draft01",
+    "source01",
+    "raw01",
+    "regression01",
+    "verify01",
+    "win64-01",
+    "win64-02"
+  ],
+  "wine_runtime_restoration": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/185-integration/wine-runtime-restoration-08.json",
+    "sha256": "4493d0039ae6a268bd8ee5c675da9b1f04d898d07e936e3d8e5b90cc5580ceb5",
+    "status": "Pass",
+    "toolchain_files_restored": 726
+  },
+  "evidence_files_before_manifest": 1370,
+  "evidence_bytes_before_manifest": 12787221,
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun"
+}

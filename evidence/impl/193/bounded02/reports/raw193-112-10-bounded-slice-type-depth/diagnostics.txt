@@ -1,0 +1,12 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: ResourceLimit,
+            code: "E-RESOURCE-LIMIT",
+            message: "aggregate type nesting exceeds verification limit",
+            span: None,
+            notes: [],
+        },
+    ],
+]
