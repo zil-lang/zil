@@ -20,20 +20,10 @@ pub(super) struct LoopFrame {
 }
 
 impl Check<'_, '_, '_> {
-    pub(super) fn loop_control(&mut self, state: &State, continuing: bool, span: Span) -> R<()> {
-        if self.loops.is_empty() {
-            return Err(Diagnostic::error(
-                Phase::Expand,
-                "E-LOOP-CONTROL",
-                Some(span),
-                "loop control outside a loop",
-            ));
-        }
-        // Pay the collection entry and all state components before cloning.
-        // clone_state already pays the types, origins' contents, invalidated
-        // positions, fresh positions and owning success results. The sets
-        // below may retain an outer id hidden by a newer lexical binding.
-        self.budget.node(span, self.loops.len())?;
+    pub(super) fn clone_loop_state(&mut self, state: &State, span: Span) -> R<State> {
+        // clone_state pays the types, origins' contents, invalidated positions,
+        // fresh positions and owning success results. Also charge names and
+        // the sets which can retain ids hidden by newer lexical bindings.
         for name in state.locals.keys() {
             self.budget.text(name, span)?;
         }
@@ -45,7 +35,21 @@ impl Check<'_, '_, '_> {
         {
             self.budget.node(span, 0)?;
         }
-        let snapshot = self.clone_state(state)?;
+        self.clone_state(state)
+    }
+
+    pub(super) fn loop_control(&mut self, state: &State, continuing: bool, span: Span) -> R<()> {
+        if self.loops.is_empty() {
+            return Err(Diagnostic::error(
+                Phase::Expand,
+                "E-LOOP-CONTROL",
+                Some(span),
+                "loop control outside a loop",
+            ));
+        }
+        // Pay the collection entry and all state components before cloning.
+        self.budget.node(span, self.loops.len())?;
+        let snapshot = self.clone_loop_state(state, span)?;
         let frame = self.loops.last_mut().expect("loop checked above");
         if continuing {
             frame.continues.push(snapshot);
@@ -101,7 +105,7 @@ impl Check<'_, '_, '_> {
             for _ in 0..count {
                 self.budget.node(span, 0)?;
             }
-            let entry = self.clone_state(state)?;
+            let entry = self.clone_loop_state(state, span)?;
             let mut exits = Vec::with_capacity(count);
             exits.push(&entry);
             if body_flow.fallthrough {
