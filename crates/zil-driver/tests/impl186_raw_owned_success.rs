@@ -62,7 +62,17 @@ fn reject(label: &str, module: TypedModule, mut plan: CandidatePlan, code: &str,
             zil_verify::verify_module_bytes(&bytes, &target, &limits),
         ),
     ] {
-        let errors = result.unwrap_err();
+        let errors = match result {
+            Err(errors) => errors,
+            Ok(_) => {
+                fs::write(
+                    dir.join(format!("{route}-unexpected-accept.txt")),
+                    "Verify accepted this exact mutation\n",
+                )
+                .unwrap();
+                panic!("{label}/{route}: mutation unexpectedly accepted")
+            }
+        };
         fs::write(dir.join(format!("{route}.txt")), format!("{errors:#?}\n")).unwrap();
         assert!(
             errors.iter().all(|d| d.phase == Phase::Verify),
@@ -270,7 +280,10 @@ fn generic_origin_does_not_replace_actual_tag_descriptor_or_cleanup_checks() {
         "E-VERIFY-ERROR",
         "selected arm",
     );
-    let (f, b, i) = locate(&original, |_, i| matches!(i.kind, I::DropErrorUnion { .. }));
+    let (f, b, i) = locate(&original, |f, i| {
+        matches!(i.kind, I::DropErrorUnion { local }
+        if f.name == "main" && f.locals[local.0 as usize].name == "final")
+    });
     let mut module = original;
     module.functions[f].blocks[b].instructions.remove(i);
     reject(
