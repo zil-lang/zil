@@ -1,0 +1,142 @@
+{
+  "task": "181",
+  "reviewer": "/root/design14_acceptance",
+  "implementation_author": "/root",
+  "implementation_commit": "8493aca5ce86a77cd5e9ea8ab3d3629bafafa2a6",
+  "review_test_commit": "7d9a288483384797dab358de1d8c27cb9042cb26",
+  "status": "Pass",
+  "verdict": "Pass",
+  "scope": "Independent public IR/transport/target and Win64 Store heap-path review only. Does not include root-owned 178–181 integrated composition acceptance.",
+  "spec_sha256": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "normative_hash": "1cf7aadb8800c31436f158ee3cdf78bcea330ed2bfafc29112b8d11211655a6e",
+  "rule_version": "ZIL-LANG-1.4",
+  "schema_version": 22,
+  "source_review": {
+    "production_changed_by_reviewer": false,
+    "diff_from_implementation": [
+      "crates/zil-driver/tests/review181_by179.rs"
+    ],
+    "files": [
+      "crates/zil-base/src/lib.rs",
+      "crates/zil-ir/src/lib.rs",
+      "crates/zil-ir/src/wire.rs",
+      "crates/zil-ir/src/wire/state_field_tests.rs",
+      "crates/zil-ir/src/wire/store_tests.rs",
+      "crates/zil-verify/src/dynamic_store.rs",
+      "crates/zil-backend-llvm/src/emit/dynamic_store.rs",
+      "crates/zil-backend-llvm/src/emit/byte_buffer.rs",
+      "crates/zil-backend-llvm/src/emit.rs",
+      "crates/zil-driver/tests/impl181_win64_store.rs",
+      "crates/zil-driver/tests/review181_by179.rs",
+      "examples/mainline/zui_language181/platform_padded.zil",
+      "tools/language/181/platform.py",
+      "tools/language/181/heap_probe.c",
+      "data/normative-inputs.json",
+      "_zil_design.md"
+    ],
+    "public_contract": "Schema/Wire/fingerprint domain22; opcode88 structural mutable Store window; existing86/87 tags unchanged. Structural Type acceptance does not grant borrowing authority.",
+    "platform_delta": "Two Store target admission guards now use exact supported x64 LLVM target profile. Existing checked Windows heap ABI and prefix cleanup reused.",
+    "independent_verify": "Verify does not call Types or Analyze safety predicates. No default budget changed."
+  },
+  "findings_and_retests": [
+    {
+      "record": "runs/frozen01/summary.json",
+      "status": "Fail",
+      "finding": "Independent public IR run:29 passed/2 failed. Legacy tests still expected Wire21 and treated newly valid opcode88 as unknown.",
+      "resolution": "Author8493aca migrated versions to22 and unknown opcodes89/90, preserving old80–85 bytes/truncation cases. Final31/0/0."
+    },
+    {
+      "record": "runs/final02/summary.json",
+      "status": "Fail",
+      "finding": "Reviewer asserted a wrong error-code set for modified verified-LIR target: actual E-CODEGEN-UNBOUND-LIR.",
+      "resolution": "Reviewer7d9a288 corrected only the exact expected diagnostic; no production change. attacks03 and final04 pass."
+    }
+  ],
+  "checked_obligations": [
+    "Unregistered triple aliases cannot obtain supported Windows target layout through raw/Wire candidate relabeling.",
+    "Wire version checks are independent from target/LIR verified binding.",
+    "A Store-only module without ByteBuffer emits required Heap declarations and checked calls; incompatible user foreign symbols are rejected.",
+    "Windows ABI uses ptr HANDLE/pointer, i32 DWORD/BOOL and i64 SIZE_T with zero allocation flags.",
+    "Null old data selects HeapAlloc, nonnull selects HeapReAlloc; realloc failure retains original Store data/capacity and initialized elements.",
+    "Actual padded multi-field element stride and initialized-prefix Drop order execute identically at O0/O2 on Linux and Wine.",
+    "Failure injection returns no leaked live allocation or invalid operation; fresh allocation failure and growth failure exercise distinct paths."
+  ],
+  "boundaries": [
+    "This review does not claim independent execution of178/179/180 combined with181.",
+    "Wine is a compatibility execution environment, not native Windows certification.",
+    "Arbitrary/over-aligned elements, unknown targets, mixed borrowed captures and general lending remain outside the accepted finite shape.",
+    "No benchmark establishes runtime, memory or compilation superiority to Rust."
+  ],
+  "primary_abi_sources": [
+    {
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapalloc",
+      "checked": "HeapAlloc parameter/result signatures, null failure and x64 heap alignment16."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaprealloc",
+      "checked": "HeapReAlloc parameter/result signatures and original block validity on failure."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/cpp/build/x64-software-conventions?view=msvc-170",
+      "checked": "x64 int/long32, pointers64, natural aggregate alignment/padding."
+    }
+  ],
+  "abi_inference": "The current finite supported Store element layout is at most8-byte aligned, so the documented16-byte Windows heap alignment suffices for this slice; this is not an arbitrary-alignment claim.",
+  "rust_four_goals": {
+    "safety": "Finite source/raw/Wire/real execution obligations checked; no complete language safety proof.",
+    "runtime_memory": "Actual allocation/free and cleanup behavior checked, no equivalent Rust performance comparison.",
+    "expression_maintenance": "Store-only and padded Package consumer paths work; no maintenance-cost experiment.",
+    "compile_cost": "NotMeasured; separate compiler-speed line unchanged.",
+    "net_product_breakthrough": "NotProven"
+  },
+  "formal_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing",
+  "checks": {
+    "final_bounded_tests": {
+      "record": "runs/final04/summary.json",
+      "passed": 37,
+      "failed": 0,
+      "ignored": 0,
+      "groups": {
+        "zil_ir": 31,
+        "author_target": 3,
+        "independent_target_and_abi": 3
+      }
+    },
+    "independent_mutations": {
+      "unsupported_target_profiles": 4,
+      "raw_wire_routes": 8,
+      "wire_versions_rejected": 23,
+      "verified_lir_target_mutations": 1,
+      "foreign_heap_symbol_signature_conflicts": 3
+    },
+    "linux": {
+      "record": "runs/linux-padded01/summary.json",
+      "executions": 8,
+      "ordinary": 2,
+      "instrumented": 6,
+      "actual_allocation_failure_injections": 4,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "status": "Pass"
+    },
+    "win64": {
+      "record": "runs/win64-padded01/summary.json",
+      "execution": "Actual PE through Wine compatibility in independent prefix",
+      "executions": 8,
+      "ordinary": 2,
+      "instrumented": 6,
+      "actual_allocation_failure_injections": 4,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "status": "Pass",
+      "native_windows": "NotRun"
+    }
+  }
+}

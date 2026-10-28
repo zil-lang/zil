@@ -41,8 +41,8 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
     {
         return Ok(String::new());
     }
-    if lir.target.triple != "x86_64-unknown-linux-gnu" {
-        return unsupported("owned Store currently requires Linux x64 LLVM", None);
+    if !lir.target.is_supported_x64_llvm() {
+        return unsupported("owned Store requires checked Linux x64 or Win64 LLVM", None);
     }
     if let Some(f) = lir.functions.iter().find(|f| {
         f.foreign

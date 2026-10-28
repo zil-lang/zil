@@ -1,0 +1,21 @@
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-types)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-backend-llvm)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-analyze)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-expand)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-by179/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 9.47s
+     Running tests/impl181_win64_store.rs (/workspace/scratch/39be3faa4442/targets178/review181-by179/debug/deps/impl181_win64_store-c8ea97d08b63b7a9)
+
+running 3 tests
+test candidate_cannot_swap_linux_and_windows_after_verification ... ok
+test linux_and_win64_accept_the_same_padded_store_and_owned_error_shapes ... ok
+test forged_store_target_profiles_cannot_use_the_host_layout ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

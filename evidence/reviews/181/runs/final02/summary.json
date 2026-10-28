@@ -1,0 +1,65 @@
+{
+  "implementation_commit": "8493aca5ce86a77cd5e9ea8ab3d3629bafafa2a6",
+  "review_test_commit": "0590df7152d9d6b7323d92e14a6fcf880c886d07",
+  "dirty": "",
+  "reviewer": "/root/design14_acceptance",
+  "design_sha256": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "target": "/workspace/scratch/39be3faa4442/targets178/review181-by179",
+  "results": [
+    {
+      "name": "public-ir",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-ir",
+        "--lib",
+        "-j2",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 1.1470389366149902
+    },
+    {
+      "name": "target-attacks",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl181_win64_store",
+        "--test",
+        "review181_by179",
+        "-j2",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit_code": 101,
+      "status": "Fail",
+      "elapsed_seconds": 0.27439045906066895
+    },
+    {
+      "name": "cli-build",
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-cli",
+        "-j2"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 0.010958433151245117
+    }
+  ],
+  "status": "Fail"
+}
