@@ -15,6 +15,7 @@ struct Package {
     end: usize,
     fields: BTreeMap<String, usize>,
     copy_fields: BTreeSet<String>,
+    owned_use: bool,
 }
 
 #[derive(Default)]
@@ -81,6 +82,7 @@ pub(super) fn classify(
             end: slots,
             fields: owned,
             copy_fields,
+            owned_use: false,
         });
     }
     let mut scan = Scan {
@@ -103,6 +105,7 @@ pub(super) fn classify(
     for (index, package) in scan.packages.iter().enumerate() {
         captures[package.capture].written |= scan.writes[index];
         captures[package.capture].consumed |= scan.partial_exit[index];
+        captures[package.capture].moved |= package.owned_use;
     }
     Ok(())
 }
@@ -213,6 +216,7 @@ impl Scan<'_> {
         self.spend(range.len(), span)?;
         state[range].fill(value);
         self.writes[package] = true;
+        self.packages[package].owned_use |= value == EMPTY;
         Ok(())
     }
     fn field(&mut self, package: usize, name: &str, span: Span) -> R<Option<usize>> {
@@ -293,6 +297,7 @@ impl Scan<'_> {
                 {
                     state[slot] = EMPTY;
                     self.writes[package] = true;
+                    self.packages[package].owned_use = true;
                 } else {
                     self.expr(state, operand, depth + 1)?;
                 }
@@ -300,7 +305,9 @@ impl Scan<'_> {
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. }
             | CoreExprKind::IntegerConvert { value: operand, .. }
-            | CoreExprKind::TypeApply { callee: operand, .. }
+            | CoreExprKind::TypeApply {
+                callee: operand, ..
+            }
             | CoreExprKind::CompileTime(operand) => self.expr(state, operand, depth + 1)?,
             CoreExprKind::Try(operand) => {
                 self.expr(state, operand, depth + 1)?;
