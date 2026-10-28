@@ -230,6 +230,34 @@ fn sparse_same_type_roles_keep_distinct_runtime_state_and_each_child_mapping() {
         [1, 3, 3, 1]
     );
     native("sparse-runtime", SPARSE, "ABBA");
+    // This finite helper profile admits Fn through F/&F. An exclusive actual
+    // may reborrow to &F, but declaring an &mut F role does not silently alter
+    // its Fn bound. Retain the actual downstream diagnostic as a closed limit.
+    let closed = "fn make(n:i32)->impl Fn()->i32{return move()=>n}fn pair<F:Fn()->i32>(a:&mut F,b:&mut F)->i32{return a()+b()}fn main()->i32{var a=make(1);var b=make(2);return pair(&mut a,&mut b)-3}";
+    let case = Case::new("declared-fn-exclusive-role-closed");
+    let report = compile(&case, closed, None);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-VERIFY-CALLABLE-CONTRACT")
+    );
+    let shared = closed.replace("a:&mut F,b:&mut F", "a:&F,b:&F");
+    let case = Case::new("exclusive-actual-shared-role-control");
+    let report = compile(&case, &shared, None);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
 }
 
 #[test]
