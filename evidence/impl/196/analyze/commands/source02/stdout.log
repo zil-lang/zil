@@ -1,0 +1,11 @@
+
+running 5 tests
+test two_owned_once_roles_have_separate_finite_consumption ... ok
+test actual_branch_paths_cannot_be_replaced_with_independent_role_counts ... ok
+test actual_loop_control_preserves_roles_in_the_flow_contract ... ok
+test second_role_write_is_projected_into_the_actual_owned_environment ... ok
+source-derived Analyze196 joint child frontier: 2551; N-1 rejected and fresh N accepted
+test actual_nested_same_type_instances_keep_both_static_role_mappings ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

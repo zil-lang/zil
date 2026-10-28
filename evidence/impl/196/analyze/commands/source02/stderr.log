@@ -1,0 +1,5 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-expand)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.09s
+     Running tests/impl196_analyze_roles.rs (/workspace/scratch/39be3faa4442/targets196/analyze/debug/deps/impl196_analyze_roles-e306cee2e11810a8)
