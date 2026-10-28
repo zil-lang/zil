@@ -283,8 +283,8 @@ fn old_field_descriptions_cannot_reanimate_element_windows() {
         "stale-field-description",
         module,
         plan,
-        "E-BORROW-CONFLICT",
-        "",
+        "E-VERIFY-RESOURCE",
+        "invalidate a live description",
     );
 }
 
