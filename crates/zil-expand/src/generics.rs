@@ -337,7 +337,7 @@ impl<'a> Engine<'a> {
         for item in &module.items {
             if params(item).is_empty()
                 || matches!(&item.kind, ItemKind::Function(f)
-                    if callable::template(f)?.is_some() && f.generics.len() == 1)
+                    if callable::template(f)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
             {
                 self.budget.item(item)?;
                 self.pending.push_back(item.clone());
@@ -370,7 +370,7 @@ impl<'a> Engine<'a> {
             .filter(|p| {
                 retained
                     .as_ref()
-                    .is_none_or(|bound| p.name != bound.generic_name)
+                    .is_none_or(|bound| !bound.contains_generic(&p.name))
             })
             .collect();
         if parameters.len() != arguments.len() {
@@ -435,7 +435,7 @@ impl<'a> Engine<'a> {
             (&trait_bounds::Bounds::new(), &BTreeSet::new()),
             &mut self.budget,
             span,
-            retained.as_ref().map(|bound| bound.generic_name.as_str()),
+            retained.as_ref(),
         )?;
         self.budget.substituted_item(item, &substitution)?;
         let mut instance = item.clone();
@@ -446,7 +446,7 @@ impl<'a> Engine<'a> {
                 f.generics.retain(|parameter| {
                     retained
                         .as_ref()
-                        .is_some_and(|bound| parameter.name == bound.generic_name)
+                        .is_some_and(|bound| bound.contains_generic(&parameter.name))
                 });
                 f.name.clone_from(&generated);
                 self.signatures
@@ -519,7 +519,9 @@ impl<'a> Engine<'a> {
             ItemKind::Function(f) => {
                 let saved_callable = std::mem::replace(
                     &mut self.callable_name,
-                    callable::template(f)?.map(|bound| bound.generic_name),
+                    callable::template(f)?.and_then(|bound| {
+                        (bound.roles.len() == 1).then(|| bound.roles[0].generic_name.clone())
+                    }),
                 );
                 for parameter in &mut f.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
@@ -1246,7 +1248,11 @@ impl<'a> Engine<'a> {
                             if function.params.len() != actual.len() {
                                 return Err(error(e.span, "callable helper arity mismatch"));
                             }
-                            if function.generics.len() > 1 {
+                            if function
+                                .generics
+                                .iter()
+                                .any(|p| !callable.contains_generic(&p.name))
+                            {
                                 let variables: BTreeSet<_> =
                                     function.generics.iter().map(|p| p.name.clone()).collect();
                                 let mut found = BTreeMap::new();
@@ -1266,12 +1272,13 @@ impl<'a> Engine<'a> {
                                 for (index, (parameter, actual)) in
                                     function.params.iter().zip(actual).enumerate()
                                 {
-                                    if index == callable.index
-                                        && !callable::state_type(
-                                            &parameter.ty,
-                                            &callable.generic_name,
-                                        )
-                                    {
+                                    if callable.roles.iter().any(|role| {
+                                        role.index == index
+                                            && !callable::state_type(
+                                                &parameter.ty,
+                                                &role.generic_name,
+                                            )
+                                    }) {
                                         continue;
                                     }
                                     let actual = actual.ok_or_else(|| {
@@ -1291,7 +1298,7 @@ impl<'a> Engine<'a> {
                                     )?;
                                 }
                                 let types = function.generics.iter()
-                                    .filter(|p| p.name != callable.generic_name)
+                                    .filter(|p| !callable.contains_generic(&p.name))
                                     .map(|p| found.get(&p.name).cloned().ok_or_else(|| error(e.span,
                                         format!("Copy type parameter {} has no unique constraint", p.name))))
                                     .collect::<R<Vec<_>>>()?;
@@ -1302,7 +1309,7 @@ impl<'a> Engine<'a> {
                                         (&hints, &function.return_type)
                                     && let Some(mut result) = hints.symbolic_result(
                                         result,
-                                        &callable.generic_name,
+                                        &callable.roles[0].generic_name,
                                         &mut self.budget,
                                     )?
                                 {
@@ -1315,7 +1322,7 @@ impl<'a> Engine<'a> {
                                 && let (Some(hints), Some(result)) = (&hints, &function.return_type)
                                 && let Some(mut result) = hints.symbolic_result(
                                     result,
-                                    &callable.generic_name,
+                                    &callable.roles[0].generic_name,
                                     &mut self.budget,
                                 )?
                             {
@@ -1593,7 +1600,9 @@ impl<'a> Engine<'a> {
             .map(|f| callable::template(f))
             .transpose()?
             .flatten()
-            .map(|bound| bound.generic_name);
+            .and_then(|bound| {
+                (bound.roles.len() == 1).then(|| bound.roles[0].generic_name.clone())
+            });
         if let Some(ty) = self
             .signatures
             .get(name)

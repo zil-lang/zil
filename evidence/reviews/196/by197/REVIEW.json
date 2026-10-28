@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "task": "196",
+  "reviewer": "/root/impl197",
+  "verdict": "Pass",
+  "scope": "finite schema25 synchronous nonescaping helper profile with at most two actual callable roles; no approval of full language/product/B0 completion",
+  "independence": {
+    "production_authors": [
+      "/root",
+      "/root/roles196_frontend",
+      "/root/bundle_sync"
+    ],
+    "reviewer_wrote_196_production": false,
+    "slice197": "authored by this reviewer and explicitly excluded from independent review; relies on root review of that prerequisite"
+  },
+  "implementation_commit": "bcb00f550aaea48a56c888245a8a3c6a7422a926",
+  "tested_source_commit": "8fee0201a2d626877baa3d18e9db4a0e39c923ac",
+  "spec_hash": "09ef7fcdf2e71c2de38456d45d911aadc02dec3f355c4edaf8b51f2feb689c51",
+  "normative_hash": "92ede13ac8b9042f08a7b0d737abe6502f79eb6a62ffed8d92d77416585ed1a5",
+  "production_equivalence": "SOURCE.json",
+  "final_tests": {
+    "status": "Pass",
+    "passed": 41,
+    "failed": 0,
+    "new_independent_tests": 11,
+    "author_source_replay": 15,
+    "author_raw_wire_replay": 10,
+    "author_analyze_source_replay": 5,
+    "new_native_executions": 14,
+    "author_native_replay": 30,
+    "command": "commands/final01/command.json inside review-results.zip",
+    "git_status": ""
+  },
+  "consumer": {
+    "status": "Pass",
+    "source_commit": "8fee0201a2d626877baa3d18e9db4a0e39c923ac",
+    "cli_sha256": "2219bf76e9291ced4e929548a9591886a0dab17c29584e7819e711edcf86f723",
+    "cli_build": "commands/build-cli01/command.json inside review-results.zip",
+    "command": "commands/consumer-linux01/command.json inside review-results.zip",
+    "result": "consumer-linux01/summary.json inside review-results.zip",
+    "platform": "Linux",
+    "executions": 90,
+    "ordinary_executions": 14,
+    "instrumented_executions": 76,
+    "actual_allocation_failures": 56,
+    "every_observed_live_count_after_cleanup": 0,
+    "oracle": "actual separate A/B persistent buffers, ABBA traces, reverse ba Ticket cleanup, all reserve failures, EOF and invalid input",
+    "win64_wine_replay_by_reviewer": "NotRun; root retained author evidence and requested no further duplicate run"
+  },
+  "independent_attacks": {
+    "raw_wire_pairs": 11,
+    "raw_wire_routes": 22,
+    "actual_second_static_child_argument_permutation": "SafeReject / E-VERIFY-CALLABLE-CONTRACT",
+    "duplicate_actual_parameter_local": "SafeReject / E-VERIFY-PARAMETER",
+    "same_id_branch_store_mixed_origins": "Unsupported / mixed origins, not a borrow-safety proof",
+    "actual_branch_load_role_swap": "SafeReject / E-VERIFY-CALLABLE-CONTRACT",
+    "second_role_desc_write_against_first_role_current_capture": "SafeReject / E-BORROW-CONFLICT, direct and reversed-child paths",
+    "ordinary_desc_source_mutation_old_plan": "SafeReject / E-VERIFY-HOLD",
+    "ordinary_desc_source_mutation_matching_plan": "SafeReject / E-BORROW-CONFLICT; Analyze only rebuilt untrusted provenance, Verify independently checked permissions",
+    "flow_loop_order_and_prefix_suffix_swaps": "SafeReject / E-VERIFY-CALLABLE-CONTRACT",
+    "unused_owned_once_role_in_zero_runtime_loop": "Unsupported / cyclic FnOnce; declared closed profile"
+  },
+  "budgets": {
+    "defaults_changed": false,
+    "ordered_flow": {
+      "types": 1146,
+      "analyze": 3477,
+      "verify": 7643
+    },
+    "nested_captured_callback_types": 1155,
+    "checks": "exact N accepts, N-1 gives ResourceLimit, fresh N accepts"
+  },
+  "reviewed_mechanical_migration": {
+    "commit": "bcb00f550aaea48a56c888245a8a3c6a7422a926",
+    "files": 11,
+    "production_change": false,
+    "meaning": "single-role fields became roles[0]; old mode-only events became parameter-0 CallEvent; Core None became empty Vec; original source and mutations preserved",
+    "full_workspace_run": "parent responsibility, not performed by reviewer"
+  },
+  "boundary_observations": [
+    {
+      "case": "Fn-bound role declared &mut F",
+      "actual": "SafeReject / Verify / E-VERIFY-CALLABLE-CONTRACT",
+      "nearest_control": "same exclusive actual reborrowed through a declared &F helper succeeds",
+      "decision": "parent confirmed outside current finite profile; preserved late diagnostic without widening admission"
+    },
+    {
+      "case": "outer impl Fn for an actual FnMut captured callback wrapper",
+      "actual": "Unsupported / Types / opaque callable kind adaptation",
+      "decision": "preserved old opaque-mode boundary; not counted as borrowing proof"
+    }
+  ],
+  "retained_attempts": [
+    {
+      "command": "commands/build-cli01/command.json",
+      "source_commit": "8fee0201a2d626877baa3d18e9db4a0e39c923ac",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": []
+    },
+    {
+      "command": "commands/consumer-linux01/command.json",
+      "source_commit": "8fee0201a2d626877baa3d18e9db4a0e39c923ac",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": []
+    },
+    {
+      "command": "commands/final01/command.json",
+      "source_commit": "8fee0201a2d626877baa3d18e9db4a0e39c923ac",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": [
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+        "test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.12s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.78s"
+      ]
+    },
+    {
+      "command": "commands/nested01/command.json",
+      "source_commit": "9c8d8d2c3c172bd60fb1c40189e7fcfe802fd12e",
+      "status": "Fail",
+      "exit_code": 101,
+      "test_summaries": [
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.22s"
+      ]
+    },
+    {
+      "command": "commands/tests01/command.json",
+      "source_commit": "16d3d1b0b7531e637761436343a76ae7647d45de",
+      "status": "Fail",
+      "exit_code": 101,
+      "test_summaries": [
+        "test result: FAILED. 8 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.26s"
+      ]
+    },
+    {
+      "command": "commands/tests02/command.json",
+      "source_commit": "9a5bf8e4c73082f6714844a99a2dae0a1b4a2e83",
+      "status": "Fail",
+      "exit_code": 101,
+      "test_summaries": [
+        "test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.41s"
+      ]
+    },
+    {
+      "command": "commands/tests03/command.json",
+      "source_commit": "f1859060dbb4bc4dd0bac3ee2d7a07202c01189e",
+      "status": "Fail",
+      "exit_code": 101,
+      "test_summaries": [
+        "test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.39s"
+      ]
+    },
+    {
+      "command": "commands/tests04/command.json",
+      "source_commit": "55a49f664cbdb57ae6ac40a7d8c3a838470ba0c3",
+      "status": "Fail",
+      "exit_code": 101,
+      "test_summaries": [
+        "test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.41s"
+      ]
+    },
+    {
+      "command": "commands/tests05/command.json",
+      "source_commit": "7878931972b2ebf13581e9a45596700f89667139",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": [
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.70s"
+      ]
+    },
+    {
+      "command": "commands/tests06/command.json",
+      "source_commit": "7c3abc19a2f8cca2fe14e2b1d9becc6b87d6da75",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_summaries": [
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.76s"
+      ]
+    }
+  ],
+  "failures_explained": [
+    "tests01: ordinary generic R parameter direct field assignment required a writable place; new duplicate-local test expected a later code than the actual E-VERIFY-PARAMETER. Original source and attack retained.",
+    "tests02: writable R descriptor parameter remained outside the existing helper extra-parameter profile. It was not treated as borrowing safety evidence.",
+    "tests03: direct borrowed-slice capture remained Unsupported. The supported scalar element address is used in the final current-window fixture.",
+    "tests04: raw ByteBuffer source change first invalidated candidate Hold provenance. The original stale-Hold attack remains, and a matching-provenance attack separately reaches independent borrowing rejection.",
+    "nested01: wrong outer opaque Fn mode returned the existing Unsupported diagnostic rather than the new test assumed SafeReject; correct positive already executed O0/O2 and was retained."
+  ],
+  "blocking_findings": [],
+  "not_claimed": [
+    "independent review of slice197 authored by this reviewer",
+    "full language terminal state",
+    "full workspace acceptance",
+    "native Windows execution",
+    "Rust runtime, memory, maintenance or compilation advantage",
+    "product-gates satisfaction or product-level repeatable net breakthrough"
+  ],
+  "artifact_manifest": "MANIFEST.json",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}

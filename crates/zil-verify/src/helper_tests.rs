@@ -231,31 +231,39 @@ fn fixture(
         helper.operation(InstructionKind::DropClosure { local: parameter });
     }
     helper.f.callable_contract = Some(CallableParameterContract {
-        parameter: 0,
-        closure: ClosureId(0),
-        kind: requested,
-        hold: if matches!(capture, Type::Address { .. }) {
-            vec![0]
-        } else {
-            vec![]
-        },
-        call: if matches!(capture, Type::Address { .. } | Type::Desc(_)) {
-            vec![0]
-        } else {
-            vec![]
-        },
-        writes: if matches!(capture, Type::Address { mutable: true, .. } | Type::Desc(_)) {
-            vec![0]
-        } else {
-            vec![]
-        },
-        cleanup: if borrowed {
-            CallableCleanup::Borrowed
-        } else {
-            CallableCleanup::Owned
-        },
+        roles: vec![CallableRole {
+            parameter: 0,
+            closure: ClosureId(0),
+            kind: requested,
+            hold: if matches!(capture, Type::Address { .. }) {
+                vec![0]
+            } else {
+                vec![]
+            },
+            call: if matches!(capture, Type::Address { .. } | Type::Desc(_)) {
+                vec![0]
+            } else {
+                vec![]
+            },
+            writes: if matches!(capture, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                vec![0]
+            } else {
+                vec![]
+            },
+            cleanup: if borrowed {
+                CallableCleanup::Borrowed
+            } else {
+                CallableCleanup::Owned
+            },
+        }],
         traces: zil_ir::CallableTraces::Finite(vec![CallableTrace {
-            calls: vec![requested; count],
+            calls: vec![
+                CallEvent {
+                    parameter: 0,
+                    kind: requested
+                };
+                count
+            ],
             exit: CallableExit::Return,
         }]),
     });
@@ -379,10 +387,10 @@ fn forged_count_mode_parameter_identity_cleanup_and_duplicate_traces_fail() {
             0 => {
                 c.traces.as_finite_mut().unwrap()[0].calls.pop();
             }
-            1 => c.kind = CallableKind::FnOnce,
-            2 => c.parameter = 1,
-            3 => c.closure = ClosureId(77),
-            4 => c.cleanup = CallableCleanup::Owned,
+            1 => c.roles[0].kind = CallableKind::FnOnce,
+            2 => c.roles[0].parameter = 1,
+            3 => c.roles[0].closure = ClosureId(77),
+            4 => c.roles[0].cleanup = CallableCleanup::Owned,
             5 => {
                 let duplicate = c.traces.as_finite().unwrap()[0].clone();
                 c.traces.as_finite_mut().unwrap().push(duplicate);
@@ -407,9 +415,9 @@ fn dropped_hold_call_or_write_bounds_are_rejected_independently() {
             let mut raw = base.clone();
             let c = raw.module.functions[0].callable_contract.as_mut().unwrap();
             let fields = match field {
-                0 => &mut c.hold,
-                1 => &mut c.call,
-                _ => &mut c.writes,
+                0 => &mut c.roles[0].hold,
+                1 => &mut c.roles[0].call,
+                _ => &mut c.roles[0].writes,
             };
             if fields.is_empty() {
                 continue;
@@ -480,7 +488,8 @@ fn longer_call_sequence_is_checked_in_full_without_truncation() {
                     claim.traces.as_finite_mut().unwrap()[0].calls.pop();
                 }
                 1 => {
-                    claim.traces.as_finite_mut().unwrap()[0].calls[count - 1] = CallableKind::FnMut;
+                    claim.traces.as_finite_mut().unwrap()[0].calls[count - 1].kind =
+                        CallableKind::FnMut;
                 }
                 2 => {
                     claim.traces.as_finite_mut().unwrap()[0].exit = CallableExit::Trap;
@@ -969,7 +978,10 @@ fn conditional_owned(trap: bool) -> Raw {
             },
         },
         CallableTrace {
-            calls: vec![CallableKind::FnOnce],
+            calls: vec![CallEvent {
+                parameter: 0,
+                kind: CallableKind::FnOnce,
+            }],
             exit: CallableExit::Return,
         },
     ]);
@@ -1071,11 +1083,20 @@ fn first_error_stops_second_call() -> Raw {
     });
     f.callable_contract.as_mut().unwrap().traces = zil_ir::CallableTraces::Finite(vec![
         CallableTrace {
-            calls: vec![CallableKind::Fn],
+            calls: vec![CallEvent {
+                parameter: 0,
+                kind: CallableKind::Fn,
+            }],
             exit: CallableExit::Return,
         },
         CallableTrace {
-            calls: vec![CallableKind::Fn, CallableKind::Fn],
+            calls: vec![
+                CallEvent {
+                    parameter: 0,
+                    kind: CallableKind::Fn
+                };
+                2
+            ],
             exit: CallableExit::Return,
         },
     ]);
@@ -1103,6 +1124,7 @@ fn callback_claim_limits_are_paid_before_fingerprinting_and_no_partial_pass() {
         .callable_contract
         .as_mut()
         .unwrap()
+        .roles[0]
         .hold = vec![0; 4096];
     let limits = Limits {
         max_analysis_steps: 1000,
@@ -1185,7 +1207,7 @@ fn helper_contract_node_quotas_are_resource_limits_before_identity_checks() {
         let mut changed = raw.module.clone();
         let claim = changed.functions[0].callable_contract.as_mut().unwrap();
         match mutation {
-            0 => claim.hold = vec![0; 129],
+            0 => claim.roles[0].hold = vec![0; 129],
             1 => {
                 claim.traces =
                     zil_ir::CallableTraces::Finite(vec![
@@ -1194,7 +1216,15 @@ fn helper_contract_node_quotas_are_resource_limits_before_identity_checks() {
                         129
                     ])
             }
-            _ => claim.traces.as_finite_mut().unwrap()[0].calls = vec![CallableKind::Fn; 20_000],
+            _ => {
+                claim.traces.as_finite_mut().unwrap()[0].calls = vec![
+                    CallEvent {
+                        parameter: 0,
+                        kind: CallableKind::Fn
+                    };
+                    20_000
+                ]
+            }
         }
         let limits = Limits {
             max_nodes: 128,

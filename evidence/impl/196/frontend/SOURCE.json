@@ -1,0 +1,278 @@
+{
+  "baseline": "39459c4428f606ddbbe5a38ca735f2e9ede0609e",
+  "implementation_commit": "f360417bf3de9c5a87164f2ffd87a5f414be5710",
+  "git_tree": "0ef4b62e0dd62a8cefdcebdff41d7969f38f3657",
+  "schema": 25,
+  "cli": {
+    "sha256": "e83a70deeaa60a3616b3889af70fe80faab4f6f6984be7a84edeac0623cfdbd1",
+    "build_receipt": "commands/cli-build02/command.json",
+    "binary_bytes_in_archive": false
+  },
+  "actual_normative_files": {
+    "_zil_design.md": "09ef7fcdf2e71c2de38456d45d911aadc02dec3f355c4edaf8b51f2feb689c51",
+    "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+    "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+    "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+    "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+    "spec/interfaces.json": "25bc567b892a748865b0a6b00106f7cc99f260da13a4e6ab3c16a3a613c2fbc0",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+  },
+  "actual_normative_hash": "a7f030e1f008799712cc3410c492719f64a3bf86d8079251327b8e8a869736fe",
+  "frozen_registry_normative_hash": "6488fa9f20121c4268f13153c6daecbfd20da5eb5e8aa86630620413d41edadb",
+  "registry_matches_actual": false,
+  "registry_note": "Candidate contains aa039194 normative edits; root integration separately updates the frozen registry. Formal handoff not claimed here.",
+  "source_files": [
+    {
+      "path": "Cargo.lock",
+      "bytes": 1543,
+      "sha256": "76ff89481c963f58a5006edf64c4340d871a66a2ed7c8b2fd9bf984582fe69e6"
+    },
+    {
+      "path": "Cargo.toml",
+      "bytes": 1204,
+      "sha256": "295899fb51d7793ae4dbc61b93ccc9a1a0c374b01007ced4541a5e5354874f0b"
+    },
+    {
+      "path": "_zil_design.md",
+      "bytes": 117129,
+      "sha256": "09ef7fcdf2e71c2de38456d45d911aadc02dec3f355c4edaf8b51f2feb689c51"
+    },
+    {
+      "path": "crates/zil-base/src/lib.rs",
+      "bytes": 13543,
+      "sha256": "10347ee2f9dcfea0ee796ea67d6408da3228c9ce3bd15b8c8b0d5c65f2d11377"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/00_one_role_control.zil",
+      "bytes": 214,
+      "sha256": "d2532cde5a7fc6508b572052eed01b290dd7b2a46ee124aa6a7d5e6252de5042"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/01_same_factory_two_instances_direct.zil",
+      "bytes": 162,
+      "sha256": "e1bee2ddf056853fa932c1ff3d20b59d905ca2a3640f5b29d300f91b61d99ec4"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/02_same_f_shared_distinct.zil",
+      "bytes": 193,
+      "sha256": "1a2cec47f99f5004636287a8e904ac0b2716a67b06bdd627d31abdc6e57c6a2a"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/03_same_f_shared_same_actual.zil",
+      "bytes": 165,
+      "sha256": "ad1e3efa25ed4734e6d87bddecab8a42175443f01eb09a6f0aef0f18a2d6e306"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/04_same_f_mut_distinct.zil",
+      "bytes": 259,
+      "sha256": "fb400a72f1d7076cd8766bf0b0fb5d513fcd0d9be413784f18a98e2955df95ea"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/05_same_f_mut_same_actual.zil",
+      "bytes": 227,
+      "sha256": "f86676c75241924c95787167d0db50368c6276d38b7bae107f92d5539b02c6a4"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/06_f_g_composition.zil",
+      "bytes": 197,
+      "sha256": "f98380c4ba3bd2661a83557031837a0f9f8f5ccf5c925f72177968546c65b474"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/07_f_g_mixed_modes.zil",
+      "bytes": 252,
+      "sha256": "209bf648ee09d438e2565c408bda1680d9356a739e93fd5460cfc8d3f816d98d"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/08_same_f_once_distinct.zil",
+      "bytes": 193,
+      "sha256": "89b324db943456ce74c4afe535c4a12590253090768d78f8d367bcbf81581fb6"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/09_same_f_once_same_actual.zil",
+      "bytes": 163,
+      "sha256": "50ae39c478f8953668f08774fccd41bf537b640e244e1665e8870d4303394632"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/10_nested_role_permutation.zil",
+      "bytes": 235,
+      "sha256": "b35c1e18be88b16bf18e2e4ea21185b4754209cee60a976545c45a2d10a1b459"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/11_second_role_desc_alias.zil",
+      "bytes": 296,
+      "sha256": "97fbc4e68b7e84a39b8459942a86981d911799b600f3598b91dd41c5cd709e85"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_fixtures/12_nested_second_role_owned_write.zil",
+      "bytes": 317,
+      "sha256": "af4684984f06bf85e42756ea7f51941eeaed91e69dd251f18bcbafb0b6b6f4c5"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_roles_raw.rs",
+      "bytes": 13110,
+      "sha256": "3c53adbab6861c262156ce2c324d331890a32bc08504aa46ebcf3913377b1d71"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl196_roles_source.rs",
+      "bytes": 16202,
+      "sha256": "d30bc9b9da6047a58ea4973b606cc1588346f5b7d7f23a7b75cc0774a754914f"
+    },
+    {
+      "path": "crates/zil-expand/src/foreign.rs",
+      "bytes": 14815,
+      "sha256": "a03e4fa9c9e66cc40f8a2d8cf67424d4c51e7d4cf3b97482aa8dd00a706bdd77"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_callable.rs",
+      "bytes": 12955,
+      "sha256": "b32b7f9f8e0f86ccd0464c9e84784071e8e3d4be8083f8859e9b42f06a13a2d1"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_check.rs",
+      "bytes": 110748,
+      "sha256": "6657bbd7240f1100f431a886936e817a4110a12e5cd07bf7205b6d753aaf3a31"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_enum.rs",
+      "bytes": 23845,
+      "sha256": "56ad0f59d81f5aefd73e4996d1cb2ff3364fc9aa3ba544c6c7287b12ef6ff16d"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_state.rs",
+      "bytes": 3082,
+      "sha256": "6648636008c5166ab4e751701b6cd997b27d6df968cc4e65ddbb51c72b76f102"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_trait_bounds.rs",
+      "bytes": 15877,
+      "sha256": "8b61262fe721c0a7097eda58056921ad9c9bb3d95ee44c614689a213f1f6f9a7"
+    },
+    {
+      "path": "crates/zil-expand/src/generics.rs",
+      "bytes": 90959,
+      "sha256": "061bd2fdcaef92ab22d89c3f5075e2d5ddd89ced8057cd463abdb0927cd71209"
+    },
+    {
+      "path": "crates/zil-expand/src/receivers.rs",
+      "bytes": 10813,
+      "sha256": "a8c4e38d9ede0ebd1cd79730df973f23989e74ab976ade189bba1fd2ebf74190"
+    },
+    {
+      "path": "crates/zil-types/src/aggregates.rs",
+      "bytes": 60004,
+      "sha256": "04192ef8ce00a88726b5e3ed21ad15d75643fd3ad36186cb93ab8ff4d105ebf2"
+    },
+    {
+      "path": "crates/zil-types/src/callable_fields.rs",
+      "bytes": 11552,
+      "sha256": "852853d32afe1f4167be89ca1f47ec6c2ebc7ebfd72f7f78814a49f4dd4419ba"
+    },
+    {
+      "path": "crates/zil-types/src/closures.rs",
+      "bytes": 118820,
+      "sha256": "96a048ef7d58fe66933b53e578e0fe1609740874f7982914c4123a8e9712393f"
+    },
+    {
+      "path": "crates/zil-types/src/foreign.rs",
+      "bytes": 10033,
+      "sha256": "aee774541d9b440973b4535420f9d1e9db89b72b400f647444d85b65158f0eb6"
+    },
+    {
+      "path": "crates/zil-types/src/functions.rs",
+      "bytes": 3071,
+      "sha256": "83ee64107c4daf3c7abfc330b7f19eafb4e76e63ed704926573f78b91e163bf4"
+    },
+    {
+      "path": "crates/zil-types/src/helper_flow.rs",
+      "bytes": 20621,
+      "sha256": "b72e83be497a15b4c76b8e31aa6a7e0938068e9888fda9ce88b48615a80715fc"
+    },
+    {
+      "path": "crates/zil-types/src/helper_plan.rs",
+      "bytes": 23984,
+      "sha256": "dcaf868070d8a4eae899782a3e3c80973ed8c25028974b75d0401b7a9418fb50"
+    },
+    {
+      "path": "crates/zil-types/src/helpers.rs",
+      "bytes": 35825,
+      "sha256": "d53db6c1cc16416ed3265b06cbb77ad963a49523701c577c6784c67bebbaf437"
+    },
+    {
+      "path": "crates/zil-types/src/inference.rs",
+      "bytes": 129788,
+      "sha256": "c19a0b75656818a25a32136b8873ee5d09a3e222d38f7970cc24a6cdae8f1845"
+    },
+    {
+      "path": "crates/zil-types/src/lib.rs",
+      "bytes": 104343,
+      "sha256": "9092989d9d8da4048892b1f805ce6c51859ff6995409cad682cf923fc4fb628e"
+    },
+    {
+      "path": "crates/zil-types/src/names.rs",
+      "bytes": 13350,
+      "sha256": "3c5122d225646f78e4c0dc969dee1baa8894accd4fb647c30e82cac7ca87819e"
+    },
+    {
+      "path": "crates/zil-types/src/program.rs",
+      "bytes": 21016,
+      "sha256": "3c5d3d1496bae33673b2db8ce4c46df2d3c549bd7f236d93416925e2359808b6"
+    },
+    {
+      "path": "crates/zil-types/src/resource_effects.rs",
+      "bytes": 31959,
+      "sha256": "241986459f7ce876a3841711ea09685f9813f74b359d1e5d2a0d03b67b3ffe47"
+    },
+    {
+      "path": "crates/zil-types/src/resource_effects_worklist_tests.rs",
+      "bytes": 24775,
+      "sha256": "607297f9cb2f68bceee72a611c0c8a4667ecdbec1fb1b62cfdd06687c3d793ec"
+    },
+    {
+      "path": "crates/zil-types/src/retained.rs",
+      "bytes": 20595,
+      "sha256": "2228dacf0c450ff28e8be39a715f776e8940fc06e644f881b49280c673e075c3"
+    },
+    {
+      "path": "data/normative-inputs.json",
+      "bytes": 876,
+      "sha256": "1e64b4e88a1a604c16bbf40125b25e756dcec6b06726a9fc7851c6b40a1b3e7b"
+    },
+    {
+      "path": "examples/mainline/callback_roles196/factory.zil",
+      "bytes": 627,
+      "sha256": "e8aa8e86d30a40d2842bcdb16824eed54f032a95b6d561c481d19db05b38b234"
+    },
+    {
+      "path": "examples/mainline/callback_roles196/helpers.zil",
+      "bytes": 915,
+      "sha256": "0cdeb50682936d3fddc7fa68545c2e062ed79239a32c789ce87662c72effdcff"
+    },
+    {
+      "path": "examples/mainline/callback_roles196/main.zil",
+      "bytes": 777,
+      "sha256": "51a34647db3b9274e755e75ac5c522c55a750238c31fb0f30af7e07118b880c2"
+    },
+    {
+      "path": "examples/mainline/callback_roles196/portable.zil",
+      "bytes": 237,
+      "sha256": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c"
+    },
+    {
+      "path": "spec/interfaces.json",
+      "bytes": 80696,
+      "sha256": "25bc567b892a748865b0a6b00106f7cc99f260da13a4e6ab3c16a3a613c2fbc0"
+    },
+    {
+      "path": "tools/language/196/consumer.py",
+      "bytes": 13557,
+      "sha256": "55f09e1e4c90255966fe5635c32ca324d1e09a1d4db88173914306cc71ae55b7"
+    },
+    {
+      "path": "tools/language/196/type_probe.rs",
+      "bytes": 1613,
+      "sha256": "dbe672604f7122fa3d64fdc5e8d7f0a439b41d9392357bc97f2d3db6b6e45ec2"
+    }
+  ],
+  "default_limits_changed": false,
+  "product_gate_changed": false
+}

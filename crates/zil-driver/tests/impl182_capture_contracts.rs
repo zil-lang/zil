@@ -242,7 +242,7 @@ fn original_probes_keep_inputs_and_remove_the_unrelated_head_switch() {
         ),
         ResultCategory::Unsupported,
         Phase::Types,
-        "one finite Copy callable signature",
+        "one or two finite nonescaping callable roles with Copy results",
     );
 }
 
@@ -587,7 +587,7 @@ fn raw_and_wire_preserve_capture_indices_hold_and_public_upper_bounds() {
     let mut module = original.clone();
     for function in &mut module.functions {
         if let Some(contract) = &mut function.callable_contract {
-            contract.writes.clear();
+            contract.roles[0].writes.clear();
         }
     }
     reject_candidate(

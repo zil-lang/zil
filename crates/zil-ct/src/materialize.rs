@@ -452,7 +452,7 @@ mod tests {
     fn function(id: u32, body: CoreBlock) -> CoreFunction {
         CoreFunction {
             callable_return: None,
-            callable_parameter: None,
+            callable_parameters: Vec::new(),
             foreign: None,
             id: NodeId(id),
             name: format!("f{id}"),

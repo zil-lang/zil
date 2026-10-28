@@ -138,11 +138,7 @@ impl<'a> Index<'a> {
 
     pub(super) fn bounds(&self, function: &Function, budget: &mut Budget<'_>) -> R<Bounds> {
         let callable = callable::template(function)?;
-        self.parameter_bounds_except(
-            &function.generics,
-            budget,
-            callable.as_ref().map(|bound| bound.generic_name.as_str()),
-        )
+        self.parameter_bounds_except(&function.generics, budget, callable.as_ref())
     }
 
     pub(super) fn parameter_bounds(
@@ -157,11 +153,11 @@ impl<'a> Index<'a> {
         &self,
         parameters: &[GenericParam],
         budget: &mut Budget<'_>,
-        retained: Option<&str>,
+        retained: Option<&callable::CallableTemplates>,
     ) -> R<Bounds> {
         let mut result = Bounds::new();
         for parameter in parameters {
-            if retained == Some(parameter.name.as_str()) {
+            if retained.is_some_and(|roles| roles.contains_generic(&parameter.name)) {
                 continue;
             }
             let GenericParamKind::Type(bounds) = &parameter.kind else {
@@ -219,10 +215,10 @@ impl<'a> Index<'a> {
         (available, variables): (&Bounds, &BTreeSet<String>),
         budget: &mut Budget<'_>,
         span: Span,
-        retained: Option<&str>,
+        retained: Option<&callable::CallableTemplates>,
     ) -> R<()> {
         for parameter in parameters {
-            if retained == Some(parameter.name.as_str()) {
+            if retained.is_some_and(|roles| roles.contains_generic(&parameter.name)) {
                 continue;
             }
             let GenericParamKind::Type(bounds) = &parameter.kind else {

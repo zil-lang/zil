@@ -776,19 +776,7 @@ pub(super) fn check(
                 | InstructionKind::CallClosureMut { callee, arguments } => {
                     (locals.get(callee).unwrap_or(&empty), arguments)
                 }
-                InstructionKind::Call {
-                    function,
-                    arguments,
-                } => {
-                    let held = module.functions[function.0 as usize]
-                        .callable_contract
-                        .as_ref()
-                        .map(|contract| {
-                            &flow.values[arguments[contract.parameter as usize].0 as usize]
-                        })
-                        .unwrap_or(&empty);
-                    (held, arguments)
-                }
+                InstructionKind::Call { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
                 _ => (&empty, &[]),
             };
@@ -829,14 +817,29 @@ pub(super) fn check(
                 access.check(&empty, &facts.values[buffer.0 as usize], write, budget)?;
             }
             if let Some(capture) = capture {
-                for (source, write) in capture.accesses(instruction, &capture_locals, budget)? {
-                    access.check_descriptor_callback(
-                        f,
-                        held,
-                        &[source.position()],
-                        write,
-                        budget,
-                    )?;
+                if let Some(groups) = capture.call_role_accesses(instruction, budget)? {
+                    for (role, effects) in groups {
+                        let held = role.map_or(&empty, |value| &flow.values[value.0 as usize]);
+                        for (source, write) in effects {
+                            access.check_descriptor_callback(
+                                f,
+                                held,
+                                &[source.position()],
+                                write,
+                                budget,
+                            )?;
+                        }
+                    }
+                } else {
+                    for (source, write) in capture.accesses(instruction, &capture_locals, budget)? {
+                        access.check_descriptor_callback(
+                            f,
+                            held,
+                            &[source.position()],
+                            write,
+                            budget,
+                        )?;
+                    }
                 }
             }
             match &instruction.kind {

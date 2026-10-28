@@ -125,7 +125,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         strip_expr(&mut query);
         let function = CoreFunction {
             callable_return: None,
-            callable_parameter: None,
+            callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
             foreign: None,
             id: NodeId(u32::MAX),
@@ -474,7 +474,7 @@ impl Collector<'_> {
             self.charge(0)?;
             self.parameters(&contract.parameters, &contract.result)?;
         }
-        if let Some(contract) = &function.callable_parameter {
+        for contract in &function.callable_parameters {
             self.charge(0)?;
             self.text(&contract.generic_name)?;
             self.parameters(&contract.parameters, &contract.result)?;
