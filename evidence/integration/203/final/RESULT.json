@@ -153,5 +153,18 @@
   "native_windows": "NotRun",
   "formal_draft_product_pipeline": "NotRun",
   "compiler_speed_claim": "None; separate workstream",
-  "remaining_priority": "204 finite owned leaf Store capture and complete Package capture under existing ownership inference; all other full1.4 obligations retained"
+  "remaining_priority": "204 finite owned leaf Store capture and complete Package capture under existing ownership inference; all other full1.4 obligations retained",
+  "formal_plan_check": {
+    "status": "Pass",
+    "source_commit": "0f16704c1ed9b6410523829fbb1b30f160abbebb",
+    "receipt": "plan01/command.json",
+    "scope": "plan consistency and self-tests only"
+  },
+  "historical_handoff": {
+    "status": "Fail",
+    "errors": 1138,
+    "new_slice_errors_178_through_203": 0,
+    "receipt": "handoff01/command.json",
+    "note": "Inherited historical missing commits/evidence remain Fail; no fabricated repair or language-correctness claim."
+  }
 }
