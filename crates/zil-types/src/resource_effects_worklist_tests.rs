@@ -477,6 +477,7 @@ fn expression_variant(kind: &CoreExprKind) -> &'static str {
         Unary { .. } => "Unary",
         Binary { .. } => "Binary",
         Call { .. } => "Call",
+        TypeApply { .. } => "TypeApply",
         Tuple(_) => "Tuple",
         Array(_) => "Array",
         Index { .. } => "Index",
@@ -542,6 +543,10 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
             right: Box::new(name("b")),
         },
         call_expr().kind,
+        CoreExprKind::TypeApply {
+            callee: Box::new(call_expr()),
+            type_arguments: vec![desc()],
+        },
         CoreExprKind::Tuple(vec![name("a"), call_expr()]),
         CoreExprKind::Array(vec![name("a"), call_expr()]),
         CoreExprKind::Index {
@@ -597,7 +602,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
             .map(expression_variant)
             .collect::<BTreeSet<_>>()
             .len(),
-        25
+        26
     );
     let mut compared = 0;
     for kind in expressions {
@@ -698,7 +703,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
         ]);
         compared += compare_transfers(&core, label);
     }
-    assert_eq!(compared, (25 + 16) * 16 * 2);
+    assert_eq!(compared, (26 + 16) * 16 * 2);
 }
 
 #[test]

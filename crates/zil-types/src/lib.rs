@@ -154,101 +154,105 @@ fn signatures(
         if !f.type_parameters.is_empty() {
             continue;
         }
-        if f.return_type.is_package_address() {
-            errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
-        }
-        if f.return_type.is_shared_resource_head_address()
-            || (matches!(f.return_type, Type::Address { .. })
-                && (f
-                    .parameters
-                    .iter()
-                    .any(|p| p.ty.is_shared_resource_head_address())
-                    || f.receiver
-                        .as_ref()
-                        .is_some_and(|r| r.ty.is_shared_resource_head_address())))
-        {
-            errors.push(unsupported(
-                f.span,
-                "resource-head windows are synchronous inputs; returning a head or a window derived from a head input is not implemented",
-            ));
-        }
-        if !(f.callable_return.is_some()
-            || callable_fields::template(f)
-            || f.return_type.is_copy_value()
-            || f.return_type.is_scalar_or_address()
-            || packages::supported(&f.return_type)
-            || errors::supported(&f.return_type)
-            || packages::owned_array_supported(&f.return_type)
-            || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
-        {
-            errors.push(unsupported(
-                f.span,
-                format!("return type {}", f.return_type.name()),
-            ))
-        }
-        if matches!(f.result_mode, PassingMode::Create | PassingMode::Give)
-            && !matches!(f.return_type, Type::Managed(_))
-            && !errors::managed_success(&f.return_type)
-        {
-            errors.push(error(
-                "E-RESOURCE-RESULT-MODE",
-                f.span,
-                "create/give result requires a managed resource or direct owned success payload",
-            ));
-        }
-        if f.receiver.as_ref().is_some_and(|r| {
-            !(r.ty.is_copy_value()
-                || r.ty.is_scalar_or_address()
-                || resources::supported(&r.ty)
-                || packages::supported(&r.ty)
-                || errors::supported(&r.ty))
-        }) {
-            errors.push(unsupported(f.span, "receiver capability typing"))
-        }
-        for (index, p) in f.parameters.iter().enumerate() {
-            if f.callable_parameters
-                .iter()
-                .any(|bound| bound.index as usize == index)
-            {
-                continue;
-            }
-            if !(p.ty.is_copy_value()
-                || p.ty.is_scalar_or_address()
-                || resources::supported(&p.ty)
-                || packages::supported(&p.ty)
-                || errors::supported(&p.ty)
-                || packages::owned_array_supported(&p.ty))
-            {
-                errors.push(unsupported(
-                    p.span,
-                    format!("parameter type {}", p.ty.name()),
-                ))
-            }
-            if matches!(
-                p.mode,
-                PassingMode::Give
-                    | PassingMode::Create
-                    | PassingMode::Describe
-                    | PassingMode::Borrow
-                    | PassingMode::BorrowMut
-            ) && !(p.mode == PassingMode::Borrow
-                && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
-                    || p.ty.is_shared_resource_head_address()
-                    || p.ty.is_shared_package_address()))
-                && !(p.mode == PassingMode::BorrowMut
-                    && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address()))
-                && !(p.mode == PassingMode::Give
-                    && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
-                && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
-            {
-                errors.push(unsupported(p.span, "resource/address parameter mode"))
-            }
-        }
+        signature_errors(f, &mut errors);
     }
     if !errors.is_empty() {
         return Err(errors);
     }
     Ok(signatures)
+}
+
+fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
+    if f.return_type.is_package_address() {
+        errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
+    }
+    if f.return_type.is_shared_resource_head_address()
+        || (matches!(f.return_type, Type::Address { .. })
+            && (f
+                .parameters
+                .iter()
+                .any(|p| p.ty.is_shared_resource_head_address())
+                || f.receiver
+                    .as_ref()
+                    .is_some_and(|r| r.ty.is_shared_resource_head_address())))
+    {
+        errors.push(unsupported(
+            f.span,
+            "resource-head windows are synchronous inputs; returning a head or a window derived from a head input is not implemented",
+        ));
+    }
+    if !(f.callable_return.is_some()
+        || callable_fields::template(f)
+        || f.return_type.is_copy_value()
+        || f.return_type.is_scalar_or_address()
+        || packages::supported(&f.return_type)
+        || errors::supported(&f.return_type)
+        || packages::owned_array_supported(&f.return_type)
+        || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
+    {
+        errors.push(unsupported(
+            f.span,
+            format!("return type {}", f.return_type.name()),
+        ))
+    }
+    if matches!(f.result_mode, PassingMode::Create | PassingMode::Give)
+        && !matches!(f.return_type, Type::Managed(_))
+        && !errors::managed_success(&f.return_type)
+    {
+        errors.push(error(
+            "E-RESOURCE-RESULT-MODE",
+            f.span,
+            "create/give result requires a managed resource or direct owned success payload",
+        ));
+    }
+    if f.receiver.as_ref().is_some_and(|r| {
+        !(r.ty.is_copy_value()
+            || r.ty.is_scalar_or_address()
+            || resources::supported(&r.ty)
+            || packages::supported(&r.ty)
+            || errors::supported(&r.ty))
+    }) {
+        errors.push(unsupported(f.span, "receiver capability typing"))
+    }
+    for (index, p) in f.parameters.iter().enumerate() {
+        if f.callable_parameters
+            .iter()
+            .any(|bound| bound.index as usize == index)
+        {
+            continue;
+        }
+        if !(p.ty.is_copy_value()
+            || p.ty.is_scalar_or_address()
+            || resources::supported(&p.ty)
+            || packages::supported(&p.ty)
+            || errors::supported(&p.ty)
+            || packages::owned_array_supported(&p.ty))
+        {
+            errors.push(unsupported(
+                p.span,
+                format!("parameter type {}", p.ty.name()),
+            ))
+        }
+        if matches!(
+            p.mode,
+            PassingMode::Give
+                | PassingMode::Create
+                | PassingMode::Describe
+                | PassingMode::Borrow
+                | PassingMode::BorrowMut
+        ) && !(p.mode == PassingMode::Borrow
+            && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+                || p.ty.is_shared_resource_head_address()
+                || p.ty.is_shared_package_address()))
+            && !(p.mode == PassingMode::BorrowMut
+                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address()))
+            && !(p.mode == PassingMode::Give
+                && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
+            && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
+        {
+            errors.push(unsupported(p.span, "resource/address parameter mode"))
+        }
+    }
 }
 
 pub fn check(
