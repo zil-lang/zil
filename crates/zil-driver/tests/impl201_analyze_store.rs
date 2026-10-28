@@ -387,7 +387,11 @@ fn forged_self_containment_and_borrowed_modes_are_not_authority() {
 }
 
 #[test]
-fn original_package_store_capture_remains_closed_at_its_real_types_gate() {
+fn original_package_store_capture_is_owned_since_204() {
+    assert_eq!(
+        PACKAGE_STORE_CAPTURE,
+        include_str!("impl204_fixtures/02_original201_package_store_capture.zil")
+    );
     let case = Case::new("original-package-store-capture", PACKAGE_STORE_CAPTURE);
     let unit = SourceUnit::new(
         FileId(0),
@@ -399,19 +403,15 @@ fn original_package_store_capture_remains_closed_at_its_real_types_gate() {
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let result = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default());
     case.write("types.txt", format!("{result:#?}"));
-    let errors = result.unwrap_err();
-    assert!(
-        errors.iter().any(|d| d.phase == Phase::Types
-            && d.category == ResultCategory::Unsupported
-            && d.code == "E-UNSUPPORTED"
-            && d.message.contains(
-                "Package capture with Store fields requires a retained storage protocol"
-            )),
-        "{errors:?}"
-    );
-    case.write(
-        "not-run.txt",
-        "Analyze/Verify/native NotRun: existing source capture gate rejected the original input\n",
+    let module = result.unwrap();
+    let plan = zil_analyze::analyze(&module, &Limits::default());
+    case.write("analyze.txt", format!("{plan:#?}"));
+    pair(
+        "original-package-store-capture-204",
+        PACKAGE_STORE_CAPTURE,
+        module,
+        plan.unwrap(),
+        None,
     );
 }
 
