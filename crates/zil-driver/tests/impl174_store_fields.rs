@@ -563,7 +563,7 @@ fn raw_wire_reject_double_take_unpaid_replace_and_wrong_field_projection() {
 }
 
 #[test]
-fn raw_wire_store_bearing_capture_remains_closed() {
+fn raw_wire_store_capture_metadata_cannot_replace_the_actual_input() {
     use zil_ir::Type;
     let source = format!(
         "{MODEL} fn main()->i32{{let p=state(90,65,66);let item=item(67);let f=move ()=>item.n;return f()-67}}"
@@ -581,9 +581,9 @@ fn raw_wire_store_bearing_capture_remains_closed() {
         "store-state-capture",
         module,
         plan,
-        ResultCategory::Unsupported,
-        "E-UNSUPPORTED",
-        "Package capture with Store fields",
+        ResultCategory::SafeReject,
+        "E-VERIFY-CAPTURE",
+        "capture operand type differs from the environment field",
     );
 }
 
