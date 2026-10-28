@@ -311,20 +311,12 @@ fn resolve_indexed(
         callable_names: core
             .functions
             .iter()
-            .filter_map(|f| {
-                f.callable_parameter
-                    .as_ref()
-                    .map(|b| b.generic_name.clone())
-            })
+            .flat_map(|f| f.callable_parameters.iter().map(|b| b.generic_name.clone()))
             .chain(
                 project
                     .iter()
                     .flat_map(|m| m.functions.iter())
-                    .filter_map(|f| {
-                        f.callable_parameter
-                            .as_ref()
-                            .map(|b| b.generic_name.clone())
-                    }),
+                    .flat_map(|f| f.callable_parameters.iter().map(|b| b.generic_name.clone())),
             )
             .collect(),
         declarations,
@@ -352,7 +344,7 @@ fn resolve_indexed(
     }
     let mut functions = core.functions.clone();
     for f in &mut functions {
-        if let Some(bound) = &mut f.callable_parameter {
+        for bound in &mut f.callable_parameters {
             bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
             for ty in &mut bound.parameters {
                 *ty = resolver.ty(ty, 0, f.span).map_err(|e| vec![e])?;

@@ -64,7 +64,7 @@ impl Expander<'_> {
             .map_or(Type::Unit, |t| self.type_ref(t));
         self.functions.push(CoreFunction {
             callable_return: None,
-            callable_parameter: None,
+            callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
             id,
             name: function.name.clone(),

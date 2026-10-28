@@ -2,8 +2,6 @@
 //! A callee is checked normally before a parent Builder may use its instance.
 use super::*;
 
-pub(super) type Instance = (TemplateKey, ClosureId);
-
 #[derive(Clone, PartialEq, Eq)]
 enum Shape {
     Unknown,
@@ -38,8 +36,8 @@ pub(super) fn tree_work(count: usize) -> usize {
 
 struct Walk<'a, 'b> {
     context: &'a Context,
-    generic: &'a str,
-    environment: ClosureId,
+    bounds: &'a [CoreCallableParameter],
+    bindings: Bindings,
     tables: Rc<Tables>,
     scopes: Vec<BTreeMap<String, Shape>>,
     found: BTreeSet<Instance>,
@@ -90,33 +88,41 @@ impl Walk<'_, '_> {
     fn shape(
         &mut self,
         ty: &Type,
-        generic: &str,
-        id: ClosureId,
+        bounds: &[CoreCallableParameter],
+        bindings: Bindings,
         span: Span,
         depth: usize,
     ) -> R<Shape> {
         self.node(depth, span)?;
         Ok(match ty {
             Type::Named(name) => {
-                self.state
-                    .snapshot(name.len().saturating_add(generic.len()), span)?;
-                if name == generic {
-                    Shape::Environment(id)
+                self.state.snapshot(
+                    name.len().saturating_mul(bounds.len().saturating_add(1)),
+                    span,
+                )?;
+                if let Some(bound) = bounds.iter().find(|bound| bound.generic_name == *name) {
+                    Shape::Environment(bindings.get(bound.generic_index, span)?)
                 } else {
                     Shape::Unknown
                 }
             }
             Type::Closure(id) => Shape::Environment(*id),
-            Type::Address { inner, .. } => self.shape(inner, generic, id, span, depth + 1)?,
+            Type::Address { inner, .. } => self.shape(inner, bounds, bindings, span, depth + 1)?,
             Type::Package { fields, .. } => {
                 self.state.snapshot(fields.len(), span)?;
                 let mut captures = Vec::new();
                 for (name, ty) in fields {
                     let environment = match ty {
                         Type::Named(name) => {
-                            self.state
-                                .snapshot(name.len().saturating_add(generic.len()), span)?;
-                            (name == generic).then_some(id)
+                            self.state.snapshot(
+                                name.len().saturating_mul(bounds.len().saturating_add(1)),
+                                span,
+                            )?;
+                            bounds
+                                .iter()
+                                .find(|bound| bound.generic_name == *name)
+                                .map(|bound| bindings.get(bound.generic_index, span))
+                                .transpose()?
                         }
                         Type::Closure(id) => Some(*id),
                         _ => None,
@@ -236,13 +242,7 @@ impl Walk<'_, '_> {
                         Shape::Unknown
                     };
                     let shape = if let Some(ty) = ty {
-                        self.shape(
-                            ty,
-                            self.generic,
-                            self.environment,
-                            statement.span,
-                            depth + 1,
-                        )?
+                        self.shape(ty, self.bounds, self.bindings, statement.span, depth + 1)?
                     } else {
                         inferred
                     };
@@ -338,36 +338,45 @@ impl Walk<'_, '_> {
                 let tables = self.tables.clone();
                 if let Some(signature) = self.signature(callee, &tables)? {
                     if let Some(key) = signature.template {
-                        let bound = signature.callable.as_ref().ok_or_else(|| {
-                            unsupported(expression.span, "helper scheduling bound is absent")
-                        })?;
-                        let shape = shapes.get(bound.index as usize).ok_or_else(|| {
-                            error(
-                                "E-CALL-ARITY",
+                        if signature.callable.is_empty() {
+                            return Err(unsupported(
                                 expression.span,
-                                "helper scheduling argument count differs",
-                            )
-                        })?;
-                        self.state.snapshot(shape.work(), expression.span)?;
-                        let id = shape.environment().ok_or_else(|| unsupported(expression.span,
-                            "nested helper environment type cannot be established by the finite instance plan"))?;
+                                "helper scheduling bound is absent",
+                            ));
+                        }
+                        let mut bindings = Bindings::default();
+                        self.state
+                            .snapshot(signature.callable.len(), expression.span)?;
+                        for bound in &signature.callable {
+                            let shape = shapes.get(bound.index as usize).ok_or_else(|| {
+                                error(
+                                    "E-CALL-ARITY",
+                                    expression.span,
+                                    "helper scheduling argument count differs",
+                                )
+                            })?;
+                            self.state.snapshot(shape.work(), expression.span)?;
+                            let id = shape.environment().ok_or_else(|| unsupported(expression.span,
+                                "nested helper environment type cannot be established by the finite instance plan"))?;
+                            bindings.bind(bound.generic_index, id, expression.span)?;
+                        }
                         self.state.snapshot(
                             tree_work(self.found.len()).saturating_add(1),
                             expression.span,
                         )?;
-                        self.found.insert((key, id));
+                        self.found.insert((key, bindings));
                         self.shape(
                             &signature.result,
-                            &bound.generic_name,
-                            id,
+                            &signature.callable,
+                            bindings,
                             expression.span,
                             depth + 1,
                         )?
                     } else {
                         self.shape(
                             &signature.result,
-                            "",
-                            self.environment,
+                            &[],
+                            Bindings::default(),
                             expression.span,
                             depth + 1,
                         )?
@@ -378,13 +387,7 @@ impl Walk<'_, '_> {
             }
             CoreExprKind::Ascribed { ty, value } => {
                 self.expr(value, depth + 1)?;
-                self.shape(
-                    ty,
-                    self.generic,
-                    self.environment,
-                    expression.span,
-                    depth + 1,
-                )?
+                self.shape(ty, self.bounds, self.bindings, expression.span, depth + 1)?
             }
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::CompileTime(operand)
@@ -434,13 +437,7 @@ impl Walk<'_, '_> {
                 for (_, field) in fields {
                     self.expr(field, depth + 1)?;
                 }
-                self.shape(
-                    ty,
-                    self.generic,
-                    self.environment,
-                    expression.span,
-                    depth + 1,
-                )?
+                self.shape(ty, self.bounds, self.bindings, expression.span, depth + 1)?
             }
             CoreExprKind::RecordUpdate { ty, base, fields } => {
                 let original = self.expr(base, depth + 1)?;
@@ -448,13 +445,7 @@ impl Walk<'_, '_> {
                     self.expr(field, depth + 1)?;
                 }
                 if let Some(ty) = ty {
-                    self.shape(
-                        ty,
-                        self.generic,
-                        self.environment,
-                        expression.span,
-                        depth + 1,
-                    )?
+                    self.shape(ty, self.bounds, self.bindings, expression.span, depth + 1)?
                 } else {
                     original
                 }
@@ -509,16 +500,19 @@ fn dependencies(
         .cloned()
         .ok_or_else(|| unsupported(span, "helper scheduling template is absent"))?;
     let function = &template.function;
-    let bound = function
-        .callable_parameter
-        .as_ref()
-        .ok_or_else(|| unsupported(span, "helper scheduling template bound is absent"))?;
+    let bounds = &function.callable_parameters;
+    if bounds.is_empty() {
+        return Err(unsupported(
+            span,
+            "helper scheduling template bound is absent",
+        ));
+    }
     state.snapshot(1, span)?;
     let tables = state.helper_tables.clone();
     let mut walk = Walk {
         context: &template.context,
-        generic: &bound.generic_name,
-        environment: instance.1,
+        bounds,
+        bindings: instance.1,
         tables,
         scopes: vec![BTreeMap::new()],
         found: BTreeSet::new(),
@@ -526,13 +520,7 @@ fn dependencies(
         limits,
     };
     for parameter in &function.parameters {
-        let shape = walk.shape(
-            &parameter.ty,
-            &bound.generic_name,
-            instance.1,
-            parameter.span,
-            0,
-        )?;
+        let shape = walk.shape(&parameter.ty, bounds, instance.1, parameter.span, 0)?;
         walk.bind(&parameter.name, shape, parameter.span)?;
     }
     walk.block(&function.body, 0)?;
