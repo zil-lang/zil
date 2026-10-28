@@ -53,8 +53,9 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
         || bound.generic_name.is_empty()
         || bound.kind == CallableKind::FunctionPointer
         || !bound.parameters.iter().all(Type::is_copy_value)
-        || !bound.result.is_copy_value()
+        || !(bound.result.is_copy_value() || lending::supported_result(&bound.result))
         || !(function.return_type.is_copy_value()
+            || lending::supported_result(&function.return_type)
             || (owned_state
                 && callable_fields::placeholder_package(
                     &function.return_type,

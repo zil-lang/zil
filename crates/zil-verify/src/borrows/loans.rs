@@ -242,6 +242,18 @@ fn reconstruct(
                                 }
                             }
                         }
+                        InstructionKind::CallClosureShared { .. }
+                        | InstructionKind::CallClosureMut { .. }
+                            if matches!(f.values[id], Type::Address { .. }) =>
+                        {
+                            row.insert(id);
+                        }
+                        InstructionKind::CallClosureBorrowed { callee, .. }
+                            if matches!(f.values[id], Type::Address { .. }) =>
+                        {
+                            row.insert(id);
+                            join(&mut parents, &flow.values[callee.0 as usize], budget)?;
+                        }
                         InstructionKind::MakeClosure { captures, .. } => {
                             for capture in captures {
                                 join(&mut row, &flow.values[capture.0 as usize], budget)?;
@@ -626,15 +638,28 @@ pub(super) fn check(
     descriptor_origins: bool,
     budget: &mut Budget,
 ) -> Check<Apart> {
+    let lending = |ty: &Type| {
+        let ty = if let Type::Address { inner, .. } = ty {
+            inner.as_ref()
+        } else {
+            ty
+        };
+        matches!(ty, Type::Closure(id) if !module.closures[id.0 as usize].lending_captures.is_empty())
+    };
     if !descriptor_origins
+        && !f
+            .environment
+            .is_some_and(|id| !module.closures[id.0 as usize].lending_captures.is_empty())
         && !f.locals.iter().any(|l| {
-            affine_type(module, &l.ty)
+            lending(&l.ty)
+                || affine_type(module, &l.ty)
                 || byte_buffers::is_carrier(&l.ty)
                 || resources::arrays::is_owned_type(&l.ty)
                 || packages::has_callable_fields(&l.ty)
         })
         && !f.values.iter().any(|t| {
-            affine_type(module, t)
+            lending(t)
+                || affine_type(module, t)
                 || byte_buffers::is_carrier(t)
                 || resources::arrays::is_owned_type(t)
                 || packages::has_callable_fields(t)
@@ -847,6 +872,16 @@ pub(super) fn check(
                         budget,
                     )?;
                 }
+                InstructionKind::ReadCapture { index }
+                    if instruction
+                        .result
+                        .is_some_and(|value| f.values[value.0 as usize].is_copy_value()) =>
+                {
+                    access.check(&empty, &[Root::Capture(*index)], false, budget)?;
+                }
+                InstructionKind::WriteCapture { index, .. } => {
+                    access.check(&empty, &[Root::Capture(*index)], true, budget)?;
+                }
                 InstructionKind::BorrowCapture { .. } | InstructionKind::ReadCapture { .. } => {
                     if let Some(result) = instruction.result {
                         access.check(
@@ -924,6 +959,12 @@ pub(super) fn check(
                 InstructionKind::CallClosureMut { callee, arguments }
                 | InstructionKind::CallClosureShared { callee, arguments } => {
                     check_pairs(arguments, f, &flow, span, apart_ref, budget)?;
+                    access.check(
+                        &empty,
+                        &[Root::Local(*callee)],
+                        matches!(instruction.kind, InstructionKind::CallClosureMut { .. }),
+                        budget,
+                    )?;
                     if let Some(held) = locals.get(callee) {
                         for &loan in held {
                             access.check(held, &flow.roots[loan], flow.mutable[loan], budget)?;

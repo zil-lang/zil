@@ -1115,9 +1115,12 @@ impl Transfer<'_> {
                     state.desc[row] = BTreeSet::from([Root::Local(*local)]);
                 }
                 InstructionKind::BorrowCapture { index, .. } => {
-                    let debt =
-                        slots.capture_debt[*index as usize].expect("typed owned closure capture");
-                    if validate && state.debt[debt] != LIVE {
+                    // Independent capture typing also permits an inline Copy
+                    // field in a lending entry; such storage owns no resource.
+                    if let Some(debt) = slots.capture_debt[*index as usize]
+                        && validate
+                        && state.debt[debt] != LIVE
+                    {
                         return Err(bad(span, "borrow reads a transferred captured closure"));
                     }
                 }

@@ -236,7 +236,11 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !closure.result.is_copy_value()
+        ) || !(closure.result.is_copy_value()
+            || (!closure.lending_captures.is_empty()
+                && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                && matches!(&closure.result, Type::Address { inner, mutable: false }
+                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
                     || matches!(ty, Type::Closure(_))

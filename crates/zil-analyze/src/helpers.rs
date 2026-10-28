@@ -143,14 +143,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .callable_contract
             .as_ref()
             .ok_or_else(|| bad("callable parameter has no public helper contract"))?;
-        if candidates.len() != 1
-            || function.environment.is_some()
-            || function.foreign.is_some()
-            || !function.return_type.is_copy_value()
-        {
-            return Err(bad(
-                "helper requires one concrete environment parameter and a finite Copy result",
-            ));
+        if candidates.len() != 1 || function.environment.is_some() || function.foreign.is_some() {
+            return Err(bad("helper requires one concrete environment parameter"));
         }
         let local = *function
             .parameters
@@ -179,6 +173,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .closures
             .get(closure.0 as usize)
             .ok_or_else(|| bad("helper environment definition missing"))?;
+        if !(function.return_type.is_copy_value()
+            || (borrowed.is_some()
+                && !definition.lending_captures.is_empty()
+                && matches!(&function.return_type, Type::Address { inner, mutable: false }
+                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
+        {
+            return Err(bad(
+                "helper result requires finite Copy or a shared result from its borrowed environment",
+            ));
+        }
         if closure != claim.closure
             || claim.cleanup
                 != if borrowed.is_some() {
