@@ -1025,7 +1025,15 @@ pub(super) fn check_module(
         }
     }
     if has_buffers {
-        buffer_effects::close_apart(module, graphs, &facts, apart, budget)?;
+        buffer_effects::close_apart(
+            module,
+            graphs,
+            &facts,
+            &capture_facts,
+            &effects,
+            apart,
+            budget,
+        )?;
     }
     Ok(())
 }
