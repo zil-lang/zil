@@ -188,6 +188,27 @@ fn original_138_bytes_verify_as_an_unused_definition() {
 }
 
 #[test]
+fn refreshed_loop_alias_crosses_expand_and_types_without_changing_its_definition() {
+    // Exact 242-byte source from the Expand author's join02 regression.
+    let original = "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}\nfn recycle<T:Copy,F:Fn()->i32>(state:State<T,F>)->State<T,F>{var next=state;var view=&next.a;while view()==0 {let moved=next.a;next.a=moved;view=&next.a}view();return next}fn main(){}";
+    assert_eq!(original.len(), 242);
+    verified("loop-refresh-original-unused", original);
+
+    // Keep the entire generic definition unchanged, then instantiate it with
+    // two distinct owned environments. Runtime takes the zero-iteration edge;
+    // Types still checks the complete loop body and its join.
+    let definitions = original.strip_suffix("fn main(){}").unwrap();
+    let source = format!(
+        r#"{RESOURCE}{definitions}
+fn make(label:i32)->impl Fn()->i32{{let ticket=Ticket{{code:label}};return move()=>{{ticket.code;return 1}}}}
+fn pack<T:Copy,F:Fn()->i32>(a:F,b:F,tag:T)->State<T,F>{{return State::<T,F>{{bytes:bytes_new(),a:a,b:b,tag:tag}}}}
+fn main()->i32{{let state=pack(make(65),make(66),7);let next=recycle(state);return next.tag-7}}
+"#
+    );
+    native("loop-refresh-instantiated", &source, "AB", 0);
+}
+
+#[test]
 fn shared_fields_replace_one_environment_in_both_parameter_orders() {
     for fields in [1, 2] {
         for reverse in [false, true] {
