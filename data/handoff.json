@@ -8,8 +8,8 @@
     "task_root": ".task",
     "current_is_main": true
   },
-  "current_head": "0f16704c1ed9b6410523829fbb1b30f160abbebb",
-  "main_head": "0f16704c1ed9b6410523829fbb1b30f160abbebb",
+  "current_head": "4c092f6299869e8f046ac5d456b7ced30b4698b9",
+  "main_head": "4c092f6299869e8f046ac5d456b7ced30b4698b9",
   "spec_hash": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
   "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
   "worktrees": [
@@ -20,7 +20,7 @@
     },
     {
       "branch": "refs/heads/main",
-      "head": "0f16704c1ed9b6410523829fbb1b30f160abbebb",
+      "head": "4c092f6299869e8f046ac5d456b7ced30b4698b9",
       "is_main": true
     },
     {
@@ -9094,7 +9094,10 @@
           "passing": true
         },
         {
-          "path": "evidence/integration/203/final/RESULT.json"
+          "path": "evidence/integration/203/final/RESULT.json",
+          "sha256": "f8be220c62ffcfa1a81795961d430856bb6fbbb309326cddc79dd2bbd77aea62",
+          "location": "main",
+          "passing": true
         }
       ],
       "specification": {
@@ -13861,14 +13864,6 @@
     {
       "id": "165",
       "reason": "Task specification snapshot differs from its implementation commit."
-    },
-    {
-      "id": "203",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/203/final/RESULT.json"
-    },
-    {
-      "id": "measured",
-      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/203/final/RESULT.json"
     }
   ]
 }
