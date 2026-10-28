@@ -628,61 +628,69 @@ impl Walk<'_, '_> {
                         let mut bindings = Bindings::default();
                         self.state
                             .snapshot(signature.callable.len(), expression.span)?;
-                        for bound in &signature.callable {
-                            let shape = shapes.get(bound.index as usize).ok_or_else(|| {
-                                error(
-                                    "E-CALL-ARITY",
-                                    expression.span,
-                                    "helper scheduling argument count differs",
-                                )
-                            })?;
-                            self.state.snapshot(shape.work(), expression.span)?;
-                            let selected = if let Some(state) = &signature.state_parameter {
-                                let binding = state
-                                    .bindings
-                                    .iter()
-                                    .find(|b| b.generic_index == bound.generic_index)
-                                    .ok_or_else(|| {
-                                        unsupported(expression.span, "State plan binding is absent")
-                                    })?;
-                                let Type::Package { fields, .. } =
-                                    &signature.parameters[state.index as usize]
-                                else {
-                                    return Err(unsupported(
+                        if state_origins::replacement_signature(signature) {
+                            bindings =
+                                self.replacement_bindings(signature, &shapes, expression.span)?;
+                        } else {
+                            for bound in &signature.callable {
+                                let shape = shapes.get(bound.index as usize).ok_or_else(|| {
+                                    error(
+                                        "E-CALL-ARITY",
                                         expression.span,
-                                        "State plan parameter is not a Package",
-                                    ));
-                                };
-                                let (name, _) = &fields[binding.fields[0] as usize];
-                                self.state.snapshot(
-                                    name.len().saturating_mul(shape.work()),
-                                    expression.span,
-                                )?;
-                                if let Shape::Complete { ty, .. } = shape {
-                                    let Type::Package { fields, .. } = ty.as_ref() else {
+                                        "helper scheduling argument count differs",
+                                    )
+                                })?;
+                                self.state.snapshot(shape.work(), expression.span)?;
+                                let selected = if let Some(state) = &signature.state_parameter {
+                                    let binding = state
+                                        .bindings
+                                        .iter()
+                                        .find(|b| b.generic_index == bound.generic_index)
+                                        .ok_or_else(|| {
+                                            unsupported(
+                                                expression.span,
+                                                "State plan binding is absent",
+                                            )
+                                        })?;
+                                    let Type::Package { fields, .. } =
+                                        &signature.parameters[state.index as usize]
+                                    else {
                                         return Err(unsupported(
                                             expression.span,
-                                            "State plan owner is not a complete Package",
+                                            "State plan parameter is not a Package",
                                         ));
                                     };
-                                    fields.iter().find_map(|(field, ty)| match ty {
-                                        Type::Closure(id) if field == name => Some(*id),
-                                        _ => None,
-                                    })
-                                } else if let Shape::Package(actual) = shape {
-                                    actual
-                                        .iter()
-                                        .find(|(field, _)| field == name)
-                                        .map(|(_, id)| *id)
+                                    let (name, _) = &fields[binding.fields[0] as usize];
+                                    self.state.snapshot(
+                                        name.len().saturating_mul(shape.work()),
+                                        expression.span,
+                                    )?;
+                                    if let Shape::Complete { ty, .. } = shape {
+                                        let Type::Package { fields, .. } = ty.as_ref() else {
+                                            return Err(unsupported(
+                                                expression.span,
+                                                "State plan owner is not a complete Package",
+                                            ));
+                                        };
+                                        fields.iter().find_map(|(field, ty)| match ty {
+                                            Type::Closure(id) if field == name => Some(*id),
+                                            _ => None,
+                                        })
+                                    } else if let Shape::Package(actual) = shape {
+                                        actual
+                                            .iter()
+                                            .find(|(field, _)| field == name)
+                                            .map(|(_, id)| *id)
+                                    } else {
+                                        None
+                                    }
                                 } else {
-                                    None
-                                }
-                            } else {
-                                shape.environment()
-                            };
-                            let id = selected.ok_or_else(|| unsupported(expression.span,
+                                    shape.environment()
+                                };
+                                let id = selected.ok_or_else(|| unsupported(expression.span,
                                 "nested helper environment type cannot be established by the finite instance plan"))?;
-                            bindings.bind(bound.generic_index, id, expression.span)?;
+                                bindings.bind(bound.generic_index, id, expression.span)?;
+                            }
                         }
                         self.state.snapshot(
                             tree_work(self.found.len()).saturating_add(1),
@@ -867,6 +875,91 @@ impl Walk<'_, '_> {
             }
             _ => Shape::Unknown,
         })
+    }
+
+    fn replacement_bindings(
+        &mut self,
+        signature: &Signature,
+        arguments: &[Shape],
+        span: Span,
+    ) -> R<Bindings> {
+        let state = signature
+            .state_parameter
+            .as_ref()
+            .expect("State replacement owner");
+        let binding = &state.bindings[0];
+        self.state.snapshot(
+            signature
+                .callable
+                .len()
+                .saturating_add(binding.fields.len()),
+            span,
+        )?;
+        let direct = signature
+            .callable
+            .iter()
+            .find(|bound| bound.index != state.index)
+            .expect("State replacement direct source");
+        let owner = arguments.get(state.index as usize).ok_or_else(|| {
+            error(
+                "E-CALL-ARITY",
+                span,
+                "State replacement plan owner is absent",
+            )
+        })?;
+        let Type::Package { fields, .. } = &signature.parameters[state.index as usize] else {
+            return Err(unsupported(
+                span,
+                "State replacement plan requires a complete Package",
+            ));
+        };
+        self.state.snapshot(owner.work(), span)?;
+        let mut result = Bindings::default();
+        for selector in &binding.fields {
+            let (name, _) = fields
+                .get(*selector as usize)
+                .ok_or_else(|| unsupported(span, "State replacement plan selector is absent"))?;
+            self.state.snapshot(
+                name.len().saturating_add(1).saturating_mul(owner.work()),
+                span,
+            )?;
+            let selected = match owner {
+                Shape::Complete { ty, .. } => {
+                    let Type::Package { fields, .. } = ty.as_ref() else {
+                        return Err(unsupported(
+                            span,
+                            "State replacement plan owner is not a Package",
+                        ));
+                    };
+                    fields.iter().find_map(|(field, ty)| match ty {
+                        Type::Closure(id) if field == name => Some(*id),
+                        _ => None,
+                    })
+                }
+                Shape::Package(fields) => fields
+                    .iter()
+                    .find(|(field, _)| field == name)
+                    .map(|(_, id)| *id),
+                _ => None,
+            }
+            .ok_or_else(|| {
+                unsupported(span, "State replacement plan field environment is absent")
+            })?;
+            result.bind(binding.generic_index, selected, span)?;
+        }
+        let replacement = arguments.get(direct.index as usize).ok_or_else(|| {
+            error(
+                "E-CALL-ARITY",
+                span,
+                "State replacement plan value is absent",
+            )
+        })?;
+        self.state.snapshot(replacement.work(), span)?;
+        let id = replacement
+            .environment()
+            .ok_or_else(|| unsupported(span, "State replacement plan environment is absent"))?;
+        result.bind(direct.generic_index, id, span)?;
+        Ok(result)
     }
 }
 

@@ -1,0 +1,29 @@
+{
+  "reviewer": "/root/impl197",
+  "scope": "Frozen 204 compiler on byte-identical non-T unused alias source; no native execution",
+  "source_commit": "9ecae62a389f5357e62139061e6078e980493fd5",
+  "source_sha256": "7a88eac73129444f5035e476ce4c406beb12b902b37f63bff466dd98f54c718a",
+  "source_bytes": 233,
+  "compiler_source_commit": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+  "compiler_sha256": "baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d",
+  "compiler_normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "core_function_name_occurrences": {
+    "recycle": 1,
+    "main": 1
+  },
+  "typed_function_name_occurrences": {
+    "recycle": 0,
+    "main": 1
+  },
+  "native": "NotRun",
+  "observed": {
+    "status": "Success",
+    "phase": "verify",
+    "verification_runs": 1
+  },
+  "raw_receipt": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/baseline-non-t01/RESULT.json",
+    "sha256": "8d40ec59e31e8bc327de23648b24c877733d0d1774c6dc7616e2c37f399f2305"
+  },
+  "interpretation": "Unused recycle remains in Core but is absent from Typed; Verify1 applies to main, not the bad generic body. No runtime safety conclusion."
+}

@@ -1016,20 +1016,37 @@ pub(super) fn bounds(function: &CoreFunction) -> Cow<'_, [CoreCallableParameter]
     let Some(state) = function.state_parameters.first() else {
         return Cow::Borrowed(&function.callable_parameters);
     };
-    Cow::Owned(
-        state
-            .bindings
-            .iter()
-            .map(|binding| CoreCallableParameter {
-                index: state.index,
-                generic_index: binding.generic_index,
-                generic_name: binding.generic_name.clone(),
-                kind: binding.kind,
-                parameters: binding.parameters.clone(),
-                result: binding.result.clone(),
-            })
-            .collect(),
-    )
+    let mut bindings: Vec<_> = state
+        .bindings
+        .iter()
+        .map(|binding| CoreCallableParameter {
+            index: state.index,
+            generic_index: binding.generic_index,
+            generic_name: binding.generic_name.clone(),
+            kind: binding.kind,
+            parameters: binding.parameters.clone(),
+            result: binding.result.clone(),
+        })
+        .collect();
+    if replacement(function) {
+        bindings.extend(function.callable_parameters.iter().cloned());
+    }
+    Cow::Owned(bindings)
+}
+
+/// This classifies only the new finite table shape. validate_header/shape must
+/// still check the actual types, positions and complete declaration contract.
+pub(super) fn replacement(function: &CoreFunction) -> bool {
+    matches!(function.state_parameters.as_slice(), [state] if state.bindings.len() == 1)
+        && function.callable_parameters.len() == 1
+}
+
+pub(super) fn replacement_signature(signature: &Signature) -> bool {
+    signature
+        .state_parameter
+        .as_ref()
+        .is_some_and(|state| state.bindings.len() == 1)
+        && signature.callable.len() == 2
 }
 
 pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
@@ -1046,6 +1063,37 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
     let [state] = function.state_parameters.as_slice() else {
         return Err(reject());
     };
+    if replacement(function) {
+        let binding = &state.bindings[0];
+        let direct = &function.callable_parameters[0];
+        if !function.type_parameters.is_empty()
+            || function.callable_return.is_some()
+            || function.foreign.is_some()
+            || function.receiver.is_some()
+            || state.index as usize >= function.parameters.len()
+            || direct.index as usize >= function.parameters.len()
+            || state.index == direct.index
+            || function.parameters[state.index as usize].mode != PassingMode::Infer
+            || function.parameters[direct.index as usize].mode != PassingMode::Infer
+            || !matches!(&function.parameters[direct.index as usize].ty,
+                Type::Named(name) if name == &binding.generic_name)
+            || binding.generic_index != 0
+            || direct.generic_index != 0
+            || binding.generic_name.is_empty()
+            || binding.kind == CallableKind::FunctionPointer
+            || !(1..=2).contains(&binding.fields.len())
+            || binding.fields.windows(2).any(|pair| pair[0] >= pair[1])
+            || !binding.result.is_copy_value()
+            || !closures::supported_signature(&binding.parameters, &binding.result)
+            || direct.generic_name != binding.generic_name
+            || direct.kind != binding.kind
+            || direct.parameters != binding.parameters
+            || direct.result != binding.result
+        {
+            return Err(reject());
+        }
+        return Ok(());
+    }
     if !function.callable_parameters.is_empty()
         || !function.type_parameters.is_empty()
         || function.callable_return.is_some()
@@ -1092,6 +1140,41 @@ pub(super) fn validate_shape(function: &CoreFunction) -> R<()> {
     let Type::Package { fields, .. } = &function.parameters[state.index as usize].ty else {
         return Err(reject());
     };
+    if replacement(function) {
+        let binding = &state.bindings[0];
+        let direct = &function.callable_parameters[0];
+        if function.return_type != function.parameters[state.index as usize].ty
+            || function
+                .parameters
+                .iter()
+                .enumerate()
+                .any(|(index, parameter)| {
+                    index != state.index as usize
+                        && index != direct.index as usize
+                        && !parameter.ty.is_copy_value()
+                })
+        {
+            return Err(reject());
+        }
+        let mut covered = 0;
+        for (index, (_, ty)) in fields.iter().enumerate() {
+            if matches!(ty, Type::Named(name) if name == &binding.generic_name) {
+                if binding.fields.get(covered).copied() != Some(index as u32) {
+                    return Err(reject());
+                }
+                covered += 1;
+            } else if !(ty.is_copy_value()
+                || matches!(ty, Type::Managed(_) if resources::supported(ty)))
+            {
+                return Err(reject());
+            }
+        }
+        return if covered == binding.fields.len() {
+            Ok(())
+        } else {
+            Err(reject())
+        };
+    }
     let mut covered = 0;
     for (index, (_, ty)) in fields.iter().enumerate() {
         if let Some(binding) = state
@@ -1312,7 +1395,24 @@ pub(super) fn collect(
     state: &mut closures::State,
     limits: &Limits,
 ) -> R<Option<Uses>> {
+    // The older single-State encoding places its one bound in the direct
+    // table. A real owned Package input still needs declaration checking when
+    // unused; no synthetic public State table or concrete environment is made.
+    let span = function.span;
+    let legacy_candidate = function.state_parameters.is_empty()
+        && matches!(function.callable_parameters.as_slice(), [bound]
+            if function.parameters.get(bound.index as usize)
+                .is_some_and(|parameter| matches!(parameter.ty, Type::Package { .. })));
+    // Bound the complete legacy header/body before its classification scan and
+    // any snapshots. Profiles without this actual Package input stay on their
+    // original fast path and retain their existing charges.
+    if legacy_candidate {
+        let (work, _) = inference::helper_snapshot_work(function, limits)?;
+        state.snapshot(work, span)?;
+    }
+    let legacy_state = legacy_candidate && callable_fields::template(function);
     if function.state_parameters.is_empty()
+        && !legacy_state
         && !callable_fields::dual_constructor(
             &function.callable_parameters,
             &function.return_type,
@@ -1321,9 +1421,10 @@ pub(super) fn collect(
     {
         return Ok(None);
     }
-    let span = function.span;
-    let (work, _) = inference::helper_snapshot_work(function, limits)?;
-    state.snapshot(work, span)?;
+    if !legacy_candidate {
+        let (work, _) = inference::helper_snapshot_work(function, limits)?;
+        state.snapshot(work, span)?;
+    }
     let bounds = bounds(function).into_owned();
     let tables = state.helper_tables.clone();
     let mut walk = Walk {
@@ -1333,6 +1434,7 @@ pub(super) fn collect(
         scopes: vec![BTreeMap::new()],
         expressions: BTreeMap::new(),
         capture: false,
+        position_liveness: replacement(function) || legacy_state,
         live: 1,
         loops: Vec::new(),
         state,
@@ -1359,6 +1461,9 @@ struct Walk<'a, 's> {
     scopes: Vec<BTreeMap<String, Shape>>,
     expressions: BTreeMap<NodeId, Shape>,
     capture: bool,
+    // One F may name two fields plus a direct replacement. Its declaration
+    // kind is shared; MoveWalk owns each actual position and refill lifetime.
+    position_liveness: bool,
     // Four possible consumed-slot masks for this declaration's two distinct
     // sources. This is source capability checking, not a concrete loan proof.
     live: u8,
@@ -1556,6 +1661,64 @@ impl Walk<'_, '_> {
         }
         Ok(())
     }
+
+    fn replacement_substitutions(
+        &mut self,
+        signature: &Signature,
+        arguments: &[Shape],
+        span: Span,
+    ) -> R<Vec<(String, Shape)>> {
+        let state = signature
+            .state_parameter
+            .as_ref()
+            .expect("State replacement owner");
+        let binding = &state.bindings[0];
+        self.state.snapshot(
+            signature
+                .callable
+                .len()
+                .saturating_add(binding.fields.len())
+                .saturating_add(binding.generic_name.len())
+                .saturating_add(2),
+            span,
+        )?;
+        let direct = signature
+            .callable
+            .iter()
+            .find(|bound| bound.index != state.index)
+            .expect("State replacement direct source");
+        let owner = arguments
+            .get(state.index as usize)
+            .ok_or_else(|| error("E-CALL-ARITY", span, "State replacement owner is absent"))?;
+        let replacement = arguments
+            .get(direct.index as usize)
+            .ok_or_else(|| error("E-CALL-ARITY", span, "State replacement value is absent"))?;
+        let mut source = None;
+        for index in 0..=binding.fields.len() {
+            let actual = if let Some(field) = binding.fields.get(index) {
+                owner
+                    .field(*field)
+                    .ok_or_else(|| unsupported(span, "State replacement field origin was erased"))?
+            } else {
+                replacement
+            };
+            self.require(actual, binding.kind, span)?;
+            let actual = if let Shape::Address(inner) = actual {
+                inner.as_ref()
+            } else {
+                actual
+            };
+            if let Some(previous) = &source {
+                self.same_origin(previous, actual, span)?;
+            } else {
+                source = Some(self.copy(actual, span)?);
+            }
+        }
+        Ok(vec![(
+            binding.generic_name.clone(),
+            source.expect("one or two State fields"),
+        )])
+    }
     fn infer_value_shape(
         &mut self,
         pattern: &Type,
@@ -1608,6 +1771,9 @@ impl Walk<'_, '_> {
         Ok(())
     }
     fn consume_once(&mut self, shape: &Shape, span: Span) -> R<()> {
+        if self.position_liveness {
+            return Ok(());
+        }
         let Some(slot) = shape.slot() else {
             return Ok(());
         };
@@ -1752,6 +1918,9 @@ impl Walk<'_, '_> {
                         self.state
                             .snapshot(bound.name.len().saturating_add(1), span)?;
                         substitutions.push((bound.name.clone(), source));
+                    } else if replacement_signature(&signature) {
+                        substitutions =
+                            self.replacement_substitutions(&signature, &shapes, span)?;
                     } else {
                         for bound in &signature.callable {
                             let argument = shapes.get(bound.index as usize).ok_or_else(|| {
