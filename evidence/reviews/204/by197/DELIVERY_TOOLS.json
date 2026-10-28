@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "id": "204-delivery-tools-independent-review",
+  "reviewer": "/root/impl197",
+  "implementation_author": "/root/roles196_frontend",
+  "implementation_commit": "e3453cf0e163c6aee6bfc1b592fca27f1b600ed3",
+  "tested_source_commit": "e2121d35584fd8ba4260cfee8dd90e2af6d7da10",
+  "source_clean": true,
+  "verdict": "Pass",
+  "scope": "Frozen evidence transport tools only: compact ZIP directory reader and standard tar.xz conversion. Not a new language or compiler acceptance.",
+  "language_implementation_commit_unchanged": "85f01d622d9c31bffe165e5720bbf09658af5084",
+  "language_review_unchanged": "evidence/reviews/204/by197/REVIEW.json",
+  "production_or_normative_changes": [],
+  "reviewed_change_paths": [
+    "tools/language/204/compact_evidence.py",
+    "tools/language/204/directory_evidence.py",
+    "tools/language/204/solid_evidence.py",
+    "tools/language/204/test_compact_evidence.py"
+  ],
+  "byte_equivalence": {
+    "tool_implementation_and_tested_commit": "Identical bytes for all four changed tool files",
+    "evidence": "git diff e3453cf0 e2121d35 -- the four named paths returned empty"
+  },
+  "actual_independent_tests": {
+    "passed": 9,
+    "failed": 0,
+    "ignored": 0,
+    "command_receipt": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-delivery-review-by197/independent01/command.json",
+      "bytes": 1578,
+      "sha256": "43c138f35005536975603b47cbb89a9d1abc525aa3552ef3e59a464b246c3d2e"
+    },
+    "stdout": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-delivery-review-by197/independent01/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderr": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-delivery-review-by197/independent01/stderr.log",
+      "bytes": 1549,
+      "sha256": "adb92ac68e3eec7b87e7d35c27eaecda750b8b5fb278593b9b57f10bc9ff87ad"
+    },
+    "input_hashes": {
+      "tools/language/204/compact_evidence.py": "eebf570eda2eb659032587a7f6ffffd0778aac7effd3c63421fe772a02efbaa2",
+      "tools/language/204/directory_evidence.py": "dc4eafd9885bfb53111e2314656c2af8c99b09787569a322eadd3e91d46c6901",
+      "tools/language/204/solid_evidence.py": "d4aeee7fe63ebd06c0370276155cde78c4c18636aae29fdbd857f749061d6aba",
+      "tools/language/204/review_by197/test_transport_independent.py": "63fa8d673987b497dba8b13348c9c8ba131128254be61a5c158027664632ba37"
+    },
+    "covered": [
+      "Standard tar extraction and the shipped verify/restore CLI; exact ZIP-to-tar member sequence and bytes, including a binary input larger than 2 MiB, empty files, original Fail/Pass records and execution-product hashes",
+      "Object tampering and a restore-path attack with an otherwise valid recalculated manifest are rejected before restoration creates a destination",
+      "Root/member/ancestor symlinks and FIFO evidence entries are rejected; unchanged directory control still verifies",
+      "Real replacement by a same-byte different-inode object is rejected through both descriptor-anchored and explicitly exercised fallback readers",
+      "A manifest-consistent dot-root ZIP member and explicit symlink ZIP member are rejected",
+      "Existing outputs/partials, live or dangling symlinks, symlink source ZIP, existing restore targets and restoration inside the source directory do not overwrite or publish",
+      "Exact compressed-byte cap N succeeds, N-1 fails with an unchanged complete partial; retry cannot overwrite that partial",
+      "A real append to the source ZIP at the 1000-member compression callback prevents publication and retains the partial"
+    ]
+  },
+  "original_dot_input_replay": {
+    "reviewer": "/root/impl197",
+    "source_commit": "e2121d35584fd8ba4260cfee8dd90e2af6d7da10",
+    "original_input": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-evidence-directory/dot-before/dot.zip",
+      "bytes": 37700,
+      "sha256": "a1fcc3ddef5770e37b532a6598070f693b1e23753b8d60201dd351e71b99284c"
+    },
+    "operations": [
+      {
+        "operation": "verify",
+        "status": "Rejected",
+        "exception": "ValueError",
+        "message": "unsafe evidence path: '.'"
+      },
+      {
+        "operation": "convert",
+        "status": "Rejected",
+        "exception": "ValueError",
+        "message": "unsafe evidence path: '.'"
+      }
+    ],
+    "published": false,
+    "input_unchanged": true,
+    "scope": "Actual replay of original author dot input with frozen repaired tools; no compiler execution",
+    "receipt": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-delivery-review-by197/original-dot01/RESULT.json",
+      "bytes": 798,
+      "sha256": "f812b4a4b92f6f4d7989cecf9a91b2f1c9cdc13a5adca59dc6fada4c93db01b1"
+    },
+    "old_behavior_provenance": "Author original before fixture and standard-tar exit 2 retained separately; independent review does not claim author execution as its own"
+  },
+  "author_tests_read_only": {
+    "passed": 14,
+    "reviewer_reexecution": false,
+    "result": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-evidence-directory/final01/RESULT.json",
+      "bytes": 189,
+      "sha256": "2ebcc4751a7d62c0d87cc5d2cf962cb9a4bbdd2837890a4d4a2e3e112361fc33"
+    },
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-evidence-directory/final01/COMMAND.json",
+      "bytes": 1033,
+      "sha256": "3d4e93ec3221c11413ca082d59412878b7f46e48174e7efcfa429675d252bdd7"
+    },
+    "migration": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-evidence-directory/final01/DOT-MIGRATION.json",
+      "bytes": 1453,
+      "sha256": "29ea3ec61c036b82e55201aa69d736521ab6c65873a91530ee45003d2f420688"
+    },
+    "original_failure": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-evidence-directory/dot-before/RESULT.json",
+      "bytes": 941,
+      "sha256": "00348472f6b507da55505696a68106815ccf1a79333455d2e5e16198e62538ee"
+    }
+  },
+  "static_review": [
+    "Directory adaptation retains the same manifest membership, payload SHA/length, index source/component, object reference, restore-path and statistics checks as the ZIP path",
+    "Directory inventory uses lstat, real-file identity checks before/after reading and final inventory; descriptor reads use O_NOFOLLOW where available; fallback checks ancestor and opened-file identity",
+    "Conversion requires a verified frozen regular ZIP, rejects special members and file-as-parent layouts, streams regular tar members into one XZ compressor without extracting a member tree",
+    "Conversion checks every member against the source byte-for-byte, verifies CRCs and SHA, drains the XZ footer, and rechecks source fingerprint/SHA before no-overwrite hardlink publication",
+    "Manifest/index/record/readme/tool member bytes are not rewritten during conversion; newly packed containers explicitly include all three tools for extracted-directory use"
+  ],
+  "platform_scope": "Actual Linux Python/standard tar. The fallback reader code path was exercised on Linux; native Windows was not run.",
+  "complete_204_delivery_container": {
+    "integrity": "NotRun",
+    "reason": "Final aggregate ZIP and tar.xz not yet produced when this tools-only receipt was frozen; requires separate actual container equivalence receipt"
+  },
+  "unresolved_tool_defects": [],
+  "compiler_execution": "NotRun by this review; original 204 source, Linux consumer, root workspace and Clippy receipts retain their exact original identities"
+}
