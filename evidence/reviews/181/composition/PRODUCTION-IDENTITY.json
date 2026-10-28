@@ -42,5 +42,18 @@
     "crates/zil-types/src": "df6728f9a32839fb804aa8c7a459d09fff4aeead",
     "crates/zil-verify/src": "a0016bfb4221b4b9f509902a318478ff893d223b"
   },
-  "reviewer_changed_production": false
+  "reviewer_changed_production": false,
+  "final_author_binding": {
+    "source_commit": "2f42c86cbe75d5d542bb46dee28fc92e354a257f",
+    "production_difference_from_831": [
+      "crates/zil-expand/src/generic_check.rs"
+    ],
+    "difference_exact_added_deleted_lines_equal_helper_commit": "6b2a700a017679d7ded5550d313501578d082972",
+    "difference_sha256": "ba57799240ca3953011af77ff3b9b47b1a49e6ec3bbc4f4fceecff21ed70914e",
+    "projection_production_unchanged": true,
+    "all_other_crate_source_trees_unchanged": true,
+    "helper_independent_review_owner": "/root",
+    "helper_independent_review_source_reported": "47949d71",
+    "reviewer_is_helper_author_so_does_not_self_certify_helper": "This extension binds only the unchanged projection/composition implementation. The helper delta was independently replayed and accepted by root; combined final consumer runs are separately owned by the 181 author."
+  }
 }

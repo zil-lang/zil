@@ -148,7 +148,8 @@
     "No native Windows host run: Win64 execution is Wine compatibility.",
     "No full workspace run, performance comparison, new product gate, or full-language acceptance by this reviewer.",
     "178 helper concrete-resource regression repair is independently reviewed elsewhere; it is not silently included in this 831 production identity.",
-    "The initial handoff integrity failure remains preserved; it is not represented as a passing gate."
+    "The initial handoff integrity failure remains preserved; it is not represented as a passing gate.",
+    "Final author 2f42c86c adds only the already independently root-reviewed 178 helper delta relative to 831. Projection/composition code is unchanged. This reviewer authored that helper and does not self-certify it; the 181 final combined consumer runs belong to its author."
   ],
   "rust_goals": {
     "safety": "Narrow projection Copy/ownership and composition checks passed; independent review found and corrected a real unused-template safety regression. This is finite-slice evidence, not full-language safety.",
@@ -160,5 +161,7 @@
   "full_workspace": "NotRun",
   "full_language": "NotSatisfied",
   "product": "NotRun",
-  "thresholds_modified": false
+  "thresholds_modified": false,
+  "also_binds_final_author_projection_commit": "2f42c86cbe75d5d542bb46dee28fc92e354a257f",
+  "final_author_binding": "PRODUCTION-IDENTITY.json#final_author_binding"
 }

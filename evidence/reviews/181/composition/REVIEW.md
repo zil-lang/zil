@@ -29,3 +29,7 @@ This scoped review does not run the full workspace or product gates and does not
 ## Rust goals
 
 Finite projection safety and composed ownership have direct source, raw/Wire, native and allocation-failure evidence, and independent review caught a real definition-time error before acceptance. Four modules now reuse the generic Store and State callback facilities. No matched Rust runtime, peak-memory, maintenance-cost or compilation-cost comparison was performed in this review. These are reproducible language improvements, not proof of a product-level Rust advantage or a new general safety theorem. Full language remains NotSatisfied; product remains NotRun; no threshold changed.
+
+## Final author source binding
+
+Final author source `2f42c86cbe75d5d542bb46dee28fc92e354a257f` retains the exact reviewed projection and composition implementation. Its only production difference from `83174688` is the concrete-resource callable-helper correction from `6b2a700a`; the exact added/deleted source lines were compared. All other crate source trees, public schemas, specification and Cargo configuration are unchanged. Root independently reviewed that helper correction (reported source `47949d71`, fresh-target 27 groups Pass). Because this reviewer authored that helper, this record does not self-certify it. The earlier 67-test and 96-consumer observations retain their true commits; the final combined consumer replays are recorded separately by the 181 author.
