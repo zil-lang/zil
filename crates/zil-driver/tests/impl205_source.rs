@@ -183,7 +183,7 @@ fn main()->i32{{let state=pack(make(65,1){second_actual}{data_actual});var chang
 
 #[test]
 fn original_138_bytes_verify_as_an_unused_definition() {
-    assert_eq!(ORIGINAL.as_bytes().len(), 138);
+    assert_eq!(ORIGINAL.len(), 138);
     verified("original-unused", ORIGINAL);
 }
 
