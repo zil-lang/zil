@@ -742,6 +742,35 @@ fn repaired_legacy_definition_check_preserves_actual_lending_callback_use() {
 }
 
 #[test]
+fn instantiated_loop_refresh_is_checked_separately_from_its_unused_definition() {
+    // Byte-for-byte reproduction of the author's real instantiated control,
+    // first observed at crosspoint01. Its callback returns one, so native
+    // execution is only a zero-iteration control; the declaration still has
+    // to check every loop path rather than disappear before Types.
+    let fresh =
+        include_str!("impl205_independent_fixtures/06_author_instantiated_loop_refresh.zil");
+    let stale = fresh
+        .replace(
+            "var view=&next.a;while",
+            "var view=&next.a;let stale=view;while",
+        )
+        .replace("}view();return next", "}stale();return next");
+    assert!(stale.contains("let stale=view"));
+    assert!(stale.contains("}stale();return next"));
+    let fresh_case = Case::new("actual-loop-refresh-author-source");
+    let good = compile(&fresh_case, fresh, None);
+    let stale_case = Case::new("actual-loop-refresh-stale-copy");
+    let bad = compile(&stale_case, &stale, None);
+    // Keep both actual reports even when the valid program is still rejected.
+    assert_eq!(bad.status, ResultCategory::SafeReject, "{}", bad.to_json());
+    assert_eq!(bad.phase, Phase::Expand, "{}", bad.to_json());
+    assert!(!bad.artifacts.contains_key("executable"));
+    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+    assert_eq!(good.verification_runs, 1, "{}", good.to_json());
+    native("actual-loop-refresh-author-zero-iteration", fresh, "AB", 0);
+}
+
+#[test]
 fn conditional_alias_definition_is_checked_while_concrete_callable_phi_stays_closed() {
     let body = r#"var next=state;
 let first=&next.a;let second=&next.b;
