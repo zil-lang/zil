@@ -499,6 +499,14 @@ fn main()->i32{{let callback=make();let view=callback();return i32(view[0])-7}}
         "let count=0;return move()=>count",
     );
     native("old-child-without-store-still-lends", &old_control, "", 0);
+    native(
+        "unrelated-owned-store-does-not-taint-old-lending",
+        &format!(
+            "{old_control}\nfn unrelated()->impl Fn()->i32{{let items=empty();return move()=>i32(store_len(items))}}"
+        ),
+        "",
+        0,
+    );
     source_reject(
         "child-store-cannot-hide-lending-result",
         &lending,
@@ -1162,4 +1170,47 @@ fn legacy_byte_capture_has_exact_fresh_budget_control() {
 #[test]
 fn new_owned_store_capture_has_exact_recoverable_phase_budgets() {
     phase_budgets("new-two-store-capture", &format!("{PREFIX}{TWO_STORES}"));
+}
+
+#[test]
+fn unused_capture_qualification_has_exact_fresh_raw_and_wire_work_limits() {
+    let (module, plan, _) = unused_capture_control();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    let analyze = boundary(|n| {
+        zil_analyze::analyze(
+            &module,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual, plan))
+    });
+    let verify = boundary(|n| {
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|_| ())
+    });
+    let wire = boundary(|n| {
+        zil_verify::verify_module_bytes(
+            &bytes,
+            &module.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|_| ())
+    });
+    let case = Case::new("unused-capture-definition-boundaries");
+    case.write("typed.txt", format!("{module:#?}"));
+    case.write("candidate.wire", bytes);
+    case.write("boundaries.json",format!("{{\"analyze\":{analyze},\"verify_raw\":{verify},\"verify_wire\":{wire},\"store_operations\":0,\"make_closure_operations\":0,\"method\":\"N, N-1 ResourceLimit, fresh N; source-derived positive metadata control\"}}\n"));
 }
