@@ -1,0 +1,29 @@
+{
+  "status": "PreparationNotRun",
+  "basis": "After a valid source is accepted, derive actual TypedIR and candidate; do not use hand-written IR as source-language evidence",
+  "attacks": [
+    "Duplicate one complete child SSA as two MakePackage fields",
+    "Take child then replace Take with Load to fake a complete source local",
+    "Remove DropPackageField before overwriting a live child",
+    "Embed or return a partial child and recompute the candidate fingerprint",
+    "Change same-layout complete nominal child identity",
+    "Mark an Incoming resource leaf as Created after nested wrap/take/refill",
+    "Move/refill a child while retaining an old actual leaf Desc, including wrong-parent same-slot attack",
+    "Preserve empty/duplicate field-name, unused malformed type, depth/shape/layout bounds in both direct raw and Wire admission"
+  ],
+  "machine_positives": [
+    "Nested declaration-order cleanup in Linux and Win64/Wine O0/O2",
+    "Parent-only-child ownership and full parent relay/reassignment",
+    "One parent-field flag for each whole child; no flags in embedded child ABI",
+    "RHS preparation failure before old-child Drop/publish",
+    "Early return from a partially moved standalone child local",
+    "Final zero live allocation after every actual reserve failure"
+  ],
+  "closed_combinations": [
+    "Store qualification",
+    "Closure capture",
+    "New owning-array element shapes",
+    "New error-union payload shapes",
+    "Deep child addresses/lvalues"
+  ]
+}
