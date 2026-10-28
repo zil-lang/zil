@@ -170,7 +170,7 @@ def import_bundle(args):
         return {"status": "AlreadyImported", "source_commit": source, "destination_ref": destination}
     # No refspec destination and no FETCH_HEAD write: fetch objects only. A subsequent
     # compare-and-swap creates precisely one immutable ref, without touching any branch.
-    git(root, "fetch", "--no-tags", "--no-write-fetch-head", bundle, source_ref)
+    git(root, "fetch", "--no-tags", "--no-write-fetch-head", "--recurse-submodules=no", bundle, source_ref)
     if details["sha256"] != digest(bundle):
         raise BundleError("bundle changed during import; no destination ref was created")
     git(root, "cat-file", "-e", source + "^{commit}")
