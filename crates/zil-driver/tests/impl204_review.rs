@@ -275,6 +275,18 @@ fn make()->impl FnMut()->i32{
 fn main()->i32{var callback=make();return callback()-10}
 "#;
 
+const TAKE_WINDOW: &str = r#"
+fn make()->impl FnOnce()->i32{
+    let items=empty();store_reserve(items,1);store_push(items,Item{owner:Ticket{code:65},value:10});
+    return ()=>{
+        let view=store_at(items,0);let answer=view.value;
+        let taken=give items;store_reserve(taken,2);
+        return answer
+    }
+}
+fn main()->i32{let callback=make();return callback()-10}
+"#;
+
 const OUTER: &str = r#"
 package Pair<F>{first:F;manages marker:Ticket;second:F}
 package Cell<F>{manages owner:Ticket;callback:F}
@@ -370,6 +382,78 @@ fn captured_store_windows_keep_the_parent_until_the_last_real_use() {
         "capture-window-live-across-reserve",
         &source.replace("return answer\n", "return view.value\n"),
         Phase::Verify,
+        "E-BORROW-CONFLICT",
+    );
+}
+
+#[test]
+fn take_capture_cannot_leave_a_window_valid_for_a_reallocated_local_owner() {
+    let source = format!("{PREFIX}{TAKE_WINDOW}");
+    native("take-capture-window-last-use-control", &source, "A", 0);
+    // Only check the invalid source: it must never be executed as native code.
+    source_reject(
+        "take-capture-window-after-local-reserve",
+        &source.replace("return answer\n", "return view.value\n"),
+        Phase::Verify,
+        "E-BORROW-CONFLICT",
+    );
+}
+
+#[test]
+fn raw_take_capture_keeps_the_original_element_parent_after_local_reserve() {
+    let (mut module, plan) = baseline(
+        "take-capture-window-raw-source-control",
+        &format!("{PREFIX}{TAKE_WINDOW}"),
+    );
+    let function = module
+        .closures
+        .iter()
+        .find(|c| c.kind == CallableKind::FnOnce && c.captures.iter().any(is_owned_store))
+        .unwrap()
+        .function;
+    let block = module.functions[function.0 as usize]
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, InstructionKind::TakeCapture { .. }))
+        })
+        .unwrap();
+    let read = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ReadAddress { .. }))
+        .unwrap();
+    let read_value = block.instructions[read].result.unwrap();
+    let store = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind,InstructionKind::Store{value,..} if value==read_value))
+        .unwrap();
+    let take = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::TakeCapture { .. }))
+        .unwrap();
+    assert!(read < store && store < take);
+    let delayed_store = block.instructions.remove(store);
+    let delayed_read = block.instructions.remove(read);
+    let reserve = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::OwnedStoreReserve { .. }))
+        .unwrap();
+    // Preserve every original ValueId and operation, but make the actual
+    // element read occur after TakeCapture and the new local's reserve.
+    block.instructions.insert(reserve + 1, delayed_read);
+    block.instructions.insert(reserve + 2, delayed_store);
+    attack(
+        "take-capture-then-local-reserve-before-element-read",
+        module,
+        &plan,
+        false,
+        ResultCategory::SafeReject,
         "E-BORROW-CONFLICT",
     );
 }
