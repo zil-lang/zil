@@ -1,0 +1,200 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "review_kind": "ReadOnlyCompositionDeltaAndReceiptReview",
+  "reviewer": "/root/resume192",
+  "implementation_author": "/root",
+  "implementation_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c",
+  "reviewed_production_delta_commit": "a00472dab7fe4368ee8b1ea6c7d96df00cb6bb31",
+  "production_identical_between_commits": true,
+  "executed": 0,
+  "new_machine_tests_executed": 0,
+  "core_implementation_commit": "0a42188b9d94d3fff582c9a16511708a9959dc22",
+  "prior_independent_review_commit": "b45d9d4fca8e7f7927b9b6fe9282e13d111c7997",
+  "prior_review": {
+    "reviewer": "/root/resume190",
+    "original_path": "evidence/reviews/191/by-resume190/REVIEW.json",
+    "sha256": "23a83a2d55f6a3830096535142f725a422ff595b3a01d451491e19311b3927f5",
+    "stored_as": "prior-core-review.json"
+  },
+  "source_files": [
+    {
+      "path": "crates/zil-types/src/helpers.rs",
+      "sha256": "5e914dd861b6ebd7989eafef2a01107367aa909d9f651d09c00e7f03f366bc76",
+      "bytes": 39567
+    },
+    {
+      "path": "crates/zil-types/src/closures.rs",
+      "sha256": "d134161d68d4e6bd63442bd116dc2b6624118eb1feef738d4e4f4188f0159948",
+      "bytes": 114533
+    },
+    {
+      "path": "crates/zil-analyze/src/helpers.rs",
+      "sha256": "110149d3ab7915efaa57085fb1715f3af573c9cf885c0693bb3ad7ea48f55786",
+      "bytes": 24654
+    },
+    {
+      "path": "crates/zil-analyze/src/budget.rs",
+      "sha256": "3f6752772217eab14776949132dc0f12cfe31de3885eeddd0f421b8ecb1deb74",
+      "bytes": 27169
+    },
+    {
+      "path": "crates/zil-analyze/src/lib.rs",
+      "sha256": "bb6108e347d0a0b006ea6becfcc0eda12956e6081f2ef892299f0aef50a628c1",
+      "bytes": 16729
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "sha256": "0a3ba6f1c6f046038180336e50a84d1e105952bafa64e82a94aadb77d74c12cb",
+      "bytes": 116252
+    },
+    {
+      "path": "crates/zil-verify/src/helpers.rs",
+      "sha256": "c943018c7b7e603f0261712c3e21cace1b8009db388275c7094a0864c6edeef0",
+      "bytes": 24661
+    },
+    {
+      "path": "crates/zil-verify/src/lib.rs",
+      "sha256": "d2034485aaa07efe148613d4f750efc3c791c24fb2e33ed2b98df84c614a1789",
+      "bytes": 100236
+    },
+    {
+      "path": "crates/zil-verify/src/resources.rs",
+      "sha256": "4620c091f2029ea877d84567b03eb916d18862654587b3d68bcd5b474640ab98",
+      "bytes": 85049
+    },
+    {
+      "path": "crates/zil-ir/src/lib.rs",
+      "sha256": "daa04f69b3055165e64e08828510b624c7b7b2995a5b4407f51472a397ce1597",
+      "bytes": 71959
+    },
+    {
+      "path": "crates/zil-driver/tests/impl188_nested_helpers_raw.rs",
+      "sha256": "7e5819e082d5e5f113fd799a114b26320e53565672953165f56affb2c2d5130c",
+      "bytes": 23404
+    },
+    {
+      "path": "crates/zil-verify/src/helper_tests.rs",
+      "sha256": "4b375b10ab0e8af57054dadf94a22f0149a8b5308eb35377f34aa522e3ce2467",
+      "bytes": 43260
+    },
+    {
+      "path": "changes/191-callable-flow-public.md",
+      "sha256": "b5edf9d92ce1d41aa27e01ab8c459c36c9f219f850d033ed8deb1b154014a67f",
+      "bytes": 2744
+    }
+  ],
+  "normative_hash": "1f847737718bca55856287ea124f8c9084a4f5d838f466c0d6da5a04594b1113",
+  "spec_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "review_checks": [
+    "CallableTraces::as_finite/as_finite_mut return None for Flow. All three new188 forwarded paths turn None into explicit Unsupported, never an empty finite contract.",
+    "Types retains exactly-one actual environment, origin==1, completed callee lookup, parameter position and callable kind. It charges trace count and (2*calllen+1) per trace before the kind walk and to_vec clone. snapshot only decrements work_left, so it cannot mutate the checked contract.",
+    "Analyze retains its independently built callee order and checked marker, parameter position, closure identity, kind and actual origin. Verify independently retains its own dependency graph and EnvironmentOrigins; neither imports the other solver or trusts producer proof.",
+    "Finite callers still charge each prefix/child concatenation, checked-add counts, distinguish Return from Trap and preserve FnOnce and zero-call controls. Both helper validators and both resource consumers retain explicit Flow Unsupported.",
+    "Analyze preflight charges raw Flow nodes/calls/edges before CandidatePlan::empty_for fingerprinting. Verify check_claim_shape independently bounds raw metadata before module.fingerprint and semantic validation.",
+    "188 raw fixture edits only project Finite/Finite-mut before original index/iteration/retain/sort; original module mutations and negative controls remain.",
+    "06daaaed changes only helper_tests.rs assertions, with production byte-identical to a00472. Recursive raw/Wire input now requires the exact188 Unsupported/Verify/E-UNSUPPORTED diagnosis. Unused extra&i32/&mut i32 inputs pass under already-reviewed189; the original Desc case still rejects.",
+    "Original composed-tests01 remains Fail438/2 and is preserved. Final composed-verify02 is clean06daaaed Pass240/0. These author executions were read and hash-checked, not reexecuted by the reviewer.",
+    "No191 production file, budget default, schema, main task state, worktree or target was changed or created by this reviewer."
+  ],
+  "observed_author_receipts": {
+    "composed-check01": {
+      "source_commit": "a00472dab7fe4368ee8b1ea6c7d96df00cb6bb31",
+      "status": "Pass",
+      "exit_code": 0,
+      "git_status": "",
+      "category": "AuthorCommandReceiptReviewedNotReexecuted",
+      "files": [
+        {
+          "path": "observed-author-records/composed-check01/command.json",
+          "sha256": "651f9384da08afa5a35e1d2a33841ee184a6394e95ba65fbd0c38dcdaa8cb104",
+          "bytes": 893
+        },
+        {
+          "path": "observed-author-records/composed-check01/stdout.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "observed-author-records/composed-check01/stderr.log",
+          "sha256": "33fa443d9babf5d40052ee370f64d4fb74e86381bd98f84dc778ad57651f9dfb",
+          "bytes": 1143
+        }
+      ],
+      "counts": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 0
+      }
+    },
+    "composed-tests01": {
+      "source_commit": "a00472dab7fe4368ee8b1ea6c7d96df00cb6bb31",
+      "status": "Fail",
+      "exit_code": 101,
+      "git_status": "",
+      "category": "AuthorCommandReceiptReviewedNotReexecuted",
+      "files": [
+        {
+          "path": "observed-author-records/composed-tests01/command.json",
+          "sha256": "1cb4aaf1facdab5f32c50db95669a09a21b121869701c124fde7fbefd9f512d6",
+          "bytes": 1559
+        },
+        {
+          "path": "observed-author-records/composed-tests01/stdout.log",
+          "sha256": "ab9bbc83102041db4d85bbbb6f41657b5dac54cd2befdca89fbfdf989f39012d",
+          "bytes": 45064
+        },
+        {
+          "path": "observed-author-records/composed-tests01/stderr.log",
+          "sha256": "7ffb797f14a941e76c448892f17b14b11b13c90ff2113c34c645f09d208775fc",
+          "bytes": 3197
+        }
+      ],
+      "counts": {
+        "passed": 438,
+        "failed": 2,
+        "ignored": 0,
+        "suites": 16
+      }
+    },
+    "composed-verify02": {
+      "source_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c",
+      "status": "Pass",
+      "exit_code": 0,
+      "git_status": "",
+      "category": "AuthorCommandReceiptReviewedNotReexecuted",
+      "files": [
+        {
+          "path": "observed-author-records/composed-verify02/command.json",
+          "sha256": "1a1c32c5176011ed310730766f10c3617ada8db242186c111a8715a6f85c7bbd",
+          "bytes": 896
+        },
+        {
+          "path": "observed-author-records/composed-verify02/stdout.log",
+          "sha256": "3adefac6329af77d4ac7b5ee83735b6d05088bc088c276baa382b13c20dfaab7",
+          "bytes": 21724
+        },
+        {
+          "path": "observed-author-records/composed-verify02/stderr.log",
+          "sha256": "09b0e905e3fcb394bc740df08e0593f6d5d3ce131c9d551995343baec9edcb13",
+          "bytes": 289
+        }
+      ],
+      "counts": {
+        "passed": 240,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    }
+  },
+  "findings": [],
+  "limitations": [
+    "Independent read-only code and receipt review: executed=0; no new machine tests or runtime experiments.",
+    "Pass applies to the191 public Flow composition with accepted188/189 and precise inherited assertion migrations. Earlier core transport coverage is separately attributed to the included b45d9 review.",
+    "Flow canonicalization, semantic reconstruction, runtime loops and independent source/raw loop tests remain190;191 alone intentionally returns Unsupported.",
+    "This review does not cover the reviewer own192 changes or establish their integration.",
+    "Full language NotSatisfied; full-workspace execution, native Windows and ZUI product are not established here."
+  ]
+}
