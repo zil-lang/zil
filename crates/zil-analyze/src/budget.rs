@@ -380,7 +380,14 @@ pub(super) fn preflight(
             local_value(ty, Span::default(), module)?;
         }
         for ty in &closure.parameters {
-            scalar(ty, Span::default())?;
+            if let Type::Address { inner, .. } = ty
+                && inner.is_copy_value()
+                && closure.result.is_copy_value()
+            {
+                scalar(inner, Span::default())?;
+            } else {
+                scalar(ty, Span::default())?;
+            }
         }
         if matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))

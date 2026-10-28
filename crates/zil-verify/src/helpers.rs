@@ -374,7 +374,10 @@ pub(super) fn check_module(
                 continue;
             }
             let ty = &f.locals[local.0 as usize].ty;
-            if !ty.is_copy_value() && !matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+            if !ty.is_copy_value()
+                && !matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+                && !matches!(ty, Type::Managed(_) | Type::Package { .. })
+            {
                 return Err(unsupported(
                     "other callback helper parameters must be finite Copy, Managed or complete Package values",
                     Some(f.span),

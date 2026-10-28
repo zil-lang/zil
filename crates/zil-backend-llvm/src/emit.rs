@@ -250,7 +250,11 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                         && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
                     || packages::supported_type(ty, &lir.resources)
             })
-            || !closure.parameters.iter().all(Type::is_copy_value)
+            || !closure.parameters.iter().all(|ty| {
+                ty.is_copy_value()
+                    || (closure.result.is_copy_value()
+                        && matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()))
+            })
         {
             return unsupported("LLVM finite resource closure representation", None);
         }
