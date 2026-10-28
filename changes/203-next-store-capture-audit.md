@@ -48,6 +48,19 @@ LLVM 可考虑复用已有 `dynamic_store::helper(payload, resources, "drop")` �
 
 模式和来源不需要先发明新的空合同：Types 的 Store primitive 分支已经对 reserve/push/pop/at_mut 调用 `mark_resource_write`；Analyze 的 `DescribeCapture` 产生 `Source::OwnedField`，Verify 独立产生 `Root::OwnedCapture`，两核的 Store 写入口已有 shared-entry 写检查。StoreBorrow 的父根还必须穿过实际 capture/Package view 链；这是下一片 raw/来源派生测试需证明的链路，静态存在这些分支不算执行验证。
 
+### FnOnce 将捕获 Store 移入内部局部后消费
+
+进一步只读核查后，建议将这一紧邻路径纳入同片 Fn/FnMut/FnOnce 的范围，结果仍限 Copy/Unit，不由此开放返回 Store 或借自已消费环境的窗口。依据是已有表示和独立责任核已区分以下步骤：
+
+1. **创建时取得真实责任。** `InferBuilder::give` 在正文给出实际 Managed 时标记 `capture.moved` 和 `capture.consumed`，推导 FnOnce；Builder 创建环境时以真实 `TakeLocal` 交入 Store。规范 §9.1 已规定正文 `give r` 即使无外层 `move` 也在创建时拥有捕获；新合同宜写“依既有规则拥有捕获”，不能把 `move` 关键字当作权限证明。借来的 Desc 没有这项资格。
+2. **调用体内移动。** `Builder::resource_give` 对直接管理捕获产生已有 `TakeCapture`；绑定给普通局部后，该局部独立管理 Store。Package 的 Store 字段走已有 Package capture view 和 `TakePackageField`，不冒充直接捕获编号。
+3. **两核独立求证。** Analyze 检查活性、后续描述符/窗口以及消费模式后，将 `Place::Capture` 标为 Transferred；Verify 独立检查 capture debt、`no_live_description` 和 Consume 资格。局部退出仍不能留下活责任；非 FnOnce 环境在所有出口还必须恢复每个拥有字段的完整活性。
+4. **机器标志与清理。** `take_capture` 先清该捕获的 live flag，再把真实 Store 头移入局部；现有 `drop_managed` 已对局部 Store 选择精确 canonical drop helper。`call_closure_once` 在正文返回后再调用环境 drop，仅剩余活捕获会清理。下一片需要共同补的仍是环境 drop 的直接/Package Store 路由，不是把已转交 Store 再释放一次。
+
+因此失败不应被解释成“把 Store 自动退回捕获”。调用体取出后发生分配失败或提前 Copy 结果返回，由内部局部清理 Store，随后消费调用清理环境剩余捕获。取出前提前返回则保留原 capture flag，由消费调用后的环境 drop 清理。未调用就丢弃环境也走后者。调用点若在准备参数时失败、正文没有进入，已暂存的完整 callee 仍清理其原始 Store；不能伪造正文中的 TakeCapture 已执行。
+
+正式源/机器矩阵应以旁置 marker 与元素 marker 区分这些时点：未调用、进入但取出前返回、已取出后返回、已取出后 reserve 失败、实参准备失败、同一消费环境再次调用拒绝，以及活动 Store 元素窗口跨 TakeCapture 拒绝。Package 版本还须有 Store 字段已取出但旁置字段仍活的控制。这里没有追加门前 Unsupported 重复运行，也没有将上述静态路径计为通过；机器 flags、raw/Wire 和预算仍是正式施工必须执行的证据。
+
 ## 拟议验证与预算约束
 
 正式施工应先保留这四源原字节并加入有标记的独立清理 oracle：元素/容器/旁置资源顺序、空/非空 Store、创建和增长失败、调用早退、环境移动、丢弃未调用环境、重复 FnMut 调用。Linux 和 Win64/Wine 分别实际执行；原生 Windows 未运行仍单列 NotRun。当前四个预检只证明到达门，不提供上述机器成绩。
