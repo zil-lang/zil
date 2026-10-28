@@ -203,6 +203,7 @@ pub(super) fn add_definitions(
     functions: &[TypedFunction],
     definitions: &mut Vec<ResourceDefinition>,
     closures: &[ClosureDefinition],
+    bound_elements: &[(Type, Span)],
     limits: &Limits,
 ) -> R<()> {
     let mut work = limits.max_analysis_steps;
@@ -287,6 +288,46 @@ pub(super) fn add_definitions(
                     _ => {}
                 }
             }
+        }
+    }
+    // A complete ordinary StoreElement binding is an untrusted qualification
+    // constraint even when its body only transfers T and never makes a Store.
+    // Reuse the same canonical definition, with no value or ownership event.
+    for (element, span) in bound_elements {
+        let cost = inference::type_snapshot_work(element, *span, limits)?;
+        work = work
+            .checked_sub(cost.saturating_mul(2).saturating_add(2))
+            .ok_or_else(exhausted)?;
+        if !legacy_element(element) {
+            if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
+                return Err(unsupported(
+                    *span,
+                    "StoreElement bindings require finite direct-Managed Packages with at most two same-type callbacks",
+                ));
+            }
+            check_callback_captures(element, closures, &mut work, limits, *span)?;
+        }
+        let name = definition_name(element);
+        work = work
+            .checked_sub(found.len().saturating_mul(name.len().saturating_add(1)))
+            .ok_or_else(exhausted)?;
+        if let Some(old) = found.get(&name) {
+            let old_cost = inference::type_snapshot_work(old, *span, limits)?;
+            work = work
+                .checked_sub(cost.saturating_add(old_cost))
+                .ok_or_else(exhausted)?;
+            if old != element {
+                return Err(error(
+                    "E-OWNED-STORE-TYPE",
+                    *span,
+                    "one Store nominal element has conflicting layouts",
+                ));
+            }
+        } else {
+            work = work
+                .checked_sub(cost.saturating_add(1))
+                .ok_or_else(exhausted)?;
+            found.insert(name, element.clone());
         }
     }
     for (name, element) in found {

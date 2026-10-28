@@ -15,6 +15,7 @@ struct Budget<'a> {
     closures: usize,
     inside_store: bool,
     store_shapes: bool,
+    direct_type_callee: bool,
 }
 impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -26,6 +27,7 @@ impl<'a> Budget<'a> {
             closures: 0,
             inside_store: false,
             store_shapes: false,
+            direct_type_callee: false,
         }
     }
     fn work(&mut self, count: usize, span: Span) -> R<()> {
@@ -89,6 +91,9 @@ pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> 
         validate_type(&parameter.ty, 0, parameter.span, &mut budget)?;
     }
     validate_type(&function.return_type, 0, function.span, &mut budget)?;
+    for parameter in &function.type_parameters {
+        budget.work(parameter.name.len().saturating_add(1), function.span)?;
+    }
     for bound in &function.callable_parameters {
         callable_snapshot(bound, function.span, &mut budget)?;
     }
@@ -116,6 +121,9 @@ pub(super) fn signature_snapshot_work(
     }
     for bound in &signature.callable {
         callable_snapshot(bound, span, &mut budget)?;
+    }
+    if let Some(parameter) = &signature.type_parameter {
+        budget.work(parameter.name.len().saturating_add(1), span)?;
     }
     if let Some(bound) = &signature.callable_return {
         returned_snapshot(bound, span, &mut budget)?;
@@ -379,6 +387,30 @@ fn headers(
     validate_module_metadata(core, budget)?;
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
+        if !function.type_parameters.is_empty() {
+            budget.work(function.type_parameters.len(), function.span)?;
+            store_templates::validate_header(function)?;
+            budget.work(
+                function.type_parameters[0]
+                    .name
+                    .len()
+                    .saturating_add(core.functions.len()),
+                function.span,
+            )?;
+            if core
+                .functions
+                .iter()
+                .filter(|f| f.id == function.id)
+                .count()
+                != 1
+            {
+                return Err(error(
+                    "E-TYPE-PARAMETERS",
+                    function.span,
+                    "ordinary template definition identity is duplicated",
+                ));
+            }
+        }
         budget.work(function.name.len(), function.span)?;
         if let Some(foreign) = &function.foreign {
             budget.work(
@@ -435,14 +467,19 @@ fn headers(
             Signature {
                 callable: function.callable_parameters.clone(),
                 callable_return: function.callable_return.clone(),
-                template: (!function.callable_parameters.is_empty())
-                    .then_some((core.module_id, function.id)),
+                type_parameter: function.type_parameters.first().cloned(),
+                template: (!function.callable_parameters.is_empty()
+                    || !function.type_parameters.is_empty())
+                .then_some((core.module_id, function.id)),
                 foreign: function.foreign.is_some(),
                 cleanup: core
                     .aggregates
                     .iter()
                     .any(|a| a.teardown.as_ref() == Some(&function.name)),
-                id: FunctionId(id),
+                id: function
+                    .type_parameters
+                    .is_empty()
+                    .then_some(FunctionId(id)),
                 parameters: function.parameters.iter().map(|p| p.ty.clone()).collect(),
                 result: function.return_type.clone(),
                 public: exports.is_none_or(|e| e.contains(&function.id)),
@@ -635,16 +672,17 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             || packages::supported(ty)
             || packages::owned_array_supported(ty)
     };
-    if (!admitted(&signature.result)
-        && signature.callable_return.is_none()
-        && !callable_fields::signature(signature))
-        || signature.parameters.iter().enumerate().any(|(index, ty)| {
-            !admitted(ty)
-                && !signature
-                    .callable
-                    .iter()
-                    .any(|bound| bound.index as usize == index)
-        })
+    if signature.type_parameter.is_none()
+        && ((!admitted(&signature.result)
+            && signature.callable_return.is_none()
+            && !callable_fields::signature(signature))
+            || signature.parameters.iter().enumerate().any(|(index, ty)| {
+                !admitted(ty)
+                    && !signature
+                        .callable
+                        .iter()
+                        .any(|bound| bound.index as usize == index)
+            }))
     {
         return Err(unsupported(
             span,
@@ -758,6 +796,7 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
 }
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     budget.node(depth, e.span)?;
+    let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
     let mut found = false;
     match &e.kind {
         CoreExprKind::Literal(Constant::WideString(units)) => budget.work(units.len(), e.span)?,
@@ -795,10 +834,36 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
             found |= expression_has_closure(right, depth + 1, budget)?;
         }
         CoreExprKind::Call { callee, arguments } => {
+            let previous = budget.direct_type_callee;
+            budget.direct_type_callee = true;
             found |= expression_has_closure(callee, depth + 1, budget)?;
+            budget.direct_type_callee = false;
             for argument in arguments {
                 found |= expression_has_closure(argument, depth + 1, budget)?;
             }
+            budget.direct_type_callee = previous;
+        }
+        CoreExprKind::TypeApply {
+            callee,
+            type_arguments,
+        } => {
+            if !direct_type_callee
+                || type_arguments.len() != 1
+                || !(matches!(&callee.kind, CoreExprKind::Name(_))
+                    || matches!(&callee.kind, CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(_))))
+            {
+                return Err(error(
+                    "E-TYPE-APPLICATION",
+                    e.span,
+                    "one type argument is allowed only on a static call's direct callee",
+                ));
+            }
+            budget.work(type_arguments.len(), e.span)?;
+            for argument in type_arguments {
+                validate_type(argument, depth + 1, e.span, budget)?;
+            }
+            budget.direct_type_callee = false;
+            found |= expression_has_closure(callee, depth + 1, budget)?;
         }
         CoreExprKind::Index { object, index } => {
             found |= expression_has_closure(object, depth + 1, budget)?;
@@ -1016,12 +1081,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
     fn known_result(&mut self, signature: &Signature, span: Span) -> R<Term> {
         if matches!(signature.result, Type::Opaque { .. }) {
-            if let Some(id) = self.factory_terms.get(&signature.id) {
+            if let Some(id) = self.factory_terms.get(&signature.concrete_id(span)?) {
                 return Ok(Term::Closure(*id));
             }
             let term = self.known_term(&signature.result, span)?;
             if let Term::Closure(id) = term {
-                self.factory_terms.insert(signature.id, id);
+                self.factory_terms.insert(signature.concrete_id(span)?, id);
             }
             Ok(term)
         } else {
@@ -3006,6 +3071,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             CoreExprKind::Binary { left, right, .. } => {
                 self.normalize_expr(left, expression, statement)?;
                 self.normalize_expr(right, expression, statement)?;
+            }
+            CoreExprKind::TypeApply { callee, .. } => {
+                self.normalize_expr(callee, expression, statement)?
             }
             CoreExprKind::Call { callee, arguments } => {
                 self.normalize_expr(callee, expression, statement)?;
