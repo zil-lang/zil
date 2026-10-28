@@ -483,7 +483,7 @@ fn check(
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
                 | InstructionKind::StorePackageField { local, index, .. } => {
-                    Some(field_root(f, local, index))
+                    Some(field_root(f, local, index, budget)?)
                 }
                 InstructionKind::DropManaged { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
@@ -631,7 +631,7 @@ fn reconstruct(
                         {
                             // Only checked independent owning byte fields receive
                             // a projection; unknown resources keep the whole root.
-                            row.push(field_root(f, *local, *index));
+                            row.push(field_root(f, *local, *index, budget)?);
                         }
                         InstructionKind::ProjectOwnedArrayField { local, .. }
                             if tracked_desc(&f.values[result.0 as usize], head_windows) =>
@@ -651,9 +651,11 @@ fn reconstruct(
                         | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
                             roots_join(&mut row, &values[buffer.0 as usize], budget)?;
                         }
-                        InstructionKind::BorrowOwnedArrayElement { local, .. }
-                        | InstructionKind::BorrowPackageField { local, .. } => {
+                        InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                             row.push(Root::Local(*local));
+                        }
+                        InstructionKind::BorrowPackageField { local, index, .. } => {
+                            row.push(field_root(f, *local, *index, budget)?);
                         }
                         InstructionKind::BorrowLocal { local }
                         | InstructionKind::BorrowLocalMut { local } => {

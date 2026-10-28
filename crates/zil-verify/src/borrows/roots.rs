@@ -45,20 +45,34 @@ impl PartialOrd for Root {
     }
 }
 
-pub(super) fn field_root(function: &TypedFunction, local: LocalId, index: u32) -> Root {
+pub(super) fn field_root(
+    function: &TypedFunction,
+    local: LocalId,
+    index: u32,
+    budget: &mut Budget,
+) -> Check<Root> {
     let Some(Type::Package { fields, .. }) = function.locals.get(local.0 as usize).map(|l| &l.ty)
     else {
-        return Root::Local(local);
+        return Ok(Root::Local(local));
     };
-    match fields.get(index as usize) {
-        Some((_, ty))
-            if byte_buffers::is_owned(ty)
-                || matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) =>
+    let Some((_, ty)) = fields.get(index as usize) else {
+        return Ok(Root::Local(local));
+    };
+    // Package validation separately proves the real inline field layout and
+    // self-contained callback environment. Never infer separation from a name
+    // or a distinct payload type. Unknown user cleanup keeps its coarse root.
+    resources::charge_payload(ty, budget)?;
+    Ok(
+        if ty.is_copy_value()
+            || matches!(ty, Type::Closure(_))
+            || byte_buffers::is_owned(ty)
+            || matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. }))
         {
             Root::Field(local, index)
-        }
-        _ => Root::Local(local),
-    }
+        } else {
+            Root::Local(local)
+        },
+    )
 }
 
 pub(super) fn overlaps(left: &[Root], right: &[Root], budget: &mut Budget) -> Check<bool> {
