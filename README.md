@@ -1,4 +1,27 @@
-# ZIL — 209 主线集成：LLVM API研发默认（2026-10-28）
+# ZIL — 212：直接LLVMBuilder与当前核验后的对象复用
+
+本轮基于实际GitHub 211（`b8e34416…`）续接。标准CLI已直接使用LLVMBuilder和结构化CGU，
+不再解析LLVM文本；旁置`.ll`只作诊断和Clang对照。语言主线仍是本研究基线的177/Wire21，
+不把另一个会话尚未整合的语言能力写成本轮完成。
+
+新加显式`--object-cache DIR`：每个请求仍运行独立Verify和机器预检；只复用相同机器输入的
+可信本地对象，成功发布后才写入新缓存。它不是构建no-op、语言授权缓存或远端缓存。
+默认单CGU/单工人和缓存关闭不变；开发O0可显式使用8CGU/4工人，O2先保留单CGU。
+
+```sh
+# 安装环境与编译器自身构建见下方LLVM API文档。
+./target/release/zil build examples/mainline/zui_language177/main.zil -o out/state \
+  --opt O0 --codegen-units 8 --codegen-jobs 4 \
+  --cache-dir .zil/source-candidates --object-cache .zil/native-objects
+printf '3' | ./out/state
+```
+
+预期输出`DEFHZMNOPK`、退出0。当前缓存宿主限Linux x86_64，依赖锁定Rust 1.99.1与LLVM 17.0.6。
+实现和信任边界见[对象缓存](docs/research/212/CACHE.md)，安装见[LLVM API](docs/LLVM-API.md)。
+本轮实测与不利结果见[212结果](docs/research/212/RESULTS.md)；不升级完整语言、B0或产品门。
+以下历史章节属于各自提交，不能用其“当前/默认”措辞覆盖上述本版状态。
+
+# 209历史：LLVM API研发默认（2026-10-28）
 
 当前源码整合GitHub主线`ab2aaa7…`、语言177/Wire21及LLVM API208。标准CLI构建启用LLVM API，`zil build/run`不再需要`--backend llvm-api`；Clang作为显式差分参考，`--no-default-features`可构建无LLVM动态库的参考版。当前开发宿主验证限Linux x86_64，Windows宿主安装与原生执行没有因此验收。
 
