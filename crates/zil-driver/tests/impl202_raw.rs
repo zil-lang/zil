@@ -260,6 +260,11 @@ fn ordinary_metadata_and_application_placement_are_checked_when_unused() {
                 "E-TYPE-APPLICATION"
             }
         };
-        inspect(shape, &core, Some(code));
+        // 203 permits a static ordinary call whose value parameter uniquely
+        // determines T. This unused definition supplies its own lexical T;
+        // it does not create or complete a recursive runtime instance. The
+        // instantiated recursion guard remains in impl202_independent.
+        let expected = (shape != "bare-call").then_some(code);
+        inspect(shape, &core, expected);
     }
 }

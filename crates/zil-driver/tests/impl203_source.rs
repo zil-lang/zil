@@ -466,3 +466,101 @@ fn five_module_consumer_infers_complete_value_types() {
         }
     }
 }
+
+fn types_boundary<T: PartialEq + std::fmt::Debug>(
+    mut run: impl FnMut(usize) -> Result<T, Vec<zil_base::Diagnostic>>,
+    maximum: usize,
+) -> (usize, String) {
+    let expected = run(maximum).unwrap();
+    let (mut low, mut high) = (0, maximum);
+    while low + 1 < high {
+        let mid = low + (high - low) / 2;
+        match run(mid) {
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                high = mid;
+            }
+            Err(errors) => {
+                assert!(
+                    errors.iter().all(|d| {
+                        d.phase == zil_base::Phase::Types
+                            && d.category == ResultCategory::ResourceLimit
+                    }),
+                    "{errors:#?}"
+                );
+                low = mid;
+            }
+        }
+    }
+    assert_eq!(run(high).unwrap(), expected);
+    let below = run(high - 1).unwrap_err();
+    assert!(
+        below.iter().all(|d| {
+            d.phase == zil_base::Phase::Types && d.category == ResultCategory::ResourceLimit
+        }),
+        "{below:#?}"
+    );
+    assert_eq!(run(high).unwrap(), expected);
+    (high, format!("{below:#?}"))
+}
+
+#[test]
+fn dual_state_and_value_inferred_instances_have_exact_types_boundaries() {
+    use zil_base::{Limits, TargetProfile};
+    let mixed = mutable_store(true);
+    let bare = mixed.replace(
+        "run(pack(make(65,10),other(66,20),17))?",
+        "run(identity(pack(make(65,10),other(66,20),17)))?",
+    );
+    assert_ne!(bare, mixed);
+    for (label, source) in [
+        ("same-declared-modes", MARKERS),
+        ("different-mutable-store", mixed.as_str()),
+        ("bare-complete-value", bare.as_str()),
+    ] {
+        let case = Case::new(&format!("budget-{label}"));
+        fs::write(case.0.join("source.zil"), source).unwrap();
+        let core = expanded(source);
+        fs::write(case.0.join("core.txt"), format!("{core:#?}")).unwrap();
+        let target = TargetProfile::host_llvm();
+        let defaults = Limits::default();
+        let check = |limits: &Limits| zil_types::check(&core, &target, limits);
+        let typed = check(&defaults).unwrap();
+        let plan = zil_analyze::analyze(&typed, &defaults).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &defaults).unwrap();
+        let decoded = zil_ir::wire::decode_module_candidate(&wire, &defaults).unwrap();
+        assert_eq!(decoded, (typed.clone(), plan.clone()));
+        zil_verify::verify_module(typed, plan, &target, &defaults).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &defaults).unwrap();
+        let (work, work_below) = types_boundary(
+            |n| {
+                check(&Limits {
+                    max_analysis_steps: n,
+                    ..defaults.clone()
+                })
+            },
+            defaults.max_analysis_steps,
+        );
+        let (locals, locals_below) = types_boundary(
+            |n| {
+                check(&Limits {
+                    max_locals: n,
+                    ..defaults.clone()
+                })
+            },
+            defaults.max_locals,
+        );
+        let (functions, functions_below) = types_boundary(
+            |n| {
+                check(&Limits {
+                    max_functions: n,
+                    ..defaults.clone()
+                })
+            },
+            defaults.max_functions,
+        );
+        fs::write(case.0.join("boundary.json"), format!("{{\"types_work\":{work},\"types_locals\":{locals},\"types_functions\":{functions},\"checks\":\"default == N == fresh N; N-1 Types ResourceLimit; raw and Wire Verify\"}}\n")).unwrap();
+        fs::write(case.0.join("below.txt"), format!("work N-1\n{work_below}\nlocals N-1\n{locals_below}\nfunctions N-1\n{functions_below}")).unwrap();
+        eprintln!("{label}: types_work={work}, locals={locals}, functions={functions}");
+    }
+}
