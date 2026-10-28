@@ -1,0 +1,12 @@
+{
+  "scope": "evidence packaging only",
+  "status": "ArchivedAndVerified",
+  "archive": "review-results.zip",
+  "bytes": 7391465,
+  "sha256": "930c808a830db436ac5cb42f14eae0b4267339fc0ac6a812ba08b9935e513315",
+  "included_files": 3327,
+  "included_bytes": 136478030,
+  "omitted_execution_artifacts": 118,
+  "omitted_execution_bytes": 1908344,
+  "full_manifest": "ARCHIVE-MANIFEST.json inside archive"
+}
