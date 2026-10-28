@@ -433,3 +433,149 @@ fn main()->WideError!i32{{let pending=create::<Q>({fail});let store=pending?;ret
         native("copy-error", &[("main", &source)], b"", i32::from(fail));
     }
 }
+
+#[test]
+fn mutable_managed_slots_preserve_creation_through_their_package_representation() {
+    for (definition, main, stdout) in [
+        (
+            "fn create()->R contract{result(create)}{var slot:R=R{code:65};return give slot}",
+            "fn main()->i32{let r=create();return r.code-65}",
+            b"A".as_slice(),
+        ),
+        (
+            "fn create()->E!R contract{result(create)}{var slot:R=R{code:65};return give slot}",
+            "fn main()->E!i32{let r=create()?;return r.code-65}",
+            b"A".as_slice(),
+        ),
+        (
+            "fn create()->E!ByteBuffer contract{result(create)}{var slot:ByteBuffer=bytes_new();return give slot}",
+            "fn main()->E!i32{let b=create()?;return i32(bytes_len(b))}",
+            b"".as_slice(),
+        ),
+        (
+            "fn create<T:StoreElement>()->Store<T>contract{result(create)}{var slot:Store<T>=empty();return give slot}",
+            "fn main()->i32{let s=create::<P>();return i32(store_len(s))}",
+            b"".as_slice(),
+        ),
+        (
+            "fn create<T:StoreElement>()->E!Store<T>contract{result(create)}{var slot:Store<T>=empty();return give slot}",
+            "fn main()->E!i32{let s=create::<Q>()?;return i32(store_len(s))}",
+            b"".as_slice(),
+        ),
+    ] {
+        native(
+            "mutable-created",
+            &[("main", &format!("{MODEL}{HELPERS}{definition}\n{main}"))],
+            stdout,
+            0,
+        );
+    }
+}
+
+#[test]
+fn an_error_returning_old_branch_does_not_poison_the_surviving_fresh_branch() {
+    // Keep the independent review's definition, calls and expectations intact.
+    let definition = r#"
+fn select<T:StoreElement>(give old:Store<T>,flag:bool)->E!Store<T>contract{result(create)}{
+ var slot:Store<T>=empty();
+ if flag{slot=give old;return E.Fail};
+ return give slot
+}
+"#;
+    accepted(
+        "unused-surviving-branch",
+        &format!("{MODEL}{HELPERS}{definition}fn main(){{}}"),
+    );
+    for flag in [false, true] {
+        let source = format!(
+            "{MODEL}{HELPERS}{definition}fn main()->E!i32{{let incoming=make(p(65),false)?;let result=select(give incoming,{flag})?;return 0}}"
+        );
+        native(
+            "surviving-branch",
+            &[("main", &source)],
+            b"A",
+            i32::from(flag),
+        );
+    }
+}
+
+#[test]
+fn actual_field_sources_survive_whole_moves_replacements_branches_and_loops() {
+    for (definition, call, stdout) in [
+        (
+            "fn create()->R contract{result(create)}{let built=P{r:R{code:65},n:7};let moved=built;return give moved.r}",
+            "create()",
+            b"A".as_slice(),
+        ),
+        (
+            "fn create(flag:bool)->R contract{result(create)}{var slot:R=R{code:65};if flag{slot=R{code:66}}else{slot=R{code:67}};return give slot}",
+            "create(false)",
+            b"AC".as_slice(),
+        ),
+        (
+            "fn create(flag:bool)->R contract{result(create)}{var slot:R=R{code:65};if flag{slot=R{code:66}}else{slot=R{code:67}};return give slot}",
+            "create(true)",
+            b"AB".as_slice(),
+        ),
+        (
+            "fn create()->R contract{result(create)}{var n:i32=0;var slot:R=R{code:65};while n<2{slot=R{code:66+n};n=n+1};return give slot}",
+            "create()",
+            b"ABC".as_slice(),
+        ),
+        (
+            "package Pair{manages old:R;manages fresh:R}fn create(give old:R)->R contract{result(create)}{let pair=Pair{old:give old,fresh:R{code:66}};let moved=pair;return give moved.fresh}",
+            "create(R{code:65})",
+            b"AB".as_slice(),
+        ),
+    ] {
+        native(
+            "field-creation",
+            &[(
+                "main",
+                &format!("{MODEL}{definition}fn main()->i32{{let r={call};return 0}}"),
+            )],
+            stdout,
+            0,
+        );
+    }
+}
+
+#[test]
+fn incoming_or_mixed_fields_cannot_be_repackaged_as_created() {
+    for definition in [
+        "fn bad(give old:R)->R contract{result(create)}{var slot:R=R{code:65};slot=give old;return give slot}",
+        "fn bad(give old:R,flag:bool)->R contract{result(create)}{var slot:R=R{code:65};if flag{slot=give old};return give slot}",
+        "fn bad(give old:R)->R contract{result(create)}{let built=P{r:give old,n:7};let moved=built;return give moved.r}",
+        "fn bad(p:P)->R contract{result(create)}{let moved=p;return give moved.r}",
+        "fn bad()->R contract{result(create)}{let unknown=p(65);return give unknown.r}",
+        "package Pair{manages old:R;manages fresh:R}fn bad(give old:R)->R contract{result(create)}{let pair=Pair{old:give old,fresh:R{code:66}};let moved=pair;return give moved.old}",
+    ] {
+        let report = check(
+            "old-field-create",
+            &format!("{MODEL}{definition}fn main(){{}}"),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report.diagnostics.iter().any(|d| d
+                .message
+                .contains("create result forwards an incoming responsibility")),
+            "{}",
+            report.to_json()
+        );
+    }
+    rejected(
+        "generic-old-field-mix",
+        &format!(
+            "{MODEL}{HELPERS}fn bad<T:StoreElement>(give old:Store<T>,flag:bool)->E!Store<T>contract{{result(create)}}{{var slot:Store<T>=empty();if flag{{slot=give old}};return give slot}}fn main(){{}}"
+        ),
+        ResultCategory::SafeReject,
+        "create result",
+    );
+}
