@@ -1,0 +1,373 @@
+{
+  "reviewer": "/root/review205_finish",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "scope": "Exact four source-preserving phase migrations and three measured legacy Types budget migrations",
+  "phase_migration_commit": "94fba307fa447b5e29a6113d2cd653c07c2f838a",
+  "phase_diff_sha256": "f3d694b7b444249549af3d165ff10a0c439763f46574dbe2ee4f9d8c2d8ad3f0",
+  "phase_static_findings": [
+    "Only the four registered assertions and explanatory comments changed across three old test files; original ZIL literals/includes/builders and native oracles are unchanged.",
+    "Unused197 now checks the Expand definition error directly and checks the driver has Verify0. Actual197 and whole-parent184 require the precise alias message and E-GENERIC-ARGUMENT at Expand.",
+    "Only the third same-element201 negative is changed to Types E-STATE-ALIAS. Its first two callee/prepared-parent negatives still require Verify E-BORROW-CONFLICT."
+  ],
+  "independent_cli04_phase_replay": {
+    "outer_command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/phase01-command/command.json",
+      "bytes": 858,
+      "sha256": "5c5400ed8e0aadd4a92a1403be684a67bc4a24fc078e97ede3cc38b07982f10d"
+    },
+    "result": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/phase01/RESULT.json",
+      "bytes": 6392,
+      "sha256": "68607274786fc0a22a181dd2e4162db8e970999be971e8fb9f5d3b6d09fb349f"
+    },
+    "actual": {
+      "status": "Pass",
+      "reviewer": "/root/review205_finish",
+      "source_commit": "2dec56f70cd4de5a2d45445e9b2b008aa7f947a2",
+      "source_clean": true,
+      "compiler_source_commit": "54452f8a50eb494c7c444bca3a9682802246284f",
+      "cli_sha256": "8cf2524495bc1fb1ac59fad705ead558c4c6f72fb200b5b21dc871ef22a5e323",
+      "compiler_production_inputs": 178,
+      "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+      "cases": [
+        {
+          "case": "unused197",
+          "source_sha256": {
+            "main.zil": "abf1ab9225dd61a989c14f56f119931d11cf8c6bc156f63fd202ce1be386dcf0"
+          },
+          "source_bytes_preserved": true,
+          "expected_phase": "expand",
+          "expected_code": "E-GENERIC-ARGUMENT",
+          "expected_verification_runs": 0,
+          "actual_status": "SafeReject",
+          "actual_phase": "expand",
+          "actual_verification_runs": 0,
+          "actual_diagnostics": [
+            {
+              "phase": "expand",
+              "category": "SafeReject",
+              "code": "E-GENERIC-ARGUMENT",
+              "message": "State alias outlives a moved or replaced field",
+              "span": {
+                "file": 0,
+                "start": 249,
+                "end": 253
+              },
+              "notes": []
+            }
+          ],
+          "report_sha256": "e6e0a238e91fe9db4d968494058f24983f6a65246a237eb53d073d6775a9d3dc",
+          "exit_code": 1
+        },
+        {
+          "case": "actual197",
+          "source_sha256": {
+            "main.zil": "110bca62753be335abfd87cac7f2f488efa5aa8e4b126ab64d2fa4931afb945d"
+          },
+          "source_bytes_preserved": true,
+          "expected_phase": "expand",
+          "expected_code": "E-GENERIC-ARGUMENT",
+          "expected_verification_runs": 0,
+          "actual_status": "SafeReject",
+          "actual_phase": "expand",
+          "actual_verification_runs": 0,
+          "actual_diagnostics": [
+            {
+              "phase": "expand",
+              "category": "SafeReject",
+              "code": "E-GENERIC-ARGUMENT",
+              "message": "State alias outlives a moved or replaced field",
+              "span": {
+                "file": 0,
+                "start": 504,
+                "end": 508
+              },
+              "notes": []
+            }
+          ],
+          "report_sha256": "3407d2b1fad14b57bb2234a30c3319406947cce20b4d82e490fc035c7447ae6f",
+          "exit_code": 1
+        },
+        {
+          "case": "actual201",
+          "source_sha256": {
+            "source.zil": "206789f4501312494b1fa60a0e9a5fe1d641b201ae740dd7c7e45b0e1b9aeed5"
+          },
+          "source_bytes_preserved": true,
+          "expected_phase": "types",
+          "expected_code": "E-STATE-ALIAS",
+          "expected_verification_runs": 0,
+          "actual_status": "SafeReject",
+          "actual_phase": "types",
+          "actual_verification_runs": 0,
+          "actual_diagnostics": [
+            {
+              "phase": "types",
+              "category": "SafeReject",
+              "code": "E-STATE-ALIAS",
+              "message": "State field alias outlived a conflicting access to its original parent value",
+              "span": {
+                "file": 0,
+                "start": 699,
+                "end": 703
+              },
+              "notes": []
+            }
+          ],
+          "report_sha256": "64d699db4149752e0244326745b95592261c4ea0bb194a58dca7efbd8071dfe4",
+          "exit_code": 1
+        },
+        {
+          "case": "actual184",
+          "source_sha256": {
+            "factory.zil": "df632d07cbda648fbffa379d144fbff0aa74eb10f13892a59bab3d4ac4e85357",
+            "main.zil": "21e994c33b7423af03d76ee42e463c399e67709985489d42f15d3a0938e1de17",
+            "state.zil": "ce0913a8bc61de9bb8544584894b9a2d6a8f1915522b8f0d209ff7081af8e7f2"
+          },
+          "source_bytes_preserved": true,
+          "expected_phase": "expand",
+          "expected_code": "E-GENERIC-ARGUMENT",
+          "expected_verification_runs": 0,
+          "actual_status": "SafeReject",
+          "actual_phase": "expand",
+          "actual_verification_runs": 0,
+          "actual_diagnostics": [
+            {
+              "phase": "expand",
+              "category": "SafeReject",
+              "code": "E-GENERIC-ARGUMENT",
+              "message": "State alias outlives a moved or replaced field",
+              "span": {
+                "file": 2,
+                "start": 277,
+                "end": 281
+              },
+              "notes": []
+            }
+          ],
+          "report_sha256": "8e29b98e95ddc0a3603b142aa7989abfe2ab9c1b48c24b66ff1880da839620b3",
+          "exit_code": 1
+        },
+        {
+          "case": "callee-prepare-neighbor",
+          "source_sha256": {
+            "source.zil": "fa18b66d790bef93e34799f39eea43960243f20bfd8fd7dbd4c8adfe6f963319"
+          },
+          "source_bytes_preserved": true,
+          "expected_phase": "verify",
+          "expected_code": "E-BORROW-CONFLICT",
+          "expected_verification_runs": 1,
+          "actual_status": "SafeReject",
+          "actual_phase": "verify",
+          "actual_verification_runs": 1,
+          "actual_diagnostics": [
+            {
+              "phase": "verify",
+              "category": "SafeReject",
+              "code": "E-BORROW-CONFLICT",
+              "message": "access overlaps an active address window without its delegated authority",
+              "span": {
+                "file": 0,
+                "start": 637,
+                "end": 659
+              },
+              "notes": []
+            }
+          ],
+          "report_sha256": "941f74831369a2fa1d89c08c64b38e2c2d8112b5bf0dafd57e01d3de423c3822",
+          "exit_code": 1
+        },
+        {
+          "case": "child-parent-neighbor",
+          "source_sha256": {
+            "source.zil": "97c9e911235856d68ad3c8bca449d82dc7c51133fe7c5429ac13354450633d35"
+          },
+          "source_bytes_preserved": true,
+          "expected_phase": "verify",
+          "expected_code": "E-BORROW-CONFLICT",
+          "expected_verification_runs": 1,
+          "actual_status": "SafeReject",
+          "actual_phase": "verify",
+          "actual_verification_runs": 1,
+          "actual_diagnostics": [
+            {
+              "phase": "verify",
+              "category": "SafeReject",
+              "code": "E-BORROW-CONFLICT",
+              "message": "access overlaps an active address window without its delegated authority",
+              "span": {
+                "file": 0,
+                "start": 688,
+                "end": 698
+              },
+              "notes": []
+            }
+          ],
+          "report_sha256": "74d8ae9e960992c6412565fd28e2a5b26ad5782ea044a3644fc8e6d2bee17ed9",
+          "exit_code": 1
+        }
+      ],
+      "native_execution": "NotRun; all cases are safety negatives",
+      "scope": "Four exact original source phase migrations and two unchanged Verify nearest counterexamples on frozen CLI04",
+      "source_commit_after": "2dec56f70cd4de5a2d45445e9b2b008aa7f947a2",
+      "source_status_after": ""
+    }
+  },
+  "budget_migration_commit": "c5134b12b713028f0babdda0120283f36bc3f9e2",
+  "budget_diff_sha256": "9a8542b60f1f1596f4f5201aa7374d363067369691cb0b0c4d2c5add4be21cad",
+  "budget_static_findings": [
+    "The original source strings, include files and nested-helper construction are unchanged. The probe records all three measurements before the final aggregate assertion.",
+    "The original N4241/11851/11792 and locals16/39/40 stay in each measurement record. Only final expected work boundaries change to the separately measured new values; locals remain unchanged.",
+    "The search compares complete Typed results at defaults, exact N and a fresh N, and checks all N-1 failures are Types ResourceLimit. Work, local and function limits are measured separately. No default budget or product threshold changed."
+  ],
+  "accepted204_provenance": {
+    "source_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
+    "exact_files": [
+      {
+        "path": "crates/zil-driver/tests/impl202_budget.rs",
+        "bytes": 4484,
+        "sha256": "d89d5dcf7f0de8fd35abcd13bb82fae68db49dde7452a5475ba40a0679dc0656",
+        "accepted204_equals_failed205": true
+      },
+      {
+        "path": "crates/zil-driver/tests/impl200_fixtures/02_store_of_callback_state.zil",
+        "bytes": 626,
+        "sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+        "accepted204_equals_failed205": true
+      },
+      {
+        "path": "crates/zil-driver/tests/impl201_fixtures/01_pair_store_mut.zil",
+        "bytes": 1293,
+        "sha256": "ca1e30fdce8bebc1c337ddeba934603496eaef21d041fd99d3130eaabfad7969",
+        "accepted204_equals_failed205": true
+      }
+    ],
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-root/workspace02/command.json",
+      "bytes": 910,
+      "sha256": "2f711b91f238544b63c1184eeebd64b2c79012954ffdfd60996f180636195e13"
+    },
+    "stdout": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-root/workspace02/stdout.log",
+      "bytes": 220632,
+      "sha256": "87b190f122b0f05e7ec74d63f64318d61e68fcdf5437988f86c2aa314403b62b"
+    },
+    "matched_test_line": "test pre202_callback_store_paths_keep_their_recorded_types_boundaries ... ok",
+    "execution_attribution": "Existing root 204 full workspace, not a newly executed reviewer baseline"
+  },
+  "original205_failure": {
+    "source_commit": "0317a093ade0118741d334c45438ade07e9d7228",
+    "status": "Fail",
+    "workspace_counts": [
+      2544,
+      6,
+      0
+    ],
+    "all_three_old_assertion_probe_failures": [
+      "run-logs/205-root/budget-legacy01/command",
+      "run-logs/205-root/budget-legacy02/command"
+    ],
+    "retained": true
+  },
+  "independent_budget_execution": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/budget01/command/command.json",
+      "bytes": 1094,
+      "sha256": "6cc1216ede132aa47131d42833c1fe0eaf3319db555035983f3e3c6ac4b188b7",
+      "source_commit": "2dec56f70cd4de5a2d45445e9b2b008aa7f947a2",
+      "exit_code": 0,
+      "source_clean": true
+    },
+    "tests": [
+      1,
+      0
+    ],
+    "rows": [
+      {
+        "label": "old-original02",
+        "source_bytes": 626,
+        "source_sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+        "original_input_unchanged": true,
+        "measurement": {
+          "types_work": 6326,
+          "types_locals": 16,
+          "types_functions": 5,
+          "old_work_locals": [
+            4241,
+            16
+          ],
+          "checks": "default == exact N == fresh N; N-1 Types ResourceLimit"
+        },
+        "boundary_record": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/budget01/cases/budget202-old-original02/boundary.json",
+          "bytes": 152,
+          "sha256": "cee67cd33f3f7bdb32225c33438b2ec2e377f082959d2a81573bf40565f9f2b9"
+        },
+        "below_record": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/budget01/cases/budget202-old-original02/below.txt",
+          "bytes": 1184,
+          "sha256": "a448def6c0622254da51221c0edfea10b6b4b27043b6d1649bb4650ff1548772"
+        }
+      },
+      {
+        "label": "old-two-elements",
+        "source_bytes": 1293,
+        "source_sha256": "ca1e30fdce8bebc1c337ddeba934603496eaef21d041fd99d3130eaabfad7969",
+        "original_input_unchanged": true,
+        "measurement": {
+          "types_work": 29030,
+          "types_locals": 39,
+          "types_functions": 7,
+          "old_work_locals": [
+            11851,
+            39
+          ],
+          "checks": "default == exact N == fresh N; N-1 Types ResourceLimit"
+        },
+        "boundary_record": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/budget01/cases/budget202-old-two-elements/boundary.json",
+          "bytes": 154,
+          "sha256": "f9ce33ebdfca0c085fa9baa4323c63ad32d1909f7613cccec68c200b5d419167"
+        },
+        "below_record": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/budget01/cases/budget202-old-two-elements/below.txt",
+          "bytes": 1188,
+          "sha256": "9db42f281f9a2e2f89f73d84aa76aa81d16bd1c2683d59997e1bbc76c6f2d82c"
+        }
+      },
+      {
+        "label": "old-nested-helper",
+        "source_bytes": 1393,
+        "source_sha256": "2e59bac9e5b55e2300f255040b7acb62dfef986714eb5b2165ec55ace7bfd87b",
+        "original_input_unchanged": true,
+        "measurement": {
+          "types_work": 29566,
+          "types_locals": 40,
+          "types_functions": 8,
+          "old_work_locals": [
+            11792,
+            40
+          ],
+          "checks": "default == exact N == fresh N; N-1 Types ResourceLimit"
+        },
+        "boundary_record": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/budget01/cases/budget202-old-nested-helper/boundary.json",
+          "bytes": 154,
+          "sha256": "e7683d6e660e132e43b64259b7947d46cf1a5e0a9d1565c7f2466c90385d28d5"
+        },
+        "below_record": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/budget01/cases/budget202-old-nested-helper/below.txt",
+          "bytes": 1188,
+          "sha256": "251953076b84d0ac0247ac82e45ee8f74bf7fffa2b8f4b59444e064186372e18"
+        }
+      }
+    ]
+  },
+  "verdict": "Pass for these precise migrations; final 205 acceptance remains separate",
+  "post_migration_lint_cleanup": {
+    "commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+    "static_review": "Deletes only the 11-line unused accepted helper after its sole caller became a precise rejection. No test body, source fixture, runtime oracle or compiler production change.",
+    "old_lint_failure": "run-logs/205-root/clippy-final01 remains Fail; not relabelled",
+    "independent_rerun": "NotRun for unused helper deletion; CLI04 production and exact test input bytes are unchanged"
+  }
+}

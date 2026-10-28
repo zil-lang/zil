@@ -1,0 +1,157 @@
+{
+  "reviewer": "/root/review205_finish",
+  "production_authorship": "None",
+  "reviewed_production_commit": "d71758d2be95995aeb4a9b690fa62ee0095a3797",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "scope": "Legacy complete State result substitution repair and nearest independent source/raw controls; not final 205 acceptance",
+  "findings": [
+    "Legacy headers place a callable bound at the owning Package parameter. The result type substitutes F using exactly the corresponding direct Named(F) fields, not the complete argument Package Shape.",
+    "The legacy path checks complete field count, declaration-order names, and at least one direct matching F field. Each selected field must satisfy the requested declared callable mode; all selected F sources unify through same_origin.",
+    "The new path is after replacement_substitutions and only applies when the older signature parameter is a Package. Direct callable, dual F/G State and new mixed State-plus-replacement dispatches retain their own existing representations.",
+    "Result Shape construction still copies the actual declaration origin. Concrete nominal and ClosureId equality remain checked by ordinary type instantiation; this private Shape mapping does not authorize different factories or erase a weaker source bound.",
+    "PositionMoveWalk remains separate from declaration mode substitutions. Whole owner transfer still invalidates old aliases, local RHS transfer restores only the assigned complete owner, and same-F fields are not collapsed into one consumption position.",
+    "Field-count scanning is prepaid before iteration; each field-name and binder comparison is prepaid before comparison, and require/same_origin/copy retain their existing checked snapshot charging. No default limit, public schema, opcode, ABI, Analyze or Verify production changed."
+  ],
+  "original177_execution": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/command/command.json",
+      "bytes": 1106,
+      "sha256": "b005c009f190381b4801086bc93377b9c54d929c19cdd12eb7975c953654d3c9",
+      "source_commit": "2dec56f70cd4de5a2d45445e9b2b008aa7f947a2",
+      "exit_code": 0,
+      "source_clean": true
+    },
+    "tests": [
+      1,
+      0
+    ],
+    "native_successes": 4,
+    "original867_native_successes": 2,
+    "original867_stdout": "ZA",
+    "controls": [
+      {
+        "source": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/cases/state-composition177-948087-0/main.zil",
+          "bytes": 182,
+          "sha256": "0a14a1d99e6095c49be614dcad67203af4feba13aa118b8175db14ea4cc27475"
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "report": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/cases/state-composition177-948087-0/compile.json",
+          "bytes": 3202,
+          "sha256": "853694e9c5e75a14acb1dec241860cfff1632fbcd64d751fe56602788298267e"
+        },
+        "native_stdout_hex": ""
+      },
+      {
+        "source": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/cases/state-composition177-948087-1/main.zil",
+          "bytes": 182,
+          "sha256": "0a14a1d99e6095c49be614dcad67203af4feba13aa118b8175db14ea4cc27475"
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "report": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/cases/state-composition177-948087-1/compile.json",
+          "bytes": 3202,
+          "sha256": "9d4ce2ec34bdde7d8c59e6bc6e549cacb0e05ec18234d669f3dd1d412238ff8f"
+        },
+        "native_stdout_hex": ""
+      },
+      {
+        "source": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/cases/state-composition177-948087-2/main.zil",
+          "bytes": 867,
+          "sha256": "dc68299194fcc8dcea73fad37540a270bf16fe497235a8c6858d1bff750e199e"
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "report": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/cases/state-composition177-948087-2/compile.json",
+          "bytes": 3202,
+          "sha256": "5ad0a5a638d9ea256122eb6a08e7c84839bf78d718d1e6869287518adced728e"
+        },
+        "native_stdout_hex": "5a41"
+      },
+      {
+        "source": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/cases/state-composition177-948087-3/main.zil",
+          "bytes": 867,
+          "sha256": "dc68299194fcc8dcea73fad37540a270bf16fe497235a8c6858d1bff750e199e"
+        },
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "report": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/cases/state-composition177-948087-3/compile.json",
+          "bytes": 3202,
+          "sha256": "f31f3a10acb6a2a4b000ad58eb899c34b9a28cbf5ece9b5e5e9b458250c7a73a"
+        },
+        "native_stdout_hex": "5a41"
+      },
+      {
+        "source": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/cases/state-composition177-948087-4/main.zil",
+          "bytes": 796,
+          "sha256": "2727f04cf149a84ab69fddbd76c2c1a8d986a7885da11503ec1cec155109f9e9"
+        },
+        "status": "SafeReject",
+        "phase": "expand",
+        "verification_runs": 0,
+        "report": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy177-01/cases/state-composition177-948087-4/compile.json",
+          "bytes": 768,
+          "sha256": "08ffd38d21229f2e2604a5544840510023fb6b0e6c889f8bb827fbfd245302dd"
+        }
+      }
+    ],
+    "original_expected_success_preserved": true,
+    "old_failure_reference": "run-logs/205-root/workspace01 at clean 0317a093ade0118741d334c45438ade07e9d7228"
+  },
+  "author_fixture_independent_raw_execution": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/legacy-raw01/command/command.json",
+      "bytes": 1104,
+      "sha256": "36c9a0913367ae11fdfc0e2b327ce96f1af883b4ab0d73f9559c32fbd993a966",
+      "source_commit": "2dec56f70cd4de5a2d45445e9b2b008aa7f947a2",
+      "exit_code": 0,
+      "source_clean": true
+    },
+    "tests": [
+      1,
+      0
+    ],
+    "raw_inputs": 10,
+    "public_types_entries_per_input": 2,
+    "scope": "One/two direct F fields, F-to-G whole forwarding, FnOnce good, weakening reject, stronger source good, old alias after transfer rejected, last-use before transfer accepted; test authored by Types author"
+  },
+  "new_independent_actual_forwarding": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/forward01/command/command.json",
+      "bytes": 1107,
+      "sha256": "664cd3fdeb49a69f482e09251a19eefcfc7fe242064bac2054e7051783487906",
+      "source_commit": "dc55eed2d685494f5aa84782f1d19cfcf9fb0dc6",
+      "exit_code": 0,
+      "source_clean": true
+    },
+    "tests": [
+      1,
+      0
+    ],
+    "native_successes": 2,
+    "stdout": "ADMZFEZCB",
+    "exit": 0,
+    "factories": 2,
+    "same_factory_values_per_call": 3,
+    "call_chain": "relay -> forward -> revise -> forward; complete local RHS assignments",
+    "counterexamples": 2,
+    "negative_phase": "types",
+    "negative_code": "E-TYPE-MISMATCH",
+    "unsafe_native": "NotRun"
+  },
+  "verdict": "Pass for this repair and scoped controls; final root workspace gate remains separate"
+}
