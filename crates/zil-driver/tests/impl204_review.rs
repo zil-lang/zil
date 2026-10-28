@@ -255,7 +255,7 @@ fn make()->impl FnOnce(i32)->i32{
     return (mode:i32)=>{
         emit(69);if mode==0{return 0}
         let taken=give items;emit(84);
-        if mode==2{if !store_reserve(taken,9223372036854775807i64){emit(70);return 0}return 9}
+        if mode==2{let capacity:i64=9223372036854775807;if !store_reserve(taken,capacity){emit(70);return 0}return 9}
         let marker=give side;marker.code;
         return i32(store_len(taken))-1
     }
@@ -654,10 +654,20 @@ fn raw_store_mutation_keeps_the_current_capture_window_alive() {
             assert!(
                 matches!(
                     block.instructions[definition].kind,
-                    InstructionKind::DescribeCapture { .. } | InstructionKind::Constant(_)
+                    InstructionKind::DescribeCapture { .. }
+                        | InstructionKind::Constant(_)
+                        | InstructionKind::Load(_)
                 ),
                 "only side-effect-free preparation may move with the existing reserve"
             );
+            if let InstructionKind::Load(local) = block.instructions[definition].kind {
+                assert!(
+                    matches!(&f.locals[local.0 as usize].ty,Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore{..}))
+                );
+                assert!(block.instructions[..read].iter().any(
+                    |i| matches!(i.kind,InstructionKind::Store{local:defined,..} if defined==local)
+                ));
+            }
             move_indices.push(definition);
         }
     }
@@ -747,7 +757,21 @@ fn actual_capture_writes_and_transfers_cannot_be_hidden_by_mode_or_read_metadata
         .find(|c| c.kind == CallableKind::FnMut)
         .unwrap();
     assert!(definition.captures.iter().any(is_owned_store));
+    let closure = definition.id;
     definition.kind = CallableKind::Fn;
+    let mut contracts = 0;
+    for function in &mut shared.functions {
+        if let Some(contract) = &mut function.callable_return_contract
+            && contract.closure == closure
+        {
+            contract.kind = CallableKind::Fn;
+            contracts += 1;
+        }
+    }
+    assert_eq!(
+        contracts, 1,
+        "synchronize the untrusted factory claim so the real write must be checked"
+    );
     attack(
         "owned-store-write-forged-as-shared",
         shared,
