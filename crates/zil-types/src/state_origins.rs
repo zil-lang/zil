@@ -6,10 +6,40 @@ use std::rc::Rc;
 use zil_base::NodeId;
 
 type Position = (u32, Option<u32>);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum AliasKey {
+    Local(u32),
+    Expression(NodeId),
+    Prepared(u64),
+}
+#[derive(Clone)]
+struct Alias {
+    parent: Position,
+    mutable: bool,
+    borrowed_at: u64,
+    ancestors: Vec<u64>,
+    invalidated_at: Option<u64>,
+}
+impl Alias {
+    fn work(&self) -> usize {
+        self.ancestors.len().saturating_add(1)
+    }
+}
 #[derive(Clone)]
 struct MoveFlow {
     live: bool,
     moved: std::collections::BTreeSet<Position>,
+    aliases: BTreeMap<AliasKey, Vec<Alias>>,
+    alias_entries: usize,
+}
+impl MoveFlow {
+    fn work(&self) -> usize {
+        self.moved
+            .len()
+            .saturating_add(self.aliases.len())
+            .saturating_add(self.alias_entries)
+            .saturating_add(1)
+    }
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Access {
@@ -26,8 +56,10 @@ struct MoveWalk<'a, 's> {
     bounds: &'a [CoreCallableParameter],
     scopes: Vec<BTreeMap<String, u32>>,
     next: u32,
+    generation: u64,
     flow: MoveFlow,
     loops: Vec<(Option<MoveFlow>, Option<MoveFlow>)>,
+    loop_alias_uses: Vec<std::collections::BTreeSet<u64>>,
     state: &'s mut closures::State,
     limits: &'a Limits,
 }
@@ -43,30 +75,332 @@ impl MoveWalk<'_, '_> {
         self.state.snapshot(1, span)
     }
     fn clone_flow(&mut self, flow: &MoveFlow, span: Span) -> R<MoveFlow> {
-        self.state
-            .snapshot(flow.moved.len().saturating_add(1), span)?;
+        self.state.snapshot(flow.work(), span)?;
         Ok(flow.clone())
     }
     fn snapshot_flow(&mut self, span: Span) -> R<MoveFlow> {
-        self.state
-            .snapshot(self.flow.moved.len().saturating_add(1), span)?;
+        self.state.snapshot(self.flow.work(), span)?;
         Ok(self.flow.clone())
     }
     fn join(&mut self, mut a: MoveFlow, b: MoveFlow, span: Span) -> R<MoveFlow> {
-        self.state.snapshot(
-            a.moved
-                .len()
-                .saturating_add(b.moved.len())
-                .saturating_add(1),
-            span,
-        )?;
+        self.state
+            .snapshot(a.work().saturating_add(b.work()), span)?;
         if !a.live {
             return Ok(b);
         }
         if b.live {
             a.moved.extend(b.moved);
+            for (key, aliases) in b.aliases {
+                self.state
+                    .snapshot(helpers::plan::tree_work(a.aliases.len()), span)?;
+                let entry = a.aliases.entry(key).or_default();
+                for alias in aliases {
+                    self.state.snapshot(entry.len().saturating_add(1), span)?;
+                    if let Some(previous) = entry.iter_mut().find(|previous| {
+                        previous.parent == alias.parent && previous.borrowed_at == alias.borrowed_at
+                    }) {
+                        previous.invalidated_at = previous.invalidated_at.or(alias.invalidated_at);
+                    } else {
+                        a.alias_entries = a.alias_entries.saturating_add(alias.work());
+                        entry.push(alias);
+                    }
+                }
+            }
         }
         Ok(a)
+    }
+    fn aliases(&mut self, key: AliasKey, span: Span) -> R<Vec<Alias>> {
+        self.state
+            .snapshot(helpers::plan::tree_work(self.flow.aliases.len()), span)?;
+        let values = self.flow.aliases.get(&key).map_or(&[][..], Vec::as_slice);
+        self.state.snapshot(values.len(), span)?;
+        self.state.snapshot(
+            values
+                .iter()
+                .fold(0usize, |n, a| n.saturating_add(a.work())),
+            span,
+        )?;
+        Ok(values.to_vec())
+    }
+    fn set_aliases(&mut self, key: AliasKey, values: Vec<Alias>, span: Span) -> R<()> {
+        self.state.snapshot(
+            helpers::plan::tree_work(self.flow.aliases.len()).saturating_add(values.len()),
+            span,
+        )?;
+        self.flow.alias_entries = self.flow.alias_entries.saturating_add(
+            values
+                .iter()
+                .fold(0usize, |n, a| n.saturating_add(a.work())),
+        );
+        let old = if values.is_empty() {
+            self.flow.aliases.remove(&key)
+        } else {
+            self.flow.aliases.insert(key, values)
+        };
+        if let Some(old) = old {
+            self.state.snapshot(old.len(), span)?;
+            self.flow.alias_entries -= old.iter().fold(0usize, |n, a| n.saturating_add(a.work()));
+        }
+        Ok(())
+    }
+    fn copy_aliases(&mut self, from: AliasKey, to: AliasKey, span: Span) -> R<()> {
+        let values = self.aliases(from, span)?;
+        self.set_aliases(to, values, span)
+    }
+    fn check_aliases(&mut self, key: AliasKey, span: Span) -> R<()> {
+        if !self.flow.live {
+            return Ok(());
+        }
+        self.state
+            .snapshot(helpers::plan::tree_work(self.flow.aliases.len()), span)?;
+        if let Some(values) = self.flow.aliases.get(&key) {
+            self.state.snapshot(values.len(), span)?;
+            if values.iter().any(|alias| alias.invalidated_at.is_some()) {
+                return Err(error(
+                    "E-STATE-ALIAS",
+                    span,
+                    "State field alias outlived a conflicting access to its original parent value",
+                ));
+            }
+            for uses in &mut self.loop_alias_uses {
+                self.state.snapshot(
+                    values.len().saturating_mul(helpers::plan::tree_work(
+                        uses.len().saturating_add(values.len()),
+                    )),
+                    span,
+                )?;
+                uses.extend(values.iter().map(|alias| alias.borrowed_at));
+            }
+        }
+        Ok(())
+    }
+    fn next_generation(&mut self, span: Span) -> R<u64> {
+        self.state.snapshot(1, span)?;
+        self.generation = self.generation.checked_add(1).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "State alias generation exceeded", Some(span))
+        })?;
+        Ok(self.generation)
+    }
+    fn overlapping(a: Position, b: Position) -> bool {
+        a.0 == b.0 && (a.1.is_none() || b.1.is_none() || a.1 == b.1)
+    }
+    fn alias_access(&mut self, active: &[Alias], mutable: bool, span: Span) -> R<()> {
+        if !self.flow.live || active.is_empty() {
+            return Ok(());
+        }
+        self.state.snapshot(active.len(), span)?;
+        let work = active
+            .iter()
+            .fold(0usize, |n, a| n.saturating_add(a.work()));
+        self.state.snapshot(
+            self.flow.work().saturating_mul(work.saturating_add(1)),
+            span,
+        )?;
+        let generation = self.next_generation(span)?;
+        for values in self.flow.aliases.values_mut() {
+            for alias in values {
+                if active.iter().any(|current| {
+                    Self::overlapping(current.parent, alias.parent)
+                        && (mutable || alias.mutable)
+                        && current.borrowed_at != alias.borrowed_at
+                        && !current.ancestors.contains(&alias.borrowed_at)
+                }) {
+                    alias.invalidated_at.get_or_insert(generation);
+                }
+            }
+        }
+        Ok(())
+    }
+    fn fresh_alias(&mut self, parent: Position, mutable: bool, span: Span) -> R<Vec<Alias>> {
+        let borrowed_at = self.next_generation(span)?;
+        let values = vec![Alias {
+            parent,
+            mutable,
+            borrowed_at,
+            ancestors: Vec::new(),
+            invalidated_at: None,
+        }];
+        self.alias_access(&values, mutable, span)?;
+        Ok(values)
+    }
+    fn derive_aliases(
+        &mut self,
+        mut values: Vec<Alias>,
+        mutable: bool,
+        activate: bool,
+        span: Span,
+    ) -> R<Vec<Alias>> {
+        self.state.snapshot(values.len(), span)?;
+        for alias in &values {
+            if alias.invalidated_at.is_some() || (mutable && !alias.mutable) {
+                return Err(error(
+                    "E-STATE-ALIAS",
+                    span,
+                    "State field reborrow lacks a live compatible parent",
+                ));
+            }
+            if alias.ancestors.len() >= self.limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "State alias parent depth exceeded",
+                    Some(span),
+                ));
+            }
+        }
+        if activate {
+            self.alias_access(&values, mutable, span)?;
+        }
+        for alias in &mut values {
+            self.state
+                .snapshot(alias.ancestors.len().saturating_add(1), span)?;
+            alias.ancestors.push(alias.borrowed_at);
+            alias.borrowed_at = self.next_generation(span)?;
+            alias.mutable = mutable;
+        }
+        Ok(values)
+    }
+    fn invalidate_aliases(&mut self, position: Position, span: Span) -> R<()> {
+        if !self.flow.live || self.flow.aliases.is_empty() {
+            return Ok(());
+        }
+        self.state.snapshot(
+            self.flow
+                .aliases
+                .len()
+                .saturating_add(self.flow.alias_entries)
+                .saturating_add(1),
+            span,
+        )?;
+        let generation = self.next_generation(span)?;
+        for values in self.flow.aliases.values_mut() {
+            for alias in values {
+                let same_parent = Self::overlapping(alias.parent, position);
+                if same_parent && alias.invalidated_at.is_none() {
+                    alias.invalidated_at = Some(generation);
+                }
+            }
+        }
+        Ok(())
+    }
+    fn remember_alias(&mut self, expression: &CoreExpr, shape: &Shape, depth: usize) -> R<()> {
+        let address = matches!(shape, Shape::Address(_))
+            || matches!(shape, Shape::Union { result, .. } if matches!(result.as_ref(), Shape::Address(_)));
+        let projection = if let CoreExprKind::Member { object, .. } = &expression.kind {
+            matches!(self.shape(object)?, Shape::Address(_))
+        } else {
+            false
+        };
+        if !shape.has_origin() || (!address && !projection) {
+            return Ok(());
+        }
+        let values = match &expression.kind {
+            CoreExprKind::Name(_) => {
+                if let Some((root, None)) = self.position(expression, depth + 1)? {
+                    self.aliases(AliasKey::Local(root), expression.span)?
+                } else {
+                    Vec::new()
+                }
+            }
+            CoreExprKind::Member { object, member } if projection => {
+                let Shape::Address(base) = self.shape(object)? else {
+                    unreachable!()
+                };
+                let Shape::Package(fields) = base.as_ref() else {
+                    return Err(unsupported(
+                        expression.span,
+                        "State field address has no actual Package parent",
+                    ));
+                };
+                self.state.snapshot(
+                    fields.len().saturating_mul(member.len().saturating_add(1)),
+                    expression.span,
+                )?;
+                let field = fields
+                    .iter()
+                    .position(|(name, _)| name == member)
+                    .ok_or_else(|| unsupported(expression.span, "State alias field is absent"))?
+                    as u32;
+                let source = self.aliases(AliasKey::Expression(object.id), expression.span)?;
+                let mut result = Vec::new();
+                for mut alias in source {
+                    if alias.parent.1.is_none() {
+                        alias.parent.1 = Some(field);
+                    }
+                    let mutable = alias.mutable;
+                    self.state
+                        .snapshot(result.len().saturating_add(2), expression.span)?;
+                    result.extend(self.derive_aliases(
+                        vec![alias],
+                        mutable,
+                        false,
+                        expression.span,
+                    )?);
+                }
+                result
+            }
+            CoreExprKind::Unary {
+                op: op @ (UnaryOp::Borrow | UnaryOp::BorrowMut),
+                operand,
+            } => {
+                let inherited = self.aliases(AliasKey::Expression(operand.id), expression.span)?;
+                let mutable = *op == UnaryOp::BorrowMut;
+                if inherited.is_empty() {
+                    if let Some(parent) = self.position(operand, depth + 1)? {
+                        self.fresh_alias(parent, mutable, expression.span)?
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    self.derive_aliases(inherited, mutable, true, expression.span)?
+                }
+            }
+            CoreExprKind::Ascribed { value, .. }
+            | CoreExprKind::CompileTime(value)
+            | CoreExprKind::Unary { operand: value, .. }
+            | CoreExprKind::Sequence { value, .. }
+            | CoreExprKind::Try(value) => {
+                self.aliases(AliasKey::Expression(value.id), expression.span)?
+            }
+            CoreExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => {
+                let mut values =
+                    self.aliases(AliasKey::Expression(then_value.id), expression.span)?;
+                let other = self.aliases(AliasKey::Expression(else_value.id), expression.span)?;
+                self.state
+                    .snapshot(values.len().saturating_add(other.len()), expression.span)?;
+                values.extend(other);
+                values
+            }
+            CoreExprKind::Call { callee, arguments }
+                if matches!(
+                    dynamic_store::primitive(callee),
+                    Some("store_at" | "store_at_mut")
+                ) =>
+            {
+                if let Some(argument) = arguments.first()
+                    && let Some(parent) = self.position(argument, depth + 1)?
+                {
+                    self.fresh_alias(
+                        parent,
+                        dynamic_store::primitive(callee) == Some("store_at_mut"),
+                        expression.span,
+                    )?
+                } else {
+                    Vec::new()
+                }
+            }
+            _ => Vec::new(),
+        };
+        if values.is_empty() && self.flow.live {
+            return Err(unsupported(
+                expression.span,
+                "State field address lost its actual parent position",
+            ));
+        }
+        self.set_aliases(AliasKey::Expression(expression.id), values, expression.span)
     }
     fn bind(&mut self, name: &str, span: Span) -> R<()> {
         if self.next as usize >= self.limits.max_locals {
@@ -172,6 +506,9 @@ impl MoveWalk<'_, '_> {
         let Some(position @ (root, field)) = self.position(expression, depth + 1)? else {
             return Ok(());
         };
+        if access != Access::Write {
+            self.check_aliases(AliasKey::Local(root), expression.span)?;
+        }
         self.state
             .snapshot(self.flow.moved.len().saturating_add(2), expression.span)?;
         if access != Access::Write
@@ -188,6 +525,7 @@ impl MoveWalk<'_, '_> {
             ));
         }
         if access == Access::Move && affine {
+            self.invalidate_aliases(position, expression.span)?;
             self.flow.moved.insert(position);
         }
         Ok(())
@@ -209,17 +547,55 @@ impl MoveWalk<'_, '_> {
                 };
                 let target_shape = self.shape(target)?;
                 self.state.snapshot(self.bounds.len(), target.span)?;
-                let consume = target_shape
+                let kind = target_shape
                     .slot()
                     .and_then(|slot| self.bounds.iter().find(|bound| bound.generic_index == slot))
-                    .is_some_and(|bound| bound.kind == CallableKind::FnOnce);
+                    .map(|bound| bound.kind);
+                let consume = kind == Some(CallableKind::FnOnce);
+                if consume && matches!(target_shape, Shape::Address(_)) {
+                    return Err(error(
+                        "E-STATE-ALIAS",
+                        target.span,
+                        "FnOnce requires an owning State callback position",
+                    ));
+                }
                 self.expr(
                     target,
                     if consume { Access::Move } else { Access::Read },
                     depth + 1,
                 )?;
+                let prepared = if matches!(kind, Some(CallableKind::Fn | CallableKind::FnMut)) {
+                    let mutable = kind == Some(CallableKind::FnMut);
+                    let aliases = self.aliases(AliasKey::Expression(target.id), target.span)?;
+                    let values = if aliases.is_empty() {
+                        if let Some(parent) = self.position(target, depth + 1)? {
+                            self.fresh_alias(parent, mutable, target.span)?
+                        } else {
+                            return Err(unsupported(
+                                target.span,
+                                "State callee has no preserved parent position",
+                            ));
+                        }
+                    } else {
+                        self.derive_aliases(aliases, mutable, true, target.span)?
+                    };
+                    let key = AliasKey::Prepared(self.next_generation(target.span)?);
+                    self.set_aliases(key, values, target.span)?;
+                    Some(key)
+                } else {
+                    None
+                };
                 for argument in arguments {
                     self.expr(argument, Access::Move, depth + 1)?;
+                }
+                // Callee preparation precedes its arguments, but an argument
+                // cannot make the prepared borrowed environment valid again.
+                if let Some(key) = prepared {
+                    self.check_aliases(key, target.span)?;
+                    self.set_aliases(key, Vec::new(), target.span)?;
+                }
+                if !consume {
+                    self.access(target, &target_shape, Access::Read, false, depth + 1)?;
                 }
             }
             CoreExprKind::Unary {
@@ -278,9 +654,14 @@ impl MoveWalk<'_, '_> {
                 for (name, value) in bindings {
                     self.expr(value, Access::Move, depth + 1)?;
                     self.bind(name, value.span)?;
+                    self.copy_aliases(
+                        AliasKey::Expression(value.id),
+                        AliasKey::Local(self.next - 1),
+                        value.span,
+                    )?;
                 }
                 self.expr(value, access, depth + 1)?;
-                self.scopes.pop();
+                self.pop_scope(expression.span)?;
             }
             CoreExprKind::If {
                 condition,
@@ -301,6 +682,7 @@ impl MoveWalk<'_, '_> {
             CoreExprKind::Closure { .. } => {}
             _ => {}
         }
+        self.remember_alias(expression, &shape, depth + 1)?;
         Ok(())
     }
     fn pattern(&mut self, pattern: &CorePattern, depth: usize) -> R<()> {
@@ -316,6 +698,17 @@ impl MoveWalk<'_, '_> {
         }
         Ok(())
     }
+    fn pop_scope(&mut self, span: Span) -> R<()> {
+        let scope = self.scopes.pop().expect("State move scope");
+        self.state.snapshot(scope.len(), span)?;
+        for root in scope.into_values() {
+            self.invalidate_aliases((root, None), span)?;
+            self.state.snapshot(self.flow.moved.len(), span)?;
+            self.flow.moved.retain(|(owner, _)| *owner != root);
+            self.set_aliases(AliasKey::Local(root), Vec::new(), span)?;
+        }
+        Ok(())
+    }
     fn loop_body(
         &mut self,
         body: &CoreBlock,
@@ -325,8 +718,10 @@ impl MoveWalk<'_, '_> {
     ) -> R<()> {
         self.state.snapshot(2, body.span)?;
         self.loops.push((None, None));
+        self.loop_alias_uses.push(Default::default());
         self.block(body, depth + 1)?;
         let (breaks, continues) = self.loops.pop().expect("State move loop");
+        let used = self.loop_alias_uses.pop().expect("State alias loop");
         let mut back = self.snapshot_flow(body.span)?;
         if let Some(continues) = continues {
             back = self.join(back, continues, body.span)?;
@@ -342,6 +737,46 @@ impl MoveWalk<'_, '_> {
                 "a repeated loop path cannot transfer a declared State position",
             ));
         }
+        if back.live {
+            self.state.snapshot(
+                before
+                    .alias_entries
+                    .saturating_mul(helpers::plan::tree_work(used.len()))
+                    .saturating_add(before.aliases.len()),
+                body.span,
+            )?;
+            self.state.snapshot(
+                before
+                    .alias_entries
+                    .saturating_mul(helpers::plan::tree_work(before.alias_entries)),
+                body.span,
+            )?;
+            let previous = before
+                .aliases
+                .values()
+                .flatten()
+                .filter(|alias| used.contains(&alias.borrowed_at))
+                .map(|alias| alias.borrowed_at)
+                .collect::<std::collections::BTreeSet<_>>();
+            self.state.snapshot(
+                back.alias_entries
+                    .saturating_mul(helpers::plan::tree_work(previous.len()))
+                    .saturating_add(back.aliases.len()),
+                body.span,
+            )?;
+            if back.aliases.values().flatten().any(|alias| {
+                alias.invalidated_at.is_some() && previous.contains(&alias.borrowed_at)
+            }) {
+                return Err(error(
+                    "E-STATE-ALIAS",
+                    body.span,
+                    "a repeated loop path would reuse an invalidated State field alias",
+                ));
+            }
+        }
+        // A loop can replace a field and therefore restore its owning
+        // position while permanently invalidating an older borrowed alias.
+        let exit = self.join(exit, back, body.span)?;
         self.flow = if let Some(breaks) = breaks {
             self.join(exit, breaks, body.span)?
         } else {
@@ -363,15 +798,30 @@ impl MoveWalk<'_, '_> {
                         self.expr(value, Access::Move, depth + 1)?;
                     }
                     self.bind(name, statement.span)?;
+                    if let Some(value) = initializer {
+                        self.copy_aliases(
+                            AliasKey::Expression(value.id),
+                            AliasKey::Local(self.next - 1),
+                            statement.span,
+                        )?;
+                    }
                 }
                 CoreStatementKind::Assign { target, value } => {
                     self.expr(target, Access::Write, depth + 1)?;
                     self.expr(value, Access::Move, depth + 1)?;
                     if let Some((owner, field)) = self.position(target, depth + 1)? {
+                        self.invalidate_aliases((owner, field), statement.span)?;
                         self.state.snapshot(self.flow.moved.len(), statement.span)?;
                         self.flow.moved.retain(|(root, actual)| {
                             *root != owner || (field.is_some() && *actual != field)
                         });
+                        if field.is_none() {
+                            self.copy_aliases(
+                                AliasKey::Expression(value.id),
+                                AliasKey::Local(owner),
+                                statement.span,
+                            )?;
+                        }
                     }
                 }
                 CoreStatementKind::Expression(value) => {
@@ -411,7 +861,7 @@ impl MoveWalk<'_, '_> {
                     self.scopes.push(BTreeMap::new());
                     self.pattern(pattern, depth + 1)?;
                     self.block(then_body, depth + 1)?;
-                    self.scopes.pop();
+                    self.pop_scope(statement.span)?;
                     let after = self.snapshot_flow(statement.span)?;
                     self.flow = before;
                     if let Some(body) = else_body {
@@ -438,7 +888,7 @@ impl MoveWalk<'_, '_> {
                     self.scopes.push(BTreeMap::new());
                     self.pattern(pattern, depth + 1)?;
                     self.loop_body(body, before, exit, depth + 1)?;
-                    self.scopes.pop();
+                    self.pop_scope(statement.span)?;
                 }
                 CoreStatementKind::ForRange {
                     name,
@@ -454,7 +904,7 @@ impl MoveWalk<'_, '_> {
                     self.scopes.push(BTreeMap::new());
                     self.bind(name, statement.span)?;
                     self.loop_body(body, before, exit, depth + 1)?;
-                    self.scopes.pop();
+                    self.pop_scope(statement.span)?;
                 }
                 CoreStatementKind::Match { value, arms } => {
                     self.expr(value, Access::Move, depth + 1)?;
@@ -462,6 +912,8 @@ impl MoveWalk<'_, '_> {
                     let mut joined = MoveFlow {
                         live: false,
                         moved: Default::default(),
+                        aliases: Default::default(),
+                        alias_entries: 0,
                     };
                     for arm in arms {
                         self.flow = self.clone_flow(&before, statement.span)?;
@@ -469,7 +921,7 @@ impl MoveWalk<'_, '_> {
                         self.scopes.push(BTreeMap::new());
                         self.pattern(&arm.pattern, depth + 1)?;
                         self.block(&arm.body, depth + 1)?;
-                        self.scopes.pop();
+                        self.pop_scope(statement.span)?;
                         let after = self.snapshot_flow(statement.span)?;
                         joined = self.join(joined, after, statement.span)?;
                     }
@@ -503,7 +955,7 @@ impl MoveWalk<'_, '_> {
                 _ => {}
             }
         }
-        self.scopes.pop();
+        self.pop_scope(block.span)?;
         Ok(())
     }
 }
@@ -521,11 +973,15 @@ fn check_moves(
         bounds,
         scopes: vec![BTreeMap::new()],
         next: 0,
+        generation: 0,
         flow: MoveFlow {
             live: true,
             moved: Default::default(),
+            aliases: Default::default(),
+            alias_entries: 0,
         },
         loops: Vec::new(),
+        loop_alias_uses: Vec::new(),
         state,
         limits,
     };
