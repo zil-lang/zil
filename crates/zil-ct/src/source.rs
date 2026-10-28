@@ -938,6 +938,14 @@ impl<'a> Walker<'a> {
                 }
             }
             CoreExprKind::Call { callee, arguments } => {
+                // A new application carries raw type metadata. Bound it before
+                // using its static header or normalizing any argument query.
+                // Ordinary calls retain their original order and exact work.
+                let application = if matches!(&callee.kind, CoreExprKind::TypeApply { .. }) {
+                    Some(self.expr(callee, None, depth + 1)?)
+                } else {
+                    None
+                };
                 let core = self.core;
                 let mut hints = Vec::new();
                 if let Some(f) = self.function(callee) {
@@ -981,7 +989,10 @@ impl<'a> Walker<'a> {
                     args.push(self.expr(a, hints.get(i), depth + 1)?);
                 }
                 CoreExprKind::Call {
-                    callee: Box::new(self.expr(callee, None, depth + 1)?),
+                    callee: Box::new(match application {
+                        Some(callee) => callee,
+                        None => self.expr(callee, None, depth + 1)?,
+                    }),
                     arguments: args,
                 }
             }
@@ -2000,5 +2011,171 @@ mod tests {
             e.kind,
             CoreExprKind::Integer("-9223372036854775808i64".into())
         );
+    }
+
+    fn runtime_template202() -> CoreModule {
+        let application = expr(CoreExprKind::TypeApply {
+            callee: Box::new(expr(CoreExprKind::Name("reserve".into()))),
+            type_arguments: vec![Type::Package {
+                name: "Item".into(),
+                fields: vec![("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer)))],
+            }],
+        });
+        let call = expr(CoreExprKind::Call {
+            callee: Box::new(application),
+            arguments: vec![
+                expr(CoreExprKind::Name("items".into())),
+                expr(CoreExprKind::CompileTime(Box::new(number("4294967296")))),
+            ],
+        });
+        let mut core = module(expr(CoreExprKind::Unit), Type::Bool);
+        core.functions[0].body.statements[0].kind = CoreStatementKind::Return(Some(call));
+        let mut template = core.functions[0].clone();
+        template.id = NodeId(20);
+        template.name = "reserve".into();
+        template.type_parameters = vec![CoreTypeParameter {
+            index: 0,
+            name: "T".into(),
+            bound: CoreTypeBound::StoreElement,
+        }];
+        template.parameters = vec![
+            CoreParameter {
+                name: "items".into(),
+                ty: Type::Desc(Box::new(Type::OwnedStore {
+                    element: Box::new(Type::Named("T".into())),
+                })),
+                mode: PassingMode::Describe,
+                span: template.span,
+            },
+            CoreParameter {
+                name: "count".into(),
+                ty: Type::I64,
+                mode: PassingMode::Copy,
+                span: template.span,
+            },
+        ];
+        template.body.statements[0].kind =
+            CoreStatementKind::Return(Some(expr(CoreExprKind::Bool(true))));
+        core.functions.push(template);
+        core
+    }
+
+    #[test]
+    fn ct202_runtime_application_preserves_metadata_and_scalar_argument_context() {
+        // Raw Core normalization only: this does not claim the raw fixture is
+        // independently typechecked or that its runtime call has executed.
+        let core = runtime_template202();
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let program = CoreProgram {
+            root: core.module_id,
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core: core.clone(),
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let context = SourceProgramContext::new(&program, &limits).unwrap();
+        for context in [None, Some(&context)] {
+            let (normalized, usage) =
+                evaluate_with_context(&core, &target, &limits, context, None).unwrap();
+            assert_eq!(
+                normalized.functions[1].type_parameters,
+                core.functions[1].type_parameters
+            );
+            let CoreStatementKind::Return(Some(call)) =
+                &normalized.functions[0].body.statements[0].kind
+            else {
+                panic!()
+            };
+            let CoreExprKind::Call { callee, arguments } = &call.kind else {
+                panic!()
+            };
+            let CoreStatementKind::Return(Some(original)) =
+                &core.functions[0].body.statements[0].kind
+            else {
+                panic!()
+            };
+            let CoreExprKind::Call {
+                callee: original, ..
+            } = &original.kind
+            else {
+                panic!()
+            };
+            assert_eq!(callee, original);
+            assert_eq!(
+                arguments[1].kind,
+                CoreExprKind::Integer("4294967296i64".into())
+            );
+            assert!(usage.steps > 0);
+        }
+    }
+
+    #[test]
+    fn ct202_template_metadata_and_type_arguments_are_bounded_before_copy() {
+        let mut core = runtime_template202();
+        let limits = Limits {
+            max_analysis_steps: 128,
+            ..Limits::default()
+        };
+        let target = TargetProfile::default();
+        core.functions[1].type_parameters[0].name = "T".repeat(4096);
+        let errors = evaluate_source_constants(&core, &target, &limits).unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
+        assert_eq!(errors[0].phase, Phase::Ct);
+        core.functions[1].type_parameters[0].name = "T".into();
+        let CoreStatementKind::Return(Some(call)) = &mut core.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::Call { callee, .. } = &mut call.kind else {
+            panic!()
+        };
+        let CoreExprKind::TypeApply { type_arguments, .. } = &mut callee.kind else {
+            panic!()
+        };
+        type_arguments[0] = Type::Named("large".repeat(4096));
+        let errors = evaluate_source_constants(&core, &target, &limits).unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
+        assert_eq!(errors[0].phase, Phase::Ct);
+        let CoreStatementKind::Return(Some(call)) = &mut core.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::Call { callee, .. } = &mut call.kind else {
+            panic!()
+        };
+        let CoreExprKind::TypeApply { type_arguments, .. } = &mut callee.kind else {
+            panic!()
+        };
+        type_arguments.clear();
+        let errors = evaluate_source_constants(&core, &target, &Limits::default()).unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::Unsupported);
+        assert_eq!(errors[0].phase, Phase::Ct);
+    }
+
+    #[test]
+    fn ct202_type_application_is_forbidden_in_direct_scalar_query() {
+        let application = expr(CoreExprKind::TypeApply {
+            callee: Box::new(expr(CoreExprKind::Name("template".into()))),
+            type_arguments: vec![Type::I32],
+        });
+        for query in [
+            application.clone(),
+            expr(CoreExprKind::Call {
+                callee: Box::new(application),
+                arguments: vec![],
+            }),
+        ] {
+            let errors = evaluate_source_constants(
+                &module(query, Type::I32),
+                &TargetProfile::default(),
+                &Limits::default(),
+            )
+            .unwrap_err();
+            assert_eq!(errors[0].phase, Phase::Ct);
+            assert_eq!(errors[0].code, "E-CT-FORBIDDEN");
+        }
     }
 }
