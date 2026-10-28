@@ -425,12 +425,13 @@ impl Op {
     }
     /// Borrow operands in semantic order without allocating a list per instruction.
     pub fn values(&self) -> impl Iterator<Item = &Val> {
-        let (first, second, args, incoming): (
-            Option<&Val>,
-            Option<&Val>,
-            &[Arg],
-            &[(Val, String)],
-        ) = match self {
+        type OperandParts<'a> = (
+            Option<&'a Val>,
+            Option<&'a Val>,
+            &'a [Arg],
+            &'a [(Val, String)],
+        );
+        let (first, second, args, incoming): OperandParts<'_> = match self {
             Self::Alloca { .. } | Self::Branch(_) | Self::Unreachable | Self::Return(None) => {
                 (None, None, &[], &[])
             }
