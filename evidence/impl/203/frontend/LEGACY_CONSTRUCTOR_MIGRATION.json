@@ -1,0 +1,214 @@
+{
+  "task": "203",
+  "scope": "Only the legacy unused-constructor test expectation and this receipt; no production edits.",
+  "registration_commit": "cf6c5696a24157a3f3025db550280f70cb949e05",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "test_commit": "d6bd50e14e1749d84d8774f1d6b630cea0a89c07",
+  "original_failure": {
+    "source_commit": "81b860cc00750633d220ffc8ae4db95a29604044",
+    "full_run": "workspace02",
+    "status": "Fail",
+    "workspace_passed": 2402,
+    "workspace_failed": 1,
+    "target_passed": 11,
+    "target_failed": 1,
+    "stdout_sha256": "7dae3b28b081c6d10edf8b53f313bfb073b38ac3fa3939b677810ba0dadf73ca",
+    "stderr_sha256": "a9f60c894f9c11f740e9215588a3bb4f93a4169848f05f2f5eb04b162870c73f",
+    "actual_case_report": {
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    "cause": "Original two-types assertion expected Expand Unsupported, but the unchanged legal 203 unused dual-binder constructor reached Verify Success.",
+    "original_temporary_ir_preserved": false,
+    "provenance": "Exact source literal from 81b Git and the real serialized success report in full02 stdout. Unretained Case::drop removed the temporary case; no claim to recover its absent original IR.",
+    "failure_reexecuted": false
+  },
+  "promoted_original": {
+    "test": "uncalled_dual_type_constructor_is_accepted_since_203",
+    "case_label": "two-types",
+    "source_bytes": 164,
+    "source_sha256": "d05800ba09cf1c06878bb83d8914a97e31ebbba8fb0215db4b44d7ba78a4fd92",
+    "byte_equal_to_original_git_literal": true,
+    "qualification": "Unused constructor takes one direct F:Fn()->i32 and one direct G:Fn()->i32, returning a complete Package with one field of each binder and Managed ByteBuffer; the published 203 dual-binder shape.",
+    "status": "Success",
+    "phase": "verify",
+    "verification_runs": 1,
+    "constructor_instantiated": false,
+    "native_execution_claimed_for_this_input": false
+  },
+  "retained_negatives": [
+    {
+      "label": "three-fields-original",
+      "phase": "expand",
+      "category": "SafeReject",
+      "source_sha256": "5e75469111b61d948bf5dda9575a496a75f4b459f182af93b239352fb9990cba",
+      "report_path": "legacy_constructor02/state200-three-fields-original-782265-0/compile.json"
+    },
+    {
+      "label": "state-and-replacement",
+      "phase": "expand",
+      "category": "Unsupported",
+      "source_sha256": "5251f83be296a6273532690540cfde459938f39801afc614ba1cbb672df2b05a",
+      "report_path": "legacy_constructor02/state200-state-and-replacement-782265-2/compile.json"
+    },
+    {
+      "label": "two-states",
+      "phase": "expand",
+      "category": "Unsupported",
+      "source_sha256": "e8d620f800b85ff716f621b31a8b186beb8b81b3c0880a4e2e5c99c23dead266",
+      "report_path": "legacy_constructor02/state200-two-states-782265-3/compile.json"
+    },
+    {
+      "label": "borrowed-inputs",
+      "phase": "expand",
+      "category": "Unsupported",
+      "source_sha256": "6894709351c7f935ffc54637a6189413816ee33c10bc0cd28d669f8df73f6e7e",
+      "report_path": "legacy_constructor02/state200-borrowed-inputs-782265-4/compile.json"
+    },
+    {
+      "label": "unused-copy-operation",
+      "phase": "expand",
+      "category": "Unsupported",
+      "source_sha256": "0cd42e2b10417c2a7e352a5890e8ad11fe91c64f77a03e1eef3964dd01e07052",
+      "report_path": "legacy_constructor02/state200-unused-copy-operation-782265-5/compile.json"
+    },
+    {
+      "label": "borrowed-environments",
+      "phase": "types",
+      "category": "Unsupported",
+      "source_sha256": "60465de01589d6db8e96666f916ffba3b43b5a9924a14af2f9c574b4b9c7f7c0",
+      "report_path": "legacy_constructor02/state200-borrowed-environments-782265-6/compile.json"
+    }
+  ],
+  "retained_legacy_control": {
+    "label": "unused-legacy-shape",
+    "status": "Success",
+    "phase": "types",
+    "verification_runs": 0,
+    "source_sha256": "b1f893888ca192b7496e9988056a777eac97ba125806aea9615fbc7905dda8f5",
+    "note": "The unused legacy three-field input shape remains a Types-only control, not published owning State safety evidence."
+  },
+  "target_replay": {
+    "run": "legacy_constructor01",
+    "command_receipt": {
+      "command": [
+        "bash",
+        "-c",
+        "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+        "zil203",
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_state_source",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "environment": {
+        "TMPDIR": "/dev/shm/zil203-types",
+        "CARGO_TARGET_DIR": "/tmp/zil204-types-target",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/dev/shm/zil203-types/legacy_constructor01"
+      },
+      "head": "d6bd50e14e1749d84d8774f1d6b630cea0a89c07",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "started_utc": "2026-10-28T13:45:09Z",
+      "untracked": {
+        "evidence/impl/203/frontend/.rsync-tmp/LEGACY_ANALYZE_MIGRATION.json": "5d8bd1aa1ea2f65b2eb9978ed91df2176a3b5e038060b814364ab4e424ab3c43"
+      }
+    },
+    "status": "Pass",
+    "passed": 13,
+    "failed": 0,
+    "strict_git_clean": false,
+    "tracked_source_and_tests_clean": true,
+    "transient_evidence_copy": {
+      "path": "evidence/impl/203/frontend/.rsync-tmp/LEGACY_ANALYZE_MIGRATION.json",
+      "sha256": "5d8bd1aa1ea2f65b2eb9978ed91df2176a3b5e038060b814364ab4e424ab3c43",
+      "byte_equal_to_committed_receipt": true,
+      "compiled_input": false
+    },
+    "existing_native_execution_records": 60,
+    "budgets": [
+      {
+        "expand_work": 1210,
+        "types_work": 1724,
+        "types_locals": 13,
+        "checks": "N, N-1 ResourceLimit, fresh N",
+        "analyze_verify": "separate independent suites"
+      },
+      {
+        "expand_work": 1239,
+        "types_work": 2433,
+        "types_locals": 15,
+        "checks": "N, N-1 ResourceLimit, fresh N",
+        "analyze_verify": "separate independent suites"
+      },
+      {
+        "expand_work": 2617,
+        "types_work": 3562,
+        "types_locals": 19,
+        "checks": "N, N-1 ResourceLimit, fresh N",
+        "analyze_verify": "separate independent suites"
+      }
+    ]
+  },
+  "clean_migration_replay": {
+    "run": "legacy_constructor02",
+    "command_receipt": {
+      "command": [
+        "bash",
+        "-c",
+        "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+        "zil203",
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_state_source",
+        "uncalled_",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "environment": {
+        "TMPDIR": "/dev/shm/zil203-types",
+        "CARGO_TARGET_DIR": "/tmp/zil204-types-target",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/dev/shm/zil203-types/legacy_constructor02"
+      },
+      "head": "d6bd50e14e1749d84d8774f1d6b630cea0a89c07",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "started_utc": "2026-10-28T13:49:37Z",
+      "untracked": {}
+    },
+    "status": "Pass",
+    "passed": 2,
+    "failed": 0,
+    "strict_git_clean": true,
+    "scope": "Both exact migration groups: preserved negative/Types-only group and new unused dual-binder Verify control. No new native execution."
+  },
+  "evidence_level": "Author limited target on a separate /tmp Cargo cache; non-author review and root fullworkspace are separate. Existing native controls are not proof that the newly accepted unused constructor was executed.",
+  "external_evidence": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/203-types/203-unused-constructor-migration-evidence.zip",
+    "bytes": 2965413,
+    "sha256": "00854567e60ca85882a489629d3c104becee0f90218975fda82a11478060ac0b",
+    "payload_files": 1137,
+    "excluded_execution_products": 180,
+    "verification": "Every ZIP payload CRC/length/SHA256 checked; execution and LLVM build products excluded."
+  }
+}
