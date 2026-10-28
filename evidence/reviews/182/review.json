@@ -1,0 +1,72 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root",
+  "implementation_author": "/root/restore177_inventory",
+  "implementation_commit": "22a91edab6f0cf2017d6258874db3b19ae940c85",
+  "review_test_commit": "d82b219cc874b7dfaa36ac302eef414c81000abb",
+  "scope": "Actual per-capture resource access and independent address capability checks in the finite synchronous182 profile, including repaired FnMut environment reborrow.",
+  "executed": 88,
+  "assertions": 88,
+  "checks": {
+    "targeted01": {
+      "passed": 86,
+      "failed": 1,
+      "ignored": 0,
+      "suites": 6
+    },
+    "repaired02": {
+      "passed": 88,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 6
+    }
+  },
+  "reviewed_files": [
+    "crates/zil-analyze/src/holds.rs",
+    "crates/zil-verify/src/borrows.rs",
+    "crates/zil-verify/src/borrows/captures.rs",
+    "crates/zil-verify/src/borrows/buffer_effects.rs",
+    "crates/zil-verify/src/borrows/loans.rs",
+    "crates/zil-verify/src/borrows/roots.rs",
+    "crates/zil-verify/src/closures.rs"
+  ],
+  "review_notes": [
+    "Resource description provenance no longer depends on unrelated module-wide head syntax.",
+    "Capture slot maps are reconstructed from raw MakeClosure inputs and ordinary local/SSA propagation, preserving each source and finite fixed-point growth.",
+    "Actual Desc accesses come from independently checked CFG and caller substitution; helper writes remains its declared upper bound and callback traces are independently verified.",
+    "Environment position loans stay separate from captured external Address capabilities. Reborrowing a mutable environment cannot turn readonly Desc capture into write authority.",
+    "Current callback captures and explicit arguments participate in the invocation even at last use.",
+    "Factories and retained fields are admitted only under the separately checked self-contained environment profile; raw Address<Closure> capture remains explicitly closed.",
+    "Each new relation copy, traversal and fixed-point growth charges the existing bounded verifier budget; no default budget changes."
+  ],
+  "independent_cases": {
+    "groups": 4,
+    "native_runs": 6,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "cases": [
+      "Mutable independent n plus read-only resource head through FnMut helper; nearest body adds resource write and must reject.",
+      "Two ordinary headless forwarding layers keep actual aliased Desc target; disjoint target succeeds, alias rejects.",
+      "Adding an unrelated unused function that reads a resource head cannot change the source rejection.",
+      "Moved shared field capture remains read-only through two borrowed helper calls."
+    ]
+  },
+  "finding_and_repair": {
+    "rejected_source": "1e611912bbee3669b92e938de7567b210907ddca",
+    "original_receipt": "runs/targeted01/command/command.json",
+    "finding": "The ReborrowAddress access check still used aggregate Hold roots, so &mut F incorrectly treated a readonly captured resource as a mutable target and rejected a safe program.",
+    "repair": "Only actual environment position loans qualify an Address<Closure> reborrow. External capture loans keep their previous permissions; actual Call effects and source conflicts are still checked.",
+    "same_input_retested": true,
+    "final_receipt": "runs/repaired02/command/command.json"
+  },
+  "boundaries": [
+    "Explicit Address callback parameters, retained borrowed nested environments and ByteBuffer Desc captures remain outside this finite profile.",
+    "No complete concurrency, async, lending, dynamic dispatch or full1.4 claim."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}

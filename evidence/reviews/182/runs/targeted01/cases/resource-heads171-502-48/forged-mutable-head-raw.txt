@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "non-Copy type requires another checker",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 41,
+                end: 105,
+            },
+        ),
+        notes: [],
+    },
+]

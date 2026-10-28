@@ -1,0 +1,1 @@
+import model;fn main()->i32{let r=model.make();let p=&r;return p.secret}

@@ -1,0 +1,1 @@
+import model;import helpers;fn main()->i32{let r=model.make();let p=&r;if p.n!=42{return 1};helpers.write(r);return r.n-43}
