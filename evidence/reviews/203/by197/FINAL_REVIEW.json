@@ -1,0 +1,357 @@
+{
+  "reviewer": "/root/impl197",
+  "review_kind": "FinalIndependentReviewBinding",
+  "reviewed_task": "203",
+  "implementation_author": "/root",
+  "implementation_commit": "2e58ed38825fb87970982c93e0a674067a0f75a5",
+  "original_implementation_commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+  "original_independent_review_commit": "b6a13a81d01b83dcdf38256ebae4448c55ba5a95",
+  "verdict": "Pass",
+  "scope": "The finite two-binding owned State and at-most-two-concrete-callback Store/StoreElement profile in section 8.2.2, including value-inferred static ordinary T calls. This is not acceptance of the entire 1.4 language or B0.",
+  "spec_hash": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "schema_version": 27,
+  "wire_version": 27,
+  "new_execution": false,
+  "review_method": "Reuse the original complete independent review and two exact legacy-test supplemental reviews after read-only byte/object equivalence checks. No source, raw/Wire, budget, native, consumer or full-workspace tests were rerun for this final binding.",
+  "blocking_findings": [],
+  "production_authored_by_this_reviewer": false,
+  "original_receipts_preserved": [
+    {
+      "path": "evidence/reviews/203/by197/REVIEW.json",
+      "commit": "b6a13a81d01b83dcdf38256ebae4448c55ba5a95",
+      "sha256": "31f24e842a2c2ceb30c20108f3cfb05fbcf87b3dafb7442e486a43cc9ad05466"
+    },
+    {
+      "path": "evidence/reviews/203/by197/SOURCE.json",
+      "commit": "b6a13a81d01b83dcdf38256ebae4448c55ba5a95",
+      "sha256": "a44f6b4cb4fcb7e01a2e43e3bdfd32e0ed858ccaff842944382761bcd2e2259f"
+    },
+    {
+      "path": "evidence/reviews/203/by197/RUNS.json",
+      "commit": "b6a13a81d01b83dcdf38256ebae4448c55ba5a95",
+      "sha256": "ff906d861c644f2528846ed7c5a5eb8550f7e8e790bab192dc8f24c9601fa66c"
+    },
+    {
+      "path": "evidence/reviews/203/by197/ARCHIVE.json",
+      "commit": "b6a13a81d01b83dcdf38256ebae4448c55ba5a95",
+      "sha256": "b11b0db7c4d5392fb084f7956f54fd03011d6f045fe86b0dfcef90b42002ee81"
+    }
+  ],
+  "source_equivalence": {
+    "algorithm": "SHA256 of sorted path + NUL + Git blob object id + LF; exact path set, blob ids and file modes compared. Normative inputs separately SHA256-hashed from Git bytes using tools/check-plan.py hashes algorithm.",
+    "production_paths": [
+      "Cargo.toml",
+      "Cargo.lock",
+      "rust-toolchain",
+      "rust-toolchain.toml",
+      "crates/*/Cargo.toml",
+      "crates/*/build.rs",
+      "crates/*/src/**"
+    ],
+    "production_files": 178,
+    "production_fingerprint_sha256": "661829fb3c69521fe5df9d316ee97ea2c7f79cfd529ebcbe895914526076d3cd",
+    "actual_independent_input_files": 13,
+    "actual_independent_input_fingerprint_sha256": "cd330d88c0aba193abf802c173a9ee0514f141b939070018791b6ed6d11e755b",
+    "actual_independent_input_paths": [
+      "crates/zil-driver/tests/impl203_ct_independent.rs",
+      "crates/zil-driver/tests/impl203_fixtures/01_same_factory_distinct_modes.zil",
+      "crates/zil-driver/tests/impl203_fixtures/02_once_repeated.zil",
+      "crates/zil-driver/tests/impl203_fixtures/03_reversed_declared_modes.zil",
+      "crates/zil-driver/tests/impl203_fixtures/04_mode_cleanup_markers.zil",
+      "crates/zil-driver/tests/impl203_independent.rs",
+      "crates/zil-driver/tests/impl203_source.rs",
+      "examples/mainline/state_bindings203/factory.zil",
+      "examples/mainline/state_bindings203/main.zil",
+      "examples/mainline/state_bindings203/portable.zil",
+      "examples/mainline/state_bindings203/state.zil",
+      "examples/mainline/state_bindings203/store_helpers.zil",
+      "tools/language/203/consumer.py"
+    ],
+    "compared_commits": [
+      {
+        "role": "final_implementation",
+        "commit": "2e58ed38825fb87970982c93e0a674067a0f75a5",
+        "production_difference": [],
+        "independent_executable_input_difference": [],
+        "normative_difference": []
+      },
+      {
+        "role": "original_implementation",
+        "commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+        "production_difference": [],
+        "independent_executable_input_difference": [],
+        "normative_difference": []
+      },
+      {
+        "role": "independent_tests",
+        "commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+        "production_difference": [],
+        "independent_executable_input_difference": [],
+        "normative_difference": []
+      },
+      {
+        "role": "independent_consumer",
+        "commit": "c3b8964c9771baf5a90880cc2927f80afc3194c9",
+        "production_difference": [],
+        "independent_executable_input_difference": [],
+        "normative_difference": []
+      },
+      {
+        "role": "migration_201_execution",
+        "commit": "ba91b148b5f814e366f04fa4a97f3088da4a1878",
+        "production_difference": [],
+        "independent_executable_input_difference": [],
+        "normative_difference": []
+      },
+      {
+        "role": "migration_200_execution",
+        "commit": "d2924b4fb996c1f43b6fd263cea2e7d99f3b28b4",
+        "production_difference": [],
+        "independent_executable_input_difference": [],
+        "normative_difference": []
+      }
+    ],
+    "normative_inputs": [
+      {
+        "path": "_zil_design.md",
+        "sha256": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489"
+      },
+      {
+        "path": "policy/dependencies.json",
+        "sha256": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752"
+      },
+      {
+        "path": "spec/attributes.json",
+        "sha256": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa"
+      },
+      {
+        "path": "spec/diagnostics.json",
+        "sha256": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e"
+      },
+      {
+        "path": "spec/grammar.ebnf",
+        "sha256": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b"
+      },
+      {
+        "path": "spec/interfaces.json",
+        "sha256": "a8816494c8a90a299d9e3ddee0bf63a17d6b96e528b94df9bca954e9e1615b78"
+      },
+      {
+        "path": "validation/product-gates.json",
+        "sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+      }
+    ],
+    "only_crates_changes_from_original_implementation": [
+      "crates/zil-analyze/tests/impl201_store.rs",
+      "crates/zil-driver/tests/impl200_state_source.rs"
+    ],
+    "nonexecuted_document_difference": "examples/mainline/state_bindings203/README.md appends CLI05 and CLI06 execution summaries; it is not consumed as a source module or oracle. Its difference is preserved rather than included in the identical executable-input claim."
+  },
+  "reused_independent_executions": {
+    "final_independent": {
+      "receipt": "source09/command.json",
+      "source_commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+      "git_status": "",
+      "passed": 32,
+      "failed": 0,
+      "independent_source_raw_budget_groups": 28,
+      "independent_ct_groups": 4,
+      "included_adapter_old_tests_filtered": 4,
+      "native_executions": 54,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "source_compile_reports": {
+        "Success/link": 54,
+        "Success/verify": 2,
+        "SafeReject/expand": 14,
+        "SafeReject/types": 4,
+        "Unsupported/expand": 1,
+        "Unsupported/verify": 1
+      },
+      "raw_public_types": {
+        "inputs": 45,
+        "valid_controls": 13,
+        "rejected_inputs": 32,
+        "entries_per_input": [
+          "zil_types::check",
+          "zil_types::check_program"
+        ]
+      },
+      "evidence_level": "Real source through native LLVM, raw Core through both public Types entries, raw Typed/Candidate and encoded Wire controls/attacks, exact budget boundaries; each retains its actual earliest phase."
+    },
+    "final_condition_regression": {
+      "receipt": "condition-review01/command.json",
+      "source_commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+      "git_status": "",
+      "passed": 1,
+      "failed": 0,
+      "authored_by": "/root/roles196_frontend",
+      "executed_by": "/root/impl197",
+      "raw_inputs": 9,
+      "valid_controls": 6,
+      "rejected_inputs": 3,
+      "entries_per_input": 2,
+      "scope": "Condition-only old alias on repeated edge, body old alias on repeated edge, old alias after refill; fresh-after-refill, distinct field, fresh per iteration, break-only, repeated same shared/exclusive view controls. This is unused Core declaration checking, not a new native unsafe-execution claim."
+    },
+    "final_linux_consumer": {
+      "receipt": "linux02-command/command.json",
+      "summary": "linux02/summary.json",
+      "source_commit": "c3b8964c9771baf5a90880cc2927f80afc3194c9",
+      "git_status": "",
+      "compiler_source_commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+      "compiler_sha256": "6044e4b5e5551302f3452b50759bda54cde8f65cab7c4d8237c4e4243481a187",
+      "compiler_build_receipt": "compiler-cli06/command.json",
+      "passed": 128,
+      "failed": 0,
+      "ordinary": 16,
+      "instrumented": 112,
+      "actual_allocation_failures": 88,
+      "all_live_zero": true,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "platform": "Linux x86_64 native",
+      "input_counts": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "7",
+        "6/full-capacity",
+        "9/invalid",
+        "eof"
+      ],
+      "scope": "Five actual modules, two runtime elements with shared factory identities but distinct per-value debts, two different concrete callback layouts, mutable borrowed F via existing synchronous helper, G actual Fn declared FnOnce consumed after pop, error-side cleanup, growth/push/pop, continue/break, every observed allocator failure prefix."
+    },
+    "old_202_migration_neighbors": {
+      "receipt": "migration202/command.json",
+      "source_commit": "4c6e519f5ea809387aa40e33b94643e8586ca7a8",
+      "passed": 4,
+      "failed": 0,
+      "migration_receipt": "MIGRATION-202.json",
+      "note": "Earlier production freeze, not relabeled with the final condition fix; exact legacy bare-call/schema changes and actual unfinished recursive instance rejection."
+    },
+    "old_200_constructor_neighbor": {
+      "receipt": "old20001/command.json",
+      "source_commit": "c08e71c506984e6cc3ab8bfc13b6ef25469ebfd9",
+      "passed": 1,
+      "failed": 0,
+      "note": "Earlier actual execution of original mismatched second actual parameter / still-single-root result and real capture graph controls; not a final all-old-profile budget claim."
+    }
+  },
+  "supplemental_migrations": [
+    {
+      "receipt": "evidence/reviews/203/by197/MIGRATION-201-ANALYZE.json",
+      "review_commit": "7cd22d8a8a4c6738527506b28e9ebeb484705828",
+      "reviewed_commit": "ebd9fbc5a410dab6fb90627c1d56d8db4e4a522e",
+      "tested_source_commit": "ba91b148b5f814e366f04fa4a97f3088da4a1878",
+      "verdict": "Pass",
+      "passed": 3,
+      "failed": 0,
+      "scope": "Only the exact old 201 Analyze test migration and three affected regression groups; no new production acceptance or formal full-workspace result.",
+      "final_test_file_byte_identical_to_executed_commit": true,
+      "external_evidence": {
+        "path": "/workspace/scratch/39be3faa4442/deliverables/203-review-migration201-evidence.zip",
+        "bytes": 37228,
+        "sha256": "064e2109a96c7c7a6ba1063580920d056876014b52283af5fa1592273d14988e",
+        "member_manifest": "ARCHIVE-MANIFEST.json",
+        "integrity": "Every included member SHA256 and ZIP CRC verified",
+        "execution_artifacts_included": false
+      }
+    },
+    {
+      "receipt": "evidence/reviews/203/by197/MIGRATION-200.json",
+      "review_commit": "00945ca8405c5666ff7887d90b1f14ccb74edc61",
+      "reviewed_commit": "d6bd50e14e1749d84d8774f1d6b630cea0a89c07",
+      "tested_source_commit": "d2924b4fb996c1f43b6fd263cea2e7d99f3b28b4",
+      "verdict": "Pass",
+      "passed": 2,
+      "failed": 0,
+      "scope": "Exact extraction of the original unused two-types constructor into a named source declaration control; all other old-200 test bytes and assertions remain unchanged.",
+      "final_test_file_byte_identical_to_executed_commit": true,
+      "external_evidence": {
+        "path": "/workspace/scratch/39be3faa4442/deliverables/203-review-migration200-evidence.zip",
+        "bytes": 59911,
+        "sha256": "aca87b63aae6e0cc7f77d191cb320644c085c477e75cf455c8bb3aeb2efa3f4d",
+        "member_manifest": "ARCHIVE-MANIFEST.json",
+        "integrity": "ZIP CRC and every member SHA256 verified",
+        "execution_artifacts_included": false
+      }
+    }
+  ],
+  "original_external_evidence": {
+    "archive": "203-review-by197-evidence.zip",
+    "absolute_path": "/workspace/scratch/39be3faa4442/deliverables/203-review-by197-evidence.zip",
+    "bytes": 28868714,
+    "sha256": "9f3591d6e997c386714e0edc03b63a2e1eef76cf034c4e7ea184adea7fefc43f",
+    "manifest_receipt": "ARCHIVE.json",
+    "archive_member_manifest": "ARCHIVE-MANIFEST.json",
+    "snapshot_member": "review-summary/REVIEW-SNAPSHOT.json"
+  },
+  "root_formal_results_read_only": {
+    "workspace03": {
+      "execution_owner": "/root",
+      "receipt": "/workspace/scratch/39be3faa4442/run-logs/203-root/workspace03/command.json",
+      "receipt_sha256": "55f5a164fda877db3f0a855b4381473b514b77b51e45fab94cb2fe5e3d23e159",
+      "source_commit": "2e58ed38825fb87970982c93e0a674067a0f75a5",
+      "git_status": "",
+      "status": "Pass",
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--offline",
+        "--locked",
+        "-j2",
+        "--no-fail-fast"
+      ],
+      "reviewer_action": "Read-only receipt and stdout/stderr digest verification; not new reviewer execution",
+      "elapsed_seconds": 114.7177004814148,
+      "result_groups": 247,
+      "passed": 2404,
+      "failed": 0,
+      "ignored": 0
+    },
+    "clippy07": {
+      "execution_owner": "/root",
+      "receipt": "/workspace/scratch/39be3faa4442/run-logs/203-root/clippy07/command.json",
+      "receipt_sha256": "bcc4b2de8f0736430c964e1f1acc43f383d55dd96c8522a25e14cb1a94eb0f2c",
+      "source_commit": "2e58ed38825fb87970982c93e0a674067a0f75a5",
+      "git_status": "",
+      "status": "Pass",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--offline",
+        "--locked",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "reviewer_action": "Read-only receipt and stdout/stderr digest verification; not new reviewer execution",
+      "elapsed_seconds": 0.9529626369476318
+    }
+  },
+  "historical_failures": "The original independent failures, CLI05 runs, root workspace01 failure, and root workspace02 2402/1 failure retain their actual identities and outcomes. They are not replaced or reclassified by this final receipt.",
+  "acceptance_boundary": "Pass only for the finite 203 profile and its unchanged public normative contract. Formal workspace and Clippy execution belong to /root. This reviewer performed no new native Windows or product gate execution.",
+  "rust_goals": {
+    "safety": "Concrete source/raw/Wire and cleanup failures exercised; declaration origins and actual loan safety are explicitly distinguished. This finite review is not a proof for all language programs.",
+    "runtime_and_memory": "Exact drop traces and allocation balance measured for the native consumer. No Rust performance or total-memory superiority measurement was performed.",
+    "expression_and_maintenance": "Complete State and Store helpers now carry separate callable declarations without accidental concrete-type permission. This increases the demonstrated composition range, not a measured maintenance/product outcome.",
+    "compile_cost": "New work is bounded and exact N boundaries recover in fresh calls. No claim of compile-speed superiority or all-old-profile timing parity."
+  },
+  "product_net_breakthrough": "NotEstablished",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "B0_completion": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "created_utc": "2026-10-28T13:54:44.154506+00:00"
+}
