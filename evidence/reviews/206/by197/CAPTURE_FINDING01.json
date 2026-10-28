@@ -1,0 +1,115 @@
+{
+  "implementation": "206",
+  "reviewer": "/root/review205_finish",
+  "status": "ConfirmedVerifyBoundaryDefect",
+  "observed_clean_source": "daeec6a659c2a3c91fbe9ed167d7ace70dad84c6",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "scope": "Local non-returned Closure capturing a Package; ordinary Product admission must not widen the old capture profile.",
+  "source_control": "Valid flat Package {Managed R,n:i32} enters local Fn closure with explicit Bind/End and scalar n read; both raw and Wire controls accept.",
+  "hostile_mutation": "Coordinately replace the actual parameter/local, SSA, closure view local and capture type with complete Product {child:original_flat,n:i32}. All instructions, field indices, CFG, Bind/End, return contracts and candidate claims are unchanged; only candidate module fingerprint is rebased.",
+  "oracle": "Independent Verify must reject the closed capture profile even when Analyze already rejects it.",
+  "actual": {
+    "tests_passed": 0,
+    "tests_failed": 1,
+    "analyze": "Unsupported / E-UNSUPPORTED / package requires finite Copy/complete array fields and at least one explicit Managed resource",
+    "verify_raw": "Ok(VerifiedModule)",
+    "verify_wire": "Ok(VerifiedModule)",
+    "lower_or_native": "NotRun"
+  },
+  "records": [
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/command/command.json",
+      "bytes": 956,
+      "sha256": "b3123ceaaae2dd70bae93148f5ddafad87f14ae0da621429fcd1f604d2843720"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/command/stdout.log",
+      "bytes": 288,
+      "sha256": "86ed97362e239a873594e2da83005d1306484d8a3ae711cad357de4c5fe57bd4"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/command/stderr.log",
+      "bytes": 8228,
+      "sha256": "b15726c003c121711c3e04f0613e32a96dd5a1d1a8365a525749f71031b4c882"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/control.analyze.txt",
+      "bytes": 3874,
+      "sha256": "b4472e0cd470f7e53ac32aca2e30c86f7c96b5dcef624d6f75075154a052c6db"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/control.candidate.txt",
+      "bytes": 3247,
+      "sha256": "5b872e30f69824299e1deb163b178ef861e57f355e0ff4dddbd7e384da6d4175"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/control.typed.txt",
+      "bytes": 25399,
+      "sha256": "734664fc2c9f46c79aef2a3e9ce7091cf3443caa9266089f51a85d8b1b8702c2"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/control.verify.txt",
+      "bytes": 73452,
+      "sha256": "fbc22c1b980259542c27453a8304e5e9fe3c18e960f4ced8def11989b36d06cd"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/control.wire",
+      "bytes": 1639,
+      "sha256": "952b33c46aca0b6eb22c8ddd9e79489e6da3a574878b53ff48e348277737f0e8"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/control.zil",
+      "bytes": 122,
+      "sha256": "f26f4c19b033c3fb3b70d3a5efbe26afc9e06f81ccbeda47cb8f220edb2e7d7b"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/core.txt",
+      "bytes": 13662,
+      "sha256": "21b71c27ce7a5c7eb419d784a1ab0168d1bc69ab6493b71ded92bceec6f03830"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/product.analyze.txt",
+      "bytes": 513,
+      "sha256": "f9c311b83319bb4508560c0f98168ec4a2821293885a475fa976f3ae93a3d459"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/product.candidate.txt",
+      "bytes": 3242,
+      "sha256": "86b3c4e326b5fe254979da9b2e44c46c8f2facdb4a2aaa54085586bbb8ebb8dd"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/product.typed.txt",
+      "bytes": 28019,
+      "sha256": "492e8fdebe8406d81217036256712eda3e41e8127d3fa490f142f1be67249251"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/product.verify.txt",
+      "bytes": 79440,
+      "sha256": "19a7a6079d5faa19325f1e875eec012915191a45c3ded4f837c1eab0eafea832"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/product.wire",
+      "bytes": 1807,
+      "sha256": "76db02eb3ff7e5102e46a5c82039fadaa2a5ece307b89de17380898d5a0a3067"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/syntax.txt",
+      "bytes": 16439,
+      "sha256": "cee510830df117aaec52d16726beab964c0a1d222553a9f7f08d87680fc151ae"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/types.txt",
+      "bytes": 28430,
+      "sha256": "566527ea95dc0234c43c76ad4ab42053728a234af812d88fcde7617098d153aa"
+    }
+  ],
+  "test": {
+    "path": "/workspace/scratch/39be3faa4442/language14/review196-by197/crates/zil-driver/tests/impl206_independent_capture.rs",
+    "bytes": 6120,
+    "sha256": "2b1f68ed0b06c75fab7047218e0fb9c2d4999ea5529ca89b346c1b312b9af0df"
+  },
+  "static_cause": "closures::check_definitions excludes arrays/callable Package fields, then calls check_local_type, which now admits ordinary nested Product. retained::check_claim applies the old Package gate only to callable factories; local non-returned Closure bypasses it. Existing machine capture flag/teardown profile still only visits direct Managed fields.",
+  "report_to_author": "Root notified with clean reproducer before final review; only root may register/fix production closures.rs.",
+  "language_final_review": "Blocked pending verified repair, final compiler identity and full integration. Prior limited/consumer results keep their original source identity.",
+  "production_modified_by_reviewer": false
+}
