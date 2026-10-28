@@ -806,7 +806,7 @@ fn actual_capture_writes_and_transfers_cannot_be_hidden_by_mode_or_read_metadata
         &plan,
         false,
         ResultCategory::SafeReject,
-        "E-VERIFY-RESOURCE",
+        "E-VERIFY-CAPTURE",
     );
 
     let mut repeated = module.clone();
