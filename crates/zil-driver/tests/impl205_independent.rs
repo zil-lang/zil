@@ -643,3 +643,263 @@ fn unused_raw_declared_once_call_is_per_value_and_refill_changes_the_position() 
         "declared Once did not consume actual values: {unexpectedly_accepted:?}"
     );
 }
+
+#[test]
+fn unused_old_state_alias_in_loop_condition_cannot_survive_take_and_refill() {
+    for (label, original) in [("copy-t", OLD_BAD_ALIAS), ("non-t", OLD_NON_T_BAD_ALIAS)] {
+        let bad=original.replace(
+            "    let replacement=next.a\n    next.a=replacement\n    view()",
+            "    while view()==0 {\n        let replacement=next.a\n        next.a=replacement\n    }",
+        );
+        assert!(bad.contains("while view()==0"));
+        let break_only = bad.replace(
+            "        next.a=replacement\n",
+            "        next.a=replacement\n        break\n",
+        );
+        accepted(
+            &format!("old-alias-condition-break-only-{label}"),
+            &break_only,
+        );
+        let sibling = bad
+            .replace("let replacement=next.a", "let replacement=next.b")
+            .replace("next.a=replacement", "next.b=replacement");
+        accepted(&format!("old-alias-condition-sibling-{label}"), &sibling);
+        reject(
+            &format!("old-alias-condition-reused-{label}"),
+            &bad,
+            &[Phase::Expand],
+            ResultCategory::SafeReject,
+            None,
+        );
+    }
+}
+
+#[test]
+fn unused_mixed_callee_alias_is_saved_before_argument_preparation() {
+    let prefix = "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}\nfn revise<T:Copy,F:FnMut(i32)->i32>(state:State<T,F>,replacement:F)->State<T,F>{\nvar next=state;\n";
+    let tail = "\nnext.a=replacement;return next}\nfn main(){}";
+    let positive =
+        format!("{prefix}let argument=next.a(0);let view=&mut next.a;view(argument);{tail}");
+    let sibling = format!("{prefix}let view=&mut next.a;view(next.b(0));{tail}");
+    let bad = format!("{prefix}let view=&mut next.a;view(next.a(0));{tail}");
+    accepted("mixed-callee-last-use-before-borrow", &positive);
+    accepted("mixed-callee-sibling-argument", &sibling);
+    reject(
+        "mixed-callee-conflicting-argument",
+        &bad,
+        &[Phase::Expand],
+        ResultCategory::SafeReject,
+        None,
+    );
+}
+
+fn verify_pair(label: &str, module: &TypedModule, candidate: &CandidatePlan, accept: bool) {
+    let case = Case::new(label);
+    let limits = Limits::default();
+    case.write("typed.txt", format!("{module:#?}"));
+    case.write("candidate.txt", format!("{candidate:#?}"));
+    let wire = zil_ir::wire::encode_module_candidate(module, candidate, &limits).unwrap();
+    case.write("candidate.wire", &wire);
+    assert_eq!(
+        zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap(),
+        (module.clone(), candidate.clone())
+    );
+    let raw = zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &limits);
+    let bytes = zil_verify::verify_module_bytes(&wire, &module.target, &limits);
+    case.write("verify.txt", format!("raw={raw:#?}\nwire={bytes:#?}"));
+    for result in [raw, bytes] {
+        if accept {
+            result.unwrap();
+        } else {
+            let errors = result.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.phase == Phase::Verify && d.category == ResultCategory::SafeReject),
+                "{label}: {errors:#?}"
+            );
+        }
+    }
+}
+fn typed_control(label: &str, source: &str) -> (TypedModule, CandidatePlan) {
+    let core = expanded(label, source);
+    let case = Case::new(&format!("{label}-typed"));
+    let typed = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default());
+    case.write("typed.txt", format!("{typed:#?}"));
+    let typed = typed.unwrap();
+    let candidate = zil_analyze::analyze(&typed, &Limits::default());
+    case.write("analyze.txt", format!("{candidate:#?}"));
+    let candidate = candidate.unwrap();
+    verify_pair(&format!("{label}-control"), &typed, &candidate, true);
+    (typed, candidate)
+}
+fn typed_attack(label: &str, module: &TypedModule, original: &CandidatePlan) {
+    let case = Case::new(&format!("{label}-fresh-producer"));
+    case.write("typed.txt", format!("{module:#?}"));
+    let fresh = zil_analyze::analyze(module, &Limits::default());
+    case.write("analyze.txt", format!("{fresh:#?}"));
+    if let Ok(candidate) = fresh {
+        verify_pair(
+            &format!("{label}-fresh-candidate"),
+            module,
+            &candidate,
+            false,
+        );
+    }
+    verify_pair(
+        &format!("{label}-untrusted-original-candidate"),
+        module,
+        original,
+        false,
+    );
+}
+
+#[test]
+fn source_produced_three_positions_reject_duplicate_transfers_in_raw_and_wire() {
+    let source = format!(
+        r#"{RESOURCE}{STATE}
+fn revise<F:Fn()->i32>(replacement:F,state:State<i32,F>)->State<i32,F>{{
+    var next=state;let first=next.a;let second=next.b;
+    next.a=replacement;next.b=first;return next
+}}
+fn main()->i32{{let state=revise(make(67),pack(make(65),make(66),0));emit(77);return state.a()+state.b()-132}}
+"#
+    );
+    native("raw-transpose-source-control", &source, "BMZCA", 0);
+    let (typed, candidate) = typed_control("raw-transpose", &source);
+    let index = typed
+        .functions
+        .iter()
+        .position(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .filter(|i| matches!(i.kind, InstructionKind::StorePackageField { .. }))
+                .count()
+                == 2
+        })
+        .unwrap();
+    let stores = typed.functions[index]
+        .blocks
+        .iter()
+        .enumerate()
+        .flat_map(|(b, block)| {
+            block
+                .instructions
+                .iter()
+                .enumerate()
+                .filter_map(move |(i, instruction)| match instruction.kind {
+                    InstructionKind::StorePackageField { value, .. } => Some((b, i, value)),
+                    _ => None,
+                })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(stores.len(), 2);
+    let mut duplicate = typed.clone();
+    let InstructionKind::StorePackageField { value, .. } =
+        &mut duplicate.functions[index].blocks[stores[1].0].instructions[stores[1].1].kind
+    else {
+        unreachable!()
+    };
+    *value = stores[0].2;
+    typed_attack("one-ssa-published-to-two-fields", &duplicate, &candidate);
+    let takes = typed.functions[index]
+        .blocks
+        .iter()
+        .enumerate()
+        .flat_map(|(b, block)| {
+            block
+                .instructions
+                .iter()
+                .enumerate()
+                .filter_map(move |(i, instruction)| match instruction.kind {
+                    InstructionKind::TakePackageField { local, index } => {
+                        Some((b, i, local, index))
+                    }
+                    _ => None,
+                })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(takes.len(), 2);
+    assert_eq!(takes[0].2, takes[1].2);
+    assert_ne!(takes[0].3, takes[1].3);
+    let mut repeated = typed.clone();
+    let InstructionKind::TakePackageField { index: field, .. } =
+        &mut repeated.functions[index].blocks[takes[1].0].instructions[takes[1].1].kind
+    else {
+        unreachable!()
+    };
+    *field = takes[0].3;
+    typed_attack("same-actual-field-taken-twice", &repeated, &candidate);
+    let mut access = typed.clone();
+    let instruction = access.functions[index]
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(stores[0].2))
+        .unwrap();
+    let InstructionKind::TakeLocal { local } = instruction.kind else {
+        panic!("{instruction:#?}")
+    };
+    instruction.kind = InstructionKind::Load { local };
+    typed_attack(
+        "borrowed-access-cannot-publish-replacement",
+        &access,
+        &candidate,
+    );
+}
+
+#[test]
+fn source_produced_replacement_must_discharge_exact_old_field_before_publication() {
+    let source = format!(
+        r#"{RESOURCE}{STATE}
+fn revise<F:Fn()->i32>(state:State<i32,F>,replacement:F)->State<i32,F>{{var next=state;next.a=replacement;return next}}
+fn main()->i32{{let state=revise(pack(make(65),make(66),0),make(67));emit(77);return state.a()+state.b()-133}}
+"#
+    );
+    native("raw-cleanup-source-control", &source, "AMZCB", 0);
+    let (typed, candidate) = typed_control("raw-cleanup", &source);
+    let index = typed
+        .functions
+        .iter()
+        .position(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::StorePackageField { .. }))
+        })
+        .unwrap();
+    let (block, position, field) = typed.functions[index]
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(b, block)| {
+            block
+                .instructions
+                .iter()
+                .enumerate()
+                .find_map(|(i, instruction)| match instruction.kind {
+                    InstructionKind::DropPackageField { index, .. } => Some((b, i, index)),
+                    _ => None,
+                })
+        })
+        .unwrap();
+    assert_eq!(field, 2);
+    let mut missing = typed.clone();
+    missing.functions[index].blocks[block]
+        .instructions
+        .remove(position);
+    typed_attack("missing-old-field-cleanup", &missing, &candidate);
+    let mut sibling = typed.clone();
+    let InstructionKind::DropPackageField { index: field, .. } =
+        &mut sibling.functions[index].blocks[block].instructions[position].kind
+    else {
+        unreachable!()
+    };
+    *field = 3;
+    typed_attack(
+        "cleanup-sibling-does-not-discharge-target",
+        &sibling,
+        &candidate,
+    );
+}
