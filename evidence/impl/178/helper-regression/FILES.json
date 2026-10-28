@@ -6,6 +6,11 @@
       "sha256": "ad46556a93a0c37474c19fe26e5b39cc2b53ff3f4236117e3b1e389f47666a19"
     },
     {
+      "path": "OMITTED-PHASES.json",
+      "bytes": 12300,
+      "sha256": "020090fef26bf767a44f8b27a5bab30c448e30bc01bed89bdd9e74de838cf730"
+    },
+    {
       "path": "SUMMARY.json",
       "bytes": 1779,
       "sha256": "8b50eb349d1618d0f1dfdda2f67c34041775e12d1fa067a3a7de0e4f6c7f26e6"
@@ -936,164 +941,14 @@
       "sha256": "6431d20c42f0f86df29a665a301d5e67465fc195423b064fef9541746e8dabc5"
     },
     {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-0/lifecycle-ir/candidate.txt",
-      "bytes": 165199,
-      "sha256": "34acb1a6054e4df473f6299ba45b15af0dc47581440628423049511fae535e70"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-0/lifecycle-ir/core.txt",
-      "bytes": 776907,
-      "sha256": "2a998aa617c6e635bc27b42ddc8f3c3acadd6d4de10957ed6dd5d284316dd682"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-0/lifecycle-ir/ct-core.txt",
-      "bytes": 813422,
-      "sha256": "b389884f3142246b2d92ede183087a7a3328306ba0523dad776adc8f546c78ad"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-0/lifecycle-ir/interfaces.txt",
-      "bytes": 17809,
-      "sha256": "b6c727812fa7cf9b127f72d22e097f605355fb1799a762130ddd9072e145ffc8"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-0/lifecycle-ir/lir.txt",
-      "bytes": 1112788,
-      "sha256": "467a3a3d7b664b2d3b4a1f9e03ae0cb87b759d1e665df7a69eabac64c730b8e6"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-0/lifecycle-ir/source-map.txt",
-      "bytes": 457736,
-      "sha256": "652327e17c320e52edc7881404431dc2144f02b0c3c46fa3bb3e89d46c69c1e8"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-0/lifecycle-ir/syntax.txt",
-      "bytes": 1537215,
-      "sha256": "07d2803de47d731f5a694625a9b9f57c3489e6db66f3b472ce1312e35787ceba"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-0/lifecycle-ir/typed.txt",
-      "bytes": 1111954,
-      "sha256": "a57aab7e9383f7389e544480ba746c63c5615f7f09eba9c551aa195ad73387a5"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-0/lifecycle-ir/verified-interfaces.txt",
-      "bytes": 32589,
-      "sha256": "1504653ffdb24426d4c263fa7beb7ee7332f390cb7d3c02c1a8711d818a97d57"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-0/lifecycle-ir/verified.txt",
-      "bytes": 1112031,
-      "sha256": "be21570494cccf2eb998e5ca9a390f593bdb8e9a0edb2df6469ac20d39fbaada"
-    },
-    {
       "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-compile-report.json",
       "bytes": 5744,
       "sha256": "b25db00a3d266aab9a515974009f2d3f8db472f325cb17aaa37966cbb9f24ceb"
     },
     {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-ir/candidate.txt",
-      "bytes": 132087,
-      "sha256": "5fc59ce2ce88e68cc4390968f25c6828bbdf54fb5f1286ec7c9504abc6fd3755"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-ir/core.txt",
-      "bytes": 457889,
-      "sha256": "19e191b87db17a6bea6f1f8de7810f4ac20de42d62eccf09902600392ce359c7"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-ir/ct-core.txt",
-      "bytes": 500066,
-      "sha256": "551e1492478fba60f4c1c8e3346af651febcaaafb57fabd7e2bb8e5ebb2702ae"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-ir/interfaces.txt",
-      "bytes": 31143,
-      "sha256": "a6a1f48ca877cb118953fbc08c3497feb3bd9439eee14f21fe4dd42746cd4eb8"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-ir/lir.txt",
-      "bytes": 585605,
-      "sha256": "ff2b9d7d56b24ae8be5300ed300255b4cc3972e472ff8efe0a13ecb463ca3ca3"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-ir/source-map.txt",
-      "bytes": 265224,
-      "sha256": "6d9b81fcf85e8120f8cfd8aa813ac4ca87ab5162331b6016cc130ecfef111a8e"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-ir/syntax.txt",
-      "bytes": 963403,
-      "sha256": "241cb1ba4abbe15f4728fffe31976d2fe4a1b6ea12a19cd08cfdae1cc682742d"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-ir/typed.txt",
-      "bytes": 584768,
-      "sha256": "83e53ab5de04fb8b94b7ffed424b84290c4a6434eac38d092eaf7954957a2f62"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-ir/verified-interfaces.txt",
-      "bytes": 38268,
-      "sha256": "e004c37f3f79cc061aeca7d432fa5a06ae6b700e6ce0266ef36e346be45e0064"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-helper-ui-178-1/main-ir/verified.txt",
-      "bytes": 584845,
-      "sha256": "d4b7fd3032e137ce986166030cc67262a94bee9a73ef90c2fcc346a956d1084a"
-    },
-    {
       "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-compile-report.json",
       "bytes": 7069,
       "sha256": "7b82d84268a0fb9e1211385383036fa23a2ad4d8b9b6860b53e5c32c4da396fe"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-ir/candidate.txt",
-      "bytes": 146160,
-      "sha256": "ff8bf6f49f86da805dccc5b55239bb58a8036a3835f1a59f0a975a0b1b07e6e4"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-ir/core.txt",
-      "bytes": 743014,
-      "sha256": "5a1d25ce1c2f92b24e0b4733e56b2b9636fb55f31e7a022af0a3c8d32f2bc1ba"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-ir/ct-core.txt",
-      "bytes": 776422,
-      "sha256": "df4453634949c0603aff10cf6ee90dde21dc6c151e0f0a897c09d0d013ed91aa"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-ir/interfaces.txt",
-      "bytes": 17819,
-      "sha256": "e70514d681f7898b1f888495aa5aaeab1945210e6933f706baeb11abc7b97893"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-ir/lir.txt",
-      "bytes": 922056,
-      "sha256": "6d400ffa260b063c4c75c8c00b5a5c2320a4807c13d841e65a9234895d70c528"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-ir/source-map.txt",
-      "bytes": 427790,
-      "sha256": "a826570631cc12c01bc467503b73777bb95849ed9896ddf444edce022e97835d"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-ir/syntax.txt",
-      "bytes": 1485314,
-      "sha256": "5e248514f95e439be4831220aa133e7fc9963fdce480e45e84ec8f7d5d96a767"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-ir/typed.txt",
-      "bytes": 921228,
-      "sha256": "8bf9f7c670d77a15a593e0954ee99ef93a66ac8e5e0abe18fa3f4926923f245c"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-ir/verified-interfaces.txt",
-      "bytes": 30866,
-      "sha256": "687923ae95e4166e90e32667679c158aaa1fea5d84194eb02e5c641ba1284e8f"
-    },
-    {
-      "path": "runs/candidate01/cases/zil-retained-ui-387-0/main-ir/verified.txt",
-      "bytes": 921305,
-      "sha256": "561285273ed27b6585c1c4c5c238eff113ea6d26fd1e8656ad9274d783de7e03"
     },
     {
       "path": "runs/candidate01/command.json",
@@ -2106,164 +1961,14 @@
       "sha256": "6eb438d104fb44fcaa1e3dc0fedabc4d03fb4aa99fdb7a8b0e6a5c00c8989462"
     },
     {
-      "path": "runs/final01/cases/zil-helper-ui-31-0/lifecycle-ir/candidate.txt",
-      "bytes": 165199,
-      "sha256": "34acb1a6054e4df473f6299ba45b15af0dc47581440628423049511fae535e70"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-0/lifecycle-ir/core.txt",
-      "bytes": 776907,
-      "sha256": "2a998aa617c6e635bc27b42ddc8f3c3acadd6d4de10957ed6dd5d284316dd682"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-0/lifecycle-ir/ct-core.txt",
-      "bytes": 813422,
-      "sha256": "b389884f3142246b2d92ede183087a7a3328306ba0523dad776adc8f546c78ad"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-0/lifecycle-ir/interfaces.txt",
-      "bytes": 17809,
-      "sha256": "b6c727812fa7cf9b127f72d22e097f605355fb1799a762130ddd9072e145ffc8"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-0/lifecycle-ir/lir.txt",
-      "bytes": 1112788,
-      "sha256": "467a3a3d7b664b2d3b4a1f9e03ae0cb87b759d1e665df7a69eabac64c730b8e6"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-0/lifecycle-ir/source-map.txt",
-      "bytes": 457736,
-      "sha256": "652327e17c320e52edc7881404431dc2144f02b0c3c46fa3bb3e89d46c69c1e8"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-0/lifecycle-ir/syntax.txt",
-      "bytes": 1537215,
-      "sha256": "07d2803de47d731f5a694625a9b9f57c3489e6db66f3b472ce1312e35787ceba"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-0/lifecycle-ir/typed.txt",
-      "bytes": 1111954,
-      "sha256": "a57aab7e9383f7389e544480ba746c63c5615f7f09eba9c551aa195ad73387a5"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-0/lifecycle-ir/verified-interfaces.txt",
-      "bytes": 32589,
-      "sha256": "1504653ffdb24426d4c263fa7beb7ee7332f390cb7d3c02c1a8711d818a97d57"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-0/lifecycle-ir/verified.txt",
-      "bytes": 1112031,
-      "sha256": "be21570494cccf2eb998e5ca9a390f593bdb8e9a0edb2df6469ac20d39fbaada"
-    },
-    {
       "path": "runs/final01/cases/zil-helper-ui-31-1/main-compile-report.json",
       "bytes": 5670,
       "sha256": "e8f82369933aaa3bd29a2b786f3a07e9b568c4f38f3c723d5b8cf009e4a2f453"
     },
     {
-      "path": "runs/final01/cases/zil-helper-ui-31-1/main-ir/candidate.txt",
-      "bytes": 132087,
-      "sha256": "5fc59ce2ce88e68cc4390968f25c6828bbdf54fb5f1286ec7c9504abc6fd3755"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-1/main-ir/core.txt",
-      "bytes": 457889,
-      "sha256": "19e191b87db17a6bea6f1f8de7810f4ac20de42d62eccf09902600392ce359c7"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-1/main-ir/ct-core.txt",
-      "bytes": 500066,
-      "sha256": "551e1492478fba60f4c1c8e3346af651febcaaafb57fabd7e2bb8e5ebb2702ae"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-1/main-ir/interfaces.txt",
-      "bytes": 31143,
-      "sha256": "a6a1f48ca877cb118953fbc08c3497feb3bd9439eee14f21fe4dd42746cd4eb8"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-1/main-ir/lir.txt",
-      "bytes": 585605,
-      "sha256": "ff2b9d7d56b24ae8be5300ed300255b4cc3972e472ff8efe0a13ecb463ca3ca3"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-1/main-ir/source-map.txt",
-      "bytes": 265224,
-      "sha256": "6d9b81fcf85e8120f8cfd8aa813ac4ca87ab5162331b6016cc130ecfef111a8e"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-1/main-ir/syntax.txt",
-      "bytes": 963403,
-      "sha256": "241cb1ba4abbe15f4728fffe31976d2fe4a1b6ea12a19cd08cfdae1cc682742d"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-1/main-ir/typed.txt",
-      "bytes": 584768,
-      "sha256": "83e53ab5de04fb8b94b7ffed424b84290c4a6434eac38d092eaf7954957a2f62"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-1/main-ir/verified-interfaces.txt",
-      "bytes": 38268,
-      "sha256": "e004c37f3f79cc061aeca7d432fa5a06ae6b700e6ce0266ef36e346be45e0064"
-    },
-    {
-      "path": "runs/final01/cases/zil-helper-ui-31-1/main-ir/verified.txt",
-      "bytes": 584845,
-      "sha256": "d4b7fd3032e137ce986166030cc67262a94bee9a73ef90c2fcc346a956d1084a"
-    },
-    {
       "path": "runs/final01/cases/zil-retained-ui-240-0/main-compile-report.json",
       "bytes": 7013,
       "sha256": "d3a1f3cc2351df8e639995ead82f3a82aea212d271b76e45ca035b2f1496e95e"
-    },
-    {
-      "path": "runs/final01/cases/zil-retained-ui-240-0/main-ir/candidate.txt",
-      "bytes": 146160,
-      "sha256": "ff8bf6f49f86da805dccc5b55239bb58a8036a3835f1a59f0a975a0b1b07e6e4"
-    },
-    {
-      "path": "runs/final01/cases/zil-retained-ui-240-0/main-ir/core.txt",
-      "bytes": 743014,
-      "sha256": "5a1d25ce1c2f92b24e0b4733e56b2b9636fb55f31e7a022af0a3c8d32f2bc1ba"
-    },
-    {
-      "path": "runs/final01/cases/zil-retained-ui-240-0/main-ir/ct-core.txt",
-      "bytes": 776422,
-      "sha256": "df4453634949c0603aff10cf6ee90dde21dc6c151e0f0a897c09d0d013ed91aa"
-    },
-    {
-      "path": "runs/final01/cases/zil-retained-ui-240-0/main-ir/interfaces.txt",
-      "bytes": 17819,
-      "sha256": "e70514d681f7898b1f888495aa5aaeab1945210e6933f706baeb11abc7b97893"
-    },
-    {
-      "path": "runs/final01/cases/zil-retained-ui-240-0/main-ir/lir.txt",
-      "bytes": 922056,
-      "sha256": "6d400ffa260b063c4c75c8c00b5a5c2320a4807c13d841e65a9234895d70c528"
-    },
-    {
-      "path": "runs/final01/cases/zil-retained-ui-240-0/main-ir/source-map.txt",
-      "bytes": 427790,
-      "sha256": "a826570631cc12c01bc467503b73777bb95849ed9896ddf444edce022e97835d"
-    },
-    {
-      "path": "runs/final01/cases/zil-retained-ui-240-0/main-ir/syntax.txt",
-      "bytes": 1485314,
-      "sha256": "5e248514f95e439be4831220aa133e7fc9963fdce480e45e84ec8f7d5d96a767"
-    },
-    {
-      "path": "runs/final01/cases/zil-retained-ui-240-0/main-ir/typed.txt",
-      "bytes": 921228,
-      "sha256": "8bf9f7c670d77a15a593e0954ee99ef93a66ac8e5e0abe18fa3f4926923f245c"
-    },
-    {
-      "path": "runs/final01/cases/zil-retained-ui-240-0/main-ir/verified-interfaces.txt",
-      "bytes": 30866,
-      "sha256": "687923ae95e4166e90e32667679c158aaa1fea5d84194eb02e5c641ba1284e8f"
-    },
-    {
-      "path": "runs/final01/cases/zil-retained-ui-240-0/main-ir/verified.txt",
-      "bytes": 921305,
-      "sha256": "561285273ed27b6585c1c4c5c238eff113ea6d26fd1e8656ad9274d783de7e03"
     },
     {
       "path": "runs/final01/clippy/command.json",
@@ -2326,6 +2031,7 @@
       "sha256": "c1a6358cfdabb59429fa408085bf37c6dd728f4847c697af24a4f847cba30f4a"
     }
   ],
-  "file_count": 465,
-  "total_bytes": 36197665
+  "file_count": 406,
+  "total_bytes": 864121,
+  "manifest_excludes_self": true
 }
