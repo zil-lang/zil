@@ -40,6 +40,7 @@ pub(super) fn validate_parametric<'l>(
         enums,
         signatures,
         pattern_types,
+        result_mode: stores::result_mode(function)?,
         result: function
             .return_type
             .clone()
@@ -63,7 +64,36 @@ pub(super) fn validate_parametric<'l>(
             })
             .collect(),
         moved: BTreeSet::new(),
+        store_owners: BTreeSet::new(),
+        store_origins: BTreeMap::new(),
+        invalidated_stores: BTreeSet::new(),
+        fresh_stores: BTreeSet::new(),
     };
+    for (id, parameter) in function.params.iter().enumerate() {
+        check
+            .traits
+            .store_types(&parameter.ty, &check.bounds, &check.variables, check.budget)?;
+        if stores::element(&parameter.ty).is_some() {
+            state.store_origins.insert(id, BTreeSet::from([id]));
+            if parameter.give {
+                state.store_owners.insert(id);
+            }
+        } else if parameter.give {
+            return Err(unsupported(
+                parameter.span,
+                "generic give parameter requires a direct Store carrier",
+            ));
+        }
+    }
+    check
+        .traits
+        .store_types(&check.result, &check.bounds, &check.variables, check.budget)?;
+    if stores::element(&check.result).is_some() && check.result_mode == zil_ir::PassingMode::Infer {
+        return Err(unsupported(
+            function.span,
+            "generic Store result requires result(create/give)",
+        ));
+    }
     match &function.body {
         FunctionBody::Block(body) => {
             if !check.block(body, &mut state)? {
@@ -72,8 +102,9 @@ pub(super) fn validate_parametric<'l>(
         }
         FunctionBody::Expression(value) => {
             let result = check.result.clone();
+            check.check_store_return(value, &state)?;
             let actual = check.expr(value, &mut state, Some(&result), false)?;
-            if check.callable.is_some() {
+            if check.callable.is_some() || matches!(group(&result).kind, TypeKind::Error { .. }) {
                 same_return(&actual, &result, value.span, check.budget)?;
             } else {
                 same(&actual, &result, value.span, check.budget)?;
@@ -223,6 +254,9 @@ fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
 }
 fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>, nominals: &BTreeMap<String, &Item>) -> bool {
     match &group(ty).kind {
+        // Source Store values are descriptions. The real carrier can only
+        // leave an owning position through an explicitly checked give.
+        TypeKind::Named { path, .. } if path.as_slice() == ["Store"] => true,
         TypeKind::Reference { mutable: false, .. }
         | TypeKind::Function { .. }
         | TypeKind::ForeignFunction { .. } => true,
@@ -232,6 +266,9 @@ fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>, nominals: &BTreeMap<String,
         TypeKind::Impl(_) => false,
         TypeKind::Tuple(ts) => ts.iter().all(|t| known_copy(t, vars, nominals)),
         TypeKind::Array { element, .. } => known_copy(element, vars, nominals),
+        TypeKind::Error { error, result } => {
+            known_copy(error, vars, nominals) && known_copy(result, vars, nominals)
+        }
         TypeKind::Named { path, .. } if matches!(nominals.get(&path.join(".")), Some(Item { kind: ItemKind::Aggregate(a), .. }) if a.kind == AggregateKind::Package) => {
             false
         }
@@ -248,6 +285,13 @@ struct Local {
 struct State {
     locals: BTreeMap<String, Local>,
     moved: BTreeSet<usize>,
+    store_owners: BTreeSet<usize>,
+    store_origins: BTreeMap<usize, BTreeSet<usize>>,
+    invalidated_stores: BTreeSet<usize>,
+    // A new symbolic position is not necessarily a newly created resource.
+    // Only written create producers and transfers of their direct locals carry
+    // this fact; give parameters, give calls and Package field takes do not.
+    fresh_stores: BTreeSet<usize>,
 }
 struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
@@ -261,6 +305,7 @@ struct Check<'s, 'b, 'l> {
     signatures: &'s BTreeMap<String, Cow<'l, Function>>,
     pattern_types: &'s BTreeMap<String, TypeRef>,
     result: TypeRef,
+    result_mode: zil_ir::PassingMode,
     budget: &'b mut Budget<'l>,
 }
 impl Check<'_, '_, '_> {
@@ -283,6 +328,157 @@ impl Check<'_, '_, '_> {
             },
         );
         Ok(())
+    }
+    fn owning_store_expression(&self, expression: &Expr, state: &State) -> bool {
+        match &expression.kind {
+            ExprKind::Group(inner) => self.owning_store_expression(inner, state),
+            ExprKind::Unary {
+                op: UnaryOp::Give,
+                operand,
+            } => match &operand.kind {
+                ExprKind::Name(name) => state
+                    .locals
+                    .get(name)
+                    .is_some_and(|local| state.store_owners.contains(&local.id)),
+                ExprKind::Member { .. } => true, // The give expression separately checks the actual field.
+                ExprKind::Group(inner) => self.owning_store_expression(
+                    &Expr {
+                        span: expression.span,
+                        kind: ExprKind::Unary {
+                            op: UnaryOp::Give,
+                            operand: inner.clone(),
+                        },
+                    },
+                    state,
+                ),
+                _ => false,
+            },
+            ExprKind::Call { callee, .. } => {
+                let callee = match &callee.kind {
+                    ExprKind::TypeApply { callee, .. } => callee.as_ref(),
+                    _ => callee.as_ref(),
+                };
+                let Some(name) = super::super::foreign::bare_name(callee) else {
+                    return false;
+                };
+                if name == "store_new" {
+                    return true;
+                }
+                self.signatures.get(name).is_some_and(|function| {
+                    stores::result_mode(function).is_ok_and(|mode| {
+                        matches!(
+                            mode,
+                            zil_ir::PassingMode::Create | zil_ir::PassingMode::Give
+                        )
+                    })
+                })
+            }
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => {
+                self.owning_store_expression(then_value, state)
+                    && self.owning_store_expression(else_value, state)
+            }
+            _ => false,
+        }
+    }
+    fn fresh_store_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
+        self.tick(expression.span)?;
+        match &expression.kind {
+            ExprKind::Group(inner) => self.fresh_store_expression(inner, state),
+            ExprKind::Unary {
+                op: UnaryOp::Give,
+                operand,
+            } => {
+                let mut operand = operand.as_ref();
+                while let ExprKind::Group(inner) = &operand.kind {
+                    self.tick(operand.span)?;
+                    operand = inner;
+                }
+                Ok(matches!(&operand.kind, ExprKind::Name(name)
+                    if state.locals.get(name).is_some_and(|local|
+                        state.fresh_stores.contains(&local.id))))
+            }
+            ExprKind::Call { callee, .. } => {
+                let callee = match &callee.kind {
+                    ExprKind::TypeApply { callee, .. } => callee.as_ref(),
+                    _ => callee.as_ref(),
+                };
+                let Some(name) = super::super::foreign::bare_name(callee) else {
+                    return Ok(false);
+                };
+                Ok(name == "store_new"
+                    || self.signatures.get(name).is_some_and(|function| {
+                        stores::result_mode(function)
+                            .is_ok_and(|mode| mode == zil_ir::PassingMode::Create)
+                    }))
+            }
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => Ok(self.fresh_store_expression(then_value, state)?
+                && self.fresh_store_expression(else_value, state)?),
+            _ => Ok(false),
+        }
+    }
+    fn check_store_return(&mut self, expression: &Expr, state: &State) -> R<()> {
+        if stores::element(&self.result).is_some()
+            && !self.owning_store_expression(expression, state)
+        {
+            return Err(error(
+                expression.span,
+                "generic Store result requires an actual create/give value, not a descriptor",
+            ));
+        }
+        if stores::element(&self.result).is_some()
+            && self.result_mode == zil_ir::PassingMode::Create
+            && !self.fresh_store_expression(expression, state)?
+        {
+            return Err(error(
+                expression.span,
+                "generic Store create result requires a fresh source on every returning path",
+            ));
+        }
+        Ok(())
+    }
+    fn store_origins(&mut self, expression: &Expr, state: &State) -> R<BTreeSet<usize>> {
+        match &expression.kind {
+            ExprKind::Name(name) => Ok(state
+                .locals
+                .get(name)
+                .and_then(|local| state.store_origins.get(&local.id))
+                .cloned()
+                .unwrap_or_default()),
+            ExprKind::Group(inner) => self.store_origins(inner, state),
+            ExprKind::Member {
+                object,
+                member: MemberName::Name(member),
+            } => {
+                if let Some(owner) = self.package_local(object, state) {
+                    let slot = self.field_slot(owner, member, expression.span)?;
+                    Ok(state
+                        .store_origins
+                        .get(&slot)
+                        .cloned()
+                        .unwrap_or_else(|| BTreeSet::from([slot])))
+                } else {
+                    Ok(BTreeSet::new())
+                }
+            }
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => {
+                let mut origins = self.store_origins(then_value, state)?;
+                origins.extend(self.store_origins(else_value, state)?);
+                Ok(origins)
+            }
+            _ => Ok(BTreeSet::new()),
+        }
     }
     fn package_local(&self, expression: &Expr, state: &State) -> Option<usize> {
         if let ExprKind::Group(inner) = &expression.kind {
@@ -325,15 +521,30 @@ impl Check<'_, '_, '_> {
         Ok(self.package_slots.get(&(local, member.clone())).copied())
     }
     fn managed_field_transfer(&mut self, operand: &Expr, state: &mut State) -> R<TypeRef> {
-        if !self
-            .callable
-            .as_ref()
-            .is_some_and(|bound| bound.owned_state)
+        let mut direct = operand;
+        while let ExprKind::Group(inner) = &direct.kind {
+            direct = inner;
+        }
+        if let ExprKind::Name(name) = &direct.kind
+            && let Some(local) = state.locals.get(name)
+            && stores::element(&local.ty).is_some()
         {
-            return Err(unsupported(
-                operand.span,
-                "generic managed give requires an owning State profile",
-            ));
+            let id = local.id;
+            let ty = local.ty.clone();
+            if !state.store_owners.contains(&id) {
+                return Err(error(
+                    operand.span,
+                    "give requires an actual Store carrier; descriptors do not own",
+                ));
+            }
+            if !state.moved.insert(id) {
+                return Err(error(operand.span, "Store carrier used after give"));
+            }
+            if let Some(origins) = state.store_origins.get(&id) {
+                state.invalidated_stores.extend(origins);
+            }
+            self.budget.ty(&ty)?;
+            return Ok(ty);
         }
         let ExprKind::Member {
             object,
@@ -386,7 +597,19 @@ impl Check<'_, '_, '_> {
         // Place resolution checks the real nominal declaration and privacy.
         // It does not grant ownership to a descriptor or a reference carrier.
         let (ty, _) = self.place(operand, state)?;
-        if dependent(&ty, &self.variables) {
+        if let Some(element) = stores::element(&ty) {
+            self.traits
+                .store_element(element, &self.bounds, &self.variables, self.budget)?;
+        } else if !self
+            .callable
+            .as_ref()
+            .is_some_and(|bound| bound.owned_state)
+        {
+            return Err(unsupported(
+                operand.span,
+                "generic managed give requires an owning State profile",
+            ));
+        } else if dependent(&ty, &self.variables) {
             return Err(unsupported(
                 operand.span,
                 "generic manages field give requires a concrete resource type",
@@ -412,13 +635,112 @@ impl Check<'_, '_, '_> {
         if !state.moved.insert(slot) {
             return Err(error(operand.span, "managed Package field used after give"));
         }
+        if stores::element(&ty).is_some() {
+            state.invalidated_stores.extend(
+                state
+                    .store_origins
+                    .get(&slot)
+                    .cloned()
+                    .unwrap_or_else(|| BTreeSet::from([slot])),
+            );
+        }
         Ok(ty)
     }
     fn clone_state(&mut self, state: &State) -> R<State> {
         for local in state.locals.values() {
             self.budget.ty(&local.ty)?;
         }
+        for roots in state.store_origins.values() {
+            for _ in roots {
+                self.budget.node(self.result.span, 0)?;
+            }
+        }
+        for _ in &state.invalidated_stores {
+            self.budget.node(self.result.span, 0)?;
+        }
+        for _ in &state.fresh_stores {
+            self.budget.node(self.result.span, 0)?;
+        }
         Ok(state.clone())
+    }
+    fn join_states(&mut self, state: &mut State, branches: &[&State], span: Span) -> R<()> {
+        state.moved.clear();
+        state.invalidated_stores.clear();
+        state.store_origins.clear();
+        state.fresh_stores.clear();
+        if let Some(first) = branches.first() {
+            for id in &first.fresh_stores {
+                self.budget.node(span, 0)?;
+                let mut fresh_on_every_path = true;
+                for branch in &branches[1..] {
+                    self.budget.node(span, 0)?;
+                    fresh_on_every_path &= branch.fresh_stores.contains(id);
+                }
+                if fresh_on_every_path {
+                    state.fresh_stores.insert(*id);
+                }
+            }
+        }
+        for branch in branches {
+            for id in &branch.moved {
+                self.budget.node(span, 0)?;
+                state.moved.insert(*id);
+            }
+            for id in &branch.invalidated_stores {
+                self.budget.node(span, 0)?;
+                state.invalidated_stores.insert(*id);
+            }
+            for (local, roots) in &branch.store_origins {
+                for root in roots {
+                    self.budget.node(span, 0)?;
+                    state.store_origins.entry(*local).or_default().insert(*root);
+                }
+            }
+        }
+        Ok(())
+    }
+    fn replace_store_origin(&mut self, state: &mut State, slot: usize, span: Span) -> R<()> {
+        self.budget.node(span, 0)?;
+        state.invalidated_stores.extend(
+            state
+                .store_origins
+                .get(&slot)
+                .cloned()
+                .unwrap_or_else(|| BTreeSet::from([slot])),
+        );
+        let fresh = self.next_local;
+        self.next_local += 1;
+        state.store_origins.insert(slot, BTreeSet::from([fresh]));
+        Ok(())
+    }
+    fn loop_invariant(&mut self, before: &State, after: &State, span: Span) -> R<()> {
+        for local in before.locals.values() {
+            self.budget.node(span, 0)?;
+            if before.moved.contains(&local.id) != after.moved.contains(&local.id)
+                || before.store_origins.get(&local.id) != after.store_origins.get(&local.id)
+                || before.fresh_stores.contains(&local.id) != after.fresh_stores.contains(&local.id)
+            {
+                return Err(unsupported(
+                    span,
+                    "generic loop must preserve outer carrier and non-Copy consumption state",
+                ));
+            }
+        }
+        for ((owner, _), field) in &self.package_slots {
+            self.budget.node(span, 0)?;
+            if before.locals.values().any(|local| local.id == *owner)
+                && (before.moved.contains(field) != after.moved.contains(field)
+                    || before.store_origins.get(field) != after.store_origins.get(field)
+                    || after.invalidated_stores.contains(field)
+                        && !before.invalidated_stores.contains(field))
+            {
+                return Err(unsupported(
+                    span,
+                    "generic loop cannot move or replace an outer managed field",
+                ));
+            }
+        }
+        Ok(())
     }
     // The concrete argument checker reborrows address parameters. Mirror only
     // that written reference shape here; an unconstrained T still consumes its
@@ -578,6 +900,18 @@ impl Check<'_, '_, '_> {
                         "generic value used after move; Copy cannot be inferred from a concrete instance",
                     ));
                 }
+                if stores::element(&ty).is_some()
+                    && state.store_origins.get(&id).is_some_and(|origins| {
+                        origins
+                            .iter()
+                            .any(|root| state.invalidated_stores.contains(root))
+                    })
+                {
+                    return Err(error(
+                        e.span,
+                        "Store descriptor depends on a carrier or field that was moved",
+                    ));
+                }
                 let owning_package = self
                     .callable
                     .as_ref()
@@ -593,6 +927,15 @@ impl Check<'_, '_, '_> {
                                 e.span,
                                 "a partial callable State must be refilled before whole transfer",
                             ));
+                        }
+                        if *owner == id {
+                            state.invalidated_stores.extend(
+                                state
+                                    .store_origins
+                                    .get(field)
+                                    .cloned()
+                                    .unwrap_or_else(|| BTreeSet::from([*field])),
+                            );
                         }
                     }
                     state.moved.insert(id);
@@ -684,8 +1027,23 @@ impl Check<'_, '_, '_> {
                     }
                     let want = substituted_type(&declared.ty, &substitutions, self.budget)?;
                     let actual = if let Some(value) = &field.value {
+                        if declared.manages
+                            && stores::element(&want).is_some()
+                            && !self.owning_store_expression(value, state)
+                        {
+                            return Err(error(
+                                value.span,
+                                "managed Store field requires an actual create/give value",
+                            ));
+                        }
                         self.expr(value, state, Some(&want), false)?
                     } else {
+                        if declared.manages && stores::element(&want).is_some() {
+                            return Err(error(
+                                field.span,
+                                "managed Store field shorthand cannot transfer a descriptor; write give",
+                            ));
+                        }
                         let local = Expr {
                             span: field.span,
                             kind: ExprKind::Name(field.name.clone()),
@@ -697,13 +1055,16 @@ impl Check<'_, '_, '_> {
                 if seen.len() != declaration.fields.len() {
                     return Err(error(e.span, "missing generic record field"));
                 }
-                Ok(TypeRef {
+                let result = TypeRef {
                     span: e.span,
                     kind: TypeKind::Named {
                         path: vec![name],
                         args,
                     },
-                })
+                };
+                self.traits
+                    .store_types(&result, &self.bounds, &self.variables, self.budget)?;
+                Ok(result)
             }
             ExprKind::Array(values) => {
                 let mut element = expected
@@ -905,6 +1266,47 @@ impl Check<'_, '_, '_> {
                 }
             }
             ExprKind::Call { callee, arguments } => {
+                if let Some(name) =
+                    super::super::foreign::bare_name(callee).filter(|name| stores::primitive(name))
+                {
+                    if arguments.len() != stores::arity(name)
+                        || arguments.iter().any(|arg| arg.spread)
+                    {
+                        return Err(error(
+                            e.span,
+                            "Store primitive argument count or shape differs",
+                        ));
+                    }
+                    let element = if name == "store_new" {
+                        expected.and_then(stores::element).cloned().ok_or_else(|| {
+                            error(
+                                e.span,
+                                "store_new requires an explicit Store element context",
+                            )
+                        })?
+                    } else {
+                        let store = self.expr(&arguments[0].value, state, None, true)?;
+                        stores::element(&store).cloned().ok_or_else(|| {
+                            error(e.span, "Store primitive requires a Store description")
+                        })?
+                    };
+                    self.traits.store_element(
+                        &element,
+                        &self.bounds,
+                        &self.variables,
+                        self.budget,
+                    )?;
+                    if arguments.len() == 2 {
+                        let wanted = if name == "store_push" {
+                            element.clone()
+                        } else {
+                            named("i64", e.span)
+                        };
+                        let actual = self.expr(&arguments[1].value, state, Some(&wanted), false)?;
+                        same(&actual, &wanted, arguments[1].span, self.budget)?;
+                    }
+                    return Ok(stores::result(name, &element, e.span));
+                }
                 if let Some((parameters, result)) = super::super::foreign::bare_name(callee)
                     .and_then(|name| bytes::signature(name, e.span))
                 {
@@ -1136,6 +1538,15 @@ impl Check<'_, '_, '_> {
                         return Err(unsupported(argument.span, "parametric tuple spread"));
                     }
                     let hint = substituted_type(&parameter.ty, &found, self.budget)?;
+                    if parameter.give
+                        && stores::element(&hint).is_some()
+                        && !self.owning_store_expression(&argument.value, state)
+                    {
+                        return Err(error(
+                            argument.span,
+                            "generic give parameter requires an actual Store create/give value",
+                        ));
+                    }
                     let actual = self.argument(
                         &argument.value,
                         state,
@@ -1202,7 +1613,7 @@ impl Check<'_, '_, '_> {
                     None => Ok(unit(e.span)),
                 }
             }
-            ExprKind::Try(operand) if self.callable.is_some() => {
+            ExprKind::Try(operand) => {
                 let union = self.expr(operand, state, None, false)?;
                 let TypeKind::Error {
                     error: actual_error,
@@ -1237,8 +1648,7 @@ impl Check<'_, '_, '_> {
                 let lhs = self.expr(then_value, &mut a, expected, borrowing)?;
                 let rhs = self.expr(else_value, &mut b, Some(&lhs), borrowing)?;
                 same(&lhs, &rhs, e.span, self.budget)?;
-                state.moved.extend(a.moved);
-                state.moved.extend(b.moved);
+                self.join_states(state, &[&a, &b], e.span)?;
                 Ok(lhs)
             }
             ExprKind::Member {
@@ -1350,12 +1760,35 @@ impl Check<'_, '_, '_> {
                     value,
                     mutable,
                 } => {
+                    if let Some(ty) = ty {
+                        self.traits
+                            .store_types(ty, &self.bounds, &self.variables, self.budget)?;
+                    }
+                    let owns_store = self.owning_store_expression(value, state);
+                    let fresh_store = owns_store && self.fresh_store_expression(value, state)?;
+                    let origins = self.store_origins(value, state)?;
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
+                    self.traits
+                        .store_types(&actual, &self.bounds, &self.variables, self.budget)?;
                     if let Some(ty) = ty {
                         same(&actual, ty, statement.span, self.budget)?;
                     }
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
-                    state.locals.get_mut(n).expect("just bound").mutable = *mutable;
+                    let local = state.locals.get_mut(n).expect("just bound");
+                    local.mutable = *mutable;
+                    if stores::element(&local.ty).is_some() {
+                        if owns_store {
+                            state.store_owners.insert(local.id);
+                            if fresh_store {
+                                state.fresh_stores.insert(local.id);
+                            }
+                            state
+                                .store_origins
+                                .insert(local.id, BTreeSet::from([local.id]));
+                        } else {
+                            state.store_origins.insert(local.id, origins);
+                        }
+                    }
                 }
                 StmtKind::Assign { target, op, value } => {
                     let (ty, writable) = self.place(target, state)?;
@@ -1368,6 +1801,46 @@ impl Check<'_, '_, '_> {
                             "compound assignment requires a known integer place",
                         ));
                     }
+                    let mut whole = target;
+                    while let ExprKind::Group(inner) = &whole.kind {
+                        whole = inner;
+                    }
+                    let store_target = if stores::element(&ty).is_some() {
+                        let slot = match &whole.kind {
+                            ExprKind::Name(name) => Some((
+                                state.locals[name].id,
+                                state.store_owners.contains(&state.locals[name].id),
+                            )),
+                            ExprKind::Member {
+                                object,
+                                member: MemberName::Name(member),
+                            } => self
+                                .package_local(object, state)
+                                .map(|owner| self.field_slot(owner, member, target.span))
+                                .transpose()?
+                                .map(|slot| (slot, true)),
+                            _ => None,
+                        };
+                        let Some((slot, owns)) = slot else {
+                            return Err(unsupported(
+                                target.span,
+                                "generic Store replacement requires a real local or Package field",
+                            ));
+                        };
+                        let supplied = self.owning_store_expression(value, state);
+                        if owns != supplied {
+                            return Err(error(
+                                value.span,
+                                "Store replacement must preserve the declared carrier/description mode",
+                            ));
+                        }
+                        let fresh = owns
+                            && matches!(whole.kind, ExprKind::Name(_))
+                            && self.fresh_store_expression(value, state)?;
+                        Some((slot, owns, self.store_origins(value, state)?, fresh))
+                    } else {
+                        None
+                    };
                     let actual = self.expr(value, state, Some(&ty), false)?;
                     same(&actual, &ty, value.span, self.budget)?;
                     let mut whole = target;
@@ -1390,14 +1863,41 @@ impl Check<'_, '_, '_> {
                     } else if let Some(slot) = self.existing_field_slot(target, state)? {
                         state.moved.remove(&slot);
                     }
+                    if let Some((slot, owns, origins, fresh)) = store_target {
+                        if owns {
+                            self.replace_store_origin(state, slot, target.span)?;
+                            if fresh {
+                                state.fresh_stores.insert(slot);
+                            } else {
+                                state.fresh_stores.remove(&slot);
+                            }
+                        } else {
+                            state.store_origins.insert(slot, origins);
+                        }
+                    } else if let ExprKind::Name(name) = &whole.kind {
+                        let local = state.locals[name].id;
+                        let fields: Vec<_> = self
+                            .package_slots
+                            .iter()
+                            .filter_map(|((owner, _), slot)| (*owner == local).then_some(*slot))
+                            .collect();
+                        for field in fields {
+                            self.replace_store_origin(state, field, target.span)?;
+                        }
+                    }
                 }
                 StmtKind::Return(value) => {
                     let expected = self.result.clone();
                     let actual = match value {
-                        Some(e) => self.expr(e, state, Some(&expected), false)?,
+                        Some(e) => {
+                            self.check_store_return(e, state)?;
+                            self.expr(e, state, Some(&expected), false)?
+                        }
                         None => unit(statement.span),
                     };
-                    if self.callable.is_some() {
+                    if self.callable.is_some()
+                        || matches!(group(&expected).kind, TypeKind::Error { .. })
+                    {
                         same_return(&actual, &expected, statement.span, self.budget)?;
                     } else {
                         same(&actual, &expected, statement.span, self.budget)?;
@@ -1440,16 +1940,41 @@ impl Check<'_, '_, '_> {
                     };
                     match (returns_a, returns_b) {
                         (true, true) => returned = true,
-                        (true, false) => state.moved = b.moved,
-                        (false, true) => state.moved = a.moved,
+                        (true, false) => self.join_states(state, &[&b], statement.span)?,
+                        (false, true) => self.join_states(state, &[&a], statement.span)?,
                         (false, false) => {
-                            state.moved.extend(a.moved);
-                            state.moved.extend(b.moved);
+                            self.join_states(state, &[&a, &b], statement.span)?;
                         }
                     }
                 }
                 StmtKind::Match { value, arms } => {
                     returned = self.enum_match(value, arms, state)?;
+                }
+                StmtKind::While {
+                    condition: Condition::Expression(condition),
+                    body,
+                } => {
+                    let entry = self.clone_state(state)?;
+                    let actual = self.expr(
+                        condition,
+                        state,
+                        Some(&named("bool", condition.span)),
+                        false,
+                    )?;
+                    same(
+                        &actual,
+                        &named("bool", condition.span),
+                        condition.span,
+                        self.budget,
+                    )?;
+                    self.loop_invariant(&entry, state, condition.span)?;
+                    let mut iteration = self.clone_state(state)?;
+                    let exits = self.block(body, &mut iteration)?;
+                    if !exits {
+                        self.loop_invariant(state, &iteration, body.span)?;
+                        let zero = self.clone_state(state)?;
+                        self.join_states(state, &[&zero, &iteration], statement.span)?;
+                    }
                 }
                 _ => {
                     return Err(unsupported(
