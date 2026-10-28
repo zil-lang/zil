@@ -268,7 +268,7 @@ fn main()->i32 {
 }
 
 #[test]
-fn finite_nesting_does_not_admit_recursion_loops_or_mixed_kinds() {
+fn nesting_keeps_recursion_and_mixed_kind_boundaries_while_loops_run() {
     rejected(
         "used-recursion",
         "fn run<F:Fn()->i32>(f:&F)->i32=>run(f)\nfn main()->i32{let f=move()=>7;return run(&f)}",
@@ -276,12 +276,13 @@ fn finite_nesting_does_not_admit_recursion_loops_or_mixed_kinds() {
         ResultCategory::Unsupported,
         "recursive callable helper dependency",
     );
-    rejected(
-        "nested-loop",
-        "fn leaf<F:Fn()->i32>(f:&F)->i32=>f()\nfn run<F:Fn()->i32>(f:&F)->i32{var n=0;while n<3{n+=leaf(f)};return n}\nfn main()->i32{let f=move()=>1;return run(&f)}",
-        Phase::Types,
-        ResultCategory::Unsupported,
-        "cyclic callable helper trace",
+    let original_loop = "fn leaf<F:Fn()->i32>(f:&F)->i32=>f()\nfn run<F:Fn()->i32>(f:&F)->i32{var n=0;while n<3{n+=leaf(f)};return n}\nfn main()->i32{let f=move()=>1;return run(&f)}";
+    accepted("nested-loop", original_loop);
+    native(
+        "original-nested-loop190",
+        &[("main", original_loop)],
+        b"",
+        3,
     );
     rejected(
         "mixed-bound-kind",

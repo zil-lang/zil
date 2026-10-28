@@ -1,0 +1,19 @@
+
+running 14 tests
+test cyclic_cfg_cannot_claim_an_empty_or_truncated_finite_language ... ok
+test actual_instructions_and_cfg_are_checked_against_the_graph_independently ... ok
+test a_nonreturning_cycle_keeps_its_reachable_call_prefix ... ok
+test a_same_typed_factory_instance_cannot_replace_the_parameter_on_a_backedge ... ok
+test a_flow_does_not_waive_hold_call_write_or_cleanup_obligations ... ok
+test a_repeatable_label_does_not_authorize_consuming_an_owned_capture ... ok
+test zero_event_fn_once_cycle_stays_an_explicit_scope_limit ... ok
+test runtime_helper_has_an_explicit_verified_flow_and_wire_identity ... ok
+test nested_flow_copies_do_not_share_continuations_or_trust_coordinated_claims ... ok
+test child_copy_size_is_checked_before_allocating_a_forged_short_parent_claim ... ok
+test raw_and_wire_reject_omitted_added_or_changed_callback_events ... ok
+test exact_verification_work_frontier_rejects_without_poisoning_a_fresh_request ... ok
+test raw_and_wire_reject_missing_backedges_changed_exits_and_noncanonical_numbering ... ok
+test static_helper_depth_is_bounded_independently_of_runtime_iteration_count ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

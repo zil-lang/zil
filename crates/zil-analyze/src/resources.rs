@@ -1932,14 +1932,20 @@ impl Flow<'_> {
                         .ok_or_else(|| error("absent callee"))?;
                     if let Some(contract) = &callee.callable_contract {
                         let environment = &self.module.closures[contract.closure.0 as usize];
-                        let CallableTraces::Finite(traces) = &contract.traces else {
-                            return Err(vec![Diagnostic::unsupported(
-                                Phase::Analyze,
-                                "cyclic callable Flow semantics are not implemented",
-                                Some(callee.span),
-                            )]);
+                        let invokes = match &contract.traces {
+                            CallableTraces::Finite(paths) => {
+                                budget.spend(paths.len(), "helper finite invocation presence")?;
+                                paths.iter().any(|path| !path.calls.is_empty())
+                            }
+                            CallableTraces::Flow(flow) => {
+                                // All nodes have been independently reconstructed,
+                                // including reachable prefixes without a Return.
+                                budget
+                                    .spend(flow.nodes.len(), "helper flow invocation presence")?;
+                                flow.nodes.iter().any(|node| !node.calls.is_empty())
+                            }
                         };
-                        if traces.iter().any(|t| !t.calls.is_empty())
+                        if invokes
                             && contract
                                 .writes
                                 .iter()

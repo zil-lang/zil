@@ -1,0 +1,12 @@
+fn loop0<F:Fn()->i32>(f:&F,n:i32)->i32{var i=0;var sum=0;while i<n{sum+=f();i+=1}return sum}fn loop1<F:Fn()->i32>(f:&F,n:i32)->i32=>loop0(f,n)
+fn loop2<F:Fn()->i32>(f:&F,n:i32)->i32=>loop1(f,n)
+fn loop3<F:Fn()->i32>(f:&F,n:i32)->i32=>loop2(f,n)
+fn loop4<F:Fn()->i32>(f:&F,n:i32)->i32=>loop3(f,n)
+fn loop5<F:Fn()->i32>(f:&F,n:i32)->i32=>loop4(f,n)
+fn loop6<F:Fn()->i32>(f:&F,n:i32)->i32=>loop5(f,n)
+fn loop7<F:Fn()->i32>(f:&F,n:i32)->i32=>loop6(f,n)
+fn loop8<F:Fn()->i32>(f:&F,n:i32)->i32=>loop7(f,n)
+fn loop9<F:Fn()->i32>(f:&F,n:i32)->i32=>loop8(f,n)
+fn loop10<F:Fn()->i32>(f:&F,n:i32)->i32=>loop9(f,n)
+fn loop11<F:Fn()->i32>(f:&F,n:i32)->i32=>loop10(f,n)
+fn main()->i32{let f=move()=>1;return loop11(&f,10000)-10000}
