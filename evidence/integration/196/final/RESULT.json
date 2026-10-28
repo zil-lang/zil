@@ -1,0 +1,64 @@
+{
+  "status": "Pass",
+  "scope": "Full workspace regression for the integrated196/197/198 language delivery; not full specification or product completion",
+  "source_commit": "7fef177924227fb7be7d694b39d171afa1e13418",
+  "source_clean": true,
+  "source_objects": {
+    "crates": "d13752eb85122f5b492271f839438de94b8188d1",
+    "Cargo.toml": "71adfaea2deb83d99a108a0aa43e6c47937fe3b5",
+    "Cargo.lock": "38a62627c9e74866270068f2594959001ee00fe3",
+    "spec/interfaces.json": "e68b5c7c1f03d8d0512b1f9551ccc0edfc5ea095",
+    "_zil_design.md": "4508ec0f000619431a2d9e49948698d929190bcc",
+    "policy/dependencies.json": "59fbacb84e9daa791c501fa94eac41ff01cdb7e4",
+    "validation/product-gates.json": "14d352d66503ba948a55b673ccb913ffb3e5842e"
+  },
+  "spec_hash": "09ef7fcdf2e71c2de38456d45d911aadc02dec3f355c4edaf8b51f2feb689c51",
+  "normative_hash": "92ede13ac8b9042f08a7b0d737abe6502f79eb6a62ffed8d92d77416585ed1a5",
+  "schema_version": 25,
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--no-fail-fast"
+  ],
+  "passed": 2138,
+  "failed": 0,
+  "ignored": 0,
+  "test_result_groups": 224,
+  "independent_review": "evidence/reviews/196/by197/REVIEW.json",
+  "migration_review": "evidence/reviews/196/by197/MIGRATION.json",
+  "previous_executed_workspace": {
+    "source_commit": "7e7031a4bb6a1d7a2de265a8d3a43fc09e928193",
+    "passed": 2122,
+    "failed": 4,
+    "ignored": 0,
+    "explanation": "changes/196-regression-migration.md"
+  },
+  "targeted_migration": {
+    "source_commit": "e9959e10d804ed60b32b5c44ef3f15fee73e7c36",
+    "passed": 70,
+    "failed": 0
+  },
+  "infrastructure_attempt": {
+    "status": "InfrastructureFailure",
+    "source_commit": "4b2454c38b77164fb8c25d2420a1e11b4743c120",
+    "attempt": "workspace08",
+    "cargo_exit": "Unknown",
+    "cause": "Temporary filesystem was full at result serialization; the original receipt stayed Running and stdout may be partial. No Pass or failing-test count is inferred. Original receipt and all surviving bytes preserved; compiled products are hash-only in the closed archive.",
+    "corrective_action": "Archived closed runs, freed tmpfs, removed closed caches/checkouts, streamed stdout/stderr before command completion and reran the complete unchanged compiler on7fef."
+  },
+  "archive": {
+    "path": "commands-and-regressions.zip",
+    "bytes": 150885,
+    "sha256": "f6d09f9f89b396f1220fb9339dbed28445b6712791229ff22d6d3cd7a9fe055d"
+  },
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "native_windows": "NotRun",
+  "formal_draft_product_pipeline": "NotRun",
+  "compiler_speed_claim": "None; separate workstream"
+}

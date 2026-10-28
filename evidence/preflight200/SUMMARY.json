@@ -1,0 +1,80 @@
+{
+  "status": "PreflightCompleted",
+  "scope": "three original CLI checks only; no implementation, independent safety acceptance or native execution",
+  "cases": [
+    {
+      "case": "cases/00_single_callback_state.zil",
+      "case_sha256": "56cfb56651a856772561c3587819140974c214ce5edbeaba9541e89eb3cc2116",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "exit_code": 0,
+      "command_receipt": "runs/00_single_callback_state/command.json",
+      "native_executions": 0
+    },
+    {
+      "case": "cases/01_same_f_two_callback_state.zil",
+      "case_sha256": "73a0a0fa1fb97e9efd28e42a86f3e91560256dcb7cee69b570d5806db23b916f",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "owning State helpers require one environment role",
+          "span": {
+            "file": 0,
+            "start": 257,
+            "end": 266
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 3,
+      "command_receipt": "runs/01_same_f_two_callback_state/command.json",
+      "native_executions": 0
+    },
+    {
+      "case": "cases/02_store_of_callback_state.zil",
+      "case_sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "StoreElement fields require finite Copy or explicit direct manages resources",
+          "span": {
+            "file": 0,
+            "start": 58,
+            "end": 59
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "exit_code": 1,
+      "command_receipt": "runs/02_store_of_callback_state/command.json",
+      "native_executions": 0
+    }
+  ],
+  "checks": 3,
+  "verification_runs": 1,
+  "native_executions": 0,
+  "next_slice": "same-F two direct self-contained callback fields in a complete owning State; constructor entry only",
+  "front_gate_rejections_are_safety_evidence": false,
+  "archive": {
+    "path": "phases.tar.gz",
+    "bytes": 33082,
+    "sha256": "5495dc8549c76299f238420757527600a4c2fb79098f5d323d665617d6729357",
+    "members": 12,
+    "every_member_hash_checked": true,
+    "phase_files": 11
+  },
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
