@@ -11,29 +11,109 @@ pub(crate) struct CallableTemplate {
     pub kind: CallableKind,
     pub parameters: Vec<TypeRef>,
     pub result: TypeRef,
+    pub fields: Vec<u32>,
 }
 
 #[derive(Clone)]
 pub(crate) struct CallableTemplates {
     pub roles: Vec<CallableTemplate>,
+    pub state_bindings: Vec<CallableTemplate>,
     pub owned_state: bool,
 }
-impl CallableTemplates {
-    pub(crate) fn contains_generic(&self, name: &str) -> bool {
-        self.roles.iter().any(|role| role.generic_name == name)
+/// A borrowed lexical capability set. This is never an ownership certificate.
+/// Empty/single paths preserve their previous traversal and accounting.
+#[derive(Clone, Copy, Default)]
+pub(super) enum StoreCallbacks<'a> {
+    #[default]
+    None,
+    Single(&'a str),
+    Pair([&'a str; 2]),
+}
+impl<'a> StoreCallbacks<'a> {
+    pub(super) fn from_names(single: Option<&'a str>, pair: Option<&'a [String; 2]>) -> Self {
+        if let Some(pair) = pair {
+            Self::Pair([pair[0].as_str(), pair[1].as_str()])
+        } else {
+            single.map_or(Self::None, Self::Single)
+        }
     }
-
+    pub(super) fn contains(self, name: &str) -> bool {
+        match self {
+            Self::None => false,
+            Self::Single(bound) => bound == name,
+            Self::Pair(bounds) => bounds.contains(&name),
+        }
+    }
+    pub(super) fn field(self, ty: &TypeRef) -> bool {
+        match self {
+            Self::None => false,
+            Self::Single(name) => parameter_mode(ty, name) == Some(None),
+            Self::Pair(names) => names
+                .iter()
+                .any(|name| parameter_mode(ty, name) == Some(None)),
+        }
+    }
+    pub(super) fn active(self, ty: &TypeRef) -> bool {
+        match self {
+            Self::None => false,
+            Self::Single(name) => state_type(ty, name),
+            Self::Pair(names) => names.iter().any(|name| dual_state_type(ty, name)),
+        }
+    }
+}
+impl CallableTemplates {
+    pub(crate) fn bindings(&self) -> impl Iterator<Item = &CallableTemplate> {
+        self.roles.iter().chain(&self.state_bindings)
+    }
+    pub(crate) fn contains_generic(&self, name: &str) -> bool {
+        self.bindings().any(|role| role.generic_name == name)
+    }
     pub(crate) fn single_generic(&self) -> Option<&str> {
-        let first = self.roles.first()?;
-        self.roles
-            .iter()
+        let first = self.bindings().next()?;
+        self.bindings()
             .all(|role| role.generic_index == first.generic_index)
             .then_some(first.generic_name.as_str())
     }
-
-    pub(crate) fn store_generic(&self) -> Option<&str> {
-        self.owned_state.then(|| self.single_generic()).flatten()
+    pub(crate) fn dual_names(&self) -> Option<[&str; 2]> {
+        if !self.owned_state || self.single_generic().is_some() {
+            return None;
+        }
+        Some([
+            self.bindings()
+                .find(|b| b.generic_index == 0)?
+                .generic_name
+                .as_str(),
+            self.bindings()
+                .find(|b| b.generic_index == 1)?
+                .generic_name
+                .as_str(),
+        ])
     }
+    pub(super) fn store_callbacks(&self) -> StoreCallbacks<'_> {
+        if !self.owned_state {
+            StoreCallbacks::None
+        } else if let Some(name) = self.single_generic() {
+            StoreCallbacks::Single(name)
+        } else if let Some(names) = self.dual_names() {
+            StoreCallbacks::Pair(names)
+        } else {
+            StoreCallbacks::None
+        }
+    }
+}
+
+pub(super) fn dual_scope(
+    bounds: Option<&CallableTemplates>,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<Option<[String; 2]>> {
+    let Some(names) = bounds.and_then(CallableTemplates::dual_names) else {
+        return Ok(None);
+    };
+    budget.node(span, 0)?;
+    budget.text(names[0], span)?;
+    budget.text(names[1], span)?;
+    Ok(Some([names[0].to_owned(), names[1].to_owned()]))
 }
 
 pub(crate) fn refers(ty: &TypeRef, name: &str) -> bool {
@@ -81,6 +161,43 @@ pub(crate) fn state_type(ty: &TypeRef, name: &str) -> bool {
             matches!(argument, GenericArg::Type(t)
             if parameter_mode(t, name) == Some(None) || !refers(t, name))
         })
+}
+
+/// Two callable slots may sit beside the already finite ordinary Copy slot.
+/// The actual aggregate and its two direct selectors are checked after expansion.
+fn dual_state_type(ty: &TypeRef, name: &str) -> bool {
+    let TypeKind::Named { path, args } = &grouped(ty).kind else {
+        return false;
+    };
+    path.as_slice() != [name]
+        && (1..=3).contains(&args.len())
+        && args
+            .iter()
+            .filter(|argument| {
+                matches!(argument, GenericArg::Type(t)
+            if parameter_mode(t, name) == Some(None))
+            })
+            .count()
+            == 1
+        && args.iter().all(|argument| {
+            matches!(argument, GenericArg::Type(t)
+            if parameter_mode(t, name) == Some(None) || !refers(t, name))
+        })
+}
+
+fn state_union_result(
+    ty: &TypeRef,
+    name: &str,
+    is_state: &impl Fn(&TypeRef, &str, bool) -> bool,
+) -> bool {
+    let TypeKind::Error { error, result } = &grouped(ty).kind else {
+        return false;
+    };
+    [error.as_ref(), result.as_ref()].into_iter().all(|side| {
+        !refers(side, name)
+            || is_state(side, name, true)
+            || state_union_result(side, name, is_state)
+    })
 }
 
 pub(crate) fn parameter_mode(ty: &TypeRef, name: &str) -> Option<Option<bool>> {
@@ -131,7 +248,13 @@ pub(crate) fn opaque_signature(ty: &TypeRef) -> Option<(CallableKind, &[TypeRef]
 }
 
 pub(crate) fn template(function: &Function) -> R<Option<CallableTemplates>> {
-    template_with_state(function, state_type)
+    template_with_state(function, |ty, name, dual| {
+        if dual {
+            dual_state_type(ty, name)
+        } else {
+            state_type(ty, name)
+        }
+    })
 }
 
 /// The generic engine has already replaced State<F> applications with nominal
@@ -169,8 +292,12 @@ pub(crate) fn expanded_template(
             })?;
         }
     }
-    template_with_state(function, |ty, name| {
-        if state_type(ty, name) {
+    let mut classified = template_with_state(function, |ty, name, dual| {
+        if if dual {
+            dual_state_type(ty, name)
+        } else {
+            state_type(ty, name)
+        } {
             return true;
         }
         let TypeKind::Named { path, args } = &grouped(ty).kind else {
@@ -186,12 +313,77 @@ pub(crate) fn expanded_template(
                     TypeKind::Named { path, args } if path.as_slice()==[name] && args.is_empty())
                 })
         })
-    })
+    })?;
+    if let Some(bounds) = classified.as_mut()
+        && let Some(names) = bounds.dual_names()
+    {
+        // Only the new two-root profile scans and copies selectors here. Pay
+        // before either allocation; legacy single-root charges stay exact.
+        let ty = if let Some(binding) = bounds.state_bindings.first() {
+            &function.params[binding.index].ty
+        } else {
+            function.return_type.as_ref().ok_or_else(|| {
+                error(
+                    function.span,
+                    "two callable constructor requires a complete State result",
+                )
+            })?
+        };
+        let TypeKind::Named { path, args } = &grouped(ty).kind else {
+            return Err(unsupported(
+                ty.span,
+                "two callable State requires a direct Package",
+            ));
+        };
+        let aggregate = (path.len() == 1 && args.is_empty())
+            .then(|| declarations.get(&path[0]))
+            .flatten()
+            .filter(|aggregate| aggregate.kind == AggregateKind::Package)
+            .ok_or_else(|| {
+                unsupported(ty.span, "two callable State requires a complete Package")
+            })?;
+        let work = aggregate
+            .fields
+            .len()
+            .saturating_add(names[0].len())
+            .saturating_add(names[1].len())
+            .saturating_add(2);
+        *remaining = remaining.checked_sub(work).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "State binding selector work budget exceeded",
+                Some(ty.span),
+            )
+        })?;
+        let mut selectors = [Vec::new(), Vec::new()];
+        for (index, field) in aggregate.fields.iter().enumerate() {
+            for (slot, name) in names.iter().enumerate() {
+                if parameter_mode(&field.ty, name) == Some(None) && !field.manages {
+                    selectors[slot].push(index as u32);
+                } else if refers(&field.ty, name) {
+                    return Err(unsupported(
+                        field.span,
+                        "State bindings require direct callback fields",
+                    ));
+                }
+            }
+        }
+        if selectors.iter().any(|fields| fields.len() != 1) {
+            return Err(unsupported(
+                ty.span,
+                "two callable State requires exactly one direct field per declared callable type",
+            ));
+        }
+        for binding in &mut bounds.state_bindings {
+            binding.fields = std::mem::take(&mut selectors[binding.generic_index as usize]);
+        }
+    }
+    Ok(classified)
 }
 
 fn template_with_state(
     function: &Function,
-    is_state: impl Fn(&TypeRef, &str) -> bool,
+    is_state: impl Fn(&TypeRef, &str, bool) -> bool,
 ) -> R<Option<CallableTemplates>> {
     let callables: Vec<_> = function.generics.iter().filter(|p| matches!(&p.kind,
         GenericParamKind::Type(bounds) if bounds.iter().any(|b| matches!(&b.kind,
@@ -223,6 +415,8 @@ fn template_with_state(
         }
     }
     let mut roles = Vec::new();
+    let mut state_bindings = Vec::new();
+    let dual = callables.len() == 2;
     let mut owned_state = false;
     for (generic_index, parameter) in callables.iter().enumerate() {
         let GenericParamKind::Type(bounds) = &parameter.kind else {
@@ -266,31 +460,25 @@ fn template_with_state(
         let returns_state = function
             .return_type
             .as_ref()
-            .is_some_and(|t| is_state(t, &parameter.name));
+            .is_some_and(|t| is_state(t, &parameter.name, dual));
         let takes_state = function
             .params
             .iter()
-            .any(|p| is_state(&p.ty, &parameter.name));
+            .any(|p| is_state(&p.ty, &parameter.name, dual));
         let owning = returns_state || takes_state;
         // Two occurrences of one F are admitted only at the complete owning
         // constructor boundary. A State plus another F, or two State inputs,
         // still requires a distinct profile and cannot use this exception.
         let constructor = returns_state && !takes_state;
         owned_state |= owning;
-        if owning && callables.len() != 1 {
-            return Err(unsupported(
-                function.span,
-                "owning State helpers require one callable type",
-            ));
-        }
         let mut count = 0;
         let mut first_mode = None;
         for (index, input) in function.params.iter().enumerate() {
-            if !refers(&input.ty, &parameter.name) && !is_state(&input.ty, &parameter.name) {
+            if !refers(&input.ty, &parameter.name) && !is_state(&input.ty, &parameter.name, dual) {
                 continue;
             }
             let mode = parameter_mode(&input.ty, &parameter.name);
-            if (mode.is_none() && !is_state(&input.ty, &parameter.name)) || input.give {
+            if (mode.is_none() && !is_state(&input.ty, &parameter.name, dual)) || input.give {
                 return Err(unsupported(
                     input.span,
                     "callable parameter must be F, &F, &mut F or a single owning State",
@@ -338,20 +526,26 @@ fn template_with_state(
                     "at most two nonescaping callable environment roles are implemented",
                 ));
             }
-            roles.push(CallableTemplate {
+            let binding = CallableTemplate {
                 index,
                 generic_index: generic_index as u32,
                 generic_name: parameter.name.clone(),
                 kind,
                 parameters: parameters.clone(),
                 result: result.clone(),
-            });
+                fields: Vec::new(),
+            };
+            if dual && owning && !constructor {
+                state_bindings.push(binding);
+            } else {
+                roles.push(binding);
+            }
         }
-        if function
-            .return_type
-            .as_ref()
-            .is_some_and(|t| refers(t, &parameter.name) && !is_state(t, &parameter.name))
-        {
+        if function.return_type.as_ref().is_some_and(|t| {
+            refers(t, &parameter.name)
+                && !is_state(t, &parameter.name, dual)
+                && !(dual && takes_state && state_union_result(t, &parameter.name, &is_state))
+        }) {
             return Err(unsupported(
                 function.span,
                 "escaping callable result is not implemented",
@@ -364,6 +558,28 @@ fn template_with_state(
             ));
         }
     }
+    if dual && owned_state {
+        if !state_bindings.is_empty() {
+            if !roles.is_empty()
+                || state_bindings.len() != 2
+                || state_bindings[0].index != state_bindings[1].index
+            {
+                return Err(unsupported(
+                    function.span,
+                    "two callable State bindings require one actual owning State parameter",
+                ));
+            }
+        } else if roles.len() != 2 || roles[0].generic_index == roles[1].generic_index {
+            return Err(unsupported(
+                function.span,
+                "two callable State constructors require two distinct direct declared inputs",
+            ));
+        }
+    }
     roles.sort_by_key(|role| role.index);
-    Ok(Some(CallableTemplates { roles, owned_state }))
+    Ok(Some(CallableTemplates {
+        roles,
+        state_bindings,
+        owned_state,
+    }))
 }

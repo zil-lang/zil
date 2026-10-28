@@ -18,6 +18,7 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
         || function.type_parameters[0].index != 0
         || function.type_parameters[0].name.is_empty()
         || !function.callable_parameters.is_empty()
+        || !function.state_parameters.is_empty()
         || function.callable_return.is_some()
         || function.foreign.is_some()
         || function.receiver.is_some()
@@ -41,6 +42,82 @@ pub(super) fn symbolic_type(ty: &Type, name: &str) -> bool {
         || matches!(ty, Type::ErrorUnion { error, result }
         if (parameter(error) || error.is_copy_value())
             && (parameter(result) || result.is_copy_value()))
+}
+
+/// Only the finite written positions admitted by the value-inferred profile.
+/// The caller already reserved the signature/type trees before this query.
+pub(super) fn has_parameter(ty: &Type, name: &str) -> bool {
+    match ty {
+        Type::Named(n) => n == name,
+        Type::Managed(inner) | Type::Desc(inner) => match inner.as_ref() {
+            Type::OwnedStore { element } => has_parameter(element, name),
+            _ => false,
+        },
+        Type::ErrorUnion { error, result } => {
+            has_parameter(error, name) || has_parameter(result, name)
+        }
+        _ => false,
+    }
+}
+
+pub(super) fn infer_argument(
+    pattern: &Type,
+    actual: &Type,
+    name: &str,
+    inferred: &mut Option<Type>,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<()> {
+    let pattern_work = inference::type_snapshot_work(pattern, span, limits)?;
+    let actual_work = inference::type_snapshot_work(actual, span, limits)?;
+    charge(pattern_work.saturating_add(actual_work).saturating_mul(2))?;
+    if matches!(pattern, Type::Named(n) if n == name) {
+        if let Some(previous) = inferred {
+            charge(inference::type_snapshot_work(previous, span, limits)?)?;
+            if previous != actual {
+                return Err(error(
+                    "E-TYPE-ARGUMENT-CONFLICT",
+                    span,
+                    "value arguments constrain the ordinary parameter to different complete types",
+                ));
+            }
+        } else {
+            *inferred = Some(actual.clone());
+        }
+        return Ok(());
+    }
+    match (pattern, actual) {
+        (Type::Managed(wanted) | Type::Desc(wanted), Type::Managed(got) | Type::Desc(got)) => {
+            if let (Type::OwnedStore { element: wanted }, Type::OwnedStore { element: got }) =
+                (wanted.as_ref(), got.as_ref())
+            {
+                return infer_argument(wanted, got, name, inferred, limits, span, charge);
+            }
+        }
+        (
+            Type::ErrorUnion {
+                error: a,
+                result: b,
+            },
+            Type::ErrorUnion {
+                error: c,
+                result: d,
+            },
+        ) => {
+            infer_argument(a, c, name, inferred, limits, span, charge)?;
+            return infer_argument(b, d, name, inferred, limits, span, charge);
+        }
+        _ => {}
+    }
+    if has_parameter(pattern, name) {
+        return Err(error(
+            "E-TYPE-APPLICATION",
+            span,
+            "value argument does not provide the declared complete type position",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn intern(
@@ -121,6 +198,27 @@ pub(super) fn resolve_argument(
     let work = inference::type_snapshot_work(argument, span, limits)?;
     state.snapshot(work.saturating_mul(2), span)?;
     let mut actual = argument.clone();
+    if bounds
+        .iter()
+        .any(|bound| bound.generic_index != bounds[0].generic_index)
+    {
+        state.snapshot(
+            work.saturating_mul(2)
+                .saturating_add(bounds.len().saturating_mul(3)),
+            span,
+        )?;
+        let replacements = bounds
+            .iter()
+            .map(|bound| {
+                Ok((
+                    bound.generic_name.as_str(),
+                    bindings.get(bound.generic_index, span)?,
+                ))
+            })
+            .collect::<R<Vec<_>>>()?;
+        callable_fields::specialize_type_all(&mut actual, &replacements);
+        return Ok(actual);
+    }
     for bound in bounds {
         state.snapshot(work.saturating_add(bound.generic_name.len()), span)?;
         callable_fields::specialize_type(
@@ -188,6 +286,78 @@ pub(super) fn substitute_type(
 }
 
 impl Builder<'_, '_> {
+    pub(super) fn call_inferred_type_template(
+        &mut self,
+        mut signature: Signature,
+        arguments: &[CoreExpr],
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let work = inference::signature_snapshot_work("", &signature, span, self.limits)?;
+        self.closures.snapshot(work, span)?;
+        let name = signature
+            .type_parameter
+            .as_ref()
+            .expect("ordinary template")
+            .name
+            .clone();
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "ordinary template value argument count differs",
+            ));
+        }
+        self.closures
+            .snapshot(arguments.len().saturating_mul(3), span)?;
+        let mut inferred = None;
+        let mut staged = Vec::new();
+        let mut actuals = Vec::new();
+        for (argument, parameter) in arguments.iter().zip(&signature.parameters) {
+            let (value, actual) = if has_parameter(parameter, &name) {
+                let (value, actual) = self.expr(argument, None)?;
+                if matches!(parameter, Type::Desc(_)) {
+                    self.resource_descriptor(value, actual, argument.span)?
+                } else {
+                    (value, actual)
+                }
+            } else {
+                self.argument_expr(argument, parameter)?
+            };
+            infer_argument(
+                parameter,
+                &actual,
+                &name,
+                &mut inferred,
+                self.limits,
+                argument.span,
+                &mut |work| self.closures.snapshot(work, argument.span),
+            )?;
+            staged.push(self.stage_argument(value, &actual, argument.span)?);
+            actuals.push(actual);
+        }
+        let actual = inferred.ok_or_else(|| error("E-TYPE-APPLICATION", span,
+            "ordinary template call has no unique complete type constraint from a value argument"))?;
+        self.complete_type_signature(&mut signature, &actual, span)?;
+        if let Some(expected) = expected {
+            self.same(&signature.result, expected, span)?;
+        }
+        for ((actual, parameter), argument) in
+            actuals.iter().zip(&signature.parameters).zip(arguments)
+        {
+            self.same(actual, parameter, argument.span)?;
+        }
+        let values = self.commit_arguments(staged, span)?;
+        let call = self.direct_call(&signature, values, span)?;
+        if signature.result == Type::Unit {
+            self.emit(call, None, span)?;
+            self.constant(Constant::Unit, span)
+        } else {
+            let value = self.value(call, signature.result.clone(), span)?;
+            Ok((value, signature.result))
+        }
+    }
+
     pub(super) fn call_type_template(
         &mut self,
         target: &CoreExpr,
@@ -207,6 +377,41 @@ impl Builder<'_, '_> {
         let work = inference::signature_snapshot_work("", borrowed, span, self.limits)?;
         self.closures.snapshot(work, span)?;
         let mut signature = self.resolve_callee(target)?.clone();
+        self.complete_type_signature(&mut signature, actual, span)?;
+        if let Some(expected) = expected {
+            self.same(&signature.result, expected, span)?;
+        }
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "ordinary template value argument count differs",
+            ));
+        }
+        self.closures.snapshot(arguments.len(), span)?;
+        let mut staged = Vec::new();
+        for (argument, ty) in arguments.iter().zip(&signature.parameters) {
+            let (value, actual) = self.argument_expr(argument, ty)?;
+            self.same(&actual, ty, argument.span)?;
+            staged.push(self.stage_argument(value, &actual, argument.span)?);
+        }
+        let values = self.commit_arguments(staged, span)?;
+        let call = self.direct_call(&signature, values, span)?;
+        if signature.result == Type::Unit {
+            self.emit(call, None, span)?;
+            self.constant(Constant::Unit, span)
+        } else {
+            let value = self.value(call, signature.result.clone(), span)?;
+            Ok((value, signature.result))
+        }
+    }
+
+    fn complete_type_signature(
+        &mut self,
+        signature: &mut Signature,
+        actual: &Type,
+        span: Span,
+    ) -> R<()> {
         let bound = signature.type_parameter.as_ref().ok_or_else(|| {
             error(
                 "E-TYPE-APPLICATION",
@@ -257,32 +462,7 @@ impl Builder<'_, '_> {
         signature.type_parameter = None;
         signature.template = None;
         signature.id = Some(id);
-        if let Some(expected) = expected {
-            self.same(&signature.result, expected, span)?;
-        }
-        if arguments.len() != signature.parameters.len() {
-            return Err(error(
-                "E-CALL-ARITY",
-                span,
-                "ordinary template value argument count differs",
-            ));
-        }
-        self.closures.snapshot(arguments.len(), span)?;
-        let mut staged = Vec::new();
-        for (argument, ty) in arguments.iter().zip(&signature.parameters) {
-            let (value, actual) = self.argument_expr(argument, ty)?;
-            self.same(&actual, ty, argument.span)?;
-            staged.push(self.stage_argument(value, &actual, argument.span)?);
-        }
-        let values = self.commit_arguments(staged, span)?;
-        let call = self.direct_call(&signature, values, span)?;
-        if signature.result == Type::Unit {
-            self.emit(call, None, span)?;
-            self.constant(Constant::Unit, span)
-        } else {
-            let value = self.value(call, signature.result.clone(), span)?;
-            Ok((value, signature.result))
-        }
+        Ok(())
     }
 
     pub(super) fn instantiate_ready_store(&mut self, index: u32, span: Span) -> R<()> {

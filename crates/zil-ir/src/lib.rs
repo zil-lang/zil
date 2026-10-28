@@ -300,6 +300,9 @@ pub struct CoreTypeParameter {
 pub struct CoreFunction {
     /// Retained ordinary template metadata; only a checked full instance may run.
     pub type_parameters: Vec<CoreTypeParameter>,
+    /// Independent declared bindings within one owning State parameter.
+    /// This raw table grants neither call authority nor ownership.
+    pub state_parameters: Vec<CoreStateParameter>,
     /// Source-declared opaque callable result; still untrusted and unresolved.
     pub callable_return: Option<CoreCallableReturn>,
     pub id: NodeId,
@@ -332,6 +335,25 @@ pub struct CoreCallableParameter {
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
     pub result: Type,
+}
+
+/// One real owning State parameter, evaluated and transferred only once.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreStateParameter {
+    pub index: u32,
+    pub bindings: Vec<CoreStateBinding>,
+}
+
+/// One lexical callable declaration and its actual direct symbolic fields.
+/// Declaration order is independent of Package field order and ClosureId.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreStateBinding {
+    pub generic_index: u32,
+    pub generic_name: String,
+    pub kind: CallableKind,
+    pub parameters: Vec<Type>,
+    pub result: Type,
+    pub fields: Vec<u32>,
 }
 
 /// An untrusted external ABI/symbol declaration, never proof of its C implementation.
@@ -1420,7 +1442,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V26\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V27\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);

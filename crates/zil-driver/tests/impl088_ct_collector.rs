@@ -62,6 +62,7 @@ fn program() -> CoreProgram {
                     result_mode: PassingMode::Infer,
                     receiver: None,
                     callable_return: None,
+                    state_parameters: Vec::new(),
                     type_parameters: Vec::new(),
                     callable_parameters: Vec::new(),
                     foreign: None,

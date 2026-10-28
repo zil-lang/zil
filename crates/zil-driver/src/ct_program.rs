@@ -125,6 +125,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         strip_expr(&mut query);
         let function = CoreFunction {
             callable_return: None,
+            state_parameters: Vec::new(),
             type_parameters: Vec::new(),
             callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
@@ -453,9 +454,74 @@ impl Collector<'_> {
         }
         self.ty(result, 0)
     }
+    // Independently preflight all retained State data before the collector
+    // clones even an unused declaration into the runtime normalized program.
+    fn state_header(&mut self, function: &CoreFunction) -> CompileResult<()> {
+        let invalid = || {
+            vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "independent State metadata requires one owner and two ordered field bindings",
+                Some(function.span),
+            )]
+        };
+        if function.state_parameters.len() != 1
+            || !function.type_parameters.is_empty()
+            || !function.callable_parameters.is_empty()
+            || function.callable_return.is_some()
+            || function.receiver.is_some()
+            || function.foreign.is_some()
+        {
+            return Err(invalid());
+        }
+        let state = &function.state_parameters[0];
+        if state.bindings.len() != 2
+            || !function
+                .parameters
+                .get(state.index as usize)
+                .is_some_and(|p| {
+                    matches!(
+                        p.mode,
+                        PassingMode::Infer | PassingMode::Move | PassingMode::Give
+                    )
+                })
+        {
+            return Err(invalid());
+        }
+        self.charge(0)?;
+        for (index, bound) in state.bindings.iter().enumerate() {
+            if bound.generic_index as usize != index
+                || bound.generic_name.is_empty()
+                || bound.kind == CallableKind::FunctionPointer
+                || bound.fields.len() != 1
+            {
+                return Err(invalid());
+            }
+            self.charge(0)?;
+            self.text(&bound.generic_name)?;
+            self.parameters(&bound.parameters, &bound.result)?;
+            for _ in &bound.fields {
+                self.charge(0)?;
+            }
+        }
+        if state.bindings[0].fields[0] == state.bindings[1].fields[0] {
+            return Err(invalid());
+        }
+        Ok(())
+    }
     fn header(&mut self, function: &CoreFunction) -> CompileResult<()> {
         self.charge(0)?;
         self.text(&function.name)?;
+        if !function.state_parameters.is_empty() {
+            if self.query {
+                return Err(vec![Diagnostic::error(
+                    Phase::Ct,
+                    "E-CT-FORBIDDEN",
+                    Some(function.span),
+                    "independent State templates cannot execute in compile-time queries",
+                )]);
+            }
+            self.state_header(function)?;
+        }
         if !function.type_parameters.is_empty() {
             if self.query {
                 return Err(vec![Diagnostic::error(
@@ -469,6 +535,7 @@ impl Collector<'_> {
                 || function.type_parameters[0].index != 0
                 || function.type_parameters[0].name.is_empty()
                 || !function.callable_parameters.is_empty()
+                || !function.state_parameters.is_empty()
                 || function.callable_return.is_some()
                 || function.receiver.is_some()
                 || function.foreign.is_some()

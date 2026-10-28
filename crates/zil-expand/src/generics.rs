@@ -137,10 +137,13 @@ struct Engine<'a> {
     traits: trait_bounds::Index<'a>,
     return_type: Option<TypeRef>,
     callable_name: Option<String>,
+    callable_pair: Option<[String; 2]>,
     store_parameter: Option<String>,
     retained_stores: Vec<String>,
+    inferred_state_values: BTreeSet<String>,
     callable_nominal_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
+    foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
     instances: BTreeMap<(String, Vec<String>), String>,
     instance_types: BTreeMap<String, TypeRef>,
     state_families: BTreeMap<(String, Vec<Option<String>>), usize>,
@@ -204,10 +207,13 @@ impl<'a> Engine<'a> {
             nominals: BTreeMap::new(),
             return_type: None,
             callable_name: None,
+            callable_pair: None,
             store_parameter: None,
             retained_stores: Vec::new(),
+            inferred_state_values: BTreeSet::new(),
             callable_nominal_collision: false,
             signatures: BTreeMap::new(),
+            foreign_signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
             instance_types: BTreeMap::new(),
             state_families: BTreeMap::new(),
@@ -241,6 +247,13 @@ impl<'a> Engine<'a> {
             }
             if let ItemKind::Function(f) = &item.kind {
                 engine.signatures.insert(f.name.clone(), Cow::Borrowed(f));
+            }
+            if let ItemKind::Extern { abi, function } = &item.kind {
+                // Borrow the signature in the existing prepaid item traversal.
+                // It is not a normal helper and is never a callable role.
+                engine
+                    .foreign_signatures
+                    .insert(&function.name, (abi, function));
             }
             if !params(item).is_empty() {
                 let key = name(item).expect("template has a name").to_owned();
@@ -309,6 +322,7 @@ impl<'a> Engine<'a> {
                         nominals: &engine.nominals,
                         enums: &engine.enums,
                         signatures: &engine.signatures,
+                        foreign_signatures: &engine.foreign_signatures,
                         pattern_types: engine.pattern_types,
                         traits: &engine.traits,
                     },
@@ -341,7 +355,7 @@ impl<'a> Engine<'a> {
                         &bounds,
                         &variables,
                         &mut engine.budget,
-                        None,
+                        callable::StoreCallbacks::None,
                     )?;
                     super::foreign::callback_type_tree(
                         &field.ty,
@@ -418,13 +432,19 @@ impl<'a> Engine<'a> {
             .ok_or_else(|| error(span, format!("unknown generic declaration {template}")))?;
         // Canonical source type applications identify an instance, independent
         // of whether inference or explicit ::<...> reached it first.
-        let scope = allow_store_template
-            .then(|| {
-                self.store_parameter
-                    .as_deref()
-                    .or(self.callable_name.as_deref())
-            })
-            .flatten();
+        let scope = if allow_store_template {
+            self.store_parameter.as_deref().map_or_else(
+                || {
+                    callable::StoreCallbacks::from_names(
+                        self.callable_name.as_deref(),
+                        self.callable_pair.as_ref(),
+                    )
+                },
+                callable::StoreCallbacks::Single,
+            )
+        } else {
+            callable::StoreCallbacks::None
+        };
         let mut dependent = false;
         let arguments = arguments
             .iter()
@@ -521,7 +541,10 @@ impl<'a> Engine<'a> {
             (
                 &trait_bounds::Bounds::new(),
                 &BTreeSet::new(),
-                self.callable_name.as_deref(),
+                callable::StoreCallbacks::from_names(
+                    self.callable_name.as_deref(),
+                    self.callable_pair.as_ref(),
+                ),
             ),
             &mut self.budget,
             span,
@@ -616,9 +639,13 @@ impl<'a> Engine<'a> {
                     &mut self.store_parameter,
                     store_parameter.map(|parameter| parameter.name.clone()),
                 );
+                let callable = callable::template(f)?;
+                let pair = callable::dual_scope(callable.as_ref(), &mut self.budget, f.span)?;
+                let saved_pair = std::mem::replace(&mut self.callable_pair, pair);
                 let saved_callable = std::mem::replace(
                     &mut self.callable_name,
-                    callable::template(f)?
+                    callable
+                        .as_ref()
                         .and_then(|bound| bound.single_generic().map(str::to_owned)),
                 );
                 for parameter in &mut f.generics {
@@ -668,6 +695,7 @@ impl<'a> Engine<'a> {
                 }
                 self.return_type = saved_result;
                 self.callable_name = saved_callable;
+                self.callable_pair = saved_pair;
                 self.store_parameter = saved_store;
             }
             ItemKind::Aggregate(a) => {
@@ -1294,6 +1322,10 @@ impl<'a> Engine<'a> {
                         .as_ref()?;
                     stores::call_context(result, store_success_context?)
                 });
+                let value_inference_allowed = matches!(&callee.kind, ExprKind::Name(name)
+                    if !env.contains_key(name) && self.signatures.get(name)
+                        .is_some_and(|f| store_templates::parameter(f).is_some()));
+                let mut value_inferred = false;
                 let mut hints = self.call_hints(callee, env, expected)?;
                 let mut actual = Vec::new();
                 for (index, arg) in arguments.iter_mut().enumerate() {
@@ -1303,6 +1335,16 @@ impl<'a> Engine<'a> {
                         .transpose()?
                         .flatten();
                     let ty = self.expr_expected(&mut arg.value, env, hint.as_ref(), depth + 1)?;
+                    if value_inference_allowed
+                        && let Some(ty) = &ty
+                        && self.inferred_state_value(ty, 0)?
+                    {
+                        value_inferred = true;
+                        // Concrete C identities belong to Types. A prior
+                        // symbolic spelling is not a cross-argument equality
+                        // constraint; the new static Call checks all real T's.
+                        hints = None;
+                    }
                     if let (Some(hints), Some(ty)) = (&mut hints, &ty) {
                         let ty = self.original_type(ty)?;
                         hints.constrain(index, &ty, arg.span, &mut self.budget)?;
@@ -1408,7 +1450,7 @@ impl<'a> Engine<'a> {
                                         (&hints, &function.return_type)
                                     && let Some(mut result) = hints.symbolic_result(
                                         result,
-                                        &callable.roles[0].generic_name,
+                                        &callable,
                                         &mut self.budget,
                                     )?
                                 {
@@ -1419,16 +1461,21 @@ impl<'a> Engine<'a> {
                             }
                             if callable.owned_state
                                 && let (Some(hints), Some(result)) = (&hints, &function.return_type)
-                                && let Some(mut result) = hints.symbolic_result(
-                                    result,
-                                    &callable.roles[0].generic_name,
-                                    &mut self.budget,
-                                )?
+                                && let Some(mut result) =
+                                    hints.symbolic_result(result, &callable, &mut self.budget)?
                             {
                                 self.ty(&mut result, depth + 1)?;
                                 return Ok(Some(result));
                             }
                             return self.signature_result(&target);
+                        }
+                        if value_inferred {
+                            let item = self.templates.get(&target).copied().ok_or_else(|| {
+                                error(e.span, "inferred ordinary call has no original template")
+                            })?;
+                            return self.apply_value_store_template(
+                                callee, function, item, &target, &actual, e.span,
+                            );
                         }
                         let types = if let Some(types) = explicit {
                             types
@@ -1699,12 +1746,14 @@ impl<'a> Engine<'a> {
         Ok(result)
     }
     fn signature_result(&mut self, name: &str) -> R<Option<TypeRef>> {
-        let callable_name = self
+        let callable = self
             .signatures
             .get(name)
             .map(|f| callable::template(f))
             .transpose()?
-            .flatten()
+            .flatten();
+        let callable_name = callable
+            .as_ref()
             .and_then(|bound| bound.single_generic().map(str::to_owned));
         if let Some(ty) = self
             .signatures
@@ -1713,9 +1762,18 @@ impl<'a> Engine<'a> {
         {
             self.budget.ty(ty)?;
             let mut result = ty.clone();
+            let pair = callable::dual_scope(callable.as_ref(), &mut self.budget, ty.span)?;
+            let saved_pair = std::mem::replace(&mut self.callable_pair, pair);
             let saved_callable = std::mem::replace(&mut self.callable_name, callable_name);
             self.ty(&mut result, 0)?;
             self.callable_name = saved_callable;
+            self.callable_pair = saved_pair;
+            if let Some(names) = callable
+                .as_ref()
+                .and_then(callable::CallableTemplates::dual_names)
+            {
+                self.note_state_value_result(&result, names, 0)?;
+            }
             Ok(Some(result))
         } else {
             Ok(None)
@@ -1738,7 +1796,14 @@ fn original_type(
     budget: &mut Budget<'_>,
     depth: usize,
 ) -> R<TypeRef> {
-    original_type_observed(ty, instances, budget, depth, None, &mut false)
+    original_type_observed(
+        ty,
+        instances,
+        budget,
+        depth,
+        callable::StoreCallbacks::None,
+        &mut false,
+    )
 }
 
 fn original_type_observed(
@@ -1746,7 +1811,7 @@ fn original_type_observed(
     instances: &BTreeMap<String, TypeRef>,
     budget: &mut Budget<'_>,
     depth: usize,
-    binder: Option<&str>,
+    binder: callable::StoreCallbacks<'_>,
     dependent: &mut bool,
 ) -> R<TypeRef> {
     budget.node(ty.span, depth)?;
@@ -1755,7 +1820,7 @@ fn original_type_observed(
         TypeKind::Named { path, args } => {
             // Observe the already charged node, including names restored from
             // a nominal instance. No second traversal changes legacy budgets.
-            if args.is_empty() && binder.is_some_and(|name| path.as_slice() == [name]) {
+            if args.is_empty() && path.len() == 1 && binder.contains(&path[0]) {
                 *dependent = true;
             }
             if path.len() == 1
