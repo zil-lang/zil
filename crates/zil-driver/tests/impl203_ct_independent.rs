@@ -290,7 +290,7 @@ fn independent203_runtime_folding_preserves_both_selectors_and_modes_exactly() {
         );
         assert_eq!(out.functions[0].parameters, core.functions[0].parameters);
         assert!(
-            matches!(&out.functions[0].body.statements[0].kind,CoreStatementKind::Return(Some(CoreExpr{kind:CoreExprKind::Integer(n),..})) if n=="42")
+            matches!(&out.functions[0].body.statements[0].kind,CoreStatementKind::Return(Some(CoreExpr{kind:CoreExprKind::Integer(n),..})) if n=="42i32")
         );
     }
 }
