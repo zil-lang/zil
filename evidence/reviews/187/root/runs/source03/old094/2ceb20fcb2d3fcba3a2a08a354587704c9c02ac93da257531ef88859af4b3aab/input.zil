@@ -1,0 +1,1 @@
+package P{data:ByteBuffer;}fn main(){}

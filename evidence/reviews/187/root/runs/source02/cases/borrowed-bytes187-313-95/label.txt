@@ -1,0 +1,1 @@
+internal-window-capture-argument-alias

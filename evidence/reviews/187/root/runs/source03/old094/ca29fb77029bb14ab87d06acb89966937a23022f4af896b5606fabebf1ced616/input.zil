@@ -1,0 +1,1 @@
+fn effect()->i32{if false{let b=bytes_new();}return 0;}fn result()->i32{return #(effect());}

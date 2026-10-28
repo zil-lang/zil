@@ -1,0 +1,1 @@
+fn result()->i64{let b=bytes_new();let s=bytes_view(b);let n=bytes_len(b);return s.len()+n;}

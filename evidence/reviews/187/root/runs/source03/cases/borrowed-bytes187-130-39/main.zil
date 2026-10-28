@@ -1,0 +1,1 @@
+fn touch<F:Fn()->i32>(f:&F,b:ByteBuffer)->i32{bytes_reserve(b,4);return f()}fn main()->i32{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));let view=bytes_view(a);let f=()=>i32(bytes_len(a));return touch(&f,a)+i32(view[0])-66}

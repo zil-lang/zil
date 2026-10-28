@@ -1,0 +1,1 @@
+fn main(){let b=bytes_new();bytes_push(b,256);}

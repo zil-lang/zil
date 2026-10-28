@@ -1,0 +1,1 @@
+fn main()->i32{let b=bytes_new();bytes_reserve(b,1);bytes_push(b,u8(65));let view=bytes_view(b);let f=()=>i32(view[0]);return f()-65}

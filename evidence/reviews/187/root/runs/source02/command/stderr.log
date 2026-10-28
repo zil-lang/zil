@@ -1,0 +1,17 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-backend-llvm)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-types)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review187/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 11.00s
+     Running tests/impl094_byte_buffers.rs (/workspace/scratch/39be3faa4442/targets178/review187/debug/deps/impl094_byte_buffers-1b2e66181494bb94)
+     Running tests/impl187_borrowed_bytes.rs (/workspace/scratch/39be3faa4442/targets178/review187/debug/deps/impl187_borrowed_bytes-ecf8a0924fe5afd3)
+     Running tests/review187_sources.rs (/workspace/scratch/39be3faa4442/targets178/review187/debug/deps/review187_sources-6aa6467246b825c6)
+error: test failed, to rerun pass `-p zil-driver --test review187_sources`
