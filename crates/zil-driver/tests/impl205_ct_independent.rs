@@ -268,7 +268,7 @@ impl SourceCompiler for Observer {
 fn independent205_ct_both_matching_heads_are_prepaid_before_query_preparation() {
     let mut original = module(
         0,
-        "fn revise()->i32{return 0}fn marker()->i32{return #(6*7)}",
+        "fn revise()->i32{return 0}fn pure()->i32{return 42}fn marker()->i32{return #(pure())}",
     );
     mixed(&mut original.functions[0], CallableKind::Fn);
     for variant in [
