@@ -53,6 +53,10 @@ pub(super) fn require(
     .map_err(|mut diagnostic| {
         // Preserve the old Store diagnostics on its unchanged concrete path.
         diagnostic.message = diagnostic.message.replace("StoreElement", "Copy bound");
+        diagnostic.message = diagnostic.message.replace(
+            "finite Copy or explicit direct manages resources",
+            "a finite ordinary Copy Value",
+        );
         diagnostic
     })
 }
