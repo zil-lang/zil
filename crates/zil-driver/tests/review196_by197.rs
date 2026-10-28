@@ -678,3 +678,65 @@ fn joint_flow_charges_default_budgets_and_fresh_requests_recover() {
     });
     Case::new("flow-budget-boundaries").write("boundaries.json",format!("{{\"types\":{types},\"analyze\":{analyze},\"verify\":{verify},\"checks\":\"N, N-1 ResourceLimit, fresh N\",\"defaults_unchanged\":true}}\n"));
 }
+
+const NESTED_CAPTURE: &str = r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+fn make(code:i32)->impl FnMut(i32)->i32 {
+    let ticket=Ticket{code:code};var total=0;
+    return move(n:i32)=>{ticket.code;total+=n;return total}
+}
+fn apply<G:FnMut(i32)->i32,F:Fn(i32)->i32>(tag:i32,passive:&F,active:&mut G,n:i32)->i32 {
+    return passive(n)+active(n)
+}
+fn wrap()->impl FnMut()->i32 {
+    var active=make(90);
+    return move()=>{let passive=(n:i32)=>n;return apply(7,&passive,&mut active,2)}
+}
+fn main()->i32{var f=wrap();let first=f();let second=f();return first+second-10}
+"#;
+
+#[test]
+fn nested_second_role_mutates_a_captured_callback_and_cleans_its_owner_once() {
+    let (module, _) = baseline("nested-captured-callback-control", NESTED_CAPTURE);
+    let contract = module
+        .functions
+        .iter()
+        .find_map(|f| f.callable_contract.as_ref())
+        .unwrap();
+    assert_eq!(
+        contract
+            .roles
+            .iter()
+            .map(|r| (r.parameter, r.kind))
+            .collect::<Vec<_>>(),
+        [(1, CallableKind::Fn), (2, CallableKind::FnMut)]
+    );
+    native("nested-captured-callback-runtime", NESTED_CAPTURE, "Z");
+    let case = Case::new("nested-captured-callback-wrong-outer-mode");
+    let wrong = NESTED_CAPTURE.replace("fn wrap()->impl FnMut()->i32", "fn wrap()->impl Fn()->i32");
+    let report = compile(&case, &wrong, None);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review196.zil", NESTED_CAPTURE);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let types = boundary(|n| {
+        zil_types::check(
+            &core,
+            &module.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|_| ())
+    });
+    Case::new("nested-capture-budget-boundaries").write("boundaries.json",format!("{{\"types\":{types},\"checks\":\"N, N-1 ResourceLimit, fresh N\",\"defaults_unchanged\":true}}\n"));
+}
