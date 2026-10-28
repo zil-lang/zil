@@ -311,3 +311,76 @@ fn a_refreshed_alias_remains_valid_after_zero_or_more_iterations() {
     let source = "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}\nfn recycle<T:Copy,F:Fn()->i32>(state:State<T,F>)->State<T,F>{var next=state;var view=&next.a;while view()==0 {let moved=next.a;next.a=moved;view=&next.a}view();return next}fn main(){}";
     run(source).unwrap();
 }
+
+const VALUE_INFERRED: &str = r#"
+package State<D,F>{manages bytes:ByteBuffer;a:F;b:F;tag:D}
+fn pack<D:Copy,F:FnMut()->i32>(a:F,b:F,tag:D)->State<D,F>{
+    return State::<D,F>{bytes:bytes_new(),a:a,b:b,tag:tag}
+}
+fn replace<D:Copy,F:FnMut()->i32>(state:State<D,F>,replacement:F)->State<D,F>{
+    var next=state;next.a=replacement;return next
+}
+fn identity<T:StoreElement>(value:T)->T{return value}
+fn empty<T:StoreElement>()->Store<T> contract{result(create)}{return store_new()}
+fn factory()->impl FnMut()->i32{var count=0;return move()=>{count+=1;return count}}
+fn main()->i32{
+    let initial=pack(factory(),factory(),17)
+    let held=identity(initial)
+    let updated=replace(held,factory())
+    let again=identity(updated)
+    return 0
+}
+"#;
+
+#[test]
+fn single_f_producer_and_replacement_keep_bare_complete_value_inference() {
+    for text in [
+        VALUE_INFERRED.to_owned(),
+        VALUE_INFERRED
+            .replace("a:F;b:F;tag:D", "a:F;tag:D")
+            .replace("(a:F,b:F,tag:D)", "(a:F,tag:D)")
+            .replace("a:a,b:b,tag:tag", "a:a,tag:tag")
+            .replace("pack(factory(),factory(),17)", "pack(factory(),17)"),
+    ] {
+        let core = run(&text).unwrap();
+        let main = core.functions.iter().find(|f| f.name == "main").unwrap();
+        assert!(main.type_parameters.is_empty());
+        assert!(main.callable_parameters.is_empty());
+        assert!(main.state_parameters.is_empty());
+        let identity = core
+            .functions
+            .iter()
+            .find(|f| f.name == "identity")
+            .unwrap();
+        assert_eq!(identity.type_parameters.len(), 1);
+        assert!(identity.callable_parameters.is_empty());
+        assert!(identity.state_parameters.is_empty());
+        let calls = main.body.statements.iter().filter(|statement| {
+            matches!(&statement.kind,
+                zil_ir::CoreStatementKind::Binding { initializer: Some(expression), .. }
+                if matches!(&expression.kind, zil_ir::CoreExprKind::Call { callee, .. }
+                    if matches!(&callee.kind, zil_ir::CoreExprKind::Name(name) if name == "identity")))
+        }).count();
+        assert_eq!(
+            calls, 2,
+            "bare calls must not invent caller F type arguments"
+        );
+    }
+}
+
+#[test]
+fn single_f_value_inference_preserves_explicit_and_contextless_constraints() {
+    alias_reject(
+        &VALUE_INFERRED.replace("identity(initial)", "identity::<i32>(initial)"),
+        "conflicting generic argument constraints",
+    );
+    alias_reject(
+        &VALUE_INFERRED.replace(
+            "let held=identity(initial)",
+            "let unknown=empty();let held=identity(initial)",
+        ),
+        "has no unique constraint",
+    );
+    let n = boundary(VALUE_INFERRED);
+    eprintln!("state205_single_f_complete_value_expand_n={n}");
+}
