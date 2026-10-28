@@ -135,64 +135,65 @@ pub(super) fn environment(pattern: &Type, actual: &Type, name: &str, span: Span)
     found.ok_or_else(|| error("E-TYPE-MISMATCH", span, "State has no concrete F field"))
 }
 
+pub(super) fn specialize_type(t: &mut Type, name: &str, id: ClosureId) {
+    match t {
+        Type::Named(n) if n == name => *t = Type::Closure(id),
+        Type::Package {
+            name: nominal,
+            fields,
+        } => {
+            let contains = fields
+                .iter()
+                .any(|(_, t)| matches!(t,Type::Named(n) if n==name));
+            for (_, t) in fields {
+                specialize_type(t, name, id)
+            }
+            if contains {
+                *nominal = format!("{}:closure{}", nominal_base(nominal), id.0)
+            }
+        }
+        Type::Record { fields, .. } => {
+            for (_, t) in fields {
+                specialize_type(t, name, id)
+            }
+        }
+        Type::Tuple(fields) => {
+            for t in fields {
+                specialize_type(t, name, id)
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for t in fields {
+                    specialize_type(t, name, id)
+                }
+            }
+        }
+        Type::Managed(t)
+        | Type::Desc(t)
+        | Type::Address { inner: t, .. }
+        | Type::Opaque { hidden: t, .. }
+        | Type::Array { element: t, .. }
+        | Type::Slice { element: t }
+        | Type::OwnedStore { element: t } => specialize_type(t, name, id),
+        Type::ErrorUnion { error, result } => {
+            specialize_type(error, name, id);
+            specialize_type(result, name, id)
+        }
+        Type::FunctionPointer { parameters, result }
+        | Type::ForeignCallback { parameters, result } => {
+            for p in parameters {
+                specialize_type(p, name, id)
+            }
+            specialize_type(result, name, id)
+        }
+        _ => {}
+    }
+}
+
 /// The complete function was charged by helper_snapshot_work before its clone;
 /// this bounded replacement allocates only the one-node concrete Closure type.
 pub(super) fn specialize(function: &mut CoreFunction, name: &str, closure: ClosureId) {
-    fn ty(t: &mut Type, name: &str, id: ClosureId) {
-        match t {
-            Type::Named(n) if n == name => *t = Type::Closure(id),
-            Type::Package {
-                name: nominal,
-                fields,
-            } => {
-                let contains = fields
-                    .iter()
-                    .any(|(_, t)| matches!(t,Type::Named(n) if n==name));
-                for (_, t) in fields {
-                    ty(t, name, id)
-                }
-                if contains {
-                    *nominal = format!("{}:closure{}", nominal_base(nominal), id.0)
-                }
-            }
-            Type::Record { fields, .. } => {
-                for (_, t) in fields {
-                    ty(t, name, id)
-                }
-            }
-            Type::Tuple(fields) => {
-                for t in fields {
-                    ty(t, name, id)
-                }
-            }
-            Type::Enum { variants, .. } => {
-                for (_, fields) in variants {
-                    for t in fields {
-                        ty(t, name, id)
-                    }
-                }
-            }
-            Type::Managed(t)
-            | Type::Desc(t)
-            | Type::Address { inner: t, .. }
-            | Type::Opaque { hidden: t, .. }
-            | Type::Array { element: t, .. }
-            | Type::Slice { element: t }
-            | Type::OwnedStore { element: t } => ty(t, name, id),
-            Type::ErrorUnion { error, result } => {
-                ty(error, name, id);
-                ty(result, name, id)
-            }
-            Type::FunctionPointer { parameters, result }
-            | Type::ForeignCallback { parameters, result } => {
-                for p in parameters {
-                    ty(p, name, id)
-                }
-                ty(result, name, id)
-            }
-            _ => {}
-        }
-    }
     fn expr(e: &mut CoreExpr, n: &str, id: ClosureId) {
         match &mut e.kind {
             CoreExprKind::Unary { operand, .. } | CoreExprKind::Try(operand) => {
@@ -202,6 +203,15 @@ pub(super) fn specialize(function: &mut CoreFunction, name: &str, closure: Closu
             CoreExprKind::Binary { left, right, .. } => {
                 expr(left, n, id);
                 expr(right, n, id)
+            }
+            CoreExprKind::TypeApply {
+                callee,
+                type_arguments,
+            } => {
+                for argument in type_arguments {
+                    specialize_type(argument, n, id);
+                }
+                expr(callee, n, id);
             }
             CoreExprKind::Call { callee, arguments } => {
                 expr(callee, n, id);
@@ -235,7 +245,7 @@ pub(super) fn specialize(function: &mut CoreFunction, name: &str, closure: Closu
                 }
             }
             CoreExprKind::Record { ty: t, fields } => {
-                ty(t, n, id);
+                specialize_type(t, n, id);
                 for (_, f) in fields {
                     expr(f, n, id)
                 }
@@ -246,7 +256,7 @@ pub(super) fn specialize(function: &mut CoreFunction, name: &str, closure: Closu
                 fields,
             } => {
                 if let Some(t) = t {
-                    ty(t, n, id)
+                    specialize_type(t, n, id)
                 }
                 expr(base, n, id);
                 for (_, f) in fields {
@@ -261,11 +271,11 @@ pub(super) fn specialize(function: &mut CoreFunction, name: &str, closure: Closu
             } => {
                 for p in parameters {
                     if let Some(t) = &mut p.ty {
-                        ty(t, n, id)
+                        specialize_type(t, n, id)
                     }
                 }
                 if let Some(t) = return_type {
-                    ty(t, n, id)
+                    specialize_type(t, n, id)
                 }
                 block(body, n, id)
             }
@@ -285,7 +295,7 @@ pub(super) fn specialize(function: &mut CoreFunction, name: &str, closure: Closu
                     ty: t, initializer, ..
                 } => {
                     if let Some(t) = t {
-                        ty(t, n, id)
+                        specialize_type(t, n, id)
                     }
                     if let Some(e) = initializer {
                         expr(e, n, id)
@@ -348,8 +358,8 @@ pub(super) fn specialize(function: &mut CoreFunction, name: &str, closure: Closu
         }
     }
     for p in &mut function.parameters {
-        ty(&mut p.ty, name, closure)
+        specialize_type(&mut p.ty, name, closure)
     }
-    ty(&mut function.return_type, name, closure);
+    specialize_type(&mut function.return_type, name, closure);
     block(&mut function.body, name, closure);
 }

@@ -99,6 +99,7 @@ pub(super) struct State {
     pub active_helpers: std::collections::BTreeSet<helpers::TemplateKey>,
     pub helper_tables: std::rc::Rc<helpers::Tables>,
     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
+    pub store_instances: Vec<store_templates::Instance>,
     pub helper_functions: Vec<TypedFunction>,
     pub helper_exports: Vec<helpers::Export>,
     pub pending: Vec<Pending>,
@@ -123,6 +124,7 @@ impl State {
             active_helpers: std::collections::BTreeSet::new(),
             helper_tables: std::rc::Rc::new(BTreeMap::new()),
             helper_instances: BTreeMap::new(),
+            store_instances: Vec::new(),
             helper_functions: Vec::new(),
             helper_exports: Vec::new(),
             pending: vec![],
@@ -2560,7 +2562,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     if matches!(parameter, Type::Desc(_))
                         && self
                             .resource_writes
-                            .get(&signature.id)
+                            .get(&resource_effects::target(&signature))
                             .is_some_and(|writes| writes.contains(&index))
                     {
                         self.mark_resource_write(variable, argument.span)?;
