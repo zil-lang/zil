@@ -212,7 +212,11 @@ impl<'a> Index<'a> {
         &self,
         parameters: &[GenericParam],
         found: &BTreeMap<String, TypeRef>,
-        (available, variables, callback): (&Bounds, &BTreeSet<String>, Option<&str>),
+        (available, variables, callback): (
+            &Bounds,
+            &BTreeSet<String>,
+            callable::StoreCallbacks<'_>,
+        ),
         budget: &mut Budget<'_>,
         span: Span,
         retained: Option<&callable::CallableTemplates>,
@@ -315,7 +319,7 @@ impl<'a> Index<'a> {
         available: &Bounds,
         variables: &BTreeSet<String>,
         budget: &mut Budget<'_>,
-        callback: Option<&str>,
+        callback: callable::StoreCallbacks<'_>,
     ) -> R<()> {
         budget.ty(ty)?;
         if let Some(variable) = plain(ty).filter(|name| variables.contains(*name)) {
@@ -341,7 +345,7 @@ impl<'a> Index<'a> {
         available: &Bounds,
         variables: &BTreeSet<String>,
         budget: &mut Budget<'_>,
-        callback: Option<&str>,
+        callback: callable::StoreCallbacks<'_>,
     ) -> R<()> {
         budget.ty(ty)?;
         let mut pending = vec![ty];

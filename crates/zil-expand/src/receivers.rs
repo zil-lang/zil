@@ -12,32 +12,58 @@ impl Expander<'_> {
             self.diagnostics.push(primitive_name_error(&f.name, f.span));
             return;
         }
-        let callable_parameters = match generics::callable::expanded_template(
+        let template = match generics::callable::expanded_template(
             f,
             &self.declarations,
             &mut self.callable_work,
         ) {
-            Ok(Some(template)) if prefix.is_none() => template
-                .roles
-                .into_iter()
-                .map(|role| CoreCallableParameter {
-                    index: role.index as u32,
-                    generic_index: role.generic_index,
-                    generic_name: role.generic_name,
-                    kind: role.kind,
-                    parameters: role.parameters.iter().map(type_ref).collect(),
-                    result: type_ref(&role.result),
-                })
-                .collect(),
-            Ok(None) => Vec::new(),
+            Ok(template) if prefix.is_none() => template,
+            Ok(None) => None,
             Ok(Some(_)) => {
                 self.unsupported("callable helper methods are not implemented", f.span);
-                Vec::new()
+                None
             }
             Err(diagnostic) => {
                 self.diagnostics.push(diagnostic);
-                Vec::new()
+                None
             }
+        };
+        let (callable_parameters, state_parameters) = match template {
+            Some(template) => {
+                let state_parameters = if let Some(first) = template.state_bindings.first() {
+                    vec![zil_ir::CoreStateParameter {
+                        index: first.index as u32,
+                        bindings: template
+                            .state_bindings
+                            .into_iter()
+                            .map(|binding| zil_ir::CoreStateBinding {
+                                generic_index: binding.generic_index,
+                                generic_name: binding.generic_name,
+                                kind: binding.kind,
+                                parameters: binding.parameters.iter().map(type_ref).collect(),
+                                result: type_ref(&binding.result),
+                                fields: binding.fields,
+                            })
+                            .collect(),
+                    }]
+                } else {
+                    Vec::new()
+                };
+                let callable_parameters = template
+                    .roles
+                    .into_iter()
+                    .map(|role| CoreCallableParameter {
+                        index: role.index as u32,
+                        generic_index: role.generic_index,
+                        generic_name: role.generic_name,
+                        kind: role.kind,
+                        parameters: role.parameters.iter().map(type_ref).collect(),
+                        result: type_ref(&role.result),
+                    })
+                    .collect::<Vec<_>>();
+                (callable_parameters, state_parameters)
+            }
+            None => (Vec::new(), Vec::new()),
         };
         let type_parameters =
             match generics::store_templates::core_parameters(f, &mut self.callable_work) {
@@ -55,7 +81,10 @@ impl Expander<'_> {
                     Vec::new()
                 }
             };
-        if (callable_parameters.is_empty() && type_parameters.is_empty() && !f.generics.is_empty())
+        if (callable_parameters.is_empty()
+            && state_parameters.is_empty()
+            && type_parameters.is_empty()
+            && !f.generics.is_empty())
             || !f.where_clause.is_empty()
         {
             self.unsupported("generic function specialization", f.span);
@@ -121,7 +150,10 @@ impl Expander<'_> {
             .as_ref()
             .and_then(|ty| self.callable_return(ty));
         if callable_return.is_some()
-            && (!callable_parameters.is_empty() || !type_parameters.is_empty() || host.is_some())
+            && (!callable_parameters.is_empty()
+                || !state_parameters.is_empty()
+                || !type_parameters.is_empty()
+                || host.is_some())
         {
             self.unsupported(
                 "opaque callable factories must be ordinary nongeneric functions",
@@ -157,7 +189,7 @@ impl Expander<'_> {
         self.functions.push(CoreFunction {
             callable_return,
             type_parameters,
-            state_parameters: Vec::new(),
+            state_parameters,
             callable_parameters,
             result_mode,
             foreign: None,
