@@ -1,0 +1,153 @@
+{
+  "implementation_author": "/root/history178_audit",
+  "implementation_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+  "status": "ScopedPassWithOneLegacyExpectationMigration",
+  "review": "AwaitingIndependentRootReview",
+  "schema": 23,
+  "spec_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "c060b7bdfa530c7ceff9801c0415c300036a0a3d13cae9de441282d07df696f0",
+  "normative_registry_matches_actual": true,
+  "commands": {
+    "tests": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+      "git_status": "",
+      "receipt": "runs/final01/tests/command.json",
+      "tests": {
+        "passed": 99,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "adjacent": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+      "git_status": "",
+      "receipt": "runs/final01/adjacent/command.json",
+      "tests": {
+        "passed": 20,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "legacy-boundary": {
+      "status": "Fail",
+      "exit_code": 101,
+      "source_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+      "git_status": "",
+      "receipt": "runs/final01/legacy-boundary/command.json",
+      "tests": {
+        "passed": 6,
+        "failed": 1,
+        "ignored": 0
+      }
+    },
+    "build": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+      "git_status": "",
+      "receipt": "runs/final01/build/command.json"
+    },
+    "consumer-command": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+      "git_status": "",
+      "receipt": "runs/final01/consumer-command/command.json"
+    },
+    "fmt": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+      "git_status": "",
+      "receipt": "runs/final01/fmt/command.json"
+    },
+    "clippy": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+      "git_status": "",
+      "receipt": "runs/final01/clippy/command.json"
+    },
+    "test-clippy": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+      "git_status": "",
+      "receipt": "runs/final01/test-clippy/command.json"
+    },
+    "handoff": {
+      "status": "Fail",
+      "exit_code": 1,
+      "source_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+      "git_status": "",
+      "receipt": "runs/final01/handoff/command.json"
+    }
+  },
+  "scoped_tests": {
+    "passed": 119,
+    "failed": 0,
+    "ignored": 0,
+    "new_source": 13,
+    "new_raw_and_budget": 6
+  },
+  "additional_legacy_command": {
+    "passed": 6,
+    "failed": 1,
+    "ignored": 0,
+    "reason": "Original099 expects owned environment slice result Unsupported; actual source now correctly succeeds atLower. Old source and failure retained; root owns exact expectation migration."
+  },
+  "source_native_executions": 20,
+  "consumer_native_executions": 38,
+  "consumer_fault_executions": 20,
+  "consumer_allocation_balance": "All instrumented runs: live0, allocated=frees, exact allocator call/failure oracle; output and exit matched before observation.",
+  "raw_wire_attacks": {
+    "mutations": 11,
+    "independent_verifier_rejections": 22,
+    "scope": "missing/overclaimed/wrong capture; activation address; consuming kind/by-value/once call; erasedHold; shared capture write; owned resource write asFn; early environment drop"
+  },
+  "analyze_boundary": {
+    "accepted": 1179,
+    "rejected": 1178
+  },
+  "verify_runs": "Each successful source report has one verification run; raw/Wire enterVerify independently.",
+  "source_interface": "Both factory exports carry lending_captures[1], cleanup[0,1]; borrowedpeek origin parameter0; actual four module consumer asserts nonempty sources and two cleanup indices.",
+  "preserved_failures": {
+    "development01": "Rust syntax error during first development check",
+    "development03": "Analyze old Copy-result gate",
+    "development04": "Actual Copy FnMut active-result later-call unsound Success before repair; positive lower/helpers old gates",
+    "development05_and_11": "Rust rlib-format cache infrastructure failures; tests not executed; fresh target resolved",
+    "development06": "Invalid bare-block source fixture rejectedParse",
+    "development07": "Raw once call correctly rejected E-VERIFY-CLOSURE-CALL; test expected a different exact code",
+    "development08": "State fixture lacked required manages field",
+    "development09": "Cross-module fixture accessed private field",
+    "development12": "Test Clippy &PathBuf argument corrected to&Path",
+    "consumer01": "Nested generic callable helper Unsupported, retained as explicit missing composition",
+    "consumer02": "Unsafe statement inside parametric body unsupported; ordinary I/O wrapper used",
+    "consumer03": "Duplicate foreign putchar declarations rejectedVerify; one ordinary exportedI/O wrapper used",
+    "handoff": "Inherited missing histories plus live main snapshot differences; exit1 retained, not a final acceptance pass"
+  },
+  "boundary": {
+    "supported": "Finite Copy explicit arguments; shared &Copy/&[Copy] result from actual inlineCopy or ownedByteBuffer captured storage; Fn/FnMut actual-place calls, borrowedhelper and Statefield loans, ordinary parameter-origin forwarding, conditional sources and loops",
+    "unsupported": [
+      "FnOnce/consuming adapter/environment temporary lending",
+      "externalAddress/Desc captures as lenders",
+      "nestedPackage/Closure lending sources",
+      "general life/HRTB and arbitrary retained borrowing",
+      "nested generic State to generic callable-helper contracts"
+    ]
+  },
+  "rust_goals": {
+    "safety": "Concrete source, raw/Wire, dynamic view invalidation and cleanup obligations exercised; independent root review pending; no whole-language safety claim",
+    "runtime_and_memory": "Actual pointer environment and allocation/free balance; no implicit RC/box added; no matched Rust runtime/RSS or tail-latency claim",
+    "expression_and_maintenance": "Reusable opaque factory and borrowedhelper expose actual storage without manual source metadata; nestedhelper and general lifetime gaps remain; maintenance advantage unmeasured",
+    "compile_cost": "New work bounded by existing limits, Analyze missing vector charge repaired, no default/profile change; no compilation-speed comparison",
+    "breakthrough": "Executable finite environment-lending capability is an engineering increment; product-level net breakthrough not established"
+  },
+  "full_workspace": "NotRunByAuthor",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

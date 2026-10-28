@@ -1,0 +1,4 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt184/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.24s
+     Running tests/impl184_lending.rs (/workspace/scratch/39be3faa4442/targets178/author184fresh/debug/deps/impl184_lending-7eb3fbdc20edd05c)
+error: test failed, to rerun pass `-p zil-driver --test impl184_lending`

@@ -1,0 +1,27 @@
+
+running 7 tests
+test direct_and_package_owning_factories_have_real_call_modes ... ok
+test live_windows_block_package_field_and_whole_transfers ... ok
+test ordinary_owned_aggregates_desc_captures_and_error_payloads_stay_closed ... ok
+test owned_views_are_grounded_in_actual_shells_and_captures ... ok
+test package_refill_keeps_fnmut_but_partial_error_is_once ... ok
+test owned_windows_retain_helper_alias_and_lifetime_boundaries ... FAILED
+test packages_move_return_replace_and_refill_real_byte_owners ... ok
+
+failures:
+
+---- owned_windows_retain_helper_alias_and_lifetime_boundaries stdout ----
+
+thread 'owned_windows_retain_helper_alias_and_lifetime_boundaries' (449) panicked at crates/zil-driver/tests/impl099_owned_bytes.rs:52:9:
+assertion `left == right` failed: fn escaped()->impl Fn()->&[u8]{let b=bytes_new();return move()=>bytes_view(b)}fn entry099(){}
+{"status":"Success","phase":"lower","diagnostics":[],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/runs178/author184/final01/adjacent-cases/source099-444-24/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/runs178/author184/final01/adjacent-cases/source099-444-24/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/runs178/author184/final01/adjacent-cases/source099-444-24/phases/ct-core.txt","lir":"/workspace/scratch/39be3faa4442/runs178/author184/final01/adjacent-cases/source099-444-24/phases/lir.txt","source-map":"/workspace/scratch/39be3faa4442/runs178/author184/final01/adjacent-cases/source099-444-24/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/runs178/author184/final01/adjacent-cases/source099-444-24/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/runs178/author184/final01/adjacent-cases/source099-444-24/phases/typed.txt","verified":"/workspace/scratch/39be3faa4442/runs178/author184/final01/adjacent-cases/source099-444-24/phases/verified.txt"},"input_fingerprint":"66447bc52420c8830b92c1c53c68c3c1e9272982cfd10448e67633fa80bc1d34","seconds":0.022614189,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"},{"phase":"lower","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"owned099.zil"},"scalar_interfaces":[]}
+  left: "lower"
+ right: "types"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    owned_windows_retain_helper_alias_and_lifetime_boundaries
+
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
