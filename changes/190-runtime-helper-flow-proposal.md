@@ -12,6 +12,8 @@
 
 已保留八个最小输入及实际 check 输出：`run-logs/190-preflight/probes472/REPORT.json`。为避免另建缓存，该预检使用精确187源码 `472b3ce052b850ef51fbfa3f8d818c51e080a112` 的 CLI，二进制 SHA256 `ce756a21ab82ff8a06a000b0e7d765c7b608b2657b1674e906426d6d79df7066`；**不是当前 main/188 的测试结果，也没有执行候选机器程序**。
 
+上述八项及下述两项控制出口原输入/原 stdout/stderr 已原字节收入 `evidence/impl/190/preflight/`，包含来源和SHA清单；该目录明确标为 ReadOnlyPreflight，不能作为190生产验收Pass。
+
 | 原输入类别 | 实际结果 | 对190写集的含义 |
 |---|---|---|
 | 普通具名 main 内 while/for 调用闭包 | Verify Success，各1例 | 常规循环与后端 CFG 已存在 |
@@ -147,6 +149,8 @@ root 可把类型/字段名调整为仓库统一命名；上述规范化与分�
 建议复用已有 `Limits`：图节点受 `max_nodes` 限制，调用事件总数受 `max_instructions` 限制，边及全部扫描/复制/队列/比较计费进入既有 `max_analysis_steps`；逐函数和全模块的累积长度都用 checked 加法。精确额度由 root 接口定义统一，不能各阶段各猜一套。Wire 读 vector 长度后先检查和收费再分配；raw Verify 在计算模块指纹前完成同等界限。
 
 SCC/可达性/BFS 使用显式队列或栈；不对 graph cycle 递归，不按 runtime 迭代次数追加节点。源面的 helper 实例依赖深度继续遵守188修复后的显式计划；不提高宿主栈或默认逻辑预算掩盖深度问题。重复子图展开的全部真实工作必须计费，精确旧预算断言如因必要工作变化需要迁移，由 root 逐项批准并留存原失败。
+
+**复制前的数量和 depth 检查是强制步骤。** 对每个静态子 helper 调用点，先用 checked 加法计算完整子图副本的节点数、边数、调用事件数、Return 接续边及重定位/队列辅助项，检查本函数与本模块余量，并为实际扫描、所有 owned clone/拷贝、重定位和结果比较分别完整收费；之后才建立副本。禁止先 clone `nodes`/`calls` 再发现超限，也不只给最后压缩后的图计费。实际 helper 依赖 DAG 的最大活动调用路径深度须先独立计算并限制于现有 `max_call_depth`，包含有限/循环 helper 的任意组合；引用深度通过不能免除复制体积界限，复制体积通过也不能免除路径深度界限。这里的 depth 是静态 helper 调用嵌套，不是 runtime 回边反复经过的次数。Flow 的平坦索引数组无需递归 Wire/raw 解析，图遍历自身用 visited/queue 与已核节点总量有界。
 
 ## 建议写集与实施顺序
 
