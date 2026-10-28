@@ -289,7 +289,7 @@ pub struct CoreFunction {
     pub id: NodeId,
     pub name: String,
     /// Retained callable template metadata; absent on ordinary concrete functions.
-    pub callable_parameter: Option<CoreCallableParameter>,
+    pub callable_parameters: Vec<CoreCallableParameter>,
     pub foreign: Option<ForeignDeclaration>,
     pub parameters: Vec<CoreParameter>,
     pub return_type: Type,
@@ -310,6 +310,8 @@ pub struct CoreCallableReturn {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableParameter {
     pub index: u32,
+    /// Position among callable generic declarations, independent of runtime role order.
+    pub generic_index: u32,
     pub generic_name: String,
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
@@ -617,6 +619,13 @@ pub struct CallableContracts {
 /// neither construction nor transport confers authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableParameterContract {
+    /// Sorted unique actual parameter roles; runtime identity is never inferred from type identity.
+    pub roles: Vec<CallableRole>,
+    /// One joint ordered call language preserves correlation across every role.
+    pub traces: CallableTraces,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallableRole {
     pub parameter: u32,
     pub closure: ClosureId,
     /// Requested bound mode; the concrete closure may support an adaptation.
@@ -628,8 +637,6 @@ pub struct CallableParameterContract {
     /// Conservative target-write upper bound: Desc and mutable Address captures.
     pub writes: Vec<u32>,
     pub cleanup: CallableCleanup,
-    /// Exact finite paths or an explicit cyclic call graph; neither grants trust.
-    pub traces: CallableTraces,
 }
 /// A raw opaque callable result claim. The first implemented form is a
 /// self-contained concrete environment with no external Hold/Call dependencies.
@@ -660,9 +667,14 @@ pub enum CallableExit {
     /// Process abort; no unwind cleanup guarantee is implied.
     Trap,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CallEvent {
+    pub parameter: u32,
+    pub kind: CallableKind,
+}
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CallableTrace {
-    pub calls: Vec<CallableKind>,
+    pub calls: Vec<CallEvent>,
     pub exit: CallableExit,
 }
 /// Exact callback behavior, transported as an untrusted claim.
@@ -694,7 +706,7 @@ pub struct CallableFlow {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableFlowNode {
-    pub calls: Vec<CallableKind>,
+    pub calls: Vec<CallEvent>,
     pub next: CallableFlowNext,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1387,7 +1399,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V24\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V25\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2205,7 +2217,7 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-2\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-3\0".to_vec();
     encode_callable_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
@@ -2234,19 +2246,20 @@ fn callable_kind_tag(kind: CallableKind) -> u8 {
     }
 }
 fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract) {
-    encode_u32(b, c.parameter);
-    encode_u32(b, c.closure.0);
-    b.push(callable_kind_tag(c.kind));
-    for indices in [&c.hold, &c.call, &c.writes] {
-        encode_len(b, indices.len());
-        for index in indices {
-            encode_u32(b, *index);
+    encode_len(b, c.roles.len());
+    for role in &c.roles {
+        encode_u32(b, role.parameter);
+        encode_u32(b, role.closure.0);
+        b.push(callable_kind_tag(role.kind));
+        for indices in [&role.hold, &role.call, &role.writes] {
+            encode_len(b, indices.len());
+            for index in indices { encode_u32(b, *index); }
         }
+        b.push(match role.cleanup {
+            CallableCleanup::Owned => 0,
+            CallableCleanup::Borrowed => 1,
+        });
     }
-    b.push(match c.cleanup {
-        CallableCleanup::Owned => 0,
-        CallableCleanup::Borrowed => 1,
-    });
     match &c.traces {
         CallableTraces::Finite(traces) => {
             b.push(0);
@@ -2279,10 +2292,11 @@ fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract) {
         }
     }
 }
-fn encode_callable_calls(b: &mut Vec<u8>, calls: &[CallableKind]) {
+fn encode_callable_calls(b: &mut Vec<u8>, calls: &[CallEvent]) {
     encode_len(b, calls.len());
     for call in calls {
-        b.push(callable_kind_tag(*call));
+        encode_u32(b, call.parameter);
+        b.push(callable_kind_tag(call.kind));
     }
 }
 fn encode_callable_exit(b: &mut Vec<u8>, exit: CallableExit) {
