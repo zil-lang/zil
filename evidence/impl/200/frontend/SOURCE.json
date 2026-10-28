@@ -1,0 +1,253 @@
+{
+  "task": "200 frontend and Types author delivery",
+  "production_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+  "baseline": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
+  "spec_sha256": "13ea0962a2bf73893a0b03eac133456216856f3748152392c925e95028059c7d",
+  "normative_registry": {
+    "schema_version": 1,
+    "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
+    "files": {
+      "_zil_design.md": "13ea0962a2bf73893a0b03eac133456216856f3748152392c925e95028059c7d",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+      "spec/interfaces.json": "7217e2e776b3572bfb27a1d09d5a3192bfbd3d09711d94c6ed0a28b1b3a7da53",
+      "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "normative_hash": "4402e04fd45551cbdd8dff92c4ac51af8d8ddd6f87296c17ce3690f55359bff3"
+  },
+  "schema_version": 25,
+  "compiler_cli_path": "/workspace/scratch/39be3faa4442/targets200/frontend/debug/zil",
+  "compiler_cli_sha256": "4eaf5291d867f0ebc64390f5ab3850ea6726570216ab688ae971c44e457a2fc9",
+  "compiler_build_receipt": "commands/cli-build02/command.json",
+  "final_compiler_build_checkout_clean": true,
+  "document_commit_does_not_relabel_runs": true,
+  "source_cases": [
+    {
+      "source": "crates/zil-driver/tests/impl200_fixtures/00_single_callback_state.zil",
+      "sha256": "56cfb56651a856772561c3587819140974c214ce5edbeaba9541e89eb3cc2116",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "exit_code": 0,
+      "diagnostics": [],
+      "archive_receipt": "commands/cli-final-00_single_callback_state/command.json"
+    },
+    {
+      "source": "crates/zil-driver/tests/impl200_fixtures/01_same_f_two_callback_state.zil",
+      "sha256": "73a0a0fa1fb97e9efd28e42a86f3e91560256dcb7cee69b570d5806db23b916f",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "exit_code": 0,
+      "diagnostics": [],
+      "archive_receipt": "commands/cli-final-01_same_f_two_callback_state/command.json"
+    },
+    {
+      "source": "crates/zil-driver/tests/impl200_fixtures/02_store_of_callback_state.zil",
+      "sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "StoreElement fields require finite Copy or explicit direct manages resources",
+          "span": {
+            "file": 0,
+            "start": 58,
+            "end": 59
+          },
+          "notes": []
+        }
+      ],
+      "archive_receipt": "commands/cli-final-02_store_of_callback_state/command.json"
+    }
+  ],
+  "commands": [
+    {
+      "run": "check01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "63ab0150ebbfeb40ca1f77488c934a29c2f35d79",
+      "dirty": true,
+      "archive_receipt": "commands/check01/command.json",
+      "receipt_sha256": "7a6d43c01ad3050ec4b26ec27409ec99ba28de9730b7c663d201986b1438952d"
+    },
+    {
+      "run": "cli-build01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "a33fb506173e14592011781f0062d272f9fb037c",
+      "dirty": false,
+      "archive_receipt": "commands/cli-build01/command.json",
+      "receipt_sha256": "ad2e8ac82ff06163479fd7b1b32ee47934d6c7ea4f39b911e7807e9a3fb1c610"
+    },
+    {
+      "run": "cli-build02",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+      "dirty": false,
+      "archive_receipt": "commands/cli-build02/command.json",
+      "receipt_sha256": "4ee5f0751abb812cd49b233e6d0d9249c0a50b840c0631e52b5700e324191929"
+    },
+    {
+      "run": "cli-final-00_single_callback_state",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+      "dirty": false,
+      "archive_receipt": "commands/cli-final-00_single_callback_state/command.json",
+      "receipt_sha256": "ec347d7941db117f6f0d238ab2f669a4b2644576aac60216dc45195f4c000c6b"
+    },
+    {
+      "run": "cli-final-01_same_f_two_callback_state",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+      "dirty": false,
+      "archive_receipt": "commands/cli-final-01_same_f_two_callback_state/command.json",
+      "receipt_sha256": "07b17713d4898fa7c891f5ade7f18433fd55c3fbb9ab2d9ccdb4a355015410db"
+    },
+    {
+      "run": "cli-final-02_store_of_callback_state",
+      "status": "Fail",
+      "exit_code": 1,
+      "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+      "dirty": false,
+      "archive_receipt": "commands/cli-final-02_store_of_callback_state/command.json",
+      "receipt_sha256": "1a3dfb714c7ca4ceb719786a4fdd888318840d8255236f0ca2083d1c32de41cf"
+    },
+    {
+      "run": "cli-original-00_single_callback_state",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "a33fb506173e14592011781f0062d272f9fb037c",
+      "dirty": false,
+      "archive_receipt": "commands/cli-original-00_single_callback_state/command.json",
+      "receipt_sha256": "2b9cdf22f5b85932a921a91d521c53eff9ff5d154c8742657c20f376b8fd5bbe"
+    },
+    {
+      "run": "cli-original-01_same_f_two_callback_state",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "a33fb506173e14592011781f0062d272f9fb037c",
+      "dirty": false,
+      "archive_receipt": "commands/cli-original-01_same_f_two_callback_state/command.json",
+      "receipt_sha256": "567bae0ed28825413c263b0b24d5ea562e6ab7817e532edba4e8e8a0145da86c"
+    },
+    {
+      "run": "cli-original-02_store_of_callback_state",
+      "status": "Fail",
+      "exit_code": 1,
+      "source_commit": "a33fb506173e14592011781f0062d272f9fb037c",
+      "dirty": false,
+      "archive_receipt": "commands/cli-original-02_store_of_callback_state/command.json",
+      "receipt_sha256": "5d3bccae422f4a7258c62f69e9335ac4a128b21eaf3a28baba3d4a14d0e1ac48"
+    },
+    {
+      "run": "clippy01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "a33fb506173e14592011781f0062d272f9fb037c",
+      "dirty": false,
+      "archive_receipt": "commands/clippy01/command.json",
+      "receipt_sha256": "627c72779a8affd9c87e0b1f76cee4d72cffd371885f0dbee026fe27d8b233d0"
+    },
+    {
+      "run": "clippy02",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+      "dirty": false,
+      "archive_receipt": "commands/clippy02/command.json",
+      "receipt_sha256": "89c45a77522e8a22257711efbbe78ce66f7c22067d88bc3d458ea327e21167e2"
+    },
+    {
+      "run": "combined01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+      "dirty": false,
+      "archive_receipt": "commands/combined01/command.json",
+      "receipt_sha256": "e15ee5962ee1a110d821304250750917f46dae2fac19c3f5b5438928b3947f46"
+    },
+    {
+      "run": "consumer-linux01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "a33fb506173e14592011781f0062d272f9fb037c",
+      "dirty": false,
+      "archive_receipt": "commands/consumer-linux01/command.json",
+      "receipt_sha256": "a1b9ebf00ac5659c2f6bb22586040c930b618f45e4dd1ef41376290bd447ff74"
+    },
+    {
+      "run": "consumer-linux02",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+      "dirty": false,
+      "archive_receipt": "commands/consumer-linux02/command.json",
+      "receipt_sha256": "786e93c2c6c084170d38b2640b571a8e2903b25ec7f153c48e8800cb21bf6b3f"
+    },
+    {
+      "run": "consumer-win6401",
+      "status": "Fail",
+      "exit_code": 1,
+      "source_commit": "a33fb506173e14592011781f0062d272f9fb037c",
+      "dirty": false,
+      "archive_receipt": "commands/consumer-win6401/command.json",
+      "receipt_sha256": "2fb2f3229ac4ce38f7b6a4464bbe9f433f0f88957222c12326fc3e0026cfab05"
+    },
+    {
+      "run": "consumer-win6402",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+      "dirty": false,
+      "archive_receipt": "commands/consumer-win6402/command.json",
+      "receipt_sha256": "8a3766c1e066ae2deb043e766dd217560638598ff034a54e4fd8b200c53f6058"
+    },
+    {
+      "run": "source01",
+      "status": "Fail",
+      "exit_code": 101,
+      "source_commit": "353407d02dbb9d8399d99388e6a3e3298a76f7ee",
+      "dirty": false,
+      "archive_receipt": "commands/source01/command.json",
+      "receipt_sha256": "415acc3b9370083bf92d099aedfed72864cee8e703ac45981f46e059ce41aaf6"
+    },
+    {
+      "run": "source02",
+      "status": "Fail",
+      "exit_code": 101,
+      "source_commit": "8247f3bfcbdd3842aab57c25d31cbeef7e51849f",
+      "dirty": false,
+      "archive_receipt": "commands/source02/command.json",
+      "receipt_sha256": "953856e75bd5f6c15876cae118d212770638c0c59fbf3ed92974c99037bd906c"
+    },
+    {
+      "run": "source03",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "a33fb506173e14592011781f0062d272f9fb037c",
+      "dirty": false,
+      "archive_receipt": "commands/source03/command.json",
+      "receipt_sha256": "688df0183dd463ec6227825deafbf0c0f15226288a1607b4e93a6fe41167d9b1"
+    },
+    {
+      "run": "types01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "8bd0343380d74ca06a0dd4207a6fe4617a2d8d5b",
+      "dirty": false,
+      "archive_receipt": "commands/types01/command.json",
+      "receipt_sha256": "a221c244e61078b77f33b2494be2d99ad345a8bc5de44b9cea8ed6cb134b26d9"
+    }
+  ]
+}
