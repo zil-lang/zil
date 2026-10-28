@@ -15,31 +15,16 @@ enum Root {
 type Roots = BTreeSet<Root>;
 type State = BTreeMap<LocalId, Roots>;
 
-fn tracked_desc(ty: &Type, head_windows: bool) -> bool {
-    matches!(ty, Type::Desc(inner) if head_windows || **inner == Type::ByteBuffer)
+fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
+    matches!(ty, Type::Desc(inner) if descriptor_origins || **inner == Type::ByteBuffer)
 }
 
-// A module may use the head only in its caller. Desc-only callees still need
-// grounded effects, so enable the lane once for the complete actual module.
-fn head_windows(module: &TypedModule, budget: &mut Budget) -> CompileResult<bool> {
-    if module.resources.is_empty() {
-        return Ok(false);
-    }
-    for function in &module.functions {
-        budget.spend(
-            function
-                .locals
-                .len()
-                .saturating_add(function.values.len())
-                .saturating_add(1),
-            "resource head window discovery",
-        )?;
-        if function.locals.iter().map(|l| &l.ty).chain(&function.values)
-            .any(|ty| ty.is_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+// Resource descriptions have the same provenance whether a different function
+// creates a head address or not. The resource table only skips this lane for
+// modules that cannot contain any checked resource description.
+fn descriptor_origins(module: &TypedModule, budget: &mut Budget) -> CompileResult<bool> {
+    budget.spend(1, "resource description lane")?;
+    Ok(!module.resources.is_empty())
 }
 
 fn state_cost(state: &State, budget: &mut Budget) -> CompileResult<()> {
@@ -62,7 +47,7 @@ fn extend(target: &mut Roots, source: &Roots, budget: &mut Budget) -> CompileRes
 fn infer(
     module: &TypedModule,
     summaries: &[Roots],
-    head_windows: bool,
+    descriptor_origins: bool,
     f: &TypedFunction,
     predecessors: &[Vec<usize>],
     reachable: &[bool],
@@ -77,19 +62,20 @@ fn infer(
         let Some(closure) = module.closures.get(id.0 as usize) else {
             return Ok(false);
         };
-        if head_windows {
+        if descriptor_origins {
             budget.spend(closure.captures.len(), "head descriptor capture scan")?;
         }
         Ok(closure.captures.iter().any(|ty| {
-            matches!(ty, Type::Address { .. }) || (head_windows && matches!(ty, Type::Desc(_)))
+            matches!(ty, Type::Address { .. })
+                || (descriptor_origins && matches!(ty, Type::Desc(_)))
         }))
     };
     let mut has_sources = f
         .values
         .iter()
-        .any(|ty| matches!(ty, Type::Address { .. }) || tracked_desc(ty, head_windows));
+        .any(|ty| matches!(ty, Type::Address { .. }) || tracked_desc(ty, descriptor_origins));
     if !has_sources {
-        if head_windows {
+        if descriptor_origins {
             budget.spend(f.parameters.len(), "head incoming source scan")?;
         }
         for local in &f.parameters {
@@ -122,7 +108,7 @@ fn infer(
                 budget.spend(f.parameters.len(), "incoming Hold parameters")?;
                 for (index, local) in f.parameters.iter().enumerate() {
                     if matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
-                        || tracked_desc(&f.locals[local.0 as usize].ty, head_windows)
+                        || tracked_desc(&f.locals[local.0 as usize].ty, descriptor_origins)
                         || captured_address(&f.locals[local.0 as usize].ty, budget)?
                     {
                         state.insert(*local, Roots::from([Root::Parameter(index as u32)]));
@@ -144,13 +130,13 @@ fn infer(
                 budget.spend(1, "Hold instruction")?;
                 let mut found = Roots::new();
                 match &instruction.kind {
-                    InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if head_windows || **inner == Type::ByteBuffer) =>
+                    InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if descriptor_origins || **inner == Type::ByteBuffer) =>
                     {
                         found.insert(Root::Local(*local));
                     }
                     InstructionKind::DescribePackageField { local, index }
                         if instruction.result.is_some_and(|value| {
-                            tracked_desc(&f.values[value.0 as usize], head_windows)
+                            tracked_desc(&f.values[value.0 as usize], descriptor_origins)
                         }) =>
                     {
                         let root = match &f.locals[local.0 as usize].ty {
@@ -162,7 +148,7 @@ fn infer(
                     }
                     InstructionKind::ProjectOwnedArrayField { local, .. }
                         if instruction.result.is_some_and(|value| {
-                            tracked_desc(&f.values[value.0 as usize], head_windows)
+                            tracked_desc(&f.values[value.0 as usize], descriptor_origins)
                         }) =>
                     {
                         // Array element slots are independently owned, but the
@@ -172,7 +158,7 @@ fn infer(
                     }
                     InstructionKind::DescribeCapture { index }
                         if instruction.result.is_some_and(|value| {
-                            tracked_desc(&f.values[value.0 as usize], head_windows)
+                            tracked_desc(&f.values[value.0 as usize], descriptor_origins)
                         }) =>
                     {
                         found.insert(Root::Capture(*index));
@@ -228,7 +214,8 @@ fn infer(
                             .result
                             .and_then(|id| f.values.get(id.0 as usize));
                         if matches!(ty, Some(Type::Address { .. }))
-                            || ty.is_some_and(|ty| head_windows && matches!(ty, Type::Desc(_)))
+                            || ty
+                                .is_some_and(|ty| descriptor_origins && matches!(ty, Type::Desc(_)))
                         {
                             found.insert(Root::Capture(*index));
                         }
@@ -344,7 +331,7 @@ pub(super) fn infer_module(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
-    let head_windows = head_windows(module, budget)?;
+    let descriptor_origins = descriptor_origins(module, budget)?;
     if !module
         .functions
         .iter()
@@ -355,7 +342,7 @@ pub(super) fn infer_module(
             .iter()
             .zip(graphs)
             .map(|(f, (preds, reachable))| {
-                infer(module, &[], head_windows, f, preds, reachable, budget)
+                infer(module, &[], descriptor_origins, f, preds, reachable, budget)
             })
             .collect();
     }
@@ -409,7 +396,7 @@ pub(super) fn infer_module(
         let values = infer(
             module,
             &summaries,
-            head_windows,
+            descriptor_origins,
             function,
             predecessors,
             reachable,
@@ -566,7 +553,7 @@ mod frontier_tests {
         graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
         budget: &mut Budget,
     ) -> CompileResult<Vec<Vec<ValueHold>>> {
-        let head_windows = head_windows(module, budget)?;
+        let descriptor_origins = descriptor_origins(module, budget)?;
         if !module
             .functions
             .iter()
@@ -577,7 +564,7 @@ mod frontier_tests {
                 .iter()
                 .zip(graphs)
                 .map(|(f, (preds, reachable))| {
-                    infer(module, &[], head_windows, f, preds, reachable, budget)
+                    infer(module, &[], descriptor_origins, f, preds, reachable, budget)
                 })
                 .collect();
         }
@@ -592,7 +579,7 @@ mod frontier_tests {
                 let values = infer(
                     module,
                     &summaries,
-                    head_windows,
+                    descriptor_origins,
                     function,
                     predecessors,
                     reachable,

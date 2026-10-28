@@ -305,18 +305,21 @@ fn descriptor_callback_cannot_use_a_captured_field_address_as_write_permission()
         let report = check(&[("main", &source)]);
         assert_eq!(
             report.status,
-            ResultCategory::Unsupported,
+            ResultCategory::SafeReject,
             "{}",
             report.to_json()
         );
         assert!(
-            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"),
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-BORROW-CONFLICT"),
             "{}",
             report.to_json()
         );
     }
-    // The conservative gate is activated only by actual shared resource heads.
-    // The existing scalar-address plus Desc closure profile remains available.
+    // 182 keeps this exact source and now rejects its actual conflicting write.
+    // Independent scalar-address plus Desc captures remain accepted.
     native(
         &[(
             "main",
