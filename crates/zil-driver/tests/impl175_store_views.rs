@@ -415,12 +415,24 @@ fn element_shape_mutable_owned_field_return_and_capture_guards_are_explicit() {
         "E-ADDRESS-PERMISSION",
         "exclusive",
     );
+    // 180 admits the precise synchronous exclusive Package parameter shape.
+    // Preserve the original source; its old blanket Unsupported is obsolete.
+    let admitted = check(&format!("{PACKAGE} fn bad(x:&mut P){{}}fn main(){{}}"));
+    assert_eq!(
+        admitted.status,
+        ResultCategory::Success,
+        "{}",
+        admitted.to_json()
+    );
+    // The new parameter form does not upgrade an existing shared window.
     reject_source(
-        &format!("{PACKAGE} fn bad(x:&mut P){{}}fn main(){{}}"),
-        ResultCategory::Unsupported,
+        &format!(
+            "{PACKAGE} fn update(x:&mut P){{x.n=9}}fn main()->i32{{{SETUP}let view=store_at(s,0);update(view);return view.n}}"
+        ),
+        ResultCategory::SafeReject,
         Types,
-        "E-UNSUPPORTED",
-        "head addresses require",
+        "E-ADDRESS-PERMISSION",
+        "exclusive",
     );
     reject_source(
         &format!("{PACKAGE} fn main()->i32{{let value=make(65);return read(&value)}}"),

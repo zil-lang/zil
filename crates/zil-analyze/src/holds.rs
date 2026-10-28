@@ -35,7 +35,7 @@ fn head_windows(module: &TypedModule, budget: &mut Budget) -> CompileResult<bool
             "resource head window discovery",
         )?;
         if function.locals.iter().map(|l| &l.ty).chain(&function.values)
-            .any(|ty| ty.is_shared_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
+            .any(|ty| ty.is_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
             return Ok(true);
         }
     }
@@ -178,7 +178,8 @@ fn infer(
                         found.insert(Root::Capture(*index));
                     }
                     InstructionKind::ByteBufferBorrow { buffer, .. }
-                    | InstructionKind::OwnedStoreBorrow { store: buffer, .. } => {
+                    | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
+                    | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
                         let source = values
                             .get(buffer.0 as usize)
                             .ok_or_else(|| bad("ByteBuffer source outside table"))?;
