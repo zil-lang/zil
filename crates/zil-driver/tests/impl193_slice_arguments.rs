@@ -297,7 +297,7 @@ fn new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes() {
         ),
         ("bare-slice", "fn main(){let f=(p:[i32])=>0;}"),
         ("nested-slice", "fn main(){let f=(p:&[[i32]])=>0;}"),
-        ("nested-address", "fn main(){let f=(p:&&[i32])=>0;}"),
+        ("nested-address", "fn main(){let f=(p:& &[i32])=>0;}"),
         ("resource-element", "fn main(){let f=(p:&[ByteBuffer])=>0;}"),
     ] {
         check(
@@ -317,12 +317,12 @@ fn explicit_mutable_arguments_do_not_upgrade_shared_inputs() {
         "fn main()->i32{let a=[1,2];let p=&a[..];let f=(q:&mut[i32])=>{q[0]+=1;return q[0]};return f(p)}",
         ResultCategory::SafeReject,
         Phase::Types,
-        "E-TYPE-MISMATCH",
+        "E-ADDRESS-PERMISSION",
     );
 }
 
 #[test]
-fn sequential_slice_reborrows_and_dead_last_use_execute_without_allocation() {
+fn sequential_slice_reborrows_and_dead_last_use_preserve_backing() {
     native(
         "sequential",
         "fn main()->i32{var a=[20,21];let p=&mut a[..];let f=(q:&mut[i32])=>{let r=&mut q[1..];r[0]+=1;return r[0]};let x=f(p);let y=f(p);let g=(q:&[i32])=>q[0]+q[1];return x+y+g(p)+a[1]-111}",
@@ -330,7 +330,7 @@ fn sequential_slice_reborrows_and_dead_last_use_execute_without_allocation() {
     );
     native(
         "dead-last-use",
-        "fn main()->i32{let b=bytes_new();bytes_push(b,7u8);let p=bytes_view(b);let f=(q:&[u8])=>i32(q[0]);let n=f(p);if !bytes_reserve(b,8){return 1};return n-7}",
+        "fn main()->i32{let b=bytes_new();if !bytes_reserve(b,1){return 1};if !bytes_push(b,7u8){return 2};let p=bytes_view(b);let f=(q:&[u8])=>i32(q[0]);let n=f(p);if !bytes_reserve(b,8){return 3};return n-7}",
         true,
     );
 }

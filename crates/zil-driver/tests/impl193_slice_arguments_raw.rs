@@ -231,6 +231,49 @@ fn replacing_an_explicit_operand_with_its_exclusive_sibling_preserves_aliases() 
         module,
         plan,
         ResultCategory::SafeReject,
+        "E-VERIFY-MOVE",
+    );
+
+    // Two distinct SSA carriers must also fail when their executable parents
+    // share storage. Fresh producer Hold rows cannot authorize that overlap.
+    let (mut module, _) = baseline(source);
+    let main = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let a = main
+        .locals
+        .iter()
+        .find(|local| local.name == "a")
+        .unwrap()
+        .id;
+    let b = main
+        .locals
+        .iter()
+        .find(|local| local.name == "b")
+        .unwrap()
+        .id;
+    let mut changed = false;
+    for instruction in main
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+    {
+        if let I::BorrowLocalMut { local } = &mut instruction.kind
+            && *local == b
+        {
+            *local = a;
+            changed = true;
+        }
+    }
+    assert!(changed);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    reject(
+        "distinct-exclusive-operands-same-parent",
+        module,
+        plan,
+        ResultCategory::SafeReject,
         "E-BORROW-CONFLICT",
     );
 }
@@ -265,6 +308,20 @@ fn captured_desc_aliasing_is_rebuilt_from_actual_executable_backing() {
             }
         }
         assert!(changed);
+        let current_plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        reject(
+            if helper {
+                "helper-stale-backing-hold"
+            } else {
+                "direct-stale-backing-hold"
+            },
+            module.clone(),
+            plan,
+            ResultCategory::SafeReject,
+            "E-VERIFY-HOLD",
+        );
+        // Updating a producer claim to the real provenance still cannot make
+        // the captured descriptor's write compatible with the explicit window.
         reject(
             if helper {
                 "helper-desc-now-same-backing"
@@ -272,7 +329,7 @@ fn captured_desc_aliasing_is_rebuilt_from_actual_executable_backing() {
                 "direct-desc-now-same-backing"
             },
             module,
-            plan,
+            current_plan,
             ResultCategory::SafeReject,
             "E-BORROW-CONFLICT",
         );
