@@ -1003,7 +1003,7 @@
       "identity": "One F type/ClosureId is not one runtime value. Every actual parameter and Package field retains its own storage, move, initialization and cleanup debt; full ordinary nominal data-family identity is unchanged.",
       "verification": "Ordinary no-helper-contract self-contained owning boundary is independently reconstructed by Analyze and Verify. No fabricated empty callback contract, field-as-parameter event or producer authority flag. Both actual inputs and all field obligations undergo ordinary independent checks.",
       "machine": "Existing Package/Closure operations and layouts are provisionally sufficient; no new opcode or schema change without an actual representation need. Actual implementation/native/raw receipts remain necessary.",
-      "boundary": "No F/G State, State plus replacement-F generic entrance, two-State entrance, nested callback fields, callback Store elements, dynamic/escaping borrowed environments or async. Existing supported source operations are preserved."
+      "boundary": "No F/G State, State plus replacement-F generic entrance, two-State entrance, nested callback fields, callback Store elements, dynamic/escaping borrowed environments or async. Existing supported source operations are preserved. For the new two-closure constructor only, other actual parameters must be finite Copy or direct Managed values; the existing single-input boundary and its budgets remain unchanged."
     }
   }
 }
