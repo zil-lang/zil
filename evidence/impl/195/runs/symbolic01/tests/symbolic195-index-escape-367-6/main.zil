@@ -1,0 +1,1 @@
+fn bad<T>(value:T)->i32{for index in 0..2{break}return index}fn main(){}

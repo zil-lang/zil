@@ -1,0 +1,1 @@
+package Batch<T:StoreElement>{manages items:Store<T>}fn bad<T:StoreElement>(batch:Batch<T>){for index in 0..2{let taken=give batch.items;continue}}fn main(){}

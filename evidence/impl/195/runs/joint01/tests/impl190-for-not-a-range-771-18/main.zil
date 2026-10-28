@@ -1,0 +1,1 @@
+fn bad<T>(value:T){for index in [1,2]{}}fn main(){}

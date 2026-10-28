@@ -1,0 +1,132 @@
+{
+  "baseline": "40abb53527aa45c89f6249162c9a69fea5fd80ad",
+  "implementation_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+  "production_files": [
+    "crates/zil-expand/src/generic_check.rs",
+    "crates/zil-expand/src/generic_check_enum.rs",
+    "crates/zil-expand/src/generic_loop_control.rs"
+  ],
+  "schema": 24,
+  "public_schema_changed": false,
+  "default_limits_changed": false,
+  "specification": {
+    "spec_hash": "48641079ef2ecc84aa50a0a9eafd83ae844f0d3de7924fcc8cb3e2fef3f9db5f",
+    "normative_hash": "6488fa9f20121c4268f13153c6daecbfd20da5eb5e8aa86630620413d41edadb"
+  },
+  "inputs": [
+    {
+      "path": "Cargo.lock",
+      "bytes": 1543,
+      "sha256": "76ff89481c963f58a5006edf64c4340d871a66a2ed7c8b2fd9bf984582fe69e6"
+    },
+    {
+      "path": "Cargo.toml",
+      "bytes": 1204,
+      "sha256": "295899fb51d7793ae4dbc61b93ccc9a1a0c374b01007ced4541a5e5354874f0b"
+    },
+    {
+      "path": "_zil_design.md",
+      "bytes": 114278,
+      "sha256": "48641079ef2ecc84aa50a0a9eafd83ae844f0d3de7924fcc8cb3e2fef3f9db5f"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl190_for_ranges.rs",
+      "bytes": 10958,
+      "sha256": "f436d5467d383bd399dcc7102c231f2650217762e212171fd728873f0d8f1e88"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl195_loop_control_raw.rs",
+      "bytes": 13134,
+      "sha256": "b03090df283bb619f8649ea73ffa632e02fe9de8e29e01652afc25ee5882810e"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl195_loop_control_source.rs",
+      "bytes": 18233,
+      "sha256": "84513c8aa5a0169061deb36137a23feebfab94e1e80b39361fdf63896265b0f3"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl195_symbolic.rs",
+      "bytes": 12550,
+      "sha256": "e2244c96843b2f2b19dcb7722419cc2623359643016de1f00b521c53057680a1"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_check.rs",
+      "bytes": 106040,
+      "sha256": "ddf80913db38faf4563d53ca05cf6c68ba045ef0f602082af94169c52f9ddf2c"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_check_enum.rs",
+      "bytes": 14214,
+      "sha256": "2c7e823f82a6dcd1bd883769de6d2f0af9a93b696f6626fac03f903c72e955db"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_loop_control.rs",
+      "bytes": 4553,
+      "sha256": "98aedf0ba66d9046859b7eb70a09c45cd097de2b4326ca7573062a86aa7935de"
+    },
+    {
+      "path": "examples/mainline/loop_control195/factory.zil",
+      "bytes": 477,
+      "sha256": "f2fff48d35d70b0065e145c4a77a00701f68e24f86c797430c9b516beb038064"
+    },
+    {
+      "path": "examples/mainline/loop_control195/helpers.zil",
+      "bytes": 1157,
+      "sha256": "134f010a073e34113736e0ac0605a0a67b08d83e6e68c6779f1585bf5f087bb2"
+    },
+    {
+      "path": "examples/mainline/loop_control195/main.zil",
+      "bytes": 285,
+      "sha256": "a58b54bf866d26a7ac4eaa1c35c3c7c8f7922751005423a447903caa30771d71"
+    },
+    {
+      "path": "examples/mainline/loop_control195/state.zil",
+      "bytes": 428,
+      "sha256": "58edcf1f433ecfc0b1243735485d31ee9e4f52477e9c77b1d24e4af11bf901ad"
+    },
+    {
+      "path": "spec/interfaces.json",
+      "bytes": 80696,
+      "sha256": "25bc567b892a748865b0a6b00106f7cc99f260da13a4e6ab3c16a3a613c2fbc0"
+    },
+    {
+      "path": "tools/language/173/allocator_probe.c",
+      "bytes": 446,
+      "sha256": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60"
+    },
+    {
+      "path": "tools/language/178/consumer.py",
+      "bytes": 8512,
+      "sha256": "0efe5c8ae17ee431c773c7c677f96e67888dcdeda50078677033d5eeedad7754"
+    },
+    {
+      "path": "tools/language/178/run_command.py",
+      "bytes": 2397,
+      "sha256": "feccfe3ba9dca5bc5954f884d52e09ad8cce04cee1c6e10a80b1098b421463e8"
+    },
+    {
+      "path": "tools/language/195/consumer.py",
+      "bytes": 7787,
+      "sha256": "47ff033fff54f9bd7f35fb2ea968f4a6891bd50482352c60ee9a6b3b9e957c8a"
+    },
+    {
+      "path": "tools/research/142/allocator_probe.c",
+      "bytes": 1852,
+      "sha256": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5"
+    },
+    {
+      "path": "validation/product-gates.json",
+      "bytes": 1932,
+      "sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    }
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "clang": "Ubuntu clang version 17.0.6 (++20231209124227+6009708b4367-1~exp1~20231209124336.77)",
+    "machine": "x86_64",
+    "system": "Linux"
+  },
+  "cli_actual_build_source": "1a890dabc4eb04b26570439718b0a9432511fa95",
+  "cli_sha256": "c6e85adbb018f73709103bda438d1009394bf69e690557aab0fa4a0c76aea4ac"
+}

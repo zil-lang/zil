@@ -1,0 +1,1 @@
+fn good<T>(value:T)->T{for index in 0..2{let value=0;if index==0{continue};break}return value}fn main(){}
