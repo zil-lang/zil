@@ -16,6 +16,10 @@
 
 复用schema22现有Type、PassingMode与Make/Take/DropErrorUnion指令，无新wire标签。公共规范和interfaces由root单写；Types/Analyze/独立Verify/Lower/机器路径必须同批支持。原Copy和Package联合模式保持。
 
+## 显式拥有参数补充
+
+为了接收同一完整拥有联合，`give x:E!R`在本片有限形状下把成功载荷R声明为Managed，外层仍为普通非Copy联合Value。实际IR参数为ErrorUnion(E,Managed<R>)，不把整个Sum套入Managed。调用者按既有Value规则移动已形成的联合；`give union`不是另一种可选Value移动写法。默认`x:E!R`不改变R的Desc类别，不能隐式接收此拥有联合或由描述生成管理责任。错误tag传入没有R责任，成功tag转交唯一R责任。该解释与返回侧对称，具体实现仍需独立raw/Wire核验与原生清理证据。
+
 ## 最近反例与验收
 
 原159直接ByteBuffer成功载荷探针、跨模块create/give、真实分配失败、错误传播、丢弃成功/错误、NLL与源载体移动、O0/O2精确Drop/free、raw和Wire伪造tag/模式/重复Take/漏清理。未声明模式的Desc返回、give描述别名、同一载体两次移入必须拒绝。预算不改，先提案后生产，独审绑定精确提交。
