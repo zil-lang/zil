@@ -2,6 +2,8 @@
 
 本片候选为 `05f8e31cb1647385b2d96d6114b04630396a84e9`，生产变更为 `22f74e02bb3cb0c4c840a04ba9951f91c38374fa`，等待非作者验收。设计摘要 `09ef7fcdf2e71c2de38456d45d911aadc02dec3f355c4edaf8b51f2feb689c51`，规范集合摘要 `92ede13ac8b9042f08a7b0d737abe6502f79eb6a62ffed8d92d77416585ed1a5`，沿用 schema/Wire 25。本片不改变公共表示、Analyze、Verify 或默认额度。
 
+作者运行绑定上述候选父系，尚不含196随后冻结的Verify修正 `051ecb81`。最终196生产组合 `7fef1779` 由非作者合入199后另行执行限定测试/新CLI消费者，本文不把作者原运行或工作量边界倒标为那个最终完整tree的结果。
+
 ## 问题与实现
 
 197 的原始 `current.callback(&mut current.value)` 循环被当成普通字段取值：先 TakePackageField，再借临时 closure 调用，导致回边第二次 take 缺少完整字段。此前显式分别借 `callback`、`value` 的程序可运行。199 对直接 `Name.member(...)` 且真实本地 Package 字段为具体 Closure 的调用，先定位实际父 local/字段，再按接口模式建立调用位置；参数仍按源码顺序求值一次。
@@ -16,7 +18,7 @@
 
 ## 作者限定实测
 
-`impl199_callback_place` 与 `impl199_callback_place_raw` 最终 15 个测试组通过。实际 source04 有 77 次源码编译：64 次 O0/O2 原生执行成功，13 个正确拒绝分别为 Expand 4、Types 1、Analyze 1、Verify 7。原197测试的单项迁移另跑 1 个测试组及4次原生执行，与新夹具的重复控制不合算为新能力。
+`impl199_callback_place` 与 `impl199_callback_place_raw` 最终 15 个测试组通过。实际 source04 有 77 次源码编译：64 次 O0/O2 原生执行的stdout/exit符合预期，13 个正确拒绝分别为 Expand 4、Types 1、Analyze 1、Verify 7。原197测试的单项迁移另跑 1 个测试组及4次原生执行，与新夹具的重复控制不合算为新能力。
 
 源码包含普通 State<F> 与混合 State<T,F> 的 Fn/FnMut 0/1/多次调用、break/continue 和错误返回、真实 sibling 修改与完整 State 转交；真实 FnOnce 和 Fn→FnOnce 的环境释放早于后续语句（AXT），零调用仍清理 TA。普通 take/refill、参数副作用一次、参数 `?` 失败、同字段活跃窗口、callee 已建立后参数中的重入/父移动、父替换与 lending 最后使用均保留相邻正反例。
 
@@ -28,7 +30,7 @@ raw/Wire 共16组输入，各路线独立核验：7个源码控制、9个攻击�
 | Analyze | 14450 | ResourceLimit | Pass，完整候选相同 |
 | Verify | 22203 | ResourceLimit | Pass |
 
-四模块 `examples/mainline/callback_place199` 使用真实 direct 字段调用，State 与 callback 各拥有一个 ByteBuffer。Linux O0/O2 消费者已实际执行86次（普通14、独立 allocator probe 72），其中52个真实分配故障逐点注入，预期 stdout/exit、分配/释放、live=0 全部匹配。消费者在21043cf6执行，生产四文件、消费者脚本及四个输入与05f8e31c字节相同；没有将测试/文档提交差异当作生产变化。Win64/Wine按其独立收据报告；原生Windows没有执行。
+四模块 `examples/mainline/callback_place199` 使用真实 direct 字段调用，State 与 callback 各拥有一个 ByteBuffer。Linux O0/O2 消费者已实际执行86次（普通14、独立 allocator probe 72），其中52个真实分配故障逐点注入，预期 stdout/exit、分配/释放、live=0 全部匹配。消费者在21043cf6执行，生产四文件、消费者脚本及四个输入与05f8e31c字节相同；没有将测试/文档提交差异当作生产变化。Win64/Wine在 e7c8fe3a（仅比05f8e31c新增本说明）独立执行86次，同为普通14、probe72与52个真实分配故障，全部oracle匹配。原生Windows没有执行。首次Wine启动未显式继承已恢复prefix而报exit53；第二次在host SHM写收据时ENOSPC、consumer尚未启动；第三次显式记录已核prefix/server/loader、unset TMPDIR后完成。两个基础设施失败原件保留，不计语言执行通过。
 
 最初三轮中的夹具阶段/代码预期错误均保留：同字段/父移动实际由 Verify 拒绝；死父 local 更早由初始化检查拒绝；用于观察 FnOnce 清理的 unsafe 泛型语句触发现有 Expand Unsupported，改为调用普通 emit 函数后实际 AXT 通过。这些失败不记入最终通过数，也未通过修改安全核制造接受。
 
