@@ -1,0 +1,1 @@
+fn bad<T:StoreElement>(give item:T){}fn main(){}

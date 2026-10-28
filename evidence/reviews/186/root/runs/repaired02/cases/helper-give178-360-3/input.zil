@@ -1,0 +1,1 @@
+trait Marker{}fn bad<T:Marker>(give item:T){}fn main(){}
