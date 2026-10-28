@@ -125,3 +125,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-28：205 State与独立替换值接受
 
 205在schema/Wire27贯通一个完整State与独立同F replacement的普通更新、实际三位置责任和失败清理。未用旧定义别名、真实循环刷新、单F完整T推导和旧合法整值转交四类缺陷已有原输入闭环。最终clean2db3c090全仓2552/0/0、259组及同源Clippy通过；作者Linux/Wine与独立Linux各140/0、各88真分配失败，live0，原失败和不同执行身份保留。详见docs/LANGUAGE-205.md。下一206优先有限完整嵌套拥有Product及逐叶来源，不删除其余1.4目标。完整语言NotSatisfied、产品/原生Windows NotRun、B0 Doing，编译支线独立。
+
+## 2026-10-28：206施工
+
+以205最终61c2d252为基线，正式并行完整嵌套Package Product、独立逐叶来源与机器清理。原120B和child-only等9源在旧CLI04实际Unsupported；新规范登记与预声明oracle不计实现。Types/Analyze、Verify、Lower/LLVM消费者及独审独立，完整1.4/B0/产品状态保持。
