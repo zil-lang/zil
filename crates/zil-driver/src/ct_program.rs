@@ -456,6 +456,32 @@ impl Collector<'_> {
     fn header(&mut self, function: &CoreFunction) -> CompileResult<()> {
         self.charge(0)?;
         self.text(&function.name)?;
+        if !function.type_parameters.is_empty() {
+            if self.query {
+                return Err(vec![Diagnostic::error(
+                    Phase::Ct,
+                    "E-CT-FORBIDDEN",
+                    Some(function.span),
+                    "ordinary StoreElement templates cannot execute in compile-time queries",
+                )]);
+            }
+            if function.type_parameters.len() != 1
+                || function.type_parameters[0].index != 0
+                || function.type_parameters[0].name.is_empty()
+                || !function.callable_parameters.is_empty()
+                || function.callable_return.is_some()
+                || function.receiver.is_some()
+                || function.foreign.is_some()
+            {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "ordinary StoreElement template metadata requires one lexical binder",
+                    Some(function.span),
+                )]);
+            }
+            self.charge(0)?;
+            self.text(&function.type_parameters[0].name)?;
+        }
         if function.parameters.len() > self.limits.max_locals {
             return Err(vec![Diagnostic::limit(
                 Phase::Ct,
@@ -598,6 +624,31 @@ impl Collector<'_> {
     fn expression(&mut self, module: ModuleId, e: &CoreExpr, depth: usize) -> CompileResult<()> {
         self.charge(depth)?;
         match &e.kind {
+            CoreExprKind::TypeApply {
+                callee,
+                type_arguments,
+            } => {
+                if self.query {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-FORBIDDEN",
+                        Some(e.span),
+                        "type applications cannot execute in compile-time queries",
+                    )]);
+                }
+                let static_callee = matches!(&callee.kind, CoreExprKind::Name(_))
+                    || matches!(&callee.kind, CoreExprKind::Member { object, .. }
+                        if matches!(&object.kind, CoreExprKind::Name(_)));
+                if type_arguments.len() != 1 || !static_callee {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "type application requires one complete type and a static function callee",
+                        Some(e.span),
+                    )]);
+                }
+                self.ty(&type_arguments[0], depth + 1)?;
+                self.expression(module, callee, depth + 1)?;
+            }
             CoreExprKind::Literal(_) if self.query => {
                 return Err(vec![Diagnostic::error(
                     Phase::Ct,
@@ -857,6 +908,7 @@ fn strip_expr(e: &mut CoreExpr) {
         return;
     }
     match &mut e.kind {
+        CoreExprKind::TypeApply { callee, .. } => strip_expr(callee),
         CoreExprKind::Ascribed { value, .. } | CoreExprKind::IntegerConvert { value, .. } => {
             strip_expr(value)
         }
