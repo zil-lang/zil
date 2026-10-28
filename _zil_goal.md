@@ -116,3 +116,8 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-28：204 有限叶Store拥有捕获接受
 
 204在schema/Wire27贯通实际拥有推断、Fn/FnMut/FnOnce、完整Package及当前State/外层Store组合。TakeCapture后旧元素窗口的真实source/raw/Wire误接受已由Analyze/Verify独立修复；非法输入未native，原失败和阶段迁移保留。最终clean85f01d62整仓2469/0/0、252组及同源Clippy通过；作者Linux/Wine与独立Linux各148/108真分配失败，live0，计数分列。详见docs/LANGUAGE-204.md。下一205优先一个State<T,F>与独立replacement:F的普通更新入口，具体合同待正式派工；其它1.4终态义务不删。完整语言NotSatisfied、产品/原生Windows NotRun、B0 Doing，编译支线独立。
+
+
+## 2026-10-28：205施工
+
+205以204精确冻结交付继续一个完整State与独立同F替换值的普通更新入口。Types、Expand/消费者、CT/独立核与非作者审核并行；保留实际3位置、未用定义与失败清理。完整1.4/B0/产品状态不变，编译支线独立。

@@ -381,7 +381,7 @@ Types独立核完整类型实参与所有实际值参数/明确结果约束；�
 
 在201/202有限入口之上，新增恰好两个callable声明F/G的拥有State合同。CoreFunction.state_parameters独立于direct callable_parameters；首片非空表恰好一个真实拥有参数及两个CoreStateBinding。每个binding记录generic_index、词法名字、kind、完整签名及直接字段selectors；按函数callable声明顺序index0/1排列。selectors非空、有序、互不交叠、完整对应实际符号Package字段的Named binder；新入口总计两个callback字段，各F/G一项。一个State实参只求值和拥有转交一次，不虚构两个运行时角色或联合helper事件。构造器两个真实direct F/G输入仍走原表，拥有State结果单独分类。
 
-非空State表与retained普通type_parameters、direct callable_parameters、callable_return、foreign及receiver互斥；可含197已有限特化的普通Copy T。旧单F State继续空新表、原lending与原费用。新双F/G bound结果限Copy。绑定声明身份与实际ClosureId分开：两个不同拥有值即使同为C，F:Fn与G:FnOnce仍是两个声明槽；不能用实际C更强的能力替代G限制。
+除§8.2.3的具名有限混合入口外，非空State表与retained普通type_parameters、direct callable_parameters、callable_return、foreign及receiver互斥；可含197已有限特化的普通Copy T。旧单F State继续空新表、原lending与原费用。新双F/G bound结果限Copy。绑定声明身份与实际ClosureId分开：两个不同拥有值即使同为C，F:Fn与G:FnOnce仍是两个声明槽；不能用实际C更强的能力替代G限制。
 
 名义实例保留定义身份、完整普通T与固定字段声明顺序中的两个实际callback类型。通过真实selectors映射函数声明顺序，一次同时替换；交换State<F,G>/State<G,F>或改变函数binder声明顺序均不得错误合并。phantom T、模块身份和同布局异名类型保持。实际[C,C]不合并字段、实例值或责任。
 
@@ -394,6 +394,34 @@ push/pop/reserve前缀、父窗口、声明序清理、callee先于参数准备�
 203还扩展普通StoreElement模板的调用推导：静态解析到既有一个retained T:StoreElement模板的裸Call，可从实际值参数依声明T、Store<T>及已有错误联合包装唯一推得完整T；所有参数约束必须一致。显式TypeApply仍施加完整精确约束，不能被值推导覆盖。无唯一值约束的empty等调用继续拒绝，裸模板不能成为值/函数指针/动态callee，也不能从已见实例或未声明F/G猜测。此条是对202裸Call关闭规则的具名有限扩展，不改变调用者词法binder权限。
 
 新值推导与计划必须保持真实定义身份、完整名义/普通/phantom类型、两个有序环境及当前声明来源；不得以只存ClosureId的形状代替完整T。实际参数按原顺序只求值、准备和转交一次，必要的暂存保留同一值。所有新的完整类型快照、比较、替换和队列预费，旧无新裸模板路径的费用保持。每个实际T仍登记canonical OwnedStore资格定义并由独立核检查；opaque T没有字段或调用权限。CT按真实模板头拒绝执行，wrapper及裸Call不构成豁免。缺失/冲突实参、错误target、跨定义binder、递归和未用非法定义仍必须拒绝。
+
+#### 8.2.3 一个 State 与独立同 F 替换值（205）
+
+**新有限入口**
+
+在既有同 F State 的一个或两个直接 callback 字段之上，普通自由函数可接收恰好一个完整拥有的 State<T,F> 和恰好一个独立按值 F，返回相同完整名义实例类型的 State<T,F>。这里不要求原物理对象身份；合法 take/refill/重构仍按实际值和责任检查。可以有既有有限 Copy 参数及已经特化的普通 Copy T；两个拥有参数按声明位置求值和准备，顺序可逆、可以被 Copy 参数隔开。State 与 replacement 不得占同一实际参数位置。
+
+新 profile 的 F 声明可以是 Fn、FnMut、FnOnce，完整 callable 参数保持已有有限规则，结果限有限 Copy/Unit。F 不因此成为 Copy。完整 State 参数与返回保留同一名义 family、模块、普通/phantom T、字段声明顺序及同一实际 ClosureId；不同工厂/表达式的具体 callback 类型不得通过反序实参覆盖约束而混合。旧单 State、旧双 F/G 和 lending 路径不反施新限制。
+
+**Core 及源级责任**
+
+复用现有 Core 表：state_parameters 恰一 owner、一项 generic_index=0 的 F binding，selectors 精确完整覆盖该 State 的一或两个直接 F 字段；callable_parameters 恰一真实 replacement 参数，generic_index/name/kind/完整签名与 F binding 一致，传递模式为 owned。不增加公开字段、Typed opcode、ABI 或 schema/Wire 版本；新的有限接受性由本条与 interfaces 的具名 profile 登记。此为 203 State 表和 direct 表互斥的唯一新增例外。
+
+同一个 F 类型槽最多对应三份不同运行时值：State 两个字段和 replacement。类型绑定可以共享，字段/局部/实参位置、初始化状态、别名代次、移动、借用及清理责任必须分开。不得以 generic_index 或 ClosureId 的单个位代替真实位置，也不得把 State 字段伪装成额外运行时参数。新 profile 中各 FnOnce 位置可独立消费一次；消费某一旧字段后可用 replacement 补回并完整返回。原字段二次消费、replacement 二次转交、旧别名跨 take/refill 复活、循环回边上重复消费必须拒绝，包括未调用定义。
+
+**求值、替换与安全核**
+
+原调用顺序和 callee-before-arguments 保持。完整准备 RHS 后才能作为替换提交销毁旧字段并发布新值；失败只清理已获得的责任。若参数准备临时已经取得完整 State，后续参数失败仍须正常清理该 State 的全部存活字段；这不是一次替换提交。成功替换后的字段保有独立责任，未使用的 replacement 仍按原函数退出规则清理。
+
+借用窗口按实际字段/父 State 判冲突：同字段窗口横跨 replacement、whole State move、take/refill 后使用旧地址均拒；已结束窗口及不冲突 sibling 字段保留原精度。Analyze 与 Verify 从具体 IR、实际位置和生命周期独立重建，公共候选计划与源声明来源不授予安全权限。Typed owned_state 复用既有表示，不伪造同步 noescape helper 事件合同；raw TypedIR 内存安全检查不冒称恢复较弱源 bound。
+
+**边界、预算与验收**
+
+本片仍关闭两个 State 输入、借入 State 更新、多 replacement、F/G 混合更新、不同具体 callback 类型替换、嵌套 callback 字段、retained ordinary type_parameters、callable_return、foreign、receiver、opaque/dyn 擦除及增长递归。完整语言相应终态义务保留，有限片验收不删目标。
+
+所有新元数据、名字、签名/类型比较复制、selectors、来源与位置状态及实例队列必须先计费；raw Core 两个公开 Types 入口核未使用头与定义。带普通 T:Copy 但未实例化的源定义也必须在 Expand 早期参数化检查核本片完整头与正文，不能等生成 Core selectors 才检查。CT plain/context 及 driver collector 核有界传输头和正文正规化，不承担源级 move/alias 证明；新双头完整签名比较必须在双方名字/签名预费后。CT 仅保留运行时模板，不执行，wrapper 也不能隐藏执行；原默认额度、旧无新 profile 的精确费用和旧 schema/Wire27 保持。
+
+验收包含旧 impl200 state-and-replacement 的 138 字节原源逐字晋升、真实 Fn/FnMut/FnOnce 一/双字段 native、同类型三环境可区分 marker、反序和非相邻实参、不同 factory/phantom T、未调用 move/alias/loop-condition、raw Core 头伪造、source-derived Analyze/raw Verify/Wire 最近反例、CT 禁止、旧预算及新 N/N−1/fresh N、五模块 Linux/Wine O0/O2 与实际逐分配点失败；非法安全负例不 native。原 two-states/borrowed-inputs 不晋升。作者、非作者和 root 整仓分别保存精确身份。
 
 ### 8.3 有限错误联合的直接拥有成功载荷
 
