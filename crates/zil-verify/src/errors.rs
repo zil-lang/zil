@@ -5,7 +5,12 @@ use super::*;
 pub(super) fn owned(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. }))
+            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)))
+}
+
+/// Classifies a raw shape; admission and responsibility are checked elsewhere.
+pub(super) fn managed_success(ty: &Type) -> bool {
+    matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(_)))
 }
 
 pub(super) fn check_type_for(
@@ -22,6 +27,13 @@ pub(super) fn check_type_for(
         ));
     };
     budget.spend(2)?;
+    if matches!(result.as_ref(), Type::Managed(_)) {
+        // Only the success arm is opened, with a finite Copy error. Check the
+        // nominal/sealed resource table independently of the source resolver.
+        resources::charge_payload(error, budget)?;
+        check_type(error, span)?;
+        return resources::check_type_for(module, result, span, budget);
+    }
     for payload in [error.as_ref(), result.as_ref()] {
         if matches!(payload, Type::Package { .. }) {
             packages::check_type_for(module, payload, span, budget)?;

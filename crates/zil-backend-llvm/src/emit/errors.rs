@@ -6,20 +6,22 @@ use super::*;
 pub(super) fn owned(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. }))
+            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)))
 }
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
-        if (error.is_copy_value() || packages::supported_type(error, resources))
+        if ((error.is_copy_value() || packages::supported_type(error, resources))
             && (result.is_copy_value() || packages::supported_type(result, resources)))
+            || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
+                && resources::supported_type(result, resources)))
 }
 
 fn teardowns(
     payload: &Type,
     resources: &[ResourceDefinition],
 ) -> CompileResult<Vec<(Vec<u32>, String)>> {
-    if matches!(payload, Type::Package { .. }) {
+    if matches!(payload, Type::Package { .. } | Type::Managed(_)) {
         packages::teardown_paths(payload, resources)
     } else {
         Ok(Vec::new())

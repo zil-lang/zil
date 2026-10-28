@@ -209,6 +209,7 @@ pub(super) fn check_definitions(
     for f in &module.functions {
         match (&f.return_type, f.result_mode) {
             (Type::Managed(_), PassingMode::Create | PassingMode::Give) => {}
+            (ty, PassingMode::Create | PassingMode::Give) if errors::managed_success(ty) => {}
             (Type::Desc(_), _) => {
                 return Err(unsupported(
                     "resource description returns require exported source and management contracts",
@@ -219,6 +220,12 @@ pub(super) fn check_definitions(
                 return Err(bad(
                     f.span,
                     "managed result requires an explicit create or give result mode",
+                ));
+            }
+            (ty, _) if errors::managed_success(ty) => {
+                return Err(bad(
+                    f.span,
+                    "owned success result requires an explicit create or give result mode",
                 ));
             }
             (_, PassingMode::Infer) => {}
@@ -846,14 +853,35 @@ impl Transfer<'_> {
                 InstructionKind::OwnedStorePop { .. } => {
                     fresh_result = Some(INPUT);
                 }
-                InstructionKind::MakeErrorUnion { value, .. } if result.is_some() => {
+                InstructionKind::MakeErrorUnion { value, is_error } if result.is_some() => {
+                    let union = &f.values[instruction.result.unwrap().0 as usize];
+                    let fresh = if errors::managed_success(union) {
+                        if *is_error {
+                            0 // This tag creates no success payload obligation.
+                        } else {
+                            let source =
+                                slots.managed_value[value.0 as usize].ok_or_else(|| {
+                                    bad(span, "owned success has no resource carrier")
+                                })?;
+                            state.fresh[source]
+                        }
+                    } else {
+                        INPUT
+                    };
                     self.consume(state, *value, span, validate)?;
-                    fresh_result = Some(INPUT);
+                    fresh_result = Some(fresh);
                 }
                 InstructionKind::TakeErrorUnion { value, .. } => {
+                    let fresh = if errors::managed_success(&f.values[value.0 as usize]) {
+                        let source = slots.managed_value[value.0 as usize]
+                            .ok_or_else(|| bad(span, "selected union has no responsibility"))?;
+                        state.fresh[source]
+                    } else {
+                        INPUT
+                    };
                     self.consume(state, *value, span, validate)?;
                     if result.is_some() {
-                        fresh_result = Some(INPUT);
+                        fresh_result = Some(fresh);
                     }
                 }
                 InstructionKind::ErrorTag { value }
@@ -1520,6 +1548,7 @@ impl Transfer<'_> {
                     && let Some(index) = slots.managed_value[value.0 as usize]
                     && f.result_mode == PassingMode::Create
                     && state.fresh[index] != FRESH
+                    && !(errors::managed_success(&f.return_type) && state.fresh[index] == 0)
                 {
                     return Err(bad(
                         f.span,
