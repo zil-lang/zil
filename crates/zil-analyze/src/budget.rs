@@ -268,34 +268,42 @@ pub(super) fn preflight(
     for resource in &module.resources {
         budget.input(resource.name.len().saturating_add(1), "resource metadata")?;
     }
-    for ty in module
+    // Carry the outermost Store element through the already paid type walk.
+    // Only a real Closure occurrence allocates a new admission entry; old
+    // noncallback Store paths receive no new traversal or logical charge.
+    let mut callback_store_elements = Vec::new();
+    for (ty, store_element) in module
         .functions
         .iter()
         .flat_map(|f| {
             std::iter::once(&f.return_type)
                 .chain(f.locals.iter().map(|l| &l.ty))
                 .chain(f.values.iter())
+                .map(|ty| (ty, None))
                 .chain(
                     f.blocks
                         .iter()
                         .flat_map(|b| b.instructions.iter())
                         .filter_map(|i| match &i.kind {
-                            InstructionKind::ConvertInteger { target, .. } => Some(target),
-                            InstructionKind::OwnedStoreNew { element } => Some(element),
+                            InstructionKind::ConvertInteger { target, .. } => Some((target, None)),
+                            InstructionKind::OwnedStoreNew { element } => {
+                                Some((element, Some(element)))
+                            }
                             _ => None,
                         }),
                 )
         })
-        .chain(module.resources.iter().map(|r| &r.payload))
+        .chain(module.resources.iter().map(|r| (&r.payload, None)))
         .chain(module.closures.iter().flat_map(|c| {
             c.captures
                 .iter()
                 .chain(c.parameters.iter())
                 .chain(std::iter::once(&c.result))
+                .map(|ty| (ty, None))
         }))
     {
-        let mut pending = vec![(ty, 0usize)];
-        while let Some((ty, depth)) = pending.pop() {
+        let mut pending = vec![(ty, 0usize, store_element)];
+        while let Some((ty, depth, store_element)) = pending.pop() {
             budget.input(1, "type shape")?;
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
@@ -303,15 +311,18 @@ pub(super) fn preflight(
             match ty {
                 Type::Array { element, length } => {
                     budget.input(*length as usize, "array type size")?;
-                    pending.push((element, depth + 1));
+                    pending.push((element, depth + 1, store_element));
                 }
-                Type::Slice { element } | Type::OwnedStore { element } => {
-                    pending.push((element, depth + 1));
+                Type::Slice { element } => {
+                    pending.push((element, depth + 1, store_element));
+                }
+                Type::OwnedStore { element } => {
+                    pending.push((element, depth + 1, store_element.or(Some(element))));
                 }
                 Type::Tuple(fields) => {
                     budget.input(fields.len(), "aggregate type shape")?;
                     for t in fields {
-                        pending.push((t, depth + 1));
+                        pending.push((t, depth + 1, store_element));
                     }
                 }
                 Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -319,7 +330,7 @@ pub(super) fn preflight(
                     budget.input(fields.len(), "record fields")?;
                     for (name, t) in fields {
                         budget.input(name.len(), "field name")?;
-                        pending.push((t, depth + 1));
+                        pending.push((t, depth + 1, store_element));
                     }
                 }
                 Type::Enum { name, variants } => {
@@ -330,24 +341,28 @@ pub(super) fn preflight(
                     for (name, fields) in variants {
                         budget.input(name.len().saturating_add(fields.len()), "enum fields")?;
                         for ty in fields {
-                            pending.push((ty, depth + 1));
+                            pending.push((ty, depth + 1, store_element));
                         }
                     }
                 }
                 Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
-                    pending.push((inner, depth + 1))
+                    pending.push((inner, depth + 1, store_element))
                 }
                 Type::FunctionPointer { parameters, result }
                 | Type::ForeignCallback { parameters, result } => {
                     budget.input(parameters.len(), "function pointer signature")?;
-                    pending.push((result, depth + 1));
+                    pending.push((result, depth + 1, store_element));
                     for parameter in parameters {
-                        pending.push((parameter, depth + 1));
+                        pending.push((parameter, depth + 1, store_element));
                     }
                 }
                 Type::ErrorUnion { error, result } => {
-                    pending.push((error, depth + 1));
-                    pending.push((result, depth + 1));
+                    pending.push((error, depth + 1, store_element));
+                    pending.push((result, depth + 1, store_element));
+                }
+                Type::Closure(_) if store_element.is_some() => {
+                    budget.spend(1, "callback Store admission entry")?;
+                    callback_store_elements.push(store_element.unwrap());
                 }
                 _ => {}
             }
@@ -654,6 +669,11 @@ pub(super) fn preflight(
             budget.input(operands, "terminator operand preflight")?;
         }
         package_functions.push(package);
+    }
+    // All raw type and capture trees are now bounded. Admission must include
+    // resource-only and unused Store occurrences, not just body operations.
+    for element in callback_store_elements {
+        super::dynamic_store::callback_element(module, element, budget)?;
     }
     Ok(package_functions)
 }

@@ -1,6 +1,62 @@
 //! Producer-side prefix resource admission; Verify rebuilds it independently.
 use zil_ir::{InstructionKind, Type, ValueId};
 
+use super::{Budget, CompileResult, Diagnostic, Phase, TypedModule, callable_fields};
+
+/// The structural preflight records only Store elements that actually contain
+/// a concrete Closure. Ordinary Store inputs therefore keep their old work
+/// bound. This pass reads the raw element and environment tables; no Types
+/// classification or public candidate claim grants admission.
+pub(super) fn callback_element(
+    module: &TypedModule,
+    element: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    const CONTEXT: &str = "callback Store element admission";
+    let unsupported = || {
+        vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "callback Store requires a complete State with one or two same-type direct self-contained callbacks, finite Copy fields and direct Managed resources",
+            None,
+        )]
+    };
+    // Preflight has bounded every type and capture tree before this recursive
+    // reservation. Reserve both the field scan and recursive Copy predicates.
+    budget.type_work(element, true, CONTEXT)?;
+    let Type::Package { fields, .. } = element else {
+        return Err(unsupported());
+    };
+    budget.spend(fields.len().saturating_add(1), CONTEXT)?;
+    let (mut callback, mut count, mut managed) = (None, 0usize, false);
+    for (_, field) in fields {
+        match field {
+            Type::Closure(id) => {
+                if callback.is_some_and(|previous| previous != *id) || count == 2 {
+                    return Err(unsupported());
+                }
+                callback = Some(*id);
+                count += 1;
+            }
+            Type::Managed(inner)
+                if **inner == Type::ByteBuffer
+                    || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()) =>
+            {
+                managed = true;
+            }
+            other if other.is_copy_value() => {}
+            _ => return Err(unsupported()),
+        }
+    }
+    let Some(callback) = callback.filter(|_| managed) else {
+        return Err(unsupported());
+    };
+    // Reserve the initial pending entry before the existing independent
+    // capture-graph checker allocates it. Each actual capture is then charged
+    // there before inspecting or enqueueing its type.
+    budget.spend(1, "callback Store environment root")?;
+    callable_fields::self_contained(module, callback, budget)
+}
+
 pub(super) fn is_carrier(ty: &Type) -> bool {
     matches!(ty, Type::Managed(inner) | Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. }))
 }
