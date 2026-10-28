@@ -52,7 +52,7 @@ pub fn check_program(
             .checked_add(
                 core.functions
                     .iter()
-                    .filter(|f| f.callable_parameter.is_none())
+                    .filter(|f| f.callable_parameters.is_empty())
                     .count(),
             )
             .filter(|n| *n <= limits.max_functions)
@@ -92,7 +92,7 @@ pub fn check_program(
                 - core
                     .functions
                     .iter()
-                    .filter(|f| f.callable_parameter.is_none())
+                    .filter(|f| f.callable_parameters.is_empty())
                     .count(),
         ));
     }
@@ -122,7 +122,7 @@ pub fn check_program(
         m.core
             .functions
             .iter()
-            .any(|f| f.callable_parameter.is_some())
+            .any(|f| !f.callable_parameters.is_empty())
     }) {
         let mut enum_budget = limits.max_analysis_steps;
         for table in signatures_by_module.values() {
@@ -135,7 +135,7 @@ pub fn check_program(
             if core
                 .functions
                 .iter()
-                .all(|f| f.callable_parameter.is_none())
+                .all(|f| f.callable_parameters.is_empty())
             {
                 continue;
             }
@@ -232,7 +232,7 @@ pub fn check_program(
         for f in core
             .functions
             .iter()
-            .filter(|f| f.callable_parameter.is_none())
+            .filter(|f| f.callable_parameters.is_empty())
         {
             let signature = &table[&f.name];
             let mut typed = if let Some(typed) = factories.remove(&signature.id) {

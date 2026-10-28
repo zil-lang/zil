@@ -27,14 +27,17 @@ def main():
     target = args.out / "command.json"
     target.write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n")
     try:
-        result = subprocess.run(command, capture_output=True, timeout=args.timeout)
-        (args.out / "stdout.log").write_bytes(result.stdout)
-        (args.out / "stderr.log").write_bytes(result.stderr)
+        # Open both records before starting work, and preserve output as it is
+        # produced. A full temporary filesystem must not erase an entire run
+        # merely because the previous recorder wrote its output only at exit.
+        with (args.out / "stdout.log").open("wb") as stdout, (args.out / "stderr.log").open("wb") as stderr:
+            result = subprocess.run(command, stdout=stdout, stderr=stderr, timeout=args.timeout)
         receipt.update(status="Pass" if result.returncode == 0 else "Fail", exit_code=result.returncode)
-    except subprocess.TimeoutExpired as error:
-        (args.out / "stdout.log").write_bytes(error.stdout or b"")
-        (args.out / "stderr.log").write_bytes(error.stderr or b"")
+    except subprocess.TimeoutExpired:
         receipt.update(status="Timeout", exit_code=None)
+        raise
+    except OSError as error:
+        receipt.update(status="InfrastructureFailure", exit_code=None, infrastructure_error=str(error))
         raise
     finally:
         receipt["end"] = time.time()

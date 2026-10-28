@@ -358,8 +358,8 @@ fn helper065_raw_callable_metadata_is_bounded_before_instantiation() {
         nested = zil_ir::Type::Tuple(vec![nested]);
     }
     input.functions[0]
-        .callable_parameter
-        .as_mut()
+        .callable_parameters
+        .first_mut()
         .unwrap()
         .result = nested;
     let limits = Limits {
@@ -393,8 +393,8 @@ fn helper065_analyze_reconstructs_hold_and_call_paths() {
             .find_map(|f| f.callable_contract.as_mut())
             .unwrap();
         if erase_hold {
-            assert!(!claim.hold.is_empty());
-            claim.hold.clear();
+            assert!(!claim.roles[0].hold.is_empty());
+            claim.roles[0].hold.clear();
         } else {
             assert!(!claim.traces.as_finite().unwrap().is_empty());
             claim.traces.as_finite_mut().unwrap().clear();

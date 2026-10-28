@@ -3,7 +3,7 @@ use super::*;
 
 impl Signature {
     pub(super) fn pointer_type(&self) -> Option<Type> {
-        if self.callable.is_some()
+        if !self.callable.is_empty()
             || self.foreign
             || self.cleanup
             || !self.parameters.iter().all(Type::is_copy_value)

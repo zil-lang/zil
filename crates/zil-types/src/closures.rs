@@ -98,7 +98,7 @@ pub(super) struct State {
     pub helper_templates: BTreeMap<helpers::TemplateKey, helpers::Template>,
     pub active_helpers: std::collections::BTreeSet<helpers::TemplateKey>,
     pub helper_tables: std::rc::Rc<helpers::Tables>,
-    pub helper_instances: BTreeMap<(helpers::TemplateKey, ClosureId), FunctionId>,
+    pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
     pub helper_functions: Vec<TypedFunction>,
     pub helper_exports: Vec<helpers::Export>,
     pub pending: Vec<Pending>,
@@ -1733,6 +1733,78 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             capture.consumed = true;
         }
     }
+    fn helper_argument(
+        &mut self,
+        expression: &CoreExpr,
+        bound: &CoreCallableParameter,
+        mode: Option<bool>,
+        depth: usize,
+    ) -> R<()> {
+        let span = expression.span;
+        self.graph.spend(span)?;
+        let value = self.expr(expression, depth)?;
+        let mismatch = || {
+            error(
+                "E-TYPE-MISMATCH",
+                span,
+                "helper requires its concrete environment passing mode and callable signature",
+            )
+        };
+        match (value, mode) {
+            (LocalType::Scalar(variable), None)
+            | (LocalType::Address(variable, false), Some(false))
+            | (LocalType::Address(variable, true), Some(_)) => {
+                // Nested closure bodies have already received concrete source
+                // signatures. This capture walk represents them using a private
+                // graph signature only; it must not bind an address to Named(F).
+                // Builder later checks actual ClosureId, mode and role origin.
+                self.graph.spend(span)?;
+                for ty in bound
+                    .parameters
+                    .iter()
+                    .chain(std::iter::once(&bound.result))
+                {
+                    self.graph.reserve_type(ty, 0, span)?;
+                }
+                self.graph.bind(
+                    variable,
+                    &Type::FunctionPointer {
+                        parameters: bound.parameters.clone(),
+                        result: Box::new(bound.result.clone()),
+                    },
+                    span,
+                )?;
+                if mode == Some(true) {
+                    self.mark_address_write(expression, depth)?;
+                }
+            }
+            (LocalType::Closure(id, actual), wanted)
+                if actual == wanted || (actual == Some(true) && wanted == Some(false)) =>
+            {
+                let pending = self.closures.get(id.0 as usize).ok_or_else(mismatch)?;
+                if !helpers::compatible(pending.callable_kind(), bound.kind)
+                    || pending.inference.arity() != bound.parameters.len()
+                {
+                    return Err(mismatch());
+                }
+                for (index, ty) in bound.parameters.iter().enumerate() {
+                    self.graph.reserve_type(ty, 0, span)?;
+                    if pending.inference.parameter(index)?.as_ref() != Some(ty) {
+                        return Err(mismatch());
+                    }
+                }
+                self.graph.reserve_type(&bound.result, 0, span)?;
+                if pending.inference.result()?.as_ref() != Some(&bound.result) {
+                    return Err(mismatch());
+                }
+                if wanted.is_none() {
+                    self.transferred_closure(expression, value);
+                }
+            }
+            _ => return Err(mismatch()),
+        }
+        Ok(())
+    }
     fn known(&mut self, ty: &Type, span: Span) -> R<LocalType> {
         if let Type::Closure(id) = ty {
             return Ok(LocalType::Closure(*id, None));
@@ -2471,6 +2543,16 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 for (index, (argument, parameter)) in
                     arguments.iter().zip(&signature.parameters).enumerate()
                 {
+                    self.graph.spend_count(signature.callable.len(), span)?;
+                    if let Some(bound) = signature
+                        .callable
+                        .iter()
+                        .find(|bound| bound.index as usize == index)
+                        && let Some(mode) = helpers::parameter_mode(parameter, &bound.generic_name)
+                    {
+                        self.helper_argument(argument, bound, mode, depth + 1)?;
+                        continue;
+                    }
                     let variable = self.expr_expected(argument, Some(parameter), depth + 1)?;
                     if matches!(parameter, Type::Address { mutable: true, .. }) {
                         self.mark_address_write(argument, depth + 1)?;
@@ -2730,6 +2812,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             .chain(std::iter::once(&signature.result))
         {
             self.graph.reserve_type(ty, 0, span)?;
+        }
+        self.graph.spend_count(signature.callable.len(), span)?;
+        for bound in &signature.callable {
+            self.graph.spend_count(bound.generic_name.len(), span)?;
+            for ty in bound
+                .parameters
+                .iter()
+                .chain(std::iter::once(&bound.result))
+            {
+                self.graph.reserve_type(ty, 0, span)?;
+            }
         }
         Ok(())
     }

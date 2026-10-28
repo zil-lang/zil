@@ -6,11 +6,22 @@ use zil_ir::CallableKind;
 #[derive(Clone)]
 pub(crate) struct CallableTemplate {
     pub index: usize,
+    pub generic_index: u32,
     pub generic_name: String,
     pub kind: CallableKind,
     pub parameters: Vec<TypeRef>,
     pub result: TypeRef,
+}
+
+#[derive(Clone)]
+pub(crate) struct CallableTemplates {
+    pub roles: Vec<CallableTemplate>,
     pub owned_state: bool,
+}
+impl CallableTemplates {
+    pub(crate) fn contains_generic(&self, name: &str) -> bool {
+        self.roles.iter().any(|role| role.generic_name == name)
+    }
 }
 
 pub(crate) fn refers(ty: &TypeRef, name: &str) -> bool {
@@ -107,7 +118,7 @@ pub(crate) fn opaque_signature(ty: &TypeRef) -> Option<(CallableKind, &[TypeRef]
     Some((kind, parameters, result))
 }
 
-pub(crate) fn template(function: &Function) -> R<Option<CallableTemplate>> {
+pub(crate) fn template(function: &Function) -> R<Option<CallableTemplates>> {
     template_with_state(function, state_type)
 }
 
@@ -118,7 +129,7 @@ pub(crate) fn expanded_template(
     function: &Function,
     declarations: &BTreeMap<String, &Aggregate>,
     remaining: &mut usize,
-) -> R<Option<CallableTemplate>> {
+) -> R<Option<CallableTemplates>> {
     // The classifier is queried for input discovery, result admission and
     // bound modes. Charge every potential field scan before it runs.
     for ty in function
@@ -169,134 +180,173 @@ pub(crate) fn expanded_template(
 fn template_with_state(
     function: &Function,
     is_state: impl Fn(&TypeRef, &str) -> bool,
-) -> R<Option<CallableTemplate>> {
-    let mut callables = function.generics.iter().filter(|p| matches!(&p.kind,
+) -> R<Option<CallableTemplates>> {
+    let callables: Vec<_> = function.generics.iter().filter(|p| matches!(&p.kind,
         GenericParamKind::Type(bounds) if bounds.iter().any(|b| matches!(&b.kind,
-            TypeKind::Named { path, .. } if path.len() == 1 && matches!(path[0].as_str(), "Fn" | "FnMut" | "FnOnce")))));
-    let Some(parameter) = callables.next() else {
+            TypeKind::Named { path, .. } if path.len() == 1 && matches!(path[0].as_str(), "Fn" | "FnMut" | "FnOnce"))))).collect();
+    if callables.is_empty() {
         return Ok(None);
-    };
-    if callables.next().is_some()
-        || function.generics.len() > 2
+    }
+    if callables.len() > 2
+        || function.generics.len() > callables.len() + 1
         || !function.where_clause.is_empty()
     {
         return Err(unsupported(
             function.span,
-            "one callable type parameter with a direct bound is implemented; it may have one ordinary Copy type parameter",
+            "at most two callable types and one ordinary Copy type with direct bounds are implemented",
         ));
     }
     for ordinary in function
         .generics
         .iter()
-        .filter(|p| p.name != parameter.name)
+        .filter(|p| !callables.iter().any(|c| c.name == p.name))
     {
         if !matches!(&ordinary.kind, GenericParamKind::Type(bounds)
             if matches!(bounds.as_slice(), [bound] if copy::is_bound(bound)))
         {
             return Err(unsupported(
                 ordinary.span,
-                "ordinary parameters beside F require one direct Copy bound",
+                "ordinary parameters beside callable types require one direct Copy bound",
             ));
         }
     }
-    let GenericParamKind::Type(bounds) = &parameter.kind else {
-        unreachable!()
-    };
-    if bounds.len() != 1 {
-        return Err(unsupported(
-            parameter.span,
-            "one callable bound is implemented",
-        ));
-    }
-    let TypeKind::Named { path, args } = &bounds[0].kind else {
-        unreachable!()
-    };
-    let kind = match path[0].as_str() {
-        "Fn" => CallableKind::Fn,
-        "FnMut" => CallableKind::FnMut,
-        "FnOnce" => CallableKind::FnOnce,
-        _ => return Err(unsupported(parameter.span, "unsupported callable bound")),
-    };
-    let [GenericArg::Type(params), GenericArg::Type(result)] = args.as_slice() else {
-        return Err(error(
-            parameter.span,
-            "callable bound requires its argument tuple and result",
-        ));
-    };
-    let TypeKind::Tuple(parameters) = &params.kind else {
-        return Err(error(
-            params.span,
-            "callable bound arguments are not a tuple",
-        ));
-    };
-    if parameters.iter().any(|t| refers(t, &parameter.name)) || refers(result, &parameter.name) {
-        return Err(unsupported(
-            parameter.span,
-            "recursive callable signature is not implemented",
-        ));
-    }
-    let owned_state = function
-        .return_type
-        .as_ref()
-        .is_some_and(|t| is_state(t, &parameter.name))
-        || function
-            .params
-            .iter()
-            .any(|p| is_state(&p.ty, &parameter.name));
-    let mut index = None;
-    for (i, input) in function.params.iter().enumerate() {
-        if refers(&input.ty, &parameter.name) || is_state(&input.ty, &parameter.name) {
-            if index.is_some()
-                || (parameter_mode(&input.ty, &parameter.name).is_none()
-                    && !is_state(&input.ty, &parameter.name))
-                || input.give
-            {
+    let mut roles = Vec::new();
+    let mut owned_state = false;
+    for (generic_index, parameter) in callables.iter().enumerate() {
+        let GenericParamKind::Type(bounds) = &parameter.kind else {
+            unreachable!()
+        };
+        if bounds.len() != 1 {
+            return Err(unsupported(
+                parameter.span,
+                "one callable bound is implemented",
+            ));
+        }
+        let TypeKind::Named { path, args } = &bounds[0].kind else {
+            unreachable!()
+        };
+        let kind = match path[0].as_str() {
+            "Fn" => CallableKind::Fn,
+            "FnMut" => CallableKind::FnMut,
+            "FnOnce" => CallableKind::FnOnce,
+            _ => return Err(unsupported(parameter.span, "unsupported callable bound")),
+        };
+        let [GenericArg::Type(params), GenericArg::Type(result)] = args.as_slice() else {
+            return Err(error(
+                parameter.span,
+                "callable bound requires its argument tuple and result",
+            ));
+        };
+        let TypeKind::Tuple(parameters) = &params.kind else {
+            return Err(error(
+                params.span,
+                "callable bound arguments are not a tuple",
+            ));
+        };
+        if callables.iter().any(|other| {
+            parameters.iter().any(|t| refers(t, &other.name)) || refers(result, &other.name)
+        }) {
+            return Err(unsupported(
+                parameter.span,
+                "recursive callable signature is not implemented",
+            ));
+        }
+        let owning = function
+            .return_type
+            .as_ref()
+            .is_some_and(|t| is_state(t, &parameter.name))
+            || function
+                .params
+                .iter()
+                .any(|p| is_state(&p.ty, &parameter.name));
+        owned_state |= owning;
+        if owning && callables.len() != 1 {
+            return Err(unsupported(
+                function.span,
+                "owning State helpers require one callable type",
+            ));
+        }
+        let mut count = 0;
+        let mut first_mode = None;
+        for (index, input) in function.params.iter().enumerate() {
+            if !refers(&input.ty, &parameter.name) && !is_state(&input.ty, &parameter.name) {
+                continue;
+            }
+            let mode = parameter_mode(&input.ty, &parameter.name);
+            if (mode.is_none() && !is_state(&input.ty, &parameter.name)) || input.give {
                 return Err(unsupported(
                     input.span,
-                    "callable parameter must occur once as F, &F, &mut F or a single owning State",
+                    "callable parameter must be F, &F, &mut F or a single owning State",
                 ));
             }
-            index = Some(i);
+            if owning && count != 0 {
+                return Err(unsupported(
+                    input.span,
+                    "owning State helpers require one environment role",
+                ));
+            }
+            let mode = mode.unwrap_or(None);
+            if first_mode.is_some_and(|prior| prior != mode) {
+                return Err(unsupported(
+                    input.span,
+                    "one callable type cannot mix environment passing modes",
+                ));
+            }
+            first_mode = Some(mode);
+            match (kind, mode) {
+                (CallableKind::FnMut, None) if !owning => {
+                    return Err(unsupported(
+                        input.span,
+                        "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+                    ));
+                }
+                (CallableKind::FnMut, Some(false)) | (CallableKind::FnOnce, Some(_)) => {
+                    return Err(error(
+                        input.span,
+                        "callable bound requires its matching mutable or owned environment passing mode",
+                    ));
+                }
+                _ => {}
+            }
+            count += 1;
+            if roles.len() >= 2 {
+                return Err(unsupported(
+                    input.span,
+                    "at most two nonescaping callable environment roles are implemented",
+                ));
+            }
+            roles.push(CallableTemplate {
+                index,
+                generic_index: generic_index as u32,
+                generic_name: parameter.name.clone(),
+                kind,
+                parameters: parameters.clone(),
+                result: result.clone(),
+            });
+        }
+        if function
+            .return_type
+            .as_ref()
+            .is_some_and(|t| refers(t, &parameter.name) && !is_state(t, &parameter.name))
+        {
+            return Err(unsupported(
+                function.span,
+                "escaping callable result is not implemented",
+            ));
+        }
+        if count == 0 {
+            return Err(error(
+                parameter.span,
+                "callable bound requires a concrete environment parameter",
+            ));
         }
     }
-    if function
-        .return_type
-        .as_ref()
-        .is_some_and(|t| refers(t, &parameter.name) && !is_state(t, &parameter.name))
-    {
+    if owned_state && roles.len() != 1 {
         return Err(unsupported(
             function.span,
-            "escaping callable result is not implemented",
+            "owning State helpers require one environment role",
         ));
     }
-    let index = index.ok_or_else(|| {
-        error(
-            parameter.span,
-            "callable bound requires a concrete environment parameter",
-        )
-    })?;
-    let mode = parameter_mode(&function.params[index].ty, &parameter.name).unwrap_or(None);
-    match (kind, mode) {
-        (CallableKind::FnMut, None) if !owned_state => {
-            return Err(unsupported(
-                function.params[index].span,
-                "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
-            ));
-        }
-        (CallableKind::FnMut, Some(false)) | (CallableKind::FnOnce, Some(_)) => {
-            return Err(error(
-                function.params[index].span,
-                "callable bound requires its matching mutable or owned environment passing mode",
-            ));
-        }
-        _ => {}
-    }
-    Ok(Some(CallableTemplate {
-        index,
-        generic_name: parameter.name.clone(),
-        kind,
-        parameters: parameters.clone(),
-        result: result.clone(),
-        owned_state,
-    }))
+    roles.sort_by_key(|role| role.index);
+    Ok(Some(CallableTemplates { roles, owned_state }))
 }

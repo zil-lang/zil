@@ -29,7 +29,10 @@ fn flow(m: &mut TypedModule) -> &mut CallableFlow {
                     next: CallableFlowNext::Edges(vec![1, 2]),
                 },
                 CallableFlowNode {
-                    calls: vec![CallableKind::Fn],
+                    calls: vec![zil_ir::CallEvent {
+                        parameter: 0,
+                        kind: CallableKind::Fn,
+                    }],
                     next: CallableFlowNext::Edges(vec![0]),
                 },
                 CallableFlowNode {
@@ -103,8 +106,20 @@ fn raw_graph_bounds_precede_stale_identity_and_fresh_retry_is_unchanged() {
                 }
             }
             1 => {
-                f.nodes[0].calls = vec![CallableKind::Fn; 40];
-                f.nodes[1].calls = vec![CallableKind::Fn; 40];
+                f.nodes[0].calls = vec![
+                    zil_ir::CallEvent {
+                        parameter: 0,
+                        kind: CallableKind::Fn
+                    };
+                    40
+                ];
+                f.nodes[1].calls = vec![
+                    zil_ir::CallEvent {
+                        parameter: 0,
+                        kind: CallableKind::Fn
+                    };
+                    40
+                ];
                 Limits {
                     max_instructions: 64,
                     ..Limits::default()

@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use zil_ir::{CallableFlow, CallableFlowNext, CallableFlowNode, CallableTraces};
 
 struct Fragment {
-    calls: Vec<CallableKind>,
+    calls: Vec<CallEvent>,
     next: Option<CallableFlowNext>,
 }
 
@@ -63,19 +63,13 @@ impl Size {
     }
 }
 
-fn child_size(child: &CallableTraces, kind: CallableKind, span: Span) -> R<Size> {
+fn child_size(child: &CallableTraces, span: Span) -> R<Size> {
     let mut size = Size {
         nodes: 1,
         calls: 0,
         edges: 1,
     }; // continuation and incoming edge
-    let mut add_calls = |calls: &[CallableKind]| -> R<()> {
-        if calls.iter().any(|mode| *mode != kind) {
-            return Err(unsupported(
-                span,
-                "nested helper contains a different invocation kind",
-            ));
-        }
+    let mut add_calls = |calls: &[CallEvent]| -> R<()> {
         size.calls = size
             .calls
             .checked_add(calls.len())
@@ -158,8 +152,8 @@ fn callback(
     instruction: &Instruction,
     locals: &[u8],
     values: &[u8],
-    requested: CallableKind,
-) -> R<Option<CallableKind>> {
+    bounds: &[CoreCallableParameter],
+) -> R<Option<CallEvent>> {
     let (origin, mode, borrowed) = match instruction.kind {
         InstructionKind::CallClosure { callee, .. } => {
             (values[callee.0 as usize], CallableKind::Fn, false)
@@ -178,34 +172,43 @@ fn callback(
         }
         _ => return Ok(None),
     };
-    if origin == 2 && !borrowed {
+    if origin == 4 && !borrowed {
         return Ok(None);
     }
-    if origin != 1 {
-        return Err(unsupported(
+    let bound = if origin == 1 {
+        bounds.first()
+    } else if origin == 2 {
+        bounds.get(1)
+    } else {
+        None
+    }
+    .ok_or_else(|| {
+        unsupported(
             instruction.span,
             "helper callable origin is unknown, mixed, or a borrowed local factory result",
-        ));
-    }
-    if mode != requested {
+        )
+    })?;
+    if mode != bound.kind {
         return Err(error(
             "E-CLOSURE-MODE",
             instruction.span,
             "helper callback mode differs from its bound",
         ));
     }
-    Ok(Some(mode))
+    Ok(Some(CallEvent {
+        parameter: bound.index,
+        kind: mode,
+    }))
 }
 
 pub(super) fn contract(
     function: &TypedFunction,
-    bound: &CoreCallableParameter,
+    bounds: &[CoreCallableParameter],
     state: &mut closures::State,
     limits: &Limits,
     span: Span,
 ) -> R<CallableTraces> {
-    let parameter = function.parameters[bound.index as usize];
-    let (locals, values) = environment_origins(function, parameter, state, span)?;
+    let (locals, values) = environment_origins(function, bounds, state, span)?;
     let mut size = Size::default();
     size.reserve(function.blocks.len(), 0, 0, limits, state, span)?;
     let mut fragments: Vec<_> = (0..function.blocks.len())
@@ -219,9 +222,10 @@ pub(super) fn contract(
         let mut current = block_id;
         for instruction in &block.instructions {
             state.snapshot(1, instruction.span)?;
-            if let Some(position) =
-                forwarded_contract(function, instruction, &values, bound.kind, state)?
+            if let Some(forwarded) =
+                forwarded_contract(function, instruction, &values, bounds, state)?
             {
+                let position = forwarded.position;
                 let child = &state.helper_functions[position]
                     .callable_contract
                     .as_ref()
@@ -244,7 +248,7 @@ pub(super) fn contract(
                     .as_ref()
                     .unwrap()
                     .traces;
-                let addition = child_size(child, bound.kind, instruction.span)?;
+                let addition = child_size(child, instruction.span)?;
                 size.reserve(
                     addition.nodes,
                     addition.calls,
@@ -253,12 +257,41 @@ pub(super) fn contract(
                     state,
                     instruction.span,
                 )?;
-                let child = state.helper_functions[position]
+                let mut child = state.helper_functions[position]
                     .callable_contract
                     .as_ref()
                     .unwrap()
                     .traces
                     .clone();
+                let substitute = |events: &mut [CallEvent]| -> R<()> {
+                    for event in events {
+                        event.parameter = forwarded
+                            .roles
+                            .iter()
+                            .find_map(|(child, caller)| {
+                                (*child == event.parameter).then_some(*caller)
+                            })
+                            .ok_or_else(|| {
+                                unsupported(
+                                    instruction.span,
+                                    "nested helper event names an unmapped role",
+                                )
+                            })?;
+                    }
+                    Ok(())
+                };
+                match &mut child {
+                    CallableTraces::Finite(paths) => {
+                        for path in paths {
+                            substitute(&mut path.calls)?;
+                        }
+                    }
+                    CallableTraces::Flow(flow) => {
+                        for node in &mut flow.nodes {
+                            substitute(&mut node.calls)?;
+                        }
+                    }
+                }
                 let start = fragments.len();
                 let continuation = start + addition.nodes - 1;
                 fragments[current].next = Some(CallableFlowNext::Edges(vec![start as u32]));
@@ -311,7 +344,7 @@ pub(super) fn contract(
                     next: None,
                 });
                 current = continuation;
-            } else if let Some(kind) = callback(instruction, &locals, &values, bound.kind)? {
+            } else if let Some(kind) = callback(instruction, &locals, &values, bounds)? {
                 size.reserve(0, 1, 0, limits, state, instruction.span)?;
                 fragments[current].calls.push(kind);
             }
@@ -350,7 +383,7 @@ pub(super) fn contract(
         fragments[current].next = next;
     }
     let graph = canonical(fragments, function.entry.0 as usize, state, span)?;
-    classify(graph, bound.kind, state, limits, span)
+    classify(graph, bounds, state, limits, span)
 }
 
 fn canonical(
@@ -409,7 +442,7 @@ fn canonical(
 
 fn classify(
     flow: CallableFlow,
-    kind: CallableKind,
+    bounds: &[CoreCallableParameter],
     state: &mut closures::State,
     limits: &Limits,
     span: Span,
@@ -446,7 +479,10 @@ fn classify(
         }
     }
     if order.len() != n {
-        if kind == CallableKind::FnOnce {
+        if bounds
+            .iter()
+            .any(|bound| bound.kind == CallableKind::FnOnce)
+        {
             return Err(unsupported(
                 span,
                 "cyclic FnOnce helper requires an additional consumption contract",
@@ -455,50 +491,70 @@ fn classify(
         return Ok(CallableTraces::Flow(flow));
     }
     state.snapshot(n, span)?;
-    let mut prefixes = vec![BTreeSet::<usize>::new(); n];
-    prefixes[0].insert(0);
+    let mut prefixes = vec![BTreeSet::<Vec<CallEvent>>::new(); n];
+    prefixes[0].insert(Vec::new());
     let mut exits = BTreeSet::new();
+    let mut stored_events = 0usize;
     for index in order {
         let node = &flow.nodes[index];
         state.snapshot(1, span)?;
-        for prefix in std::mem::take(&mut prefixes[index]) {
+        for mut prefix in std::mem::take(&mut prefixes[index]) {
             let count = prefix
+                .len()
                 .checked_add(node.calls.len())
+                .filter(|n| *n <= limits.max_instructions)
                 .ok_or_else(|| limited(span))?;
-            if kind == CallableKind::FnOnce && count > 1 {
-                return Err(unsupported(
-                    span,
-                    "finite helper supports at most one consumed call",
-                ));
+            state.snapshot(count.saturating_add(1), span)?;
+            prefix.extend_from_slice(&node.calls);
+            for bound in bounds {
+                if bound.kind == CallableKind::FnOnce
+                    && prefix
+                        .iter()
+                        .filter(|event| event.parameter == bound.index)
+                        .count()
+                        > 1
+                {
+                    return Err(unsupported(
+                        span,
+                        "finite helper supports at most one consumed call per role",
+                    ));
+                }
             }
             match &node.next {
                 CallableFlowNext::Exit(exit) => {
-                    state.snapshot(plan::tree_work(exits.len()), span)?;
-                    exits.insert((count, *exit));
+                    state.snapshot(
+                        plan::tree_work(exits.len()).saturating_mul(count.saturating_add(1)),
+                        span,
+                    )?;
+                    if exits.len() >= limits.max_nodes {
+                        return Err(limited(span));
+                    }
+                    exits.insert(CallableTrace {
+                        calls: prefix,
+                        exit: *exit,
+                    });
                 }
                 CallableFlowNext::Edges(targets) => {
                     for &target in targets {
-                        state.snapshot(plan::tree_work(prefixes[target as usize].len()), span)?;
-                        prefixes[target as usize].insert(count);
+                        stored_events = stored_events
+                            .checked_add(count)
+                            .filter(|n| *n <= limits.max_analysis_steps)
+                            .ok_or_else(|| limited(span))?;
+                        state.snapshot(
+                            plan::tree_work(prefixes[target as usize].len())
+                                .saturating_mul(count.saturating_add(1))
+                                .saturating_add(count),
+                            span,
+                        )?;
+                        if prefixes[target as usize].len() >= limits.max_nodes {
+                            return Err(limited(span));
+                        }
+                        prefixes[target as usize].insert(prefix.clone());
                     }
                 }
             }
         }
     }
-    if exits.len() > limits.max_nodes {
-        return Err(limited(span));
-    }
     state.snapshot(exits.len(), span)?;
-    let mut paths = Vec::with_capacity(exits.len());
-    for (count, exit) in exits {
-        if count > limits.max_nodes {
-            return Err(limited(span));
-        }
-        state.snapshot(count.saturating_add(1), span)?;
-        paths.push(CallableTrace {
-            calls: vec![kind; count],
-            exit,
-        });
-    }
-    Ok(CallableTraces::Finite(paths))
+    Ok(CallableTraces::Finite(exits.into_iter().collect()))
 }

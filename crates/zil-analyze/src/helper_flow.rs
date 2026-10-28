@@ -1,6 +1,5 @@
-//! Analyze's own call-control reconstruction. Because every admitted actual
-//! parameter call has one requested mode, private rows retain exact event
-//! counts; full public call vectors are checked when the rows are compared.
+//! Analyze's own ordered call-control reconstruction. Every role substitution
+//! belongs to a particular static call site, including two calls of one child.
 use super::*;
 use zil_ir::{CallableFlowNext, CallableParameterContract, CallableTraces};
 
@@ -10,7 +9,7 @@ enum End {
     Undefined,
 }
 struct Row {
-    calls: usize,
+    calls: Vec<CallEvent>,
     end: End,
 }
 
@@ -65,13 +64,12 @@ impl Counts {
 
 fn append_child(
     rows: &mut Vec<Row>,
-    child: &CallableTraces,
-    kind: CallableKind,
+    child: &Forwarded<'_>,
     counts: &mut Counts,
     budget: &mut Budget,
 ) -> CompileResult<(usize, usize)> {
     let (mut added_rows, mut calls, mut edges) = (1usize, 0usize, 1usize);
-    match child {
+    match child.traces {
         CallableTraces::Finite(paths) => {
             budget.spend(paths.len().saturating_add(1), "nested finite row shape")?;
             if paths.is_empty() {
@@ -83,10 +81,7 @@ fn append_child(
                 .ok_or_else(exhausted)?;
             edges = edges.checked_add(paths.len()).ok_or_else(exhausted)?;
             for path in paths {
-                budget.spend(path.calls.len(), "nested finite invocation modes")?;
-                if path.calls.iter().any(|mode| *mode != kind) {
-                    return Err(bad("nested helper invocation mode differs"));
-                }
+                budget.spend(path.calls.len(), "nested finite invocation shape")?;
                 calls = calls.checked_add(path.calls.len()).ok_or_else(exhausted)?;
                 if path.exit == CallableExit::Return {
                     edges = edges.checked_add(1).ok_or_else(exhausted)?;
@@ -102,10 +97,7 @@ fn append_child(
                 .checked_add(flow.nodes.len())
                 .ok_or_else(exhausted)?;
             for node in &flow.nodes {
-                budget.spend(node.calls.len(), "nested flow invocation modes")?;
-                if node.calls.iter().any(|mode| *mode != kind) {
-                    return Err(bad("nested helper invocation mode differs"));
-                }
+                budget.spend(node.calls.len(), "nested flow invocation shape")?;
                 calls = calls.checked_add(node.calls.len()).ok_or_else(exhausted)?;
                 let links = match &node.next {
                     CallableFlowNext::Edges(targets) => {
@@ -122,15 +114,15 @@ fn append_child(
     counts.add(added_rows, calls, edges, budget)?;
     let entry = rows.len();
     let continuation = entry + added_rows - 1;
-    match child {
+    match child.traces {
         CallableTraces::Finite(paths) => {
             rows.push(Row {
-                calls: 0,
+                calls: Vec::new(),
                 end: End::Links((1..=paths.len()).map(|n| entry + n).collect()),
             });
             for path in paths {
                 rows.push(Row {
-                    calls: path.calls.len(),
+                    calls: remap(&path.calls, &child.roles, budget)?,
                     end: if path.exit == CallableExit::Return {
                         End::Links(vec![continuation])
                     } else {
@@ -149,25 +141,52 @@ fn append_child(
                     CallableFlowNext::Exit(CallableExit::Trap) => End::Exit(CallableExit::Trap),
                 };
                 rows.push(Row {
-                    calls: node.calls.len(),
+                    calls: remap(&node.calls, &child.roles, budget)?,
                     end,
                 });
             }
         }
     }
     rows.push(Row {
-        calls: 0,
+        calls: Vec::new(),
         end: End::Undefined,
     });
     Ok((entry, continuation))
+}
+
+fn remap(
+    events: &[CallEvent],
+    roles: &[(u32, u32)],
+    budget: &mut Budget,
+) -> CompileResult<Vec<CallEvent>> {
+    budget.product(
+        events.len(),
+        roles.len().saturating_add(2),
+        1,
+        "child ordered role substitution",
+    )?;
+    events
+        .iter()
+        .map(|event| {
+            let parameter = roles
+                .iter()
+                .find_map(|(child, parent)| (*child == event.parameter).then_some(*parent))
+                .ok_or_else(|| bad("child event names no actual forwarded role"))?;
+            Ok(CallEvent {
+                parameter,
+                kind: event.kind,
+            })
+        })
+        .collect()
 }
 
 fn actual_call(
     instruction: &Instruction,
     locals: &[u8],
     values: &[u8],
-    borrowed: bool,
-) -> CompileResult<Option<CallableKind>> {
+    borrowed_roles: u8,
+    roles: &[CallableRole],
+) -> CompileResult<Option<CallEvent>> {
     let (origin, kind, address) = match instruction.kind {
         InstructionKind::CallClosure { callee, .. } => {
             (values[callee.0 as usize], CallableKind::Fn, false)
@@ -184,7 +203,9 @@ fn actual_call(
         InstructionKind::CallClosureBorrowed { callee, kind, .. } => {
             (values[callee.0 as usize], kind, true)
         }
-        InstructionKind::DropClosure { local } if borrowed && locals[local.0 as usize] & 1 != 0 => {
+        InstructionKind::DropClosure { local }
+            if locals[local.0 as usize] & borrowed_roles != 0 =>
+        {
             return Err(bad("borrowed helper cannot destroy its environment"));
         }
         InstructionKind::MakeClosure { .. } => {
@@ -194,7 +215,19 @@ fn actual_call(
         }
         _ => return Ok(None),
     };
-    Ok(parameter_invocation(origin, address)?.then_some(kind))
+    let Some(origin) = parameter_invocation(origin, address)? else {
+        return Ok(None);
+    };
+    let role = roles
+        .get(origin)
+        .ok_or_else(|| bad("helper call refers to an absent role"))?;
+    if role.kind != kind {
+        return Err(bad("helper callback call mode differs from its bound"));
+    }
+    Ok(Some(CallEvent {
+        parameter: role.parameter,
+        kind,
+    }))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -202,17 +235,17 @@ pub(super) fn check(
     module: &TypedModule,
     function: &TypedFunction,
     claim: &CallableParameterContract,
-    local: LocalId,
-    borrowed: bool,
+    parameters: &[(u32, LocalId)],
+    borrowed_roles: u8,
     checked: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    let (locals, values) = origins(module, function, local, budget)?;
+    let (locals, values) = origins(module, function, parameters, budget)?;
     let mut counts = Counts::default();
     counts.add(function.blocks.len(), 0, 0, budget)?;
     let mut rows: Vec<_> = (0..function.blocks.len())
         .map(|_| Row {
-            calls: 0,
+            calls: Vec::new(),
             end: End::Undefined,
         })
         .collect();
@@ -226,20 +259,18 @@ pub(super) fn check(
                 function,
                 instruction,
                 &values,
-                claim.kind,
+                &claim.roles,
                 checked,
                 budget,
             )? {
-                let (entry, continuation) =
-                    append_child(&mut rows, child, claim.kind, &mut counts, budget)?;
+                let (entry, continuation) = append_child(&mut rows, &child, &mut counts, budget)?;
                 rows[output].end = End::Links(vec![entry]);
                 output = continuation;
-            } else if let Some(kind) = actual_call(instruction, &locals, &values, borrowed)? {
-                if kind != claim.kind {
-                    return Err(bad("helper callback call mode differs from its bound"));
-                }
+            } else if let Some(event) =
+                actual_call(instruction, &locals, &values, borrowed_roles, &claim.roles)?
+            {
                 counts.add(0, 1, 0, budget)?;
-                rows[output].calls += 1;
+                rows[output].calls.push(event);
             }
         }
         rows[output].end = match block.terminator {
@@ -298,7 +329,11 @@ pub(super) fn check(
         }
     }
     if ordered.len() != n {
-        if claim.kind == CallableKind::FnOnce {
+        if claim
+            .roles
+            .iter()
+            .any(|role| role.kind == CallableKind::FnOnce)
+        {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
                 "cyclic FnOnce helper requires an additional consumption contract",
@@ -320,7 +355,7 @@ pub(super) fn check(
                 node.calls.len().saturating_add(1),
                 "helper flow calls comparison",
             )?;
-            if row.calls != node.calls.len() || node.calls.iter().any(|kind| *kind != claim.kind) {
+            if row.calls != node.calls {
                 return Err(bad("public helper flow omits or changes calls"));
             }
             match (&row.end, &node.next) {
@@ -342,27 +377,47 @@ pub(super) fn check(
         return Err(bad("acyclic helper requires its exact Finite contract"));
     };
     budget.spend(n, "finite helper prefix tables")?;
-    let mut prefixes = vec![BTreeSet::<usize>::new(); n];
-    prefixes[0].insert(0);
+    let mut prefixes = vec![BTreeSet::<Vec<CallEvent>>::new(); n];
+    prefixes[0].insert(Vec::new());
     let mut traces = BTreeSet::new();
     for index in ordered {
         budget.spend(1, "finite helper row")?;
         let row = &rows[index];
-        for prefix in std::mem::take(&mut prefixes[index]) {
-            budget.spend(1, "finite helper count addition")?;
-            let calls = prefix.checked_add(row.calls).ok_or_else(exhausted)?;
-            if claim.kind == CallableKind::FnOnce && calls > 1 {
-                return Err(bad("helper exceeds its finite call allowance"));
+        for mut calls in std::mem::take(&mut prefixes[index]) {
+            let length = calls
+                .len()
+                .checked_add(row.calls.len())
+                .filter(|n| *n <= budget.helper_calls)
+                .ok_or_else(exhausted)?;
+            budget.product(length, 2, 1, "finite helper ordered prefix concatenation")?;
+            calls.extend_from_slice(&row.calls);
+            budget.product(
+                calls.len(),
+                claim.roles.len(),
+                1,
+                "finite helper per-role consumption",
+            )?;
+            for role in &claim.roles {
+                if role.kind == CallableKind::FnOnce
+                    && calls
+                        .iter()
+                        .filter(|event| event.parameter == role.parameter)
+                        .count()
+                        > 1
+                {
+                    return Err(bad("helper exceeds a role's finite call allowance"));
+                }
             }
             match &row.end {
                 End::Exit(exit) => {
-                    budget.lookup(traces.len(), "finite helper exact exit")?;
-                    traces.insert((calls, *exit));
+                    sequence_lookup(traces.len(), calls.len(), budget)?;
+                    traces.insert(CallableTrace { calls, exit: *exit });
                 }
                 End::Links(targets) => {
                     for target in targets {
-                        budget.lookup(prefixes[*target].len(), "finite helper exact prefix")?;
-                        prefixes[*target].insert(calls);
+                        sequence_lookup(prefixes[*target].len(), calls.len(), budget)?;
+                        budget.product(calls.len(), 2, 1, "finite helper branch prefix copy")?;
+                        prefixes[*target].insert(calls.clone());
                     }
                 }
                 End::Undefined => unreachable!("numbered reachable rows have defined successors"),
@@ -373,16 +428,28 @@ pub(super) fn check(
     if traces.len() != paths.len() {
         return Err(bad("public helper trace claim differs from its CFG"));
     }
-    for ((calls, exit), path) in traces.into_iter().zip(paths) {
-        budget.spend(path.calls.len(), "helper public finite calls")?;
-        if calls != path.calls.len()
-            || exit != path.exit
-            || path.calls.iter().any(|kind| *kind != claim.kind)
-        {
+    for (actual, path) in traces.into_iter().zip(paths) {
+        budget.product(
+            path.calls.len().saturating_add(1),
+            2,
+            1,
+            "helper public ordered finite calls",
+        )?;
+        if actual != *path {
             return Err(bad("public helper trace claim differs from its CFG"));
         }
     }
     Ok(())
+}
+
+fn sequence_lookup(size: usize, length: usize, budget: &mut Budget) -> CompileResult<()> {
+    let levels = size.checked_ilog2().map_or(1, |n| n as usize + 2);
+    budget.product(
+        length.saturating_add(1),
+        levels,
+        2,
+        "finite helper ordered sequence comparison",
+    )
 }
 
 fn numbered(mut rows: Vec<Row>, entry: usize, budget: &mut Budget) -> CompileResult<Vec<Row>> {
@@ -422,7 +489,7 @@ fn numbered(mut rows: Vec<Row>, entry: usize, budget: &mut Budget) -> CompileRes
             End::Undefined => return Err(bad("helper has a reachable undefined exit")),
         };
         result.push(Row {
-            calls: rows[index].calls,
+            calls: std::mem::take(&mut rows[index].calls),
             end,
         });
     }

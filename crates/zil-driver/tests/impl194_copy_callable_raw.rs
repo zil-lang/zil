@@ -166,7 +166,7 @@ fn same_closure_has_four_data_instances_with_alias_and_repeated_type_reuse() {
     let templates: Vec<_> = core
         .functions
         .iter()
-        .filter(|f| f.callable_parameter.is_some())
+        .filter(|f| !f.callable_parameters.is_empty())
         .collect();
     assert_eq!(templates.len(), 4);
     assert_eq!(
@@ -190,7 +190,7 @@ fn same_closure_has_four_data_instances_with_alias_and_repeated_type_reuse() {
     assert_eq!(
         helpers
             .iter()
-            .map(|f| f.callable_contract.as_ref().unwrap().closure)
+            .map(|f| f.callable_contract.as_ref().unwrap().roles[0].closure)
             .collect::<BTreeSet<_>>()
             .len(),
         1
@@ -221,11 +221,11 @@ fn both_callable_arguments_and_result_are_concretized_before_types() {
     let templates: Vec<_> = core
         .functions
         .iter()
-        .filter(|f| f.callable_parameter.is_some())
+        .filter(|f| !f.callable_parameters.is_empty())
         .collect();
     assert_eq!(templates.len(), 2);
     for f in templates {
-        let bound = f.callable_parameter.as_ref().unwrap();
+        let bound = f.callable_parameters.first().unwrap();
         assert!(matches!(f.return_type, Type::I32 | Type::I64));
         assert_eq!(bound.parameters, vec![f.return_type.clone()]);
         assert_eq!(bound.result, f.return_type);

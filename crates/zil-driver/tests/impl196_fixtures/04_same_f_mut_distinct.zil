@@ -1,0 +1,1 @@
+fn make(n:i32)->impl FnMut()->i32{var value=n;return move()=>{value+=1;return value}}fn pair<F:FnMut()->i32>(left:&mut F,right:&mut F)->i32{return left()+right()+left()}fn main()->i32{var left=make(10);var right=make(20);return pair(&mut left,&mut right)-44}

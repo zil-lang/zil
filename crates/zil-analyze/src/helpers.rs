@@ -15,13 +15,17 @@ fn env(ty: &Type) -> Option<(ClosureId, Option<bool>)> {
     }
 }
 
-// This phase reconstructs actual value origins itself. Bit 1 is the callback
-// parameter, bit 2 an already checked factory result, and bit 4 an unsupported
-// producer. Unions are conservative across stores and control-flow merges.
+// Actual role provenance is reconstructed here, independently of published
+// events. Bits 0/1 identify the first/second actual environment parameter;
+// factory and unknown producers have separate bits. A union never chooses one
+// role, even when the concrete ClosureId happens to be equal.
+const FACTORY: u8 = 4;
+const UNKNOWN: u8 = 8;
+
 fn origins(
     module: &TypedModule,
     function: &TypedFunction,
-    parameter: LocalId,
+    parameters: &[(u32, LocalId)],
     budget: &mut Budget,
 ) -> CompileResult<(Vec<u8>, Vec<u8>)> {
     budget.spend(
@@ -30,7 +34,10 @@ fn origins(
     )?;
     let mut positions = vec![0u8; function.locals.len()];
     let mut results = vec![0u8; function.values.len()];
-    positions[parameter.0 as usize] = 1;
+    budget.spend(parameters.len(), "helper role origin seeds")?;
+    for (role, (_, local)) in parameters.iter().enumerate() {
+        positions[local.0 as usize] = 1 << role;
+    }
     for block in &function.blocks {
         budget.spend(1, "helper environment producer block")?;
         for instruction in &block.instructions {
@@ -60,12 +67,12 @@ fn origins(
                     if producer.callable_return_contract.as_ref().is_some_and(|c| {
                         *ty == Type::Closure(c.closure) && producer.return_type == *ty
                     }) {
-                        2
+                        FACTORY
                     } else {
-                        4
+                        UNKNOWN
                     }
                 }
-                _ => 4,
+                _ => UNKNOWN,
             };
         }
     }
@@ -103,10 +110,11 @@ fn origins(
     Ok((positions, results))
 }
 
-fn parameter_invocation(origin: u8, borrowed: bool) -> CompileResult<bool> {
+fn parameter_invocation(origin: u8, borrowed: bool) -> CompileResult<Option<usize>> {
     match (origin, borrowed) {
-        (1, _) => Ok(true),
-        (2, false) => Ok(false),
+        (1, _) => Ok(Some(0)),
+        (2, _) => Ok(Some(1)),
+        (FACTORY, false) => Ok(None),
         _ => Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "helper callable origin is unknown, mixed, or a borrowed local factory result",
@@ -231,15 +239,21 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     Ok(order)
 }
 
+struct Forwarded<'a> {
+    traces: &'a CallableTraces,
+    /// Each child parameter is replaced at this actual static call site.
+    roles: Vec<(u32, u32)>,
+}
+
 fn forwarded<'a>(
     module: &'a TypedModule,
     function: &TypedFunction,
     instruction: &Instruction,
     origins: &[u8],
-    kind: CallableKind,
+    roles: &[CallableRole],
     checked: &[bool],
     budget: &mut Budget,
-) -> CompileResult<Option<&'a CallableTraces>> {
+) -> CompileResult<Option<Forwarded<'a>>> {
     let InstructionKind::Call {
         function: callee,
         arguments,
@@ -248,17 +262,13 @@ fn forwarded<'a>(
         return Ok(None);
     };
     budget.spend(arguments.len(), "helper forwarded environment scan")?;
-    let mut environment = None;
-    for (index, value) in arguments.iter().enumerate() {
-        if env(&function.values[value.0 as usize]).is_some()
-            && environment.replace((index, *value)).is_some()
-        {
-            return Err(bad("nested helper forwards more than one environment"));
-        }
-    }
-    let Some((parameter, value)) = environment else {
+    let environments = arguments
+        .iter()
+        .filter(|value| env(&function.values[value.0 as usize]).is_some())
+        .count();
+    if environments == 0 {
         return Ok(None);
-    };
+    }
     let target = module
         .functions
         .get(callee.0 as usize)
@@ -267,17 +277,34 @@ fn forwarded<'a>(
         .callable_contract
         .as_ref()
         .ok_or_else(|| bad("forwarded helper has no finite contract"))?;
-    if !checked[callee.0 as usize]
-        || claim.parameter as usize != parameter
-        || claim.kind != kind
-        || origins[value.0 as usize] != 1
-        || env(&function.values[value.0 as usize]).map(|(id, _)| id) != Some(claim.closure)
-    {
+    if !checked[callee.0 as usize] || claim.roles.len() != environments {
         return Err(bad(
             "nested helper must forward its actual parameter to an independently checked matching contract",
         ));
     }
-    Ok(Some(&claim.traces))
+    budget.spend(claim.roles.len(), "nested helper role substitution table")?;
+    let mut substitutions = Vec::with_capacity(claim.roles.len());
+    for role in &claim.roles {
+        budget.spend(1, "nested helper actual role")?;
+        let value = *arguments
+            .get(role.parameter as usize)
+            .ok_or_else(|| bad("nested helper role argument is absent"))?;
+        let origin = parameter_invocation(origins[value.0 as usize], true)?
+            .ok_or_else(|| bad("nested helper must forward an actual parent role"))?;
+        let parent = roles
+            .get(origin)
+            .ok_or_else(|| bad("nested helper names an absent parent role"))?;
+        if role.kind != parent.kind
+            || env(&function.values[value.0 as usize]).map(|(id, _)| id) != Some(role.closure)
+        {
+            return Err(bad("nested helper role identity or mode differs"));
+        }
+        substitutions.push((role.parameter, parent.parameter));
+    }
+    Ok(Some(Forwarded {
+        traces: &claim.traces,
+        roles: substitutions,
+    }))
 }
 
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
@@ -286,24 +313,33 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     let mut checked = vec![false; module.functions.len()];
     for index in order {
         let function = &module.functions[index];
-        let candidates = function
-            .parameters
-            .iter()
-            .filter(|p| env(&function.locals[p.0 as usize].ty).is_some())
-            .copied()
-            .collect::<Vec<_>>();
-        if candidates.is_empty() && function.callable_contract.is_none() {
+        // Preserve ordinary functions' established accounting. Their parameter
+        // metadata was bounded during preflight and no role table is allocated.
+        if function.callable_contract.is_none()
+            && !function
+                .parameters
+                .iter()
+                .any(|p| env(&function.locals[p.0 as usize].ty).is_some())
+        {
             continue;
         }
         budget.spend(
             function.parameters.len().saturating_add(1),
-            "helper parameter envelope",
+            "helper parameter envelope and candidate table",
         )?;
+        let candidates = function
+            .parameters
+            .iter()
+            .enumerate()
+            .filter_map(|(index, p)| {
+                env(&function.locals[p.0 as usize].ty).map(|_| (index as u32, *p))
+            })
+            .collect::<Vec<_>>();
         if function.callable_contract.is_none()
             && candidates.len() == 1
             && function.environment.is_none()
             && function.foreign.is_none()
-            && let Type::Closure(id) = function.locals[candidates[0].0 as usize].ty
+            && let Type::Closure(id) = function.locals[candidates[0].1.0 as usize].ty
             && matches!(&function.return_type,Type::Package{fields,..}
                 if fields.iter().any(|(_,ty)| *ty==Type::Closure(id)))
         {
@@ -314,18 +350,36 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .callable_contract
             .as_ref()
             .ok_or_else(|| bad("callable parameter has no public helper contract"))?;
-        if candidates.len() != 1 || function.environment.is_some() || function.foreign.is_some() {
-            return Err(bad("helper requires one concrete environment parameter"));
+        if candidates.is_empty()
+            || candidates.len() > 2
+            || (candidates.len() == 2 && candidates[0].1 == candidates[1].1)
+            || function.environment.is_some()
+            || function.foreign.is_some()
+        {
+            return Err(bad(
+                "helper requires one or two concrete environment parameters",
+            ));
         }
-        let local = *function
-            .parameters
-            .get(claim.parameter as usize)
-            .ok_or_else(|| bad("helper parameter index outside signature"))?;
-        if candidates[0] != local {
-            return Err(bad("helper contract names a different parameter"));
+        budget.spend(claim.roles.len(), "helper exact role table")?;
+        if claim.roles.len() != candidates.len()
+            || claim
+                .roles
+                .iter()
+                .zip(&candidates)
+                .any(|(role, (index, _))| role.parameter != *index)
+        {
+            return Err(bad(
+                "helper roles do not exactly match actual ordered parameters",
+            ));
         }
+        budget.product(
+            function.parameters.len(),
+            candidates.len(),
+            1,
+            "helper extra parameter membership",
+        )?;
         if function.parameters.iter().any(|p| {
-            *p != local
+            !candidates.iter().any(|(_, local)| p == local)
                 && !function.locals[p.0 as usize].ty.is_copy_value()
                 && !matches!(&function.locals[p.0 as usize].ty,
                     Type::Address { inner, .. } if inner.is_copy_value()
@@ -343,74 +397,88 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 None,
             )]);
         }
-        let (closure, borrowed) =
-            env(&function.locals[local.0 as usize].ty).expect("classified parameter");
-        let definition = module
-            .closures
-            .get(closure.0 as usize)
-            .ok_or_else(|| bad("helper environment definition missing"))?;
-        if !(function.return_type.is_copy_value()
-            || (borrowed.is_some()
-                && !definition.lending_captures.is_empty()
-                && matches!(&function.return_type, Type::Address { inner, mutable: false }
-                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
-        {
-            return Err(bad(
-                "helper result requires finite Copy or a shared result from its borrowed environment",
-            ));
-        }
-        if closure != claim.closure
-            || claim.cleanup
-                != if borrowed.is_some() {
-                    CallableCleanup::Borrowed
-                } else {
-                    CallableCleanup::Owned
+        let mut borrowed_roles = 0u8;
+        for (index, (role, (_, local))) in claim.roles.iter().zip(&candidates).enumerate() {
+            budget.spend(1, "helper actual role envelope")?;
+            let (closure, borrowed) =
+                env(&function.locals[local.0 as usize].ty).expect("classified parameter");
+            let definition = module
+                .closures
+                .get(closure.0 as usize)
+                .ok_or_else(|| bad("helper environment definition missing"))?;
+            if !(function.return_type.is_copy_value()
+                || (candidates.len() == 1
+                    && borrowed.is_some()
+                    && !definition.lending_captures.is_empty()
+                    && matches!(&function.return_type, Type::Address { inner, mutable: false }
+                        if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
+            {
+                return Err(bad(
+                    "helper result requires finite Copy or a single shared result from its borrowed environment",
+                ));
+            }
+            if borrowed.is_some() {
+                borrowed_roles |= 1 << index;
+            }
+            if closure != role.closure
+                || role.cleanup
+                    != if borrowed.is_some() {
+                        CallableCleanup::Borrowed
+                    } else {
+                        CallableCleanup::Owned
+                    }
+            {
+                return Err(bad("helper environment identity or cleanup mode differs"));
+            }
+            if !matches!(
+                (definition.kind, role.kind),
+                (
+                    CallableKind::Fn,
+                    CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+                ) | (
+                    CallableKind::FnMut,
+                    CallableKind::FnMut | CallableKind::FnOnce
+                ) | (CallableKind::FnOnce, CallableKind::FnOnce)
+            ) || (role.kind == CallableKind::FnOnce && borrowed.is_some())
+                || (role.kind == CallableKind::FnMut && borrowed != Some(true))
+            {
+                return Err(bad(
+                    "helper parameter cannot provide the requested call mode",
+                ));
+            }
+            budget.product(
+                definition.captures.len(),
+                3,
+                1,
+                "helper capture envelope buffers",
+            )?;
+            let mut hold = Vec::new();
+            let mut call = Vec::new();
+            let mut writes = Vec::new();
+            for (i, capture) in definition.captures.iter().enumerate() {
+                budget.spend(1, "helper capture envelope")?;
+                if matches!(capture, Type::Address { .. }) {
+                    hold.push(i as u32);
                 }
-        {
-            return Err(bad("helper environment identity or cleanup mode differs"));
-        }
-        if !matches!(
-            (definition.kind, claim.kind),
-            (
-                CallableKind::Fn,
-                CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-            ) | (
-                CallableKind::FnMut,
-                CallableKind::FnMut | CallableKind::FnOnce
-            ) | (CallableKind::FnOnce, CallableKind::FnOnce)
-        ) || (claim.kind == CallableKind::FnOnce && borrowed.is_some())
-            || (claim.kind == CallableKind::FnMut && borrowed != Some(true))
-        {
-            return Err(bad(
-                "helper parameter cannot provide the requested call mode",
-            ));
-        }
-        let mut hold = Vec::new();
-        let mut call = Vec::new();
-        let mut writes = Vec::new();
-        for (i, capture) in definition.captures.iter().enumerate() {
-            budget.spend(1, "helper capture envelope")?;
-            if matches!(capture, Type::Address { .. }) {
-                hold.push(i as u32);
+                if matches!(capture, Type::Address { .. } | Type::Desc(_)) {
+                    call.push(i as u32);
+                }
+                if matches!(capture, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                    writes.push(i as u32);
+                }
             }
-            if matches!(capture, Type::Address { .. } | Type::Desc(_)) {
-                call.push(i as u32);
+            if role.hold != hold || role.call != call || role.writes != writes {
+                return Err(bad(
+                    "helper Hold/Call/write envelope differs from its concrete captures",
+                ));
             }
-            if matches!(capture, Type::Address { mutable: true, .. } | Type::Desc(_)) {
-                writes.push(i as u32);
-            }
-        }
-        if claim.hold != hold || claim.call != call || claim.writes != writes {
-            return Err(bad(
-                "helper Hold/Call/write envelope differs from its concrete captures",
-            ));
         }
         flow::check(
             module,
             function,
             claim,
-            local,
-            borrowed.is_some(),
+            &candidates,
+            borrowed_roles,
             &checked,
             budget,
         )?;
