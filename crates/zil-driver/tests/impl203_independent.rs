@@ -1140,6 +1140,166 @@ fn unused_raw_state_bodies_cannot_acquire_fields_or_repeat_a_declared_once_call(
     );
 }
 
+fn raw_state_field_take(
+    function: &CoreFunction,
+    local: &str,
+    field: &str,
+    base: u32,
+) -> CoreStatement {
+    let span = function.span;
+    CoreStatement {
+        id: NodeId(base),
+        span,
+        kind: CoreStatementKind::Binding {
+            name: local.into(),
+            mutable: false,
+            ty: None,
+            initializer: Some(CoreExpr {
+                id: NodeId(base + 1),
+                span,
+                kind: CoreExprKind::Member {
+                    object: Box::new(CoreExpr {
+                        id: NodeId(base + 2),
+                        span,
+                        kind: CoreExprKind::Name(function.parameters[0].name.clone()),
+                    }),
+                    member: field.into(),
+                },
+            }),
+        },
+    }
+}
+
+#[test]
+fn unused_raw_state_field_moves_do_not_gain_copy_from_callable_bounds() {
+    let (core, index) = unused_state_core();
+    let mut accepted = Vec::new();
+    for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+        let mut control = core.clone();
+        let f = &mut control.functions[index];
+        f.state_parameters[0].bindings[0].kind = kind;
+        let end = f.body.statements.last().unwrap().clone();
+        f.body.statements = vec![
+            raw_state_field_take(f, "one", "first", 991000),
+            raw_state_field_take(f, "two", "second", 991010),
+            end.clone(),
+        ];
+        raw_types(
+            &format!("unused-take-distinct-{kind:?}"),
+            &control,
+            &Limits::default(),
+            false,
+        );
+        for field in ["first", "second"] {
+            let mut changed = control.clone();
+            let f = &mut changed.functions[index];
+            f.body.statements = vec![
+                raw_state_field_take(f, "one", field, 991000),
+                raw_state_field_take(f, "two", field, 991010),
+                end.clone(),
+            ];
+            let label = format!("unused-take-twice-{kind:?}-{field}");
+            if inspect_origin_attack(&label, &changed) {
+                accepted.push(label);
+            }
+        }
+    }
+    assert!(
+        accepted.is_empty(),
+        "an uninstantiated declaration cannot copy a callback merely because it has a callable bound: {accepted:?}"
+    );
+}
+
+#[test]
+fn unused_raw_state_value_helper_transfer_cannot_leave_the_source_usable() {
+    let (core, index) = unused_state_core();
+    let mut accepted = Vec::new();
+    for (field, kind) in [
+        ("first", CallableKind::Fn),
+        ("second", CallableKind::FnOnce),
+    ] {
+        let mut control = core.clone();
+        let f = &control.functions[index];
+        let span = f.span;
+        let end = f.body.statements.last().unwrap().clone();
+        let mut helper = f.clone();
+        helper.id = NodeId(992000);
+        helper.name = "review_value_helper".into();
+        helper.state_parameters.clear();
+        helper.callable_parameters = vec![CoreCallableParameter {
+            index: 0,
+            generic_index: 0,
+            generic_name: "ReviewH".into(),
+            kind,
+            parameters: vec![],
+            result: Type::I32,
+        }];
+        helper.parameters = vec![CoreParameter {
+            name: "value".into(),
+            ty: Type::Named("ReviewH".into()),
+            mode: PassingMode::Infer,
+            span,
+        }];
+        helper.body.statements = vec![CoreStatement {
+            id: NodeId(992001),
+            span,
+            kind: CoreStatementKind::Return(Some(CoreExpr {
+                id: NodeId(992002),
+                span,
+                kind: CoreExprKind::Call {
+                    callee: Box::new(CoreExpr {
+                        id: NodeId(992003),
+                        span,
+                        kind: CoreExprKind::Name("value".into()),
+                    }),
+                    arguments: vec![],
+                },
+            })),
+        }];
+        let CoreStatementKind::Binding {
+            initializer: Some(argument),
+            ..
+        } = raw_state_field_take(f, "unused", field, 992010).kind
+        else {
+            unreachable!()
+        };
+        let call = CoreStatement {
+            id: NodeId(992020),
+            span,
+            kind: CoreStatementKind::Expression(CoreExpr {
+                id: NodeId(992021),
+                span,
+                kind: CoreExprKind::Call {
+                    callee: Box::new(CoreExpr {
+                        id: NodeId(992022),
+                        span,
+                        kind: CoreExprKind::Name(helper.name.clone()),
+                    }),
+                    arguments: vec![argument],
+                },
+            }),
+        };
+        control.functions[index].body.statements = vec![call.clone(), end.clone()];
+        control.functions.push(helper);
+        raw_types(
+            &format!("unused-value-helper-once-{kind:?}"),
+            &control,
+            &Limits::default(),
+            false,
+        );
+        let f = &mut control.functions[index];
+        f.body.statements = vec![call, raw_state_field_take(f, "later", field, 992030), end];
+        let label = format!("unused-value-helper-reuse-{kind:?}");
+        if inspect_origin_attack(&label, &control) {
+            accepted.push(label);
+        }
+    }
+    assert!(
+        accepted.is_empty(),
+        "an owned helper argument consumes the value even when the declared callable mode is reusable: {accepted:?}"
+    );
+}
+
 #[test]
 fn unused_state_second_binder_metadata_has_a_real_early_budget() {
     let (core, index) = unused_state_core();
