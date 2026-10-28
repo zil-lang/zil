@@ -464,6 +464,16 @@ fn main()->i32{return 0}
             },
         ],
     }];
+    // The original Core aggregate is still a raw declaration even though the
+    // parameter now carries its resolved shape. Keep both representations
+    // consistent; leaving its old F would be a different, invalid control.
+    let declaration = core
+        .aggregates
+        .iter_mut()
+        .find(|a| a.kind == AggregateKind::Package)
+        .unwrap();
+    declaration.fields[1].ty = Type::Named("ReviewF".into());
+    declaration.fields[2].ty = Type::Named("ReviewG".into());
     (core, index)
 }
 
@@ -1201,7 +1211,7 @@ fn main()->i32{
         }
         let project = ProjectSources {
             root: ModuleId(0),
-            units: files
+            modules: files
                 .iter()
                 .enumerate()
                 .map(|(i, (name, source))| {
