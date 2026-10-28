@@ -561,6 +561,12 @@ impl Builder<'_, '_> {
             self.limits,
             self.closures,
         )?;
+        if owned_state {
+            builder.closures.snapshot(1, span)?;
+            let bound = &bounds[0];
+            builder.state_callable_mode =
+                Some((bindings.get(bound.generic_index, span)?, bound.kind));
+        }
         builder.imports = Some(&imports);
         builder.enums = Some(&template.context.enums);
         let typed_result = builder.finish(&function.body);
