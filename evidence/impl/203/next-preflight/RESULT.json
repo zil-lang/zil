@@ -1,0 +1,93 @@
+{
+  "purpose": "Read-only next-slice admission preflight, not 203 final consumer",
+  "compiler_source_commit": "80c21b072b6abce47f9ae4adb2f440631eab738a",
+  "compiler_sha256": "6b9434e8bcf17e7010bfff98ab9cba82b2ab22caa4344f2f3bd939a6f9f95a71",
+  "build_receipt": "/workspace/scratch/39be3faa4442/run-logs/203-root/cli03/command.json",
+  "build_receipt_sha256": "49f9bb52a26d4dfb2a80b462af17e183eff8dc04e0fe63b7fbd3640192db81ca",
+  "status": "Observed; no production changes",
+  "cases": [
+    {
+      "source": "00_package_owned_control.zil",
+      "source_sha256": "8838ec1ffc59eab8a0d8351218b09f36dd23bb0894b9414a1725ad508137a5ef",
+      "exit_code": 0,
+      "status": "Success",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": "NotRun"
+    },
+    {
+      "source": "01_direct_store_capture.zil",
+      "source_sha256": "203a8981a52ad65607ff19f08f9977d9793fd2c70c45e5c0eaa46197aecd3bde",
+      "exit_code": 3,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store capture requires a separate retained storage profile",
+          "span": {
+            "file": 0,
+            "start": 264,
+            "end": 269
+          },
+          "notes": []
+        }
+      ],
+      "native": "NotRun"
+    },
+    {
+      "source": "02_original201_package_store_capture.zil",
+      "source_sha256": "5d430f79813e995268368bcbe3c3918e1de093007e5802f79d4f88f196905853",
+      "exit_code": 3,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Package capture with Store fields requires a retained storage protocol",
+          "span": {
+            "file": 0,
+            "start": 394,
+            "end": 397
+          },
+          "notes": []
+        }
+      ],
+      "native": "NotRun"
+    },
+    {
+      "source": "03_mutating_store_capture.zil",
+      "source_sha256": "2a05b458bb1c0758c2a3d01e6991069464e9b949672cae3c149b143c21758161",
+      "exit_code": 3,
+      "status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store capture requires a separate retained storage profile",
+          "span": {
+            "file": 0,
+            "start": 182,
+            "end": 187
+          },
+          "notes": []
+        }
+      ],
+      "native": "NotRun"
+    }
+  ],
+  "archive": {
+    "name": "203-next-store-capture-preflight.zip",
+    "bytes": 69081,
+    "sha256": "d2ea84ae5f8a9e6354f3dd1ed71f8888332411d885e139ed14fada1884fdceea",
+    "members": 40,
+    "crc_and_member_sha256_verified": true,
+    "execution_artifacts": false
+  }
+}
