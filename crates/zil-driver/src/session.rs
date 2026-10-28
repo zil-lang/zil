@@ -470,6 +470,7 @@ impl CompilationSession {
         build.backend = options.backend;
         build.optimization = options.optimization;
         build.codegen = options.codegen;
+        build.object_cache = options.object_cache.clone();
         build.windows = options.windows.clone();
         build.clang = options
             .clang
@@ -495,7 +496,10 @@ impl CompilationSession {
         report.phase = Phase::Link;
         artifacts.dump(report, options, "llvm", &llvm)?;
         artifacts.validate()?;
-        let artifact = publication.commit(artifact, &options.cancellation)?;
+        let mut artifact = publication.commit(artifact, &options.cancellation)?;
+        // Only complete successful requests populate the machine cache. The
+        // permission/capability for this request is never serialized or reused.
+        artifact.commit_object_cache();
         report.artifacts.insert("llvm".into(), artifact.llvm_ir);
         report
             .artifacts

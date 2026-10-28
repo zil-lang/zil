@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 use std::fmt::{self, Write};
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Ty {
     Void,
     Int(u32),
@@ -60,7 +60,7 @@ impl From<&str> for Ty {
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Linkage {
     External,
     Internal,
@@ -78,7 +78,7 @@ impl Linkage {
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Attr {
     ZeroExt,
     NonLazyBind,
@@ -91,7 +91,7 @@ impl Attr {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Val {
     Local(String),
     Global(String),
@@ -270,7 +270,7 @@ pub fn name(n: impl AsRef<str>) -> String {
         .unwrap_or(n.as_ref())
         .to_owned()
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Arg {
     pub ty: Ty,
     pub value: Val,
@@ -298,7 +298,7 @@ impl fmt::Display for Arg {
         write!(f, "{}", self.value)
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Param {
     pub ty: Ty,
     pub name: Option<String>,
@@ -320,7 +320,7 @@ impl Param {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Signature {
     pub result: Ty,
     pub result_attrs: Vec<Attr>,
@@ -348,7 +348,7 @@ impl Signature {
                 .all(|(a, b)| a.ty == b.ty && a.attrs == b.attrs)
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Op {
     Alloca {
         ty: Ty,
@@ -457,7 +457,7 @@ impl Op {
             .chain(incoming.iter().map(|(value, _)| value))
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Inst {
     pub result: Option<String>,
     pub op: Op,
@@ -467,12 +467,12 @@ impl Inst {
         Self { result, op }
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Block {
     pub name: String,
     pub instructions: Vec<Inst>,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Function {
     pub name: String,
     pub linkage: Linkage,
@@ -522,7 +522,7 @@ impl Function {
             .map_or(1, |b| b.iter().map(|x| x.instructions.len() + 1).sum())
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Global {
     pub name: String,
     pub linkage: Linkage,
@@ -545,19 +545,19 @@ impl Global {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Item {
     NamedType(String, Vec<Ty>),
     Global(Global),
     Function(Function),
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Module {
     pub triple: String,
     pub fingerprint: String,
     pub items: Vec<Item>,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Event {
     NamedType(String, Vec<Ty>),
     Global(Global),
@@ -567,7 +567,7 @@ pub enum Event {
     Instruction(Inst),
     End,
 }
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Code(pub Vec<Event>);
 impl Code {
     pub fn new() -> Self {
