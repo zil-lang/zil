@@ -357,7 +357,7 @@ prepare/slot/publish/abort 是同一责任规则的实例：构造 RHS 先成功
 
 有限callback元素profile（201）：完整元素可含一或两个直接、自含、同一具体F类型的Closure字段，其他字段保持上述有限Copy/直接Managed形状；普通T与F的完整名义身份沿197/200保留。F资格来自真实callable绑定和实际环境定义，不能伪装为普通Copy、靠同布局或用户空impl取得。相同ClosureId只确定类型/布局，Store不同元素、同元素不同字段及两次Copy环境复制始终有各自实际存储、状态与清理责任。非回调旧Store路径及其原逻辑预算保持。
 
-每个新元素的实际内联布局须从具体闭包捕获与真实live flags重建，整个元素非零且大小/对齐乘积处于目标范围；先收费后遍历/分配，不能以容量展开静态槽表。Types、Analyze、Verify分别核实际元素与自含性，Verify独立核布局和原始指令，不信任前端分类或后端字节数。Store资源定义、参数/结果、错误载荷及未执行操作的类型同样检查。具体闭包的原有限capture规则保持：直接Store、含Store的Package、保留元素地址及未支持的嵌套callable Package捕获仍关闭，不能经Store元素准入绕过捕获图及内联DAG界限。
+每个新元素的实际内联布局须从具体闭包捕获与真实live flags重建，整个元素非零且大小/对齐乘积处于目标范围；先收费后遍历/分配，不能以容量展开静态槽表。Types、Analyze、Verify分别核实际元素与自含性，Verify独立核布局和原始指令，不信任前端分类或后端字节数。Store资源定义、参数/结果、错误载荷及未执行操作的类型同样检查。具体闭包的有限capture规则保持：直接Store及含Store的Package仅按§9.1.1的204有限拥有捕获合同开放；保留元素地址及未支持的嵌套callable Package捕获仍关闭，不能经Store元素准入绕过捕获图及内联DAG界限。
 
 push成功把完整元素交给初始化前缀；容量不足通过真实错误载荷保留未插入完整值，不恢复已消费的源local。pop先缩短前缀，再转交完整末项，之后原尾槽无责任。reserve失败保持原前缀和元素。前缀销毁沿现有元素顺序，每个元素按字段声明顺序清理直接Managed及Closure环境，零次调用或部分元素被pop均不能漏清或双清。窗口调用沿§4.4；所有reserve/push/pop/give/drop与父壳移动继续检查已发布的may效果，不因实际地址未变或另一个索引而豁免。
 
@@ -387,7 +387,7 @@ Types独立核完整类型实参与所有实际值参数/明确结果约束；�
 
 声明模式来源属于当前函数实例的原符号字段。局部Name、move、let、完整注解、字段取出、普通完整T helper/TypeApply、Store与错误联合两侧均保留此来源；?只投影成功侧。来源只选择既有调用模式，不产生loan或拥有权限；取出G再调用及作为direct helper实参仍核声明能力。借入G:FnOnce不能消费，拥有pop得到的完整值可以按G声明调用。进入本片不能保存声明来源的closure capture、opaque返回、函数指针等擦除通道明确Unsupported。不能从全局具体Package/ClosureId反推来源，也不能在来源缺失时静默回退到实际更强kind；raw重复节点身份出现冲突来源须拒绝。进入另一函数后依据其自身声明表核对。
 
-有限StoreElement同批扩展为总计一或两个直接callback字段、最多两个不同的具体自含ClosureId；其他字段保持201有限Copy/直接Managed形状。新异环境路径的两个实际callback结果须Copy，旧单根/同根lending保持。符号F/G定义按声明满足资格，不以某次实际C=C作为放行条件。Types、Analyze、Verify各自检查全部实际捕获根、未用资源定义及既有capture关闭边界；Verify独立重建两根capture DAG、实际flags、完整非零元素大小/对齐。合法公共子图的类型布局可以复用，各实际值/字段/元素的借用、移动和清理责任不可去重。直接Store及含Store Package capture、递归拥有、未开放的嵌套callback Package capture仍关闭。
+有限StoreElement同批扩展为总计一或两个直接callback字段、最多两个不同的具体自含ClosureId；其他字段保持201有限Copy/直接Managed形状。新异环境路径的两个实际callback结果须Copy，旧单根/同根lending保持。符号F/G定义按声明满足资格，不以某次实际C=C作为放行条件。Types、Analyze、Verify各自检查全部实际捕获根、未用资源定义及既有capture关闭边界；Verify独立重建两根capture DAG、实际flags、完整非零元素大小/对齐。合法公共子图的类型布局可以复用，各实际值/字段/元素的借用、移动和清理责任不可去重。直接Store及含Store Package capture仅按§9.1.1的204有限拥有捕获合同开放；递归拥有、未开放的嵌套callback Package capture仍关闭。
 
 push/pop/reserve前缀、父窗口、声明序清理、callee先于参数准备与失败责任沿既有规则；新表不替代Analyze/Verify具体指令核验。raw TypedIR只携带实际能力，其内存安全判定不得冒称恢复源级较弱bound。新增元数据和双根图的长度、名字、类型、selectors、比较/复制与队列在分配/展开前计费，旧无新表和单根路径保持原费用。CT运行时正规化完整保留表并预费；CT执行State模板及wrapper隐藏执行明确E-CT-FORBIDDEN。公共schema/Wire27及新指纹域登记不表示验收，不为Core表伪造TypedIR opcode。一般异类型lending、dyn、保留、挂起和并发义务仍未由本片完成。
 
@@ -436,6 +436,22 @@ push/pop/reserve前缀、父窗口、声明序清理、callee先于参数准备�
 因此 `let f = () => count` 不保证快照；`let f = move () => count` 对 Copy count 保存快照。`move` 捕获实际 File 载体与捕获 `alias: Ref<File>` 是不同操作；不能沿 alias 追溯并夺取另一个位置的责任，也不遍历可达图。
 
 `&mut` 默认捕获建立父窗口的共享或独占重借。独占重借存续期间暂停相交父资格；结束条件包含闭包、派生返回值、已提交任务及其他真实使用者，不只看最后一条字面调用。只读重借不升级权限，`move` 地址不延长被引用对象存活。
+
+#### 9.1.1 有限叶 Store 的拥有捕获（204）
+
+在既有§9.1捕获推断之上，有限自含环境可以拥有直接的`Store<Item>`载体，或完整Package中直接的这类Store字段。显式`move`和正文对实际Managed的`give`均沿既有创建时转交规则；完整Package的真实按值消费、直接Managed字段的真实`give`可以要求拥有捕获，不以关键字出现、返回目的地或未来调用反推权限。普通Desc、已有Address及借入Package不取得父载体责任；不沿别名夺取另一个位置的资源。Package拥有捕获须在创建时完整。
+
+所捕获的内层Store元素只允许原叶子形状：完整有限、非零布局的Package，至少一个直接Managed字段，其余为既有有限Copy字段；直接Managed仅为已支持ByteBuffer或具有有限Copy Record头的用户资源。完整实际类型不得包含callback、嵌套Store、Address、拥有数组或递归拥有。捕获Package仅含上述直接Store、既有直接Managed及有限Copy字段；不由此开放嵌套callable Package捕获。每个Store使用完整实际Item对应的精确canonical ResourceDefinition，包括名称、payload及无用户teardown；同布局异名、未调用环境和仅在资源表出现的形状也须核验。
+
+新环境可按实际正文成为Fn、FnMut或FnOnce。Store写入仍由真实调用效果决定FnMut权限；FnOnce可把Store或Package Store字段取到内部局部后消费/清理，环境只清其余活责任。新增Store拥有profile的实际闭包结果限既有有限Copy/Unit；约束沿实际拥有的直接Closure子环境传递，不能通过外包一层闭包绕过。旧不含新捕获的环境及旧单根lending能力和费用保持，不全局关闭既有返回形状。调用体内可建立同步元素窗口，但本片不允许窗口或Store作为新回调结果逃逸。
+
+合法新callback可以进入既有持久State及外层callback Store，外层元素准入保持§8.2/§8.2.2。叶子限制只作用于实际被捕获的内层Store，不重新关闭普通Store或外层callback Store。已有直接Closure子环境仍按有界、无环的真实拥有图检查。相同canonical Item、相同ClosureId或可复用布局不合并不同捕获、字段和元素的实际值、标志、借用根或清理责任。
+
+Types、Analyze、Verify分别从实际类型、MakeClosure输入、捕获位置、Package视图及Store指令核验。Verify独立恢复实际父根、模式、活性、转交和有限布局；固定Store头部大小不能替代元素资格与canonical定义检查。活动窗口跨reserve/push/pop/give/drop/父移动仍按已有may效果冲突，投影和重借必须保留真实Store父链。仅修改捕获元数据、错用同型捕获编号、重复Take、用ReadCapture复制拥有载体及取走后的旧Desc均不得造权。
+
+创建时转交只发生一次；取出前的退出和未调用销毁由环境承担Store，取出后的提前/错误退出由内部局部承担Store。FnOnce调用完成后环境清理只访问仍活捕获；Package壳标志、直接字段标志、捕获标志和Store初始化前缀长度分别控制各自责任，标志在对应teardown之前清除。调用参数准备失败不伪造正文Take，reserve失败保持未转交前缀，不将已经移出的Store自动退回环境。精确Store helper按实际Item清初始化前缀，旁置资源保持既有声明/捕获顺序。
+
+本片复用既有Managed<OwnedStore<T>>、MakeClosure、DescribeCapture/TakeCapture、BindPackageCapture、Describe/TakePackageField和Store借用指令；保持schema/Wire27及其指纹域，不增加权限位或新的运行时opcode。若实际raw/Wire不能独立恢复必要事实，须先发布具体公共表示再继续该路径。新增完整类型、资格、结果、图、键、复制和工作队列在扫描/增长之前预费；仅在实际新增形状收费，原路径精确预算、默认限额及产品profile不变。登记不等于通过，须原预检源、近邻反例、独立raw/Wire、O0/O2真实失败清理及N/N−1/fresh N收据闭合。借入逃逸、长期外部保留、异步、取消、dyn及完整语言终态没有由此完成。
 
 ### 9.2 精确路径和三个执行时点
 
