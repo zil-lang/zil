@@ -1,6 +1,6 @@
 # 201 提案：Store 的元素拥有具体回调
 
-状态：源码审计提案；尚未派工、修改规范或扩大生产准入。依赖 200 的正式冻结，不把当前提案计为能力完成。本文按 200 候选及现行 1.4 / Ante-R1 规范识别下一条纵向缺口。
+状态：200已正式冻结于998c344d；201按本提案及规范§8.2/§4.4派工，生产尚未完成，不把规范登记计为能力通过。本文保留从200实际候选发现的连续缺口，准入最终以201独立冻结验收为准。
 
 ## 要关闭的实际输入
 
@@ -41,3 +41,9 @@
 - 非作者重建源码与机器行为；Linux O0/O2 和 Win64/Wine 分列，原生 Windows 未运行仍写 NotRun。默认配额、产品阈值和编译速度独立支线不改变。
 
 200 的进展不因本提案扩大验收范围；完整语言和产品终态仍由现有规范与正式门决定。
+
+## 2026-10-28 正式实施边界
+
+201同时承担同F一/二字段Store元素完整拥有与实际窗口Fn/FnMut调用；FnOnce仅在合法pop取得完整拥有值后消费。保守整Store前缀窗口保持，不承诺不同未知索引或不同callback字段的并行apart。新增调用路径使用真实AddressField/ReborrowAddress/CallClosureBorrowed，但独立loan重建须保留父Store根：现有环境重借只筛选environment loan，直接复用会丢掉从Package元素地址派生的依赖，这是必须修复的实际接口边界。
+
+前端与Types由/root/roles196_frontend持有，Analyze由/root/bundle_sync持有；root持Verify及LLVM真实布局/清理，/root/impl197独立审核。公开schema暂保持25，若实际事实不足由root先补公开变更，不以版本不变为由弱化核验。具体写集见主树.task/impl/201.md。原preflight三个输入、当前Unsupported和零native结果按原身份保存；作者、独审、root完整回归与Linux/Wine分列。编译速度支线、默认额度及产品阈值不变。
