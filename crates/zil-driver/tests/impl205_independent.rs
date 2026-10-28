@@ -742,7 +742,7 @@ fn repaired_legacy_definition_check_preserves_actual_lending_callback_use() {
 }
 
 #[test]
-fn conditional_alias_copy_and_dereference_preserve_both_real_field_origins() {
+fn conditional_alias_definition_is_checked_while_concrete_callable_phi_stays_closed() {
     let body = r#"var next=state;
 let first=&next.a;let second=&next.b;
 let selected=if flag{first}else{second};let copied=selected;let projected=&*copied;
@@ -752,18 +752,32 @@ emit(projected());next.a=replacement;return next"#;
             "fn revise<T:Copy,F:Fn()->i32>(state:State<T,F>,replacement:F,flag:bool)->State<T,F>{{{body}}}"
         )
     };
-    for (flag, expected) in [(true, "AAMZCB"), (false, "BAMZCB")] {
+    for flag in [true, false] {
         let source = format!(
             "{RESOURCE}{STATE}{}fn main()->i32{{let state=revise(pack(make(65),make(66),0),make(67),{flag});emit(77);return state.a()+state.b()-133}}",
             function(body)
         );
-        native(
-            &format!("conditional-copied-projected-alias-{flag}"),
+        // The concrete two-address phi is an existing Types qualification
+        // boundary. Preserve these exact source bytes and do not call this a
+        // runtime borrow-safety result or execute it.
+        reject(
+            &format!("closed-conditional-copied-projected-alias-{flag}"),
             &source,
-            expected,
-            0,
+            &[Phase::Types],
+            ResultCategory::Unsupported,
+            Some("E-UNSUPPORTED"),
         );
     }
+    let direct = body.replace("if flag{first}else{second}", "first");
+    let direct_source = format!(
+        "{RESOURCE}{STATE}{}fn main()->i32{{let state=revise(pack(make(65),make(66),0),make(67),true);emit(77);return state.a()+state.b()-133}}",
+        function(&direct)
+    );
+    native("direct-copied-projected-alias", &direct_source, "AAMZCB", 0);
+    accepted(
+        "conditional-alias-definition-positive",
+        &format!("{RESOURCE}{STATE}{}fn main(){{}}", function(body)),
+    );
     let sibling = body.replace("emit(projected());", "next.tag=next.tag;emit(projected());");
     accepted(
         "conditional-copied-alias-sibling-write",
