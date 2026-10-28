@@ -693,6 +693,45 @@ fn unused_mixed_callee_alias_is_saved_before_argument_preparation() {
     );
 }
 
+#[test]
+fn raw_legacy_single_state_alias_cannot_depend_on_expand_having_checked_the_body() {
+    let good = OLD_NON_T_BAD_ALIAS
+        .replace(
+            "    let replacement=next.a\n",
+            "    view()\n    let replacement=next.a\n",
+        )
+        .replace(
+            "    next.a=replacement\n    view()",
+            "    next.a=replacement",
+        );
+    let mut core = expanded("legacy-raw-alias-last-use-control", &good);
+    types_pair("legacy-raw-alias-last-use-control", &core, None);
+    let f = core
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "recycle")
+        .unwrap();
+    assert!(f.state_parameters.is_empty());
+    assert_eq!(f.callable_parameters.len(), 1);
+    let call=f.body.statements.iter().position(|s|matches!(&s.kind,CoreStatementKind::Expression(CoreExpr{kind:CoreExprKind::Call{callee,..},..}) if matches!(&callee.kind,CoreExprKind::Name(name) if name=="view"))).unwrap();
+    let statement = f.body.statements.remove(call);
+    let end = f
+        .body
+        .statements
+        .iter()
+        .position(|s| matches!(s.kind, CoreStatementKind::Return(_)))
+        .unwrap();
+    f.body.statements.insert(end, statement);
+    assert!(
+        !raw_rejection(
+            "legacy-raw-alias-after-refill",
+            &core,
+            &["E-STATE-ALIAS", "E-STATE-MOVE"]
+        ),
+        "the public Types entry accepted an unused old single-State definition with an alias used after take/refill"
+    );
+}
+
 fn verify_pair(label: &str, module: &TypedModule, candidate: &CandidatePlan, accept: bool) {
     let case = Case::new(label);
     let limits = Limits::default();
