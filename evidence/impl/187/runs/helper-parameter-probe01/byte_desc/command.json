@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/187-author/helper-parameter-probe01/byte_desc/main.zil",
+    "--json"
+  ],
+  "source_commit": "c8594514faa1de65672a0e944dfd0ea2b8f97460",
+  "cli_sha256": "b53fd1e9c4f6ec75cb5099c82bca95409f9d4f6dc9d065f836f59716ec87ac72",
+  "source_sha256": "9de7401a86c9e99bccdc145d3c94c7362a342d7e82109add5b41c2c0d6a0d7fa",
+  "exit": 3
+}

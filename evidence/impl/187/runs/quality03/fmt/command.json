@@ -1,0 +1,16 @@
+{
+  "command": [
+    "cargo",
+    "fmt",
+    "--all",
+    "--",
+    "--check"
+  ],
+  "source_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
+  "dirty": "",
+  "started": 1793157256.277252,
+  "exit": 0,
+  "finished": 1793157258.0154374,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

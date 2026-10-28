@@ -1,0 +1,11 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-driver)
+error: invalid format string: unmatched `}` found
+   --> crates/zil-driver/tests/impl187_borrowed_bytes.rs:223:208
+    |
+223 | ...ead};return {invocation}+i32(view[0])-{expected}}"
+    |                                                    ^ unmatched `}` in format string
+    |
+    = note: if you intended to print `}`, you can escape it using `}}`
+
+error: could not compile `zil-driver` (test "impl187_borrowed_bytes") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

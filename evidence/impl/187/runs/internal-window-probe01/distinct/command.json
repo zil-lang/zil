@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author187/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/187-author/internal-window-probe01/distinct/main.zil",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/187-author/internal-window-probe01/distinct/phases",
+    "--json"
+  ],
+  "exit": 0,
+  "source_commit": "c8594514faa1de65672a0e944dfd0ea2b8f97460",
+  "cli_sha256": "b53fd1e9c4f6ec75cb5099c82bca95409f9d4f6dc9d065f836f59716ec87ac72"
+}
