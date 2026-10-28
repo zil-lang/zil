@@ -357,7 +357,7 @@ child 替换先按实际源序完成 RHS 的全部准备，再清理旧 child，
 
 Analyze与Verify分别按实际SSA/Local及子树叶位置重建每个Managed叶的Created/Incoming。MakePackage、整值局部转交、完整child取出/补入保留各真实叶来源，本身不制造Created；同型两个child不能合并状态。CFG合流保留可能Incoming，不能把混合来源提升为Created。普通函数返回没有逐叶新鲜性合同，仍按既有Incoming处理；只有原已核Managed create合同可以提供其允许的新鲜结果。已有result(create)必须核实际返回叶，既要拒Incoming，也须接受确实Created的最近正例。
 
-新增Product仅进入普通完整值位置；旧平坦Package的原资格保持。Store元素、拥有数组、ErrorUnion、Closure capture、资源头嵌套拥有字段，以及新Product内部的Store/callable/Sum/拥有数组或借入字段，不因本片自动准入。已支持的旧profile不被反向关闭；完整语言的后续组合、traits/lending/dyn、卫生Syntax及挂起并发义务保留。
+新增Product仅进入普通完整值位置；旧平坦Package的原资格保持。Store元素、拥有数组、ErrorUnion、Closure capture、资源头嵌套拥有字段，以及新Product内部的Store/具体Closure/拥有Sum/拥有数组或借入字段，不因本片自动准入。这里不改变既有有限普通Copy子种类：满足原Copy资格的Enum、Copy ErrorUnion、FunctionPointer和ForeignCallback仍可作为Copy伴随字段；它们不授予任何新的借入或拥有权限。已支持的旧profile不被反向关闭；完整语言的后续组合、traits/lending/dyn、卫生Syntax及挂起并发义务保留。
 
 复用schema/Wire27的实际Type::Package和既有Make/Take/Drop/StorePackageField，不用序列化前端的叶来源结论授信。各核独立检查完整未用类型、名义/字段唯一性、实际资源和责任、非法重复SSA、覆盖旧债、过期描述及错误父槽。新叶路径/子树映射、状态复制/合流、布局展开和清理路径生成在增长前预付工作/深度/数量费用；旧无child路径不建立新叶表，不提高默认限额。按原120字节源、child-only wrapper、混合来源与失败准备的原样近邻、raw/Wire、N/N−1/fresh及两平台真实机器清理验收；登记不等于实现或完整语言完成。
 

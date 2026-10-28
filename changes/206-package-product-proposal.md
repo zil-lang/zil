@@ -4,7 +4,7 @@
 
 原120字节package-direct-nested SHA8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba及child-only、三个Created/Incoming源族、unknown普通Call边界共9源，在205 CLI04上均实际Types Unsupported、Verify0、未native。旧探针与本次基线分别保持实际compiler/norm身份。
 
-开放普通完整Package Product：Copy与Managed叶、递归完整child，至少一transitive manages叶，允许无direct manages的自然父wrapper。当前Managed叶限ByteBuffer及有限Copy头用户资源；新内部Store/Closure/Sum/owning-array/借入组合仍闭，旧入口不反关。嵌入child始终完整，父持一直接debt；取出到独立局部后才能局部部分移动。无新deep Place/schema/ABI，无隐式分配。
+开放普通完整Package Product：Copy与Managed叶、递归完整child，至少一transitive manages叶，允许无direct manages的自然父wrapper。当前Managed叶限ByteBuffer及有限Copy头用户资源；新内部Store/具体Closure/拥有Sum/owning-array/借入组合仍闭，旧入口不反关。既有有限普通Copy资格保持，包括满足原资格的Enum、Copy ErrorUnion、FunctionPointer及ForeignCallback；不新增这些类型的借入/拥有权限。嵌入child始终完整，父持一直接debt；取出到独立局部后才能局部部分移动。无新deep Place/schema/ABI，无隐式分配。
 
 Types需分普通Product准入和旧capture/Store/array/sum资格；aggregates resolve_indexed/Resolver、普通signature/inference/Graph节点及child读/赋值覆盖。Analyze需独立有界叶来源，在当前local_value复用位置隔离上下文；父child debt与深Managed叶Created/Incoming分开。Verify独立核未用类型、真实SSA/Local、复制/覆写/部分形状、过期Desc和每一叶的新鲜性，不消费前端结论。MakePackage或take child不制造Created，普通unknown call无逐叶返回合同仍Incoming。Lower/LLVM递归布局/声明序清理与父一flag复用，仅表示已核完整值；不以store后设flag补安全证明。
 
