@@ -1,6 +1,7 @@
 //! Finite owning Values. SSA packages are complete; local fields may transfer
 //! their responsibility and be refilled without moving the remaining shell.
 use super::*;
+pub(super) mod product;
 
 /// The first field-composition slice keeps nested array fields one level deep.
 fn leaf_package(ty: &Type) -> bool {
@@ -31,6 +32,12 @@ pub(super) fn supported(ty: &Type) -> bool {
             || array_field_supported(t)
             || matches!(t, Type::Closure(_))
             || matches!(t, Type::Managed(_) if resources::supported(t))))
+}
+
+/// Ordinary owned values have a separate Product gate. Capture, Store, Sum
+/// and owned-array callers deliberately retain the older `supported` profile.
+pub(super) fn ordinary(ty: &Type) -> bool {
+    supported(ty) || (product::nested(ty) && product::supported(ty))
 }
 
 /// A separate predicate prevents existing nominal Package operations from
@@ -445,18 +452,21 @@ impl Builder<'_, '_> {
             self.transfer_expr(rhs, Some(&ty))?
         };
         self.same(&actual, &ty, rhs.span)?;
-        let value =
-            if matches!(ty, Type::Managed(_) | Type::Closure(_)) || array_field_supported(&ty) {
-                let prepared = self.stage_argument(value, &ty, rhs.span)?;
-                self.emit(
-                    InstructionKind::DropPackageField { local, index },
-                    None,
-                    target.span,
-                )?;
-                self.commit_arguments(vec![prepared], rhs.span)?[0]
-            } else {
-                value
-            };
+        let value = if matches!(
+            ty,
+            Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+        ) || array_field_supported(&ty)
+        {
+            let prepared = self.stage_argument(value, &ty, rhs.span)?;
+            self.emit(
+                InstructionKind::DropPackageField { local, index },
+                None,
+                target.span,
+            )?;
+            self.commit_arguments(vec![prepared], rhs.span)?[0]
+        } else {
+            value
+        };
         self.emit(
             InstructionKind::StorePackageField {
                 local,
@@ -520,7 +530,9 @@ impl Builder<'_, '_> {
         let (index, field) = aggregates::field(&ty, member, span)?;
         let kind = if matches!(field, Type::Managed(_)) {
             InstructionKind::DescribePackageField { local, index }
-        } else if array_field_supported(&field) || matches!(field, Type::Closure(_)) {
+        } else if array_field_supported(&field)
+            || matches!(field, Type::Closure(_) | Type::Package { .. })
+        {
             InstructionKind::TakePackageField { local, index }
         } else {
             InstructionKind::ReadPackageField { local, index }
