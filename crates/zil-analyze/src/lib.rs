@@ -46,7 +46,7 @@ fn analyze_budgeted(
 ) -> CompileResult<CandidatePlan> {
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
-    let package_functions = preflight(module, limits, budget)?;
+    let (package_functions, store_profiles) = preflight(module, limits, budget)?;
     let mut plan = CandidatePlan::empty_for(module);
     let mut hold_graphs = Vec::with_capacity(module.functions.len());
     for f in &module.functions {
@@ -272,11 +272,12 @@ fn analyze_budgeted(
     callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
     resources::check_module(module, &hold_graphs, budget)?;
-    for (function, holds) in
-        plan.functions
-            .iter_mut()
-            .zip(holds::infer_module(module, &hold_graphs, budget)?)
-    {
+    for (function, holds) in plan.functions.iter_mut().zip(holds::infer_module(
+        module,
+        &hold_graphs,
+        &store_profiles,
+        budget,
+    )?) {
         function.holds = holds;
     }
     Ok(plan)
