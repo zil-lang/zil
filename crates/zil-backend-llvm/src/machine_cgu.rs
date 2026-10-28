@@ -10,28 +10,31 @@ pub(crate) struct Plan {
     pub units: Vec<Module>,
     pub fallback: Option<&'static str>,
 }
-struct Definition<'a> {
-    name: &'a str,
-    item: &'a Item,
+struct Definition {
+    name: String,
+    index: usize,
     local: bool,
     refs: BTreeSet<String>,
 }
 
-pub(crate) fn partition(module: &Module, lir: &LirModule, entry: EntryPoint, count: usize) -> Plan {
-    let fallback = |reason| Plan {
-        units: vec![],
+pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, count: usize) -> Plan {
+    let fallback = |module, reason| Plan {
+        units: vec![module],
         fallback: Some(reason),
     };
     if count < 2 {
-        return fallback("one requested unit");
+        return Plan {
+            units: vec![module],
+            fallback: None,
+        };
     }
     let mut defs = Vec::new();
     let mut prelude = Vec::new();
-    for item in &module.items {
+    for (index, item) in module.items.iter().enumerate() {
         match item {
             Item::Function(f) if f.blocks.is_some() => defs.push(Definition {
-                name: &f.name,
-                item,
+                name: f.name.clone(),
+                index,
                 local: f.linkage.is_local(),
                 refs: f.references(),
             }),
@@ -41,19 +44,19 @@ pub(crate) fn partition(module: &Module, lir: &LirModule, entry: EntryPoint, cou
                     value.symbols(&mut refs);
                 }
                 defs.push(Definition {
-                    name: &g.name,
-                    item,
+                    name: g.name.clone(),
+                    index,
                     local: g.linkage.is_local(),
                     refs,
                 });
             }
-            _ => prelude.push(item.clone()),
+            _ => prelude.push(index),
         }
     }
     let mut names = BTreeMap::new();
     for (id, d) in defs.iter().enumerate() {
-        if names.insert(d.name, id).is_some() {
-            return fallback("duplicate machine definition");
+        if names.insert(d.name.as_str(), id).is_some() {
+            return fallback(module, "duplicate machine definition");
         }
     }
     let mut sets = Sets((0..defs.len()).collect());
@@ -65,7 +68,7 @@ pub(crate) fn partition(module: &Module, lir: &LirModule, entry: EntryPoint, cou
         }
         let name = format!("zil.fn.{}", function.id.0);
         let Some(&id) = names.get(name.as_str()) else {
-            return fallback("source grouping missing machine definition");
+            return fallback(module, "source grouping missing machine definition");
         };
         if let Some(&first) = files.get(&function.span.file) {
             sets.join(first, id);
@@ -119,7 +122,32 @@ pub(crate) fn partition(module: &Module, lir: &LirModule, entry: EntryPoint, cou
     for (id, &owner) in owners.iter().enumerate() {
         members.entry(owner).or_default().push(id);
     }
-    let mut units = Vec::new();
+    if members.len() <= 1 {
+        return fallback(module, "one linkage-connected source group");
+    }
+    // Only signatures needed across unit boundaries get copied. Definitions are moved.
+    let mut prototypes = BTreeMap::new();
+    for (id, d) in defs.iter().enumerate() {
+        for symbol in &d.refs {
+            if let Some(&dependency) = names.get(symbol.as_str())
+                && owners[dependency] != owners[id]
+            {
+                prototypes.entry(dependency).or_insert_with(|| {
+                    match &module.items[defs[dependency].index] {
+                        Item::Function(f) => Item::Function(f.declaration()),
+                        Item::Global(g) => Item::Global(g.declaration()),
+                        Item::NamedType(..) => unreachable!(),
+                    }
+                });
+            }
+        }
+    }
+    let mut original = module.items.into_iter().map(Some).collect::<Vec<_>>();
+    let prelude = prelude
+        .into_iter()
+        .map(|index| original[index].take().expect("unique prelude item"))
+        .collect::<Vec<_>>();
+    let mut units = Vec::with_capacity(members.len());
     for (owner, definitions) in members {
         let mut items = prelude.clone();
         let mut needed = BTreeSet::new();
@@ -133,30 +161,27 @@ pub(crate) fn partition(module: &Module, lir: &LirModule, entry: EntryPoint, cou
         }
         for id in needed {
             if owners[id] != owner {
-                // Co-location above makes importing local definitions impossible.
                 debug_assert!(!defs[id].local);
-                items.push(match defs[id].item {
-                    Item::Function(f) => Item::Function(f.declaration()),
-                    Item::Global(g) => Item::Global(g.declaration()),
-                    Item::NamedType(..) => unreachable!(),
-                });
+                items.push(prototypes[&id].clone());
             }
         }
-        items.extend(definitions.iter().map(|&id| defs[id].item.clone()));
+        items.extend(definitions.iter().map(|&id| {
+            original[defs[id].index]
+                .take()
+                .expect("definition has one owner")
+        }));
         units.push(Module {
             triple: module.triple.clone(),
             fingerprint: module.fingerprint.clone(),
             items,
         });
     }
-    if units.len() <= 1 {
-        return fallback("one linkage-connected source group");
-    }
     Plan {
         units,
         fallback: None,
     }
 }
+
 struct Sets(Vec<usize>);
 impl Sets {
     fn root(&mut self, mut i: usize) -> usize {
@@ -241,7 +266,7 @@ mod tests {
             f("right", Ty::Ptr, Val::Global("hidden".into())),
             f("independent", Ty::Int(32), Val::Int(7)),
         ]);
-        let plan = partition(&module, &lir(), EntryPoint::None, 64);
+        let plan = partition(module.clone(), &lir(), EntryPoint::None, 64);
         assert!(plan.units.len() > 1);
         let shared = plan
             .units
@@ -272,7 +297,7 @@ mod tests {
             f("c", Ty::Int(32), Val::Int(7)),
             f("unused", Ty::Int(32), Val::Int(9)),
         ]);
-        let plan = partition(&module, &lir(), EntryPoint::None, 64);
+        let plan = partition(module.clone(), &lir(), EntryPoint::None, 64);
         assert!(plan.units.len() > 1);
         for unit in &plan.units {
             let definitions = definitions(unit);
@@ -310,17 +335,18 @@ mod tests {
             f.linkage = Linkage::Private;
         }
         let module = m(vec![h, f("address", Ty::Ptr, Val::Global("hidden".into()))]);
-        assert!(
-            partition(&module, &lir(), EntryPoint::None, 64)
+        assert_eq!(
+            partition(module.clone(), &lir(), EntryPoint::None, 64)
                 .units
-                .is_empty()
+                .len(),
+            1
         );
         let bad = m(vec![
             f("same", Ty::Int(32), Val::Int(1)),
             f("same", Ty::Int(32), Val::Int(2)),
         ]);
         assert!(
-            partition(&bad, &lir(), EntryPoint::None, 64)
+            partition(bad.clone(), &lir(), EntryPoint::None, 64)
                 .fallback
                 .unwrap()
                 .contains("duplicate")
