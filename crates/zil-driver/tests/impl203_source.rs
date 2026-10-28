@@ -304,6 +304,7 @@ fn inspect<F:Fn()->i32,G:FnOnce()->i32>(state:State<F,G>,flag:bool)->i32{
     return state.second()
 }
 
+
 fn main()->i32{return 0}
 "#,
     );
@@ -345,6 +346,227 @@ fn main()->i32{return 0}
         &collision,
         Some("E-STATE-ORIGIN"),
     );
+}
+
+#[test]
+fn raw_field_alias_invalidation_survives_refill_and_keeps_independent_fields() {
+    use zil_base::{NodeId, Span};
+    use zil_ir::{CoreExpr, CoreExprKind as E, CoreStatement, CoreStatementKind as S, UnaryOp};
+    let mut core = expanded(
+        "resource Ticket{code:i32}\npackage State<F,G>{manages marker:Ticket;first:F;second:G}\nfn inspect<F:Fn()->i32,G:FnOnce()->i32>(state:State<F,G>,flag:bool)->i32{var owner=state;return 0}\nfn main()->i32{return 0}\n",
+    );
+    let index = core
+        .functions
+        .iter()
+        .position(|f| !f.state_parameters.is_empty())
+        .unwrap();
+    let span = Span::new(FileId(0), 1, 2);
+    let mut next = 960_000u32;
+    let mut expression = |kind| {
+        next += 1;
+        CoreExpr {
+            id: NodeId(next),
+            span,
+            kind,
+        }
+    };
+    let first = {
+        let object = expression(E::Name("owner".into()));
+        expression(E::Member {
+            object: Box::new(object),
+            member: "first".into(),
+        })
+    };
+    let statement_id = std::cell::Cell::new(961_000u32);
+    let statement = |kind| {
+        statement_id.set(statement_id.get() + 1);
+        CoreStatement {
+            id: NodeId(statement_id.get()),
+            span,
+            kind,
+        }
+    };
+    let mut binding = core.functions[index].body.statements[0].clone();
+    // Reuse a genuine binding shell from the same source syntax rather than
+    // inventing a source capability. This is an unused-Core contract probe;
+    // it does not open any additional source field-replacement operation.
+    let shell = expanded("fn main()->i32{let value=0;return value}");
+    binding.kind = shell.functions[0].body.statements[0].kind.clone();
+    let bind = |name: &str, initializer: CoreExpr| {
+        let mut result = binding.clone();
+        statement_id.set(statement_id.get() + 1);
+        result.id = NodeId(statement_id.get());
+        let S::Binding {
+            name: binding_name,
+            initializer: value,
+            ..
+        } = &mut result.kind
+        else {
+            panic!("binding")
+        };
+        *binding_name = name.into();
+        *value = Some(initializer);
+        result
+    };
+    let borrowed = expression(E::Unary {
+        op: UnaryOp::Borrow,
+        operand: Box::new(first.clone()),
+    });
+    let borrow = bind("view", borrowed);
+    let mut take_first = first.clone();
+    take_first.id = NodeId(962_001);
+    let take = bind("taken", take_first);
+    let taken = expression(E::Name("taken".into()));
+    let mut refill_first = first.clone();
+    refill_first.id = NodeId(962_002);
+    let refill_kind = S::Assign {
+        target: refill_first,
+        value: taken,
+    };
+    let view = expression(E::Name("view".into()));
+    let call = expression(E::Call {
+        callee: Box::new(view),
+        arguments: vec![],
+    });
+    let call_kind = S::Expression(call);
+    let owner = core.functions[index].body.statements[0].clone();
+    let end = core.functions[index]
+        .body
+        .statements
+        .last()
+        .unwrap()
+        .clone();
+    let fresh_first = {
+        let object = expression(E::Name("owner".into()));
+        expression(E::Member {
+            object: Box::new(object),
+            member: "first".into(),
+        })
+    };
+    let fresh_borrow = expression(E::Unary {
+        op: UnaryOp::Borrow,
+        operand: Box::new(fresh_first),
+    });
+    let fresh = bind("fresh_view", fresh_borrow);
+    let second = {
+        let object = expression(E::Name("owner".into()));
+        expression(E::Member {
+            object: Box::new(object),
+            member: "second".into(),
+        })
+    };
+    let other = bind("other", second);
+    let refill = statement(refill_kind);
+    let call = statement(call_kind);
+    let mut fresh_call = call.clone();
+    fresh_call.id = NodeId(962_003);
+    let S::Expression(value) = &mut fresh_call.kind else {
+        unreachable!()
+    };
+    value.id = NodeId(962_004);
+    let E::Call { callee, .. } = &mut value.kind else {
+        unreachable!()
+    };
+    callee.id = NodeId(962_005);
+    callee.kind = E::Name("fresh_view".into());
+    core.functions[index].body.statements = vec![
+        owner.clone(),
+        borrow.clone(),
+        other,
+        call.clone(),
+        end.clone(),
+    ];
+    raw_types("alias-other-field-remains-valid", &core, None);
+    core.functions[index].body.statements = vec![
+        owner.clone(),
+        borrow.clone(),
+        take.clone(),
+        refill.clone(),
+        fresh,
+        fresh_call,
+        end.clone(),
+    ];
+    raw_types("alias-fresh-after-refill", &core, None);
+    core.functions[index].body.statements = vec![
+        owner.clone(),
+        borrow.clone(),
+        take.clone(),
+        refill.clone(),
+        call.clone(),
+        end.clone(),
+    ];
+    raw_types("alias-old-after-refill", &core, Some("E-STATE-ALIAS"));
+    let condition = expression(E::Name("flag".into()));
+    let loop_statement = |body| {
+        statement(S::While {
+            condition: condition.clone(),
+            body: zil_ir::CoreBlock {
+                statements: body,
+                span,
+            },
+        })
+    };
+    let fresh_loop = loop_statement(vec![
+        borrow.clone(),
+        call.clone(),
+        take.clone(),
+        refill.clone(),
+    ]);
+    core.functions[index].body.statements = vec![owner.clone(), fresh_loop, end.clone()];
+    raw_types("alias-loop-new-borrow-each-iteration", &core, None);
+    let break_loop = loop_statement(vec![
+        call.clone(),
+        take.clone(),
+        refill.clone(),
+        statement(S::Break),
+    ]);
+    core.functions[index].body.statements =
+        vec![owner.clone(), borrow.clone(), break_loop, end.clone()];
+    raw_types("alias-loop-break-before-repeat", &core, None);
+    let repeat = loop_statement(vec![call.clone(), take, refill]);
+    core.functions[index].body.statements =
+        vec![owner.clone(), borrow.clone(), repeat, end.clone()];
+    raw_types(
+        "alias-loop-old-borrow-next-iteration",
+        &core,
+        Some("E-STATE-ALIAS"),
+    );
+    let repeated_shared = loop_statement(vec![call.clone(), call.clone()]);
+    core.functions[index].body.statements =
+        vec![owner.clone(), borrow.clone(), repeated_shared, end.clone()];
+    raw_types("alias-loop-repeated-shared-use", &core, None);
+    core.functions[index].state_parameters[0].bindings[0].kind = zil_ir::CallableKind::FnMut;
+    let mut mutable_borrow = borrow;
+    let S::Binding {
+        initializer: Some(value),
+        ..
+    } = &mut mutable_borrow.kind
+    else {
+        unreachable!()
+    };
+    let E::Unary { op, .. } = &mut value.kind else {
+        unreachable!()
+    };
+    *op = UnaryOp::BorrowMut;
+    let repeated_mutable = loop_statement(vec![call.clone(), call]);
+    core.functions[index].body.statements = vec![owner, mutable_borrow, repeated_mutable, end];
+    raw_types("alias-loop-repeated-same-exclusive-use", &core, None);
+}
+
+#[test]
+fn a_named_mutable_store_field_view_can_call_twice() {
+    let original = mutable_store(true);
+    let source = original
+        .replace(
+            "let first=view.first()",
+            "let callback=&mut view.first\n    let first=callback()",
+        )
+        .replace(
+            "let again=store_at_mut(items,0).first()",
+            "let again=callback()",
+        );
+    assert_ne!(source, original);
+    native("same-exclusive-view-twice", &source, "MPBQZA", 0);
 }
 
 #[test]
@@ -464,5 +686,103 @@ fn five_module_consumer_infers_complete_value_types() {
             assert_eq!(output.stdout, expected.as_bytes(), "{output:?}");
             assert!(output.stderr.is_empty(), "{output:?}");
         }
+    }
+}
+
+fn types_boundary<T: PartialEq + std::fmt::Debug>(
+    mut run: impl FnMut(usize) -> Result<T, Vec<zil_base::Diagnostic>>,
+    maximum: usize,
+) -> (usize, String) {
+    let expected = run(maximum).unwrap();
+    let (mut low, mut high) = (0, maximum);
+    while low + 1 < high {
+        let mid = low + (high - low) / 2;
+        match run(mid) {
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                high = mid;
+            }
+            Err(errors) => {
+                assert!(
+                    errors.iter().all(|d| {
+                        d.phase == zil_base::Phase::Types
+                            && d.category == ResultCategory::ResourceLimit
+                    }),
+                    "{errors:#?}"
+                );
+                low = mid;
+            }
+        }
+    }
+    assert_eq!(run(high).unwrap(), expected);
+    let below = run(high - 1).unwrap_err();
+    assert!(
+        below.iter().all(|d| {
+            d.phase == zil_base::Phase::Types && d.category == ResultCategory::ResourceLimit
+        }),
+        "{below:#?}"
+    );
+    assert_eq!(run(high).unwrap(), expected);
+    (high, format!("{below:#?}"))
+}
+
+#[test]
+fn dual_state_and_value_inferred_instances_have_exact_types_boundaries() {
+    use zil_base::{Limits, TargetProfile};
+    let mixed = mutable_store(true);
+    let bare = mixed.replace(
+        "run(pack(make(65,10),other(66,20),17))?",
+        "run(identity(pack(make(65,10),other(66,20),17)))?",
+    );
+    assert_ne!(bare, mixed);
+    for (label, source) in [
+        ("same-declared-modes", MARKERS),
+        ("different-mutable-store", mixed.as_str()),
+        ("bare-complete-value", bare.as_str()),
+    ] {
+        let case = Case::new(&format!("budget-{label}"));
+        fs::write(case.0.join("source.zil"), source).unwrap();
+        let core = expanded(source);
+        fs::write(case.0.join("core.txt"), format!("{core:#?}")).unwrap();
+        let target = TargetProfile::host_llvm();
+        let defaults = Limits::default();
+        let check = |limits: &Limits| zil_types::check(&core, &target, limits);
+        let typed = check(&defaults).unwrap();
+        let plan = zil_analyze::analyze(&typed, &defaults).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &defaults).unwrap();
+        let decoded = zil_ir::wire::decode_module_candidate(&wire, &defaults).unwrap();
+        assert_eq!(decoded, (typed.clone(), plan.clone()));
+        zil_verify::verify_module(typed, plan, &target, &defaults).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &defaults).unwrap();
+        let (work, work_below) = types_boundary(
+            |n| {
+                check(&Limits {
+                    max_analysis_steps: n,
+                    ..defaults.clone()
+                })
+            },
+            defaults.max_analysis_steps,
+        );
+        let (locals, locals_below) = types_boundary(
+            |n| {
+                check(&Limits {
+                    max_locals: n,
+                    ..defaults.clone()
+                })
+            },
+            defaults.max_locals,
+        );
+        let (functions, functions_below) = types_boundary(
+            |n| {
+                check(&Limits {
+                    max_functions: n,
+                    ..defaults.clone()
+                })
+            },
+            defaults.max_functions,
+        );
+        fs::write(case.0.join("boundary.json"), format!("{{\"types_work\":{work},\"types_locals\":{locals},\"types_functions\":{functions},\"checks\":\"default == N == fresh N; N-1 Types ResourceLimit; raw and Wire Verify\"}}\n")).unwrap();
+        fs::write(case.0.join("below.txt"), format!("work N-1\n{work_below}\nlocals N-1\n{locals_below}\nfunctions N-1\n{functions_below}")).unwrap();
+        eprintln!("{label}: types_work={work}, locals={locals}, functions={functions}");
     }
 }
