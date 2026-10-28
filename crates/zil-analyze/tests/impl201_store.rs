@@ -521,12 +521,8 @@ fn callback_windows_and_lending_results_retain_the_parent_store_hold() {
         let raw = window(mutable, kind, lending);
         let plan = accepted(&raw);
         let holds = &plan.functions[0].holds;
-        for value in 2..if lending { 6 } else { 5 } {
-            assert_eq!(
-                holds[value].roots,
-                vec![HoldRoot::Local(LocalId(0))],
-                "{plan:#?}"
-            );
+        for hold in &holds[2..if lending { 6 } else { 5 }] {
+            assert_eq!(hold.roots, vec![HoldRoot::Local(LocalId(0))], "{plan:#?}");
         }
     }
 }
