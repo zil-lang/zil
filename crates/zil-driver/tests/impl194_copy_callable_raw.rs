@@ -413,3 +413,38 @@ fn new_instances_pay_work_nodes_depth_and_function_limits_without_budget_changes
     )
     .unwrap();
 }
+
+#[test]
+fn full_copy_instance_keys_still_reject_cycles_and_bound_infinite_growth() {
+    for (name, text, category) in [
+        (
+            "same-instance-cycle",
+            "struct Cycle<T>{next:Cycle<T>}fn id<T:Copy>(x:T)->T=>x;fn inspect(x:Cycle<i32>)->i32{let y=id(x);return 0}fn main(){}",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "growing-instance",
+            "struct Grow<T>{next:Grow<(T,T)>}fn id<T:Copy>(x:T)->T=>x;fn inspect(x:Grow<i32>)->i32{let y=id(x);return 0}fn main(){}",
+            ResultCategory::ResourceLimit,
+        ),
+    ] {
+        let input = source(text);
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let limits = Limits {
+            max_analysis_steps: 4096,
+            max_call_depth: 20,
+            ..Limits::default()
+        };
+        let errors = zil_expand::expand_with_map_limits(&input, &ast, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Expand && d.category == category),
+            "{name}: {errors:?}"
+        );
+        let case = Case::new(name);
+        fs::write(case.0.join("source.zil"), text).unwrap();
+        fs::write(case.0.join("limits.txt"), format!("{limits:#?}")).unwrap();
+        fs::write(case.0.join("diagnostics.txt"), format!("{errors:#?}")).unwrap();
+    }
+}
