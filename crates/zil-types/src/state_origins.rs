@@ -326,6 +326,8 @@ pub(super) fn collect(
         scopes: vec![BTreeMap::new()],
         expressions: BTreeMap::new(),
         capture: false,
+        live: 1,
+        loops: Vec::new(),
         state,
         limits,
     };
@@ -349,6 +351,10 @@ struct Walk<'a, 's> {
     scopes: Vec<BTreeMap<String, Shape>>,
     expressions: BTreeMap<NodeId, Shape>,
     capture: bool,
+    // Four possible consumed-slot masks for this declaration's two distinct
+    // sources. This is source capability checking, not a concrete loan proof.
+    live: u8,
+    loops: Vec<(u8, u8)>,
     state: &'s mut closures::State,
     limits: &'a Limits,
 }
@@ -542,6 +548,53 @@ impl Walk<'_, '_> {
         }
         Ok(())
     }
+    fn consume_once(&mut self, shape: &Shape, span: Span) -> R<()> {
+        let Some(slot) = shape.slot() else {
+            return Ok(());
+        };
+        self.state
+            .snapshot(self.bounds.len().saturating_add(4), span)?;
+        if self
+            .bounds
+            .iter()
+            .find(|bound| bound.generic_index == slot)
+            .is_none_or(|bound| bound.kind != CallableKind::FnOnce)
+        {
+            return Ok(());
+        }
+        let consumed = 1u8 << slot;
+        let mut next = 0;
+        for mask in 0u8..4 {
+            if self.live & (1 << mask) == 0 {
+                continue;
+            }
+            if mask & consumed != 0 {
+                return Err(error(
+                    "E-STATE-ONCE",
+                    span,
+                    "declared FnOnce State source was already consumed on a reachable path",
+                ));
+            }
+            next |= 1 << (mask | consumed);
+        }
+        self.live = next;
+        Ok(())
+    }
+    fn loop_body(&mut self, body: &CoreBlock, before: u8, depth: usize, span: Span) -> R<()> {
+        self.state.snapshot(8, span)?;
+        self.loops.push((0, 0));
+        self.block(body, depth + 1)?;
+        let (breaks, continues) = self.loops.pop().expect("State source loop");
+        if (self.live | continues) & !before != 0 {
+            return Err(error(
+                "E-STATE-ONCE",
+                span,
+                "a repeated loop path cannot consume a declared FnOnce State source",
+            ));
+        }
+        self.live = before | breaks;
+        Ok(())
+    }
     fn expr(&mut self, expression: &CoreExpr, depth: usize) -> R<Shape> {
         self.node(depth, expression.span)?;
         let span = expression.span;
@@ -583,7 +636,8 @@ impl Walk<'_, '_> {
                 } else {
                     callee.as_ref()
                 };
-                self.expr(target, depth + 1)?;
+                let target_shape = self.expr(target, depth + 1)?;
+                self.consume_once(&target_shape, target.span)?;
                 self.state.snapshot(arguments.len(), span)?;
                 let mut shapes = Vec::new();
                 for argument in arguments {
@@ -661,7 +715,14 @@ impl Walk<'_, '_> {
                             ));
                         }
                     }
-                    self.ty(&signature.result, &substitutions, false, depth + 1, span)?
+                    let result =
+                        self.ty(&signature.result, &substitutions, false, depth + 1, span)?;
+                    if !result.has_origin() {
+                        for (_, source) in &substitutions {
+                            self.consume_once(source, span)?;
+                        }
+                    }
+                    result
                 } else {
                     if foreign::callback_constructor(target) && shapes.iter().any(Shape::has_origin)
                     {
@@ -730,8 +791,13 @@ impl Walk<'_, '_> {
                 else_value,
             } => {
                 self.expr(condition, depth + 1)?;
+                self.state.snapshot(4, span)?;
+                let before = self.live;
                 let a = self.expr(then_value, depth + 1)?;
+                let after_then = self.live;
+                self.live = before;
                 let b = self.expr(else_value, depth + 1)?;
+                self.live |= after_then;
                 self.same_origin(&a, &b, span)?;
                 a
             }
@@ -882,8 +948,14 @@ impl Walk<'_, '_> {
                     let b = self.expr(value, depth + 1)?;
                     self.same_origin(&a, &b, statement.span)?;
                 }
-                CoreStatementKind::Return(Some(value)) | CoreStatementKind::Expression(value) => {
+                CoreStatementKind::Expression(value) => {
                     self.expr(value, depth + 1)?;
+                }
+                CoreStatementKind::Return(value) => {
+                    if let Some(value) = value {
+                        self.expr(value, depth + 1)?;
+                    }
+                    self.live = 0;
                 }
                 CoreStatementKind::If {
                     condition,
@@ -891,14 +963,22 @@ impl Walk<'_, '_> {
                     else_body,
                 } => {
                     self.expr(condition, depth + 1)?;
+                    self.state.snapshot(4, statement.span)?;
+                    let before = self.live;
                     self.block(then_body, depth + 1)?;
+                    let after_then = self.live;
+                    self.live = before;
                     if let Some(body) = else_body {
                         self.block(body, depth + 1)?;
                     }
+                    self.live |= after_then;
                 }
                 CoreStatementKind::While { condition, body } => {
+                    let before = self.live;
                     self.expr(condition, depth + 1)?;
-                    self.block(body, depth + 1)?;
+                    let after_condition = self.live;
+                    self.loop_body(body, before, depth, statement.span)?;
+                    self.live |= after_condition;
                 }
                 CoreStatementKind::IfLet {
                     pattern,
@@ -907,26 +987,34 @@ impl Walk<'_, '_> {
                     else_body,
                 } => {
                     let shape = self.expr(value, depth + 1)?;
+                    self.state.snapshot(4, statement.span)?;
+                    let before = self.live;
                     self.state.snapshot(1, statement.span)?;
                     self.scopes.push(BTreeMap::new());
                     self.pattern(pattern, &shape, depth + 1)?;
                     self.block(then_body, depth + 1)?;
                     self.scopes.pop();
+                    let after_then = self.live;
+                    self.live = before;
                     if let Some(body) = else_body {
                         self.block(body, depth + 1)?;
                     }
+                    self.live |= after_then;
                 }
                 CoreStatementKind::WhileLet {
                     pattern,
                     value,
                     body,
                 } => {
+                    let before = self.live;
                     let shape = self.expr(value, depth + 1)?;
+                    let after_condition = self.live;
                     self.state.snapshot(1, statement.span)?;
                     self.scopes.push(BTreeMap::new());
                     self.pattern(pattern, &shape, depth + 1)?;
-                    self.block(body, depth + 1)?;
+                    self.loop_body(body, before, depth, statement.span)?;
                     self.scopes.pop();
+                    self.live |= after_condition;
                 }
                 CoreStatementKind::ForRange {
                     name,
@@ -937,24 +1025,48 @@ impl Walk<'_, '_> {
                 } => {
                     self.expr(start, depth + 1)?;
                     self.expr(end, depth + 1)?;
+                    let before = self.live;
                     self.state.snapshot(1, statement.span)?;
                     self.scopes.push(BTreeMap::new());
                     self.bind(name, Shape::None, statement.span)?;
-                    self.block(body, depth + 1)?;
+                    self.loop_body(body, before, depth, statement.span)?;
                     self.scopes.pop();
                 }
                 CoreStatementKind::Match { value, arms } => {
                     let shape = self.expr(value, depth + 1)?;
+                    self.state
+                        .snapshot(arms.len().saturating_mul(4), statement.span)?;
+                    let before = self.live;
+                    let mut after = 0;
                     for arm in arms {
+                        self.live = before;
                         self.state.snapshot(1, statement.span)?;
                         self.scopes.push(BTreeMap::new());
                         self.pattern(&arm.pattern, &shape, depth + 1)?;
                         self.block(&arm.body, depth + 1)?;
                         self.scopes.pop();
+                        after |= self.live;
                     }
+                    self.live = after;
                 }
                 CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
                     self.block(body, depth + 1)?
+                }
+                CoreStatementKind::Break | CoreStatementKind::Continue => {
+                    self.state.snapshot(1, statement.span)?;
+                    let Some((breaks, continues)) = self.loops.last_mut() else {
+                        return Err(error(
+                            "E-CONTROL",
+                            statement.span,
+                            "State source loop exit is outside a loop",
+                        ));
+                    };
+                    if matches!(statement.kind, CoreStatementKind::Break) {
+                        *breaks |= self.live;
+                    } else {
+                        *continues |= self.live;
+                    }
+                    self.live = 0;
                 }
                 _ => {}
             }
