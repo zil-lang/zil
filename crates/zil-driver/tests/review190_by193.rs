@@ -99,14 +99,26 @@ fn rejected(label: &str, module: TypedModule, mut candidate: CandidatePlan, code
 
 fn row(calls: usize, edges: &[u32]) -> CallableFlowNode {
     CallableFlowNode {
-        calls: vec![CallableKind::Fn; calls],
+        calls: vec![
+            zil_ir::CallEvent {
+                parameter: 0,
+                kind: CallableKind::Fn
+            };
+            calls
+        ],
         next: CallableFlowNext::Edges(edges.to_vec()),
     }
 }
 
 fn returning(calls: usize) -> CallableFlowNode {
     CallableFlowNode {
-        calls: vec![CallableKind::Fn; calls],
+        calls: vec![
+            zil_ir::CallEvent {
+                parameter: 0,
+                kind: CallableKind::Fn
+            };
+            calls
+        ],
         next: CallableFlowNext::Exit(CallableExit::Return),
     }
 }
@@ -321,7 +333,10 @@ fn finite_once_zero_or_one_calls_keeps_its_original_trace_domain() {
                 exit: CallableExit::Return
             },
             CallableTrace {
-                calls: vec![CallableKind::FnOnce],
+                calls: vec![zil_ir::CallEvent {
+                    parameter: 0,
+                    kind: CallableKind::FnOnce
+                }],
                 exit: CallableExit::Return
             },
         ])
