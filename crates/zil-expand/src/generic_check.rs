@@ -1669,10 +1669,23 @@ impl Check<'_, '_, '_> {
                 member: MemberName::Name(member),
             } => {
                 let package = self.package_local(object, state);
-                // Reading a field first accesses its base place. In particular
-                // an exclusive address is not moved just to read a Copy child.
-                // Non-Copy callable fields still consume their own slot below.
-                let value = self.expr(object, state, None, true)?;
+                // A known Address local is accessed, not consumed, to project a
+                // Copy child. Ordinary symbolic Values retain their previous
+                // consumption rule: Holder<T>.value cannot silently copy T.
+                let mut base_expression = object.as_ref();
+                while let ExprKind::Group(inner) = &base_expression.kind {
+                    self.tick(base_expression.span)?;
+                    base_expression = inner;
+                }
+                let address_local = matches!(&base_expression.kind, ExprKind::Name(name)
+                    if state.locals.get(name).is_some_and(|local|
+                        matches!(group(&local.ty).kind, TypeKind::Reference { .. })));
+                let value = self.expr(
+                    object,
+                    state,
+                    None,
+                    borrowing || package.is_some() || address_local,
+                )?;
                 let (base, through_address) = match &group(&value).kind {
                     TypeKind::Reference { inner, .. } => (group(inner), true),
                     _ => (group(&value), false),

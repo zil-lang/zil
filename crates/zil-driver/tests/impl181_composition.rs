@@ -138,6 +138,7 @@ fn concrete_address_projection_is_repeatable_but_never_grants_unknown_fields_or_
         "fn bad<T>(p:&Item)->Item=>*p",
         "fn bad<T>(p:&Item){p.value=8}",
         "fn bad<T>(p:&mut Item){let a=p;let b=p;}",
+        "struct Holder<T>{value:T}fn bad<T>(holder:Holder<T>)->(T,T){return (holder.value,holder.value)}",
     ] {
         let source = format!(
             "resource R{{n:i32}}package Item{{manages r:R;value:i32}}{definition};fn main(){{}}"
