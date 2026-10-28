@@ -428,11 +428,20 @@ pub(super) fn check_module(
     let mut checked = vec![false; module.functions.len()];
     for index in order {
         let f = &module.functions[index];
-        budget.spend(f.parameters.len())?;
-        let mut parameters = Vec::new();
+        let mut parameters: Vec<(u32, ClosureId, bool, &Type)> = Vec::new();
         for (position, local) in f.parameters.iter().enumerate() {
             let ty = &f.locals[local.0 as usize].ty;
             if let Some((closure, borrowed)) = parameter_type(ty) {
+                budget.spend(parameters.len())?;
+                if parameters
+                    .iter()
+                    .any(|(position, ..)| f.parameters[*position as usize] == *local)
+                {
+                    return Err(bad(
+                        f,
+                        "actual callback parameters cannot share one local slot",
+                    ));
+                }
                 if parameters.len() >= 2 {
                     return Err(unsupported(
                         "a concrete helper supports at most two callback environment parameters",
