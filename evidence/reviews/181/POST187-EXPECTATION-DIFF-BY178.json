@@ -1,0 +1,16 @@
+{
+  "source_commit": "20dcec0f22fa72f1d3d3c0079cfcb0b5c595ceab",
+  "implementation_commit": "20dcec0f22fa72f1d3d3c0079cfcb0b5c595ceab",
+  "reviewer": "history178_audit",
+  "status": "Pass",
+  "verdict": "Pass",
+  "scope": "Independent read-only approval of the exact tests-only expectation migration, conditional on separately verified187 production; this is not acceptance of187 implementation.",
+  "findings": [
+    "The original094 bytes_new / local Desc / uncalled local move callback source is byte-for-byte preserved. It moves from the old Unsupported list into a Success control whose unchanged passes helper requires the Verify phase.",
+    "The callback does not escape or execute and the owner stays in scope. This control is consistent with the proposed local nonescaping187 profile, while the surrounding header-forgery, escape, FFI, CT and ownership negatives are unchanged.",
+    "Only one test and one changes explanation change. No production or source-input changes are present."
+  ],
+  "execution": "NotRun; root must run this exact input on the independently reviewed187 freeze. No development187 result is claimed by this receipt.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
