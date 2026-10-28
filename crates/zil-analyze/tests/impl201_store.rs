@@ -324,22 +324,35 @@ fn direct_and_package_store_captures_stay_closed() {
     let store = Type::Managed(Box::new(Type::OwnedStore {
         element: Box::new(element(0)),
     }));
-    for capture in [
-        Type::Desc(Box::new(Type::ByteBuffer)),
-        store.clone(),
-        Type::Package {
-            name: "StoreOwner".into(),
-            fields: vec![("items".into(), store)],
-        },
-        element(1),
+    // Preserve all original raw attacks. The captured leaf element(0) and
+    // the outer callback element(1) share the nominal name State<i32,F0>,
+    // but only the latter has a canonical definition here. 204 admission
+    // therefore rejects its callback-bearing payload at the earlier leaf
+    // boundary; do not add a new definition or turn these into positives.
+    for (capture, message) in [
+        (
+            Type::Desc(Box::new(Type::ByteBuffer)),
+            "self-contained environment",
+        ),
+        (
+            store.clone(),
+            "captured Store Item cannot contain callbacks, addresses, descriptions, nested Store or unresolved types",
+        ),
+        (
+            Type::Package {
+                name: "StoreOwner".into(),
+                fields: vec![("items".into(), store)],
+            },
+            "captured Store Item cannot contain callbacks, addresses, descriptions, nested Store or unresolved types",
+        ),
+        (
+            element(1),
+            "captured Store Package requires direct owned Store, supported Managed and finite Copy fields",
+        ),
     ] {
         let mut raw = fixture(element(1), 1);
         raw.closures[0].captures = vec![capture];
-        rejected(
-            &raw,
-            ResultCategory::Unsupported,
-            "self-contained environment",
-        );
+        rejected(&raw, ResultCategory::Unsupported, message);
     }
     let mut through_child = fixture(element(1), 2);
     through_child.closures[0].captures = vec![Type::Closure(ClosureId(1))];
