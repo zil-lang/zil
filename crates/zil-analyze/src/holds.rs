@@ -15,16 +15,11 @@ enum Root {
 type Roots = BTreeSet<Root>;
 type State = BTreeMap<LocalId, Roots>;
 
-fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
-    matches!(ty, Type::Desc(inner) if descriptor_origins || **inner == Type::ByteBuffer)
-}
-
-// Resource descriptions have the same provenance whether a different function
-// creates a head address or not. The resource table only skips this lane for
-// modules that cannot contain any checked resource description.
-fn descriptor_origins(module: &TypedModule, budget: &mut Budget) -> CompileResult<bool> {
-    budget.spend(1, "resource description lane")?;
-    Ok(!module.resources.is_empty())
+// Storage descriptions supply provenance to derived views; they are not
+// themselves strong address windows. Ordinary resource descriptions are kept
+// by Analyze's separate responsibility facts, not this public address graph.
+fn tracked_desc(ty: &Type) -> bool {
+    matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. }))
 }
 
 fn state_cost(state: &State, budget: &mut Budget) -> CompileResult<()> {
@@ -47,7 +42,6 @@ fn extend(target: &mut Roots, source: &Roots, budget: &mut Budget) -> CompileRes
 fn infer(
     module: &TypedModule,
     summaries: &[Roots],
-    descriptor_origins: bool,
     f: &TypedFunction,
     predecessors: &[Vec<usize>],
     reachable: &[bool],
@@ -62,22 +56,17 @@ fn infer(
         let Some(closure) = module.closures.get(id.0 as usize) else {
             return Ok(false);
         };
-        if descriptor_origins {
-            budget.spend(closure.captures.len(), "head descriptor capture scan")?;
-        }
-        Ok(closure.captures.iter().any(|ty| {
-            matches!(ty, Type::Address { .. })
-                || (descriptor_origins && matches!(ty, Type::Desc(_)))
-        }))
+        budget.spend(closure.captures.len(), "address capture scan")?;
+        Ok(closure
+            .captures
+            .iter()
+            .any(|ty| matches!(ty, Type::Address { .. })))
     };
     let mut has_sources = f
         .values
         .iter()
-        .any(|ty| matches!(ty, Type::Address { .. }) || tracked_desc(ty, descriptor_origins));
+        .any(|ty| matches!(ty, Type::Address { .. }) || tracked_desc(ty));
     if !has_sources {
-        if descriptor_origins {
-            budget.spend(f.parameters.len(), "head incoming source scan")?;
-        }
         for local in &f.parameters {
             if captured_address(&f.locals[local.0 as usize].ty, budget)? {
                 has_sources = true;
@@ -108,7 +97,7 @@ fn infer(
                 budget.spend(f.parameters.len(), "incoming Hold parameters")?;
                 for (index, local) in f.parameters.iter().enumerate() {
                     if matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
-                        || tracked_desc(&f.locals[local.0 as usize].ty, descriptor_origins)
+                        || tracked_desc(&f.locals[local.0 as usize].ty)
                         || captured_address(&f.locals[local.0 as usize].ty, budget)?
                     {
                         state.insert(*local, Roots::from([Root::Parameter(index as u32)]));
@@ -130,14 +119,14 @@ fn infer(
                 budget.spend(1, "Hold instruction")?;
                 let mut found = Roots::new();
                 match &instruction.kind {
-                    InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if descriptor_origins || **inner == Type::ByteBuffer) =>
+                    InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. })) =>
                     {
                         found.insert(Root::Local(*local));
                     }
                     InstructionKind::DescribePackageField { local, index }
-                        if instruction.result.is_some_and(|value| {
-                            tracked_desc(&f.values[value.0 as usize], descriptor_origins)
-                        }) =>
+                        if instruction
+                            .result
+                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
                     {
                         let root = match &f.locals[local.0 as usize].ty {
                             Type::Package { fields, .. } if fields.get(*index as usize)
@@ -147,9 +136,9 @@ fn infer(
                         found.insert(root);
                     }
                     InstructionKind::ProjectOwnedArrayField { local, .. }
-                        if instruction.result.is_some_and(|value| {
-                            tracked_desc(&f.values[value.0 as usize], descriptor_origins)
-                        }) =>
+                        if instruction
+                            .result
+                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
                     {
                         // Array element slots are independently owned, but the
                         // initial window profile keeps a conservative whole
@@ -157,9 +146,9 @@ fn infer(
                         found.insert(Root::Local(*local));
                     }
                     InstructionKind::DescribeCapture { index }
-                        if instruction.result.is_some_and(|value| {
-                            tracked_desc(&f.values[value.0 as usize], descriptor_origins)
-                        }) =>
+                        if instruction
+                            .result
+                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
                     {
                         found.insert(Root::Capture(*index));
                     }
@@ -213,9 +202,7 @@ fn infer(
                         let ty = instruction
                             .result
                             .and_then(|id| f.values.get(id.0 as usize));
-                        if matches!(ty, Some(Type::Address { .. }))
-                            || ty
-                                .is_some_and(|ty| descriptor_origins && matches!(ty, Type::Desc(_)))
+                        if matches!(ty, Some(Type::Address { .. })) || ty.is_some_and(tracked_desc)
                         {
                             found.insert(Root::Capture(*index));
                         }
@@ -278,10 +265,16 @@ fn infer(
                     InstructionKind::MakeClosure { captures, .. } => {
                         for value in captures {
                             budget.spend(1, "Hold capture operand")?;
-                            let source = values
+                            let ty = f
+                                .values
                                 .get(value.0 as usize)
                                 .ok_or_else(|| bad("Hold capture outside table"))?;
-                            extend(&mut found, source, budget)?;
+                            if matches!(ty, Type::Address { .. }) || captured_address(ty, budget)? {
+                                let source = values
+                                    .get(value.0 as usize)
+                                    .ok_or_else(|| bad("Hold capture outside table"))?;
+                                extend(&mut found, source, budget)?;
+                            }
                         }
                     }
                     _ => {}
@@ -331,7 +324,6 @@ pub(super) fn infer_module(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
-    let descriptor_origins = descriptor_origins(module, budget)?;
     if !module
         .functions
         .iter()
@@ -341,9 +333,7 @@ pub(super) fn infer_module(
             .functions
             .iter()
             .zip(graphs)
-            .map(|(f, (preds, reachable))| {
-                infer(module, &[], descriptor_origins, f, preds, reachable, budget)
-            })
+            .map(|(f, (preds, reachable))| infer(module, &[], f, preds, reachable, budget))
             .collect();
     }
     let count = module.functions.len();
@@ -396,7 +386,6 @@ pub(super) fn infer_module(
         let values = infer(
             module,
             &summaries,
-            descriptor_origins,
             function,
             predecessors,
             reachable,
@@ -553,7 +542,6 @@ mod frontier_tests {
         graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
         budget: &mut Budget,
     ) -> CompileResult<Vec<Vec<ValueHold>>> {
-        let descriptor_origins = descriptor_origins(module, budget)?;
         if !module
             .functions
             .iter()
@@ -563,9 +551,7 @@ mod frontier_tests {
                 .functions
                 .iter()
                 .zip(graphs)
-                .map(|(f, (preds, reachable))| {
-                    infer(module, &[], descriptor_origins, f, preds, reachable, budget)
-                })
+                .map(|(f, (preds, reachable))| infer(module, &[], f, preds, reachable, budget))
                 .collect();
         }
         budget.spend(module.functions.len(), "return contract table")?;
@@ -579,7 +565,6 @@ mod frontier_tests {
                 let values = infer(
                     module,
                     &summaries,
-                    descriptor_origins,
                     function,
                     predecessors,
                     reachable,

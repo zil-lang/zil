@@ -1,0 +1,27 @@
+
+running 22 tests
+test conditional_and_looping_callback_effects_cover_every_reachable_path ... ok
+test copy_argument_preparation_still_observes_the_captured_shared_window ... ok
+test callback_error_and_late_argument_failure_cleanup_once ... ok
+test current_explicit_arguments_do_not_end_before_a_direct_helper_returns ... ok
+test final_call_cannot_use_its_shared_capture_as_desc_write_permission ... ok
+test each_desc_capture_keeps_its_own_read_or_write_origin ... ok
+test local_borrowed_environment_is_valid_but_raw_factory_escape_is_rejected ... ok
+test mixed_capture_contracts_substitute_actual_normal_function_parameters ... ok
+test mutable_address_capture_reborrows_and_releases_after_last_call ... ok
+test mutable_environment_reborrow_does_not_write_its_readonly_desc_capture ... ok
+test per_capture_verification_work_has_an_actual_bounded_failure ... ok
+test raw_and_wire_preserve_capture_indices_hold_and_public_upper_bounds ... ok
+test raw_and_wire_reconstruct_new_desc_writes_in_the_actual_entry ... ok
+test raw_and_wire_reject_forged_borrowed_environment_capture_layout ... ok
+test owning_once_cleanup_and_error_exit_keep_other_capture_dependencies ... ok
+test recursive_helper_effects_include_its_reachable_callback_prefix ... ok
+test same_origin_shared_desc_and_copy_address_read_on_the_final_call ... ok
+test two_layers_of_desc_helpers_export_internal_callback_accesses ... ok
+test runtime_mixed_capture_consumer_uses_four_actual_modules ... ok
+test weak_desc_provenance_is_not_an_address_hold_or_a_forged_empty_window ... ok
+test unused_cleanup_does_not_turn_a_desc_into_a_strong_hold ... ok
+test zero_call_contract_does_not_execute_a_captured_write ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 2.54s
+

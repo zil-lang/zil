@@ -1,0 +1,16 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-analyze)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-lower)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-expand)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt185-fixes/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 8.50s
+     Running tests/impl175_store_views.rs (/workspace/scratch/39be3faa4442/targets178/integration-fixtures/debug/deps/impl175_store_views-2b21878bd7a24e97)
+     Running tests/impl182_capture_contracts.rs (/workspace/scratch/39be3faa4442/targets178/integration-fixtures/debug/deps/impl182_capture_contracts-e0324ece1d1073c5)
+error: test failed, to rerun pass `-p zil-driver --test impl182_capture_contracts`

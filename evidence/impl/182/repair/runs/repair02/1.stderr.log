@@ -1,0 +1,3 @@
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182-repair/crates/zil-analyze)
+    Finished `test` profile [unoptimized] target(s) in 1.51s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets178/author182-repair/debug/deps/zil_analyze-a5dce2e7a4398044)

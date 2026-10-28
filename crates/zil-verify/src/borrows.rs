@@ -13,7 +13,8 @@ type Roots = Vec<Root>;
 type State = BTreeMap<LocalId, Roots>;
 
 fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
-    byte_buffers::is_desc(ty) || (descriptor_origins && matches!(ty, Type::Desc(_)))
+    matches!(ty, Type::Desc(inner)
+        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. }))
 }
 
 fn has_sources(
@@ -478,6 +479,17 @@ fn check(
                     if !*live {
                         continue;
                     }
+                    let ty = if carrier < v {
+                        &f.values[carrier]
+                    } else {
+                        &f.locals[carrier - v].ty
+                    };
+                    // A storage Desc may carry derivation metadata, but it is
+                    // not a strong address qualification. Resource checking
+                    // separately validates its actual field instance and use.
+                    if matches!(ty, Type::Desc(_)) {
+                        continue;
+                    }
                     let held = if carrier < v {
                         Some(&values[carrier])
                     } else {
@@ -585,12 +597,8 @@ fn reconstruct(
                     let mut row = Roots::new();
                     match &instruction.kind {
                         InstructionKind::DescribeLocal { local }
-                            if byte_buffers::is_owned(&f.locals[local.0 as usize].ty)
-                                || (descriptor_origins
-                                    && matches!(
-                                        f.locals[local.0 as usize].ty,
-                                        Type::Managed(_)
-                                    )) =>
+                            if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner)
+                                if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. })) =>
                         {
                             row.push(Root::Local(*local));
                         }
@@ -643,8 +651,10 @@ fn reconstruct(
                         InstructionKind::BorrowCapture { index, .. }
                         | InstructionKind::ReadCapture { index }
                             if matches!(f.values[result.0 as usize], Type::Address { .. })
-                                || (descriptor_origins
-                                    && matches!(f.values[result.0 as usize], Type::Desc(_))) =>
+                                || tracked_desc(
+                                    &f.values[result.0 as usize],
+                                    descriptor_origins,
+                                ) =>
                         {
                             row.push(Root::Capture(*index))
                         }
@@ -674,7 +684,20 @@ fn reconstruct(
                         }
                         InstructionKind::MakeClosure { captures, .. } => {
                             for capture in captures {
-                                roots_join(&mut row, &values[capture.0 as usize], budget)?;
+                                budget.spend(1)?;
+                                if !descriptor_origins
+                                    && let Type::Closure(id) = f.values[capture.0 as usize]
+                                {
+                                    budget.spend(module.closures[id.0 as usize].captures.len())?;
+                                }
+                                if descriptor_origins
+                                    || closures::holds_addresses(
+                                        module,
+                                        &f.values[capture.0 as usize],
+                                    )
+                                {
+                                    roots_join(&mut row, &values[capture.0 as usize], budget)?;
+                                }
                             }
                         }
                         _ => {}
@@ -830,6 +853,14 @@ pub(super) fn check_module(
 ) -> Check<()> {
     let descriptor_origins = descriptor_origins(module, budget)?;
     let facts = reconstruct_module(module, graphs, descriptor_origins, budget)?;
+    // Public Hold remains an address dependency claim. Weak descriptions are
+    // independently reconstructed above for effects and responsibility, and
+    // must not be promoted to strong holds when publishing or checking it.
+    let holds = if descriptor_origins {
+        Some(reconstruct_module(module, graphs, false, budget)?)
+    } else {
+        None
+    };
     budget.spend(module.resources.len())?;
     let has_buffers = descriptor_origins
         || module
@@ -909,8 +940,10 @@ pub(super) fn check_module(
             function,
             plan,
             graph,
-            facts,
-            descriptor_origins,
+            holds
+                .as_ref()
+                .map_or(facts, |rows| &rows[function.id.0 as usize]),
+            false,
             budget,
         )?;
         let required = loans::check(

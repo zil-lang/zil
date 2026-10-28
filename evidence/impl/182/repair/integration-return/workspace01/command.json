@@ -1,0 +1,30 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--workspace",
+    "--no-fail-fast",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/formal185",
+  "start": 1793153649.2635465,
+  "source_commit": "9ae758a950e32e43b58dc94f02eb195e607c80d9",
+  "git_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/formal185",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/185-integration/workspace01/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Fail",
+  "exit_code": 101,
+  "end": 1793153797.8978574,
+  "stdout.log_sha256": "e1822d424f84a97c509172c6f7b92f8880e6bd5d2791a5ab1832c94c53a6981c",
+  "stderr.log_sha256": "62aaddf99bc1176cafbb5286f7d2d77c6fa28148b977590acb6d7d34eaede7ef"
+}

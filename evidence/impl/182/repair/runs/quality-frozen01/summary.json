@@ -1,0 +1,85 @@
+{
+  "source_commit": "ebaddd7faf7b83b257b873e8544af0fef13e670a",
+  "dirty": "",
+  "results": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit": 0,
+      "groups": [
+        [
+          "23",
+          "0",
+          "0"
+        ],
+        [
+          "240",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit": 0,
+      "groups": []
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "--lib",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "groups": []
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl182_capture_contracts",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "groups": []
+    }
+  ],
+  "status": "Pass",
+  "time": 1793154631.866164
+}

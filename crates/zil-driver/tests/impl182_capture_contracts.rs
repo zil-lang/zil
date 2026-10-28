@@ -241,8 +241,8 @@ fn original_probes_keep_inputs_and_remove_the_unrelated_head_switch() {
             "../../../examples/mainline/mixed_capture182/probes/helper_address_parameter.zil"
         ),
         ResultCategory::Unsupported,
-        Phase::Expand,
-        "declared bound",
+        Phase::Types,
+        "one finite Copy callable signature",
     );
 }
 
@@ -792,7 +792,7 @@ fn per_capture_verification_work_has_an_actual_bounded_failure() {
 }
 
 #[test]
-fn raw_and_wire_do_not_open_unimplemented_borrowed_environment_captures() {
+fn raw_and_wire_reject_forged_borrowed_environment_capture_layout() {
     let source = format!(
         "{MODEL}fn main()->i32{{let r=R{{code:65,n:1}};let d=r;let n=41;let q=&n;let f=()=>d.n+*q;return apply(&f)-42}}"
     );
@@ -817,10 +817,132 @@ fn raw_and_wire_do_not_open_unimplemented_borrowed_environment_captures() {
         inner: Box::new(zil_ir::Type::Closure(id)),
     };
     reject_candidate(
-        "nested-borrowed-environment",
+        "forged-borrowed-environment-layout",
+        module,
+        plan,
+        "E-VERIFY-CAPTURE",
+        "capture operand type differs from the environment field",
+    );
+}
+
+#[test]
+fn weak_desc_provenance_is_not_an_address_hold_or_a_forged_empty_window() {
+    use zil_ir::{HoldRoot, InstructionKind as I, Type};
+    let source = format!(
+        "{MODEL}fn main()->i32{{let a=R{{code:65,n:21}};let b=R{{code:66,n:21}};let d=b;let h=&a;let q=&h.n;let f=()=>d.n+*q;return apply(&f)-42}}"
+    );
+    let (module, plan) = candidate(&source);
+    let function = module.functions.iter().find(|f| f.name == "main").unwrap();
+    let row = &plan.functions[function.id.0 as usize];
+    let weak = function
+        .values
+        .iter()
+        .position(|t| matches!(t, Type::Desc(_)))
+        .unwrap();
+    assert!(row.holds[weak].roots.is_empty());
+    let address = function
+        .values
+        .iter()
+        .enumerate()
+        .find(|(v, t)| matches!(t, Type::Address { .. }) && !row.holds[*v].roots.is_empty())
+        .unwrap()
+        .0;
+    for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
+        if let I::MakeClosure { captures, .. } = &instruction.kind {
+            let mut expected = Vec::new();
+            for capture in captures {
+                if matches!(function.values[capture.0 as usize], Type::Address { .. }) {
+                    expected.extend(&row.holds[capture.0 as usize].roots);
+                }
+            }
+            expected.sort();
+            expected.dedup();
+            assert_eq!(
+                row.holds[instruction.result.unwrap().0 as usize].roots,
+                expected
+            );
+        }
+    }
+    let mut fake = plan.clone();
+    fake.functions[function.id.0 as usize].holds[weak].roots =
+        vec![HoldRoot::Local(zil_ir::LocalId(0))];
+    reject_candidate(
+        "weak-desc-fabricated-address-hold",
+        module.clone(),
+        fake,
+        "E-VERIFY-HOLD",
+        "independently reconstructed provenance",
+    );
+    let mut empty = plan;
+    empty.functions[function.id.0 as usize].holds[address]
+        .roots
+        .clear();
+    reject_candidate(
+        "real-address-erased-hold",
+        module,
+        empty,
+        "E-VERIFY-HOLD",
+        "independently reconstructed provenance",
+    );
+}
+
+#[test]
+fn local_borrowed_environment_is_valid_but_raw_factory_escape_is_rejected() {
+    use zil_ir::{InstructionKind as I, Terminator, Type};
+    let source = format!(
+        "{MODEL}fn owned()->impl Fn()->i32{{let r=R{{code:65,n:42}};return move ()=>r.n}}fn local()->i32{{let f=owned();let g=()=>f();return g()-42}}fn main()->i32=>local();"
+    );
+    native(&[("main", &source)], b"A", 0);
+    let (mut module, plan) = candidate(&source);
+    let mut contract = module
+        .functions
+        .iter()
+        .find(|f| f.name == "owned")
+        .unwrap()
+        .callable_return_contract
+        .clone()
+        .unwrap();
+    let borrowed = module
+        .closures
+        .iter()
+        .find(|c| {
+            c.captures.iter().any(|t| {
+        matches!(t,Type::Address { inner, .. } if matches!(inner.as_ref(),Type::Closure(_)))
+    })
+        })
+        .unwrap();
+    let id = borrowed.id;
+    contract.closure = id;
+    contract.kind = borrowed.kind;
+    contract.cleanup.clear();
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "local")
+        .unwrap();
+    function.return_type = Type::Closure(id);
+    function.callable_return_contract = Some(contract);
+    let value = function
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            matches!(i.kind,I::MakeClosure { closure, .. } if closure==id)
+                .then_some(i.result)
+                .flatten()
+        })
+        .unwrap();
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|b| matches!(b.terminator, Terminator::Return(_)))
+        .unwrap();
+    block.terminator = Terminator::Return(Some(value));
+    reject_candidate(
+        "local-borrowed-environment-forged-factory-return",
         module,
         plan,
         "E-UNSUPPORTED",
-        "nested external capture contract",
+        "returned callable captures must be self-contained",
     );
 }

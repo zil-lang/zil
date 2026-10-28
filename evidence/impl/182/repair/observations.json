@@ -1,0 +1,362 @@
+{
+  "source_commit": "ebaddd7faf7b83b257b873e8544af0fef13e670a",
+  "counts": {
+    "native": 56,
+    "O0": 28,
+    "O2": 28,
+    "raw": 9,
+    "wire": 9
+  },
+  "source_rejections": [
+    {
+      "case": "mixed-capture182-1458-19",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 418,
+            "end": 425
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-6",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 406,
+            "end": 417
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-30",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use",
+          "span": {
+            "file": 0,
+            "start": 413,
+            "end": 417
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-17",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 464,
+            "end": 467
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-82",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: head transition invalidates a description required later",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-18",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 418,
+            "end": 427
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-10",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 399,
+            "end": 411
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-57",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one finite Copy callable signature and one nonescaping environment parameter are implemented",
+          "span": {
+            "file": 0,
+            "start": 17,
+            "end": 70
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-55",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 98,
+            "end": 101
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-72",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 82,
+            "end": 97
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-24",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 464,
+            "end": 473
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-1",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 445,
+            "end": 460
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-56",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure value requires a finite Copy type",
+          "span": {
+            "file": 0,
+            "start": 61,
+            "end": 65
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-11",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 411,
+            "end": 423
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-31",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 463,
+            "end": 474
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-16",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 418,
+            "end": 421
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-60",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 468,
+            "end": 481
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-1458-37",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 422,
+            "end": 439
+          },
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "budget": [
+    {
+      "case": "mixed-capture182-1458-45",
+      "route": "raw",
+      "receipt": "success=27284\nResourceLimit=27283\n[\n    Diagnostic {\n        phase: Verify,\n        category: ResourceLimit,\n        code: \"E-RESOURCE-LIMIT\",\n        message: \"independent verification work budget exhausted\",\n        span: None,\n        notes: [],\n    },\n]\n"
+    },
+    {
+      "case": "mixed-capture182-1458-45",
+      "route": "wire",
+      "receipt": "success=27284\nResourceLimit=27283\n[\n    Diagnostic {\n        phase: Verify,\n        category: ResourceLimit,\n        code: \"E-RESOURCE-LIMIT\",\n        message: \"independent verification work budget exhausted\",\n        span: None,\n        notes: [],\n    },\n]\n"
+    }
+  ]
+}
