@@ -184,9 +184,7 @@ fn resolve_indexed(
                 "manages fields require a package",
             )]);
         }
-        if d.kind == AggregateKind::Package
-            && (d.teardown.is_some() || !d.fields.iter().any(|f| f.manages))
-        {
+        if d.kind == AggregateKind::Package && d.teardown.is_some() {
             return Err(vec![unsupported(
                 d.span,
                 "package requires at least one manages field and has no custom whole Drop",
@@ -695,6 +693,10 @@ impl Resolver<'_> {
                                 && !f.manages
                                 && packages::array_field_supported(&ty))
                             || (d.kind == AggregateKind::Package
+                                && !f.manages
+                                && matches!(ty, Type::Package { .. })
+                                && packages::product::supported(&ty))
+                            || (d.kind == AggregateKind::Package
                                 && f.manages
                                 && matches!(ty, Type::Managed(_))
                                 && resources::supported(&ty)))
@@ -708,7 +710,21 @@ impl Resolver<'_> {
                     }
                     let name = format!("@module{}:{}", self.owners[name], name);
                     if d.kind == AggregateKind::Package {
-                        Type::Package { name, fields }
+                        let ty = Type::Package { name, fields };
+                        if packages::product::nested(&ty) {
+                            packages::product::validate(
+                                &ty,
+                                &mut self.remaining,
+                                self.depth_limit,
+                                span,
+                            )?;
+                        } else if !d.fields.iter().any(|f| f.manages) {
+                            return Err(unsupported(
+                                span,
+                                "package requires at least one manages field or complete owning child",
+                            ));
+                        }
+                        ty
                     } else {
                         let payload = Type::Record { name, fields };
                         if d.kind == AggregateKind::Resource {
@@ -721,6 +737,10 @@ impl Resolver<'_> {
                 self.active.remove(name);
                 self.cache.insert(name.clone(), result.clone());
                 result
+            }
+            ty @ Type::Package { .. } if packages::product::nested(ty) => {
+                packages::product::validate(ty, &mut self.remaining, self.depth_limit, span)?;
+                ty.clone()
             }
             Type::OwnedStore { element } => {
                 let element = self.ty(element, depth + 1, span)?;

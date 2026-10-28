@@ -115,8 +115,82 @@ pub(super) fn capture_views(
 }
 
 pub(super) fn owned_field(ty: &Type) -> bool {
-    matches!(ty, Type::Managed(_) | Type::Closure(_))
-        || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+    matches!(
+        ty,
+        Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+    ) || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+}
+
+/// A shape classification only. Admission remains independently checked at
+/// every ordinary boundary; the old container gates never use this extension.
+pub(super) fn has_children(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+        if fields.iter().any(|(_, field)| matches!(field, Type::Package { .. })))
+}
+
+pub(super) fn check_ordinary_type(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
+    if !has_children(ty) {
+        return check_type_for(module, ty, span, budget);
+    }
+    // Every raw type has already passed the bounded shape traversal. Charge
+    // this independent nominal/resource admission and all cleanup path growth
+    // before allocating its work list. No recursive Rust stack is needed.
+    resources::charge_payload(ty, budget)?;
+    budget.spend(2)?;
+    let mut pending = vec![(ty, 1usize)];
+    while let Some((ty, depth)) = pending.pop() {
+        let Type::Package { name, fields } = ty else {
+            unreachable!("only complete child Packages are queued");
+        };
+        budget.spend(depth.saturating_add(fields.len().saturating_mul(depth + 1)))?;
+        if name.is_empty() {
+            return Err(reject("E-VERIFY-PACKAGE", span, "empty package identity"));
+        }
+        let mut names = BTreeSet::new();
+        let mut owns = false;
+        for (name, field) in fields {
+            budget.spend(
+                name.len()
+                    .saturating_mul(fields.len().saturating_add(1).ilog2() as usize + 2),
+            )?;
+            if name.is_empty() || !names.insert(name) {
+                return Err(reject(
+                    "E-VERIFY-PACKAGE",
+                    span,
+                    "package fields must have unique nonempty names",
+                ));
+            }
+            match field {
+                Type::Package { .. } => {
+                    owns = true;
+                    pending.push((field, depth + 1));
+                }
+                Type::Managed(inner)
+                    if matches!(inner.as_ref(), Type::ByteBuffer | Type::Record { .. }) =>
+                {
+                    resources::check_type_for(module, field, span, budget)?;
+                    owns = true;
+                }
+                _ => {
+                    // Keeps existing finite Copy companions, while rejecting
+                    // owning Sum/array/Store, Closure, borrowed or opaque fields.
+                    check_type(field, span)?;
+                }
+            }
+        }
+        if !owns {
+            return Err(unsupported(
+                "each Product Package requires a transitive explicit manages leaf",
+                span,
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn has_callable_fields(ty: &Type) -> bool {
@@ -324,7 +398,7 @@ pub(super) fn check_instruction(
                 .result
                 .ok_or_else(|| bad("package construction requires a typed result"))?;
             let ty = value_type(function, result, span)?;
-            check_type_for(module, ty, span, budget)?;
+            check_ordinary_type(module, ty, span, budget)?;
             let Type::Package {
                 fields: expected, ..
             } = ty
