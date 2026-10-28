@@ -7,26 +7,48 @@ pub(super) fn placeholder_package(ty: &Type, name: &str) -> bool {
 }
 
 pub(super) fn template(function: &CoreFunction) -> bool {
-    (function.callable_parameters.len() == 1)
-        .then(|| &function.callable_parameters[0])
-        .is_some_and(|bound| {
-            placeholder_package(&function.return_type, &bound.generic_name)
-                || function
-                    .parameters
-                    .iter()
-                    .any(|p| placeholder_package(&p.ty, &bound.generic_name))
-        })
+    owning_profile(
+        &function.callable_parameters,
+        &function.return_type,
+        |index| function.parameters.get(index).map(|p| &p.ty),
+    )
 }
 
 pub(super) fn signature(signature: &Signature) -> bool {
-    (signature.callable.len() == 1)
-        .then(|| &signature.callable[0])
-        .is_some_and(|bound| {
-            placeholder_package(&signature.result, &bound.generic_name)
-                || signature
-                    .parameters
-                    .iter()
-                    .any(|p| placeholder_package(p, &bound.generic_name))
+    owning_profile(&signature.callable, &signature.result, |index| {
+        signature.parameters.get(index)
+    })
+}
+
+/// A type binding may occur at two distinct constructor inputs. It is still
+/// one F, and the concrete call stages each input separately. This predicate
+/// classifies syntax only; it cannot certify self-contained captures, complete
+/// transfer, or the real runtime identity of either value.
+fn owning_profile<'a>(
+    bounds: &[CoreCallableParameter],
+    result: &Type,
+    parameter: impl Fn(usize) -> Option<&'a Type>,
+) -> bool {
+    let Some(first) = bounds.first() else {
+        return false;
+    };
+    if bounds.len() > 2
+        || bounds.iter().any(|bound| {
+            bound.generic_index != first.generic_index || bound.generic_name != first.generic_name
+        })
+    {
+        return false;
+    }
+    let returns_state = placeholder_package(result, &first.generic_name);
+    if bounds.len() == 1 {
+        return returns_state
+            || parameter(first.index as usize)
+                .is_some_and(|ty| placeholder_package(ty, &first.generic_name));
+    }
+    returns_state
+        && bounds.iter().all(|bound| {
+            parameter(bound.index as usize)
+                .is_some_and(|ty| helpers::parameter_mode(ty, &bound.generic_name) == Some(None))
         })
 }
 
