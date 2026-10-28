@@ -453,8 +453,7 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
         || function.callable_parameter.is_some()
         || function.result_mode != PassingMode::Infer
         || bound.kind == CallableKind::FunctionPointer
-        || !bound.parameters.iter().all(Type::is_copy_value)
-        || !(bound.result.is_copy_value() || lending::supported_result(&bound.result))
+        || !closures::supported_signature(&bound.parameters, &bound.result)
         || (lending::supported_result(&bound.result) && bound.kind == CallableKind::FnOnce)
         || function.return_type
             != (Type::Opaque {

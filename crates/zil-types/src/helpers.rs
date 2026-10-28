@@ -52,8 +52,7 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
         || function.receiver.is_some()
         || bound.generic_name.is_empty()
         || bound.kind == CallableKind::FunctionPointer
-        || !bound.parameters.iter().all(Type::is_copy_value)
-        || !(bound.result.is_copy_value() || lending::supported_result(&bound.result))
+        || !closures::supported_signature(&bound.parameters, &bound.result)
         || !(function.return_type.is_copy_value()
             || lending::supported_result(&function.return_type)
             || (owned_state
@@ -75,6 +74,7 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
         || function.parameters.iter().enumerate().any(|(i, p)| {
             i != bound.index as usize
                 && !(p.ty.is_copy_value()
+                    || matches!(&p.ty, Type::Address { inner, .. } if inner.is_copy_value())
                     || packages::supported(&p.ty)
                     || matches!(p.ty, Type::Managed(_)))
         })
@@ -592,7 +592,7 @@ impl Builder<'_, '_> {
         }
         let mut values = Vec::new();
         for (argument, parameter) in arguments.iter().zip(&parameters) {
-            let (value, actual) = self.expr(argument, Some(parameter))?;
+            let (value, actual) = self.argument_expr(argument, parameter)?;
             self.same(&actual, parameter, argument.span)?;
             values.push(value);
         }

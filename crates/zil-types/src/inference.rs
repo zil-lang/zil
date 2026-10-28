@@ -2007,6 +2007,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         Term::Address(variable, mutable) if !write || mutable => {
                             Ok(Term::Scalar(variable))
                         }
+                        Term::Scalar(variable) => {
+                            let inner = self.fresh(VALUE, false, span)?;
+                            self.graph
+                                .address(variable, inner, write.then_some(true), span)?;
+                            Ok(Term::Scalar(inner))
+                        }
                         _ => Err(error(
                             "E-OPERATOR-TYPE",
                             span,
@@ -2334,7 +2340,29 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 for (argument, parameter) in arguments.iter().zip(parameters) {
                     let hint = self.graph.ty(parameter)?;
                     let value = self.expr_expected(argument, hint.as_ref(), depth + 1, false)?;
-                    self.unify(&value, &Term::Scalar(parameter), argument.span)?;
+                    if let Some(ty @ Type::Address { .. }) = hint.as_ref() {
+                        self.bind_term(&value, ty, argument.span)?;
+                    } else if let Term::Address(inner, mutable) = value {
+                        let wanted = self
+                            .graph
+                            .address_shape(parameter, argument.span)?
+                            .and_then(|(_, mutable)| mutable);
+                        if wanted == Some(true) && !mutable {
+                            return Err(error(
+                                "E-ADDRESS-PERMISSION",
+                                argument.span,
+                                "a shared address cannot grant exclusive access",
+                            ));
+                        }
+                        self.graph.address(
+                            parameter,
+                            inner,
+                            wanted.or(Some(mutable)),
+                            argument.span,
+                        )?;
+                    } else {
+                        self.unify(&value, &Term::Scalar(parameter), argument.span)?;
+                    }
                 }
                 if let Some(ty @ Type::Address { .. }) = self.graph.ty(result)? {
                     self.known_term(&ty, span)
@@ -2640,10 +2668,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     .as_ref()
                     .is_some_and(|t| !(t.is_copy_value() || lending::supported_result(t)))
                     || parameters.iter().any(|p| {
-                        p.ty.as_ref().is_some_and(|t| {
-                            matches!(t, Type::Package { .. } | Type::Slice { .. })
-                                || t.is_slice_address()
-                        })
+                        p.ty.as_ref()
+                            .is_some_and(|t| !closures::signature_parameter(t))
                     })
                 {
                     return Err(unsupported(
@@ -2705,12 +2731,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.bind(variable, &types[parameter_index], parameter.span)?;
                     }
                     self.closures[id].parameters.push(variable);
-                    self.insert(
-                        &parameter.name,
-                        Term::Scalar(variable),
-                        false,
-                        parameter.span,
-                    )?;
+                    let term = if let Some(ty @ Type::Address { .. }) = self.graph.ty(variable)? {
+                        let term = self.known_term(&ty, parameter.span)?;
+                        if let Term::Address(inner, mutable) = term {
+                            self.graph
+                                .address(variable, inner, Some(mutable), parameter.span)?;
+                        }
+                        term
+                    } else {
+                        Term::Scalar(variable)
+                    };
+                    self.insert(&parameter.name, term, false, parameter.span)?;
                 }
                 self.block(body, depth + 1)?;
                 if !self.closures[id].has_return {
