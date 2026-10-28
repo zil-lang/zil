@@ -1361,26 +1361,31 @@ impl Flow<'_> {
                             return Err(error("package read requires a matching Copy field"));
                         }
                     } else if let InstructionKind::BorrowPackageField { mutable, .. } = i.kind {
-                        if !matches!(ty, Type::Closure(_))
+                        budget.type_work(ty, true, "package field address type checks")?;
+                        if (!ty.is_copy_value() && !matches!(ty, Type::Closure(_)))
                             || (mutable && !decl.mutable)
                             || !matches!(result, Some(Type::Address { mutable: actual, inner }) if *actual == mutable && inner.as_ref() == ty)
                         {
                             return Err(error(
-                                "callback field borrow requires exact permission and Closure field shape",
+                                "field borrow requires exact permission and a Copy or Closure field",
                             ));
                         }
-                        let fact = copied(
-                            state,
-                            Place::PackageField {
-                                local: *local,
-                                index: *index,
-                            },
-                            budget,
-                        )?;
-                        if check && !exact(&fact, Life::Available) {
-                            return Err(error(
-                                "callback field borrow requires its live environment on every path",
-                            ));
+                        // Copy fields are initialized with the shell and have
+                        // no independent owning debt. Callback fields do.
+                        if matches!(ty, Type::Closure(_)) {
+                            let fact = copied(
+                                state,
+                                Place::PackageField {
+                                    local: *local,
+                                    index: *index,
+                                },
+                                budget,
+                            )?;
+                            if check && !exact(&fact, Life::Available) {
+                                return Err(error(
+                                    "callback field borrow requires its live environment on every path",
+                                ));
+                            }
                         }
                     } else if let InstructionKind::StorePackageField { value, .. } = i.kind {
                         budget.type_work(
