@@ -1,0 +1,180 @@
+{
+  "task": "202 five-module ordinary StoreElement-template consumer",
+  "run_source_commit": "a66a7c0070024e41da2517b483c036b4dbc71518",
+  "compiler_source_commit": "7698369cc8c4b6f50d5971ec975040417c92f841",
+  "cli_sha256": "0f41b91e1c34a6831b3e9a882642eef0df6c5d5b30520f76a7b9c8a77e4ecf2b",
+  "compiler_build_receipt_sha256": "6bd1471d86640b0a865e1a3cf0f69119f57d44004d89c2e1cf56250cecf56dfb",
+  "design_sha256": "bb8821ef1c88f2753d12dd668fef0638da6dc849f541c55767051389f6387aa3",
+  "normative_hash": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+  "sources": {
+    "factory.zil": "e8aa8e86d30a40d2842bcdb16824eed54f032a95b6d561c481d19db05b38b234",
+    "main.zil": "ab94e0a5ca8b16e6b08c9a8595757d720667561c8ee06d56c217710e102d70b8",
+    "portable.zil": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c",
+    "state.zil": "e983dadc9b42a012d2a074f169686d0918130230786fdff7d1c126654d3de9b9",
+    "store_helpers.zil": "d59bc0de7e53856bbd1df95b3a96c71ea04fa5f3cb259aa98d31a540a049905a"
+  },
+  "runs": [
+    {
+      "run": "linux04",
+      "status": "Pass",
+      "platform": "linux",
+      "execution": "native",
+      "source_commit": "a66a7c0070024e41da2517b483c036b4dbc71518",
+      "compiler_source_commit": "7698369cc8c4b6f50d5971ec975040417c92f841",
+      "summary_sha256": "6a4509de54888c9ec7758bdf8aa369237882add271d8b313a04dd2fc256736a3",
+      "executions": 126,
+      "native_executions": 126,
+      "wine_executions": 0,
+      "ordinary_executions": 16,
+      "instrumented_executions": 110,
+      "actual_allocation_failures": 86,
+      "all_instrumented_live_at_exit": 0,
+      "bad_operations": "Not a field of the Linux probe",
+      "builds": [
+        {
+          "optimization": "O0",
+          "module_count": 5,
+          "verification_runs": 1,
+          "llvm_sha256": "863b79331210d8f1a1f389a3996a745468fe2504dcd87d928fc8c85df5cbf74c"
+        },
+        {
+          "optimization": "O2",
+          "module_count": 5,
+          "verification_runs": 1,
+          "llvm_sha256": "863b79331210d8f1a1f389a3996a745468fe2504dcd87d928fc8c85df5cbf74c"
+        }
+      ],
+      "build_environment": {
+        "PATH": "/root/.codex/tmp/arg0-linux/codex-arg0T5iIym:/opt/codex/codex-path:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/override:/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/fallback",
+        "ZIL_CLANG": null,
+        "LD_LIBRARY_PATH": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/x86_64-linux-gnu:/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/lib",
+        "WINEPREFIX": null,
+        "WINESERVER": null,
+        "WINELOADER": null,
+        "WINEDEBUG": null,
+        "TMPDIR": "/dev/shm/zil202-consumer-tmp"
+      },
+      "execution_controlled_environment": {}
+    },
+    {
+      "run": "wine01",
+      "status": "Pass",
+      "platform": "win64",
+      "execution": "Wine compatibility",
+      "source_commit": "a66a7c0070024e41da2517b483c036b4dbc71518",
+      "compiler_source_commit": "7698369cc8c4b6f50d5971ec975040417c92f841",
+      "summary_sha256": "b2d9c2f41a8129253a61ed8881a68277bd1a2c575362e905843d96c82d2b780e",
+      "executions": 126,
+      "native_executions": 0,
+      "wine_executions": 126,
+      "ordinary_executions": 16,
+      "instrumented_executions": 110,
+      "actual_allocation_failures": 86,
+      "all_instrumented_live_at_exit": 0,
+      "bad_operations": 0,
+      "builds": [
+        {
+          "optimization": "O0",
+          "module_count": 5,
+          "verification_runs": 1,
+          "llvm_sha256": "53256fe3cad80d6d093506ba1fa5020dcfc0c41d4d61f274c40d2ded0d230d0c"
+        },
+        {
+          "optimization": "O2",
+          "module_count": 5,
+          "verification_runs": 1,
+          "llvm_sha256": "53256fe3cad80d6d093506ba1fa5020dcfc0c41d4d61f274c40d2ded0d230d0c"
+        }
+      ],
+      "build_environment": {
+        "PATH": "/root/.codex/tmp/arg0-linux/codex-arg0T5iIym:/opt/codex/codex-path:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/override:/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/fallback",
+        "ZIL_CLANG": null,
+        "LD_LIBRARY_PATH": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/x86_64-linux-gnu:/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/lib",
+        "WINEPREFIX": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix-review181",
+        "WINESERVER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wineserver",
+        "WINELOADER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+        "WINEDEBUG": "-all",
+        "TMPDIR": null
+      },
+      "execution_controlled_environment": {
+        "LD_LIBRARY_PATH": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu"
+      }
+    }
+  ],
+  "previous_attempts": [
+    {
+      "status": "RejectedBeforeCompilation",
+      "source_commit": "4ad84dd2f13f24508116754aedfe4213bdbbd3f9",
+      "compiler_source_commit": "cddd6a1ae1e416ec24fb7d88e5b6214f8ac38506",
+      "compiler_sha256": "e771ec7ec0103806e29982a668ba2a8b18c3652e19d742ebc4b2e2a7c1b4a4f9",
+      "reason": "Conservative complete production-file digest gate found an IDE unit test inside crates/zil-ide/src/lib.rs. No guard was bypassed.",
+      "builds": 0,
+      "executions": 0,
+      "native_result": "NotRun",
+      "wine_result": "NotRun",
+      "difference_sha256": "a17aa301694871e3b3e6ecd188a11d9468a7dfc21594dc154d6cc5c6b8c1c5c5"
+    },
+    {
+      "run": "linux02",
+      "source_commit": "48640a9eb4c676d257dff5a6d623f7ecb86cdabd",
+      "compiler_source_commit": "48640a9eb4c676d257dff5a6d623f7ecb86cdabd",
+      "status": "Fail",
+      "phase": "types",
+      "category": "Unsupported",
+      "verification_runs": 0,
+      "executions": 0,
+      "summary_sha256": "f8dabff70833e4cb597c019206a0b3b8beab76d24073cf5056d22958d1e1672c",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "nested helper environment type cannot be established by the finite instance plan",
+          "span": {
+            "file": 2,
+            "start": 2741,
+            "end": 2794
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "run": "linux03",
+      "source_commit": "a66a7c0070024e41da2517b483c036b4dbc71518",
+      "compiler_source_commit": "7698369cc8c4b6f50d5971ec975040417c92f841",
+      "status": "Fail",
+      "phase": "link",
+      "category": "InfraError",
+      "verification_runs": 1,
+      "executions": 0,
+      "summary_sha256": "ec5d3a1f03c08d262e25441ecb393f618090a63b6612b2b0b8f0f23855c68021",
+      "diagnostics": [
+        {
+          "phase": "link",
+          "category": "InfraError",
+          "code": "E-LLVM-COMPILE",
+          "message": "native build tool failed with exit status: 127",
+          "span": null,
+          "notes": [
+            "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang: error while loading shared libraries: libLLVM-17.so.1: cannot open shared object file: No such file or directory\n"
+          ]
+        }
+      ]
+    }
+  ],
+  "oracle": "Fixed source-independent ABBA order, 64-byte Item layout, capacity and both callback buffer allocation sequences. Both optimization levels test 0/1/continue/break, growth, owning pop, empty/invalid input and a full-capacity push returning the entire B error payload. No LLVM or observed allocator value was used to derive expected cleanup/accounting.",
+  "snapshot_collection": "Exact sources are copied before each compile. linux02 source was restored from its recorded commit after failure and checked against its pre-build SHA map; this is explicitly identified in that directory.",
+  "archive": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/202-consumer-evidence.zip",
+    "bytes": 1740764,
+    "sha256": "343c0eb07d2047e4e70bbfae5ced44bf9de0c0de40a7f809fa5b2c3a716fe263",
+    "payload_files": 899,
+    "excluded_execution_paths": 12,
+    "integrity": "Final-run identities and declared output digests checked; ZIP CRC plus each payload byte count/SHA256 checked.",
+    "execution_artifacts": false
+  },
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
