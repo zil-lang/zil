@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 21;
+pub const WIRE_VERSION: u32 = 22;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -763,6 +763,11 @@ impl<'a> Writer<'a> {
             }
             InstructionKind::OwnedStoreBorrow { store, index } => {
                 self.u8(86)?;
+                self.u32(store.0)?;
+                self.u32(index.0)?;
+            }
+            InstructionKind::OwnedStoreBorrowMut { store, index } => {
+                self.u8(88)?;
                 self.u32(store.0)?;
                 self.u32(index.0)?;
             }
@@ -2088,6 +2093,10 @@ impl<'a> Reader<'a> {
                 local: LocalId(self.u32()?),
                 index: self.u32()?,
                 mutable: self.boolean()?,
+            },
+            88 => InstructionKind::OwnedStoreBorrowMut {
+                store: ValueId(self.u32()?),
+                index: ValueId(self.u32()?),
             },
             0 => InstructionKind::Constant(self.constant()?),
             1 => InstructionKind::Load(LocalId(self.u32()?)),

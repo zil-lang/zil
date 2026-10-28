@@ -300,7 +300,10 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
             (Some(*store), Some(*capacity), &[])
         }
         InstructionKind::OwnedStorePush { store, value } => (Some(*store), Some(*value), &[]),
-        InstructionKind::OwnedStoreBorrow { store, index } => (Some(*store), Some(*index), &[]),
+        InstructionKind::OwnedStoreBorrow { store, index }
+        | InstructionKind::OwnedStoreBorrowMut { store, index } => {
+            (Some(*store), Some(*index), &[])
+        }
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store } => (Some(*store), None, &[]),

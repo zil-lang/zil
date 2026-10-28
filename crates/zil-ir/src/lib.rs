@@ -119,7 +119,7 @@ impl Type {
     pub fn is_scalar_or_address(&self) -> bool {
         self.is_b0_scalar()
             || self.is_shared_resource_head_address()
-            || self.is_shared_package_address()
+            || self.is_package_address()
             || matches!(self, Self::Address { inner, .. } if inner.is_address_pointee())
     }
     /// Structural eligibility only; each checker separately proves sources,
@@ -140,6 +140,13 @@ impl Type {
     /// provenance, initialization and loan checks. General pointees stay Copy.
     pub fn is_shared_package_address(&self) -> bool {
         matches!(self, Self::Address { mutable: false, inner }
+            if matches!(inner.as_ref(), Self::Package { .. }))
+    }
+    /// Raw shape only. A mutable Package window still needs independent exact
+    /// Store-element, origin, initialized-prefix and exclusive-loan checks.
+    /// This does not make Package a general address pointee or a Copy value.
+    pub fn is_package_address(&self) -> bool {
+        matches!(self, Self::Address { inner, .. }
             if matches!(inner.as_ref(), Self::Package { .. }))
     }
     pub fn is_slice_address(&self) -> bool {
@@ -784,6 +791,12 @@ pub enum InstructionKind {
         store: ValueId,
         index: ValueId,
     },
+    /// Exclusive, synchronous element window. The Store retains all element
+    /// responsibility; only independently admitted Copy projections may change.
+    OwnedStoreBorrowMut {
+        store: ValueId,
+        index: ValueId,
+    },
     /// New empty managed storage; no allocation and no implicit user code.
     ByteBufferNew,
     /// Absolute-capacity request; failure preserves the complete old state.
@@ -1331,7 +1344,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V21\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V22\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2092,6 +2105,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
         }
         InstructionKind::OwnedStoreBorrow { store, index } => {
             b.push(86);
+            encode_u32(b, store.0);
+            encode_u32(b, index.0);
+        }
+        InstructionKind::OwnedStoreBorrowMut { store, index } => {
+            b.push(88);
             encode_u32(b, store.0);
             encode_u32(b, index.0);
         }

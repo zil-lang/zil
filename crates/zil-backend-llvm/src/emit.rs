@@ -565,6 +565,12 @@ impl FunctionEmitter<'_> {
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
         match &instruction.kind {
+            InstructionKind::OwnedStoreBorrowMut { .. } => {
+                return unsupported(
+                    "exclusive Store window semantics pending",
+                    Some(instruction.span),
+                );
+            }
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
             | InstructionKind::OwnedStorePush { .. }

@@ -45,6 +45,7 @@ fn owned_store_name(name: &str) -> bool {
     matches!(
         name,
         "Store"
+            | "StoreElement"
             | "store_new"
             | "store_reserve"
             | "store_push"
@@ -52,6 +53,7 @@ fn owned_store_name(name: &str) -> bool {
             | "store_len"
             | "store_capacity"
             | "store_at"
+            | "store_at_mut"
     )
 }
 fn primitive_name(name: &str) -> bool {
