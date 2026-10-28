@@ -1,0 +1,167 @@
+{
+  "reviewer": "/root/impl197",
+  "verdict": "Pass for the listed test-only migrations",
+  "implementation_commit": "f341e418f9c1938ff2895380f5dc1f8bc5153d17",
+  "reviewed_commits": [
+    "2a618743e974bd3d8b70fd3b828a2e843e465e1c",
+    "928c8a25ec1557d87d13df5a25496d33e3f1bb12"
+  ],
+  "original_baseline": "ed3f797561ae5f2ea4b53b76d96df47778c5a43d",
+  "production_diff": [],
+  "scope": "Read-only comparison plus nine exact affected/adjacent test groups; not full-workspace acceptance and not resolution of the separate TakeCapture window defect.",
+  "original_source_preservation": [
+    {
+      "label": "owned-capture",
+      "test_file": "crates/zil-driver/tests/impl172_owned_store.rs",
+      "source_bytes": 333,
+      "source_sha256": "e03bbb4e650551bfa77c52d8a195e320725243f7e3aff2418d94da3bdd52fd11",
+      "equal_to_original": true,
+      "actual_native": "O0 and O2",
+      "expected_exit": 0,
+      "expected_stdout": ""
+    },
+    {
+      "label": "array-of-owned-captures",
+      "test_file": "crates/zil-driver/tests/impl172_owned_store.rs",
+      "source_bytes": 341,
+      "source_sha256": "95ab55e93ae30c67259508fb262f8a4047cad221f7e2fc09a8f4e82cc15b1367",
+      "equal_to_original": true,
+      "actual_native": "O0 and O2",
+      "expected_exit": 0,
+      "expected_stdout": ""
+    },
+    {
+      "label": "complete-package-capture",
+      "test_file": "crates/zil-driver/tests/impl174_store_fields.rs",
+      "source_bytes": 687,
+      "source_sha256": "48d7ba25d9ba674f0fb3de548d3ef3ef6bfec0eeeda2994c1336bc432497c97b",
+      "equal_to_original": true,
+      "actual_native": "O0 and O2",
+      "expected_exit": 2,
+      "expected_stdout": "ZAB"
+    },
+    {
+      "label": "original201-package-capture",
+      "test_file": "crates/zil-driver/tests/impl201_analyze_store.rs",
+      "source_bytes": 484,
+      "source_sha256": "5d430f79813e995268368bcbe3c3918e1de093007e5802f79d4f88f196905853",
+      "equal_to_original": true,
+      "actual_migration_test": "Types, Analyze, raw Verify and Wire Verify; no native in this specific migrated test",
+      "independent_native": "Same original source already executed O0/O2 in source04 original02"
+    }
+  ],
+  "raw_attack_preservation": [
+    "172 changes only environment capture metadata; original scalar MakeClosure operand remains unchanged; both direct Store and Package Store still SafeReject/E-VERIFY-CAPTURE in raw and Wire.",
+    "174 changes only environment capture metadata from the actual captured Item to Store-bearing State; actual MakeClosure input stays Item and both routes still SafeReject/E-VERIFY-CAPTURE."
+  ],
+  "remaining_guards": "Other original source inputs, phase/category/code and raw mutation statements preserved; no malformed metadata promoted to success.",
+  "commands": [
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/migration01-captures/command.json",
+      "sha256": "61cb35a871a343c908e913e8f97d4e445398009ab57d8c96da0ebafdbe2b6074",
+      "source_commit": "f341e418f9c1938ff2895380f5dc1f8bc5153d17",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl172_owned_store",
+        "--test",
+        "impl174_store_fields",
+        "--test",
+        "impl201_analyze_store",
+        "capture",
+        "--",
+        "--nocapture",
+        "--test-threads=2"
+      ],
+      "stdout.log_sha256": "0b799dc1a530631dab3d4325ac0ba74f1ddd07f8688dc6678cbe2e1395cc711c",
+      "stderr.log_sha256": "e6bbf3f03bc967a85581687ce1253e6bf09bcd7dbc659cd1429ed121106ed3a5"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/migration01-172-neighbours/command.json",
+      "sha256": "9d5301e166dc54dac3984b4765ffa9767f0b998f2c5e9f9030ea588cc8aae61f",
+      "source_commit": "f341e418f9c1938ff2895380f5dc1f8bc5153d17",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl172_owned_store",
+        "source_neighbours_preserve_transfer_and_nested_composition_boundaries",
+        "--",
+        "--nocapture",
+        "--test-threads=2"
+      ],
+      "stdout.log_sha256": "c1edf2aada659b31a157a592c9f317903c3aadeddcb5e2c4a3788d52f61f41ac",
+      "stderr.log_sha256": "a9c544173953aa46f63f6b4ff86374f50096f230b6dca4ee062953e037c551d5"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/migration01-172-raw/command.json",
+      "sha256": "7b6566bd2de65b3c72c9235b18d178f2f682e693989efe4d9fd93bb72a64925c",
+      "source_commit": "f341e418f9c1938ff2895380f5dc1f8bc5153d17",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl172_owned_store",
+        "raw_wire_store_composition_boundaries_and_head_access_are_independently_checked",
+        "--",
+        "--nocapture",
+        "--test-threads=2"
+      ],
+      "stdout.log_sha256": "2281d01bfbef87c89a70bfac69d78bd868e4d898424fedb05a325becd4ce469f",
+      "stderr.log_sha256": "22bde7cb4a8ddf915b6802e71fb2cc662c7c32551c039f29ba810fefe48f576f"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/migration01-174-remaining/command.json",
+      "sha256": "207b4a81b1d5e01af4eebc295058584a7aa1451f860a5348de8c22f3fa073b87",
+      "source_commit": "f341e418f9c1938ff2895380f5dc1f8bc5153d17",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl174_store_fields",
+        "source_rejects_borrowed_store_fields_and_unsupported_nested_storage",
+        "--",
+        "--nocapture",
+        "--test-threads=2"
+      ],
+      "stdout.log_sha256": "b61cfd52b92c05b6b58b3772f73212ed9389bce0c4ada9e239cb0d242d1d372c",
+      "stderr.log_sha256": "fb012eb0ca89ebf0cfdc5be9e269fac0585c6f170e42d190faaaa3ae40aa0601"
+    }
+  ],
+  "actual_execution": {
+    "tests_passed": 9,
+    "tests_failed": 0,
+    "native_executions": 6,
+    "raw_wire_routes": "Affected attacks and original201 positive executed in their named groups"
+  },
+  "author_prior_failures": "Author-recorded original legacy failures remain separate; this reviewer does not claim to have performed them."
+}
