@@ -192,7 +192,7 @@ impl Check<'_, '_, '_> {
     ) -> R<bool> {
         let ty = self.expr(value, state, None, false)?;
         let mut rows = Vec::new();
-        let mut continuing = BTreeSet::new();
+        let mut continuing = Vec::new();
         let mut all_return = true;
         for arm in arms {
             let mut branch = self.clone_state(state)?;
@@ -221,7 +221,7 @@ impl Check<'_, '_, '_> {
             };
             if !returned {
                 all_return = false;
-                continuing.extend(branch.moved);
+                continuing.push(branch);
             }
         }
         if self.useful(&rows, &[Pat::Any], std::slice::from_ref(&ty), 0, value.span)? {
@@ -233,7 +233,7 @@ impl Check<'_, '_, '_> {
             ));
         }
         if !all_return {
-            state.moved.extend(continuing);
+            self.join_states(state, &continuing.iter().collect::<Vec<_>>(), value.span)?;
         }
         Ok(all_return)
     }
