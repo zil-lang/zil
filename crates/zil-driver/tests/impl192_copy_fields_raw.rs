@@ -7,7 +7,7 @@ use std::{
 use zil_base::{
     Diagnostic, FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile,
 };
-use zil_ir::{CallableKind, CandidatePlan, InstructionKind as I, TypedModule};
+use zil_ir::{CallableKind, CandidatePlan, InstructionKind as I, Type, TypedModule};
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 const MODEL: &str =
     "resource R{n:i32}package P{manages r:R;x:i32;y:i32}fn make()->P{return P{r:R{n:1},x:20,y:1}}";
@@ -77,7 +77,11 @@ fn pair(
                 fs::write(p.join(format!("{route}.txt")), format!("{errors:#?}")).unwrap();
                 assert_eq!(
                     errors[0].category,
-                    ResultCategory::SafeReject,
+                    if code == "E-UNSUPPORTED" {
+                        ResultCategory::Unsupported
+                    } else {
+                        ResultCategory::SafeReject
+                    },
                     "{label}: {errors:?}"
                 );
                 assert_eq!(errors[0].phase, Phase::Verify);
@@ -85,6 +89,87 @@ fn pair(
             }
         }
     }
+}
+
+#[test]
+fn finite_resource_sibling_roots_do_not_bypass_instance_or_nominal_checks() {
+    let source = format!(
+        "{MODEL}fn main()->i32{{var state=make();let p=&mut state.x;let old=give state.r;state.r=R{{n:2}};let fresh=state.r;return *p+fresh.n-22}}"
+    );
+    let (module, plan) = candidate(&source);
+    pair(
+        "resource-sibling-valid",
+        &source,
+        module.clone(),
+        plan.clone(),
+        None,
+    );
+
+    let mut stale = module.clone();
+    let f = stale
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let block = f
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::DescribePackageField { index: 0, .. }))
+        })
+        .unwrap();
+    let at = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::DescribePackageField { index: 0, .. }))
+        .unwrap();
+    let describe = block.instructions.remove(at);
+    let take = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::TakePackageField { index: 0, .. }))
+        .unwrap();
+    block.instructions.insert(take, describe);
+    pair(
+        "resource-sibling-stale-description",
+        &source,
+        stale,
+        plan.clone(),
+        Some("E-VERIFY-RESOURCE"),
+    );
+
+    let mut absent = module.clone();
+    absent.resources.clear();
+    pair(
+        "resource-sibling-unknown-nominal",
+        &source,
+        absent,
+        plan.clone(),
+        Some("E-VERIFY-RESOURCE"),
+    );
+
+    let mut noncopy = module;
+    let resource = noncopy
+        .resources
+        .iter_mut()
+        .find(|r| matches!(&r.payload, Type::Record { .. }))
+        .unwrap();
+    let Type::Record { fields, .. } = &mut resource.payload else {
+        unreachable!()
+    };
+    fields[0].1 = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::I32),
+    };
+    pair(
+        "resource-sibling-noncopy-payload",
+        &source,
+        noncopy,
+        plan,
+        Some("E-UNSUPPORTED"),
+    );
 }
 #[test]
 fn copy_field_shape_permission_parent_mutability_and_hold_are_reconstructed() {

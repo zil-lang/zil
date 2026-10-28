@@ -470,3 +470,38 @@ fn shared_entry_may_borrow_a_fresh_local_package_without_mutating_its_environmen
     );
     native(&[("main", &source)], b"", 0);
 }
+
+#[test]
+fn original_user_resource_sibling_take_refill_preserves_the_copy_window() {
+    // Exact independent review input, including the Drop observations.
+    let source = "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages owner:R;count:i64}fn main()->i32{var state=P{owner:R{n:65},count:2};let p=&mut state.count;if true{let old=give state.owner;state.owner=R{n:66};*p+=i64(old.n)}return i32(*p)-67}";
+    native(&[("main", source)], b"AB", 0);
+}
+
+#[test]
+fn precise_resource_siblings_do_not_revive_old_descriptions_or_release_the_parent() {
+    let source = format!(
+        "{SIMPLE}fn main()->i32{{var state=make();let p=&mut state.x;let stale=state.r;let old=give state.r;state.r=R{{n:2}};return *p+stale.n+old.n}}"
+    );
+    let report = check(&source);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert!(
+        report.diagnostics.iter().any(|d| d.code == "E-ANALYZE-IR"
+            && d.message
+                .contains("head transition invalidates a description required later")),
+        "{}",
+        report.to_json()
+    );
+    conflict(
+        "let p=&mut state.x;let old=give state.r;state.r=R{n:2};let moved=state;return *p+old.n+moved.y;",
+    );
+    conflict(
+        "let p=&mut state.x;let old=give state.r;state.r=R{n:2};let alias=&state.x;return *p+*alias+old.n;",
+    );
+}
