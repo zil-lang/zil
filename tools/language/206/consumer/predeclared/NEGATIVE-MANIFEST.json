@@ -1,0 +1,149 @@
+{
+  "status": "DraftNotRun",
+  "cases": [
+    {
+      "name": "duplicate-child",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/duplicate-child.zil",
+      "bytes": 325,
+      "sha256": "06e366546e89fd62d3d62559271b5d44b90287c489c47b55d402bd9109cee76f",
+      "expected_category": "SafeReject",
+      "expected_semantic_obligation": "One actual complete child consumed twice; same type is not a second responsibility.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "partial-child-embed",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/partial-child-embed.zil",
+      "bytes": 303,
+      "sha256": "4858b70ae24e6a0c3afe85a15f3daa237773e604e5e49a0b5656bfea6515a9c7",
+      "expected_category": "SafeReject",
+      "expected_semantic_obligation": "A Middle local with an empty Leaf field cannot be embedded as a complete child.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "partial-leaf-embed",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/partial-leaf-embed.zil",
+      "bytes": 318,
+      "sha256": "863761b17901e5d3ef440684ffc7d5613ec06f847e9e9872434a94ee15bb2854",
+      "expected_category": "SafeReject",
+      "expected_semantic_obligation": "A partial leaf cannot be hidden by constructing a complete parent.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "same-layout-distinct-nominal",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/same-layout-distinct-nominal.zil",
+      "bytes": 372,
+      "sha256": "1237c327781cc096b339943f7b9df23f8fb1a1338c94b3f2f403a1b28f060a3f",
+      "expected_category": "SafeReject",
+      "expected_semantic_obligation": "OtherMiddle and Middle have the same physical layout but different complete nominal identity.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "incoming-subtree-is-not-create",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/incoming-subtree-is-not-create.zil",
+      "bytes": 315,
+      "sha256": "157c250b18c6a5c30ead5642518b674ab1e6d61e68835fc718dbb76f7ea07fb9",
+      "expected_category": "SafeReject",
+      "expected_semantic_obligation": "Taking/wrapping nested input leaves cannot launder Incoming provenance into Created.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "old-description-after-wrap",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/old-description-after-wrap.zil",
+      "bytes": 328,
+      "sha256": "8483127edb79734ea1b37df331646d8c7b2e6ac983f7ee869d77377a30f585ed",
+      "expected_category": "SafeReject",
+      "expected_semantic_obligation": "An address rooted in the old local does not follow whole-child relocation.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "closed-store-element",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/closed-store-element.zil",
+      "bytes": 235,
+      "sha256": "c530e741f846186e58fa61c619aee94348b345d620868abdef22cc74dcf2233d",
+      "expected_category": "Unsupported",
+      "expected_semantic_obligation": "Existing StoreElement qualification is not widened to nested-owning Product.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "closed-capture",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/closed-capture.zil",
+      "bytes": 293,
+      "sha256": "df6531c814776f4a2a32cab5b394c3be607b153643f7e9d64dd834418624f742",
+      "expected_category": "Unsupported",
+      "expected_semantic_obligation": "Nested Root cannot enter the old Package capture ABI that only flags direct Managed fields.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "closed-owning-array",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/closed-owning-array.zil",
+      "bytes": 229,
+      "sha256": "384679cf3a8621218c2508a7e5e30f6af1dae08eacf160147b32692f0b56438d",
+      "expected_category": "Unsupported",
+      "expected_semantic_obligation": "Arrays of the newly nested Product are not opened by the ordinary complete-value predicate.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "closed-nested-error-payload",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/closed-nested-error-payload.zil",
+      "bytes": 248,
+      "sha256": "bc7df6f6f348cb892c4aaa476031444f087b510d60b92c302b77c9cabd90b4b8",
+      "expected_category": "Unsupported",
+      "expected_semantic_obligation": "Existing flat Leaf error payloads do not imply new error payload qualification for Root/Middle.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "closed-child-borrow",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/closed-child-borrow.zil",
+      "bytes": 242,
+      "sha256": "179b5bb2eec05f7ef2c3642fbdf8d91c7181257e77cd2d4acc80d46a86aefae5",
+      "expected_category": "Unsupported",
+      "expected_semantic_obligation": "A child Package is not a new BorrowPackageField pointee.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    },
+    {
+      "name": "closed-deep-child-lvalue",
+      "file": "/workspace/scratch/39be3faa4442/run-logs/206-preparation/consumer01/negative/closed-deep-child-lvalue.zil",
+      "bytes": 248,
+      "sha256": "86267e9c4a727a3cdbf6c4e38e9353b3eb6063c3ad7852e686dcb6c0a3015f08",
+      "expected_category": "Unsupported",
+      "expected_semantic_obligation": "Direct whole-child transfer does not add an arbitrary deep storage projection.",
+      "expected_diagnostic_phase": "Pending formal registration; no broad phase whitelist asserted",
+      "expected_executable": false,
+      "language_compilation": "NotRun",
+      "language_execution": "Forbidden for these negative sources"
+    }
+  ]
+}

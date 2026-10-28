@@ -15,6 +15,33 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
         })
 }
 
+/// Complete nested Products use the ordinary value ABI. The old predicate
+/// remains the only admission route for captures, arrays and error payloads.
+pub(super) fn supported_value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    supported_type(ty, resources) || product_type(ty, resources)
+}
+
+fn product_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    let Type::Package { fields, .. } = ty else {
+        return false;
+    };
+    let mut owns = false;
+    for (_, field) in fields {
+        match field {
+            Type::Managed(payload)
+                if !matches!(payload.as_ref(), Type::OwnedStore { .. })
+                    && resources::supported_type(field, resources) =>
+            {
+                owns = true;
+            }
+            Type::Package { .. } if product_type(field, resources) => owns = true,
+            field if field.is_copy_value() => {}
+            _ => return false,
+        }
+    }
+    owns
+}
+
 fn has_array_fields(ty: &Type) -> bool {
     matches!(ty, Type::Package { fields, .. }
         if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
@@ -26,8 +53,12 @@ fn has_store_fields(ty: &Type) -> bool {
 }
 
 fn owned_field(ty: &Type) -> bool {
-    matches!(ty, Type::Managed(_) | Type::Closure(_))
-        || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+    // An embedded child is complete. Its parent has one direct field flag;
+    // internal partial flags belong only to the child's independent local.
+    matches!(
+        ty,
+        Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+    ) || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
 }
 
 /// Complete inline carriers have no nested partial flags. Enumerate only
