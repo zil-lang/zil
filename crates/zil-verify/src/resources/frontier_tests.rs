@@ -395,13 +395,15 @@ fn transitive_owned_write_is_rejected_after_convergence_and_borrowed_write_is_le
 fn public_helper_contract_cuts_the_private_effect_dependency() {
     let mut module = fixture(&[vec![(1, false)], vec![]], &[0, 1]);
     module.functions[1].callable_contract = Some(CallableParameterContract {
-        parameter: 0,
-        closure: ClosureId(0),
-        kind: CallableKind::Fn,
-        hold: vec![],
-        call: vec![],
-        writes: vec![],
-        cleanup: CallableCleanup::Borrowed,
+        roles: vec![CallableRole {
+            parameter: 0,
+            closure: ClosureId(0),
+            kind: CallableKind::Fn,
+            hold: vec![],
+            call: vec![],
+            writes: vec![],
+            cleanup: CallableCleanup::Borrowed,
+        }],
         traces: zil_ir::CallableTraces::Finite(vec![CallableTrace {
             calls: vec![],
             exit: CallableExit::Return,
