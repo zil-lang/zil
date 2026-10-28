@@ -1,0 +1,7 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.41s
+     Running tests/generics.rs (/workspace/scratch/39be3faa4442/targets178/author181/debug/deps/generics-0665cd470979d094)
+     Running tests/impl177_state_composition.rs (/workspace/scratch/39be3faa4442/targets178/author181/debug/deps/impl177_state_composition-343f8c8517143965)
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author181/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+     Running tests/impl181_composition.rs (/workspace/scratch/39be3faa4442/targets178/author181/debug/deps/impl181_composition-a10e3d44fd9dc26d)

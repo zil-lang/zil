@@ -1,0 +1,24 @@
+
+running 5 tests
+test consumed_and_cyclic_nearest_neighbors_still_reject ... ok
+test new_sequences_still_pay_three_independent_budgets ... ok
+test nine_distinct_exits_keep_complete_public_sequences ... ok
+test four_module_event_batch_preserves_success_error_and_cleanup ... ok
+test three_four_sixteen_calls_update_actual_mutable_state ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+
+
+running 9 tests
+test borrowed_and_nonfield_values_do_not_get_the_new_give_capability ... ok
+test callback_field_qualification_allows_sibling_copy_write_before_its_last_use ... ok
+test concrete_resource_give_refill_keeps_actual_callback_state ... ok
+test concrete_byte_buffer_give_refill_releases_both_actual_allocations ... ok
+test independent_raw_and_wire_rebuild_both_composed_loan_kinds ... ok
+test independent_callback_field_is_allowed_while_whole_parent_move_stays_closed ... ok
+test last_store_read_can_end_before_mutable_callback_qualification ... ok
+test unused_template_keeps_field_identity_and_rejects_conditional_partial_publication ... ok
+test returning_partial_branch_does_not_poison_the_complete_branch ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+

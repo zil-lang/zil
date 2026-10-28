@@ -1,0 +1,64 @@
+{
+  "status": "Pass",
+  "implementation_commit": "2f42c86cbe75d5d542bb46dee28fc92e354a257f",
+  "implementation_author": "/root",
+  "scope": "Composition of reviewed generic StoreElement, distinct State fields and exclusive initialized element windows, with symbolic Copy projection reads. This is not full language1.4.",
+  "executed": 96,
+  "assertions": 96,
+  "source_repair": "83174688e249c8e5723ebaffd11cde3024b601b6",
+  "checks": {
+    "linux": {
+      "executions": 48,
+      "ordinary": 10,
+      "instrumented": 38,
+      "allocation_failures": 30,
+      "receipt": "runs/final01/linux/summary.json"
+    },
+    "win64_wine": {
+      "executions": 48,
+      "ordinary": 10,
+      "instrumented": 38,
+      "allocation_failures": 30,
+      "receipt": "runs/final01/win64/summary.json"
+    },
+    "fmt": "runs/final01/fmt/command.json",
+    "clippy": "runs/final01/clippy/command.json",
+    "projection_repair_regressions": "runs/repair03/command/command.json",
+    "unchanged_legacy_inputs": "runs/legacy02/command/command.json"
+  },
+  "failed_candidates": [
+    {
+      "path": "runs/linux01",
+      "reason": "Generic Copy field read through a Store element Address did not unwrap its concrete referent; corrected producer symbolic projection."
+    },
+    {
+      "path": "runs/targeted01",
+      "reason": "Legacy177 expected closed generic Store construction, same input is now verified."
+    },
+    {
+      "path": "runs/legacy01",
+      "reason": "One old nonresource generic give message assertion retained pre178 wording; original source kept."
+    },
+    {
+      "independent_record": "../../../reviews/181/composition/REJECTED-e789-REVIEW.json",
+      "reason": "Global borrowing used for all member bases could duplicate unknown generic T; independent Holder<T> counterexample required preserving ordinary Value consumption."
+    }
+  ],
+  "formal_observation": {
+    "path": "invalidated-workspace01/INVALIDATED.json",
+    "passed": 1668,
+    "failed": 9,
+    "ignored": 0,
+    "status": "InvalidatedForFinalAcceptance",
+    "reason": "Root changed source while the run was in flight. It is preserved only as a development observation. Four helper give regressions were repaired in independently reviewed178 followup; five obsolete assertion families migrated using the unchanged original inputs."
+  },
+  "known_limits": [
+    "Win64 actual PE executed under Wine compatibility, not native Windows certification.",
+    "Store element window stays synchronous and finite Copy projections only; direct Managed field access/escape unsupported.",
+    "Mixed borrowed capture implementation182 and direct resource-success183 remain separate dependent deliveries.",
+    "Full language1.4, native Windows, concurrency/cancellation/lending/dyn and Rust product comparisons not completed by this slice."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}

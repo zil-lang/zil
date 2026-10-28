@@ -1,0 +1,6 @@
+{
+  "status": "InvalidatedForFinalAcceptance",
+  "start_source": "e7896c54e26351f1b7bfbe9de133945f62850263",
+  "reason": "Independent review found a generic Value move defect during the ongoing workspace command. Root repaired source before the command completed. Preserve any actual output, but do not use this run as a final frozen-source gate; rerun after combined repairs freeze.",
+  "repair_source": "83174688e249c8e5723ebaffd11cde3024b601b6"
+}

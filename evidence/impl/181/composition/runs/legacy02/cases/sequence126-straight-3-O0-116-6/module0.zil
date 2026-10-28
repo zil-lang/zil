@@ -1,0 +1,1 @@
+fn batch<F:FnMut(i64)->i64>(f:&mut F)->i64{return f(1)+f(2)+f(3)} fn value()->i64{var total:i64=0;var f=(n:i64)=>{total+=n;return total};let result=batch(&mut f);return result+total}

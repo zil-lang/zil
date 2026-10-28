@@ -1,0 +1,891 @@
+{
+  "status": "Pass",
+  "source_commit": "647ba5c29891b63ac100de27b0a8e9e20148adea",
+  "dirty": "",
+  "cli_sha256": "d20cd40c7f7837d1aa2f4ac935a16c6938f493cc30508365ee5d9b9976f78027",
+  "platform": "linux",
+  "execution": "native",
+  "selected": [
+    "composed"
+  ],
+  "builds": [
+    {
+      "entry": "composed",
+      "optimization": "O0",
+      "verification_runs": 1,
+      "llvm_sha256": "122c60a0c81f954344519de284c04676d294ab0778904cea5e252e68e5345077",
+      "executable_sha256": "63867f038c87682abf7c26590a7e08bf8a537021e0b6e3241460c8a3ad6221da",
+      "module_count": 4,
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/language14/wt181/examples/mainline/zui_language181/composed.zil",
+        "1": "/workspace/scratch/39be3faa4442/language14/wt181/examples/mainline/zui_language181/model.zil",
+        "2": "/workspace/scratch/39be3faa4442/language14/wt181/examples/mainline/zui_language181/collection.zil",
+        "3": "/workspace/scratch/39be3faa4442/language14/wt181/examples/mainline/zui_language181/state.zil"
+      },
+      "allocation_probe_sha256": "7f5d6c98ce109821a9ee8a03acff6371e97c74b0351b5895d7e719281ba14e2e"
+    },
+    {
+      "entry": "composed",
+      "optimization": "O2",
+      "verification_runs": 1,
+      "llvm_sha256": "122c60a0c81f954344519de284c04676d294ab0778904cea5e252e68e5345077",
+      "executable_sha256": "d9187256ed1191e5558088d7c68be8a58a952e4ebee8531867cb0a60e3cc5a82",
+      "module_count": 4,
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/language14/wt181/examples/mainline/zui_language181/composed.zil",
+        "1": "/workspace/scratch/39be3faa4442/language14/wt181/examples/mainline/zui_language181/model.zil",
+        "2": "/workspace/scratch/39be3faa4442/language14/wt181/examples/mainline/zui_language181/collection.zil",
+        "3": "/workspace/scratch/39be3faa4442/language14/wt181/examples/mainline/zui_language181/state.zil"
+      },
+      "allocation_probe_sha256": "d8848df79d568079c6a3d63f769b8b0fc45dc4428bb7c0d23267f5418200bfc2"
+    }
+  ],
+  "observations": [
+    {
+      "entry": "composed",
+      "scenario": "count-0",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "30",
+      "stdout": "HZ",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-0",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "30",
+      "stdout": "HZ",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 57
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-0",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-0",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-0",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "HZ",
+      "exit_code": 0,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 41
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "31",
+      "stdout": "AHZ",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "31",
+      "stdout": "AHZ",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 65
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "HZ",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 41
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "AHZ",
+      "exit_code": 0,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 49
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "32",
+      "stdout": "ABHZ",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "32",
+      "stdout": "ABHZ",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 73
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "HZ",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 41
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "ABHZ",
+      "exit_code": 0,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 57
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "33",
+      "stdout": "ABCHZ",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "33",
+      "stdout": "ABCHZ",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 81
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "HZ",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 41
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "ABCHZ",
+      "exit_code": 0,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 65
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "invalid-input",
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "39",
+      "stdout": "",
+      "exit_code": 9,
+      "fail_at": 0
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-0",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "30",
+      "stdout": "HZ",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-0",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "30",
+      "stdout": "HZ",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 57
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-0",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-0",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-0",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "30",
+      "stdout": "HZ",
+      "exit_code": 0,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 41
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "31",
+      "stdout": "AHZ",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "31",
+      "stdout": "AHZ",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 65
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "HZ",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 41
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-1",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "stdout": "AHZ",
+      "exit_code": 0,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 49
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "32",
+      "stdout": "ABHZ",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "32",
+      "stdout": "ABHZ",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 73
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "HZ",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 41
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-2",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "stdout": "ABHZ",
+      "exit_code": 0,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 57
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "33",
+      "stdout": "ABCHZ",
+      "exit_code": 0,
+      "fail_at": 0
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "33",
+      "stdout": "ABCHZ",
+      "exit_code": 0,
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 81
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "H",
+      "exit_code": 1,
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 40
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "HZ",
+      "exit_code": 1,
+      "fail_at": 3,
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 41
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "count-3",
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "33",
+      "stdout": "ABCHZ",
+      "exit_code": 0,
+      "fail_at": 4,
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 65
+      }
+    },
+    {
+      "entry": "composed",
+      "scenario": "invalid-input",
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "39",
+      "stdout": "",
+      "exit_code": 9,
+      "fail_at": 0
+    }
+  ],
+  "source_hashes": {
+    "examples/mainline/zui_language177/callbacks.zil": "60eca04279644fee58e4b6022b08192d8460df9ed9489792ff472c6285b6ba05",
+    "examples/mainline/zui_language177/collection.zil": "aa853b039a91b3909830a797637dda2ea3ce157918c9cd7ced565e693fbd4d88",
+    "examples/mainline/zui_language177/field_exit.zil": "d5eb6ffa22cac71e19880545a10eb1c017683710a333f03833897668e58eba10",
+    "examples/mainline/zui_language177/main.zil": "681c339bfb7cb7728170f9ab68c264846aea1df5013ddd72b6f09bbfa5afd9a9",
+    "examples/mainline/zui_language177/model.zil": "63350d883dc1844d8734d02337a3d3296d6743864545d68c2cb1b5e505a0c42b",
+    "examples/mainline/zui_language177/state.zil": "60ad97bdd2ba0c8d13bb09c8c1685ac72c2c4ddd412581caa1c4de1be1aad2d7",
+    "examples/mainline/zui_language181/collection.zil": "2d01acd34f18e166bcab41d5effb541b9e8d90bc3d286c42936196c878317275",
+    "examples/mainline/zui_language181/composed.zil": "3858f824f5c1a8fe82dc7b03f9cc299b5676b50a548449314f77146eebaee9bb",
+    "examples/mainline/zui_language181/model.zil": "d8961c14762526e6ba7cfd996393b4fc2dcbf2d2b9d715e32817f7accc79af7f",
+    "examples/mainline/zui_language181/platform_padded.zil": "f2486a40ac3bf25fb422ed858a5dcbbbdcee446c232ab5dfbc3422557f87a257",
+    "examples/mainline/zui_language181/state.zil": "e940414dd18579d6f4b3d6b9990a5e94e40a49c7f76986b518539a444700a660",
+    "tools/language/181/platform.py": "ea25f55f9f64f61559e8edfe2d4cfdcc7a39e13a7e42fdbf37ab2e507303b4ee",
+    "tools/language/181/heap_probe.c": "aa078bd0c5247d0ed0bb4baa2dbf56f9c765940b2ef06b248177a12537d5fd03",
+    "tools/language/177/consumer.py": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb",
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5"
+  },
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "executions": 48,
+  "ordinary_executions": 10,
+  "instrumented_executions": 38,
+  "failure_executions": 30
+}
