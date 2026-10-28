@@ -1,0 +1,34 @@
+{
+  "status": "Pass",
+  "interpretation": "Read headers from each actual generated and executed PE, not an LLVM target-string claim.",
+  "files": [
+    {
+      "path": "win64-frozen01/O0/program.exe",
+      "sha256": "7dea35e49bf8b00aabd978dd638537f09095e2734bbdbcac7b6986fbafff9f6a",
+      "bytes": 18432,
+      "machine": "0x8664",
+      "optional_header": "0x20b"
+    },
+    {
+      "path": "win64-frozen01/O0/probe.exe",
+      "sha256": "a5b3b81342bbce63d0aac5762342be7310ee6b9328050a451e814c53dcbe3a2c",
+      "bytes": 20480,
+      "machine": "0x8664",
+      "optional_header": "0x20b"
+    },
+    {
+      "path": "win64-frozen01/O2/program.exe",
+      "sha256": "45568e56a28fa53e1113cfea1bcb30b149c67430459dbed50f04221b51adbd30",
+      "bytes": 5632,
+      "machine": "0x8664",
+      "optional_header": "0x20b"
+    },
+    {
+      "path": "win64-frozen01/O2/probe.exe",
+      "sha256": "7f19076bc8f89b5b36f2ce8876d58efa194367022fda5f4534072686772eda2b",
+      "bytes": 10752,
+      "machine": "0x8664",
+      "optional_header": "0x20b"
+    }
+  ]
+}

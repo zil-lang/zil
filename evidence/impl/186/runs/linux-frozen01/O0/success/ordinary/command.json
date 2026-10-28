@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/186-author/linux-frozen01/O0/program"
+  ],
+  "status": "Completed",
+  "start": 1793154347.4357138,
+  "stdin_hex": "30",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "0"
+  },
+  "exit_code": 0,
+  "stdout_sha256": "3932764c96c4833eef156ccc88b4484a07b72452ad252e6ae3b30c36e35e8bfe",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793154347.437045
+}

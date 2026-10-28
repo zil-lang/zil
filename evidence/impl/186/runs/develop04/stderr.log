@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.92s
+     Running tests/generic_regressions.rs (/workspace/scratch/39be3faa4442/targets178/author186/debug/deps/generic_regressions-8dd137fa1a3d7efa)
+     Running tests/generics.rs (/workspace/scratch/39be3faa4442/targets178/author186/debug/deps/generics-0665cd470979d094)
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author186/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+     Running tests/impl178_helper_give.rs (/workspace/scratch/39be3faa4442/targets178/author186/debug/deps/impl178_helper_give-e728c84151563936)
+     Running tests/impl181_composition.rs (/workspace/scratch/39be3faa4442/targets178/author186/debug/deps/impl181_composition-a10e3d44fd9dc26d)
+     Running tests/impl186_raw_owned_success.rs (/workspace/scratch/39be3faa4442/targets178/author186/debug/deps/impl186_raw_owned_success-6cd987e2e27b3d8c)
+error: test failed, to rerun pass `-p zil-driver --test impl186_raw_owned_success`

@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/186-author/linux-consumer01/O0/program"
+  ],
+  "status": "Completed",
+  "start": 1793154123.4389586,
+  "stdin_hex": "31",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "0"
+  },
+  "exit_code": 1,
+  "stdout_sha256": "210080424a758b2638b16f7a02642f6da156c1422d4cfc73beabc0cc250183c6",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793154123.4400208
+}
