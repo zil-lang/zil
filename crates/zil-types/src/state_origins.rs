@@ -1395,7 +1395,24 @@ pub(super) fn collect(
     state: &mut closures::State,
     limits: &Limits,
 ) -> R<Option<Uses>> {
+    // The older single-State encoding places its one bound in the direct
+    // table. A real owned Package input still needs declaration checking when
+    // unused; no synthetic public State table or concrete environment is made.
+    let span = function.span;
+    let legacy_candidate = function.state_parameters.is_empty()
+        && matches!(function.callable_parameters.as_slice(), [bound]
+            if function.parameters.get(bound.index as usize)
+                .is_some_and(|parameter| matches!(parameter.ty, Type::Package { .. })));
+    // Bound the complete legacy header/body before its classification scan and
+    // any snapshots. Profiles without this actual Package input stay on their
+    // original fast path and retain their existing charges.
+    if legacy_candidate {
+        let (work, _) = inference::helper_snapshot_work(function, limits)?;
+        state.snapshot(work, span)?;
+    }
+    let legacy_state = legacy_candidate && callable_fields::template(function);
     if function.state_parameters.is_empty()
+        && !legacy_state
         && !callable_fields::dual_constructor(
             &function.callable_parameters,
             &function.return_type,
@@ -1404,9 +1421,10 @@ pub(super) fn collect(
     {
         return Ok(None);
     }
-    let span = function.span;
-    let (work, _) = inference::helper_snapshot_work(function, limits)?;
-    state.snapshot(work, span)?;
+    if !legacy_candidate {
+        let (work, _) = inference::helper_snapshot_work(function, limits)?;
+        state.snapshot(work, span)?;
+    }
     let bounds = bounds(function).into_owned();
     let tables = state.helper_tables.clone();
     let mut walk = Walk {
@@ -1416,7 +1434,7 @@ pub(super) fn collect(
         scopes: vec![BTreeMap::new()],
         expressions: BTreeMap::new(),
         capture: false,
-        position_liveness: replacement(function),
+        position_liveness: replacement(function) || legacy_state,
         live: 1,
         loops: Vec::new(),
         state,
