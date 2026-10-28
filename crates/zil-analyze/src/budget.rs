@@ -367,13 +367,10 @@ pub(super) fn preflight(
             "closure signature preflight",
         )?;
         for ty in &closure.captures {
-            if ty.is_slice_address()
-                || matches!(ty, Type::Desc(inner) if **inner == Type::ByteBuffer)
-                || super::resources::owned_error(ty)
-            {
+            if ty.is_slice_address() || super::resources::owned_error(ty) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
-                    "slice, borrowed byte storage and owned error-union captures are not implemented",
+                    "slice and owned error-union captures are not implemented",
                     None,
                 )]);
             }
