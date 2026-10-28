@@ -4,6 +4,8 @@
 
 208输入：`0f391c0a8cb8a421ffca5cef441fee201cf7c123`。具体支持、策略与剩余缺口见`docs/research/209/INTEGRATION.md`。用户授权采用LLVM API研发主路线；直接Builder与完整产品门不冒称完成。GitHub推送状态以本轮交付收据为准，不能从存在本文件推断远端更新。
 
+本地209回归：标准workspace1664、参考1647、原生消费者16构建/128运行，均通过。发布工具见`tools/research/209/publish.py`；上传之前必须重新检查远端，拒绝force覆盖。样例输入是ASCII字符`3`，不是单字节0x03。
+
 ## 以下为原GitHub主线交接原文
 
 # 当前 GitHub 接续入口（2026-10-26，136/137）
