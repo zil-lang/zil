@@ -327,6 +327,85 @@ fn sibling_fields_remain_disjoint_while_same_field_and_parent_windows_reject() {
 }
 
 #[test]
+fn lending_fields_keep_independent_output_origins_and_parent_obligations() {
+    let prefix = "fn make(seed:u8)->impl FnMut()->&[u8]{let b=bytes_new();return move()=>{bytes_reserve(b,bytes_len(b)+1);bytes_push(b,seed);return bytes_view(b)}}package State<F>{manages bytes:ByteBuffer;first:F;second:F;count:i32}fn pack<F:FnMut()->&[u8]>(a:F,b:F)->State<F>{return State::<F>{bytes:bytes_new(),first:a,second:b,count:0}}";
+    native(
+        "lending-two-origins",
+        &format!(
+            "{prefix}fn main()->i32{{var state=pack(make(7u8),make(9u8));let a=state.first();let b=state.second();state.count+=1;return i32(a[0])+i32(b[0])+state.count-17}}"
+        ),
+        "",
+        0,
+    );
+    native(
+        "lending-replace-sibling",
+        &format!(
+            "{prefix}fn main()->i32{{var state=pack(make(7u8),make(9u8));let a=state.first();state.second=make(11u8);let b=state.second();return i32(a[0])+i32(b[0])-18}}"
+        ),
+        "",
+        0,
+    );
+    for (label, body) in [
+        (
+            "lending-same-field",
+            "let a=state.second();state.second();return i32(a.len())",
+        ),
+        (
+            "lending-take-field",
+            "let a=state.second();let moved=state.second;return i32(a.len())",
+        ),
+        (
+            "lending-replace-field",
+            "let a=state.second();state.second=make(11u8);return i32(a.len())",
+        ),
+        (
+            "lending-parent-move",
+            "let a=state.second();let moved=state;return i32(a.len())",
+        ),
+    ] {
+        reject(
+            label,
+            &format!("{prefix}fn main()->i32{{var state=pack(make(7u8),make(9u8));{body}}}"),
+            ResultCategory::SafeReject,
+            &[Phase::Verify],
+            "address",
+        );
+    }
+}
+
+#[test]
+fn only_the_new_two_input_constructor_limits_extra_parameters() {
+    let factory = "fn make(seed:i32)->impl Fn()->i32{return move()=>seed}";
+    native(
+        "direct-managed-parameter",
+        &format!(
+            "{RESOURCE}{factory}package State<F>{{manages root:Ticket;first:F;second:F}}fn pack<F:Fn()->i32>(a:F,b:F,give root:Ticket)->State<F>{{return State::<F>{{root:give root,first:a,second:b}}}}fn main()->i32{{let state=pack(make(20),make(22),Ticket{{code:84}});return state.first()+state.second()-42}}"
+        ),
+        "T",
+        0,
+    );
+    let package = "package State<F>{manages bytes:ByteBuffer;first:F;second:F}package Extra{manages bytes:ByteBuffer}";
+    reject(
+        "extra-owning-package",
+        &format!(
+            "{package}{factory}fn pack<F:Fn()->i32>(a:F,b:F,extra:Extra)->State<F>{{return State::<F>{{bytes:bytes_new(),first:a,second:b}}}}fn main()->i32{{let state=pack(make(20),make(22),Extra{{bytes:bytes_new()}});return 0}}"
+        ),
+        ResultCategory::Unsupported,
+        &[Phase::Types],
+        "finite Copy or direct Managed",
+    );
+    reject(
+        "extra-borrowed-input",
+        &format!(
+            "{package}{factory}fn pack<F:Fn()->i32>(a:F,b:F,extra:&i32)->State<F>{{return State::<F>{{bytes:bytes_new(),first:a,second:b}}}}fn main()->i32{{let n=0;let state=pack(make(20),make(22),&n);return 0}}"
+        ),
+        ResultCategory::Unsupported,
+        &[Phase::Types],
+        "finite Copy or direct Managed",
+    );
+}
+
+#[test]
 fn constructor_arguments_prepare_once_and_only_acquired_values_clean_on_error() {
     let prefix = format!(
         "{RESOURCE}enum E{{Fail}}fn fail()->E!i32{{unsafe{{putchar(80)}}return E.Fail}}package State<T,F>{{manages root:Ticket;first:F;second:F;value:T}}fn pack<T:Copy,F:Fn()->i32>(a:F,b:F,value:T)->State<T,F>{{return State::<T,F>{{root:Ticket{{code:84}},first:a,second:b,value:value}}}}fn make(label:i32)->impl Fn()->i32{{let ticket=Ticket{{code:label}};return move()=>ticket.code}}"
