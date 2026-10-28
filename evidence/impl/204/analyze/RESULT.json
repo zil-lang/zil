@@ -1,0 +1,473 @@
+{
+  "status": "Pass",
+  "scope": "Bounded author Analyze and exact source-derived controls; no formal workspace or product acceptance.",
+  "implementation_commits": [
+    "49938b52da1452a25346c5d10bcf6e187eec8841",
+    "70678a8dbad7f1da27730fec301712a36b851520"
+  ],
+  "final_source_test_commit": "5d24db3bcc9a3ab72d27241f249816cb0ba63e7d",
+  "legacy_message_only_commit": "fd6de26275e84e9a15b0546a245f4ebba35d4cbf",
+  "spec_sha256": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0",
+  "normative_sha256": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "schema": 27,
+  "runs": [
+    {
+      "run": "check01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "5bc522a0fa3d15d41eaeb5d98c9b552a0cd0239d",
+      "clean_checkout": false,
+      "test_groups_pass_fail": null,
+      "command_receipt_sha256": "9ef619d14d6d97856274d1fa0b000160e936adc91a83656dcd91e9646128ee80",
+      "command": [
+        "cargo",
+        "check",
+        "-p",
+        "zil-analyze",
+        "--offline",
+        "--locked"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "raw01",
+      "status": "Fail",
+      "exit_code": 101,
+      "source_commit": "07cba706c887dda53b68b396acde0ba9a4302615",
+      "clean_checkout": false,
+      "test_groups_pass_fail": [
+        5,
+        2
+      ],
+      "command_receipt_sha256": "c537c9a0b9ba3c78a095e75441d9ae8d3946c2c0b9ecb778ad4506faf8d914a1",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl204_capture",
+        "--offline",
+        "--locked",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "raw02",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "07cba706c887dda53b68b396acde0ba9a4302615",
+      "clean_checkout": false,
+      "test_groups_pass_fail": [
+        7,
+        0
+      ],
+      "command_receipt_sha256": "0dcdfe05b9563f726cf1c969c61ecc66fa2b26f4ad25f3f5cd515368a4894782",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl204_capture",
+        "--offline",
+        "--locked",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "raw03",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "934bcd18fe46afe72c407ecfa028f179e4e217ce",
+      "clean_checkout": true,
+      "test_groups_pass_fail": [
+        7,
+        0
+      ],
+      "command_receipt_sha256": "1455243b98f35440448adcbe353cec8517cf506d41cf051aa122c91eaeb46fc3",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl204_capture",
+        "--offline",
+        "--locked",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "source01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "934bcd18fe46afe72c407ecfa028f179e4e217ce",
+      "clean_checkout": true,
+      "test_groups_pass_fail": [
+        3,
+        0
+      ],
+      "command_receipt_sha256": "b55e8b3c7120e16964a3a31dee0cfbdb9ea3371be33f0ea7f8cdad69bd217c72",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl204_analyze_capture",
+        "--offline",
+        "--locked",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "callee01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "0c3f9d5c41415308b6a454643b266db25dff18dd",
+      "clean_checkout": true,
+      "test_groups_pass_fail": [
+        1,
+        0
+      ],
+      "command_receipt_sha256": "d9fb6d5e0ef79c028d83af254dd1e343b8099e0bac10ebdcca28867b2c6ee6c9",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl204_analyze_capture",
+        "--offline",
+        "--locked",
+        "callee_preparation_failure_keeps_owned_store_debt_and_body_take_is_observable",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 4
+    },
+    {
+      "run": "clippy01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "0c3f9d5c41415308b6a454643b266db25dff18dd",
+      "clean_checkout": true,
+      "test_groups_pass_fail": null,
+      "command_receipt_sha256": "ddfe1d35acf2c663e7b700d0ef73f96088707fb50dbb3da251a175abe6f6395b",
+      "command": [
+        "cargo",
+        "clippy",
+        "-p",
+        "zil-analyze",
+        "--tests",
+        "--offline",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "old-budget01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "934bcd18fe46afe72c407ecfa028f179e4e217ce",
+      "clean_checkout": true,
+      "test_groups_pass_fail": [
+        1,
+        0
+      ],
+      "command_receipt_sha256": "a885d6dce446fd9caa60a53383410901a43029c3d33ef78d196642091352a971",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "--offline",
+        "--locked",
+        "old_noncallback_store_budget_is_unchanged",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "windows-before01",
+      "status": "Fail",
+      "exit_code": 101,
+      "source_commit": "40dddcb5074fce4aafa3f669dc27545d0da0a9f8",
+      "clean_checkout": true,
+      "test_groups_pass_fail": [
+        0,
+        1
+      ],
+      "command_receipt_sha256": "59c90efe0c7ee853777e906630c1a265ed285fcef81edf7ba5ec9c6804dd97f0",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl204_source",
+        "--offline",
+        "--locked",
+        "body_take_keeps_the_existing_capture_element_parent_window",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 2
+    },
+    {
+      "run": "windows-check01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "a2d36f2974374cb132e0a10494e3e1844e0725df",
+      "clean_checkout": false,
+      "test_groups_pass_fail": null,
+      "command_receipt_sha256": "2ce40cc19768036fcd962b61c9a2caa4d83fe375e3e1d8cf4f8bef48a1037518",
+      "command": [
+        "cargo",
+        "check",
+        "-p",
+        "zil-analyze",
+        "--offline",
+        "--locked"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "windows-after01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "a2d36f2974374cb132e0a10494e3e1844e0725df",
+      "clean_checkout": false,
+      "test_groups_pass_fail": [
+        6,
+        0
+      ],
+      "command_receipt_sha256": "433254d7676775d2eef7420b1d4f70e219b57debe52566cd94410b0c8e742b6d",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl204_analyze_capture",
+        "--offline",
+        "--locked",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 4
+    },
+    {
+      "run": "windows-clippy01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "70678a8dbad7f1da27730fec301712a36b851520",
+      "clean_checkout": true,
+      "test_groups_pass_fail": null,
+      "command_receipt_sha256": "ac993b79c19b52bfd1958049b7313257401d4a96260faea5813bb1308716fe29",
+      "command": [
+        "cargo",
+        "clippy",
+        "-p",
+        "zil-analyze",
+        "--tests",
+        "--offline",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "windows-raw01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "70678a8dbad7f1da27730fec301712a36b851520",
+      "clean_checkout": true,
+      "test_groups_pass_fail": [
+        7,
+        0
+      ],
+      "command_receipt_sha256": "95323019376846d7d397618c0ea4a27a62b6086745908f17c62c72a660019068",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl204_capture",
+        "--offline",
+        "--locked",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "windows-final01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "5d24db3bcc9a3ab72d27241f249816cb0ba63e7d",
+      "clean_checkout": true,
+      "test_groups_pass_fail": [
+        7,
+        0
+      ],
+      "command_receipt_sha256": "738b043e5080c35c71dd1c603dd226342ba77cb89f89f668c08c1888db96c318",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl204_analyze_capture",
+        "--offline",
+        "--locked",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 4
+    },
+    {
+      "run": "old-budget02",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "7bf69fe193d0e6f6bcfc62e9d1fa955afb26c61c",
+      "clean_checkout": true,
+      "test_groups_pass_fail": [
+        1,
+        0
+      ],
+      "command_receipt_sha256": "2d2dc1843019d436b0b589236decbe26019db27561295f4f89f3b9c84c1aced2",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "--offline",
+        "--locked",
+        "old_noncallback_store_budget_is_unchanged",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "hold-frontier01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "7bf69fe193d0e6f6bcfc62e9d1fa955afb26c61c",
+      "clean_checkout": true,
+      "test_groups_pass_fail": [
+        3,
+        0
+      ],
+      "command_receipt_sha256": "64c353c3958e0b6386a7d6ae44d8c8e05a1408d1c72f370af360485986ef5b6a",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--lib",
+        "--offline",
+        "--locked",
+        "holds::frontier_tests",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "legacy201-before01",
+      "status": "Fail",
+      "exit_code": 101,
+      "source_commit": "fb1567f0bf7c3b3411ce6b5767fcd0b733d424e9",
+      "clean_checkout": false,
+      "test_groups_pass_fail": [
+        0,
+        1
+      ],
+      "command_receipt_sha256": "39b32ce9b5ffbd45e75e96fbbbcd39c349fa18c47e2e52d479257ca2acb22395",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "--offline",
+        "--locked",
+        "direct_and_package_store_captures_stay_closed",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 0
+    },
+    {
+      "run": "legacy201-after01",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "fd6de26275e84e9a15b0546a245f4ebba35d4cbf",
+      "clean_checkout": true,
+      "test_groups_pass_fail": [
+        1,
+        0
+      ],
+      "command_receipt_sha256": "29e38036b83b9208c9f775c05f0a0cf163db12aed89198f3e7baf4dada666b57",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "--offline",
+        "--locked",
+        "direct_and_package_store_captures_stay_closed",
+        "--",
+        "--nocapture"
+      ],
+      "native_executions": 0
+    }
+  ],
+  "exact_analyze_bounds": {
+    "new_raw_store_and_child": 976,
+    "new_actual_store_window": 12964,
+    "legacy_bytebuffer_capture": 2230,
+    "legacy_noncallback_store": 561
+  },
+  "boundaries": "Every bound executed N, N-1 ResourceLimit and fresh recovery with equal candidate plans; defaults unchanged.",
+  "retained_failures": {
+    "raw01": "Five groups pass; two hand-built Package controls lacked mandatory BindPackageCapture/EndPackageCapture. Fixed only fixture views, not production; original test.rs and raw errors retained.",
+    "windows-before01": "Real original 0ead source accepted by Analyze and Verify despite old element view after TakeCapture. Positive neighbors ran O0/O2; negative never native. Fixed independently in Analyze and Verify.",
+    "legacy201-before01": "Original six raw modules frozen with strict old expectations, catch-unwind only allowed later cases to be recorded. Overall Fail with three diagnostic mismatches. Final exact named assertions preserve all six input/result bytes."
+  },
+  "layering": {
+    "raw_fixture_checks": "Hand-built TypedIR and Wire producer admission, not source or native evidence.",
+    "source_controls": "Original four source files unchanged; real Types output then independent Analyze and raw/Wire Verify. Actual capture duplicate/Desc/ReadCapture/repeated Take and live-window mutations checked without executing negatives.",
+    "layout": "Precise nonzero ABI layout is independently verified downstream; Analyze does not claim a new ABI implementation.",
+    "callee_preparation": "Actual O0/O2 success PCXATZ/exit0, fallible argument PTAZ/exit1. C/X body and Take markers absent on failure; remaining environment and outer scope clean exactly once."
+  },
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "archive": null
+}
