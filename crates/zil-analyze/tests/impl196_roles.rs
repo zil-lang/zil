@@ -429,6 +429,62 @@ fn an_unused_once_role_still_keeps_a_cyclic_helper_closed() {
 }
 
 #[test]
+fn finite_once_consumption_is_per_actual_role_even_if_the_claim_matches_a_bad_body() {
+    let mut good = fixture(&[]);
+    let f = &mut good.functions[1];
+    for local in [0, 2] {
+        f.locals[local].ty = Type::Closure(ClosureId(0));
+        let callee = ValueId(f.values.len() as u32);
+        f.values.push(Type::Closure(ClosureId(0)));
+        f.blocks[0].instructions.push(instruction(
+            Some(callee),
+            InstructionKind::TakeLocal {
+                local: LocalId(local as u32),
+            },
+        ));
+        let result = ValueId(f.values.len() as u32);
+        f.values.push(Type::Unit);
+        f.blocks[0].instructions.push(instruction(
+            Some(result),
+            InstructionKind::CallClosureOnce {
+                callee,
+                arguments: vec![],
+            },
+        ));
+    }
+    let c = f.callable_contract.as_mut().unwrap();
+    for role in &mut c.roles {
+        role.kind = CallableKind::FnOnce;
+        role.cleanup = CallableCleanup::Owned;
+    }
+    let once = |parameter| CallEvent {
+        parameter,
+        kind: CallableKind::FnOnce,
+    };
+    c.traces = CallableTraces::Finite(vec![CallableTrace {
+        calls: vec![once(0), once(2)],
+        exit: CallableExit::Return,
+    }]);
+    accepted(&good);
+    let mut bad = good.clone();
+    let f = &mut bad.functions[1];
+    let result = ValueId(f.values.len() as u32);
+    f.values.push(Type::Unit);
+    f.blocks[0].instructions.push(instruction(
+        Some(result),
+        InstructionKind::CallClosureOnce {
+            callee: ValueId(0),
+            arguments: vec![],
+        },
+    ));
+    f.callable_contract.as_mut().unwrap().traces = CallableTraces::Finite(vec![CallableTrace {
+        calls: vec![once(0), once(2), once(0)],
+        exit: CallableExit::Return,
+    }]);
+    rejected(&bad, "role's finite call allowance");
+}
+
+#[test]
 fn flow_checks_role_events_and_backedges_not_only_call_counts() {
     let good = looping();
     accepted(&good);
