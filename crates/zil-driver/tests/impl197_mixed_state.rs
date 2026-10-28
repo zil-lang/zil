@@ -187,6 +187,47 @@ fn original_corrected_preflight_inputs_reach_verify_unchanged() {
             .collect::<Vec<_>>();
         let case = Case::new(folder.file_name().unwrap().to_str().unwrap());
         let report = compile(&case, &files, None);
+        if folder
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .starts_with("09-")
+        {
+            // The original record declared its type public, but not its field.
+            // Opening State must preserve that real cross-module privacy check.
+            assert_eq!(
+                report.status,
+                ResultCategory::SafeReject,
+                "{}",
+                report.to_json()
+            );
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == "E-FIELD-PRIVATE")
+            );
+            let contents = contents
+                .iter()
+                .map(|(name, text)| {
+                    (
+                        name.clone(),
+                        if name == "model" {
+                            text.replace("value:i32", "pub value:i32")
+                        } else {
+                            text.clone()
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
+            let files = contents
+                .iter()
+                .map(|(name, text)| (name.as_str(), text.as_str()))
+                .collect::<Vec<_>>();
+            native("public-field-companion", &files, "");
+            continue;
+        }
         assert_eq!(
             report.status,
             ResultCategory::Success,
@@ -286,7 +327,7 @@ fn actual_held_copy_field_window_rejects_and_last_use_then_reborrow_passes() {
     let prefix = r#"
 package State<T,F>{manages bytes:ByteBuffer;callback:F;value:T}
 fn make<T:Copy,F:FnMut(&mut T)->T>(callback:F,value:T)->State<T,F>{return State::<T,F>{bytes:bytes_new(),callback:callback,value:value}}
-fn factory()->impl FnMut(&mut i32)->i32{return move(value:&mut i32)=>{*value+=1;return *value}}
+fn factory()->impl FnMut(&mut i32)->i32{var count=0;return move(value:&mut i32)=>{count+=1;*value+=1;return *value}}
 "#;
     let bad = format!(
         "{prefix}fn run<T:Copy,F:FnMut(&mut T)->T>(state:State<T,F>)->T{{var current=state;let held=&current.value;let callback=&mut current.callback;let value=&mut current.value;callback(value);return *held}}fn main()->i32{{return run(make(factory(),41))-42}}"
