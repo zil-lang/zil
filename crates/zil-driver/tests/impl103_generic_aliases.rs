@@ -372,10 +372,13 @@ fn alias_substitution_preserves_slice_callback_and_generic_constraints() {
         "type Id<T>=T;fn wrong<T>(x:Id<T>)->Id<T>{return x+x}fn value(){}",
         "fn wrong<T>(x:T)->T{return x+x}fn value(){}",
     );
-    same_rejection(
+    // 194 admits the structural Copy bound; aliases must preserve that fact.
+    for text in [
         "type Id<T>=T;fn constrained<T:Copy>(x:Id<T>)->Id<T>{return x}fn value(){}",
         "fn constrained<T:Copy>(x:T)->T{return x}fn value(){}",
-    );
+    ] {
+        success(&check(text));
+    }
     native(
         "type Span<T>=&[T];fn first<T>(s:Span<T>)->Span<T>{return &s[0..1]}fn value()->i64{let a=[40,2];let s=first(&a[..]);return i64(s[0])+2}",
         42,

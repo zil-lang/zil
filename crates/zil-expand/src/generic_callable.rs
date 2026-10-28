@@ -156,19 +156,35 @@ fn template_with_state(
     function: &Function,
     is_state: impl Fn(&TypeRef, &str) -> bool,
 ) -> R<Option<CallableTemplate>> {
-    let callable = function.generics.iter().any(|p| matches!(&p.kind,
+    let mut callables = function.generics.iter().filter(|p| matches!(&p.kind,
         GenericParamKind::Type(bounds) if bounds.iter().any(|b| matches!(&b.kind,
             TypeKind::Named { path, .. } if path.len() == 1 && matches!(path[0].as_str(), "Fn" | "FnMut" | "FnOnce")))));
-    if !callable {
+    let Some(parameter) = callables.next() else {
         return Ok(None);
-    }
-    if function.generics.len() != 1 || !function.where_clause.is_empty() {
+    };
+    if callables.next().is_some()
+        || function.generics.len() > 2
+        || !function.where_clause.is_empty()
+    {
         return Err(unsupported(
             function.span,
-            "one callable type parameter with a direct bound is implemented",
+            "one callable type parameter with a direct bound is implemented; it may have one ordinary Copy type parameter",
         ));
     }
-    let parameter = &function.generics[0];
+    for ordinary in function
+        .generics
+        .iter()
+        .filter(|p| p.name != parameter.name)
+    {
+        if !matches!(&ordinary.kind, GenericParamKind::Type(bounds)
+            if matches!(bounds.as_slice(), [bound] if copy::is_bound(bound)))
+        {
+            return Err(unsupported(
+                ordinary.span,
+                "ordinary parameters beside F require one direct Copy bound",
+            ));
+        }
+    }
     let GenericParamKind::Type(bounds) = &parameter.kind else {
         unreachable!()
     };
@@ -213,6 +229,12 @@ fn template_with_state(
             .params
             .iter()
             .any(|p| is_state(&p.ty, &parameter.name));
+    if owned_state && function.generics.len() != 1 {
+        return Err(unsupported(
+            function.span,
+            "Copy data and owning callable State combinations are not implemented",
+        ));
+    }
     let mut index = None;
     for (i, input) in function.params.iter().enumerate() {
         if refers(&input.ty, &parameter.name) || is_state(&input.ty, &parameter.name) {
