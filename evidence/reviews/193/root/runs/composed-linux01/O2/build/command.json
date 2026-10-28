@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/review193/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/language14/review193/examples/mainline/slice_flow193_review/main.zil",
+    "--opt",
+    "O2",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/193-review/composed-linux01/O2/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/193-review/composed-linux01/O2/phases",
+    "--json"
+  ],
+  "status": "Completed",
+  "start": 1793164937.3158033,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "4810475da7bdc371d0e417e147cdf5e96f6377322d83ce0a35b2d1ba5068accb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793164937.4745748
+}

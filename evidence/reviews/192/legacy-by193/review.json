@@ -1,0 +1,72 @@
+{
+  "task": "192 legacy assertion migration",
+  "status": "Pass",
+  "reviewer": "/root/resume188_acceptance",
+  "reviewed_commit": "0e4e052d9956cbc6184277046e51437ae7b8e8b8",
+  "parent_commit": "ea82cf71f63608bee392b6888cb00616e091bccf",
+  "review_mode": "independent read-only source and existing root execution evidence review",
+  "reviewer_executions": 0,
+  "root_execution_records": {
+    "formal-workspace01": {
+      "passed": 1925,
+      "failed": 3,
+      "command_source": "ea82cf71f63608bee392b6888cb00616e091bccf",
+      "source_clean": true,
+      "status": "Fail"
+    },
+    "legacy-fixtures01": {
+      "passed": 19,
+      "failed": 0,
+      "command_source": "0e4e052d9956cbc6184277046e51437ae7b8e8b8",
+      "source_clean": true,
+      "status": "Pass"
+    }
+  },
+  "source_checks": [
+    {
+      "path": "crates/zil-driver/tests/impl120_field_backing.rs",
+      "before_sha256": "24b4374bebf20f9e5de73c3c11f3a25424372fd1201d28801d20a78d3624e017",
+      "after_sha256": "ee0df7ae67ff42d6e46c661c22abc3f1b7dd14bee3f74b1dda1d7183836cfb4e",
+      "source_literal_count": 29,
+      "source_literal_sequence_sha256": "e8c8e00c5052a2c6da958395ef2338814930f276302ad734280787f6c7138acb",
+      "source_literals_byte_identical": true
+    },
+    {
+      "path": "crates/zil-driver/tests/review176_by175.rs",
+      "before_sha256": "0e31cc4178e7f795ae2e54d00d2d8b838932beda46899fe35fb9f3459e0d17e6",
+      "after_sha256": "b6555a211614dcd8df2f0ed78f6930406b0bb88e069be011f4f3ed4b3d35ed14",
+      "source_literal_count": 15,
+      "source_literal_sequence_sha256": "9141942108e7c8ad4999a55c90feed0bbe943535d74e1276aa56e1393ac3366b",
+      "source_literals_byte_identical": true
+    },
+    {
+      "path": "crates/zil-driver/tests/review179_borrows.rs",
+      "before_sha256": "afd266ba0f65307bb8e6024c6f3f53647b3405c59a78c6b8b922534210d68a21",
+      "after_sha256": "fd87ad06d69012a0c0efadc6338eda7ccf989853188d30afe4f5d791a726a458",
+      "source_literal_count": 8,
+      "source_literal_sequence_sha256": "501e4f9fc71506eff529de1b864b7c10c866e557f2ad7b75819fd957573f1169",
+      "source_literals_byte_identical": true
+    }
+  ],
+  "production_and_lock_unchanged": true,
+  "selected_cases": [
+    "review176-field-is-copy-data-103-6",
+    "source-94-17",
+    "field179-review-copy-index-is-not-callback-143-3"
+  ],
+  "semantic_checks": {
+    "impl120": "same finite nominal R{x:i32} + empty Drop; replacing sibling r does not invalidate ByteBuffer field b; Success still requires one Verify",
+    "review176": "actual field index points to Copy field, SSA result still claims callback address; exact E-VERIFY-TYPE required in raw and Wire",
+    "review179": "same actual Copy field index substitution and unchanged callback-shaped result; exact E-VERIFY-TYPE and SafeReject retained in raw and Wire"
+  },
+  "changes_limited_to_assertions": "source input strings and raw mutations unchanged; test name/comment updated for finite field semantics",
+  "legacy_negative_controls": "same-field/possible-origin conflict, immutable parent, shared-call upgrade retained",
+  "full_workspace_after_migration": "NotRun by this reviewer; root owns integration verification",
+  "product_or_language_completion": "NotClaimed",
+  "records": {
+    "files": 14,
+    "bytes": 231624,
+    "executable_or_object_payloads": 0,
+    "manifest": "MANIFEST.json"
+  }
+}

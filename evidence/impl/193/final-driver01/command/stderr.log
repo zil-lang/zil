@@ -1,0 +1,11 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt193/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.85s
+     Running tests/impl090_slices.rs (/workspace/scratch/39be3faa4442/targets178/author193/debug/deps/impl090_slices-42c3b4c7774139e7)
+     Running tests/impl184_lending.rs (/workspace/scratch/39be3faa4442/targets178/author193/debug/deps/impl184_lending-7eb3fbdc20edd05c)
+     Running tests/impl184_lending_raw.rs (/workspace/scratch/39be3faa4442/targets178/author193/debug/deps/impl184_lending_raw-3cf1ecefcf76f44a)
+     Running tests/impl188_nested_helpers.rs (/workspace/scratch/39be3faa4442/targets178/author193/debug/deps/impl188_nested_helpers-fefacff303671db3)
+     Running tests/impl188_nested_helpers_raw.rs (/workspace/scratch/39be3faa4442/targets178/author193/debug/deps/impl188_nested_helpers_raw-4ec50ddc1b2d498e)
+     Running tests/impl189_address.rs (/workspace/scratch/39be3faa4442/targets178/author193/debug/deps/impl189_address-8c296929301d0e07)
+     Running tests/impl189_address_raw.rs (/workspace/scratch/39be3faa4442/targets178/author193/debug/deps/impl189_address_raw-1b15c8f5a4c7cc1a)
+     Running tests/impl193_slice_arguments.rs (/workspace/scratch/39be3faa4442/targets178/author193/debug/deps/impl193_slice_arguments-f5505aa925e384ac)
+     Running tests/impl193_slice_arguments_raw.rs (/workspace/scratch/39be3faa4442/targets178/author193/debug/deps/impl193_slice_arguments_raw-d44e026a14ac6a3d)

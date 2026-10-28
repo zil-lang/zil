@@ -1,0 +1,53 @@
+diff --git a/crates/zil-driver/tests/impl120_field_backing.rs b/crates/zil-driver/tests/impl120_field_backing.rs
+index 2ea5dab5..656c2774 100644
+--- a/crates/zil-driver/tests/impl120_field_backing.rs
++++ b/crates/zil-driver/tests/impl120_field_backing.rs
+@@ -146,7 +146,7 @@ fn same_field_ancestor_and_replacement_do_not_revive_old_views() {
+ }
+ 
+ #[test]
+-fn branch_origins_preserve_all_possible_fields_and_unknown_drop_stays_coarse() {
++fn branch_origins_preserve_all_possible_fields_and_finite_resource_siblings_are_apart() {
+     rejected(
+         "fn work(flag:bool)->i64{var p=make();let s=if flag{bytes_view(p.b)}else{bytes_view(p.c)};p.c=bytes_new();return s.len()}fn value()->i64{return work(true)}",
+         "verify",
+@@ -155,10 +155,10 @@ fn branch_origins_preserve_all_possible_fields_and_unknown_drop_stays_coarse() {
+     success(
+         "fn work(flag:bool)->i64{var p=make();let s=if flag{bytes_view(p.b)}else{bytes_view(p.b)};p.c=bytes_new();return s.len()}fn value()->i64{return work(true)}",
+     );
+-    rejected(
++    // 192 validates this nominal finite Copy payload independently and tracks
++    // its actual field. Replacing r cannot invalidate the distinct b window.
++    success(
+         "resource R{x:i32}impl Drop for R{fn drop(self:Self){}}package Q{manages b:ByteBuffer;manages r:R}fn value()->i64{var p=Q{b:bytes_new(),r:R{x:0}};let s=bytes_view(p.b);p.r=R{x:1};return s.len()}",
+-        "verify",
+-        "E-BORROW-CONFLICT",
+     );
+ }
+ 
+diff --git a/crates/zil-driver/tests/review176_by175.rs b/crates/zil-driver/tests/review176_by175.rs
+index c106c737..7d0ebec7 100644
+--- a/crates/zil-driver/tests/review176_by175.rs
++++ b/crates/zil-driver/tests/review176_by175.rs
+@@ -370,7 +370,7 @@ fn independent_raw_and_wire_check_real_field_and_call_permission() {
+             module,
+             plan.clone(),
+             [
+-                "E-VERIFY-PACKAGE",
++                "E-VERIFY-TYPE",
+                 "E-VERIFY-MUTABILITY",
+                 "E-VERIFY-CLOSURE-CALL",
+             ][variant],
+diff --git a/crates/zil-driver/tests/review179_borrows.rs b/crates/zil-driver/tests/review179_borrows.rs
+index 82fc986a..15522fa7 100644
+--- a/crates/zil-driver/tests/review179_borrows.rs
++++ b/crates/zil-driver/tests/review179_borrows.rs
+@@ -285,7 +285,7 @@ fn reviewer_raw_wire_valid_copy_index_cannot_masquerade_as_callback() {
+         "review-copy-index-is-not-callback",
+         module,
+         plan,
+-        Some("E-VERIFY-PACKAGE"),
++        Some("E-VERIFY-TYPE"),
+     );
+ }
+ 

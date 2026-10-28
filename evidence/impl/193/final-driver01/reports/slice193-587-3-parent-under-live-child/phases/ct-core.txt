@@ -1,0 +1,537 @@
+CoreModule {
+    schema_version: 24,
+    module_id: ModuleId(
+        0,
+    ),
+    source_fingerprint: Fingerprint(
+        [
+            224,
+            187,
+            156,
+            46,
+            115,
+            141,
+            244,
+            5,
+            98,
+            40,
+            126,
+            50,
+            212,
+            86,
+            69,
+            131,
+            169,
+            189,
+            120,
+            11,
+            81,
+            111,
+            73,
+            246,
+            118,
+            44,
+            107,
+            15,
+            129,
+            225,
+            151,
+            109,
+        ],
+    ),
+    functions: [
+        CoreFunction {
+            callable_return: None,
+            id: NodeId(
+                0,
+            ),
+            name: "main",
+            callable_parameter: None,
+            foreign: None,
+            parameters: [],
+            return_type: I32,
+            result_mode: Infer,
+            body: CoreBlock {
+                statements: [
+                    CoreStatement {
+                        id: NodeId(
+                            4,
+                        ),
+                        kind: Binding {
+                            name: "a",
+                            mutable: true,
+                            ty: Some(
+                                Array {
+                                    element: I32,
+                                    length: 2,
+                                },
+                            ),
+                            initializer: Some(
+                                CoreExpr {
+                                    id: NodeId(
+                                        3,
+                                    ),
+                                    kind: Array(
+                                        [
+                                            CoreExpr {
+                                                id: NodeId(
+                                                    1,
+                                                ),
+                                                kind: Integer(
+                                                    "1i32",
+                                                ),
+                                                span: Span {
+                                                    file: FileId(
+                                                        0,
+                                                    ),
+                                                    start: 22,
+                                                    end: 23,
+                                                },
+                                            },
+                                            CoreExpr {
+                                                id: NodeId(
+                                                    2,
+                                                ),
+                                                kind: Integer(
+                                                    "2i32",
+                                                ),
+                                                span: Span {
+                                                    file: FileId(
+                                                        0,
+                                                    ),
+                                                    start: 24,
+                                                    end: 25,
+                                                },
+                                            },
+                                        ],
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 21,
+                                        end: 26,
+                                    },
+                                },
+                            ),
+                        },
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 15,
+                            end: 27,
+                        },
+                    },
+                    CoreStatement {
+                        id: NodeId(
+                            20,
+                        ),
+                        kind: Binding {
+                            name: "f",
+                            mutable: false,
+                            ty: None,
+                            initializer: Some(
+                                CoreExpr {
+                                    id: NodeId(
+                                        19,
+                                    ),
+                                    kind: Closure {
+                                        move_capture: false,
+                                        parameters: [
+                                            CoreClosureParameter {
+                                                name: "p",
+                                                ty: Some(
+                                                    Address {
+                                                        mutable: true,
+                                                        inner: Slice {
+                                                            element: I32,
+                                                        },
+                                                    },
+                                                ),
+                                                mode: Infer,
+                                                span: Span {
+                                                    file: FileId(
+                                                        0,
+                                                    ),
+                                                    start: 34,
+                                                    end: 45,
+                                                },
+                                            },
+                                        ],
+                                        return_type: Some(
+                                            I32,
+                                        ),
+                                        body: CoreBlock {
+                                            statements: [
+                                                CoreStatement {
+                                                    id: NodeId(
+                                                        8,
+                                                    ),
+                                                    kind: Binding {
+                                                        name: "q",
+                                                        mutable: false,
+                                                        ty: Some(
+                                                            Address {
+                                                                mutable: true,
+                                                                inner: Slice {
+                                                                    element: I32,
+                                                                },
+                                                            },
+                                                        ),
+                                                        initializer: Some(
+                                                            CoreExpr {
+                                                                id: NodeId(
+                                                                    7,
+                                                                ),
+                                                                kind: Unary {
+                                                                    op: BorrowMut,
+                                                                    operand: CoreExpr {
+                                                                        id: NodeId(
+                                                                            6,
+                                                                        ),
+                                                                        kind: Slice {
+                                                                            object: CoreExpr {
+                                                                                id: NodeId(
+                                                                                    5,
+                                                                                ),
+                                                                                kind: Name(
+                                                                                    "p",
+                                                                                ),
+                                                                                span: Span {
+                                                                                    file: FileId(
+                                                                                        0,
+                                                                                    ),
+                                                                                    start: 60,
+                                                                                    end: 61,
+                                                                                },
+                                                                            },
+                                                                            start: None,
+                                                                            end: None,
+                                                                        },
+                                                                        span: Span {
+                                                                            file: FileId(
+                                                                                0,
+                                                                            ),
+                                                                            start: 60,
+                                                                            end: 65,
+                                                                        },
+                                                                    },
+                                                                },
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 55,
+                                                                    end: 65,
+                                                                },
+                                                            },
+                                                        ),
+                                                    },
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 49,
+                                                        end: 66,
+                                                    },
+                                                },
+                                                CoreStatement {
+                                                    id: NodeId(
+                                                        12,
+                                                    ),
+                                                    kind: Binding {
+                                                        name: "n",
+                                                        mutable: false,
+                                                        ty: Some(
+                                                            I32,
+                                                        ),
+                                                        initializer: Some(
+                                                            CoreExpr {
+                                                                id: NodeId(
+                                                                    11,
+                                                                ),
+                                                                kind: Index {
+                                                                    object: CoreExpr {
+                                                                        id: NodeId(
+                                                                            9,
+                                                                        ),
+                                                                        kind: Name(
+                                                                            "p",
+                                                                        ),
+                                                                        span: Span {
+                                                                            file: FileId(
+                                                                                0,
+                                                                            ),
+                                                                            start: 72,
+                                                                            end: 73,
+                                                                        },
+                                                                    },
+                                                                    index: CoreExpr {
+                                                                        id: NodeId(
+                                                                            10,
+                                                                        ),
+                                                                        kind: Integer(
+                                                                            "0i32",
+                                                                        ),
+                                                                        span: Span {
+                                                                            file: FileId(
+                                                                                0,
+                                                                            ),
+                                                                            start: 74,
+                                                                            end: 75,
+                                                                        },
+                                                                    },
+                                                                },
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 72,
+                                                                    end: 76,
+                                                                },
+                                                            },
+                                                        ),
+                                                    },
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 66,
+                                                        end: 77,
+                                                    },
+                                                },
+                                                CoreStatement {
+                                                    id: NodeId(
+                                                        18,
+                                                    ),
+                                                    kind: Return(
+                                                        Some(
+                                                            CoreExpr {
+                                                                id: NodeId(
+                                                                    17,
+                                                                ),
+                                                                kind: Binary {
+                                                                    op: Add,
+                                                                    left: CoreExpr {
+                                                                        id: NodeId(
+                                                                            15,
+                                                                        ),
+                                                                        kind: Index {
+                                                                            object: CoreExpr {
+                                                                                id: NodeId(
+                                                                                    13,
+                                                                                ),
+                                                                                kind: Name(
+                                                                                    "q",
+                                                                                ),
+                                                                                span: Span {
+                                                                                    file: FileId(
+                                                                                        0,
+                                                                                    ),
+                                                                                    start: 84,
+                                                                                    end: 85,
+                                                                                },
+                                                                            },
+                                                                            index: CoreExpr {
+                                                                                id: NodeId(
+                                                                                    14,
+                                                                                ),
+                                                                                kind: Integer(
+                                                                                    "0i32",
+                                                                                ),
+                                                                                span: Span {
+                                                                                    file: FileId(
+                                                                                        0,
+                                                                                    ),
+                                                                                    start: 86,
+                                                                                    end: 87,
+                                                                                },
+                                                                            },
+                                                                        },
+                                                                        span: Span {
+                                                                            file: FileId(
+                                                                                0,
+                                                                            ),
+                                                                            start: 84,
+                                                                            end: 88,
+                                                                        },
+                                                                    },
+                                                                    right: CoreExpr {
+                                                                        id: NodeId(
+                                                                            16,
+                                                                        ),
+                                                                        kind: Name(
+                                                                            "n",
+                                                                        ),
+                                                                        span: Span {
+                                                                            file: FileId(
+                                                                                0,
+                                                                            ),
+                                                                            start: 89,
+                                                                            end: 90,
+                                                                        },
+                                                                    },
+                                                                },
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 84,
+                                                                    end: 90,
+                                                                },
+                                                            },
+                                                        ),
+                                                    ),
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 77,
+                                                        end: 90,
+                                                    },
+                                                },
+                                            ],
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 48,
+                                                end: 91,
+                                            },
+                                        },
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 33,
+                                        end: 91,
+                                    },
+                                },
+                            ),
+                        },
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 27,
+                            end: 92,
+                        },
+                    },
+                    CoreStatement {
+                        id: NodeId(
+                            26,
+                        ),
+                        kind: Return(
+                            Some(
+                                CoreExpr {
+                                    id: NodeId(
+                                        25,
+                                    ),
+                                    kind: Call {
+                                        callee: CoreExpr {
+                                            id: NodeId(
+                                                21,
+                                            ),
+                                            kind: Name(
+                                                "f",
+                                            ),
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 99,
+                                                end: 100,
+                                            },
+                                        },
+                                        arguments: [
+                                            CoreExpr {
+                                                id: NodeId(
+                                                    24,
+                                                ),
+                                                kind: Unary {
+                                                    op: BorrowMut,
+                                                    operand: CoreExpr {
+                                                        id: NodeId(
+                                                            23,
+                                                        ),
+                                                        kind: Slice {
+                                                            object: CoreExpr {
+                                                                id: NodeId(
+                                                                    22,
+                                                                ),
+                                                                kind: Name(
+                                                                    "a",
+                                                                ),
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 106,
+                                                                    end: 107,
+                                                                },
+                                                            },
+                                                            start: None,
+                                                            end: None,
+                                                        },
+                                                        span: Span {
+                                                            file: FileId(
+                                                                0,
+                                                            ),
+                                                            start: 106,
+                                                            end: 111,
+                                                        },
+                                                    },
+                                                },
+                                                span: Span {
+                                                    file: FileId(
+                                                        0,
+                                                    ),
+                                                    start: 101,
+                                                    end: 111,
+                                                },
+                                            },
+                                        ],
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 99,
+                                        end: 112,
+                                    },
+                                },
+                            ),
+                        ),
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 92,
+                            end: 112,
+                        },
+                    },
+                ],
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 14,
+                    end: 113,
+                },
+            },
+            receiver: None,
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 0,
+                end: 113,
+            },
+        },
+    ],
+    aggregates: [],
+    enums: [],
+    unsupported: [],
+}

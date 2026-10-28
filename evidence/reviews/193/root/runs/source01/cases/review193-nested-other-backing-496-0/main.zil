@@ -1,0 +1,1 @@
+fn leaf<F:Fn(&[u8])->i32>(f:&F,s:&[u8])->i32{return f(s)}fn outer<F:Fn(&[u8])->i32>(f:&F,s:&[u8])->i32{return leaf(f,s)}fn main()->i32{let data=bytes_new();let other=bytes_new();bytes_push(data,4u8);bytes_push(other,7u8);let f=(s:&[u8])=>{bytes_reserve(data,32);return i32(s[0])};return outer(&f,bytes_view(other))-7}

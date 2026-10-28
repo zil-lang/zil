@@ -1,0 +1,163 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root/resume188_acceptance",
+  "implementation_author": "/root",
+  "implementation_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c",
+  "source_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c",
+  "review_kind": "IndependentExactFrozenExecutionAndSourceReview",
+  "executed": 303,
+  "passed": 303,
+  "failed": 0,
+  "production_commit": "a00472dab7fe4368ee8b1ea6c7d96df00cb6bb31",
+  "production_identical_a004_06da": true,
+  "a004_to_06da_only_delta": [
+    "crates/zil-verify/src/helper_tests.rs"
+  ],
+  "only_delta_is_cfg_test_module": true,
+  "commands": [
+    {
+      "record": "records/libs01/command.json",
+      "source_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c",
+      "git_clean": true,
+      "status": "Pass",
+      "passed": 275,
+      "failed": 0,
+      "suite_counts": [
+        35,
+        240
+      ]
+    },
+    {
+      "record": "records/driver01/command.json",
+      "source_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c",
+      "git_clean": true,
+      "status": "Pass",
+      "passed": 2,
+      "failed": 0,
+      "suite_counts": [
+        2
+      ]
+    },
+    {
+      "record": "records/driver-lib01/command.json",
+      "source_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c",
+      "git_clean": true,
+      "status": "Pass",
+      "passed": 26,
+      "failed": 0,
+      "suite_counts": [
+        26
+      ]
+    }
+  ],
+  "source_files": [
+    {
+      "path": "crates/zil-base/src/lib.rs",
+      "bytes": 13543,
+      "sha256": "b1e8b7d58220a9b06dc30a935c8fa895f269fd64d6591a9aa6b940679424068b",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-ir/src/lib.rs",
+      "bytes": 71959,
+      "sha256": "daa04f69b3055165e64e08828510b624c7b7b2995a5b4407f51472a397ce1597",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-ir/src/wire.rs",
+      "bytes": 100644,
+      "sha256": "51b9992106d3d543b4fc6c9dd7d98681d03eb81e3ab7a7cad5216a5476fac0fe",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-ir/src/program.rs",
+      "bytes": 2196,
+      "sha256": "faf6d430a202892500079a03048269c46370a63b54ec81309a50a2f732f9c0d2",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-driver/src/contracts.rs",
+      "bytes": 6739,
+      "sha256": "0956f6bab2a53715cb76d0b233139e2eec2d9815b8c3404323adca7b3298ee49",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-types/src/helpers.rs",
+      "bytes": 39567,
+      "sha256": "5e914dd861b6ebd7989eafef2a01107367aa909d9f651d09c00e7f03f366bc76",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-analyze/src/helpers.rs",
+      "bytes": 24654,
+      "sha256": "110149d3ab7915efaa57085fb1715f3af573c9cf885c0693bb3ad7ea48f55786",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-analyze/src/budget.rs",
+      "bytes": 27169,
+      "sha256": "3f6752772217eab14776949132dc0f12cfe31de3885eeddd0f421b8ecb1deb74",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "bytes": 116252,
+      "sha256": "0a3ba6f1c6f046038180336e50a84d1e105952bafa64e82a94aadb77d74c12cb",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-verify/src/helpers.rs",
+      "bytes": 24661,
+      "sha256": "c943018c7b7e603f0261712c3e21cace1b8009db388275c7094a0864c6edeef0",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-verify/src/lib.rs",
+      "bytes": 100236,
+      "sha256": "d2034485aaa07efe148613d4f750efc3c791c24fb2e33ed2b98df84c614a1789",
+      "identical_a004_06da": true
+    },
+    {
+      "path": "crates/zil-verify/src/resources.rs",
+      "bytes": 85049,
+      "sha256": "4620c091f2029ea877d84567b03eb916d18862654587b3d68bcd5b474640ab98",
+      "identical_a004_06da": true
+    }
+  ],
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_file_sha256": "333893800628a27c068534323c4782f2fcf3138a0e4e0317149af205c8803fda",
+  "normative_registry_hash": "1f847737718bca55856287ea124f8c9084a4f5d838f466c0d6da5a04594b1113",
+  "prior_readonly_reviews": [
+    {
+      "path": "evidence/reviews/191/by-resume190/REVIEW.json",
+      "sha256": "23a83a2d55f6a3830096535142f725a422ff595b3a01d451491e19311b3927f5",
+      "executed": 0,
+      "untouched": true,
+      "attribution": "prior read-only source review, not counted in fresh executions"
+    },
+    {
+      "path": "evidence/reviews/191/by-resume192/REVIEW.json",
+      "sha256": "749e0f1711add1e617897e424a0cca77151a839cbb96e3f163ff928149652dbc",
+      "executed": 0,
+      "untouched": true,
+      "attribution": "prior read-only source review, not counted in fresh executions"
+    }
+  ],
+  "review_checks": [
+    "Explicit Finite/Flow data and identities distinguish all graph fields; as_finite never treats Flow as an empty finite contract.",
+    "Wire count/quota/minimum remaining-byte checks precede allocation; cumulative calls and edges are bounded; unknown tags and truncations remain failures.",
+    "Analyze and Verify preflight independently charge raw graph metadata before fingerprinting, and fresh requests recover after ResourceLimit.",
+    "At this 191-only commit, both helper validators and resource consumers explicitly refuse Flow semantics; transport does not grant runtime loop authority.",
+    "a004 finite composition retains checked actual origins, callee completion, closure identity, parameter position and exact kind; Types pays scan and clone work before copying paths.",
+    "Analyze and Verify retain their own CFG and provenance reconstruction; no safety-solver dependency is imported across phases.",
+    "06da only changes the cfg(test) helper fixture assertions for already accepted 188/189 behavior; recursive raw/Wire input keeps exact Unsupported and Desc extras remain closed.",
+    "Independent executions here use new review191-final-by193 worktree and review191final target, exact clean06da, with no production or test edit."
+  ],
+  "limitations": [
+    "No whole-workspace formal acceptance or additional runtime consumer/platform validation.",
+    "Runtime cyclic helper semantics belong to 190 and are intentionally Unsupported at this 191 source.",
+    "No Rust timing/memory/maintenance/compile-performance comparison; full language and ZUI prerequisites not established."
+  ],
+  "evidence_manifest": "MANIFEST.json"
+}

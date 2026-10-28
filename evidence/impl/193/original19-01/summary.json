@@ -1,0 +1,472 @@
+{
+  "source_commit": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+  "git_status": "",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "rows": [
+    {
+      "name": "ordinary_shared",
+      "proposed_193_outcome": "Success",
+      "purpose": "ordinary shared slice control",
+      "source": "ordinary_shared.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/ordinary_shared.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "c43ec2e843a640f19bfa4469473bcb93fa7ecb1a220715a545c8d97074a5b07f",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "ordinary_exclusive",
+      "proposed_193_outcome": "Success",
+      "purpose": "ordinary exclusive slice control",
+      "source": "ordinary_exclusive.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/ordinary_exclusive.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "5a0a16cfa1c5c69394010ddea9fd6ddbd67d4b7ede1b9bbf633abdebaf7bc5f0",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "ordinary_shared_write",
+      "proposed_193_outcome": "SafeReject",
+      "purpose": "ordinary shared permission control",
+      "source": "ordinary_shared_write.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/ordinary_shared_write.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "16aeaeefc0eb8ae0657e04ae8fe7934870f9027a60881982fdb9a48b62a3c59f",
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-ADDRESS-PERMISSION",
+          "message": "indirect write requires an exclusive address",
+          "span": {
+            "file": 0,
+            "start": 28,
+            "end": 32
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 1,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "ordinary_desc_same",
+      "proposed_193_outcome": "SafeReject",
+      "purpose": "ordinary actual buffer provenance control",
+      "source": "ordinary_desc_same.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/ordinary_desc_same.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "54207ba7a88a6f98729db95bcd00933d0fe78f30e67bb375b3b3f1cf4159f80b",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 200,
+            "end": 218
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 1,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "ordinary_desc_other",
+      "proposed_193_outcome": "Success",
+      "purpose": "ordinary distinct buffer provenance control",
+      "source": "ordinary_desc_other.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/ordinary_desc_other.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "a0c5be947a197eeac2343798138443c491004fa29445acb0b0a1b8a3d53e09fa",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "ordinary_desc_read",
+      "proposed_193_outcome": "Success",
+      "purpose": "ordinary readonly same buffer control",
+      "source": "ordinary_desc_read.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/ordinary_desc_read.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "a0c89d514977ae8789a61026041b5b3a85e9c0794afcaeaa022b1949711937b7",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "callback_shared",
+      "proposed_193_outcome": "Success",
+      "purpose": "explicit shared slice callback",
+      "source": "callback_shared.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/callback_shared.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "0de81822b11778c4c8bd116375a9c1376c410c70e06bfeaab52f4543f90deb3e",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "callback_exclusive",
+      "proposed_193_outcome": "Success",
+      "purpose": "explicit exclusive slice callback",
+      "source": "callback_exclusive.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/callback_exclusive.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "cb426654b5714a63a8ffdacf016c2535c24d5c2d429ca8c66616bfe80ee47f0a",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "callback_unused",
+      "proposed_193_outcome": "Success",
+      "purpose": "unused explicit slice callback still hits admission gate",
+      "source": "callback_unused.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/callback_unused.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "c6e860ff4f3f6106529136df6c6280c9b2f5e28500595aeadd09078d118f018d",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "callback_shared_write",
+      "proposed_193_outcome": "SafeReject",
+      "purpose": "shared callback slice cannot write after signature admission",
+      "source": "callback_shared_write.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/callback_shared_write.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "055efc860a8a7f901b7bea729b02fd237767804f1fd06d92ea65f79cb5cca8c8",
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-IMMUTABLE-ASSIGNMENT",
+          "message": "s is not mutable",
+          "span": {
+            "file": 0,
+            "start": 65,
+            "end": 66
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 1,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "helper_shared",
+      "proposed_193_outcome": "Success",
+      "purpose": "generic callback bound and explicit slice extra argument",
+      "source": "helper_shared.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/helper_shared.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "de038274221c6bb63a36214b49dfe56dec6d5b0477b5bc77ba7f0b4d735dddc8",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "helper_exclusive",
+      "proposed_193_outcome": "Success",
+      "purpose": "Fn environment with independent exclusive slice argument",
+      "source": "helper_exclusive.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/helper_exclusive.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "44a642e82f840f852a1263c8ee00ec0a200df4502f39447f9a124880241c4717",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "helper_extra_only",
+      "proposed_193_outcome": "Success",
+      "purpose": "slice helper extra parameter independently of callback signature",
+      "source": "helper_extra_only.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/helper_extra_only.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "56748eb7c7fa2c5f35a1cd4c6464056a8c80dc077f4a335f181aec5d383c9515",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "factory_signature",
+      "proposed_193_outcome": "Success",
+      "purpose": "self-contained returned environment with explicit slice callback parameter",
+      "source": "factory_signature.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/factory_signature.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "0f980f9396776d969528e8fa82a9967e3775c2e7f6a6d72215e15842b1b2e78f",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "callback_desc_same",
+      "proposed_193_outcome": "SafeReject",
+      "purpose": "captured Desc writes same actual slice backing even at final use",
+      "source": "callback_desc_same.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/callback_desc_same.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "df1f957d9f7e891905fe53dcebaa426d7ef5285cde244dac9983ed1231ec18c3",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 178,
+            "end": 185
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 1,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "callback_desc_other",
+      "proposed_193_outcome": "Success",
+      "purpose": "captured Desc writes different actual buffer from explicit slice",
+      "source": "callback_desc_other.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/callback_desc_other.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "00b2de2271d15c538a8b91830893eebf6d2c251cd51a38b7c0ad1cae3e554642",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "callback_desc_read",
+      "proposed_193_outcome": "Success",
+      "purpose": "captured readonly Desc shares actual backing with shared slice",
+      "source": "callback_desc_read.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/callback_desc_read.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "1836dbfb234534a4a6768b6f526911212d8a551d117e025a8ea4fc1443224ef6",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "callback_exclusive_same",
+      "proposed_193_outcome": "SafeReject",
+      "purpose": "simultaneous explicit shared and exclusive same-backing arguments",
+      "source": "callback_exclusive_same.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/callback_exclusive_same.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "03e50239d0c692806af35ff521e233a04e228563d4f97d548a5e83d5b152671f",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 135,
+            "end": 141
+          },
+          "notes": []
+        }
+      ],
+      "exit_code": 1,
+      "matches_proposed_status": true
+    },
+    {
+      "name": "callback_exclusive_other",
+      "proposed_193_outcome": "Success",
+      "purpose": "simultaneous explicit shared and exclusive distinct-backing arguments",
+      "source": "callback_exclusive_other.zil",
+      "argv": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/callback_exclusive_other.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "source_sha256": "e1928140a86006a066279e2d48f2648c49de4f4fd737a567c3ec40b6214e895a",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "exit_code": 0,
+      "matches_proposed_status": true
+    }
+  ],
+  "status": "Pass"
+}

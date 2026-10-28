@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "/workspace/scratch/39be3faa4442/run-logs/193-review/composed-win64/O2/program.exe"
+  ],
+  "status": "Completed",
+  "start": 1793165037.9399557,
+  "stdin_hex": "32",
+  "controlled_environment": {
+    "LD_LIBRARY_PATH": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu"
+  },
+  "exit_code": 0,
+  "stdout_sha256": "68f36b0094c385e95749fa4d90edf15fbcdf907eeea4c8f68d0ff2ebb134589e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793165039.0039928
+}

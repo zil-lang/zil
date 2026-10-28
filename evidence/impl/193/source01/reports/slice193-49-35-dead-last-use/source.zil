@@ -1,0 +1,1 @@
+fn main()->i32{let b=bytes_new();bytes_push(b,7u8);let p=bytes_view(b);let f=(q:&[u8])=>i32(q[0]);let n=f(p);if !bytes_reserve(b,8){return 1};return n-7}

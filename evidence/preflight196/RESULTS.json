@@ -1,0 +1,477 @@
+{
+  "kind": "ReadOnlySourcePreflightNotImplementation",
+  "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+  "cli": "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "input_count": 12,
+  "expected_current_outcomes_match": true,
+  "results": [
+    {
+      "case": "00_one_role_control",
+      "purpose": "Existing one-role Fn and FnOnce adaptation control",
+      "source_sha256": "d2532cde5a7fc6508b572052eed01b290dd7b2a46ee124aa6a7d5e6252de5042",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/00_one_role_control/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/00_one_role_control/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 0,
+      "start": 1793165162.2502444,
+      "end": 1793165162.2715852,
+      "status": "Success",
+      "phase": "verify",
+      "expected_current_status": "Success",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "stdout_sha256": "d9d613614fff9e3e38a70e8ddda9b695b4f65ad4243c8fe979151aa13b4ee20a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "01_same_factory_two_instances_direct",
+      "purpose": "Distinct runtime environments of one factory concrete type",
+      "source_sha256": "e1bee2ddf056853fa932c1ff3d20b59d905ca2a3640f5b29d300f91b61d99ec4",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/01_same_factory_two_instances_direct/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/01_same_factory_two_instances_direct/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 0,
+      "start": 1793165162.2717905,
+      "end": 1793165162.287555,
+      "status": "Success",
+      "phase": "verify",
+      "expected_current_status": "Success",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "stdout_sha256": "d5c15fa94ba1e1d957cb26a27fe93c1114f7a52cdcfc10507fa9ed636b0d3af9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "02_same_f_shared_distinct",
+      "purpose": "Proposed positive: same F type, two distinct actual environments",
+      "source_sha256": "1a2cec47f99f5004636287a8e904ac0b2716a67b06bdd627d31abdc6e57c6a2a",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/02_same_f_shared_distinct/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/02_same_f_shared_distinct/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 3,
+      "start": 1793165162.2877955,
+      "end": 1793165162.2934194,
+      "status": "Unsupported",
+      "phase": "expand",
+      "expected_current_status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+          "span": {
+            "file": 0,
+            "start": 77,
+            "end": 85
+          },
+          "notes": []
+        }
+      ],
+      "stdout_sha256": "94eb9c91e6e97351b6743e3768fcd1610767b07b29d1e630c730fb5f7e719049",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "03_same_f_shared_same_actual",
+      "purpose": "Proposed positive: two shared roles may name one actual environment",
+      "source_sha256": "ad1e3efa25ed4734e6d87bddecab8a42175443f01eb09a6f0aef0f18a2d6e306",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/03_same_f_shared_same_actual/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/03_same_f_shared_same_actual/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 3,
+      "start": 1793165162.2939277,
+      "end": 1793165162.2994008,
+      "status": "Unsupported",
+      "phase": "expand",
+      "expected_current_status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+          "span": {
+            "file": 0,
+            "start": 77,
+            "end": 85
+          },
+          "notes": []
+        }
+      ],
+      "stdout_sha256": "87d039782d57fa9920708023590235172d8ae17a872695f05db3a1562de331d5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "04_same_f_mut_distinct",
+      "purpose": "Proposed positive: independent exclusive roles preserve their instances",
+      "source_sha256": "fb400a72f1d7076cd8766bf0b0fb5d513fcd0d9be413784f18a98e2955df95ea",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/04_same_f_mut_distinct/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/04_same_f_mut_distinct/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 3,
+      "start": 1793165162.2995753,
+      "end": 1793165162.3058906,
+      "status": "Unsupported",
+      "phase": "expand",
+      "expected_current_status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+          "span": {
+            "file": 0,
+            "start": 121,
+            "end": 133
+          },
+          "notes": []
+        }
+      ],
+      "stdout_sha256": "ece2835fedd33f5a1ed169e13d0b123de180e1bd32f8d4ecef21a901a5dad80e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "05_same_f_mut_same_actual",
+      "purpose": "Proposed rejection: simultaneous exclusive actuals alias; loan checker not reached today",
+      "source_sha256": "f86676c75241924c95787167d0db50368c6276d38b7bae107f92d5539b02c6a4",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/05_same_f_mut_same_actual/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/05_same_f_mut_same_actual/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 3,
+      "start": 1793165162.306135,
+      "end": 1793165162.3133788,
+      "status": "Unsupported",
+      "phase": "expand",
+      "expected_current_status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+          "span": {
+            "file": 0,
+            "start": 121,
+            "end": 133
+          },
+          "notes": []
+        }
+      ],
+      "stdout_sha256": "f59089785c25b4b867de6243422ed3a690ac139397d5c22d68e7e3e997e13879",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "06_f_g_composition",
+      "purpose": "Proposed positive: independent generic F/G roles and ordered effects",
+      "source_sha256": "f98380c4ba3bd2661a83557031837a0f9f8f5ccf5c925f72177968546c65b474",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/06_f_g_composition/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/06_f_g_composition/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 3,
+      "start": 1793165162.3135653,
+      "end": 1793165162.3206642,
+      "status": "Unsupported",
+      "phase": "expand",
+      "expected_current_status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 93
+          },
+          "notes": []
+        }
+      ],
+      "stdout_sha256": "0768899d9a35610300350a243769afe3f3f923bc6a60e7f6c6d7402e90abb99c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "07_f_g_mixed_modes",
+      "purpose": "Proposed positive: one exclusive environment and one shared environment",
+      "source_sha256": "209bf648ee09d438e2565c408bda1680d9356a739e93fd5460cfc8d3f816d98d",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/07_f_g_mixed_modes/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/07_f_g_mixed_modes/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 3,
+      "start": 1793165162.3208175,
+      "end": 1793165162.328902,
+      "status": "Unsupported",
+      "phase": "expand",
+      "expected_current_status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 113
+          },
+          "notes": []
+        }
+      ],
+      "stdout_sha256": "be969c23d635c88525e911ed24d7fa4df03a3acba6cbe976f48da9b12c4356e2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "08_same_f_once_distinct",
+      "purpose": "Proposed positive: each actual environment is consumed once",
+      "source_sha256": "89b324db943456ce74c4afe535c4a12590253090768d78f8d367bcbf81581fb6",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/08_same_f_once_distinct/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/08_same_f_once_distinct/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 3,
+      "start": 1793165162.329225,
+      "end": 1793165162.3354526,
+      "status": "Unsupported",
+      "phase": "expand",
+      "expected_current_status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+          "span": {
+            "file": 0,
+            "start": 80,
+            "end": 87
+          },
+          "notes": []
+        }
+      ],
+      "stdout_sha256": "19282bfe9f9606b55d35a571acf4023c13bf197727fc5626a3100effb8fad85f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "09_same_f_once_same_actual",
+      "purpose": "Proposed rejection: duplicate owned actual does not gain a second move",
+      "source_sha256": "50ae39c478f8953668f08774fccd41bf537b640e244e1665e8870d4303394632",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/09_same_f_once_same_actual/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/09_same_f_once_same_actual/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 3,
+      "start": 1793165162.3356123,
+      "end": 1793165162.3411667,
+      "status": "Unsupported",
+      "phase": "expand",
+      "expected_current_status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+          "span": {
+            "file": 0,
+            "start": 80,
+            "end": 87
+          },
+          "notes": []
+        }
+      ],
+      "stdout_sha256": "2343abfed0f23fd30520ac282aca78bea469d8395b15c802fe8d8ef03771312a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "10_nested_role_permutation",
+      "purpose": "Proposed positive: two static child call sites require different role substitutions",
+      "source_sha256": "b35c1e18be88b16bf18e2e4ea21185b4754209cee60a976545c45a2d10a1b459",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/10_nested_role_permutation/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/10_nested_role_permutation/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 3,
+      "start": 1793165162.3414185,
+      "end": 1793165162.3504188,
+      "status": "Unsupported",
+      "phase": "expand",
+      "expected_current_status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+          "span": {
+            "file": 0,
+            "start": 74,
+            "end": 78
+          },
+          "notes": []
+        }
+      ],
+      "stdout_sha256": "3a4b6232824b86ef653b737a5eb5b477e014abfd19bfa5d99c866a69655c5e3e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "11_second_role_desc_alias",
+      "purpose": "Proposed rejection: writes of role two overlap a live external shared view; loans not reached today",
+      "source_sha256": "97fbc4e68b7e84a39b8459942a86981d911799b600f3598b91dd41c5cd709e85",
+      "command": [
+        "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+        "check",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/11_second_role_desc_alias/source.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/11_second_role_desc_alias/phases",
+        "--json"
+      ],
+      "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+      "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+      "exit_code": 3,
+      "start": 1793165162.3506005,
+      "end": 1793165162.3575363,
+      "status": "Unsupported",
+      "phase": "expand",
+      "expected_current_status": "Unsupported",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 17,
+            "end": 99
+          },
+          "notes": []
+        }
+      ],
+      "stdout_sha256": "06ac0b9b6513e8ed682b1688374574193e8ccef1b5803b1f1e33a27f9691e789",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

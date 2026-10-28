@@ -1,0 +1,40 @@
+
+running 7 tests
+test current_call_checks_shared_exclusive_and_whole_backing_aliases ... ok
+test explicit_mutable_arguments_do_not_upgrade_shared_inputs ... FAILED
+test helper_actual_capture_and_slice_backing_are_instantiated_together ... ok
+test new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes ... FAILED
+test original_nineteen_preflight_inputs_now_reach_the_promised_stage_unchanged ... ok
+test sequential_slice_reborrows_and_dead_last_use_execute_without_allocation ... FAILED
+test slice_parameter_index_and_range_checks_reach_machine_traps ... ok
+
+failures:
+
+---- explicit_mutable_arguments_do_not_upgrade_shared_inputs stdout ----
+
+thread 'explicit_mutable_arguments_do_not_upgrade_shared_inputs' (51) panicked at crates/zil-driver/tests/impl193_slice_arguments.rs:46:9:
+shared-as-exclusive: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-ADDRESS-PERMISSION","message":"a shared address cannot grant exclusive access","span":{"file":0,"start":92,"end":93},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/193-author/source01/reports/slice193-49-5-shared-as-exclusive/phases/core.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/193-author/source01/reports/slice193-49-5-shared-as-exclusive/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/193-author/source01/reports/slice193-49-5-shared-as-exclusive/phases/syntax.txt"},"input_fingerprint":"36a4b9e79ef5d6971f3023a93d0175789eef88ed4d6edaafec6c8a4ebae5a289","seconds":0.004310008,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"shared-as-exclusive.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes stdout ----
+
+thread 'new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes' (53) panicked at crates/zil-driver/tests/impl193_slice_arguments.rs:41:5:
+assertion `left == right` failed: nested-address: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":19,"end":21},"notes":[]}],"artifacts":{},"input_fingerprint":"b326721ca3ddcef2b86dbfa2e30fbfd4d13e596fb949395c9ba1558e5e8a7ccf","seconds":0.000692155,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"nested-address.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Unsupported
+
+---- sequential_slice_reborrows_and_dead_last_use_execute_without_allocation stdout ----
+
+thread 'sequential_slice_reborrows_and_dead_last_use_execute_without_allocation' (55) panicked at crates/zil-driver/tests/impl193_slice_arguments.rs:79:9:
+assertion `left == right` failed: dead-last-use: Output { status: ExitStatus(unix_wait_status(4)), stdout: "", stderr: "" }
+  left: false
+ right: true
+
+
+failures:
+    explicit_mutable_arguments_do_not_upgrade_shared_inputs
+    new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes
+    sequential_slice_reborrows_and_dead_last_use_execute_without_allocation
+
+test result: FAILED. 4 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.87s
+

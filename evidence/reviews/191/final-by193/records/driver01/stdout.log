@@ -1,0 +1,7 @@
+
+running 2 tests
+test flow_transport_roundtrip_does_not_grant_analysis_or_verification ... ok
+test raw_graph_bounds_precede_stale_identity_and_fresh_retry_is_unchanged ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

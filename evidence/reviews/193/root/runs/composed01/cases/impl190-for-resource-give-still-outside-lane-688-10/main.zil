@@ -1,0 +1,1 @@
+resource R{n:i32}fn bad<F:Fn()->i32>(f:&F,give r:R){for index in 0..2{let taken=give r}}fn main(){}

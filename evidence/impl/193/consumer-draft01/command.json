@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/193-author/consumer-draft01/main.zil",
+    "--json"
+  ],
+  "exit_code": 3,
+  "compiler_source": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+  "purpose": "Retain invalid draft temporary-closure address; corrected by naming the closure, no production change"
+}

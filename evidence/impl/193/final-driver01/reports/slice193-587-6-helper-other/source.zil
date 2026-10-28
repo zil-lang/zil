@@ -1,0 +1,1 @@
+fn apply<F:Fn(&[u8])->i32>(f:&F,p:&[u8])->i32{return f(p)}fn main()->i32{let edited=bytes_new();let other=bytes_new();bytes_push(edited,7u8);bytes_push(other,7u8);let p=bytes_view(other);let f=(q:&[u8])=>{bytes_reserve(edited,8);return i32(q[0])};return apply(&f,p)-7}
