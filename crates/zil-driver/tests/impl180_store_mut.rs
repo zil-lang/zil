@@ -296,7 +296,7 @@ fn cross_function_aliases_cannot_hide_mutation_or_second_window() {
             ),
             ResultCategory::SafeReject,
             Phase::Verify,
-            "alias",
+            "E-BORROW-CONFLICT",
         );
     }
 }
