@@ -216,7 +216,6 @@ fn original_package_store_field_declaration_is_now_supported() {
 fn source_guards_reject_missing_context_and_capture() {
     for (source,category,needle) in [
   (format!("{PACKAGE} fn main()->i32{{let s=store_new();return 0}}"),ResultCategory::SafeReject,"store_new requires"),
-  (format!("{PACKAGE} fn main()->i32{{let s=empty();let f=move ()=>i32(store_len(s));return f()}}"),ResultCategory::Unsupported,"Store capture requires"),
   (format!("{PACKAGE} fn main()->i32{{let s=empty();let f=()=>i32(store_len(s));return f()}}"),ResultCategory::Unsupported,"Store capture requires"),
   ("resource Z{} package Empty{manages z:Z} fn main()->i32{let s:Store<Empty>=store_new();return 0}".into(),ResultCategory::Unsupported,"nonzero complete direct-Managed"),
   ("fn main()->i32{let s:Store<i32>=store_new();return 0}".into(),ResultCategory::Unsupported,"nonzero complete direct-Managed"),
@@ -225,6 +224,40 @@ fn source_guards_reject_missing_context_and_capture() {
   let code=if category==ResultCategory::SafeReject {"E-OWNED-STORE-TYPE"} else {"E-UNSUPPORTED"};
   assert!(result.diagnostics.iter().any(|d|d.phase==zil_base::Phase::Types && d.code==code && d.message.contains(needle)),"{}",result.to_json());
  }
+}
+
+#[test]
+fn original_owned_store_capture_is_supported_since_204() {
+    let source = format!(
+        "{PACKAGE} fn main()->i32{{let s=empty();let f=move ()=>i32(store_len(s));return f()}}"
+    );
+    let report = check(&source);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Verify);
+    assert_eq!(report.verification_runs, 1);
+    native(&[("main", &source)], b"", 0);
+}
+
+#[test]
+fn original_array_of_owned_store_captures_composes_since_204() {
+    let source = format!(
+        "{PACKAGE} fn main()->i32{{let s=empty();let callbacks=[move ()=>i32(store_len(s))];return 0}}"
+    );
+    let report = check(&source);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Verify);
+    assert_eq!(report.verification_runs, 1);
+    native(&[("main", &source)], b"", 0);
 }
 
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
@@ -575,9 +608,6 @@ fn source_neighbours_preserve_transfer_and_nested_composition_boundaries() {
             "{PACKAGE} package Bad{{manages s:Store<P>}} package Outer{{manages r:R;items:[Bad;2]}} fn main()->i32=>0"
         ),
         format!("{PACKAGE} fn bad()->void!Store<P>{{return ()}} fn main()->i32=>0"),
-        format!(
-            "{PACKAGE} fn main()->i32{{let s=empty();let callbacks=[move ()=>i32(store_len(s))];return 0}}"
-        ),
         format!("{PACKAGE} fn main()->i32{{let store_push=1;return store_push}}"),
         format!("{PACKAGE} fn main()->i32{{let s:Store<Store<P>>=store_new();return 0}}"),
     ];
@@ -601,7 +631,6 @@ fn source_neighbours_preserve_transfer_and_nested_composition_boundaries() {
             "E-UNSUPPORTED",
             "error union payloads require",
         ),
-        (Phase::Types, "E-UNSUPPORTED", "Store capture requires"),
         (Phase::Types, "E-OWNED-STORE-NAME", "cannot be rebound"),
         (
             Phase::Types,
@@ -726,17 +755,21 @@ fn raw_wire_store_composition_boundaries_and_head_access_are_independently_check
             );
         }
     }
-    for (label, ty, message) in [
-        ("closure-store-capture", store, "Store capture requires"),
-        (
-            "closure-package-store-capture",
-            direct,
-            "Package capture with Store fields",
-        ),
+    for (label, ty) in [
+        ("closure-store-capture", store),
+        ("closure-package-store-capture", direct),
     ] {
         let mut mutated = original.clone();
         mutated.closures[0].captures[0] = ty;
-        reject_candidate(label, mutated, plan.clone(), "E-UNSUPPORTED", message);
+        // 204 admits qualified owned Store captures, but changing metadata
+        // does not change the original scalar MakeClosure operand.
+        reject_candidate(
+            label,
+            mutated,
+            plan.clone(),
+            "E-VERIFY-CAPTURE",
+            "capture operand type differs from the environment field",
+        );
     }
     let take = locate(
         &original,
