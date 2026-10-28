@@ -385,6 +385,94 @@ fn outer_store_moves_two_same_type_environments_without_merging_inner_stores() {
 }
 
 #[test]
+fn old_copy_callback_fields_remain_valid_outside_the_captured_inner_leaf() {
+    let ordinary = format!(
+        r#"{PREFIX}
+package FnItem{{manages owner:Ticket;handler:fn(i32)->i32}}
+fn pass(n:i32)->i32{{return n}}
+fn main()->i32{{let items:Store<FnItem>=store_new();store_reserve(items,1);store_push(items,FnItem{{owner:Ticket{{code:65}},handler:pass}});return i32(store_len(items))-1}}
+"#
+    );
+    native("ordinary-store-keeps-copy-fnptr-field", &ordinary, "A", 0);
+    let captured = ordinary.replace(
+        "fn main()->i32{let items:Store<FnItem>=store_new();store_reserve(items,1);store_push(items,FnItem{owner:Ticket{code:65},handler:pass});return i32(store_len(items))-1}",
+        "fn make()->impl Fn()->i32{let items:Store<FnItem>=store_new();store_reserve(items,1);store_push(items,FnItem{owner:Ticket{code:65},handler:pass});return move()=>i32(store_len(items))-1}fn main()->i32{let f=make();return f()}",
+    );
+    assert_ne!(ordinary, captured);
+    source_reject(
+        "captured-inner-leaf-closes-fnptr-field",
+        &captured,
+        Phase::Types,
+        "E-UNSUPPORTED",
+    );
+
+    let companion = format!("{PREFIX}{PACKAGE}\nfn pass(n:i32)->i32{{return n}}")
+        .replace(
+            "manages right:Store<Item>}",
+            "manages right:Store<Item>;handler:fn(i32)->i32}",
+        )
+        .replace(
+            "side:Ticket{code:83},left:give left}",
+            "side:Ticket{code:83},left:give left,handler:pass}",
+        );
+    native(
+        "captured-package-keeps-copy-fnptr-companion",
+        &companion,
+        "CASB",
+        0,
+    );
+}
+
+#[test]
+fn declared_once_field_of_actual_fn_keeps_its_own_captured_store_cleanup() {
+    let source = format!(
+        r#"{PREFIX}
+package State<F,G>{{first:F;manages side:Ticket;second:G}}
+fn make(code:i32)->impl Fn()->i32{{let items=empty();store_reserve(items,1);store_push(items,Item{{owner:Ticket{{code:code}},value:code}});return move()=>i32(store_len(items))}}
+fn pack<F:Fn()->i32,G:FnOnce()->i32>(first:F,second:G)->State<F,G>{{return State::<F,G>{{first:first,side:Ticket{{code:83}},second:second}}}}
+fn identity<T:StoreElement>(state:T)->T{{return state}}
+fn run<F:Fn()->i32,G:FnOnce()->i32>(state:State<F,G>)->i32{{let ready=identity(state);let a=ready.first();let b=ready.second();emit(67);return a+b+ready.first()-3}}
+fn main()->i32{{return run(pack(make(65),make(66)))}}
+"#
+    );
+    native(
+        "same-actual-fn-declared-once-store-field",
+        &source,
+        "BCAS",
+        0,
+    );
+    source_reject(
+        "declared-once-store-field-cannot-repeat",
+        &source.replace(
+            "let b=ready.second();emit(67)",
+            "let b=ready.second();ready.second();emit(67)",
+        ),
+        Phase::Types,
+        "E-CLOSURE-MODE",
+    );
+}
+
+#[test]
+fn move_keyword_does_not_turn_a_store_description_into_an_owned_capture() {
+    let owned = format!(
+        r#"{PREFIX}
+fn make(give items:Store<Item>)->impl Fn()->i32{{return move()=>i32(store_len(items))}}
+fn main()->i32{{let items=empty();store_reserve(items,1);store_push(items,Item{{owner:Ticket{{code:65}},value:10}});let f=make(give items);return f()-1}}
+"#
+    );
+    native("given-store-parameter-is-owned", &owned, "A", 0);
+    let borrowed = owned
+        .replace("make(give items:Store<Item>)", "make(items:Store<Item>)")
+        .replace("make(give items)", "make(items)");
+    source_reject(
+        "move-of-desc-is-still-desc",
+        &borrowed,
+        Phase::Types,
+        "E-UNSUPPORTED",
+    );
+}
+
+#[test]
 fn direct_child_environment_propagates_the_new_copy_result_requirement() {
     let leaf = format!("{PREFIX}{}", ORIGINALS[1].1)
         .replace("package Item { manages bytes: ByteBuffer; value: i32 }", "")
@@ -507,6 +595,137 @@ fn source_produced_make_closure_cannot_duplicate_one_actual_store_value() {
         false,
         ResultCategory::SafeReject,
         "E-VERIFY-RESOURCE",
+    );
+}
+
+#[test]
+fn raw_store_mutation_keeps_the_current_capture_window_alive() {
+    let (mut module, plan) = baseline(
+        "raw-window-order-source-control",
+        &format!("{PREFIX}{WINDOW}"),
+    );
+    let function = module
+        .closures
+        .iter()
+        .find(|c| c.kind == CallableKind::FnMut && c.captures.iter().any(is_owned_store))
+        .unwrap()
+        .function;
+    let f = &mut module.functions[function.0 as usize];
+    let block = f
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, InstructionKind::OwnedStoreReserve { .. }))
+        })
+        .unwrap();
+    let read = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ReadAddress { .. }))
+        .unwrap();
+    let reserve = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::OwnedStoreReserve { .. }))
+        .unwrap();
+    assert!(read < reserve);
+    let InstructionKind::OwnedStoreReserve { store, capacity } = block.instructions[reserve].kind
+    else {
+        unreachable!()
+    };
+    let mut move_indices = vec![reserve];
+    for value in [store, capacity] {
+        let definition = block
+            .instructions
+            .iter()
+            .position(|i| i.result == Some(value))
+            .unwrap();
+        if definition > read {
+            assert!(
+                matches!(
+                    block.instructions[definition].kind,
+                    InstructionKind::DescribeCapture { .. } | InstructionKind::Constant(_)
+                ),
+                "only side-effect-free preparation may move with the existing reserve"
+            );
+            move_indices.push(definition);
+        }
+    }
+    move_indices.sort_unstable();
+    move_indices.dedup();
+    let moved: Vec<_> = move_indices
+        .iter()
+        .map(|i| block.instructions[*i].clone())
+        .collect();
+    let old = std::mem::take(&mut block.instructions);
+    for (index, instruction) in old.into_iter().enumerate() {
+        if index == read {
+            block.instructions.extend(moved.iter().cloned());
+        }
+        if !move_indices.contains(&index) {
+            block.instructions.push(instruction);
+        }
+    }
+    attack(
+        "reserve-before-last-element-read",
+        module,
+        &plan,
+        true,
+        ResultCategory::SafeReject,
+        "E-BORROW-CONFLICT",
+    );
+}
+
+#[test]
+fn raw_equal_typed_capture_indices_do_not_make_two_stores_the_same_parent() {
+    let source = format!(
+        r#"{PREFIX}
+fn make()->impl FnMut()->i32{{
+    let left=empty();store_reserve(left,1);store_push(left,Item{{owner:Ticket{{code:65}},value:10}});
+    let right=empty();store_reserve(right,1);store_push(right,Item{{owner:Ticket{{code:66}},value:100}});
+    return move()=>{{let view=store_at(right,0);store_reserve(left,2);return view.value}}
+}}
+fn main()->i32{{var f=make();return f()-100}}
+"#
+    );
+    let (mut module, plan) = baseline("distinct-runtime-capture-parents", &source);
+    let definition = module
+        .closures
+        .iter()
+        .find(|c| {
+            c.kind == CallableKind::FnMut
+                && c.captures.iter().filter(|t| is_owned_store(t)).count() == 2
+        })
+        .unwrap();
+    assert_eq!(definition.captures[0], definition.captures[1]);
+    let f = &mut module.functions[definition.function.0 as usize];
+    let borrowed = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::OwnedStoreBorrow { store, .. } => Some(store),
+            _ => None,
+        })
+        .unwrap();
+    let mut changed = 0;
+    for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::OwnedStoreReserve { store, .. } = &mut i.kind {
+            assert_ne!(*store, borrowed);
+            *store = borrowed;
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    attack(
+        "reserve-repointed-to-other-same-type-capture",
+        module,
+        &plan,
+        true,
+        ResultCategory::SafeReject,
+        "E-BORROW-CONFLICT",
     );
 }
 
@@ -699,6 +918,40 @@ fn unused_capture_table_without_store_operations_checks_the_second_actual_leaf()
     let Type::Package { name, fields } = original_element.as_ref() else {
         unreachable!()
     };
+    let header = Type::Record {
+        name: "CallbackHeader".into(),
+        fields: vec![(
+            "function".into(),
+            Type::FunctionPointer {
+                parameters: vec![Type::I32],
+                result: Box::new(Type::I32),
+            },
+        )],
+    };
+    let header_definition = ResourceDefinition {
+        name: "CallbackHeader".into(),
+        payload: header.clone(),
+        teardown: None,
+    };
+    let mut header_fields = fields.clone();
+    header_fields.push(("header".into(), Type::Managed(Box::new(header.clone()))));
+    let mut ordinary = module.clone();
+    ordinary.resources.push(header_definition.clone());
+    ordinary.resources.push(ResourceDefinition {
+        name: "@builtin:OwnedStore<OrdinaryHeader>".into(),
+        payload: Type::OwnedStore {
+            element: Box::new(Type::Package {
+                name: "OrdinaryHeader".into(),
+                fields: header_fields.clone(),
+            }),
+        },
+        teardown: None,
+    });
+    let case = Case::new("ordinary-store-retains-managed-copy-function-header");
+    case.write("typed.txt", format!("{ordinary:#?}"));
+    let ordinary_plan = zil_analyze::analyze(&ordinary, &Limits::default());
+    case.write("analyze.txt", format!("{ordinary_plan:#?}"));
+    verify_pair(&case, &ordinary, &ordinary_plan.unwrap(), None);
     for (label, fields) in [
         (
             "zero-leaf",
@@ -765,6 +1018,7 @@ fn unused_capture_table_without_store_operations_checks_the_second_actual_leaf()
             ));
             fields
         }),
+        ("managed-header-callback", header_fields),
     ] {
         let mut bad = module.clone();
         let name = format!("{name}-{label}");
@@ -780,6 +1034,9 @@ fn unused_capture_table_without_store_operations_checks_the_second_actual_leaf()
             payload: payload.clone(),
             teardown: None,
         });
+        if label == "managed-header-callback" {
+            bad.resources.push(header_definition.clone());
+        }
         if label == "zero-leaf"
             && !bad
                 .resources
