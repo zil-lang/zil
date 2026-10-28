@@ -7,6 +7,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import stat
+import sys
 import zipfile
 
 
@@ -34,14 +35,38 @@ inputs), CT program Wire, cache candidates and exact binary standard I/O
 remain test evidence and are not execution products. Sources, IR, logs and
 empty files are preserved. No compiler, test or packaged program is executed.
 
-Extract compact_evidence.py from this ZIP, then use Python 3 (Git Bash or
-PowerShell both work):
+For a ZIP, extract compact_evidence.py and its adjacent directory_evidence.py
+and solid_evidence.py tools, then use Python 3:
 
     python compact_evidence.py verify PATH_TO_THIS_ZIP
     python compact_evidence.py restore PATH_TO_THIS_ZIP NEW_DIRECTORY
     python compact_evidence.py restore PATH_TO_THIS_ZIP NEW_DIRECTORY --component root
 
-Verification checks all ZIP member CRCs, SHA256, sizes, object references and
+For a standard .tar.xz container, create a NEW empty content directory and use
+a standard tar with xz support. Do not extract into an existing evidence tree:
+
+    mkdir evidence-content-new
+    tar -xf evidence.tar.xz -C evidence-content-new
+    python evidence-content-new/compact_evidence.py verify evidence-content-new
+    python evidence-content-new/compact_evidence.py restore evidence-content-new restored-new
+    python evidence-content-new/compact_evidence.py restore evidence-content-new root-new --component root
+
+The directory reader rejects symlinks/nonregular entries and checks the SAME
+manifest, SHA256, index and path rules as ZIP. No payload is trusted because it
+was extracted. Keep restoration output outside the frozen content directory.
+Running these entry points does not add Python bytecode files to the contents.
+
+To convert a frozen, verified ZIP to solid standard tar.xz without extracting
+its member tree or changing any member bytes:
+
+    python solid_evidence.py convert frozen.zip evidence.tar.xz
+
+Conversion compares every member byte-for-byte, checks its CRC/SHA and refuses
+publication above 50,000,000 bytes. A failed .partial is retained; neither old
+inputs nor existing outputs are overwritten. It cannot retrofit new tools into
+an old archive: use a newly packed container that already includes these tools.
+
+Verification checks ZIP member CRCs where applicable, SHA256, sizes, object references and
 original-path mappings without restoring duplicates. Restore first verifies the
 whole archive, refuses an existing destination, and writes files exclusively.
 Select a component to avoid materializing all duplicate evidence. INDEX.json
@@ -60,7 +85,7 @@ def json_bytes(value):
 
 def safe_path(name):
     path = PurePosixPath(name)
-    if (not name or path.is_absolute() or path.as_posix() != name
+    if (not name or not path.parts or path.is_absolute() or path.as_posix() != name
             or any(part in ("", ".", "..") for part in path.parts)
             or "\\" in name or ":" in name or "\0" in name):
         raise ValueError("unsafe evidence path: " + repr(name))
@@ -131,8 +156,23 @@ def restored_path(component, source, original):
     return f"components/{component}/{source}/{original}"
 
 
+def archive_reader(path):
+    path = Path(path)
+    if path.is_dir():
+        # The adapter is itself a manifested member of an extracted container.
+        # Importing it must not create __pycache__ inside that frozen directory.
+        previous = sys.dont_write_bytecode
+        try:
+            sys.dont_write_bytecode = True
+            from directory_evidence import DirectoryReader
+        finally:
+            sys.dont_write_bytecode = previous
+        return DirectoryReader(path, safe_path)
+    return zipfile.ZipFile(path)
+
+
 def verify(archive_path):
-    with zipfile.ZipFile(archive_path) as archive:
+    with archive_reader(archive_path) as archive:
         names = [entry.filename for entry in archive.infolist()]
         if len(names) != len(set(names)):
             raise ValueError("duplicate ZIP member")
@@ -142,7 +182,7 @@ def verify(archive_path):
         if set(manifest) != set(names) - {"MANIFEST.json"}:
             raise ValueError("ZIP membership differs from manifest")
         for name, expected in manifest.items():
-            data = archive.read(name)  # ZipFile verifies this member's CRC.
+            data = archive.read(name)  # ZIP additionally verifies the member CRC.
             if len(data) != expected["bytes"] or digest(data) != expected["sha256"]:
                 raise ValueError("content mismatch: " + name)
         index = json.loads(archive.read("INDEX.json"))
@@ -304,6 +344,8 @@ def pack(config_path, output, max_bytes):
         write("INPUTS.json", json_bytes(config))
         write("README.md", README.encode())
         write("compact_evidence.py", Path(__file__).read_bytes())
+        for tool in ("directory_evidence.py", "solid_evidence.py"):
+            write(tool, Path(__file__).with_name(tool).read_bytes())
         archive.writestr("MANIFEST.json", json_bytes(manifest))
     verified = verify(pending)
     if pending.stat().st_size > max_bytes:
@@ -317,13 +359,20 @@ def pack(config_path, output, max_bytes):
 
 
 def restore(archive_path, destination, component=None):
+    archive_path, destination = Path(archive_path), Path(destination)
+    if any(path.is_symlink() for path in (destination, *destination.parents)):
+        raise ValueError("restore destination must not have symlink ancestors")
+    if archive_path.is_dir():
+        source, target = archive_path.resolve(), destination.resolve()
+        if source == target or source in target.parents:
+            raise ValueError("restore destination must be outside the frozen evidence directory")
     index = verify(archive_path)
     selected = [entry for entry in index["files"]
                 if component is None or entry["component"] == component]
     if not selected:
         raise ValueError("component has no evidence files")
     destination.mkdir(parents=True, exist_ok=False)
-    with zipfile.ZipFile(archive_path) as archive:
+    with archive_reader(archive_path) as archive:
         for entry in selected:
             target = destination.joinpath(*safe_path(entry["restore_path"]).parts)
             target.parent.mkdir(parents=True, exist_ok=True)
