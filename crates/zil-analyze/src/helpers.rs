@@ -313,6 +313,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     let mut checked = vec![false; module.functions.len()];
     for index in order {
         let function = &module.functions[index];
+        // Preserve ordinary functions' established accounting. Their parameter
+        // metadata was bounded during preflight and no role table is allocated.
+        if function.callable_contract.is_none()
+            && !function
+                .parameters
+                .iter()
+                .any(|p| env(&function.locals[p.0 as usize].ty).is_some())
+        {
+            continue;
+        }
         budget.spend(
             function.parameters.len().saturating_add(1),
             "helper parameter envelope and candidate table",
@@ -325,9 +335,6 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 env(&function.locals[p.0 as usize].ty).map(|_| (index as u32, *p))
             })
             .collect::<Vec<_>>();
-        if candidates.is_empty() && function.callable_contract.is_none() {
-            continue;
-        }
         if function.callable_contract.is_none()
             && candidates.len() == 1
             && function.environment.is_none()
@@ -345,6 +352,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .ok_or_else(|| bad("callable parameter has no public helper contract"))?;
         if candidates.is_empty()
             || candidates.len() > 2
+            || (candidates.len() == 2 && candidates[0].1 == candidates[1].1)
             || function.environment.is_some()
             || function.foreign.is_some()
         {
