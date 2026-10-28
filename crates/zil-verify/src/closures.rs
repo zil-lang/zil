@@ -187,10 +187,11 @@ pub(super) fn check_definitions(
         }
         for ty in &closure.parameters {
             if let Type::Address { inner, .. } = ty
-                && inner.is_copy_value()
                 && closure.result.is_copy_value()
             {
-                check_type(inner, None)?;
+                // Raw type preflight already bounded this tree. Verify the
+                // actual finite element shape, not a producer signature bit.
+                slices::check_pointee(inner, None)?;
             } else {
                 check_type(ty, None)?;
             }

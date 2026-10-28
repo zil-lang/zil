@@ -359,7 +359,7 @@ fn limit(message: impl Into<String>, span: Span) -> Diagnostic {
 
 pub(super) type Variable = usize;
 pub(super) fn signature_parameter(ty: &Type) -> bool {
-    ty.is_copy_value() || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+    ty.is_copy_value() || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
 }
 
 pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
@@ -565,7 +565,7 @@ impl Graph {
                 || packages::supported(ty)
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
-                || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+                || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 // This is only a pointee constraint node for a shared head.
                 // It does not make a Managed value Copy or grant a capture.
                 || matches!(ty, Type::Managed(payload)
@@ -979,7 +979,7 @@ impl Graph {
                 }
                 if let Some(ty) = self.ty(base)? {
                     let ty = match ty {
-                        Type::Address { inner, .. } if inner.is_copy_value() => *inner,
+                        Type::Address { inner, .. } if inner.is_address_pointee() => *inner,
                         other => other,
                     };
                     let field = match &projection {
@@ -1169,7 +1169,7 @@ impl Inference {
         if !supported_signature(&signature.0, &signature.1) {
             return Err(unsupported(
                 span,
-                "closure signatures require finite Copy or one-layer Copy-address arguments; address arguments require a Copy result",
+                "closure signatures require finite Copy or one-layer Copy/slice-address arguments; address arguments require a Copy result",
             ));
         }
         Ok(signature)
@@ -1350,7 +1350,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 if !signature_parameter(ty) {
                     return Err(unsupported(
                         parameter.span,
-                        "closure parameters require a finite Copy type or one Copy address layer",
+                        "closure parameters require a finite Copy type or one Copy/slice address layer",
                     ));
                 }
                 this.graph.bind(variable, ty, parameter.span)?;
