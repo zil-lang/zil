@@ -127,7 +127,7 @@ impl<'a> World<'a> {
         &self,
         t: &Ty,
         indices: &[Arg],
-        defs: &BTreeMap<String, Definition>,
+        defs: &BTreeMap<&str, Definition>,
         constant: bool,
     ) -> Result<()> {
         self.check_ty(t, false)?;
@@ -162,7 +162,7 @@ impl<'a> World<'a> {
         }
         Ok(())
     }
-    fn arg(&self, a: &Arg, defs: &BTreeMap<String, Definition>, constant: bool) -> Result<()> {
+    fn arg(&self, a: &Arg, defs: &BTreeMap<&str, Definition>, constant: bool) -> Result<()> {
         self.check_ty(&a.ty, false)?;
         attrs(&a.attrs, Some(&a.ty))?;
         self.value(&a.value, &a.ty, defs, constant, 0)
@@ -171,7 +171,7 @@ impl<'a> World<'a> {
         &self,
         v: &Val,
         t: &Ty,
-        defs: &BTreeMap<String, Definition>,
+        defs: &BTreeMap<&str, Definition>,
         constant: bool,
         depth: usize,
     ) -> Result<()> {
@@ -184,7 +184,7 @@ impl<'a> World<'a> {
                     return fail("local reference in global/constant initializer");
                 }
                 let d = defs
-                    .get(name)
+                    .get(name.as_str())
                     .ok_or_else(|| format!("undefined SSA value %{name}"))?;
                 if d.ty != *t {
                     return fail(format!("SSA type mismatch for %{name}: {} != {t}", d.ty));
@@ -264,12 +264,7 @@ impl<'a> World<'a> {
             _ => None,
         })
     }
-    fn op(
-        &self,
-        op: &Op,
-        defs: &BTreeMap<String, Definition>,
-        signature: &Signature,
-    ) -> Result<()> {
+    fn op(&self, op: &Op, defs: &BTreeMap<&str, Definition>, signature: &Signature) -> Result<()> {
         let value = |v: &Val, t: &Ty| self.value(v, t, defs, false, 0);
         match op {
             Op::Alloca { ty, align } => {
@@ -434,12 +429,13 @@ impl<'a> World<'a> {
         Ok(())
     }
 }
-fn successors(op: &Op) -> Vec<&str> {
-    match op {
-        Op::Branch(b) => vec![b],
-        Op::CondBranch { yes, no, .. } => vec![yes, no],
-        _ => vec![],
-    }
+fn successors(op: &Op) -> impl Iterator<Item = &str> {
+    let edges = match op {
+        Op::Branch(b) => [Some(b.as_str()), None],
+        Op::CondBranch { yes, no, .. } => [Some(yes.as_str()), Some(no.as_str())],
+        _ => [None, None],
+    };
+    edges.into_iter().flatten()
 }
 /// Immediate dominators in reverse postorder. No CFG×SSA/variable Cartesian table.
 fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
@@ -519,7 +515,7 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
         if !identifier(name)
             || defs
                 .insert(
-                    name.to_owned(),
+                    name,
                     Definition {
                         ty: p.ty.clone(),
                         place: None,
@@ -532,8 +528,8 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
     }
     for (b, block) in blocks.iter().enumerate() {
         if !identifier(&block.name)
-            || labels.insert(block.name.clone(), b).is_some()
-            || defs.contains_key(&block.name)
+            || labels.insert(block.name.as_str(), b).is_some()
+            || defs.contains_key(block.name.as_str())
         {
             return fail("invalid/duplicate block label");
         }
@@ -558,7 +554,7 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
                 if !identifier(name)
                     || defs
                         .insert(
-                            name.clone(),
+                            name.as_str(),
                             Definition {
                                 ty,
                                 place: Some((b, j)),
@@ -572,7 +568,7 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
         }
     }
     // Block labels and named SSA values share the same LLVM local namespace.
-    if labels.keys().any(|label| defs.contains_key(label)) {
+    if labels.keys().any(|label| defs.contains_key(*label)) {
         return fail("block label collides with SSA name");
     }
     let mut succ = vec![vec![]; n];
@@ -607,6 +603,7 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
             b = idom[b];
         }
     };
+    let mut uses = Vec::new();
     for (b, block) in blocks.iter().enumerate() {
         for (j, i) in block.instructions.iter().enumerate() {
             world
@@ -615,11 +612,11 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
             if let Op::Phi { incoming, .. } = &i.op {
                 let mut incoming_ids = vec![];
                 for (v, p) in incoming {
-                    let p = *labels.get(p).ok_or("phi incoming block missing")?;
+                    let p = *labels.get(p.as_str()).ok_or("phi incoming block missing")?;
                     incoming_ids.push(p);
-                    let mut uses = vec![];
+                    uses.clear();
                     v.local_uses(&mut uses);
-                    for name in uses {
+                    for &name in &uses {
                         if let Some((d, _)) = defs[name].place
                             && !dominates(d, p)
                         {
@@ -647,9 +644,9 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
                 }
             } else {
                 for value in i.op.values() {
-                    let mut uses = vec![];
+                    uses.clear();
                     value.local_uses(&mut uses);
-                    for name in uses {
+                    for &name in &uses {
                         if let Some((d, pos)) = defs[name].place
                             && ((d == b && pos >= j) || (d != b && !dominates(d, b)))
                         {
@@ -665,35 +662,44 @@ fn function(world: &World<'_>, f: &Function) -> Result<Vec<(usize, usize)>> {
     // Phi nodes are created first. Sort all other instructions by operand and
     // per-block sequencing edges, so forward textual block order is irrelevant.
     let mut positions = vec![];
-    let mut ids = BTreeMap::new();
+    // Positions are dense within each block; do not allocate a tree node per instruction.
+    let mut ids = blocks
+        .iter()
+        .map(|b| vec![usize::MAX; b.instructions.len()])
+        .collect::<Vec<_>>();
     for (b, block) in blocks.iter().enumerate() {
         for (j, i) in block.instructions.iter().enumerate() {
             if !matches!(i.op, Op::Phi { .. }) {
-                ids.insert((b, j), positions.len());
+                ids[b][j] = positions.len();
                 positions.push((b, j));
             }
         }
     }
     let mut counts = vec![0; positions.len()];
     let mut users = vec![vec![]; positions.len()];
+    let mut dependencies = Vec::new();
     for (id, &(b, j)) in positions.iter().enumerate() {
-        let mut dependencies = BTreeSet::new();
-        if let Some(prev) = j.checked_sub(1).and_then(|p| ids.get(&(b, p))) {
-            dependencies.insert(*prev);
+        dependencies.clear();
+        if j > 0 && ids[b][j - 1] != usize::MAX {
+            dependencies.push(ids[b][j - 1]);
         }
         for v in blocks[b].instructions[j].op.values() {
-            let mut uses = vec![];
+            uses.clear();
             v.local_uses(&mut uses);
-            for name in uses {
-                if let Some(pos) = defs[name].place
-                    && let Some(&source) = ids.get(&pos)
-                {
-                    dependencies.insert(source);
+            for &name in &uses {
+                if let Some((block, instruction)) = defs[name].place {
+                    let source = ids[block][instruction];
+                    if source != usize::MAX {
+                        dependencies.push(source);
+                    }
                 }
             }
         }
+        // Match the previous ordered set, including repeated operands/sequence edges.
+        dependencies.sort_unstable();
+        dependencies.dedup();
         counts[id] = dependencies.len();
-        for source in dependencies {
+        for &source in &dependencies {
             users[source].push(id);
         }
     }
