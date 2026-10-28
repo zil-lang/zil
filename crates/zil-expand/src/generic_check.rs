@@ -391,6 +391,23 @@ struct Check<'s, 'b, 'l> {
     budget: &'b mut Budget<'l>,
 }
 impl Check<'_, '_, '_> {
+    fn literal_context<'a>(&self, expected: Option<&'a TypeRef>) -> Option<&'a TypeRef> {
+        if self
+            .callable
+            .as_ref()
+            .is_some_and(|b| b.dual_names().is_some())
+            && let Some(ty) = expected
+            && let TypeKind::Error { error, result } = &group(ty).kind
+            && integer(error) != integer(result)
+        {
+            // An integer payload keeps its concrete width even when the other
+            // alternative is a complete symbolic State. same_return still
+            // validates the original entire union and rejects either-side
+            // mismatch; no generic numeric capability is inferred from a call.
+            return Some(if integer(error) { error } else { result });
+        }
+        expected
+    }
     fn known_copy(&mut self, ty: &TypeRef) -> R<bool> {
         if known_copy(ty, &self.variables, self.nominals) {
             return Ok(true);
@@ -1464,6 +1481,7 @@ impl Check<'_, '_, '_> {
                 Ok(ty)
             }
             ExprKind::Literal(Literal::Integer(text)) => {
+                let expected = self.literal_context(expected);
                 if expected.is_some_and(|t| dependent(t, &self.variables)) {
                     return Err(needs_bound());
                 }
@@ -1704,6 +1722,7 @@ impl Check<'_, '_, '_> {
                 op: UnaryOp::Negate,
                 operand,
             } if matches!(operand.kind, ExprKind::Literal(Literal::Integer(_))) => {
+                let expected = self.literal_context(expected);
                 if expected.is_some_and(|t| dependent(t, &self.variables)) {
                     return Err(needs_bound());
                 }
