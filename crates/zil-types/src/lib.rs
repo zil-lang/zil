@@ -2325,7 +2325,14 @@ impl<'a, 'c> Builder<'a, 'c> {
         // constrains both unified parameters to i64 without reordering values.
         for (index, argument) in arguments.iter().enumerate() {
             self.closures.snapshot(1, argument.span)?;
-            if let Some(hint) = self.range_hint(argument, 0) {
+            if let Some(hint) = self.range_hint(argument, 0)
+                && !matches!(
+                    self.closures.pending[id.0 as usize]
+                        .inference
+                        .parameter(index)?,
+                    Some(Type::Address { .. })
+                )
+            {
                 self.closures.pending[id.0 as usize].inference.argument(
                     index,
                     &hint,
@@ -2339,7 +2346,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             let hint = self.closures.pending[id.0 as usize]
                 .inference
                 .parameter(index)?;
-            let (value, actual) = self.expr(argument, hint.as_ref())?;
+            let (value, actual) = if let Some(parameter) = hint.as_ref() {
+                self.argument_expr(argument, parameter)?
+            } else {
+                self.expr(argument, None)?
+            };
             self.closures.pending[id.0 as usize].inference.argument(
                 index,
                 &actual,

@@ -358,6 +358,15 @@ fn limit(message: impl Into<String>, span: Span) -> Diagnostic {
 }
 
 pub(super) type Variable = usize;
+pub(super) fn signature_parameter(ty: &Type) -> bool {
+    ty.is_copy_value() || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+}
+
+pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
+    parameters.iter().all(signature_parameter)
+        && (result.is_copy_value()
+            || (parameters.iter().all(Type::is_copy_value) && lending::supported_result(result)))
+}
 pub(super) const UNIT: u8 = 1;
 pub(super) const BOOL: u8 = 2;
 pub(super) const I32: u8 = 4;
@@ -380,8 +389,9 @@ enum Shape {
     Slice {
         element: Variable,
     },
-    SharedAddress {
+    Address {
         inner: Variable,
+        mutable: Option<bool>,
     },
     FunctionPointer {
         parameters: Vec<Variable>,
@@ -492,7 +502,7 @@ impl Graph {
         let count = match shape {
             Some(Shape::Tuple(fields)) => fields.len(),
             Some(Shape::FunctionPointer { parameters, .. }) => parameters.len() + 1,
-            Some(Shape::Array { .. } | Shape::Slice { .. } | Shape::SharedAddress { .. }) => 1,
+            Some(Shape::Array { .. } | Shape::Slice { .. } | Shape::Address { .. }) => 1,
             None => 0,
         };
         self.spend_count(count, span)?;
@@ -555,6 +565,7 @@ impl Graph {
                 || packages::supported(ty)
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
+                || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
                 // This is only a pointee constraint node for a shared head.
                 // It does not make a Managed value Copy or grant a capture.
                 || matches!(ty, Type::Managed(payload)
@@ -607,12 +618,18 @@ impl Graph {
                     },
                 ) => self.bind(element, ty_element, span)?,
                 (
-                    Some(Shape::SharedAddress { inner }),
+                    Some(Shape::Address { inner, mutable }),
                     Type::Address {
-                        mutable: false,
+                        mutable: actual_mutable,
                         inner: actual,
                     },
-                ) => self.bind(inner, actual, span)?,
+                ) if mutable.is_none_or(|wanted| wanted == *actual_mutable) => {
+                    self.bind(inner, actual, span)?;
+                    self.nodes[root].shape = Some(Shape::Address {
+                        inner,
+                        mutable: Some(*actual_mutable),
+                    });
+                }
                 (
                     Some(Shape::FunctionPointer { parameters, result }),
                     Type::FunctionPointer {
@@ -658,7 +675,7 @@ impl Graph {
                 Some(Shape::Array { element, .. } | Shape::Slice { element }) => {
                     pending.push(*element)
                 }
-                Some(Shape::SharedAddress { inner }) => pending.push(*inner),
+                Some(Shape::Address { inner, .. }) => pending.push(*inner),
                 Some(Shape::FunctionPointer { parameters, result }) => {
                     self.spend_count(parameters.len() + 1, span)?;
                     pending.extend(parameters);
@@ -706,7 +723,7 @@ impl Graph {
                 "different concrete aggregate types",
             ));
         }
-        let a_shape = self.clone_shape(&self.nodes[a].shape, span)?;
+        let mut a_shape = self.clone_shape(&self.nodes[a].shape, span)?;
         let b_shape = self.clone_shape(&self.nodes[b].shape, span)?;
         match (&a_shape, &b_shape) {
             (Some(Shape::Tuple(left)), Some(Shape::Tuple(right))) if left.len() == right.len() => {
@@ -727,8 +744,21 @@ impl Graph {
             (Some(Shape::Slice { element: a }), Some(Shape::Slice { element: b })) => {
                 self.unify_depth(*a, *b, span, depth + 1)?
             }
-            (Some(Shape::SharedAddress { inner: a }), Some(Shape::SharedAddress { inner: b })) => {
+            (
+                Some(Shape::Address {
+                    inner: a,
+                    mutable: am,
+                }),
+                Some(Shape::Address {
+                    inner: b,
+                    mutable: bm,
+                }),
+            ) if am.is_none() || bm.is_none() || am == bm => {
                 self.unify_depth(*a, *b, span, depth + 1)?;
+                a_shape = Some(Shape::Address {
+                    inner: *a,
+                    mutable: am.or(*bm),
+                });
             }
             (
                 Some(Shape::FunctionPointer {
@@ -790,25 +820,33 @@ impl Graph {
         self.nodes[root].shape = Some(Shape::Slice { element });
         Ok(())
     }
-    /// The shared address layer belongs to the result type. Inference nodes
-    /// still carry no storage ownership or lifetime proof.
-    pub(super) fn shared_address(
+    /// Inference shapes carry no storage ownership or lifetime proof. An
+    /// unknown permission is resolved by the signature/call constraints.
+    pub(super) fn address(
         &mut self,
         result: Variable,
         inner: Variable,
+        mutable: Option<bool>,
         span: Span,
     ) -> R<()> {
         self.constrain(result, AGGREGATE, span)?;
         let root = self.root(result);
         match self.clone_shape(&self.nodes[root].shape, span)? {
-            Some(Shape::SharedAddress { inner: previous }) => {
+            Some(Shape::Address {
+                inner: previous,
+                mutable: prior,
+            }) if prior.is_none() || mutable.is_none() || prior == mutable => {
                 self.unify(previous, inner, span)?;
+                self.nodes[root].shape = Some(Shape::Address {
+                    inner: previous,
+                    mutable: prior.or(mutable),
+                });
             }
             Some(_) => {
                 return Err(error(
                     "E-TYPE-MISMATCH",
                     span,
-                    "shared result differs from value result",
+                    "address shape or permission differs from its context",
                 ));
             }
             None => {
@@ -816,16 +854,37 @@ impl Graph {
                     return Err(error(
                         "E-INFINITE-LAYOUT",
                         span,
-                        "recursive address result constraint",
+                        "recursive address constraint",
                     ));
                 }
-                self.nodes[root].shape = Some(Shape::SharedAddress { inner });
+                self.nodes[root].shape = Some(Shape::Address { inner, mutable });
             }
         }
         if let Some(ty) = self.clone_type(&self.nodes[root].concrete, span)? {
             self.bind(root, &ty, span)?;
         }
         Ok(())
+    }
+
+    pub(super) fn address_shape(
+        &self,
+        variable: Variable,
+        span: Span,
+    ) -> R<Option<(Variable, Option<bool>)>> {
+        self.spend(span)?;
+        Ok(match self.nodes[self.root(variable)].shape {
+            Some(Shape::Address { inner, mutable }) => Some((inner, mutable)),
+            _ => None,
+        })
+    }
+
+    pub(super) fn shared_address(
+        &mut self,
+        result: Variable,
+        inner: Variable,
+        span: Span,
+    ) -> R<()> {
+        self.address(result, inner, Some(false), span)
     }
     pub(super) fn function_pointer(
         &mut self,
@@ -897,6 +956,9 @@ impl Graph {
             let mut progressed = false;
             for (base, projection, result, span) in pending.drain(..) {
                 self.spend(span)?;
+                let base = self
+                    .address_shape(base, span)?
+                    .map_or(base, |(inner, _)| inner);
                 let base_root = self.root(base);
                 let projected_variable = match (&self.nodes[base_root].shape, &projection) {
                     (Some(Shape::Tuple(fields)), Projection::Field(name)) => name
@@ -916,6 +978,10 @@ impl Graph {
                     continue;
                 }
                 if let Some(ty) = self.ty(base)? {
+                    let ty = match ty {
+                        Type::Address { inner, .. } if inner.is_copy_value() => *inner,
+                        other => other,
+                    };
                     let field = match &projection {
                         Projection::Field(name) => aggregates::field(&ty, name, span)?.1,
                         Projection::Element => match ty {
@@ -990,12 +1056,16 @@ impl Graph {
                                     element: Box::new(element),
                                 })
                         }
-                        Some(Shape::SharedAddress { inner }) => self
+                        Some(Shape::Address {
+                            inner,
+                            mutable: Some(mutable),
+                        }) => self
                             .ty_depth(*inner, depth + 1)?
                             .map(|inner| Type::Address {
-                                mutable: false,
+                                mutable: *mutable,
                                 inner: Box::new(inner),
                             }),
+                        Some(Shape::Address { mutable: None, .. }) => None,
                         Some(Shape::FunctionPointer { parameters, result }) => {
                             let mut types = Vec::new();
                             for parameter in parameters {
@@ -1096,12 +1166,10 @@ impl Inference {
             "E-CLOSURE-INFERENCE", span,
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
-        if !signature.0.iter().all(Type::is_copy_value)
-            || !(signature.1.is_copy_value() || lending::supported_result(&signature.1))
-        {
+        if !supported_signature(&signature.0, &signature.1) {
             return Err(unsupported(
                 span,
-                "closure signatures require finite Copy arguments and a Copy or shared environment result",
+                "closure signatures require finite Copy or one-layer Copy-address arguments; address arguments require a Copy result",
             ));
         }
         Ok(signature)
@@ -1157,6 +1225,11 @@ impl LocalType {
             {
                 graph.bind(variable, inner, span)
             }
+            (Self::Address(_, false), Type::Address { mutable: true, .. }) => Err(error(
+                "E-ADDRESS-PERMISSION",
+                span,
+                "a shared address cannot grant exclusive access",
+            )),
             (Self::Address(..), Type::Address { .. }) => Err(unsupported(
                 span,
                 "only shared finite Copy addresses are implemented",
@@ -1274,16 +1347,26 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
             let variable = this.graph.fresh(VALUE, false);
             if let Some(ty) = &parameter.ty {
-                if ty.is_slice_address() || matches!(ty, Type::Slice { .. }) {
+                if !signature_parameter(ty) {
                     return Err(unsupported(
                         parameter.span,
-                        "slice closure signatures are not implemented",
+                        "closure parameters require a finite Copy type or one Copy address layer",
                     ));
                 }
                 this.graph.bind(variable, ty, parameter.span)?;
             }
+            let local = if let Some(ty @ Type::Address { .. }) = &parameter.ty {
+                let local = this.known(ty, parameter.span)?;
+                if let LocalType::Address(inner, mutable) = local {
+                    this.graph
+                        .address(variable, inner, Some(mutable), parameter.span)?;
+                }
+                local
+            } else {
+                LocalType::Scalar(variable)
+            };
             if this.scopes[0]
-                .insert(parameter.name.clone(), LocalType::Scalar(variable))
+                .insert(parameter.name.clone(), local)
                 .is_some()
             {
                 return Err(error(
@@ -2087,6 +2170,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 if *op == UnaryOp::Dereference {
                     return match value {
                         LocalType::Address(variable, _) => Ok(LocalType::Scalar(variable)),
+                        LocalType::Scalar(variable) => {
+                            let inner = self.graph.fresh(VALUE, false);
+                            self.graph.address(variable, inner, None, span)?;
+                            Ok(LocalType::Scalar(inner))
+                        }
                         _ => Err(error(
                             "E-OPERATOR-TYPE",
                             span,

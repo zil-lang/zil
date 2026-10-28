@@ -301,6 +301,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         if function.parameters.iter().any(|p| {
             *p != local
                 && !function.locals[p.0 as usize].ty.is_copy_value()
+                && !matches!(&function.locals[p.0 as usize].ty,
+                    Type::Address { inner, .. } if inner.is_copy_value())
                 && !matches!(&function.locals[p.0 as usize].ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
                 && !matches!(
                     function.locals[p.0 as usize].ty,

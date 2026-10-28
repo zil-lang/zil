@@ -407,7 +407,7 @@ fn unused_capture_does_not_own_or_extend_a_buffer_after_transfer() {
 }
 
 #[test]
-fn borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed() {
+fn borrowed_slices_and_retained_escape_stay_closed() {
     rejected(
         "fn main()->i32{let b=bytes_new();bytes_reserve(b,1);bytes_push(b,u8(65));let view=bytes_view(b);let f=()=>i32(view[0]);return f()-65}",
         ResultCategory::Unsupported,
@@ -421,17 +421,26 @@ fn borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed() 
         "E-UNSUPPORTED",
     );
     rejected(
-        "fn main(){let b=bytes_new();let f=(n:&i32)=>i32(bytes_len(b))+*n}",
-        ResultCategory::SafeReject,
-        Phase::Types,
-        "E-OPERATOR-TYPE",
-    );
-    rejected(
         "resource R{n:i32}fn inspect<F:Fn()->i32>(f:&F,r:R)->i32{return f()+r.n}fn main()->i32{let a=R{n:21};let f=()=>a.n;return inspect(&f,a)-42}",
         ResultCategory::Unsupported,
         Phase::Types,
         "E-UNSUPPORTED",
     );
+}
+
+#[test]
+fn an_explicit_shared_parameter_and_local_byte_capture_have_a_verified_signature() {
+    // This is the original187 input, unchanged. Slice189 supplies its admitted
+    // signature; the local ByteBuffer description remains nonescaping.
+    let report = check("fn main(){let b=bytes_new();let f=(n:&i32)=>i32(bytes_len(b))+*n}");
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
 }
 
 #[test]
