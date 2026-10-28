@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "204-delivery-independent-final",
+  "reviewer": "/root/impl197",
+  "verdict": "Pass",
+  "scope": "Evidence delivery tools and both actual frozen containers. This does not rerun or relabel compiler, language, platform or product acceptance.",
+  "tool_implementation_commit": "e3453cf0e163c6aee6bfc1b592fca27f1b600ed3",
+  "independent_tool_execution": {
+    "source_commit": "e2121d35584fd8ba4260cfee8dd90e2af6d7da10",
+    "passed": 9,
+    "failed": 0,
+    "ignored": 0,
+    "receipt": "evidence/reviews/204/by197/DELIVERY_TOOLS.json"
+  },
+  "actual_container_audits": [
+    {
+      "kind": "complete language evidence",
+      "archive": {
+        "path": "/workspace/scratch/39be3faa4442/deliverables/204-all-components-evidence-compact.tar.xz",
+        "bytes": 22216240,
+        "sha256": "58d3bfe6b16d4ab0793f85df2978fd480fae7b71637b31ec297a3e95c29f788a"
+      },
+      "auditor_source_commit": "5902ef9dbd08b5b51b946f8e5a2d5ec4987cc35a",
+      "members_compared_byte_for_byte": 29927,
+      "decoded_member_bytes": 1500394040,
+      "receipt": "evidence/reviews/204/by197/DELIVERY_LANGUAGE_ARCHIVE.json"
+    },
+    {
+      "kind": "delivery-tool evidence including original dot failure",
+      "archive": {
+        "path": "/workspace/scratch/39be3faa4442/deliverables/204-delivery-tools-evidence.tar.xz",
+        "bytes": 327460,
+        "sha256": "cdddb5fcb97c0eeecea15328d142bf35a5a82bffe2b833fb479e26b7aec6d03a"
+      },
+      "auditor_source_commit": "6f28f31268079575c9581567cc0f58e57928495f",
+      "original_files_compared_byte_for_byte": 231,
+      "regular_members": 235,
+      "receipt": "evidence/reviews/204/by197/DELIVERY_TOOL_ARCHIVE.json"
+    }
+  ],
+  "combined_evidence_bytes": 22543700,
+  "combined_evidence_decimal_mb": 22.5437,
+  "under_50000000_bytes": true,
+  "preservation": "Every main-container member remains byte-identical to the frozen compact ZIP, including all manifest/index mappings and original Fail/NotRun/Pass receipts. All supplemental stored files match both frozen original tool trees. Compiler execution products remain hash-only; six symlink attack fixtures retain exact target/type metadata without active links.",
+  "archive_input_bytes_and_metadata_unchanged": true,
+  "directory_tree_extraction_during_container_audit": false,
+  "packaged_tools_execution_during_container_audit": false,
+  "compiler_execution": "NotRun",
+  "language_implementation_commit_unchanged": "85f01d622d9c31bffe165e5720bbf09658af5084",
+  "language_review_unchanged": "evidence/reviews/204/by197/REVIEW.json",
+  "historical_status_handling": "DELIVERY_TOOLS.json retains its truthful earlier final-container NotRun. The two later actual container receipts close that pending transport-only work; no historical receipt is relabeled.",
+  "unresolved_delivery_defects": []
+}
