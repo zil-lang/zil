@@ -88,7 +88,7 @@ fn public_transport_version_and_verified_target_binding_are_independent() {
     let limits = Limits::default();
     let bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
     let dir = directory("transport-version");
-    for version in (0u32..22).chain([23]) {
+    for version in (0u32..wire::WIRE_VERSION).chain([wire::WIRE_VERSION + 1]) {
         let mut bad = bytes.clone();
         bad[8..12].copy_from_slice(&version.to_le_bytes());
         let errors = zil_verify::verify_module_bytes(&bad, &module.target, &limits).unwrap_err();
