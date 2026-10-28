@@ -38,6 +38,16 @@ CLI 来源 clean `80c21b072b6abce47f9ae4adb2f440631eab738a`，SHA256 `6b9434e8bc
 
 当前 TypedIR 已有 `Managed<OwnedStore<T>>`、`MakeClosure`、`DescribeCapture`、`TakeCapture` 和 Package view 指令；这些表示可以表达候选第一片。**这不是无需新事实或已能正确降级的结论**：若来源或失效不能由既有表示独立重建，应在实现前补公共合同。尤其 Store 头部布局固定，不能据此忽略 Closure → Store 元素 → Closure 的语义依赖环。
 
+### 后续静态细化：同一回调在既有保存外壳中的资格
+
+为了让新捕获能力继续使用既有持久 State 与外层 Store，建议在同一片明确：**内捕叶子 Store 的自含 callback** 可继续放入当前已经支持的 callback 字段/元素形状；外层元素和各实际环境的责任仍分别存在。这里限制的是所捕获的内层 Store 的元素，不是把已经支持的外层 callback Store 重新关闭。
+
+相应的额外私有入口是 `zil-analyze::callable_fields::self_contained` 和 `zil-verify::dynamic_store::closure_layouts/layout`：前者当前明确排除 Store carrier/含 Store Package；后者在计算外层元素环境布局时再次独立拒绝这些捕获。仅修改 Types 的最早门会在这些后续入口失败。内层 Store 元素无 callback/嵌套 Store，因此新边不能回到 Closure 图；既有直接 Closure 子环境仍使用原有有界自含检查。所有实际 Store 仍须有完整精确的 canonical resource definition，不能因为头部表示固定而省略元素资格核。
+
+LLVM 可考虑复用已有 `dynamic_store::helper(payload, resources, "drop")` 选择精确元素对应的 Store 析构入口，分别用于直接 capture 与 Package field；它不接受用户自定义 teardown 或同布局替代。捕获标志、Package 壳与字段标志及 Store 内部前缀长度各控制自己的责任，不能用单个“环境仍活”标志替代实际元素清理。
+
+模式和来源不需要先发明新的空合同：Types 的 Store primitive 分支已经对 reserve/push/pop/at_mut 调用 `mark_resource_write`；Analyze 的 `DescribeCapture` 产生 `Source::OwnedField`，Verify 独立产生 `Root::OwnedCapture`，两核的 Store 写入口已有 shared-entry 写检查。StoreBorrow 的父根还必须穿过实际 capture/Package view 链；这是下一片 raw/来源派生测试需证明的链路，静态存在这些分支不算执行验证。
+
 ## 拟议验证与预算约束
 
 正式施工应先保留这四源原字节并加入有标记的独立清理 oracle：元素/容器/旁置资源顺序、空/非空 Store、创建和增长失败、调用早退、环境移动、丢弃未调用环境、重复 FnMut 调用。Linux 和 Win64/Wine 分别实际执行；原生 Windows 未运行仍单列 NotRun。当前四个预检只证明到达门，不提供上述机器成绩。
