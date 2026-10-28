@@ -8,8 +8,8 @@
     "task_root": ".task",
     "current_is_main": true
   },
-  "current_head": "41098eeb561824c7e661fa27552bae37f48543b1",
-  "main_head": "41098eeb561824c7e661fa27552bae37f48543b1",
+  "current_head": "227ddf50111dc249ccc52c3caf55206839e9a7c7",
+  "main_head": "227ddf50111dc249ccc52c3caf55206839e9a7c7",
   "spec_hash": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0",
   "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
   "worktrees": [
@@ -20,7 +20,7 @@
     },
     {
       "branch": "refs/heads/main",
-      "head": "41098eeb561824c7e661fa27552bae37f48543b1",
+      "head": "227ddf50111dc249ccc52c3caf55206839e9a7c7",
       "is_main": true
     },
     {
@@ -109,8 +109,8 @@
       "is_main": false
     },
     {
-      "branch": "refs/heads/review/204-by197",
-      "head": "b0f8e999b6a5e81cc307b44d27d11bb121a3e585",
+      "branch": "refs/heads/review/204-delivery-by197",
+      "head": "981445abd92404c2f3aec800e3bb59303f80730c",
       "is_main": false
     },
     {
@@ -200,7 +200,7 @@
     },
     {
       "branch": "refs/heads/impl/204-evidence-directory",
-      "head": "85f01d622d9c31bffe165e5720bbf09658af5084",
+      "head": "e3453cf0e163c6aee6bfc1b592fca27f1b600ed3",
       "is_main": false
     }
   ],
@@ -9206,12 +9206,12 @@
       "path": ".task/impl/204.md",
       "status": "已合入",
       "baseline": "ed3f797561ae5f2ea4b53b76d96df47778c5a43d",
-      "record_sha256": "02327662afe942c7546d0f581e19c5a1520d82df5950db794583942ba8c36ba2",
+      "record_sha256": "f9203e27b3d4b1a6429490e4007154cae7a4ebf6dc88e20a7f1008282807a0b7",
       "committed": true,
       "evidence": [
         {
           "path": "evidence/integration/204/final/RESULT.json",
-          "sha256": "d6be3799f1c5c38cd515a04cc85b0b59b22cc61c59b337cdc6f5e0e2d53d551e",
+          "sha256": "99fa28d9decf728e94430ec9ec20ea109ff1ce04fee305a39b288a9615c68328",
           "location": "main",
           "passing": true
         },
