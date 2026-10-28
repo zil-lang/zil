@@ -527,3 +527,40 @@ fn body_take_keeps_the_existing_capture_element_parent_window() {
     let conflict = source.replace("+ answer - 42", "+ view.value - 42");
     reject_window("take-with-window-live", &conflict);
 }
+
+fn package_window_source(take: &str, store: &str, read: &str) -> String {
+    format!(
+        "{LEAF}
+        package PairBag {{ manages left: Store<Item>; manages right: Store<Item>; manages marker: Ticket }}
+        fn make() -> impl FnOnce() -> i32 {{ {PREPARE}
+            let right: Store<Item> = store_new()
+            store_reserve(right, 1)
+            store_push(right, Item {{ ticket: Ticket {{ code: 66 }}, value: 84 }})
+            let bag = PairBag {{ left: give items, right: give right, marker: Ticket {{ code: 67 }} }}
+            return () => {{
+                let view = store_at(bag.left, 0)
+                let answer = view.value
+                let taken = {take}
+                return i32(store_len({store})) + {read} - 42
+            }}
+        }}{MAIN_ONCE}"
+    )
+}
+
+#[test]
+fn package_capture_field_windows_keep_sibling_independence() {
+    let sibling = package_window_source("give bag.right", "taken", "view.value");
+    native("package-sibling-window", &sibling, "BACZ", 0);
+    let last_use = package_window_source("give bag.left", "taken", "answer");
+    native("package-field-window-last-use", &last_use, "ABCZ", 0);
+    let conflict = package_window_source("give bag.left", "taken", "view.value");
+    reject_window("package-field-window-live", &conflict);
+}
+
+#[test]
+fn package_capture_whole_transfer_respects_element_windows() {
+    let last_use = package_window_source("bag", "taken.left", "answer");
+    native("package-whole-window-last-use", &last_use, "ABCZ", 0);
+    let conflict = package_window_source("bag", "taken.left", "view.value");
+    reject_window("package-whole-window-live", &conflict);
+}
