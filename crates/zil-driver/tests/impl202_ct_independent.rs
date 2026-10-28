@@ -153,7 +153,7 @@ fn pure_control_compiles_but_new_type_applications_never_execute_in_ct() {
     let CoreExprKind::Call { callee, .. } = &mut query.kind else {
         unreachable!()
     };
-    *callee = Box::new(application(&original, "pure"));
+    **callee = application(&original, "pure");
     forbidden("application-around-concrete-pure", &original, &query);
     forbidden(
         "application-as-value",
@@ -172,7 +172,7 @@ fn pure_control_compiles_but_new_type_applications_never_execute_in_ct() {
     let CoreExprKind::TypeApply { callee: inner, .. } = &mut callee.kind else {
         unreachable!()
     };
-    *inner = Box::new(nested);
+    **inner = nested;
     forbidden("nested-type-application", &generic, &twice);
 }
 
@@ -199,7 +199,7 @@ fn a_regular_wrapper_cannot_hide_template_or_application_execution() {
     let CoreExprKind::Call { callee, .. } = &mut expr.kind else {
         unreachable!()
     };
-    *callee = Box::new(application);
+    **callee = application;
     forbidden(
         "wrapper-to-applied-template",
         &generic,
@@ -271,7 +271,7 @@ fn raw_application_metadata_is_charged_before_preparing_its_ct_argument() {
     let CoreExprKind::Call { callee, .. } = &mut expr.kind else {
         unreachable!()
     };
-    *callee = Box::new(CoreExpr {
+    **callee = CoreExpr {
         id: NodeId(920_001),
         span: callee.span,
         kind: CoreExprKind::TypeApply {
@@ -281,7 +281,7 @@ fn raw_application_metadata_is_charged_before_preparing_its_ct_argument() {
                 fields: vec![("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer)))],
             }],
         },
-    });
+    };
     let limits = Limits {
         max_analysis_steps: 2048,
         ..Limits::default()

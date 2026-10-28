@@ -1,0 +1,247 @@
+{
+  "status": "InProgress; not final acceptance",
+  "current_normative_hash": "10bd65c22970a3479f436ceab8baf5f58aa014ff94f780ec0896e160fd5c4bb5",
+  "scope": "Root commands only. Individual receipts retain their actual source and normative identity; this list does not reattribute early results to current source. Compiler build is not source/native acceptance.",
+  "runs": [
+    {
+      "run": "check01",
+      "source_commit": "6347d97a28002a3ab191aa09f5d40cc194ef638a",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "check",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-driver"
+      ],
+      "git_status": "",
+      "command_json_sha256": "253189b8cbb5ba2e71e7cefda0ef8a01cd1627e9b2cfa3a6f7c166207624f336",
+      "stdout_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_log_sha256": "b0ca100ae5091f5a1ccf5c00ed80c00f40a89b955f57a2ba3e30c9bc2fbdc79b"
+    },
+    {
+      "run": "ct01",
+      "source_commit": "f068c37a82dabf95d9ffe99ee7240008b0f963db",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-ct",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "ct202"
+      ],
+      "git_status": "",
+      "command_json_sha256": "60e6a1039d5aaeba6e36f36a568d7bfb56f42583c22517d629dd9efde6e2efa6",
+      "stdout_log_sha256": "e7e1b571932138269e6fdf90711748a6aa8e53d55f70af28435244e3952aa9e8",
+      "stderr_log_sha256": "1dff8ea5de89eb19f1914607c6a426676cc8c2357acae24017745c243f746f9a"
+    },
+    {
+      "run": "wire01",
+      "source_commit": "3d8da7f84700786a10cbc6a6a066ed0b8160821b",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-ir",
+        "--lib"
+      ],
+      "git_status": "",
+      "command_json_sha256": "f5e2d23c5e75551df05a870fd3a7ef67b9f2e6526c96cf696637c6faec4f1c89",
+      "stdout_log_sha256": "a8a599d1232c2c1c87debd99ea05bdcb13eabf8e801ef8627f1a6662e0e93280",
+      "stderr_log_sha256": "b0bded9809cbe1c860409c82a746751b8f19e17a2ca48d9bf8af5477e6b1e27d"
+    },
+    {
+      "run": "cli01",
+      "source_commit": "cddd6a1ae1e416ec24fb7d88e5b6214f8ac38506",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-cli"
+      ],
+      "git_status": "",
+      "command_json_sha256": "ba10eb2fb06995389d6e1ec291ab7f48f88e97b5c90ea0e28ecc8d08826fe2a4",
+      "stdout_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_log_sha256": "fc52cb6177c290dc4337a0ba6905d895650e28da6bca31ce2b42ca6bb87bc962"
+    },
+    {
+      "run": "legacy201-01",
+      "source_commit": "288102137e490d052231940ab37509f2c81affd9",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl201_source",
+        "ordinary_store_helper"
+      ],
+      "git_status": "",
+      "command_json_sha256": "753d55809c91d450a545f5b1d55b4bee8b283b3f14710e411912625300c85053",
+      "stdout_log_sha256": "381709efbd4e48053881da233a5a4c28db5966f321239fdb5e2fdd3b78f0e099",
+      "stderr_log_sha256": "4fb4044a472a1c6bea123044642e92db7e46aeac72d4f8feb85b005a820ed7c5"
+    },
+    {
+      "run": "legacy201-02",
+      "source_commit": "edd6c7689a434e9dcf83df12b10a3d108e14072d",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl201_source",
+        "ordinary_store_helper"
+      ],
+      "git_status": "",
+      "command_json_sha256": "f07c2ae039228864993882a5fa1b62abbab679c0806ab783d24b867e1cfe50c0",
+      "stdout_log_sha256": "75af0bc76221b495bacf8b8941a3812e5027cb594022d1fddf11466cd557271c",
+      "stderr_log_sha256": "f5e796cfe8db6280ca23f4f0a82a748d50736b1f4bb5c0ca0e84b1c3870afba9"
+    },
+    {
+      "run": "ide01",
+      "source_commit": "edd6c7689a434e9dcf83df12b10a3d108e14072d",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-ide",
+        "--lib",
+        "editor202_full_store_types_match_driver_and_invalidate_changed_bounds"
+      ],
+      "git_status": "",
+      "command_json_sha256": "3ea522a71fe63f5c66e3bcfb6bc442b37627082320f191469ecd50ee0ef5d31e",
+      "stdout_log_sha256": "274b295d04dace35503d0b541c9b2199aee2382b8c5dc79e9bfc8f11d448a64c",
+      "stderr_log_sha256": "7414c8464701e1689cb378da3110c85aeb6b77df524a08f9a79facfc39207afa"
+    },
+    {
+      "run": "clippy01",
+      "source_commit": "edd6c7689a434e9dcf83df12b10a3d108e14072d",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--offline",
+        "--locked",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "git_status": "",
+      "command_json_sha256": "f204a92b271c00a363ca0ac445b769b1ce604b43dfeb43b19a5825c380c1af0e",
+      "stdout_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_log_sha256": "10d85b9c535ccdb4e875c1a0b6f69313a5345a2f4fd8ddf1082102a8b1752dbe"
+    },
+    {
+      "run": "clippy02",
+      "source_commit": "927281548e14c03a9ee300b66570f72ca4443dc5",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--keep-going",
+        "--offline",
+        "--locked",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "git_status": "",
+      "command_json_sha256": "4892d44e1feebec2162065b18b5a2170335a710feb4d996701fa639b9161f8ef",
+      "stdout_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_log_sha256": "8ce672118aba920dc88f8d8c703207fb140d2a286611921039ea78745dc31942"
+    },
+    {
+      "run": "lint-migration01",
+      "source_commit": "292d617316cd42858d40acc9095b5797f4022239",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "callback_windows_and_lending_results_retain_the_parent_store_hold"
+      ],
+      "git_status": "",
+      "command_json_sha256": "34e1a4f15235c9fb887185c26e2ef0d99f27db01b6ab6c0c7fc31b83d31550f4",
+      "stdout_log_sha256": "d3250cf3cb3420cc0ddcc10d2603b1a304ee91285c7a6f73d01ff683308001d9",
+      "stderr_log_sha256": "f9bcf9ac660ccbd99ba721a146420b3553adff95061b98326b80e5c7bfe13fb7"
+    },
+    {
+      "run": "cli02",
+      "source_commit": "48640a9eb4c676d257dff5a6d623f7ecb86cdabd",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-j2",
+        "-p",
+        "zil-cli"
+      ],
+      "git_status": "",
+      "command_json_sha256": "5a922cb5c4a2ad7eb6cd5962dfbd830e0c3de7dd6ae8db47563f0ab32a16d21a",
+      "stdout_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_log_sha256": "a5221a15f03865f0d86c75da9e3f7bc93d7df65f663ab05ecd823a56c8402e91"
+    }
+  ],
+  "consumer_before_pop_result_fix": "Both non-author Linux01 and author Linux02 stop in Types before Verify at ordinary pop<T>(items)? -> callback helper; zero machine executions. Failed exact source/oracle is retained.",
+  "handoff": "handoff01 is Fail: historical record/object issues, 1138 errors; no error belongs to 178..202. Formal plan consistency passed separately. This is not language acceptance.",
+  "pending": [
+    "Fix ordinary error-union result shape propagation in helper planning without confusing error T and success T.",
+    "Run unchanged five-module consumer under Linux and Wine on a new clean CLI.",
+    "Freeze non-author review and final clean root full-workspace regression.",
+    "Export accepted main bundle plus separate evidence, then continue F/G State and full1.4 obligations."
+  ]
+}
