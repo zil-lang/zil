@@ -387,10 +387,15 @@ pub(super) fn preflight(
         }
         for ty in &closure.parameters {
             if let Type::Address { inner, .. } = ty
-                && inner.is_copy_value()
                 && closure.result.is_copy_value()
             {
-                scalar(inner, Span::default())?;
+                // A slice is unsized only at this pointee position; its
+                // elements remain independently restricted to finite Copy.
+                let pointee = match inner.as_ref() {
+                    Type::Slice { element } => element.as_ref(),
+                    other => other,
+                };
+                scalar(pointee, Span::default())?;
             } else {
                 scalar(ty, Span::default())?;
             }

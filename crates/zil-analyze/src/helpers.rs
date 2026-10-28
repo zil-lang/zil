@@ -328,7 +328,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             *p != local
                 && !function.locals[p.0 as usize].ty.is_copy_value()
                 && !matches!(&function.locals[p.0 as usize].ty,
-                    Type::Address { inner, .. } if inner.is_copy_value())
+                    Type::Address { inner, .. } if inner.is_copy_value()
+                        || (function.return_type.is_copy_value()
+                            && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
                 && !matches!(&function.locals[p.0 as usize].ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
                 && !matches!(
                     function.locals[p.0 as usize].ty,
@@ -337,7 +339,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         }) {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "helper extra parameters require finite Copy, Managed, Package or ByteBuffer description values",
+                "helper extra parameters require finite Copy, one Copy/slice address, Managed, Package or ByteBuffer description values; slice arguments require a Copy helper result",
                 None,
             )]);
         }

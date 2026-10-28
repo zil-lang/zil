@@ -56,12 +56,12 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
             || !closure.parameters.iter().all(|ty| {
                 ty.is_copy_value()
                     || (closure.result.is_copy_value()
-                        && matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()))
+                        && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,
-                "lowering requires a finite closure environment, Copy parameters and a verified result contract",
+                "lowering requires a finite closure environment, Copy or Copy/slice-address parameters and a verified result contract",
                 None,
             )]);
         }
