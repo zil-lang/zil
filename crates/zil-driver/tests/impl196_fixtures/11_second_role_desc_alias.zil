@@ -1,0 +1,1 @@
+resource R{n:i32}fn pair<F:Fn()->i32,G:Fn()->i32>(first:&F,second:&G)->i32{return first()+second()}fn main()->i32{let origin=R{n:2};let edit=origin;let held=&origin;let view=&held.n;let first=move()=>1;let second=()=>{edit.n+=1;return edit.n};let answer=pair(&first,&second);return answer+*view}
