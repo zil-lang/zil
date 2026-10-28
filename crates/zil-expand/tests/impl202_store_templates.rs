@@ -544,3 +544,98 @@ fn deferred_mixed_generic_head_does_not_become_a_supported_template() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn five_module_consumer_preserves_all_six_ordinary_helpers() {
+    use zil_ir::CoreImport;
+    let entries = [
+        (
+            "main",
+            include_str!("../../../examples/mainline/store_template202/main.zil"),
+        ),
+        (
+            "factory",
+            include_str!("../../../examples/mainline/store_template202/factory.zil"),
+        ),
+        (
+            "state",
+            include_str!("../../../examples/mainline/store_template202/state.zil"),
+        ),
+        (
+            "portable",
+            include_str!("../../../examples/mainline/store_template202/portable.zil"),
+        ),
+        (
+            "store_helpers",
+            include_str!("../../../examples/mainline/store_template202/store_helpers.zil"),
+        ),
+    ];
+    let sources = entries
+        .iter()
+        .enumerate()
+        .map(|(i, (name, text))| {
+            SourceUnit::new(
+                FileId(i as u32),
+                ModuleId(i as u32),
+                format!("{name}.zil"),
+                *text,
+            )
+        })
+        .collect::<Vec<_>>();
+    let syntax = sources
+        .iter()
+        .map(|s| zil_syntax::parse(s).into_result().unwrap())
+        .collect::<Vec<_>>();
+    let edges: &[&[usize]] = &[&[1, 2, 3], &[3], &[3, 4], &[], &[]];
+    let imports = edges
+        .iter()
+        .enumerate()
+        .map(|(owner, targets)| {
+            targets
+                .iter()
+                .map(|&target| CoreImport {
+                    alias: entries[target].0.into(),
+                    module: ModuleId(target as u32),
+                    span: sources[owner].span(),
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let modules = zil_expand::expand_program_with_limits(
+        &sources,
+        &syntax.iter().collect::<Vec<_>>(),
+        &imports,
+        &Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(modules.len(), 5);
+    let helper_module = &modules[4].0;
+    for name in ["empty", "reserve", "push", "pop", "len", "capacity"] {
+        let helper = function(&helper_module.core, name);
+        assert_header(helper);
+        assert!(helper_module.exports.contains(&helper.id));
+    }
+    for (index, (module, map)) in modules.iter().enumerate() {
+        assert!(
+            module.core.unsupported.is_empty(),
+            "{:?}",
+            module.core.unsupported
+        );
+        map.validate(&sources, &Limits::default()).unwrap();
+        if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
+            let path = std::path::PathBuf::from(root)
+                .join(format!("consumer202-expand-{}", std::process::id()));
+            std::fs::create_dir_all(&path).unwrap();
+            std::fs::write(
+                path.join(format!("{}.zil", entries[index].0)),
+                &sources[index].text,
+            )
+            .unwrap();
+            std::fs::write(
+                path.join(format!("{}.core.txt", entries[index].0)),
+                format!("{:#?}\n", module.core),
+            )
+            .unwrap();
+        }
+    }
+}
