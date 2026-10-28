@@ -25,3 +25,11 @@ Analyze为调用结果建立真实callee位置的Hold；普通函数仍通过参
 raw/Wire攻击必须独立篡改来源列表、调用模式、实际返回地址和Hold并仍被Verify拒绝，不能只靠Types挡住坏程序。保留每个首次失败、真实命令、阶段/接口/机器表示和限定预算边界，冻结源码后交root独审。作者不跑正式全量、不合main、不推远程。
 
 本片只证明已实现的有限lending能力；通用life/HRTB、一般动态擦除与任意拥有捕获的lending不由本片自动完成。Rust四目标、编译成本和完整语言终态均按实证单列，不以schema字段或测试数量代替产品结论。
+
+## 实施中发现及已明确的边界
+
+185的Verify/Wire入口已经对两个新向量收费，但Analyze入口遗漏了对应上界与指纹前预收费。本片在root追加授权的budget.rs/retained.rs补齐，不追溯扩大185旧独审范围。默认Limits、公开schema和产品门保持原字节；新增工作只按既有预算实际收费。
+
+早期自测发现纯Copy环境被旧贷款快速路径跳过，导致FnMut活跃结果后再次调用漏拒。本片使所有真实lending环境进入独立贷款重建，并保留原漏拒的完整输入与阶段结果。环境结果指向真实位置，Copy捕获经&mut写入后的读取同样访问该位置，不能在退出时用激活副本覆盖新值。
+
+Owned ByteBuffer view已经贯通到机器执行；reserve/push/truncate、移动、替换、作用域清理和伪装Fn共享入口的拥有写均有相邻反例。嵌套泛型callable helper仍受既有闭门限制；四模块consumer在generic State.run中直接借入实际callback字段调用，独立shared helper在主调用方使用。原嵌套尝试和源例格式修正均记录为首次失败，不算功能通过。

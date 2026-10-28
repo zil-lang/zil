@@ -322,7 +322,7 @@ pub fn check(
         .map_err(|e| vec![e])?;
     dynamic_store::add_definitions(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
-    Ok(TypedModule {
+    let mut module = TypedModule {
         resources: resource_definitions,
         schema_version: SCHEMA_VERSION,
         module_id: core.module_id,
@@ -331,7 +331,9 @@ pub fn check(
         functions,
         closures,
         unsupported: vec![],
-    })
+    };
+    lending::populate(&mut module, limits).map_err(|e| vec![e])?;
+    Ok(module)
 }
 struct Builder<'a, 'c> {
     function: TypedFunction,
@@ -353,6 +355,7 @@ struct Builder<'a, 'c> {
     first_closure: usize,
     borrowed_captures: BTreeMap<LocalId, Type>,
     written_captures: BTreeMap<LocalId, u32>,
+    stored_copy_captures: BTreeMap<LocalId, u32>,
     address_written_captures: BTreeMap<LocalId, u32>,
     managed_captures: BTreeMap<LocalId, (u32, Type)>,
     closure_captures: BTreeMap<LocalId, (u32, Type)>,
@@ -424,6 +427,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             first_closure,
             borrowed_captures: BTreeMap::new(),
             written_captures: BTreeMap::new(),
+            stored_copy_captures: BTreeMap::new(),
             address_written_captures: BTreeMap::new(),
             managed_captures: BTreeMap::new(),
             closure_captures: BTreeMap::new(),
@@ -1291,7 +1295,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                             desc,
                         ));
                     }
-                    let kind = if matches!(ty, Type::Package { .. })
+                    let kind = if let Some(index) = self.stored_copy_captures.get(&local) {
+                        InstructionKind::ReadCapture { index: *index }
+                    } else if matches!(ty, Type::Package { .. })
                         || packages::owned_array_supported(&ty)
                         || errors::owned(&ty)
                     {
@@ -2054,6 +2060,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         builder.imports = self.imports;
         builder.enums = self.enums;
         builder.function.environment = Some(id);
+        let lends = lending::supported_result(&function.return_type);
         for (index, capture) in captures.iter().enumerate() {
             let stored = capture.stored_type();
             if matches!(stored, Type::Package { .. }) {
@@ -2122,6 +2129,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     .insert(local, (index as u32, stored));
                 continue;
             }
+            let inline_copy = stored.is_copy_value();
             let local =
                 builder.local(&capture.name, stored.clone(), capture.written, capture.span)?;
             if capture.borrowed {
@@ -2135,9 +2143,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                 capture.span,
             )?;
             builder.store(local, value, capture.span)?;
+            if lends && inline_copy {
+                builder.stored_copy_captures.insert(local, index as u32);
+            }
             if capture.written && !capture.borrowed && capture.ty.is_copy_value() {
                 builder.written_captures.insert(local, index as u32);
-                if capture.address_written {
+                if capture.address_written && !lends {
                     builder.address_written_captures.insert(local, index as u32);
                 }
             }
@@ -2187,6 +2198,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
         } else if let Some(local) = existing_place
             && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
+                || self.lending_closure(&self.function.locals[local.0 as usize].ty)?
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {
             (None, self.function.locals[local.0 as usize].ty.clone())
@@ -2226,6 +2238,16 @@ impl<'a, 'c> Builder<'a, 'c> {
                 |bound| bound.kind,
             );
         let owns_resources = self.closures.pending[id.0 as usize].owns_resources();
+        let lends = self.lending_closure(&Type::Closure(id))?;
+        if lends
+            && (kind == CallableKind::FnOnce
+                || (existing_place.is_none() && borrowed_callee.is_none()))
+        {
+            return Err(unsupported(
+                span,
+                "environment lending requires a non-consuming call on an actual stored closure position",
+            ));
+        }
         if kind == CallableKind::FnOnce
             && let Some(local) = existing_place
         {
@@ -2236,7 +2258,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             )?);
         }
         let call_place = if borrowed_callee.is_none()
-            && (kind == CallableKind::FnMut || (kind == CallableKind::Fn && owns_resources))
+            && (kind == CallableKind::FnMut
+                || (kind == CallableKind::Fn && (owns_resources || lends)))
         {
             let local = if let Some(local) = existing_place {
                 if kind == CallableKind::FnMut && !self.function.locals[local.0 as usize].mutable {
@@ -2334,7 +2357,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     callee: call_place.expect("exclusive environment"),
                     arguments: values,
                 },
-                CallableKind::Fn if owns_resources => InstructionKind::CallClosureShared {
+                CallableKind::Fn if owns_resources || lends => InstructionKind::CallClosureShared {
                     callee: call_place.expect("shared environment"),
                     arguments: values,
                 },

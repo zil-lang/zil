@@ -156,6 +156,27 @@ impl Builder<'_, '_> {
                 if self.closure_slots.contains_key(&local) {
                     return self.borrow_closure_slot(local, mutable, e.span);
                 }
+                if let Some(index) = self.stored_copy_captures.get(&local).copied() {
+                    if mutable && !decl.mutable {
+                        return Err(error(
+                            "E-IMMUTABLE-ASSIGNMENT",
+                            e.span,
+                            "captured Copy field has no exclusive access",
+                        ));
+                    }
+                    let ty = Type::Address {
+                        mutable,
+                        inner: Box::new(decl.ty),
+                    };
+                    return Ok((
+                        self.value(
+                            InstructionKind::BorrowCapture { index, mutable },
+                            ty.clone(),
+                            e.span,
+                        )?,
+                        ty,
+                    ));
+                }
                 if let Some((index, inner)) = self.closure_captures.get(&local).cloned() {
                     let available = matches!(decl.ty, Type::Address { mutable: true, .. });
                     if mutable && !available {

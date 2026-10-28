@@ -2,6 +2,12 @@
 //! substitute for checked signatures, executable operands, or reconstructed Hold.
 use super::*;
 
+pub(super) fn lending_result(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable: false, inner }
+        if inner.is_copy_value()
+            || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
+}
+
 pub(super) fn definition(
     module: &TypedModule,
     id: ClosureId,
@@ -53,10 +59,34 @@ pub(super) fn check_definitions(
                 "lending capture indices must be sorted, unique and within the actual environment",
             ));
         }
-        if !closure.lending_captures.is_empty() {
-            return Err(unsupported(
-                "environment lending requires its independently checked result and loan protocol",
+        if matches!(closure.result, Type::Address { .. }) {
+            if !lending_result(&closure.result)
+                || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                || closure.lending_captures.is_empty()
+            {
+                return Err(reject(
+                    "E-VERIFY-LENDING",
+                    None,
+                    "lending requires a shared result, a non-consuming entry and explicit environment sources",
+                ));
+            }
+            self_contained(module, closure.id, budget)?;
+            for index in &closure.lending_captures {
+                budget.spend(1)?;
+                let ty = &closure.captures[*index as usize];
+                if !(ty.is_copy_value() || byte_buffers::is_owned(ty)) {
+                    return Err(reject(
+                        "E-VERIFY-LENDING",
+                        None,
+                        "lending source must be actual inline Copy or owned ByteBuffer storage",
+                    ));
+                }
+            }
+        } else if !closure.lending_captures.is_empty() {
+            return Err(reject(
+                "E-VERIFY-LENDING",
                 None,
+                "a non-address result cannot advertise lending sources",
             ));
         }
         if closure.id.0 as usize != index {
@@ -158,12 +188,13 @@ pub(super) fn check_definitions(
                 "exclusive capture requires an exclusive environment entry",
             ));
         }
-        for ty in closure
-            .parameters
-            .iter()
-            .chain(std::iter::once(&closure.result))
-        {
+        for ty in &closure.parameters {
             check_type(ty, None)?;
+        }
+        if lending_result(&closure.result) {
+            check_local_type(&closure.result, None, module, budget)?;
+        } else {
+            check_type(&closure.result, None)?;
         }
         let function = module
             .functions
@@ -463,13 +494,26 @@ pub(super) fn check_resource_instruction(
                 )
             })?;
             let definition = definition(module, environment, span)?;
-            let Some(ty @ Type::Closure(_)) = definition.captures.get(*index as usize) else {
+            let Some(ty) = definition.captures.get(*index as usize) else {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
                     span,
-                    "capture borrow requires an actual inline closure field",
+                    "capture borrow requires an actual environment field",
                 ));
             };
+            if !(ty.is_copy_value() || matches!(ty, Type::Closure(_))) {
+                return Err(reject(
+                    "E-VERIFY-CAPTURE",
+                    span,
+                    "capture borrow requires actual inline Copy or Closure storage",
+                ));
+            }
+            if ty.is_copy_value() && definition.lending_captures.is_empty() {
+                return Err(unsupported(
+                    "inline Copy environment addressing requires its lending entry protocol",
+                    span,
+                ));
+            }
             if *mutable && definition.kind == CallableKind::Fn {
                 return Err(reject(
                     "E-VERIFY-CLOSURE-CALL",
@@ -603,7 +647,10 @@ pub(super) fn check_resource_instruction(
                 ));
             };
             let definition = definition(module, *id, span)?;
-            if !supports(definition.kind, expected_kind) {
+            if !supports(definition.kind, expected_kind)
+                || (expected_kind == CallableKind::FnOnce
+                    && !definition.lending_captures.is_empty())
+            {
                 return Err(reject(
                     "E-VERIFY-CLOSURE-CALL",
                     span,
