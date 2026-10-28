@@ -1610,18 +1610,20 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         Term::Scalar(self.fresh(UNIT, false, statement.span)?)
                     };
                     if let Some(owner) = self.owner {
-                        if matches!(value, Term::Address(..) | Term::ClosureAddress(..)) {
-                            return Err(unsupported(
-                                statement.span,
-                                "address returns require a borrowed-result contract",
-                            ));
-                        }
                         self.closures[owner].has_return = true;
-                        self.unify(
-                            &value,
-                            &Term::Scalar(self.closures[owner].result),
-                            statement.span,
-                        )?;
+                        if let Term::Address(inner, false) = value {
+                            self.graph.shared_address(
+                                self.closures[owner].result,
+                                inner,
+                                statement.span,
+                            )?;
+                        } else {
+                            self.unify(
+                                &value,
+                                &Term::Scalar(self.closures[owner].result),
+                                statement.span,
+                            )?;
+                        }
                     } else {
                         self.bind_term(
                             &value,
@@ -2334,7 +2336,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     let value = self.expr_expected(argument, hint.as_ref(), depth + 1, false)?;
                     self.unify(&value, &Term::Scalar(parameter), argument.span)?;
                 }
-                Ok(Term::Scalar(result))
+                if let Some(ty @ Type::Address { .. }) = self.graph.ty(result)? {
+                    self.known_term(&ty, span)
+                } else {
+                    Ok(Term::Scalar(result))
+                }
             }
             CoreExprKind::Member { object, member } => {
                 if !write && let Some((ty, variant)) = self.constructor(expression)? {
@@ -2630,17 +2636,19 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 return_type,
                 body,
             } => {
-                if return_type.as_ref().is_some_and(|t| {
-                    matches!(t, Type::Package { .. } | Type::Slice { .. }) || t.is_slice_address()
-                }) || parameters.iter().any(|p| {
-                    p.ty.as_ref().is_some_and(|t| {
-                        matches!(t, Type::Package { .. } | Type::Slice { .. })
-                            || t.is_slice_address()
+                if return_type
+                    .as_ref()
+                    .is_some_and(|t| !(t.is_copy_value() || lending::supported_result(t)))
+                    || parameters.iter().any(|p| {
+                        p.ty.as_ref().is_some_and(|t| {
+                            matches!(t, Type::Package { .. } | Type::Slice { .. })
+                                || t.is_slice_address()
+                        })
                     })
-                }) {
+                {
                     return Err(unsupported(
                         span,
-                        "package or slice closure signatures are not implemented",
+                        "closure signatures require finite Copy arguments and a Copy or shared environment result",
                     ));
                 }
                 let callable_hint = self.callable_hint.take();

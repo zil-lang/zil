@@ -665,6 +665,17 @@ fn reconstruct(
                                 row.clone_from(source);
                             }
                         }
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. }
+                            if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
+                        {
+                            row.push(Root::Local(*callee));
+                        }
+                        InstructionKind::CallClosureBorrowed { callee, .. }
+                            if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
+                        {
+                            roots_join(&mut row, &values[callee.0 as usize], budget)?;
+                        }
                         InstructionKind::Call {
                             function,
                             arguments,
@@ -898,6 +909,7 @@ pub(super) fn check_module(
         .zip(graphs)
         .zip(&facts)
     {
+        let mut lending_sources = std::collections::BTreeSet::new();
         for (block, reachable) in function.blocks.iter().zip(&graph.reachable) {
             if !reachable {
                 continue;
@@ -913,7 +925,19 @@ pub(super) fn check_module(
                         "reference return has no grounded input origin; a recursive cycle is not an empty contract",
                     ));
                 }
-                if roots.iter().any(|root| !matches!(root, Root::Parameter(_))) {
+                if function.environment.is_some() {
+                    budget.spend(roots.len().saturating_add(1))?;
+                    for root in roots {
+                        let Root::Capture(index) = root else {
+                            return Err(reject(
+                                "E-BORROW-ESCAPE",
+                                Some(function.span),
+                                "lending result must borrow actual environment storage, not an activation local or explicit parameter",
+                            ));
+                        };
+                        lending_sources.insert(*index);
+                    }
+                } else if roots.iter().any(|root| !matches!(root, Root::Parameter(_))) {
                     return Err(reject(
                         "E-BORROW-ESCAPE",
                         Some(function.span),
@@ -922,6 +946,18 @@ pub(super) fn check_module(
                 }
             }
             for instruction in &block.instructions {
+                if matches!(
+                    instruction.kind,
+                    InstructionKind::CallClosure { .. } | InstructionKind::CallClosureOnce { .. }
+                ) && instruction.result.is_some_and(|value| {
+                    matches!(function.values[value.0 as usize], Type::Address { .. })
+                }) {
+                    return Err(reject(
+                        "E-VERIFY-LENDING",
+                        Some(instruction.span),
+                        "lending result cannot escape a by-value temporary or consuming closure call",
+                    ));
+                }
                 if let Some(value) = instruction.result
                     && (matches!(function.values[value.0 as usize], Type::Address { .. })
                         || tracked_desc(&function.values[value.0 as usize], descriptor_origins))
@@ -933,6 +969,29 @@ pub(super) fn check_module(
                         "address value has no independently grounded origin",
                     ));
                 }
+            }
+        }
+        if let Some(environment) = function.environment
+            && matches!(function.return_type, Type::Address { .. })
+        {
+            let definition = closures::definition(module, environment, Some(function.span))?;
+            budget.spend(
+                definition
+                    .lending_captures
+                    .len()
+                    .saturating_add(lending_sources.len()),
+            )?;
+            if !definition
+                .lending_captures
+                .iter()
+                .copied()
+                .eq(lending_sources)
+            {
+                return Err(reject(
+                    "E-VERIFY-LENDING",
+                    Some(function.span),
+                    "declared lending capture sources differ from independently reconstructed returns",
+                ));
             }
         }
         check(

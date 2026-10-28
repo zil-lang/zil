@@ -358,9 +358,14 @@ pub(super) fn check_module(
             packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
             continue;
         }
-        if !f.return_type.is_copy_value() {
+        let definition = closures::definition(module, closure, Some(f.span))?;
+        if !f.return_type.is_copy_value()
+            && !(borrowed
+                && closures::lending_result(&f.return_type)
+                && !definition.lending_captures.is_empty())
+        {
             return Err(unsupported(
-                "concrete callback helper results must be finite Copy values",
+                "concrete callback helper results require finite Copy or a borrowed environment lending result",
                 Some(f.span),
             ));
         }
@@ -376,7 +381,6 @@ pub(super) fn check_module(
                 ));
             }
         }
-        let definition = closures::definition(module, closure, Some(f.span))?;
         let Some(claim) = &f.callable_contract else {
             return Err(bad(
                 f,

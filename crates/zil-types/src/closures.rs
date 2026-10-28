@@ -383,6 +383,9 @@ enum Shape {
     Slice {
         element: Variable,
     },
+    SharedAddress {
+        inner: Variable,
+    },
     FunctionPointer {
         parameters: Vec<Variable>,
         result: Variable,
@@ -492,7 +495,7 @@ impl Graph {
         let count = match shape {
             Some(Shape::Tuple(fields)) => fields.len(),
             Some(Shape::FunctionPointer { parameters, .. }) => parameters.len() + 1,
-            Some(Shape::Array { .. } | Shape::Slice { .. }) => 1,
+            Some(Shape::Array { .. } | Shape::Slice { .. } | Shape::SharedAddress { .. }) => 1,
             None => 0,
         };
         self.spend_count(count, span)?;
@@ -554,6 +557,7 @@ impl Graph {
                 || errors::owned(ty)
                 || packages::supported(ty)
                 || packages::owned_array_supported(ty)
+                || lending::supported_result(ty)
                 // This is only a pointee constraint node for a shared head.
                 // It does not make a Managed value Copy or grant a capture.
                 || matches!(ty, Type::Managed(payload)
@@ -606,6 +610,13 @@ impl Graph {
                     },
                 ) => self.bind(element, ty_element, span)?,
                 (
+                    Some(Shape::SharedAddress { inner }),
+                    Type::Address {
+                        mutable: false,
+                        inner: actual,
+                    },
+                ) => self.bind(inner, actual, span)?,
+                (
                     Some(Shape::FunctionPointer { parameters, result }),
                     Type::FunctionPointer {
                         parameters: types,
@@ -650,6 +661,7 @@ impl Graph {
                 Some(Shape::Array { element, .. } | Shape::Slice { element }) => {
                     pending.push(*element)
                 }
+                Some(Shape::SharedAddress { inner }) => pending.push(*inner),
                 Some(Shape::FunctionPointer { parameters, result }) => {
                     self.spend_count(parameters.len() + 1, span)?;
                     pending.extend(parameters);
@@ -718,6 +730,9 @@ impl Graph {
             (Some(Shape::Slice { element: a }), Some(Shape::Slice { element: b })) => {
                 self.unify_depth(*a, *b, span, depth + 1)?
             }
+            (Some(Shape::SharedAddress { inner: a }), Some(Shape::SharedAddress { inner: b })) => {
+                self.unify_depth(*a, *b, span, depth + 1)?;
+            }
             (
                 Some(Shape::FunctionPointer {
                     parameters: left,
@@ -776,6 +791,43 @@ impl Graph {
         self.constrain(result, AGGREGATE, span)?;
         let root = self.root(result);
         self.nodes[root].shape = Some(Shape::Slice { element });
+        Ok(())
+    }
+    /// The shared address layer belongs to the result type. Inference nodes
+    /// still carry no storage ownership or lifetime proof.
+    pub(super) fn shared_address(
+        &mut self,
+        result: Variable,
+        inner: Variable,
+        span: Span,
+    ) -> R<()> {
+        self.constrain(result, AGGREGATE, span)?;
+        let root = self.root(result);
+        match self.clone_shape(&self.nodes[root].shape, span)? {
+            Some(Shape::SharedAddress { inner: previous }) => {
+                self.unify(previous, inner, span)?;
+            }
+            Some(_) => {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "shared result differs from value result",
+                ));
+            }
+            None => {
+                if self.occurs(root, inner, span)? {
+                    return Err(error(
+                        "E-INFINITE-LAYOUT",
+                        span,
+                        "recursive address result constraint",
+                    ));
+                }
+                self.nodes[root].shape = Some(Shape::SharedAddress { inner });
+            }
+        }
+        if let Some(ty) = self.clone_type(&self.nodes[root].concrete, span)? {
+            self.bind(root, &ty, span)?;
+        }
         Ok(())
     }
     pub(super) fn function_pointer(
@@ -941,6 +993,12 @@ impl Graph {
                                     element: Box::new(element),
                                 })
                         }
+                        Some(Shape::SharedAddress { inner }) => self
+                            .ty_depth(*inner, depth + 1)?
+                            .map(|inner| Type::Address {
+                                mutable: false,
+                                inner: Box::new(inner),
+                            }),
                         Some(Shape::FunctionPointer { parameters, result }) => {
                             let mut types = Vec::new();
                             for parameter in parameters {
@@ -1041,15 +1099,12 @@ impl Inference {
             "E-CLOSURE-INFERENCE", span,
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
-        if signature
-            .0
-            .iter()
-            .any(|t| matches!(t, Type::Package { .. }))
-            || matches!(signature.1, Type::Package { .. })
+        if !signature.0.iter().all(Type::is_copy_value)
+            || !(signature.1.is_copy_value() || lending::supported_result(&signature.1))
         {
             return Err(unsupported(
                 span,
-                "package closure signatures are not implemented",
+                "closure signatures require finite Copy arguments and a Copy or shared environment result",
             ));
         }
         Ok(signature)
@@ -1176,7 +1231,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let mut graph = Graph::new(limits);
         let result = graph.fresh(VALUE, false);
         if let Some(ty) = input.result {
-            if ty.is_slice_address() || matches!(ty, Type::Slice { .. }) {
+            if matches!(ty, Type::Slice { .. }) {
                 return Err(unsupported(
                     input.span,
                     "slice closure signatures are not implemented",
@@ -1464,11 +1519,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     if let Some(expression) = expression {
                         let hint = self.graph.ty(self.result)?;
                         let value = self.expr_expected(expression, hint.as_ref(), depth + 1)?;
-                        self.graph.unify(
-                            self.result,
-                            value.scalar(expression.span)?,
-                            expression.span,
-                        )?;
+                        match value {
+                            LocalType::Address(inner, false) => {
+                                self.graph
+                                    .shared_address(self.result, inner, expression.span)?;
+                            }
+                            _ => self.graph.unify(
+                                self.result,
+                                value.scalar(expression.span)?,
+                                expression.span,
+                            )?,
+                        }
                     } else if let Some(ty @ Type::ErrorUnion { .. }) = self.graph.ty(self.result)? {
                         errors::injection(&Type::Unit, &ty, statement.span)?;
                     } else {
