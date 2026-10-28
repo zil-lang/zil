@@ -1,0 +1,85 @@
+
+running 23 tests
+test budget::tests::arithmetic_overflow_is_a_limit_failure ... ok
+test holds::frontier_tests::frontier_rejects_absent_target_and_zero_budget_without_panicking ... ok
+test resource_tests::independent_sources_reject_stale_borrowed_capture_and_repeated_consuming_ssa ... ok
+test resource_tests::independent_effects_distinguish_borrowed_target_and_owned_environment_writes ... ok
+test resource_tests::independent_resource_diagnostics_reject_copy_leaks_and_repeated_cleanup ... ok
+test resource_tests::independent_once_state_consumes_captures_and_rejects_reuse ... ok
+test resource_tests::independent_resource_closure_flow_accepts_repeatable_and_consuming_environments ... ok
+test resources::frontier_tests::every_concrete_closure_call_has_its_entry_dependency ... ok
+test resource_tests::independent_effect_fixed_point_follows_direct_and_forwarding_calls ... ok
+test resources::frontier_tests::public_helper_contract_cuts_the_private_effect_dependency ... ok
+test resources::frontier_tests::forward_star_disconnected_duplicate_and_recursive_effect_graphs ... ok
+test resources::frontier_tests::transitive_owned_write_is_rejected_after_convergence_and_borrowed_write_is_legal ... ok
+test resources::frontier_tests::unreachable_call_does_not_create_a_summary_consumer ... ok
+test holds::frontier_tests::frontier_matches_full_scan_on_cycles_components_and_parameter_permutations ... ok
+test tests::invalid_edge_rejected_without_panic ... ok
+test tests::emits_initialized_boundary_facts ... ok
+test tests::uninitialized_load_is_rejected ... ok
+080 Analyze complete public request budget N=2190; N-1=ResourceLimit
+test resources::frontier_tests::module_budget_boundary_and_fresh_request_are_exact ... ok
+test resources::frontier_tests::compiled_graph_has_exact_budget_boundary_and_does_not_reuse_stale_effects ... ok
+080 Analyze reverse48 complete-summary solves: frontier=95, full_scan=2352
+test resources::frontier_tests::reverse_chain_revisits_only_affected_predecessors ... ok
+test holds::frontier_tests::frontier_rechecks_only_relevant_functions_on_reverse_chain ... ok
+test resources::frontier_tests::all_small_dependency_graphs_match_complete_reference_rows ... ok
+test resources::frontier_tests::compiled_effect_constraints_cover_large_cycles_permutations_and_disconnected_components ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+
+running 12 tests
+test all_metadata_positions_are_bounded_before_fingerprinting ... ok
+test call_argument_visits_are_bounded_before_fingerprinting ... ok
+test callable_return_metadata_is_reserved_before_fingerprinting_or_validation ... ok
+test every_type_position_rejects_unknown_semantics_before_hashing ... ok
+test initialization_facts_survive_a_branch_and_backedge ... ok
+test original_raw_reproducer_checks_each_limit_independently ... ok
+test exact_work_budget_covers_cfg_edges_and_predecessor_visits ... ok
+test structural_limits_accumulate_across_functions ... ok
+test unsupported_metadata_does_not_allocate_unbounded_diagnostics ... ok
+test exact_work_budget_includes_set_scans_across_functions ... ok
+test known_recursive_aggregate_shape_obeys_selected_depth ... ok
+test exact_work_budget_covers_instruction_visits_and_fingerprinting ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 10 tests
+test an_unused_once_role_still_keeps_a_cyclic_helper_closed ... ok
+test branches_preserve_joint_correlation_instead_of_role_cross_product ... ok
+test finite_once_consumption_is_per_actual_role_even_if_the_claim_matches_a_bad_body ... ok
+test mixed_same_type_origins_do_not_guess_one_role ... ok
+test each_static_child_call_uses_its_own_actual_role_substitution ... ok
+test flow_checks_role_events_and_backedges_not_only_call_counts ... ok
+test missing_duplicate_reordered_and_false_cleanup_roles_are_rejected ... ok
+test second_role_envelope_is_checked_even_when_only_that_role_is_invoked ... ok
+test same_closure_roles_keep_actual_parameter_positions_and_order ... ok
+Analyze196 exact frontier: 1258, N-1 rejected, fresh N accepted
+Analyze196 exact frontier: 847, N-1 rejected, fresh N accepted
+Analyze196 exact frontier: 845, N-1 rejected, fresh N accepted
+test ordered_child_and_branch_sequences_have_exact_budget_failure_and_fresh_retry ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 5 tests
+StoreCopy: [942, 3174, 2988, 22518]; width interaction = 17298
+test repeated_copy_field_stores_charge_payload_width ... ok
+StoreCopy: [906, 2766, 1836, 9462]; width interaction = 5766
+test repeated_field_comparisons_charge_nominal_name_bytes ... ok
+ReadCopy: [2205, 3228, 11939, 30260]; width interaction = 17298
+test repeated_copy_field_reads_charge_payload_width ... ok
+Describe: [5008, 6868, 14556, 27948]; width interaction = 11532
+test repeated_field_descriptions_charge_payload_width ... ok
+TakeRefill: [16248, 15380, 26168, 48364]; width interaction = 23064
+test repeated_managed_field_take_refill_charges_payload_width ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
