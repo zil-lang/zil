@@ -2469,9 +2469,10 @@ impl Check<'_, '_, '_> {
                 let lhs = self.expr(then_value, &mut a, expected, borrowing)?;
                 let aliases_a = self.alias_result_copy(e.span)?;
                 let rhs = self.expr(else_value, &mut b, Some(&lhs), borrowing)?;
+                let aliases_b = self.alias_result_copy(e.span)?;
                 same(&lhs, &rhs, e.span, self.budget)?;
                 self.join_states(state, &[&a, &b], e.span)?;
-                self.alias_result_union(aliases_a, e.span)?;
+                self.alias_result_join(aliases_a, aliases_b, e.span)?;
                 Ok(lhs)
             }
             ExprKind::Member {
