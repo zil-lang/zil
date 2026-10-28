@@ -7,6 +7,11 @@
       "sha256": "6d256c3e21ea49b614148571e4fcfc7aa7861a814bdfc76e671817775d9df543"
     },
     {
+      "path": "adjacent-phase-artifacts.json",
+      "bytes": 40315,
+      "sha256": "fee0048e5e28037196356f63cae7c73e442bbcd3bb33f3c139b988cf47db66ab"
+    },
+    {
       "path": "author-result.json",
       "bytes": 2543,
       "sha256": "27f5af41a24de6e29698fd511c6896544b82558bc6f8e37abdb86ed26dd1e656"
@@ -6697,109 +6702,9 @@
       "sha256": "272c6f15c82390d201d8765034ce5422ee2bbd5cb01c1bfd3078df65e206f82e"
     },
     {
-      "path": "runs/driver01/cases/zil-owned-component-634-0/fd-ir/candidate.txt",
-      "bytes": 71182,
-      "sha256": "7a52c5809d3c8c4e2933a3ac34f58c8255f404fd67e80bd369f449252e081c78"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-0/fd-ir/core.txt",
-      "bytes": 245445,
-      "sha256": "0d036069bc732859a877cc2979116f8b98d5758f9865bb2081fd34d79c155bfd"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-0/fd-ir/ct-core.txt",
-      "bytes": 257848,
-      "sha256": "df630f5c0b84817a021fd6e3b1cc29d77e91578a8151bc62f26a3dbc5a61fe2a"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-0/fd-ir/interfaces.txt",
-      "bytes": 1723,
-      "sha256": "2ca1d16b6d7a6dc36f4296bd4c59dc1704197c6783a1a1ebe29c196710dcf993"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-0/fd-ir/lir.txt",
-      "bytes": 300777,
-      "sha256": "ef41c9da67b306e1809804dabe1884bc80ce0f60991991ae1a91eb237769c617"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-0/fd-ir/source-map.txt",
-      "bytes": 125329,
-      "sha256": "e47487e23760fc4458ba0c52a2458ac65492a9ab71cfee59202d12e1434dcf45"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-0/fd-ir/syntax.txt",
-      "bytes": 455264,
-      "sha256": "edc2afa581fa57159c29531be446cea3744e8e41036555965fd1f740122fca13"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-0/fd-ir/typed.txt",
-      "bytes": 299940,
-      "sha256": "a1e917b73948be63b17fdbe235bc3b3cb3765b3aaea01924bcb9c00fd5425097"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-0/fd-ir/verified-interfaces.txt",
-      "bytes": 2678,
-      "sha256": "bef582bcaf8488917964d46452cfb4f03278c2d0f315be3eb2314583ad465ba1"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-0/fd-ir/verified.txt",
-      "bytes": 300017,
-      "sha256": "b6265207a404995063f927b6cf99d3e7d05cb72fbef77915b4a45276df6e2e2a"
-    },
-    {
       "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-compile-report.json",
       "bytes": 4364,
       "sha256": "61d876b313b23b80804496aa2e64d76ea9471bfaede5b190785e51b317d6717e"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-ir/candidate.txt",
-      "bytes": 137864,
-      "sha256": "8a001f74d03234b1084e46716202d9acb31e9e8f741636122e252bee77374fe8"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-ir/core.txt",
-      "bytes": 628583,
-      "sha256": "4e75d318508b05fff420516ebcfc7ac04e4b79f7a0d7bcb0893e06187f3f381c"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-ir/ct-core.txt",
-      "bytes": 692220,
-      "sha256": "553e88cc8ddc042b73810d6320493176e7e3c1e42dd6a96ca6b2b9ff562cee4b"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-ir/interfaces.txt",
-      "bytes": 8660,
-      "sha256": "2b66366a922d220edfc97a5de83350b83fcce18c1ddb28f7bfc601cea95cb722"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-ir/lir.txt",
-      "bytes": 886845,
-      "sha256": "5fff28c1c87fa51654aaad6ff65411606266d82253311c54113ada124264f0e7"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-ir/source-map.txt",
-      "bytes": 327651,
-      "sha256": "94d36aaf416bcbae872bfd7f895c6811347e4be9218deab81a207cc76f3a1d48"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-ir/syntax.txt",
-      "bytes": 1132817,
-      "sha256": "dd61dcfe8227f6dcbc815ca5fa3008b55b7d24d27eca22cd04f54a914a7d4f79"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-ir/typed.txt",
-      "bytes": 886008,
-      "sha256": "c79497d070bd9415013f1da4d466b520316da4c38ebc1ebc4d8361cadc0e45c6"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-ir/verified-interfaces.txt",
-      "bytes": 12205,
-      "sha256": "0fc4bdac27272401e0b3268ed5d4994dcdce073c60b4f05578d60bac9a3f94c9"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-1/lifecycle-ir/verified.txt",
-      "bytes": 886085,
-      "sha256": "b7310333c0e42c96a0ed83878b7686c7c5aa2f6619d777a98d3fe95264fcbe4b"
     },
     {
       "path": "runs/driver01/cases/zil-owned-component-634-6/main-compile-report.json",
@@ -6807,109 +6712,9 @@
       "sha256": "29fec4c5760acac075561a47ae53671c3818cc1a52b3c3fd3cd3acc88a02df26"
     },
     {
-      "path": "runs/driver01/cases/zil-owned-component-634-6/main-ir/candidate.txt",
-      "bytes": 172384,
-      "sha256": "8040dc6b8531a2cc1ad1f645a8e0110c1359e64d2553efe02c478d6da7872d51"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-6/main-ir/core.txt",
-      "bytes": 608669,
-      "sha256": "b6c9b6f6d60ccaa63585f1cb8f2b5e3b2ac5200fca80a8b8b6a44772b27df330"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-6/main-ir/ct-core.txt",
-      "bytes": 643847,
-      "sha256": "af6d9d27339473920a18f016be40181b904d9123bdabd5e6eef9208a72d0f7a4"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-6/main-ir/interfaces.txt",
-      "bytes": 14053,
-      "sha256": "c38dbdd4c9df443137d51537e8f74acd0b60d7af2590ecf606d41d6d84548c48"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-6/main-ir/lir.txt",
-      "bytes": 673343,
-      "sha256": "53311eb7775f09fb29ebb1209a28da02affe304643588dfbf516618797ef680b"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-6/main-ir/source-map.txt",
-      "bytes": 298139,
-      "sha256": "b4676f09d898d1c210399bc32ea46d9c154ab4cddebef9bfb1cb65dd843c7e3e"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-6/main-ir/syntax.txt",
-      "bytes": 1070853,
-      "sha256": "c68fcb183cf41eb1aa399167f80fd5c7b3e57b82d70f2dd7c07f54194e683e1d"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-6/main-ir/typed.txt",
-      "bytes": 672513,
-      "sha256": "4c65514e0208b0c0d5734020cc7f4239e6959f74df6c9d66f7dac700a4e2bfe6"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-6/main-ir/verified-interfaces.txt",
-      "bytes": 21202,
-      "sha256": "bb1f73acb0826f00232dd68699af9f453ba51958f13b589a376e853e265694b7"
-    },
-    {
-      "path": "runs/driver01/cases/zil-owned-component-634-6/main-ir/verified.txt",
-      "bytes": 672590,
-      "sha256": "894e6914273aad8cec1ce13d27110e414279cd9e4e42bc9c2d9918dfbb54ab21"
-    },
-    {
       "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-compile-report.json",
       "bytes": 4262,
       "sha256": "842d41b39d50e69b12907016edba62b53aaf8553f4d3a4c94dc299bc71ec8e43"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-ir/candidate.txt",
-      "bytes": 115782,
-      "sha256": "fb826c6a439abc53125cabbc57824c15e79e1e5afec8e92dfaf5786ef3698d9e"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-ir/core.txt",
-      "bytes": 466066,
-      "sha256": "d9e01ef3626dc9b9600ac8f4f4271e0608ede00d5736d02a4d02f3b4fcb359d6"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-ir/ct-core.txt",
-      "bytes": 466066,
-      "sha256": "d9e01ef3626dc9b9600ac8f4f4271e0608ede00d5736d02a4d02f3b4fcb359d6"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-ir/interfaces.txt",
-      "bytes": 8660,
-      "sha256": "664d3e9627d2c15efe26668d25cba93d448aa8042918e29aab2bb42fc2d85b37"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-ir/lir.txt",
-      "bytes": 646764,
-      "sha256": "f860e0e3f31f9fae3ece91934a8ef83ceee3abb0f84bba8899950aa88a29e00f"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-ir/source-map.txt",
-      "bytes": 265264,
-      "sha256": "9009b3914ea391ce0fe6cc8f113156b8d6004b870cdbddeb8d250859348cac8a"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-ir/syntax.txt",
-      "bytes": 877418,
-      "sha256": "4208cd9fb66445c36d9652d3e2e1e1f12716bc0ca2168e514432208952dfaecf"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-ir/typed.txt",
-      "bytes": 645925,
-      "sha256": "c139cbbb9e3580cb89ba20088076fc378ab100a91244281f7e595e18491ac7b0"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-ir/verified-interfaces.txt",
-      "bytes": 12205,
-      "sha256": "ed034bddd7cee25ca145dd5f7939d7467ac24df77e087342833b79d6162bcffd"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-0/lifecycle-ir/verified.txt",
-      "bytes": 646002,
-      "sha256": "cd7876b4ee7fe93c8a702d3971dd54424e10d431c231b718b6becc90464be8a4"
     },
     {
       "path": "runs/driver01/cases/zil-update-ui-417-1/main-compile-report.json",
@@ -6917,109 +6722,9 @@
       "sha256": "c2529074d8e9e959ff99e92366fcd8ab9f7e2f8a816887b3a00a4d4dba272e39"
     },
     {
-      "path": "runs/driver01/cases/zil-update-ui-417-1/main-ir/candidate.txt",
-      "bytes": 182226,
-      "sha256": "d4b13852d805567e463edfb2835fdcbb14105d42cd4d30c9c2523d47588019c9"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-1/main-ir/core.txt",
-      "bytes": 539436,
-      "sha256": "1b04cf7fe4702bb0cfca119e79bc33c566038fae85d85b63de277c73c8fe3361"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-1/main-ir/ct-core.txt",
-      "bytes": 578428,
-      "sha256": "dae7668a6874c9c2f58edbefbf2e17b2917d93920ab220422f5e92a613ceaac0"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-1/main-ir/interfaces.txt",
-      "bytes": 11443,
-      "sha256": "a83934c3201cc4b47d29b285fda3b6531a1726b6ce3b1ff934c54621123a5ab1"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-1/main-ir/lir.txt",
-      "bytes": 701099,
-      "sha256": "2d492dc98e24a8a92f612b33a4947f1bca0c0d59516d475f26460cc9a9330169"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-1/main-ir/source-map.txt",
-      "bytes": 291502,
-      "sha256": "cdd7600112997767e5eb3d54fa88dd8422aa1f33154fac758231f15298824fa0"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-1/main-ir/syntax.txt",
-      "bytes": 968062,
-      "sha256": "009de85cf65d8eed1cb29931c7e4746ef8f760f76aa282ac328e727f89b7a044"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-1/main-ir/typed.txt",
-      "bytes": 700257,
-      "sha256": "02b785644de7e6cbc2b5aecf321b455636bafac1b3ab06725227696f5d94e31f"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-1/main-ir/verified-interfaces.txt",
-      "bytes": 16083,
-      "sha256": "3214babe6075a0e2afc22d0decd833cd060e6adcede74211deba297588e48804"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-1/main-ir/verified.txt",
-      "bytes": 700334,
-      "sha256": "0739045d4a003a8c4fcd2dbe25d8a611f0ffe0938ab7251769bc453539d70bbd"
-    },
-    {
       "path": "runs/driver01/cases/zil-update-ui-417-74/fd-compile-report.json",
       "bytes": 2958,
       "sha256": "c4f5df2e995737aa8f6fd687f085b886108da6494449dc58d32ea2041604272a"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-74/fd-ir/candidate.txt",
-      "bytes": 37990,
-      "sha256": "c04a5578527da84d6ee8f2d09b1151b65dc0423e03c4645da38ab1dfab4d3b70"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-74/fd-ir/core.txt",
-      "bytes": 183376,
-      "sha256": "ec4a4d4ee7f2393cd2171051c4a59d87c9102ecb9c8bd8d2b71c6fca81bf9e0c"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-74/fd-ir/ct-core.txt",
-      "bytes": 183376,
-      "sha256": "ec4a4d4ee7f2393cd2171051c4a59d87c9102ecb9c8bd8d2b71c6fca81bf9e0c"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-74/fd-ir/interfaces.txt",
-      "bytes": 1722,
-      "sha256": "6fe815a8ec42b0dd262010ce1a06622ed81d6718d99d6ddcbf8f8bc4cd63b4c2"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-74/fd-ir/lir.txt",
-      "bytes": 204445,
-      "sha256": "85ddefa4ed2e7564eee5b2f307d4a63a9df20bab99b461da022ca858f0a7fb9d"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-74/fd-ir/source-map.txt",
-      "bytes": 98445,
-      "sha256": "3f0fb00dcfaf654e701e6dc488a270b022a6359ae05f20bae9966d1b5ecb7ab8"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-74/fd-ir/syntax.txt",
-      "bytes": 350938,
-      "sha256": "a32fc497e47f38db419b9500de2b5f06fd3175669d88b86565d50f9bf66e74f7"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-74/fd-ir/typed.txt",
-      "bytes": 203614,
-      "sha256": "ce16780b1d909975896b5a861bb319f36b55c9b28d3cf921b4f5b38d617f5181"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-74/fd-ir/verified-interfaces.txt",
-      "bytes": 2677,
-      "sha256": "183cd85f50680f743070b683c85603388f0674c339bfaa5d7990d25b8c9ab646"
-    },
-    {
-      "path": "runs/driver01/cases/zil-update-ui-417-74/fd-ir/verified.txt",
-      "bytes": 203691,
-      "sha256": "e45dbed1553c0a7c3c8fd6b3ae0c7dd70e828ebcb76e57a4d1eed6b113cbfeae"
     },
     {
       "path": "runs/driver01/command.json",
@@ -14287,109 +13992,9 @@
       "sha256": "443a6bda392fbd8763fececb241d16b0262d017bed22cc0e01dd329a5a297527"
     },
     {
-      "path": "runs/frozen01/cases/zil-owned-component-612-0/lifecycle-ir/candidate.txt",
-      "bytes": 137864,
-      "sha256": "8a001f74d03234b1084e46716202d9acb31e9e8f741636122e252bee77374fe8"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-0/lifecycle-ir/core.txt",
-      "bytes": 628583,
-      "sha256": "4e75d318508b05fff420516ebcfc7ac04e4b79f7a0d7bcb0893e06187f3f381c"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-0/lifecycle-ir/ct-core.txt",
-      "bytes": 692220,
-      "sha256": "553e88cc8ddc042b73810d6320493176e7e3c1e42dd6a96ca6b2b9ff562cee4b"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-0/lifecycle-ir/interfaces.txt",
-      "bytes": 8660,
-      "sha256": "2b66366a922d220edfc97a5de83350b83fcce18c1ddb28f7bfc601cea95cb722"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-0/lifecycle-ir/lir.txt",
-      "bytes": 886845,
-      "sha256": "5fff28c1c87fa51654aaad6ff65411606266d82253311c54113ada124264f0e7"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-0/lifecycle-ir/source-map.txt",
-      "bytes": 327651,
-      "sha256": "94d36aaf416bcbae872bfd7f895c6811347e4be9218deab81a207cc76f3a1d48"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-0/lifecycle-ir/syntax.txt",
-      "bytes": 1132817,
-      "sha256": "dd61dcfe8227f6dcbc815ca5fa3008b55b7d24d27eca22cd04f54a914a7d4f79"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-0/lifecycle-ir/typed.txt",
-      "bytes": 886008,
-      "sha256": "c79497d070bd9415013f1da4d466b520316da4c38ebc1ebc4d8361cadc0e45c6"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-0/lifecycle-ir/verified-interfaces.txt",
-      "bytes": 12205,
-      "sha256": "0fc4bdac27272401e0b3268ed5d4994dcdce073c60b4f05578d60bac9a3f94c9"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-0/lifecycle-ir/verified.txt",
-      "bytes": 886085,
-      "sha256": "b7310333c0e42c96a0ed83878b7686c7c5aa2f6619d777a98d3fe95264fcbe4b"
-    },
-    {
       "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-compile-report.json",
       "bytes": 3034,
       "sha256": "14f21a408a655c7c81cc8f6b12bcdb150ac3d8be34b0fb7a18ddcb88c5c3f3d7"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-ir/candidate.txt",
-      "bytes": 71182,
-      "sha256": "7a52c5809d3c8c4e2933a3ac34f58c8255f404fd67e80bd369f449252e081c78"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-ir/core.txt",
-      "bytes": 245445,
-      "sha256": "0d036069bc732859a877cc2979116f8b98d5758f9865bb2081fd34d79c155bfd"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-ir/ct-core.txt",
-      "bytes": 257848,
-      "sha256": "df630f5c0b84817a021fd6e3b1cc29d77e91578a8151bc62f26a3dbc5a61fe2a"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-ir/interfaces.txt",
-      "bytes": 1723,
-      "sha256": "2ca1d16b6d7a6dc36f4296bd4c59dc1704197c6783a1a1ebe29c196710dcf993"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-ir/lir.txt",
-      "bytes": 300777,
-      "sha256": "ef41c9da67b306e1809804dabe1884bc80ce0f60991991ae1a91eb237769c617"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-ir/source-map.txt",
-      "bytes": 125329,
-      "sha256": "e47487e23760fc4458ba0c52a2458ac65492a9ab71cfee59202d12e1434dcf45"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-ir/syntax.txt",
-      "bytes": 455264,
-      "sha256": "edc2afa581fa57159c29531be446cea3744e8e41036555965fd1f740122fca13"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-ir/typed.txt",
-      "bytes": 299940,
-      "sha256": "a1e917b73948be63b17fdbe235bc3b3cb3765b3aaea01924bcb9c00fd5425097"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-ir/verified-interfaces.txt",
-      "bytes": 2678,
-      "sha256": "bef582bcaf8488917964d46452cfb4f03278c2d0f315be3eb2314583ad465ba1"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-1/fd-ir/verified.txt",
-      "bytes": 300017,
-      "sha256": "b6265207a404995063f927b6cf99d3e7d05cb72fbef77915b4a45276df6e2e2a"
     },
     {
       "path": "runs/frozen01/cases/zil-owned-component-612-6/main-compile-report.json",
@@ -14397,109 +14002,9 @@
       "sha256": "6ad1d68a33ad8ad2da056eb971de74a1ceb2a995c4cf2af41d7982404155264e"
     },
     {
-      "path": "runs/frozen01/cases/zil-owned-component-612-6/main-ir/candidate.txt",
-      "bytes": 172384,
-      "sha256": "8040dc6b8531a2cc1ad1f645a8e0110c1359e64d2553efe02c478d6da7872d51"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-6/main-ir/core.txt",
-      "bytes": 608669,
-      "sha256": "b6c9b6f6d60ccaa63585f1cb8f2b5e3b2ac5200fca80a8b8b6a44772b27df330"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-6/main-ir/ct-core.txt",
-      "bytes": 643847,
-      "sha256": "af6d9d27339473920a18f016be40181b904d9123bdabd5e6eef9208a72d0f7a4"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-6/main-ir/interfaces.txt",
-      "bytes": 14053,
-      "sha256": "c38dbdd4c9df443137d51537e8f74acd0b60d7af2590ecf606d41d6d84548c48"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-6/main-ir/lir.txt",
-      "bytes": 673343,
-      "sha256": "53311eb7775f09fb29ebb1209a28da02affe304643588dfbf516618797ef680b"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-6/main-ir/source-map.txt",
-      "bytes": 298139,
-      "sha256": "b4676f09d898d1c210399bc32ea46d9c154ab4cddebef9bfb1cb65dd843c7e3e"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-6/main-ir/syntax.txt",
-      "bytes": 1070853,
-      "sha256": "c68fcb183cf41eb1aa399167f80fd5c7b3e57b82d70f2dd7c07f54194e683e1d"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-6/main-ir/typed.txt",
-      "bytes": 672513,
-      "sha256": "4c65514e0208b0c0d5734020cc7f4239e6959f74df6c9d66f7dac700a4e2bfe6"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-6/main-ir/verified-interfaces.txt",
-      "bytes": 21202,
-      "sha256": "bb1f73acb0826f00232dd68699af9f453ba51958f13b589a376e853e265694b7"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-owned-component-612-6/main-ir/verified.txt",
-      "bytes": 672590,
-      "sha256": "894e6914273aad8cec1ce13d27110e414279cd9e4e42bc9c2d9918dfbb54ab21"
-    },
-    {
       "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-compile-report.json",
       "bytes": 4262,
       "sha256": "d51ab996c101d8f61c9f70762e0e311b9a402f42d9d98da34283d12aaf1d0d92"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-ir/candidate.txt",
-      "bytes": 115782,
-      "sha256": "fb826c6a439abc53125cabbc57824c15e79e1e5afec8e92dfaf5786ef3698d9e"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-ir/core.txt",
-      "bytes": 466066,
-      "sha256": "d9e01ef3626dc9b9600ac8f4f4271e0608ede00d5736d02a4d02f3b4fcb359d6"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-ir/ct-core.txt",
-      "bytes": 466066,
-      "sha256": "d9e01ef3626dc9b9600ac8f4f4271e0608ede00d5736d02a4d02f3b4fcb359d6"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-ir/interfaces.txt",
-      "bytes": 8660,
-      "sha256": "664d3e9627d2c15efe26668d25cba93d448aa8042918e29aab2bb42fc2d85b37"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-ir/lir.txt",
-      "bytes": 646764,
-      "sha256": "f860e0e3f31f9fae3ece91934a8ef83ceee3abb0f84bba8899950aa88a29e00f"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-ir/source-map.txt",
-      "bytes": 265264,
-      "sha256": "9009b3914ea391ce0fe6cc8f113156b8d6004b870cdbddeb8d250859348cac8a"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-ir/syntax.txt",
-      "bytes": 877418,
-      "sha256": "4208cd9fb66445c36d9652d3e2e1e1f12716bc0ca2168e514432208952dfaecf"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-ir/typed.txt",
-      "bytes": 645925,
-      "sha256": "c139cbbb9e3580cb89ba20088076fc378ab100a91244281f7e595e18491ac7b0"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-ir/verified-interfaces.txt",
-      "bytes": 12205,
-      "sha256": "ed034bddd7cee25ca145dd5f7939d7467ac24df77e087342833b79d6162bcffd"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-0/lifecycle-ir/verified.txt",
-      "bytes": 646002,
-      "sha256": "cd7876b4ee7fe93c8a702d3971dd54424e10d431c231b718b6becc90464be8a4"
     },
     {
       "path": "runs/frozen01/cases/zil-update-ui-395-1/main-compile-report.json",
@@ -14507,109 +14012,9 @@
       "sha256": "621823140e3908b8d5aaec5fa08d85bd5e3bc090b7d5c0da1791abb33a446dad"
     },
     {
-      "path": "runs/frozen01/cases/zil-update-ui-395-1/main-ir/candidate.txt",
-      "bytes": 182226,
-      "sha256": "d4b13852d805567e463edfb2835fdcbb14105d42cd4d30c9c2523d47588019c9"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-1/main-ir/core.txt",
-      "bytes": 539436,
-      "sha256": "1b04cf7fe4702bb0cfca119e79bc33c566038fae85d85b63de277c73c8fe3361"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-1/main-ir/ct-core.txt",
-      "bytes": 578428,
-      "sha256": "dae7668a6874c9c2f58edbefbf2e17b2917d93920ab220422f5e92a613ceaac0"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-1/main-ir/interfaces.txt",
-      "bytes": 11443,
-      "sha256": "a83934c3201cc4b47d29b285fda3b6531a1726b6ce3b1ff934c54621123a5ab1"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-1/main-ir/lir.txt",
-      "bytes": 701099,
-      "sha256": "2d492dc98e24a8a92f612b33a4947f1bca0c0d59516d475f26460cc9a9330169"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-1/main-ir/source-map.txt",
-      "bytes": 291502,
-      "sha256": "cdd7600112997767e5eb3d54fa88dd8422aa1f33154fac758231f15298824fa0"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-1/main-ir/syntax.txt",
-      "bytes": 968062,
-      "sha256": "009de85cf65d8eed1cb29931c7e4746ef8f760f76aa282ac328e727f89b7a044"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-1/main-ir/typed.txt",
-      "bytes": 700257,
-      "sha256": "02b785644de7e6cbc2b5aecf321b455636bafac1b3ab06725227696f5d94e31f"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-1/main-ir/verified-interfaces.txt",
-      "bytes": 16083,
-      "sha256": "3214babe6075a0e2afc22d0decd833cd060e6adcede74211deba297588e48804"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-1/main-ir/verified.txt",
-      "bytes": 700334,
-      "sha256": "0739045d4a003a8c4fcd2dbe25d8a611f0ffe0938ab7251769bc453539d70bbd"
-    },
-    {
       "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-compile-report.json",
       "bytes": 2958,
       "sha256": "ecc6036ab801e1afafc6450f24b7b8fdf4212959a72d889b6ee16a76cc8a9d0d"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-ir/candidate.txt",
-      "bytes": 37990,
-      "sha256": "c04a5578527da84d6ee8f2d09b1151b65dc0423e03c4645da38ab1dfab4d3b70"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-ir/core.txt",
-      "bytes": 183376,
-      "sha256": "ec4a4d4ee7f2393cd2171051c4a59d87c9102ecb9c8bd8d2b71c6fca81bf9e0c"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-ir/ct-core.txt",
-      "bytes": 183376,
-      "sha256": "ec4a4d4ee7f2393cd2171051c4a59d87c9102ecb9c8bd8d2b71c6fca81bf9e0c"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-ir/interfaces.txt",
-      "bytes": 1722,
-      "sha256": "6fe815a8ec42b0dd262010ce1a06622ed81d6718d99d6ddcbf8f8bc4cd63b4c2"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-ir/lir.txt",
-      "bytes": 204445,
-      "sha256": "85ddefa4ed2e7564eee5b2f307d4a63a9df20bab99b461da022ca858f0a7fb9d"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-ir/source-map.txt",
-      "bytes": 98445,
-      "sha256": "3f0fb00dcfaf654e701e6dc488a270b022a6359ae05f20bae9966d1b5ecb7ab8"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-ir/syntax.txt",
-      "bytes": 350938,
-      "sha256": "a32fc497e47f38db419b9500de2b5f06fd3175669d88b86565d50f9bf66e74f7"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-ir/typed.txt",
-      "bytes": 203614,
-      "sha256": "ce16780b1d909975896b5a861bb319f36b55c9b28d3cf921b4f5b38d617f5181"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-ir/verified-interfaces.txt",
-      "bytes": 2677,
-      "sha256": "183cd85f50680f743070b683c85603388f0674c339bfaa5d7990d25b8c9ab646"
-    },
-    {
-      "path": "runs/frozen01/cases/zil-update-ui-395-74/fd-ir/verified.txt",
-      "bytes": 203691,
-      "sha256": "e45dbed1553c0a7c3c8fd6b3ae0c7dd70e828ebcb76e57a4d1eed6b113cbfeae"
     },
     {
       "path": "runs/frozen01/stderr.log",
