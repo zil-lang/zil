@@ -1,0 +1,39 @@
+
+running 4 tests
+test unused_generic_bounds_require_declared_nominal_traits ... ok
+test unused_generic_declaration_attributes_are_not_erased ... ok
+test generic_records_use_structural_arguments_and_fresh_source_inexpressible_names ... ok
+test unused_generic_with_declared_bound_checks_its_symbolic_method_body ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+test formation_walk_consumes_existing_depth_node_and_work_budgets ... ok
+test unused_slice_aliases_and_templates_cannot_hide_fixed_noncopy_elements ... ok
+test fixed_copy_shapes_and_unresolved_nominals_keep_the_ordinary_resolution_path ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+test reserved_byte_storage_names_survive_erased_declarations ... ok
+test unused_templates_cannot_invent_mutability_copy_or_index_types ... ok
+test unused_parametric_places_have_real_symbolic_rules ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 2 tests
+test store_names_are_reserved_before_alias_elimination_and_specialization ... ok
+test ordinary_member_names_do_not_become_reserved_bare_bindings ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 2 tests
+test store_at_member_is_an_ordinary_field ... ok
+test store_at_is_reserved_before_alias_or_generic_elimination ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

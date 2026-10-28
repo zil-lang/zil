@@ -1,0 +1,7 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.70s
+     Running tests/impl162_trait_bounds.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl162_trait_bounds-349d4bf489784a2b)
+     Running tests/impl174_store_fields.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl174_store_fields-8eef8171035c8a9f)
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+     Running tests/impl177_state_composition.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl177_state_composition-343f8c8517143965)
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author178/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
