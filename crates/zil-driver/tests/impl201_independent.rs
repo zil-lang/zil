@@ -391,6 +391,31 @@ fn zero_sized_actual_environment_is_not_a_nonzero_store_element() {
 }
 
 #[test]
+fn captured_zero_sized_package_keeps_its_existing_flagged_environment_layout() {
+    let source = r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Empty{}
+impl Drop for Empty{fn drop(self:Self){unsafe{putchar(65)}}}
+package Token{manages empty:Empty}
+package State<F>{manages bytes:ByteBuffer;callback:F}
+fn make()->impl Fn()->i32{
+    let held=Token{empty:Empty{}};return move()=>{held.empty;return 7}
+}
+fn pack<F:Fn()->i32>(callback:F)->State<F>{return State::<F>{bytes:bytes_new(),callback:callback}}
+fn run<F:Fn()->i32>(state:State<F>)->i32{return state.callback()-7}
+fn main()->i32{return run(pack(make()))}
+"#;
+    native(
+        "zero-package-capture-existing-state-control",
+        source,
+        "A",
+        0,
+    );
+    let stored = source.replace("return state.callback()-7", "let items:Store<State<F>>=store_new();store_reserve(items,1);store_push(items,state);let view=store_at(items,0);return view.callback()-7");
+    native("zero-package-capture-in-store", &stored, "A", 0);
+}
+
+#[test]
 fn raw_live_lending_parent_reserve_is_rejected_with_a_fresh_candidate() {
     let (mut module, original) = baseline("raw-lending-control", LENDING);
     let f = module
