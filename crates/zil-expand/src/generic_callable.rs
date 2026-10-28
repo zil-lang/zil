@@ -149,6 +149,61 @@ pub(crate) fn refers(ty: &TypeRef, name: &str) -> bool {
     }
 }
 
+// The new selector pass is a second consumer of a normalized type tree.
+// Charge its real traversal before visiting children or comparing names.
+fn selector_refers(ty: &TypeRef, name: &str, remaining: &mut usize) -> R<bool> {
+    let limit = || {
+        Diagnostic::limit(
+            Phase::Expand,
+            "State replacement selector type work budget exceeded",
+            Some(ty.span),
+        )
+    };
+    *remaining = remaining
+        .checked_sub(3usize.saturating_add(name.len()))
+        .ok_or_else(limit)?;
+    Ok(match &ty.kind {
+        TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
+            for part in path {
+                *remaining = remaining
+                    .checked_sub(part.len().saturating_add(1))
+                    .ok_or_else(limit)?;
+            }
+            let mut found = path.as_slice() == [name];
+            for arg in args {
+                if let GenericArg::Type(inner) = arg {
+                    found |= selector_refers(inner, name, remaining)?;
+                }
+            }
+            found
+        }
+        TypeKind::Reference { inner, .. }
+        | TypeKind::Group(inner)
+        | TypeKind::Optional(inner)
+        | TypeKind::ForLifetime { inner, .. } => selector_refers(inner, name, remaining)?,
+        TypeKind::Tuple(types) | TypeKind::Union(types) | TypeKind::Impl(types) => {
+            let mut found = false;
+            for inner in types {
+                found |= selector_refers(inner, name, remaining)?;
+            }
+            found
+        }
+        TypeKind::Array { element, .. } => selector_refers(element, name, remaining)?,
+        TypeKind::Function { params, result }
+        | TypeKind::ForeignFunction { params, result, .. } => {
+            let mut found = false;
+            for inner in params {
+                found |= selector_refers(inner, name, remaining)?;
+            }
+            found | selector_refers(result, name, remaining)?
+        }
+        TypeKind::Error { error, result } => {
+            selector_refers(error, name, remaining)? | selector_refers(result, name, remaining)?
+        }
+        _ => false,
+    })
+}
+
 /// A nominal container carrying F is resolved to a real Package by Types.
 /// This is syntax classification only, never an owning admission proof.
 pub(crate) fn state_type(ty: &TypeRef, name: &str) -> bool {
@@ -360,7 +415,12 @@ pub(crate) fn expanded_template(
             .len()
             .saturating_add(name.len())
             .saturating_add(path[0].len())
-            .saturating_add(result_path.iter().map(String::len).sum::<usize>())
+            .saturating_add(
+                result_path
+                    .iter()
+                    .map(String::len)
+                    .fold(0, usize::saturating_add),
+            )
             .saturating_add(6);
         *remaining = remaining.checked_sub(work).ok_or_else(|| {
             Diagnostic::limit(
@@ -377,9 +437,10 @@ pub(crate) fn expanded_template(
         }
         let mut fields = Vec::new();
         for (index, field) in aggregate.fields.iter().enumerate() {
+            let contains = selector_refers(&field.ty, name, remaining)?;
             if parameter_mode(&field.ty, name) == Some(None) && !field.manages {
                 fields.push(index as u32);
-            } else if refers(&field.ty, name) {
+            } else if contains {
                 return Err(unsupported(
                     field.span,
                     "State replacement requires direct callback fields",
