@@ -228,8 +228,8 @@ fn equal_spelled_nominals_from_different_modules_keep_distinct_instances() {
     assert_ne!(an, bn);
     assert_eq!(af, bf, "equal layout is intentional");
     assert_eq!(
-        instances[0].callable_contract.as_ref().unwrap().closure,
-        instances[1].callable_contract.as_ref().unwrap().closure
+        instances[0].callable_contract.as_ref().unwrap().roles[0].closure,
+        instances[1].callable_contract.as_ref().unwrap().roles[0].closure
     );
     let bytes = zil_ir::wire::encode_module_candidate(&m, &p, &Limits::default()).unwrap();
     let (m2, p2) = zil_ir::wire::decode_module_candidate(&bytes, &Limits::default()).unwrap();

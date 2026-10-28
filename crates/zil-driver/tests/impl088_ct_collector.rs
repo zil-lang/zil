@@ -62,7 +62,7 @@ fn program() -> CoreProgram {
                     result_mode: PassingMode::Infer,
                     receiver: None,
                     callable_return: None,
-                    callable_parameter: None,
+                    callable_parameters: Vec::new(),
                     foreign: None,
                     body: CoreBlock {
                         span: span(),

@@ -129,6 +129,7 @@ fn raw_and_wire_do_not_trust_parent_or_coordinated_child_traces() {
         .callable_contract
         .as_mut()
         .unwrap()
+        .roles[0]
         .kind = CallableKind::FnMut;
     changed.functions[leaf]
         .callable_contract
@@ -137,7 +138,8 @@ fn raw_and_wire_do_not_trust_parent_or_coordinated_child_traces() {
         .traces
         .as_finite_mut()
         .unwrap()[0]
-        .calls[0] = CallableKind::FnMut;
+        .calls[0]
+        .kind = CallableKind::FnMut;
     reject(
         "child-kind-forgery",
         changed,
@@ -193,6 +195,7 @@ fn raw_and_wire_check_actual_nested_edges_and_child_instructions() {
         .callable_contract
         .as_mut()
         .unwrap()
+        .roles[0]
         .parameter = 1;
     reject(
         "wrong-child-parameter",
@@ -298,7 +301,10 @@ fn raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap() {
                     .iter_mut()
                     .find(|t| t.exit == CallableExit::Trap)
                     .unwrap();
-                trace.calls.push(CallableKind::Fn);
+                trace.calls.push(zil_ir::CallEvent {
+                    parameter: 0,
+                    kind: CallableKind::Fn,
+                });
                 changed.functions[middle]
                     .callable_contract
                     .as_mut()

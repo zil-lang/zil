@@ -148,7 +148,7 @@ fn trace(text: &str, kind: CallableKind, calls: &[usize]) {
         .iter()
         .find_map(|f| f.callable_contract.as_ref())
         .unwrap();
-    assert_eq!(contract.kind, kind);
+    assert_eq!(contract.roles[0].kind, kind);
     assert_eq!(
         contract
             .traces

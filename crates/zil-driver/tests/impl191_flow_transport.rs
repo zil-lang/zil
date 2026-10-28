@@ -29,7 +29,10 @@ fn flow(m: &mut TypedModule) -> &mut CallableFlow {
                     next: CallableFlowNext::Edges(vec![1, 2]),
                 },
                 CallableFlowNode {
-                    calls: vec![CallableKind::Fn],
+                    calls: vec![zil_ir::CallEvent {
+                        parameter: 0,
+                        kind: CallableKind::Fn,
+                    }],
                     next: CallableFlowNext::Edges(vec![0]),
                 },
                 CallableFlowNode {
