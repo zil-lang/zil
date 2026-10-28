@@ -1,0 +1,26 @@
+{
+  "status": "Fail",
+  "verdict": "Fail",
+  "reviewer": "/root",
+  "implementation_author": "/root/design14_acceptance",
+  "implementation_commit": "187a79a55fe7970168b89b9dec165ec1f2e930cd",
+  "review_test_commit": "db7995a9340dcb76e10676a1f7777e5bcaf3a987",
+  "stage_probe_commit": "01df9124016e3d3202183165169151db9aeac66d",
+  "original_source_sha256": "4d8e63a2c10dc11a47ee525bfa8aba6eb54b107956575bbace0a4eb03dd7db54",
+  "failure": "Default Rust test thread stack overflows while compiling a finite24-helper chain in Types. Process terminates SIGABRT before a structured result.",
+  "localization": {
+    "Parse": "Success",
+    "Core": "Success",
+    "Types": "SIGABRT stack overflow"
+  },
+  "completed_neighbor_groups": {
+    "source": 10,
+    "raw_and_budgets": 10
+  },
+  "independent_nondepth_groups": 3,
+  "whole_independent_review": "Blocked",
+  "no_stack_or_default_limit_increase": true,
+  "same_original_input_must_be_retested": true,
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
