@@ -9,3 +9,5 @@
 运行入口为 `python3 tools/language/203/consumer.py --help`。必须传成功且干净的冻结 CLI 构建收据、实际 SHA-256 和新输出目录。源码包不包含机器产物；证据后续单独封装。
 
 当前作者源已完成，尚未宣称该完整消费者通过：`expand01` 曾发现 seed 返回拥有 Store 时漏写 give，原输入已保存；已按既有责任语义改为 `return give items`。`expand02` 准确暴露普通 main 中 callable State 生产者的完整 T 依赖不能提前 eager 实例化，正在补对应合同及实现。五模块正例保持成功预期，不把这条失败改写为支持边界或复制 202 成绩。
+
+正式a355规范及Expand值推导补片后，`inferred02` 已实际通过五模块Expand。完整生产组合的Types/native/fault仍待运行；早期失败不重标。
