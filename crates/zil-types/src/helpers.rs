@@ -1,6 +1,9 @@
 //! Bounded concrete instantiation of a retained callable template. Bodies are
 //! checked in the defining module; consumers receive a normal direct call.
 use super::*;
+
+#[path = "helper_plan.rs"]
+mod plan;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 use zil_base::{ModuleId, NodeId};
