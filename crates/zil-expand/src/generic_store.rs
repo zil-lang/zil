@@ -47,6 +47,14 @@ pub(super) fn call_context<'a>(result: &TypeRef, expected: &'a TypeRef) -> Optio
         } else {
             None
         }
+    } else if matches!(grouped(expected).kind, TypeKind::Error { .. })
+        && !matches!(grouped(result).kind, TypeKind::Error { .. })
+    {
+        // The caller may return either payload or the complete union. A
+        // concrete payload result, or an unconstrained result variable, must
+        // not be unified with the whole union before real arguments bind it.
+        // Definition checking still validates the actual returned payload.
+        None
     } else {
         Some(expected)
     }
