@@ -377,9 +377,10 @@ pub(super) fn check_module(
             if !ty.is_copy_value()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
                 && !matches!(ty, Type::Managed(_) | Type::Package { .. })
+                && !matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
             {
                 return Err(unsupported(
-                    "other callback helper parameters must be finite Copy, Managed or complete Package values",
+                    "other callback helper parameters must be finite Copy, Managed, complete Package or ByteBuffer description values",
                     Some(f.span),
                 ));
             }

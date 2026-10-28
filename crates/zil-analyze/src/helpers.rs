@@ -158,6 +158,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 && !function.locals[p.0 as usize].ty.is_copy_value()
                 && !matches!(&function.locals[p.0 as usize].ty,
                     Type::Address { inner, .. } if inner.is_copy_value())
+                && !matches!(&function.locals[p.0 as usize].ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
                 && !matches!(
                     function.locals[p.0 as usize].ty,
                     Type::Managed(_) | Type::Package { .. }
@@ -165,7 +166,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         }) {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "helper extra parameters require finite Copy, Managed or Package values",
+                "helper extra parameters require finite Copy, Managed, Package or ByteBuffer description values",
                 None,
             )]);
         }

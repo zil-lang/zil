@@ -76,6 +76,7 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
                 && !(p.ty.is_copy_value()
                     || matches!(&p.ty, Type::Address { inner, .. } if inner.is_copy_value())
                     || packages::supported(&p.ty)
+                    || matches!(&p.ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
                     || matches!(p.ty, Type::Managed(_)))
         })
     {
