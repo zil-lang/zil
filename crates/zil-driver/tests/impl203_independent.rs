@@ -530,3 +530,305 @@ fn unused_raw_state_headers_validate_every_binding_and_real_field_selector() {
         );
     }
 }
+
+const TWO_ENVIRONMENTS: &str = r#"
+fn small()->impl Fn()->i32{let n=7;return move()=>n}
+fn wide()->impl Fn()->i32{let padding:i64=1;let n=9;return move()=>{padding;return n}}
+fn main()->i32{
+    let bytes=bytes_new();bytes_len(bytes)
+    let first=small();let second=wide()
+    return first()+second()-16
+}
+"#;
+
+fn resource_only_pair() -> (TypedModule, CandidatePlan, [ClosureId; 2]) {
+    let (_, mut typed, _) = typed_control("actual-factories-before-raw-carrier", TWO_ENVIRONMENTS);
+    let roots = ["small", "wide"].map(|name| {
+        let function = typed.functions.iter().find(|f| f.name == name).unwrap();
+        let Type::Closure(id) = function.return_type else {
+            panic!("concrete factory result")
+        };
+        id
+    });
+    assert_ne!(roots[0], roots[1]);
+    assert_ne!(
+        typed.closures[roots[0].0 as usize].captures,
+        typed.closures[roots[1].0 as usize].captures
+    );
+    let element = Type::Package {
+        name: "IndependentTwoRoot".into(),
+        fields: vec![
+            ("first".into(), Type::Closure(roots[0])),
+            ("owner".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+            ("second".into(), Type::Closure(roots[1])),
+            ("tail".into(), Type::I64),
+        ],
+    };
+    typed.resources.push(ResourceDefinition {
+        name: "@builtin:OwnedStore<IndependentTwoRoot>".into(),
+        payload: Type::OwnedStore {
+            element: Box::new(element),
+        },
+        teardown: None,
+    });
+    let case = Case::new("raw-unused-two-root-carrier-control");
+    case.write("typed.txt", format!("{typed:#?}"));
+    let candidate = zil_analyze::analyze(&typed, &Limits::default());
+    case.write("analyze.txt", format!("{candidate:#?}"));
+    let candidate = candidate.unwrap();
+    verify_pair(&case, &typed, &candidate, None);
+    (typed, candidate, roots)
+}
+
+fn verify_pair(
+    case: &Case,
+    module: &TypedModule,
+    candidate: &CandidatePlan,
+    expected: Option<(ResultCategory, &str)>,
+) {
+    let bytes =
+        zil_ir::wire::encode_module_candidate(module, candidate, &Limits::default()).unwrap();
+    case.write("candidate.wire", &bytes);
+    assert_eq!(
+        zil_ir::wire::decode_module_candidate(&bytes, &Limits::default()).unwrap(),
+        (module.clone(), candidate.clone())
+    );
+    let raw = zil_verify::verify_module(
+        module.clone(),
+        candidate.clone(),
+        &module.target,
+        &Limits::default(),
+    );
+    let wire = zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default());
+    case.write("verify.txt", format!("raw={raw:#?}\nwire={wire:#?}"));
+    for result in [raw, wire] {
+        if let Some((category, code)) = expected {
+            let errors = result.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.phase == Phase::Verify && d.category == category && d.code == code),
+                "{errors:#?}"
+            );
+        } else {
+            result.unwrap();
+        }
+    }
+}
+
+fn raw_store_reject(
+    label: &str,
+    module: TypedModule,
+    original: &CandidatePlan,
+    category: ResultCategory,
+    code: &str,
+) {
+    let case = Case::new(label);
+    case.write("typed.txt", format!("{module:#?}"));
+    let analyzed = zil_analyze::analyze(&module, &Limits::default());
+    case.write("analyze.txt", format!("{analyzed:#?}"));
+    // Qualifier mutations can be rejected by Analyze. Still present the raw
+    // module to both independent Verify entries with an explicitly recorded
+    // fallback plan; do not report this as a freshly analyzed candidate.
+    case.write(
+        "candidate-origin.txt",
+        if analyzed.is_ok() {
+            "fresh Analyze candidate\n"
+        } else {
+            "original control plan with actual attacked module fingerprint; Analyze rejected\n"
+        },
+    );
+    let mut candidate = analyzed.unwrap_or_else(|_| original.clone());
+    candidate.module_fingerprint = module.fingerprint();
+    verify_pair(&case, &module, &candidate, Some((category, code)));
+}
+
+#[test]
+fn raw_store_checks_bad_second_environment_and_metadata_without_any_store_operation() {
+    let (original, plan, roots) = resource_only_pair();
+    for (label, capture, category, code) in [
+        (
+            "borrowed-address",
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            },
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "store-capture",
+            Type::Managed(Box::new(original.resources.last().unwrap().payload.clone())),
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "nested-callable-package",
+            Type::Package {
+                name: "NestedCallback".into(),
+                fields: vec![
+                    ("token".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+                    ("callback".into(), Type::Closure(roots[0])),
+                ],
+            },
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "self-cycle",
+            Type::Closure(roots[1]),
+            ResultCategory::SafeReject,
+            "E-VERIFY-CLOSURE-LAYOUT",
+        ),
+        (
+            "missing-child",
+            Type::Closure(ClosureId(99)),
+            ResultCategory::SafeReject,
+            "E-VERIFY-CLOSURE",
+        ),
+    ] {
+        let mut changed = original.clone();
+        changed.closures[roots[1].0 as usize].captures = vec![capture];
+        raw_store_reject(
+            &format!("bad-second-{label}"),
+            changed,
+            &plan,
+            category,
+            code,
+        );
+    }
+    let mut bad_identity = original.clone();
+    bad_identity.closures[roots[1].0 as usize].id = roots[0];
+    raw_store_reject(
+        "bad-second-definition-id",
+        bad_identity,
+        &plan,
+        ResultCategory::SafeReject,
+        "E-VERIFY-CLOSURE",
+    );
+    let mut cross_cycle = original.clone();
+    cross_cycle.closures[roots[0].0 as usize].captures = vec![Type::Closure(roots[1])];
+    cross_cycle.closures[roots[1].0 as usize].captures = vec![Type::Closure(roots[0])];
+    raw_store_reject(
+        "cycle-between-both-roots",
+        cross_cycle,
+        &plan,
+        ResultCategory::SafeReject,
+        "E-VERIFY-CLOSURE-LAYOUT",
+    );
+    let mut three = original.clone();
+    let Type::OwnedStore { element } = &mut three.resources.last_mut().unwrap().payload else {
+        unreachable!()
+    };
+    let Type::Package { fields, .. } = element.as_mut() else {
+        unreachable!()
+    };
+    fields.push(("third".into(), Type::Closure(roots[0])));
+    raw_store_reject(
+        "three-fields-remain-unsupported",
+        three,
+        &plan,
+        ResultCategory::Unsupported,
+        "E-UNSUPPORTED",
+    );
+}
+
+#[test]
+fn raw_store_heterogeneous_result_copy_is_checked_on_both_actual_roots() {
+    let (original, plan, roots) = resource_only_pair();
+    for root in roots {
+        let mut changed = original.clone();
+        changed.closures[root.0 as usize].result = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        raw_store_reject(
+            &format!("heterogeneous-result-root-{}", root.0),
+            changed,
+            &plan,
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        );
+    }
+    let mut missing = original.clone();
+    let Type::OwnedStore { element } = &mut missing.resources.last_mut().unwrap().payload else {
+        unreachable!()
+    };
+    let Type::Package { fields, .. } = element.as_mut() else {
+        unreachable!()
+    };
+    fields[2].1 = Type::Closure(ClosureId(99));
+    raw_store_reject(
+        "missing-actual-second-root",
+        missing,
+        &plan,
+        ResultCategory::SafeReject,
+        "E-VERIFY-CLOSURE",
+    );
+}
+
+fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize {
+    let (mut lo, mut hi) = (0, Limits::default().max_analysis_steps);
+    run(hi).unwrap();
+    while lo + 1 < hi {
+        let n = lo + (hi - lo) / 2;
+        match run(n) {
+            Ok(()) => hi = n,
+            Err(ds) => {
+                assert!(
+                    ds.iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit),
+                    "{ds:#?}"
+                );
+                lo = n;
+            }
+        }
+    }
+    run(hi).unwrap();
+    assert!(
+        run(hi - 1)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.category == ResultCategory::ResourceLimit)
+    );
+    run(hi).unwrap();
+    hi
+}
+
+#[test]
+fn raw_store_two_root_work_bounds_replay_the_same_fresh_result() {
+    let (typed, plan, _) = resource_only_pair();
+    let analyze = boundary(|n| {
+        zil_analyze::analyze(
+            &typed,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual, plan))
+    });
+    let verify = boundary(|n| {
+        zil_verify::verify_module(
+            typed.clone(),
+            plan.clone(),
+            &typed.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|_| ())
+    });
+    Case::new("raw-two-root-exact-budgets").write("boundaries.json",format!("{{\"analyze\":{analyze},\"verify\":{verify},\"checks\":\"N, N-1 ResourceLimit, fresh N\",\"evidence_level\":\"source-generated closure definitions plus raw unused Store carrier\"}}\n"));
+    let case = Case::new("stale-schema26-wire");
+    let mut wire =
+        zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+    assert_eq!(u32::from_le_bytes(wire[8..12].try_into().unwrap()), 27);
+    wire[8..12].copy_from_slice(&26u32.to_le_bytes());
+    case.write("stale26.wire", &wire);
+    let errors =
+        zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap_err();
+    case.write("verify.txt", format!("{errors:#?}"));
+    assert!(errors.iter().any(|d| d.code == "E-WIRE-VERSION"));
+}
