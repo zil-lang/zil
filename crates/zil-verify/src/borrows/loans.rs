@@ -219,6 +219,19 @@ fn reconstruct(
                             }
                         }
                         InstructionKind::AddressField { address, .. }
+                            if flow.environment[id]
+                                && matches!(&f.values[address.0 as usize],
+                                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. })) =>
+                        {
+                            // A concrete callback field is a new environment
+                            // position derived from its actual element window.
+                            // Keep the conservative Store roots and its parent
+                            // loan: the later environment-only reborrow must
+                            // not discard this Package-to-Closure dependency.
+                            row.insert(id);
+                            join(&mut parents, &flow.values[address.0 as usize], budget)?;
+                        }
+                        InstructionKind::AddressField { address, .. }
                         | InstructionKind::AddressSlice { address, .. }
                         | InstructionKind::AddressIndex { address, .. } => {
                             join(&mut row, &flow.values[address.0 as usize], budget)?;
