@@ -449,6 +449,24 @@ fn constructor_arguments_prepare_once_and_only_acquired_values_clean_on_error() 
 }
 
 #[test]
+fn uncalled_dual_type_constructor_is_accepted_since_203() {
+    // Keep the original unused definition byte-for-byte. This checks its
+    // declaration through Verify; it does not instantiate or execute pack.
+    let source = "package State<F,G>{manages bytes:ByteBuffer;a:F;b:G}fn pack<F:Fn()->i32,G:Fn()->i32>(a:F,b:G)->State<F,G>{return State::<F,G>{bytes:bytes_new(),a:a,b:b}}fn main(){}";
+    let case = Case::new("two-types");
+    let report = compile(&case, source, Stage::Verify, Optimization::O0);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Verify);
+    assert_eq!(report.verification_runs, 1);
+    assert!(!report.artifacts.contains_key("executable"));
+}
+
+#[test]
 fn uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions() {
     // The original repeated generic value is rejected before field counting.
     reject(
@@ -479,10 +497,6 @@ fn uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions() {
         (
             "two-states",
             "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn combine<F:Fn()->i32>(left:State<F>,right:State<F>)->State<F>{return left}fn main(){}",
-        ),
-        (
-            "two-types",
-            "package State<F,G>{manages bytes:ByteBuffer;a:F;b:G}fn pack<F:Fn()->i32,G:Fn()->i32>(a:F,b:G)->State<F,G>{return State::<F,G>{bytes:bytes_new(),a:a,b:b}}fn main(){}",
         ),
         (
             "borrowed-inputs",
