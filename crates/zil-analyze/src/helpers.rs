@@ -330,7 +330,7 @@ fn two_input_state_constructor(
         return Ok(false);
     };
     if first != second {
-        return Ok(false);
+        return two_type_state_constructor(module, function, candidates, *first, *second, budget);
     }
     let Type::Package { fields, .. } = &function.return_type else {
         return Ok(false);
@@ -370,6 +370,93 @@ fn two_input_state_constructor(
     // The one shared ClosureId proves a type property only. No parameter or
     // SSA responsibility is deduplicated here or in the ordinary resource pass.
     callable_fields::self_contained(module, *first, budget)?;
+    Ok(true)
+}
+
+// The new two-type boundary must cover both actual types in distinct fields.
+// Merely removing the old equality check would admit a mismatched constructor
+// signature without establishing this finite owning result envelope.
+fn two_type_state_constructor(
+    module: &TypedModule,
+    function: &TypedFunction,
+    candidates: &[(u32, LocalId)],
+    first: ClosureId,
+    second: ClosureId,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let Type::Package { fields, .. } = &function.return_type else {
+        return Ok(false);
+    };
+    budget.type_work(
+        &function.return_type,
+        true,
+        "two-type State constructor result",
+    )?;
+    budget.spend(
+        fields.len().saturating_add(2),
+        "two-type State field coverage",
+    )?;
+    let (mut counts, mut managed) = ([0usize; 2], false);
+    for (_, ty) in fields {
+        match ty {
+            Type::Closure(id) if *id == first => counts[0] += 1,
+            Type::Closure(id) if *id == second => counts[1] += 1,
+            Type::Managed(payload)
+                if **payload == Type::ByteBuffer
+                    || (matches!(payload.as_ref(), Type::Record { .. })
+                        && payload.is_copy_value()) =>
+            {
+                managed = true
+            }
+            ty if ty.is_copy_value() => {}
+            _ => return Ok(false),
+        }
+    }
+    if counts != [1, 1] || !managed {
+        return Ok(false);
+    }
+    budget.product(
+        function.parameters.len(),
+        2,
+        1,
+        "two-type State ordinary parameters",
+    )?;
+    for local in &function.parameters {
+        if *local == candidates[0].1 || *local == candidates[1].1 {
+            continue;
+        }
+        let ty = &function.locals[local.0 as usize].ty;
+        budget.type_work(ty, true, "two-type State ordinary parameter shape")?;
+        if !ty.is_copy_value() && !matches!(ty, Type::Managed(_)) {
+            return Ok(false);
+        }
+    }
+    for id in [first, second] {
+        budget.spend(1, "two-type State callback definition")?;
+        let definition = module
+            .closures
+            .get(id.0 as usize)
+            .ok_or_else(|| bad("two-type State constructor environment is absent"))?;
+        if definition.id != id {
+            return Err(bad(
+                "two-type State constructor environment identity differs",
+            ));
+        }
+        budget.type_work(
+            &definition.result,
+            true,
+            "two-type State Copy callback result",
+        )?;
+        if !definition.result.is_copy_value() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "two-type owning State constructors require Copy callback results",
+                Some(function.span),
+            )]);
+        }
+        budget.spend(1, "two-type State capture root")?;
+        callable_fields::self_contained(module, id, budget)?;
+    }
     Ok(true)
 }
 
