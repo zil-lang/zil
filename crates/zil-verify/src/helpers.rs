@@ -482,10 +482,8 @@ pub(super) fn check_module(
         // callback contract can stand in for it. Ordinary parameter, move,
         // Package construction and cleanup checks still cover both values.
         if f.callable_contract.is_none()
-            && let [
-                (first_position, first, false, _),
-                (second_position, second, false, _),
-            ] = parameters.as_slice()
+            && let [(first_position, first, false, _), (second_position, second, false, _)] =
+                parameters.as_slice()
             && first == second
             && let Type::Package { fields, .. } = &f.return_type
         {
