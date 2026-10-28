@@ -586,6 +586,9 @@ pub(super) fn contains(ty: &TypeRef, variable: &str) -> bool {
                     .any(|a| matches!(a,GenericArg::Type(t) if contains(t,variable)))
         }
         TypeKind::Tuple(ts) => ts.iter().any(|t| contains(t, variable)),
+        TypeKind::Error { error, result } => {
+            contains(error, variable) || contains(result, variable)
+        }
         TypeKind::Array { element, .. }
         | TypeKind::Group(element)
         | TypeKind::Optional(element)
