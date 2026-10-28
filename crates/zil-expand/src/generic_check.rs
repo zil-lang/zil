@@ -2,15 +2,27 @@
 //! presumed numeric, Copy, or equipped with members because one instance is.
 use super::*;
 
+pub(super) struct ParametricTables<'a, 'l> {
+    pub nominals: &'a BTreeMap<String, &'l Item>,
+    pub enums: &'a BTreeMap<String, &'l EnumDecl>,
+    pub signatures: &'a BTreeMap<String, Cow<'l, Function>>,
+    pub pattern_types: &'a BTreeMap<String, TypeRef>,
+    pub traits: &'a trait_bounds::Index<'l>,
+}
+
 pub(super) fn validate_parametric<'l>(
     function: &Function,
-    nominals: &BTreeMap<String, &'l Item>,
-    enums: &BTreeMap<String, &'l EnumDecl>,
-    signatures: &BTreeMap<String, Cow<'l, Function>>,
-    pattern_types: &BTreeMap<String, TypeRef>,
-    traits: &trait_bounds::Index<'l>,
+    tables: ParametricTables<'_, 'l>,
+    dependencies: &mut helper_graph::Dependencies,
     budget: &mut Budget<'l>,
 ) -> R<()> {
+    let ParametricTables {
+        nominals,
+        enums,
+        signatures,
+        pattern_types,
+        traits,
+    } = tables;
     // Validate every written signature even if the template remains unused.
     // Type keys reject unresolved lifetime/const forms rather than erasing them.
     let mut parameter_names = BTreeSet::new();
@@ -29,9 +41,15 @@ pub(super) fn validate_parametric<'l>(
         type_key(t, budget)?;
         super::super::foreign::callback_type_tree(t, &variables, budget, 0)?;
     }
+    let callable = callable::template(function)?;
+    if callable.is_some() {
+        dependencies.register(&function.name, function.span, budget)?;
+    }
     let mut check = Check {
         variables,
-        callable: callable::template(function)?,
+        callable,
+        definition: &function.name,
+        dependencies,
         bounds: traits.bounds(function, budget)?,
         traits,
         next_local: function.params.len(),
@@ -313,6 +331,8 @@ struct State {
 struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
     callable: Option<callable::CallableTemplate>,
+    definition: &'s str,
+    dependencies: &'b mut helper_graph::Dependencies,
     bounds: trait_bounds::Bounds,
     traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
@@ -1550,12 +1570,19 @@ impl Check<'_, '_, '_> {
                     .ok_or_else(|| error(e.span, "unknown function in parametric body"))?;
                 if let (Some(caller), Some(callee)) =
                     (&self.callable, callable::template(function)?)
-                    && !(caller.owned_state && callee.owned_state)
                 {
-                    return Err(unsupported(
-                        e.span,
-                        "recursive or nested synchronous callable helper contracts are not implemented",
-                    ));
+                    self.dependencies.edge(
+                        self.definition,
+                        &function.name,
+                        function.span,
+                        self.budget,
+                    )?;
+                    if !(caller.owned_state && callee.owned_state) && caller.kind != callee.kind {
+                        return Err(unsupported(
+                            e.span,
+                            "nested synchronous helpers require the same declared callable kind",
+                        ));
+                    }
                 }
                 if arguments.len() != function.params.len() {
                     return Err(error(e.span, "parametric call arity mismatch"));

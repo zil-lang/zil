@@ -23,3 +23,13 @@ Types 按已有实例化栈拒绝真实递归，再从实际具体 helper 的已
 生产限工单列出的 Expand `generic_check.rs` / `generic_callable.rs`，Types `helpers.rs` / 必要 `closures.rs` 状态，以及 Analyze/Verify 各自 `helpers.rs`。保留当前调用实参与捕获效果、lending 贷款、父壳生命周期、FnOnce 未调用清理等现有检查。确需 lib 入口接线时先报告实际阻断再请求 root 补写集，不改公共登记。
 
 验证从原最小反例推进一层与多层、Fn/FnMut/FnOnce、分支的 0/1/多次调用、正常/错误/Trap 提前出口和未调用清理。至少一个真实跨模块 State/动态存储消费者从 ZIL 源生成并运行 O0/O2；源反例保留递归、循环、错误权限、消费后复用、不同实例及当前调用别名冲突。raw/Wire 从合法候选改调用图、参数来源、子/父 traces 或出口，不能重跑 Analyze 生成伪权限。准备基线、首次失败、最终冻结和非作者独审分别绑定精确源码，不把有限片声明成完整 1.4 或 ZUI 产品完成。
+
+## 实际接线
+
+root 已授权 `generics.rs` 和独立私有 `generic_helper_graph.rs`。每个泛型正文仍走原有的一次符号检查，在词法解析确认的 helper 调用处记录节点和边，统一检查结束后运行一次有界拓扑遍历；未实例化的自递归和互递归同样拒绝。名字查找、字符串复制、节点、边、前沿和表容量均进入原 Expand 预算，没有提高默认额度。
+
+Types 仅组合已经完成实例化的 callee；借入传递保留真实 Load/Borrow/Reborrow/Store 来源。Analyze 和 Verify 各有私有调用图与先子后父次序，各自重建 callee 正文，核对后才能将该 callee 的完整有限 trace 用于父层。不同实际实例即使共用 ClosureId 也不能贡献当前参数的调用轨迹。Return 子路径继续父后缀，Trap 子路径立即记录终止前缀；公共表示仍是完整 calls 向量。
+
+新增来源和 trace 处理不改变责任核。零调用 FnOnce 子函数仍接收并结清被移交的环境；将同一已移交值再次传给另一个零调用子函数，不能靠空 trace 逃过资源检查。嵌套 helper 返回的 lending 值仍带真实环境 Hold，下一次冲突可变调用继续被贷款核拒绝。普通 owning State 的既有循环不是有限 callback helper 的循环合同，不外推为后者已实现。
+
+本片生产写集最终只使用 Expand 三文件与 Types/Analyze/Verify 各自的 helpers.rs；未修改 captures、资源求解、公共 schema、Wire、运行库或 LLVM。187 的局部 ByteBuffer 捕获效果与 189 的显式 Address 回调实参是独立候选，需后续组合验证，不能由本片的通过结论代替。
