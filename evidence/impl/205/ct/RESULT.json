@@ -1,0 +1,151 @@
+{
+  "status": "Pass",
+  "scope": "Root CT runtime-metadata transport and execution prohibition only; not source move/alias proof or final205 acceptance",
+  "implementation_commit": "3fc53e90b8ceb0a42270c6c63829fcfcb15161a1",
+  "normative_hash_at_execution": "8d6fd152597c8446f455bc5a73807f5d056ec6a93f1b7c961a6a176a62b66534",
+  "runs": [
+    {
+      "run": "ct01",
+      "command": {
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl205_ct_boundary",
+          "--offline",
+          "--locked",
+          "-j2",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/review194",
+        "start": 1793203456.4526095,
+        "source_commit": "96e4b7b6031f79124a3477d1bd43018b476d397c",
+        "git_status": "",
+        "environment": {
+          "CARGO_TARGET_DIR": "/tmp/zil205-root-target",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil205-root-ct01",
+          "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+        },
+        "status": "Fail",
+        "exit_code": 101,
+        "end": 1793203469.3997223,
+        "stdout.log_sha256": "be7dc80cb8df947b78159f87a3ec3e1cb76b3cb6c55471f519bf70fdef00bed3",
+        "stderr.log_sha256": "9bcf81d177f983a24d544f52d47b2d08456b4128c126ccaa673b1159c9896f42"
+      },
+      "normative_hash": "8d6fd152597c8446f455bc5a73807f5d056ec6a93f1b7c961a6a176a62b66534",
+      "groups_pass_fail_ignore": [
+        [
+          6,
+          3,
+          0
+        ]
+      ],
+      "passed": 6,
+      "failed": 3,
+      "stdout": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/ct01/stdout.log",
+        "sha256": "be7dc80cb8df947b78159f87a3ec3e1cb76b3cb6c55471f519bf70fdef00bed3"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/ct01/stderr.log",
+        "sha256": "9bcf81d177f983a24d544f52d47b2d08456b4128c126ccaa673b1159c9896f42"
+      }
+    },
+    {
+      "run": "ct02",
+      "command": {
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl205_ct_boundary",
+          "--test",
+          "impl203_ct_boundary",
+          "--test",
+          "impl203_ct_independent",
+          "--offline",
+          "--locked",
+          "-j2",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/review194",
+        "start": 1793203657.9344559,
+        "source_commit": "3fc53e90b8ceb0a42270c6c63829fcfcb15161a1",
+        "git_status": "",
+        "environment": {
+          "CARGO_TARGET_DIR": "/tmp/zil205-root-target",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil205-root-ct02",
+          "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+        },
+        "status": "Pass",
+        "exit_code": 0,
+        "end": 1793203661.4484181,
+        "stdout.log_sha256": "13b59ffe2406c6b73955b5c1f9643fee314f48050ad185231b377e20b249fc5b",
+        "stderr.log_sha256": "8a444d37a134fa1b3250561eedcd445fa1edece360cd2d4473618dc578fa5e8d"
+      },
+      "normative_hash": "8d6fd152597c8446f455bc5a73807f5d056ec6a93f1b7c961a6a176a62b66534",
+      "groups_pass_fail_ignore": [
+        [
+          7,
+          0,
+          0
+        ],
+        [
+          8,
+          0,
+          0
+        ],
+        [
+          9,
+          0,
+          0
+        ]
+      ],
+      "passed": 24,
+      "failed": 0,
+      "stdout": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/ct02/stdout.log",
+        "sha256": "13b59ffe2406c6b73955b5c1f9643fee314f48050ad185231b377e20b249fc5b"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/ct02/stderr.log",
+        "sha256": "8a444d37a134fa1b3250561eedcd445fa1edece360cd2d4473618dc578fa5e8d"
+      }
+    }
+  ],
+  "counts": "24 test executions across three binaries, including repeated private-adapter unit controls; not 24 new unique205 cases",
+  "new_205_cases": 5,
+  "metadata_n": {
+    "nodes": 43,
+    "n": "Pass",
+    "n_minus_1": "Ct ResourceLimit",
+    "fresh_n": "Pass"
+  },
+  "entrypoints": [
+    "zil_ct plain runtime normalization",
+    "zil_ct context index and contextual normalization",
+    "driver CT collector single runtime normalization"
+  ],
+  "covered": [
+    "one/two actual F fields, reverse owner/replacement positions, Fn/FnMut/FnOnce",
+    "21 malformed unused-head near neighbors",
+    "both heads bounded before signature equality: long names, excessive depth and width",
+    "CT execution of direct mixed templates and wrapper calls forbidden"
+  ],
+  "precharge": "Constant shape first; both metadata/type trees bounded; separate full-header-sized work charge before equality/selector scan, only new mixed path",
+  "old_behavior": "Original203 two-binding metadata/control tests remain unchanged and passed inct02",
+  "raw_fixtures": "These Core fixtures test transport consistency, not source legality or native execution. Source/Typed ownership is independently checked elsewhere.",
+  "remaining": "Known unused-State source alias defects still block205; no final language or consumer acceptance."
+}
