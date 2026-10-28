@@ -1,0 +1,1 @@
+fn id<T:Copy>(x:T)->T=>x;fn make()->impl Fn()->i32{let n=7;return move()=>n}fn main()->i32{let f=make();let g=id(f);return g()-7}

@@ -1,0 +1,1 @@
+fn run<T:Copy,F:Fn(T)->T>(f:&F,x:T)->T=>run(f,x);fn main(){}

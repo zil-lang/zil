@@ -1,0 +1,1 @@
+fn map<T:Copy,F:Fn(T)->T>(f:&F,x:T)->T=>f(x);enum E{A(i32),B}fn main()->i32{let f=move(x:E)=>x;let v=map(&f,E.A(7));match v{E.A(n)=>{return n-7},E.B=>{return 1}}}

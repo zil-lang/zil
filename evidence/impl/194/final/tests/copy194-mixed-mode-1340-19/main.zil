@@ -1,0 +1,1 @@
+fn inner<F:FnMut()->i32>(f:&mut F)->i32=>f();fn outer<F:Fn()->i32>(f:&mut F)->i32=>inner(f);fn main(){}

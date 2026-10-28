@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author194/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/194-author/dev-probes01/03-copy-bound-alone/main.zil",
+    "--json",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/194-author/dev-probes01/03-copy-bound-alone/phases"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt194",
+  "source_commit": "e74a8eb4d8f3c4571111ebae0b886ac2a8b3184e",
+  "git_status": "",
+  "cli_sha256": "968c60673dd3cb4ae97a6fe980d32b8f289675ed15d6057012136495869facbf",
+  "exit_code": 0,
+  "start": 1793164947.0505152,
+  "end": 1793164947.0651932,
+  "input_sha256": "8b75355d1cb9eb85394c92d4f09e5504957e1c16003757232980ec44c12edea6"
+}

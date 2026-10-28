@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author194/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/194-author/near-boundary01/box-copy-duplicate/main.zil",
+    "--json",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/194-author/near-boundary01/box-copy-duplicate/phases"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt194",
+  "source_commit": "4e719ced32b67c130d1645005cf3ac7289b2bb69",
+  "git_status": "",
+  "cli_sha256": "ccf9110c52de7e181361b7faa5a87e0d16184068b5fd7400d380d458ac0df15c",
+  "input_sha256": "5fd055cb0dbf968316165e393fe4dd4be9e7f7b56e9030ce45e30a090a7493be",
+  "exit_code": 1,
+  "start": 1793165735.596521,
+  "end": 1793165735.6021824
+}

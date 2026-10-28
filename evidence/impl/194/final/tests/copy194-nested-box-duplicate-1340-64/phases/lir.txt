@@ -1,0 +1,1493 @@
+LirModule {
+    schema_version: 24,
+    module_id: ModuleId(
+        0,
+    ),
+    verified_fingerprint: Fingerprint(
+        [
+            10,
+            159,
+            74,
+            118,
+            204,
+            90,
+            224,
+            71,
+            128,
+            195,
+            92,
+            95,
+            42,
+            232,
+            235,
+            34,
+            32,
+            33,
+            61,
+            163,
+            69,
+            234,
+            156,
+            13,
+            72,
+            160,
+            179,
+            78,
+            56,
+            180,
+            24,
+            5,
+        ],
+    ),
+    target: TargetProfile {
+        id: "native-llvm",
+        triple: "x86_64-unknown-linux-gnu",
+        pointer_width: 64,
+        endian: Little,
+        backend: "llvm",
+        rule_version: "ZIL-LANG-1.4",
+        checked_arithmetic: true,
+    },
+    functions: [
+        TypedFunction {
+            callable_return_contract: None,
+            callable_contract: None,
+            id: FunctionId(
+                0,
+            ),
+            name: "main",
+            foreign: None,
+            environment: None,
+            parameters: [],
+            return_type: I32,
+            result_mode: Infer,
+            locals: [
+                LocalDecl {
+                    id: LocalId(
+                        0,
+                    ),
+                    name: "$record_field_0",
+                    ty: I32,
+                    mutable: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 122,
+                        end: 123,
+                    },
+                },
+                LocalDecl {
+                    id: LocalId(
+                        1,
+                    ),
+                    name: "$record_field_1",
+                    ty: Record {
+                        name: "@module0:$generic_$module0_Box_0",
+                        fields: [
+                            (
+                                "value",
+                                I32,
+                            ),
+                        ],
+                    },
+                    mutable: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 105,
+                        end: 124,
+                    },
+                },
+                LocalDecl {
+                    id: LocalId(
+                        2,
+                    ),
+                    name: "x",
+                    ty: Record {
+                        name: "@module0:$generic_$module0_Box_1",
+                        fields: [
+                            (
+                                "value",
+                                Record {
+                                    name: "@module0:$generic_$module0_Box_0",
+                                    fields: [
+                                        (
+                                            "value",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ],
+                    },
+                    mutable: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 77,
+                        end: 126,
+                    },
+                },
+                LocalDecl {
+                    id: LocalId(
+                        3,
+                    ),
+                    name: "y",
+                    ty: Tuple(
+                        [
+                            Record {
+                                name: "@module0:$generic_$module0_Box_1",
+                                fields: [
+                                    (
+                                        "value",
+                                        Record {
+                                            name: "@module0:$generic_$module0_Box_0",
+                                            fields: [
+                                                (
+                                                    "value",
+                                                    I32,
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ],
+                            },
+                            Record {
+                                name: "@module0:$generic_$module0_Box_1",
+                                fields: [
+                                    (
+                                        "value",
+                                        Record {
+                                            name: "@module0:$generic_$module0_Box_0",
+                                            fields: [
+                                                (
+                                                    "value",
+                                                    I32,
+                                                ),
+                                            ],
+                                        },
+                                    ),
+                                ],
+                            },
+                        ],
+                    ),
+                    mutable: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 126,
+                        end: 145,
+                    },
+                },
+            ],
+            values: [
+                I32,
+                I32,
+                Record {
+                    name: "@module0:$generic_$module0_Box_0",
+                    fields: [
+                        (
+                            "value",
+                            I32,
+                        ),
+                    ],
+                },
+                Record {
+                    name: "@module0:$generic_$module0_Box_0",
+                    fields: [
+                        (
+                            "value",
+                            I32,
+                        ),
+                    ],
+                },
+                Record {
+                    name: "@module0:$generic_$module0_Box_1",
+                    fields: [
+                        (
+                            "value",
+                            Record {
+                                name: "@module0:$generic_$module0_Box_0",
+                                fields: [
+                                    (
+                                        "value",
+                                        I32,
+                                    ),
+                                ],
+                            },
+                        ),
+                    ],
+                },
+                Record {
+                    name: "@module0:$generic_$module0_Box_1",
+                    fields: [
+                        (
+                            "value",
+                            Record {
+                                name: "@module0:$generic_$module0_Box_0",
+                                fields: [
+                                    (
+                                        "value",
+                                        I32,
+                                    ),
+                                ],
+                            },
+                        ),
+                    ],
+                },
+                Tuple(
+                    [
+                        Record {
+                            name: "@module0:$generic_$module0_Box_1",
+                            fields: [
+                                (
+                                    "value",
+                                    Record {
+                                        name: "@module0:$generic_$module0_Box_0",
+                                        fields: [
+                                            (
+                                                "value",
+                                                I32,
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            ],
+                        },
+                        Record {
+                            name: "@module0:$generic_$module0_Box_1",
+                            fields: [
+                                (
+                                    "value",
+                                    Record {
+                                        name: "@module0:$generic_$module0_Box_0",
+                                        fields: [
+                                            (
+                                                "value",
+                                                I32,
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            ],
+                        },
+                    ],
+                ),
+                Tuple(
+                    [
+                        Record {
+                            name: "@module0:$generic_$module0_Box_1",
+                            fields: [
+                                (
+                                    "value",
+                                    Record {
+                                        name: "@module0:$generic_$module0_Box_0",
+                                        fields: [
+                                            (
+                                                "value",
+                                                I32,
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            ],
+                        },
+                        Record {
+                            name: "@module0:$generic_$module0_Box_1",
+                            fields: [
+                                (
+                                    "value",
+                                    Record {
+                                        name: "@module0:$generic_$module0_Box_0",
+                                        fields: [
+                                            (
+                                                "value",
+                                                I32,
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            ],
+                        },
+                    ],
+                ),
+                Record {
+                    name: "@module0:$generic_$module0_Box_1",
+                    fields: [
+                        (
+                            "value",
+                            Record {
+                                name: "@module0:$generic_$module0_Box_0",
+                                fields: [
+                                    (
+                                        "value",
+                                        I32,
+                                    ),
+                                ],
+                            },
+                        ),
+                    ],
+                },
+                Record {
+                    name: "@module0:$generic_$module0_Box_0",
+                    fields: [
+                        (
+                            "value",
+                            I32,
+                        ),
+                    ],
+                },
+                I32,
+                Tuple(
+                    [
+                        Record {
+                            name: "@module0:$generic_$module0_Box_1",
+                            fields: [
+                                (
+                                    "value",
+                                    Record {
+                                        name: "@module0:$generic_$module0_Box_0",
+                                        fields: [
+                                            (
+                                                "value",
+                                                I32,
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            ],
+                        },
+                        Record {
+                            name: "@module0:$generic_$module0_Box_1",
+                            fields: [
+                                (
+                                    "value",
+                                    Record {
+                                        name: "@module0:$generic_$module0_Box_0",
+                                        fields: [
+                                            (
+                                                "value",
+                                                I32,
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            ],
+                        },
+                    ],
+                ),
+                Record {
+                    name: "@module0:$generic_$module0_Box_1",
+                    fields: [
+                        (
+                            "value",
+                            Record {
+                                name: "@module0:$generic_$module0_Box_0",
+                                fields: [
+                                    (
+                                        "value",
+                                        I32,
+                                    ),
+                                ],
+                            },
+                        ),
+                    ],
+                },
+                Record {
+                    name: "@module0:$generic_$module0_Box_0",
+                    fields: [
+                        (
+                            "value",
+                            I32,
+                        ),
+                    ],
+                },
+                I32,
+                I32,
+                I32,
+                I32,
+            ],
+            blocks: [
+                BasicBlock {
+                    id: BlockId(
+                        0,
+                    ),
+                    instructions: [
+                        Instruction {
+                            result: None,
+                            kind: ScopeEnter {
+                                scope: ScopeId(
+                                    0,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 62,
+                                end: 187,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeEnter {
+                                scope: ScopeId(
+                                    1,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 76,
+                                end: 187,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeEnter {
+                                scope: ScopeId(
+                                    2,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 83,
+                                end: 125,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeEnter {
+                                scope: ScopeId(
+                                    3,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 105,
+                                end: 124,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    0,
+                                ),
+                            ),
+                            kind: Constant(
+                                I32(
+                                    7,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 122,
+                                end: 123,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: StorageLive(
+                                LocalId(
+                                    0,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 122,
+                                end: 123,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: Store {
+                                local: LocalId(
+                                    0,
+                                ),
+                                value: ValueId(
+                                    0,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 122,
+                                end: 123,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    1,
+                                ),
+                            ),
+                            kind: Load(
+                                LocalId(
+                                    0,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 116,
+                                end: 123,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    2,
+                                ),
+                            ),
+                            kind: MakeAggregate {
+                                fields: [
+                                    ValueId(
+                                        1,
+                                    ),
+                                ],
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 105,
+                                end: 124,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: StorageDead(
+                                LocalId(
+                                    0,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 105,
+                                end: 124,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeExit {
+                                scope: ScopeId(
+                                    3,
+                                ),
+                                kind: Fallthrough,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 105,
+                                end: 124,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: StorageLive(
+                                LocalId(
+                                    1,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 105,
+                                end: 124,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: Store {
+                                local: LocalId(
+                                    1,
+                                ),
+                                value: ValueId(
+                                    2,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 105,
+                                end: 124,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    3,
+                                ),
+                            ),
+                            kind: Load(
+                                LocalId(
+                                    1,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 99,
+                                end: 124,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    4,
+                                ),
+                            ),
+                            kind: MakeAggregate {
+                                fields: [
+                                    ValueId(
+                                        3,
+                                    ),
+                                ],
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 83,
+                                end: 125,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: StorageDead(
+                                LocalId(
+                                    1,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 83,
+                                end: 125,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeExit {
+                                scope: ScopeId(
+                                    2,
+                                ),
+                                kind: Fallthrough,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 83,
+                                end: 125,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: StorageLive(
+                                LocalId(
+                                    2,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 77,
+                                end: 126,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: Store {
+                                local: LocalId(
+                                    2,
+                                ),
+                                value: ValueId(
+                                    4,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 77,
+                                end: 126,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    5,
+                                ),
+                            ),
+                            kind: Load(
+                                LocalId(
+                                    2,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 142,
+                                end: 143,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    6,
+                                ),
+                            ),
+                            kind: Call {
+                                function: FunctionId(
+                                    1,
+                                ),
+                                arguments: [
+                                    ValueId(
+                                        5,
+                                    ),
+                                ],
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 132,
+                                end: 144,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: StorageLive(
+                                LocalId(
+                                    3,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 126,
+                                end: 145,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: Store {
+                                local: LocalId(
+                                    3,
+                                ),
+                                value: ValueId(
+                                    6,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 126,
+                                end: 145,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    7,
+                                ),
+                            ),
+                            kind: Load(
+                                LocalId(
+                                    3,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 152,
+                                end: 153,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    8,
+                                ),
+                            ),
+                            kind: ExtractField {
+                                aggregate: ValueId(
+                                    7,
+                                ),
+                                index: 0,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 152,
+                                end: 155,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    9,
+                                ),
+                            ),
+                            kind: ExtractField {
+                                aggregate: ValueId(
+                                    8,
+                                ),
+                                index: 0,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 152,
+                                end: 161,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    10,
+                                ),
+                            ),
+                            kind: ExtractField {
+                                aggregate: ValueId(
+                                    9,
+                                ),
+                                index: 0,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 152,
+                                end: 167,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    11,
+                                ),
+                            ),
+                            kind: Load(
+                                LocalId(
+                                    3,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 168,
+                                end: 169,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    12,
+                                ),
+                            ),
+                            kind: ExtractField {
+                                aggregate: ValueId(
+                                    11,
+                                ),
+                                index: 1,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 168,
+                                end: 171,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    13,
+                                ),
+                            ),
+                            kind: ExtractField {
+                                aggregate: ValueId(
+                                    12,
+                                ),
+                                index: 0,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 168,
+                                end: 177,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    14,
+                                ),
+                            ),
+                            kind: ExtractField {
+                                aggregate: ValueId(
+                                    13,
+                                ),
+                                index: 0,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 168,
+                                end: 183,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    15,
+                                ),
+                            ),
+                            kind: Binary {
+                                op: Add,
+                                left: ValueId(
+                                    10,
+                                ),
+                                right: ValueId(
+                                    14,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 152,
+                                end: 183,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    16,
+                                ),
+                            ),
+                            kind: Constant(
+                                I32(
+                                    14,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 184,
+                                end: 186,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    17,
+                                ),
+                            ),
+                            kind: Binary {
+                                op: Subtract,
+                                left: ValueId(
+                                    15,
+                                ),
+                                right: ValueId(
+                                    16,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 152,
+                                end: 186,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: StorageDead(
+                                LocalId(
+                                    3,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 145,
+                                end: 186,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: StorageDead(
+                                LocalId(
+                                    2,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 145,
+                                end: 186,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeExit {
+                                scope: ScopeId(
+                                    1,
+                                ),
+                                kind: Return,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 145,
+                                end: 186,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeExit {
+                                scope: ScopeId(
+                                    0,
+                                ),
+                                kind: Return,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 145,
+                                end: 186,
+                            },
+                        },
+                    ],
+                    terminator: Return(
+                        Some(
+                            ValueId(
+                                17,
+                            ),
+                        ),
+                    ),
+                },
+            ],
+            entry: BlockId(
+                0,
+            ),
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 62,
+                end: 187,
+            },
+        },
+        TypedFunction {
+            callable_return_contract: None,
+            callable_contract: None,
+            id: FunctionId(
+                1,
+            ),
+            name: "$generic_$module0_duplicate_2",
+            foreign: None,
+            environment: None,
+            parameters: [
+                LocalId(
+                    0,
+                ),
+            ],
+            return_type: Tuple(
+                [
+                    Record {
+                        name: "@module0:$generic_$module0_Box_1",
+                        fields: [
+                            (
+                                "value",
+                                Record {
+                                    name: "@module0:$generic_$module0_Box_0",
+                                    fields: [
+                                        (
+                                            "value",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ],
+                    },
+                    Record {
+                        name: "@module0:$generic_$module0_Box_1",
+                        fields: [
+                            (
+                                "value",
+                                Record {
+                                    name: "@module0:$generic_$module0_Box_0",
+                                    fields: [
+                                        (
+                                            "value",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ],
+                    },
+                ],
+            ),
+            result_mode: Infer,
+            locals: [
+                LocalDecl {
+                    id: LocalId(
+                        0,
+                    ),
+                    name: "x",
+                    ty: Record {
+                        name: "@module0:$generic_$module0_Box_1",
+                        fields: [
+                            (
+                                "value",
+                                Record {
+                                    name: "@module0:$generic_$module0_Box_0",
+                                    fields: [
+                                        (
+                                            "value",
+                                            I32,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ],
+                    },
+                    mutable: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 43,
+                        end: 46,
+                    },
+                },
+            ],
+            values: [
+                Record {
+                    name: "@module0:$generic_$module0_Box_1",
+                    fields: [
+                        (
+                            "value",
+                            Record {
+                                name: "@module0:$generic_$module0_Box_0",
+                                fields: [
+                                    (
+                                        "value",
+                                        I32,
+                                    ),
+                                ],
+                            },
+                        ),
+                    ],
+                },
+                Record {
+                    name: "@module0:$generic_$module0_Box_1",
+                    fields: [
+                        (
+                            "value",
+                            Record {
+                                name: "@module0:$generic_$module0_Box_0",
+                                fields: [
+                                    (
+                                        "value",
+                                        I32,
+                                    ),
+                                ],
+                            },
+                        ),
+                    ],
+                },
+                Tuple(
+                    [
+                        Record {
+                            name: "@module0:$generic_$module0_Box_1",
+                            fields: [
+                                (
+                                    "value",
+                                    Record {
+                                        name: "@module0:$generic_$module0_Box_0",
+                                        fields: [
+                                            (
+                                                "value",
+                                                I32,
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            ],
+                        },
+                        Record {
+                            name: "@module0:$generic_$module0_Box_1",
+                            fields: [
+                                (
+                                    "value",
+                                    Record {
+                                        name: "@module0:$generic_$module0_Box_0",
+                                        fields: [
+                                            (
+                                                "value",
+                                                I32,
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            ],
+                        },
+                    ],
+                ),
+            ],
+            blocks: [
+                BasicBlock {
+                    id: BlockId(
+                        0,
+                    ),
+                    instructions: [
+                        Instruction {
+                            result: None,
+                            kind: ScopeEnter {
+                                scope: ScopeId(
+                                    0,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 22,
+                                end: 62,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeEnter {
+                                scope: ScopeId(
+                                    1,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 56,
+                                end: 61,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    0,
+                                ),
+                            ),
+                            kind: Load(
+                                LocalId(
+                                    0,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 57,
+                                end: 58,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    1,
+                                ),
+                            ),
+                            kind: Load(
+                                LocalId(
+                                    0,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 59,
+                                end: 60,
+                            },
+                        },
+                        Instruction {
+                            result: Some(
+                                ValueId(
+                                    2,
+                                ),
+                            ),
+                            kind: MakeAggregate {
+                                fields: [
+                                    ValueId(
+                                        0,
+                                    ),
+                                    ValueId(
+                                        1,
+                                    ),
+                                ],
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 56,
+                                end: 61,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeExit {
+                                scope: ScopeId(
+                                    1,
+                                ),
+                                kind: Return,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 56,
+                                end: 61,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: StorageDead(
+                                LocalId(
+                                    0,
+                                ),
+                            ),
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 56,
+                                end: 61,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeExit {
+                                scope: ScopeId(
+                                    0,
+                                ),
+                                kind: Return,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 56,
+                                end: 61,
+                            },
+                        },
+                    ],
+                    terminator: Return(
+                        Some(
+                            ValueId(
+                                2,
+                            ),
+                        ),
+                    ),
+                },
+            ],
+            entry: BlockId(
+                0,
+            ),
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 22,
+                end: 62,
+            },
+        },
+    ],
+    closures: [],
+    resources: [],
+    layouts: [
+        ScalarLayout {
+            ty: Unit,
+            size: 0,
+            alignment: 1,
+        },
+        ScalarLayout {
+            ty: Bool,
+            size: 1,
+            alignment: 1,
+        },
+        ScalarLayout {
+            ty: I32,
+            size: 4,
+            alignment: 4,
+        },
+        ScalarLayout {
+            ty: I64,
+            size: 8,
+            alignment: 8,
+        },
+        ScalarLayout {
+            ty: U8,
+            size: 1,
+            alignment: 1,
+        },
+        ScalarLayout {
+            ty: U16,
+            size: 2,
+            alignment: 2,
+        },
+        ScalarLayout {
+            ty: ForeignHandle,
+            size: 8,
+            alignment: 8,
+        },
+        ScalarLayout {
+            ty: CWideString,
+            size: 8,
+            alignment: 8,
+        },
+    ],
+}

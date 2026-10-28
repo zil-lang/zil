@@ -1,0 +1,1 @@
+fn read<T:Copy,F:Fn()->T>(f:&F)->T=>f();fn main()->i32{let f=move()=>7;let n:i32=read(&f);return n-7}

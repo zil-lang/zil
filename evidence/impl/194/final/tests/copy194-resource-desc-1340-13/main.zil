@@ -1,0 +1,1 @@
+fn id<T:Copy>(x:T)->T=>x;resource R{n:i32}fn main(){let r=R{n:7};id(r)}

@@ -1,0 +1,116 @@
+{
+  "kind": "new-root-boundary-observation",
+  "source_commit": "4e719ced32b67c130d1645005cf3ac7289b2bb69",
+  "cli_sha256": "ccf9110c52de7e181361b7faa5a87e0d16184068b5fd7400d380d458ac0df15c",
+  "executed": 6,
+  "native_executed": 0,
+  "rows": [
+    {
+      "name": "box-control-unbounded",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "box-copy-id",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy bound requires a finite nonrecursive layout",
+          "span": {
+            "file": 0,
+            "start": 20,
+            "end": 21
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "box-copy-duplicate",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy bound requires a finite nonrecursive layout",
+          "span": {
+            "file": 0,
+            "start": 20,
+            "end": 21
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "box-callable-extra",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "Copy bound requires a finite nonrecursive layout",
+          "span": {
+            "file": 0,
+            "start": 20,
+            "end": 21
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "closure-is-not-copy-data",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic argument cannot be inferred; use explicit ::<...>",
+          "span": {
+            "file": 0,
+            "start": 70,
+            "end": 75
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "opaque-is-not-copy-data",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this generic type argument needs additional type resolution",
+          "span": {
+            "file": 0,
+            "start": 36,
+            "end": 50
+          },
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

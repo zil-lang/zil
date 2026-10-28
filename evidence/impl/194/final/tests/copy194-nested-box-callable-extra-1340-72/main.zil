@@ -1,0 +1,1 @@
+struct Box<T>{value:T}fn keep<T:Copy,F:Fn()->i32>(f:&F,x:T)->T{f();return x}fn main()->i32{let f=move()=>1;let x=Box::<Box<i32>>{value:Box::<i32>{value:7}};let y=keep(&f,x);return y.value.value-7}

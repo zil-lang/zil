@@ -1,0 +1,20 @@
+
+running 15 tests
+test multiple_roles_unbounded_data_mixed_modes_and_recursion_remain_closed ... ok
+test copy_bound_does_not_admit_other_categories_or_resource_descriptions ... ok
+test explicit_result_context_can_select_copy_data_without_guessing_from_closure_layout ... ok
+test four_module_instantiation_retains_definition_and_nominal_types ... ok
+test nested_symbolic_copy_constraints_and_complete_callable_bound_are_substituted ... ok
+test borrowed_lending_windows_are_not_extended_by_copy_data ... ok
+test mutable_and_consuming_environments_keep_their_real_cleanup ... ok
+test same_closure_extra_data_does_not_erase_width_or_nominal_identity ... ok
+test uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities ... ok
+test ordinary_copy_bound_duplicates_only_its_declared_structural_values ... ok
+test copy_error_results_and_early_returns_keep_environment_and_local_cleanup_order ... ok
+test original_audit_map_and_reordered_parameters_reach_native ... ok
+test explicit_copy_addresses_and_current_capture_conflicts_use_existing_permissions ... ok
+test same_mode_finite_and_flow_nesting_preserves_copy_loop_state ... ok
+test record_enum_tuple_array_error_and_function_pointer_are_real_copy_shapes ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.62s
+

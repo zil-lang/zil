@@ -1,0 +1,1 @@
+fn id<T:Copy>(x:T)->T=>x;resource R{n:i32}package P{manages r:R}fn main(){id(P{r:R{n:7}})}
