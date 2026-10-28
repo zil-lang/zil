@@ -33,7 +33,7 @@ pub(super) fn definitions(
                 .teardown
                 .as_ref()
                 .map(|name| {
-                    signatures.get(name).map(|s| s.id).ok_or_else(|| {
+                    signatures.get(name).and_then(|s| s.id).ok_or_else(|| {
                         error("E-DROP-BINDING", a.span, "resource teardown is absent")
                     })
                 })
