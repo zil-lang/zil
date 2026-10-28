@@ -1,0 +1,14 @@
+{
+  "status": "Pass",
+  "source_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+  "counts": {
+    "passed": 2615,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 266
+  },
+  "seconds": 184.6501214504242,
+  "source_end_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+  "git_status_at_collection": "",
+  "overlapping_tests_not_added_to_author_or_reviewer_counts": true
+}

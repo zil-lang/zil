@@ -1,0 +1,243 @@
+{
+  "status": "Pass",
+  "scope": "206 ordinary finite complete recursive Package Product, independent actual per-leaf provenance and exact recursive cleanup; not full1.4 acceptance",
+  "source_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+  "source_clean": true,
+  "integration_merge": "7d446d883a7618d302b691d25e10e93c0295326f",
+  "production_input_count": 182,
+  "compiler_input_sha256_equal_to_frozen_cli": true,
+  "post_test_changes": "Compact receipts, documentation and task metadata only. Compiler, Rust tests, ZIL consumer sources and frozen oracle equal the tested source.",
+  "spec_hash": "f26a0d8701b9a00a38286f486b7bcae1b96cf1d9254add7c48d395bb3e6ccbc3",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "schema_version": 27,
+  "wire_version": 27,
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--no-fail-fast"
+  ],
+  "passed": 2615,
+  "failed": 0,
+  "ignored": 0,
+  "test_result_groups": 266,
+  "duration_seconds": 184.6501214504242,
+  "stdout_log_sha256": "3a7c611b369d4b0f70a00747e6a379674393c24bb60f64d59eb93dd3d561cc79",
+  "stderr_log_sha256": "30f6fd878dee8a0348f8b7230a82e7a2d401226ce7bab725a6cbb3a64507a135",
+  "clippy": {
+    "status": "Pass",
+    "source_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+    "command": [
+      "cargo",
+      "clippy",
+      "--workspace",
+      "--all-targets",
+      "--offline",
+      "--locked",
+      "-j2",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "receipt": "run-logs/206-root/clippy-final01/command.json",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "659f32d1d1603218959752fd7da9cbaca67e444b71af10bfdc6f408eabd433e0"
+  },
+  "compiler": {
+    "source_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+    "git_status": "",
+    "binary_path": "/tmp/zil206-cli-3bc6fc0a23aee0058ebd25fb941d9110d9432252fcf5ba1d302a8e457990a491",
+    "bytes": 28941608,
+    "sha256": "3bc6fc0a23aee0058ebd25fb941d9110d9432252fcf5ba1d302a8e457990a491"
+  },
+  "host_test_environment": {
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "optimization": "unoptimized/debug0",
+    "scope": "Same symbol-only host-test profile as workspace01; no changed language oracle, source, default limit or performance claim."
+  },
+  "independent_review": {
+    "reviewer": "/root/review205_finish",
+    "verdict": "Pass",
+    "implementation_commit": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+    "review_commit": "6bc19f7af0efb93d5c51ace7237d6f77de6f6aea",
+    "receipt": "evidence/reviews/206/by197/REVIEW.json",
+    "identity": "evidence/reviews/206/by197/FINAL_IDENTITY.json",
+    "original_source03_tests": [
+      45,
+      0
+    ],
+    "source04_with_capture_tests": [
+      46,
+      0
+    ],
+    "source04_native": 12,
+    "exact_capture02_tests": [
+      1,
+      0
+    ],
+    "clean_legacy02_functions": [
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        0
+      ]
+    ],
+    "overlapping_counts_not_added": true
+  },
+  "consumers": [
+    {
+      "role": "author-linux",
+      "summary": "run-logs/206-consumer-final/linux02/summary.json",
+      "bytes": 55267,
+      "sha256": "a84eaec06e4ee82248f35af911ab67a0e26cc80f414155605c2e3a601fd389c5",
+      "execution_source": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+      "compiler_source": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+      "executions": 94,
+      "actual_allocation_failures": 42,
+      "live_values": [
+        0
+      ],
+      "peak_live": 4,
+      "peak_bytes": 80,
+      "bad_operations": 0
+    },
+    {
+      "role": "author-wine",
+      "summary": "run-logs/206-consumer-final/wine02/summary.json",
+      "bytes": 58031,
+      "sha256": "217ecd9ab328065c9a83f3a386b4dd7184b040d317cdeddb7bc4b8bec9531361",
+      "execution_source": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+      "compiler_source": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+      "executions": 94,
+      "actual_allocation_failures": 42,
+      "live_values": [
+        0
+      ],
+      "peak_live": 4,
+      "peak_bytes": 80,
+      "bad_operations": 0
+    },
+    {
+      "role": "independent-linux",
+      "summary": "run-logs/206-review-final/linux01/summary.json",
+      "bytes": 55517,
+      "sha256": "b6e37ea1ff6a381bc4fbd648b18820033b85bdb732655cc78164b0cdf4a6a16c",
+      "execution_source": "0a19cf525cdc61fc1b02cc1486aa23238f53f818",
+      "compiler_source": "bf44fb1e73889f03e6b48cc87a38475f20b626e6",
+      "executions": 94,
+      "actual_allocation_failures": 42,
+      "live_values": [
+        0
+      ],
+      "peak_live": 4,
+      "peak_bytes": 80,
+      "bad_operations": 0
+    }
+  ],
+  "consumer_oracle_sha256": "956e2142fc79cd4ea0431c5cfecdaa8d54d47072873795e88a3c8d1df929ec6d",
+  "consumer_source_manifest_sha256": "e691a94f6fa9ee451dee11225a45437c3aed328d9c2ebf5c8b46ce30da9e123a",
+  "consumer_fixture_correction": "Only two parentheses around original multiline leaf.checked condition; original parse failure and unchanged semantic oracle preserved.",
+  "budgets": {
+    "old_flat186": {
+      "Types": 418,
+      "Analyze": 8673,
+      "Verify": 10398,
+      "original205_comparison": "Actual frozen205 source run for Types/Analyze, original205 archived Verify boundary plus unchanged old test/source byte proof"
+    },
+    "new_profiles": {
+      "Types": [
+        753,
+        796,
+        752
+      ],
+      "Analyze": [
+        21120,
+        27114,
+        26951
+      ],
+      "Verify": [
+        27075,
+        33259,
+        31077
+      ]
+    },
+    "method": "Each named input default==N==fresh N; N-1 ResourceLimit. Default Limits unchanged. Not a compile-speed comparison."
+  },
+  "resolved_defects": [
+    {
+      "kind": "Analyze raw Address<Product> admission",
+      "production": "c628 ancestor, final 7b2b1f58a5b9d14a027f67ec746eb375328dc94f",
+      "proof": "Original false acceptance and unchanged hostile raw retained; independent type/context checks added."
+    },
+    {
+      "kind": "Unused resource payload containing Product",
+      "production": "e411 ancestor, final 7b2b1f58a5b9d14a027f67ec746eb375328dc94f",
+      "proof": "Original false acceptance retained; resource-head owning qualification distinct from ordinary function signature."
+    },
+    {
+      "kind": "Independent Verify local capture admitted ordinary Product",
+      "production": "dad01e8698ebfd2f18132f5cf94ce60990c169bd",
+      "original_reproduction": "daeec6a659c2a3c91fbe9ed167d7ace70dad84c6 capture01 0/1 Fail",
+      "raw_wire_bytes": 1807,
+      "raw_wire_sha256": "76db02eb3ff7e5102e46a5c82039fadaa2a5ece307b89de17380898d5a0a3067",
+      "repair": "Old dedicated capture qualification restored. Identical raw/Wire now Verify Unsupported / E-UNSUPPORTED / non-Copy type requires another checker; original flat control remains accepted. No hostile native execution."
+    }
+  ],
+  "legacy_diagnostics": {
+    "report": "changes/206-legacy-diagnostics.md",
+    "review": "evidence/reviews/206/by197/MIGRATION_REVIEW01.json",
+    "cases": [
+      {
+        "case": "impl201_store::fields_require_direct_finite_shape_and_complete_resources hiddenNested only",
+        "input_bytes": 9707,
+        "input_sha256": "da733544f4e37f7e3beceb078cea6d2238a359ccbb2cb6109126b17699d21060",
+        "new_diagnostic": "Analyze Unsupported: ordinary Package Product is not a Store element profile",
+        "old_and_new_raw_byte_identity": "Direct archived205/current comparison"
+      },
+      {
+        "case": "package_tests::package_fields_reject_noncopy_and_nested_owners extra=package() only",
+        "new_diagnostic": "Verify SafeReject / E-VERIFY-TYPE / stored value does not match local type",
+        "original_input_proof": "Exact old test constructors unchanged; old unit did not serialize raw, so no fabricated byte archive claim."
+      }
+    ],
+    "other_neighbors": "Unchanged; no blanket diagnostic broadening."
+  },
+  "prior_full_run": {
+    "status": "Fail",
+    "source_commit": "d078f9e2cc5902167e78a5cb815638f9d05a2095",
+    "counts": {
+      "passed": 2612,
+      "failed": 2,
+      "ignored": 0,
+      "groups": 265
+    },
+    "seconds": 183.00771474838257,
+    "failure_tests": [
+      "zil_analyze::impl201_store::fields_require_direct_finite_shape_and_complete_resources",
+      "zil_verify::package_tests::package_fields_reject_noncopy_and_nested_owners"
+    ],
+    "source_clean_at_end": true,
+    "not_reclassified": "Original complete full-workspace result remains Fail; no tests skipped or expected diagnostics silently broadened."
+  },
+  "retained_failures": [
+    "Initial root test compilation error, type-alias Clippy correction and misplaced legacy test discriminator compilation error remain original Fail.",
+    "Independent fixture invalid i64 syntax/old exact phase mismatch and missing LD_LIBRARY_PATH native linking failures remain original Fail.",
+    "Original consumer parse failure retained; original semantic oracle unchanged.",
+    "Wine startup with long TMPDIR failed equally for same206 and old205 executable; four controlled commands retained. Unset TMPDIR succeeds, not a compiler repair.",
+    "Temporary transfer directories caused two final author clean-preflight failures before native; clean detached bf44 checkout succeeded. Dirty-status reviewer legacy01 Pass and collector Fail retained; clean legacy02 exact functions separately passed."
+  ],
+  "evidence_delivery": "Source Git carries code/tests/tools/docs/compact receipts. Full source/raw/Wire/IR/output/command evidence is delivered separately as 206-all-components-evidence-compact.tar.xz, with exact transport identity in its companion JSON; executable products and Cargo cache are excluded.",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "formal_draft_product_pipeline": "NotRun",
+  "compiler_speed_claim": "None; separate user workstream",
+  "remaining_priority": "207 complete Product owned captures and persistent concrete environments, including genuine default whole/give inference; broader1.4 obligations retained."
+}
