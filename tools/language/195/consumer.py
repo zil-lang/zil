@@ -104,7 +104,7 @@ def main():
             if len(compiled["source_files"]) != 4:
                 raise RuntimeError("consumer did not load all four actual modules")
             typed = (phases / "typed.txt").read_text()
-            if any(marker not in typed for marker in ("traces: Flow(", "traces: Finite(", "kind: Break", "kind: Continue"))):
+            if any(marker not in typed for marker in ("traces: Flow(", "traces: Finite(", "kind: Break", "kind: Continue")):
                 raise RuntimeError("actual Flow/Finite contracts and control cleanup are required")
             report["builds"].append({"optimization": opt, "verification_runs": 1, "module_count": 4,
                                       "flow_and_finite_contracts": True, "actual_break_continue_cleanup": True,
