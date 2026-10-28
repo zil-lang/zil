@@ -38,7 +38,7 @@ impl Signature {
     pub(super) fn foreign_callback_type(&self) -> Option<Type> {
         if self.foreign
             || self.cleanup
-            || self.callable.is_some()
+            || !self.callable.is_empty()
             || self.callable_return.is_some()
             || self.template.is_some()
             || self.receiver.is_some()

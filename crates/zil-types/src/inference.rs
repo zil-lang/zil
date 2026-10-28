@@ -85,7 +85,7 @@ pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> 
         validate_type(&parameter.ty, 0, parameter.span, &mut budget)?;
     }
     validate_type(&function.return_type, 0, function.span, &mut budget)?;
-    if let Some(bound) = &function.callable_parameter {
+    for bound in &function.callable_parameters {
         callable_snapshot(bound, function.span, &mut budget)?;
     }
     if let Some(bound) = &function.callable_return {
@@ -110,7 +110,7 @@ pub(super) fn signature_snapshot_work(
     if let Some(ty) = &signature.receiver {
         validate_type(ty, 0, span, &mut budget)?;
     }
-    if let Some(bound) = &signature.callable {
+    for bound in &signature.callable {
         callable_snapshot(bound, span, &mut budget)?;
     }
     if let Some(bound) = &signature.callable_return {
@@ -399,7 +399,7 @@ fn headers(
                     Some(function.span),
                 )
             })?;
-        if let Some(bound) = &function.callable_parameter {
+        for bound in &function.callable_parameters {
             budget.work(
                 bound
                     .generic_name
@@ -429,12 +429,10 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
-                callable: function.callable_parameter.clone(),
+                callable: function.callable_parameters.clone(),
                 callable_return: function.callable_return.clone(),
-                template: function
-                    .callable_parameter
-                    .as_ref()
-                    .map(|_| (core.module_id, function.id)),
+                template: (!function.callable_parameters.is_empty())
+                    .then_some((core.module_id, function.id)),
                 foreign: function.foreign.is_some(),
                 cleanup: core
                     .aggregates
@@ -628,8 +626,8 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             !admitted(ty)
                 && !signature
                     .callable
-                    .as_ref()
-                    .is_some_and(|bound| bound.index as usize == index)
+                    .iter()
+                    .any(|bound| bound.index as usize == index)
         })
     {
         return Err(unsupported(
@@ -641,7 +639,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
     for parameter in &signature.parameters {
         validate_type(parameter, 0, span, budget)?;
     }
-    if let Some(bound) = &signature.callable {
+    for bound in &signature.callable {
         callable_snapshot(bound, span, budget)?;
     }
     if let Some(bound) = &signature.callable_return {
@@ -899,7 +897,7 @@ struct Solver<'a, 'b, 'c> {
     // when its hidden environment is forwarded by another factory.
     factory_terms: BTreeMap<FunctionId, usize>,
     ordinary_return_identity: Option<usize>,
-    helper_environment: Option<(String, usize)>,
+    helper_environments: BTreeMap<String, usize>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     enums: &'a BTreeMap<String, Type>,
@@ -942,7 +940,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             ordinary_callable_return: function.callable_return.clone(),
             factory_terms: BTreeMap::new(),
             ordinary_return_identity: None,
-            helper_environment: None,
+            helper_environments: BTreeMap::new(),
             signatures,
             imports,
             enums,
@@ -956,9 +954,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         };
         for (index, parameter) in function.parameters.iter().enumerate() {
             let term = if let Some(bound) = function
-                .callable_parameter
-                .as_ref()
-                .filter(|bound| bound.index as usize == index)
+                .callable_parameters
+                .iter()
+                .find(|bound| bound.index as usize == index)
             {
                 let ty = Type::Opaque {
                     identity: function.id,
@@ -967,10 +965,18 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         result: Box::new(bound.result.clone()),
                     }),
                 };
-                let Term::Closure(id) = this.known_term(&ty, parameter.span)? else {
-                    unreachable!()
+                let id = if let Some(id) = this.helper_environments.get(&bound.generic_name) {
+                    *id
+                } else {
+                    let Term::Closure(id) = this.known_term(&ty, parameter.span)? else {
+                        unreachable!()
+                    };
+                    this.budget
+                        .work(bound.generic_name.len().saturating_add(1), parameter.span)?;
+                    this.helper_environments
+                        .insert(bound.generic_name.clone(), id);
+                    id
                 };
-                this.helper_environment = Some((bound.generic_name.clone(), id));
                 if callable_fields::placeholder_package(&parameter.ty, &bound.generic_name) {
                     this.state_term(&parameter.ty, &bound.generic_name, id, parameter.span)?
                 } else {
@@ -1044,11 +1050,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
 
     fn known_term(&mut self, ty: &Type, span: Span) -> R<Term> {
-        if let Some((name, id)) = self.helper_environment.clone() {
-            if matches!(ty,Type::Named(n) if n==&name) {
-                return Ok(Term::Closure(id));
+        for (name, id) in &self.helper_environments {
+            if matches!(ty,Type::Named(n) if n==name) {
+                return Ok(Term::Closure(*id));
             }
-            if callable_fields::placeholder_package(ty, &name) {
+            if callable_fields::placeholder_package(ty, name) {
+                let (name, id) = (name.clone(), *id);
                 return self.state_term(ty, &name, id, span);
             }
         }
@@ -1215,10 +1222,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
-        if let Some((name, _)) = &self.helper_environment
-            && (matches!(ty,Type::Named(n) if n==name)
-                || callable_fields::placeholder_package(ty, name))
-        {
+        if self.helper_environments.keys().any(|name| {
+            matches!(ty,Type::Named(n) if n==name) || callable_fields::placeholder_package(ty, name)
+        }) {
             let expected = self.known_term(ty, span)?;
             return self.unify(term, &expected, span);
         }
@@ -2256,8 +2262,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         {
                             if let Some(bound) = signature
                                 .callable
-                                .as_ref()
-                                .filter(|bound| bound.index as usize == index + 1)
+                                .iter()
+                                .find(|bound| bound.index as usize == index + 1)
                             {
                                 state_environment = Some(self.bind_callable_argument(
                                     argument,
@@ -2272,7 +2278,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             }
                         }
                         if let (Some(environment), Some(bound)) =
-                            (state_environment, signature.callable.as_ref())
+                            (state_environment, signature.callable.first())
                             && callable_fields::placeholder_package(
                                 &signature.result,
                                 &bound.generic_name,
@@ -2311,8 +2317,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         {
                             if let Some(bound) = signature
                                 .callable
-                                .as_ref()
-                                .filter(|b| b.index as usize == index)
+                                .iter()
+                                .find(|b| b.index as usize == index)
                             {
                                 state_environment = Some(self.bind_callable_argument(
                                     argument,
@@ -2327,7 +2333,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             }
                         }
                         if let (Some(environment), Some(bound)) =
-                            (state_environment, signature.callable.as_ref())
+                            (state_environment, signature.callable.first())
                             && callable_fields::placeholder_package(
                                 &signature.result,
                                 &bound.generic_name,

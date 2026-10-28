@@ -450,7 +450,7 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
     };
     if function.foreign.is_some()
         || function.receiver.is_some()
-        || function.callable_parameter.is_some()
+        || !function.callable_parameters.is_empty()
         || function.result_mode != PassingMode::Infer
         || bound.kind == CallableKind::FunctionPointer
         || !closures::supported_signature(&bound.parameters, &bound.result)
