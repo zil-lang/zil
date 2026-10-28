@@ -76,9 +76,20 @@ fn flow(module: &mut TypedModule) -> &mut CallableFlow {
 fn reject(
     label: &str,
     module: TypedModule,
+    candidate: CandidatePlan,
+    category: ResultCategory,
+    code: &str,
+) {
+    reject_with_analyze_category(label, module, candidate, category, code, category);
+}
+
+fn reject_with_analyze_category(
+    label: &str,
+    module: TypedModule,
     mut candidate: CandidatePlan,
     category: ResultCategory,
     code: &str,
+    analyze_category: ResultCategory,
 ) {
     candidate.module_fingerprint = module.fingerprint();
     let bytes =
@@ -112,7 +123,7 @@ fn reject(
     assert!(
         diagnostics
             .iter()
-            .any(|d| d.phase == Phase::Analyze && d.category == category),
+            .any(|d| d.phase == Phase::Analyze && d.category == analyze_category),
         "{label} Analyze: {diagnostics:?}"
     );
 }
@@ -571,12 +582,16 @@ fn main()->i32{let f=make(4);return run(&f,3)-12}
         function.values[other.0 as usize]
     );
     arguments[0] = other;
-    reject(
+    // Schema25 Analyze detects the actual borrowed local factory origin before
+    // comparing traces. This remains outside the finite forwarding profile.
+    // Independent raw/Wire Verify still rejects the forged public contract.
+    reject_with_analyze_category(
         "same-closure-id-on-loop",
         module,
         candidate,
         ResultCategory::SafeReject,
         "E-VERIFY-CALLABLE-CONTRACT",
+        ResultCategory::Unsupported,
     );
 }
 

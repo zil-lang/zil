@@ -522,18 +522,38 @@ fn uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities() 
 }
 
 #[test]
-fn multiple_roles_unbounded_data_mixed_modes_and_recursion_remain_closed() {
+fn newly_opened_two_roles_keep_original_definitions_and_exercise_actual_calls() {
+    // The original unused definitions are kept byte-for-byte. Their success
+    // alone is not runtime evidence, so actual invocation controls follow.
+    accepted(
+        "two-role",
+        "fn twice<F:Fn()->i32>(a:&F,b:&F)->i32=>a()+b();fn main(){}",
+    );
+    accepted(
+        "two-callable",
+        "fn both<F:Fn()->i32,G:Fn()->i32>(f:&F,g:&G)->i32=>f()+g();fn main(){}",
+    );
+    native(
+        "two-role-invoked",
+        &[(
+            "main",
+            "fn twice<F:Fn()->i32>(a:&F,b:&F)->i32=>a()+b();fn make(n:i32)->impl Fn()->i32{return move()=>n};fn main()->i32{let a=make(3);let b=make(4);return twice(&a,&b)-7}",
+        )],
+        "",
+    );
+    native(
+        "two-callable-invoked",
+        &[(
+            "main",
+            "fn both<F:Fn()->i32,G:Fn()->i32>(f:&F,g:&G)->i32=>f()+g();fn main()->i32{let f=move()=>3;let g=move()=>4;return both(&f,&g)-7}",
+        )],
+        "",
+    );
+}
+
+#[test]
+fn unbounded_data_mixed_modes_and_recursion_remain_closed() {
     for (name, text, message) in [
-        (
-            "two-role",
-            "fn twice<F:Fn()->i32>(a:&F,b:&F)->i32=>a()+b();fn main(){}",
-            "must occur once",
-        ),
-        (
-            "two-callable",
-            "fn both<F:Fn()->i32,G:Fn()->i32>(f:&F,g:&G)->i32=>f()+g();fn main(){}",
-            "one callable",
-        ),
         (
             "unbounded",
             "fn map<T,F:Fn(T)->T>(f:&F,x:T)->T=>f(x);fn main(){}",

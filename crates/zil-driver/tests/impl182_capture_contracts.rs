@@ -242,7 +242,7 @@ fn original_probes_keep_inputs_and_remove_the_unrelated_head_switch() {
         ),
         ResultCategory::Unsupported,
         Phase::Types,
-        "one finite Copy callable signature",
+        "one or two finite nonescaping callable roles with Copy results",
     );
 }
 
