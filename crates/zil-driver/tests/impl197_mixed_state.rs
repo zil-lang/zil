@@ -477,25 +477,9 @@ var current=state;var i=0;while i<count{i+=1;if i==2{continue}current.callback(&
 fn factory()->impl FnMut(&mut i32)->i32{var hits=0;return move(value:&mut i32)=>{hits+=1;*value+=1;return *value}}
 fn main()->i32{return spin(pack(factory(),10),7)-13}
 "#;
-    let case = Case::new("direct-field-take-loop");
-    let report = compile(&case, &[("main", direct)], None);
-    assert_eq!(
-        report.status,
-        ResultCategory::SafeReject,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("package field take")),
-        "{}",
-        report.to_json()
-    );
-    // A direct field read takes its non-Copy environment. Repeated calls use
-    // the explicit field-address protocol already supported by 192.
+    // 199 preserves the real field for direct Fn/FnMut invocation. The
+    // original 197 input and the explicit sibling-borrow control both run.
+    native("state-loop-direct-place", &[("main", direct)], "");
     let borrowed = direct.replace(
         "current.callback(&mut current.value);",
         "let callback=&mut current.callback;let value=&mut current.value;callback(value);",

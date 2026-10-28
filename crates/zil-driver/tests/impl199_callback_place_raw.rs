@@ -275,7 +275,7 @@ fn stale_field_address_and_retargeted_dead_parent_are_rejected() {
         &source,
         module,
         plan,
-        Some("E-VERIFY-RESOURCE"),
+        Some("E-VERIFY-INITIALIZATION"),
     );
 }
 
@@ -390,6 +390,61 @@ fn generic_modes_are_preserved_when_actual_environment_is_fn() {
         assert_eq!(invoked, 1, "{mode}");
         pair(mode, &source, module, plan, None);
     }
+}
+
+#[test]
+fn actual_last_lending_use_cannot_be_reordered_after_the_next_callee_borrow() {
+    let source = "fn make()->impl FnMut(i32)->&[u8]{let b=bytes_new();return move(n:i32)=>{bytes_reserve(b,bytes_len(b)+1);bytes_push(b,u8(n));return bytes_view(b)}}package State<F>{manages storage:ByteBuffer;callback:F}fn pack<F:FnMut(i32)->&[u8]>(callback:F)->State<F>{return State::<F>{storage:bytes_new(),callback:callback}}fn main()->i32{var state=pack(make());let view=state.callback(7);let value=i32(view[0]);let next=state.callback(value);return i32(next.len())-2}";
+    let (_, original, plan) = candidate(source);
+    pair(
+        "last-lending-control",
+        source,
+        original.clone(),
+        plan.clone(),
+        None,
+    );
+    let mut module = original;
+    let function = main_function(&mut module);
+    let view = LocalId(
+        function
+            .locals
+            .iter()
+            .position(|local| local.name == "view")
+            .unwrap() as u32,
+    );
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::Load(local) if local == view))
+        })
+        .unwrap();
+    let read = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::Load(local) if local == view))
+        .unwrap();
+    let borrow = block
+        .instructions
+        .iter()
+        .enumerate()
+        .filter(|(_, i)| matches!(i.kind, I::BorrowPackageField { .. }))
+        .nth(1)
+        .unwrap()
+        .0;
+    assert!(read < borrow);
+    let instruction = block.instructions.remove(borrow);
+    block.instructions.insert(read, instruction);
+    pair(
+        "callee-before-final-use",
+        source,
+        module,
+        plan,
+        Some("E-BORROW-CONFLICT"),
+    );
 }
 
 #[test]
