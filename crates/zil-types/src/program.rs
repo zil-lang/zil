@@ -52,7 +52,11 @@ pub fn check_program(
             .checked_add(
                 core.functions
                     .iter()
-                    .filter(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
+                    .filter(|f| {
+                        f.callable_parameters.is_empty()
+                            && f.type_parameters.is_empty()
+                            && f.state_parameters.is_empty()
+                    })
                     .count(),
             )
             .filter(|n| *n <= limits.max_functions)
@@ -92,7 +96,11 @@ pub fn check_program(
                 - core
                     .functions
                     .iter()
-                    .filter(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
+                    .filter(|f| {
+                        f.callable_parameters.is_empty()
+                            && f.type_parameters.is_empty()
+                            && f.state_parameters.is_empty()
+                    })
                     .count(),
         ));
     }
@@ -119,10 +127,11 @@ pub fn check_program(
     let mut enum_work = limits.max_analysis_steps;
     let mut visibility = aggregates::Visibility::new(program, limits)?;
     if program.modules.iter().any(|m| {
-        m.core
-            .functions
-            .iter()
-            .any(|f| !(f.callable_parameters.is_empty() && f.type_parameters.is_empty()))
+        m.core.functions.iter().any(|f| {
+            !(f.callable_parameters.is_empty()
+                && f.type_parameters.is_empty()
+                && f.state_parameters.is_empty())
+        })
     }) {
         let mut enum_budget = limits.max_analysis_steps;
         for table in signatures_by_module.values() {
@@ -132,11 +141,11 @@ pub fn check_program(
         closure_state.helper_tables = std::rc::Rc::new(signatures_by_module.clone());
         for module in &program.modules {
             let core = &module.core;
-            if core
-                .functions
-                .iter()
-                .all(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
-            {
+            if core.functions.iter().all(|f| {
+                f.callable_parameters.is_empty()
+                    && f.type_parameters.is_empty()
+                    && f.state_parameters.is_empty()
+            }) {
                 continue;
             }
             let context = std::rc::Rc::new(helpers::Context {
@@ -229,11 +238,11 @@ pub fn check_program(
         let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
         let imports = imports_for(module, &signatures_by_module)?;
         let mut exports = Vec::new();
-        for f in core
-            .functions
-            .iter()
-            .filter(|f| f.callable_parameters.is_empty() && f.type_parameters.is_empty())
-        {
+        for f in core.functions.iter().filter(|f| {
+            f.callable_parameters.is_empty()
+                && f.type_parameters.is_empty()
+                && f.state_parameters.is_empty()
+        }) {
             let signature = &table[&f.name];
             let id = signature.concrete_id(f.span).map_err(|e| vec![e])?;
             let mut typed = if let Some(typed) = factories.remove(&id) {

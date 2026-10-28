@@ -105,3 +105,118 @@ pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests203 {
+    use super::*;
+    use zil_base::{Fingerprint, Limits, ModuleId, ResultCategory, SCHEMA_VERSION, TargetProfile};
+    use zil_ir::{CallableKind, ClosureDefinition, ClosureId, FunctionId};
+
+    // These call the producer's qualification gate directly. The independent
+    // driver suite also submits complete modules to Analyze and Verify.
+    fn fixture() -> (TypedModule, Type) {
+        let closures = (0..2)
+            .map(|id| ClosureDefinition {
+                id: ClosureId(id),
+                function: FunctionId(id),
+                kind: CallableKind::Fn,
+                captures: vec![Type::Managed(Box::new(Type::ByteBuffer))],
+                parameters: vec![],
+                result: Type::I32,
+                lending_captures: vec![],
+            })
+            .collect();
+        let module = TypedModule {
+            schema_version: SCHEMA_VERSION,
+            module_id: ModuleId(0),
+            source_fingerprint: Fingerprint::of(b"203 producer raw qualification"),
+            target: TargetProfile::host_llvm(),
+            functions: vec![],
+            closures,
+            resources: vec![],
+            unsupported: vec![],
+        };
+        let element = Type::Package {
+            name: "State".into(),
+            fields: vec![
+                ("token".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+                ("first".into(), Type::Closure(ClosureId(0))),
+                ("second".into(), Type::Closure(ClosureId(1))),
+            ],
+        };
+        (module, element)
+    }
+    fn check(module: &TypedModule, element: &Type, limits: &Limits) -> CompileResult<()> {
+        callback_element(module, element, &mut Budget::new(limits))
+    }
+
+    #[test]
+    fn impl203_producer_qualifies_each_actual_root_and_each_result() {
+        let (m, element) = fixture();
+        let limits = Limits::default();
+        check(&m, &element, &limits).unwrap();
+        for root in [0, 1] {
+            let mut invalid = m.clone();
+            invalid.closures[root].result = Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            };
+            let errors = check(&invalid, &element, &limits).unwrap_err();
+            assert!(errors[0].message.contains("Copy results for both"));
+        }
+        let store = Type::Managed(Box::new(Type::OwnedStore {
+            element: Box::new(element.clone()),
+        }));
+        for capture in [
+            Type::Desc(Box::new(Type::ByteBuffer)),
+            store.clone(),
+            Type::Package {
+                name: "NestedStore".into(),
+                fields: vec![("items".into(), store)],
+            },
+        ] {
+            let mut invalid = m.clone();
+            invalid.closures[1].captures = vec![capture];
+            let errors = check(&invalid, &element, &limits).unwrap_err();
+            assert_eq!(errors[0].category, ResultCategory::Unsupported);
+        }
+    }
+
+    #[test]
+    fn impl203_producer_two_root_work_has_exact_and_fresh_boundaries() {
+        let (m, element) = fixture();
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let middle = low + (high - low) / 2;
+            let limits = Limits {
+                max_analysis_steps: middle,
+                ..Limits::default()
+            };
+            if check(&m, &element, &limits).is_ok() {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        assert!(low > 0);
+        let exact = Limits {
+            max_analysis_steps: low,
+            ..Limits::default()
+        };
+        for _ in 0..2 {
+            check(&m, &element, &exact).unwrap();
+        }
+        let errors = check(
+            &m,
+            &element,
+            &Limits {
+                max_analysis_steps: low - 1,
+                ..Limits::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+        println!("impl203 producer two-root qualification work={low}");
+    }
+}

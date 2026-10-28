@@ -170,4 +170,60 @@ mod tests {
             assert_eq!(restored.verification_runs, 1);
         }
     }
+
+    #[test]
+    fn editor203_state_declaration_edits_invalidate_even_when_actual_closure_types_stay_equal() {
+        let cases = [
+            include_str!(
+                "../../zil-driver/tests/impl203_fixtures/01_same_factory_distinct_modes.zil"
+            ),
+            include_str!("../../zil-driver/tests/impl203_fixtures/04_mode_cleanup_markers.zil"),
+        ];
+        let options = CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        };
+        let mut editor = EditorSession::new();
+        for original in cases {
+            let source = SourceUnit::new(FileId(0), ModuleId(0), "state203-edit.zil", original);
+            let cli = zil_driver::compile_source(&source, &options);
+            assert_eq!(cli.status, ResultCategory::Success, "{}", cli.to_json());
+            let cold = editor.analyze(&source, &options);
+            assert_eq!(cold.diagnostics, cli.diagnostics);
+            assert_eq!(cold.status, cli.status);
+            assert_eq!(cold.phase, cli.phase);
+            assert_eq!(cold.verification_runs, 1);
+            let warm = editor.analyze(&source, &options);
+            assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+            assert_eq!(warm.verification_runs, 1);
+            assert!(
+                warm.query_events
+                    .iter()
+                    .any(|e| e.disposition == QueryDisposition::Reused)
+            );
+
+            // The factory and both actual ClosureIds are unchanged. Only the
+            // current generic declaration weakens F to a consuming capability;
+            // its second call must be rejected before independent verification.
+            let head = "fn run<T: Copy, F: Fn() -> i32";
+            assert_eq!(original.matches(head).count(), 1);
+            let changed = original.replacen(head, "fn run<T: Copy, F: FnOnce() -> i32", 1);
+            let changed = SourceUnit::new(FileId(0), ModuleId(0), "state203-edit.zil", changed);
+            let cli = zil_driver::compile_source(&changed, &options);
+            assert_eq!(cli.status, ResultCategory::SafeReject, "{}", cli.to_json());
+            let ide = editor.analyze(&changed, &options);
+            assert_eq!(ide.status, cli.status);
+            assert_eq!(ide.phase, cli.phase);
+            assert_eq!(ide.diagnostics, cli.diagnostics);
+            assert_eq!(ide.verification_runs, 0);
+            let restored = editor.analyze(&source, &options);
+            assert_eq!(
+                restored.status,
+                ResultCategory::Success,
+                "{}",
+                restored.to_json()
+            );
+            assert_eq!(restored.verification_runs, 1);
+        }
+    }
 }
