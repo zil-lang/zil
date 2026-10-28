@@ -1,0 +1,175 @@
+
+running 13 tests
+test branch_and_shadowed_local_have_distinct_places ... ok
+test borrowed_and_move_environments_keep_distinct_semantics ... ok
+test conflicting_writes_include_alias_copies_and_loop_backedges ... ok
+test loop_local_storage_restarts_and_control_exits_end_it ... ok
+test exclusive_capture_calls_require_mutable_environments_and_escape_stays_closed ... ok
+test one_shared_root_with_many_unrelated_locals_and_blocks_fits_default_budget ... ok
+test ordinary_capture_and_all_copies_end_at_last_use ... ok
+test raw_address_access_requires_real_address_type ... ok
+test raw_dead_storage_and_reactivation_cannot_hide_a_live_reference ... ok
+test raw_hold_rows_bind_every_value_and_external_capture ... ok
+test parameter_address_has_distinct_native_stack_instances ... ok
+test short_circuit_loop_temps_and_rhs_last_use_preserve_storage ... ok
+test unit_address_has_real_storage_and_unit_abi_is_erased ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+
+running 17 tests
+test helper065_analyze_reconstructs_hold_and_call_paths ... ok
+test helper065_copy_error_callbacks_are_instantiated_and_verified ... ok
+test helper065_error_callback_stops_trace_and_late_argument_is_guarded ... ok
+test helper065_cross_module_interfaces_include_actual_environment_layout ... ok
+test helper065_generic_body_reads_known_resource_field ... ok
+test helper065_instances_are_cached_and_new_identities_are_bounded ... ok
+test helper065_helper_does_not_extend_resource_or_address_lifetimes ... ok
+test helper065_mutable_borrow_updates_actual_environment ... ok
+test helper065_nearest_callable_admission_rejections ... ok
+test helper065_owned_environment_shared_borrow_and_reuse ... ok
+test helper065_mutable_target_loan_ends_after_owned_zero_or_one_call ... ok
+test helper065_raw_callable_metadata_is_bounded_before_instantiation ... ok
+test helper065_owned_fn_can_adapt_to_borrowed_fnmut_then_be_reused ... ok
+test helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces ... ok
+test helper065_shared_and_copy_arguments ... ok
+test helper065_same_name_in_distinct_modules_keeps_definition_identity ... ok
+test helper065_value_condition_and_consume_adaptation ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+
+running 12 tests
+test an_uncalled_local_byte_descriptor_capture_keeps_its_owner_in_scope ... ok
+test byte_descriptions_and_borrowed_windows_preserve_actual_roots ... ok
+test byte_storage_has_real_source_operations_and_sealed_single_definition ... ok
+test create_give_and_description_parameter_window_returns_compose ... ok
+test dynamic_storage_never_executes_through_compile_time_helpers ... ok
+test active_windows_block_growth_push_move_and_conflicting_metadata ... ok
+test new_language_paths_keep_resource_limits ... ok
+test local_or_consumed_carriers_cannot_export_unowned_windows ... ok
+test ordered_alias_helpers_do_not_confuse_parameter_names_with_disjointness ... ok
+test parametric_windows_and_assignment_enter_full_production_verification ... ok
+test reusable_storage_and_generic_sequence_modules_share_real_interfaces ... ok
+test storage_heads_and_unsupported_escape_routes_fail_closed ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 7 tests
+test capacity_does_not_expose_uninitialized_bytes_and_dynamic_bounds_trap ... ok
+test empty_growth_initialized_prefix_and_mutable_views_are_real_storage ... ok
+test dynamic_multimodule_byte_consumer_matches_rust_on_binary_inputs ... ok
+test factories_give_returns_and_parameter_origin_views_compose ... ok
+test injected_allocation_failure_keeps_old_bytes_and_releases_exactly_once ... ok
+test ordinary_error_exits_and_failed_later_arguments_settle_temporary_owners ... ok
+test ordinary_generic_algorithms_apply_to_dynamic_and_fixed_windows ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.63s
+
+
+running 7 tests
+test failed_growth_inside_saved_environment_preserves_payload_and_later_use ... ok
+test four_module_saved_state_consumer_matches_rust_on_binary_batches ... ok
+test direct_and_package_owned_factories_keep_state_and_release_when_dropped ... ok
+test mutable_factory_recovers_after_an_error_before_successful_replacement ... ok
+test once_capture_consumption_and_partial_package_error_discharge_remaining_debt ... ok
+test package_transfer_take_refill_and_replace_release_each_payload_once ... ok
+test ordinary_errors_and_failed_preparation_settle_only_acquired_responsibilities ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.02s
+
+
+running 26 tests
+test consumed_callee_is_cleaned_when_later_argument_fails ... ok
+test consuming_subenvironment_is_taken_and_called_exactly_once ... ok
+test consumed_persistent_slot_can_be_refilled_without_rebirth ... ok
+test distinct_source_opaque_factories_cannot_mix_even_when_forwarded ... ok
+test cross_module_forwarding_preserves_public_opaque_result ... ok
+test failed_replacement_keeps_original_slot_responsibility ... ok
+test forward_factories_resolve_reverse_declarations_and_cleanup_once ... ok
+test independent_ownership_checks_run_without_nominal_resources ... ok
+test independent_raw_and_wire_bound_repeated_child_layout_expansion ... ok
+test independent_raw_and_wire_charge_wide_leaf_inside_closure_dag ... ok
+test independent_raw_and_wire_charge_wide_package_array_elements ... ok
+test independent_raw_and_wire_reject_cycles_wrong_capture_indices_and_permissions ... ok
+test independent_raw_and_wire_reject_repeated_nested_take_and_factory_cycles ... ok
+test nested_error_exit_cleans_inner_activation_then_recursive_environment ... ok
+test forwarding_keeps_exact_mutable_and_consuming_factory_kinds ... ok
+test nonmove_inner_borrow_keeps_outer_owned_callback_live ... ok
+test nested_move_creation_transfers_ownership_before_any_call ... ok
+test owned_mutable_subenvironment_updates_real_inline_storage ... ok
+test owned_shared_subenvironment_is_borrowed_and_dropped_recursively ... ok
+test persistent_slot_cannot_replace_a_still_borrowed_element ... ok
+test persistent_slot_preserves_cleanup_birth_under_later_guard ... ok
+test recursive_factory_identity_and_escaping_nested_borrow_are_rejected ... ok
+test persistent_slot_move_capture_transfers_the_actual_element ... ok
+test retained_alias_and_consuming_callback_misuse_are_rejected ... ok
+test same_factory_slot_replacement_drops_previous_after_new_is_ready ... ok
+test uncalled_subenvironment_and_siblings_follow_capture_cleanup_order ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.88s
+
+
+running 23 tests
+test conditional_and_looping_callback_effects_cover_every_reachable_path ... ok
+test copy_argument_preparation_still_observes_the_captured_shared_window ... ok
+test callback_error_and_late_argument_failure_cleanup_once ... ok
+test current_explicit_arguments_do_not_end_before_a_direct_helper_returns ... ok
+test final_call_cannot_use_its_shared_capture_as_desc_write_permission ... ok
+test local_borrowed_environment_is_valid_but_raw_factory_escape_is_rejected ... ok
+test each_desc_capture_keeps_its_own_read_or_write_origin ... ok
+test mixed_capture_contracts_substitute_actual_normal_function_parameters ... ok
+test mutable_address_capture_reborrows_and_releases_after_last_call ... ok
+test mutable_environment_reborrow_does_not_write_its_readonly_desc_capture ... ok
+test owning_once_cleanup_and_error_exit_keep_other_capture_dependencies ... ok
+test original_probes_keep_inputs_and_remove_the_unrelated_head_switch ... ok
+test raw_and_wire_preserve_capture_indices_hold_and_public_upper_bounds ... ok
+test raw_and_wire_reconstruct_new_desc_writes_in_the_actual_entry ... ok
+test raw_and_wire_reject_forged_borrowed_environment_capture_layout ... ok
+test per_capture_verification_work_has_an_actual_bounded_failure ... ok
+test recursive_helper_effects_include_its_reachable_callback_prefix ... ok
+test same_origin_shared_desc_and_copy_address_read_on_the_final_call ... ok
+test two_layers_of_desc_helpers_export_internal_callback_accesses ... ok
+test runtime_mixed_capture_consumer_uses_four_actual_modules ... ok
+test weak_desc_provenance_is_not_an_address_hold_or_a_forged_empty_window ... ok
+test unused_cleanup_does_not_turn_a_desc_into_a_strong_hold ... ok
+test zero_call_contract_does_not_execute_a_captured_write ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.17s
+
+
+running 23 tests
+test a_zero_call_helper_does_not_execute_its_buffer_capture_effects ... ok
+test borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed ... ok
+test every_actual_storage_write_conflicts_with_a_live_same_source_view ... ok
+test actual_readonly_capture_composes_with_a_live_shared_byte_view ... ok
+test helper_argument_views_are_checked_with_the_actual_capture_effects ... ok
+test helper_body_accesses_do_not_disappear_behind_its_callback_contract ... ok
+test four_module_buffer_consumer_checks_runtime_input_and_cleanup_order ... ok
+test independent_buffer_sources_do_not_inherit_an_unrelated_window ... ok
+test internal_capture_obligations_cross_two_ordinary_description_helpers ... ok
+test internal_window_separation_work_has_a_bounded_raw_and_wire_limit ... ok
+test live_buffer_windows_still_block_give_with_an_unused_weak_environment ... ok
+test mutable_environment_position_and_last_call_leave_separate_byte_permissions ... ok
+test ordinary_helper_layers_preserve_readonly_and_hidden_clear_effects ... ok
+test original_local_byte_description_capture_reaches_native_execution ... ok
+test raw_and_wire_cannot_capture_a_description_after_its_owner_was_given ... ok
+test raw_and_wire_cannot_forge_a_self_contained_factory_return ... ok
+test raw_and_wire_cannot_move_cleanup_before_the_last_captured_use ... ok
+test raw_and_wire_do_not_promote_weak_buffer_captures_or_erase_real_view_holds ... ok
+test raw_and_wire_reconstruct_an_inserted_storage_write_without_analyze ... ok
+test raw_and_wire_reconstruct_internal_capture_and_parameter_window_obligations ... ok
+test raw_and_wire_reconstruct_the_actual_capture_source_not_just_its_type ... ok
+test unused_capture_does_not_own_or_extend_a_buffer_after_transfer ... ok
+test internal_capture_windows_propagate_separation_to_each_actual_call ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.26s
+
+
+running 2 tests
+test copied_fingerprint_cannot_authorize_changed_byte_storage_lir ... ok
+test allocator_declarations_must_match_native_abi_without_duplicate_symbols ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

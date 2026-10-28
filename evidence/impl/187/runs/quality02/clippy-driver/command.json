@@ -1,0 +1,23 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl187_borrowed_bytes",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "source_commit": "3d41b36153078d8c5465e9a7cf845bd37dabc9e2",
+  "dirty": " M changes/187-local-borrowed-byte-descriptions.md\n M crates/zil-analyze/src/helpers.rs\n M crates/zil-driver/tests/impl187_borrowed_bytes.rs\n M crates/zil-types/src/helpers.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/borrows/buffer_effects.rs\n M crates/zil-verify/src/borrows/captures.rs\n M crates/zil-verify/src/borrows/loans.rs\n M crates/zil-verify/src/helpers.rs\n?? evidence/impl/187/\n",
+  "started": 1793157027.236201,
+  "exit": 0,
+  "finished": 1793157028.928442,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "5594bdc37cff3b1e87739a0d6eb9e527da59277e77d30cec599d39faecced5f1"
+}

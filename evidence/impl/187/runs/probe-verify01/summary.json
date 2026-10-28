@@ -1,0 +1,28 @@
+{
+  "source_commit": "f0b920b8ae10662075a1c17b58586f83177f7b24",
+  "dirty": " M crates/zil-types/src/closures.rs\n?? crates/zil-driver/tests/impl187_borrowed_bytes.rs\n",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl187_borrowed_bytes",
+    "original_local_byte_description_capture_reaches_native_execution",
+    "--",
+    "--exact",
+    "--test-threads=2"
+  ],
+  "source_hashes": {
+    "crates/zil-driver/tests/impl187_borrowed_bytes.rs": "8bcb26986a912be545312e4ef6284e50cf44c38fe1ae38bcf94be65cbc0793df",
+    "crates/zil-types/src/closures.rs": "035a9c05ceb90a499a7b85f240a8f7c2aadb84e48aa95e02211d4b00ff5cb010",
+    "crates/zil-verify/src/closures.rs": "683ce3424c86f712d81957f8094fce7a55c246f5903d46266f43d481dee2f3a4"
+  },
+  "production_state": "Types gate opened only; original Verify admission remains",
+  "start": 1793155323.2549634,
+  "exit": 101,
+  "finish": 1793155327.2997105
+}

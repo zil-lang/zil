@@ -1,0 +1,16 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-expand)
+rustc-LLVM ERROR: IO failure on output stream: No space left on device
+error: could not compile `zil-verify` (lib)
+
+Caused by:
+  process didn't exit successfully: `rustc --crate-name zil_verify --edition=2024 crates/zil-verify/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --forbid=unsafe_code --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a952a5cdf61abd7d -C extra-filename=-56204ae9930c84aa --out-dir /workspace/scratch/39be3faa4442/targets178/author187/debug/deps -C strip=debuginfo -L dependency=/workspace/scratch/39be3faa4442/targets178/author187/debug/deps --extern zil_base=/workspace/scratch/39be3faa4442/targets178/author187/debug/deps/libzil_base-a5cb5dbca91c1029.rmeta --extern zil_ir=/workspace/scratch/39be3faa4442/targets178/author187/debug/deps/libzil_ir-b9f5982dc757d842.rmeta` (exit status: 101)
+warning: build failed, waiting for other jobs to finish...
+rustc-LLVM ERROR: IO failure on output stream: No space left on device
+error: could not compile `zil-expand` (lib)
+
+Caused by:
+  process didn't exit successfully: `rustc --crate-name zil_expand --edition=2024 crates/zil-expand/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --forbid=unsafe_code --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=4a0539a501f118c8 -C extra-filename=-dd2700c7a1d08ec9 --out-dir /workspace/scratch/39be3faa4442/targets178/author187/debug/deps -C strip=debuginfo -L dependency=/workspace/scratch/39be3faa4442/targets178/author187/debug/deps --extern zil_base=/workspace/scratch/39be3faa4442/targets178/author187/debug/deps/libzil_base-a5cb5dbca91c1029.rmeta --extern zil_ir=/workspace/scratch/39be3faa4442/targets178/author187/debug/deps/libzil_ir-b9f5982dc757d842.rmeta --extern zil_syntax=/workspace/scratch/39be3faa4442/targets178/author187/debug/deps/libzil_syntax-85e178f3f1cb215e.rmeta` (exit status: 101)

@@ -1,0 +1,35 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-analyze",
+    "-p",
+    "zil-verify",
+    "--lib",
+    "--",
+    "--test-threads=2"
+  ],
+  "source_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
+  "dirty": "",
+  "started": 1793157159.9646919,
+  "exit": 0,
+  "finished": 1793157164.6731002,
+  "stdout_sha256": "9dfe73136d99927fe70ab4d2b6328c75f8e2a0a757d6cded7781e625d6ed1892",
+  "stderr_sha256": "27cc170c75f36249e765f2f0ec0381d44c2b7e8f280e2c566361aa0c601619d9",
+  "groups": [
+    [
+      "23",
+      "0",
+      "0"
+    ],
+    [
+      "240",
+      "0",
+      "0"
+    ]
+  ]
+}

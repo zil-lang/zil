@@ -1,0 +1,30 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-types",
+    "-p",
+    "zil-analyze",
+    "-p",
+    "zil-verify",
+    "-p",
+    "zil-lower",
+    "-p",
+    "zil-backend-llvm",
+    "--lib",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "source_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
+  "dirty": "",
+  "started": 1793157258.1555543,
+  "exit": 0,
+  "finished": 1793157258.2291539,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "af1d2cf35aacaf94dd1c8a40bb1eb81981171b00ae7b6668106f5acb3a38e60c"
+}
