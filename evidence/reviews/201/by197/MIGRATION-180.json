@@ -1,0 +1,28 @@
+{
+  "task": "201",
+  "reviewer": "/root/impl197",
+  "kind": "independent read-only test migration review",
+  "reviewed_commit": "1adf94568e701ec66bfae119bfa83106cef11c4f",
+  "parent_commit": "403c5da7b268ab36d9d0942c175bd4414bebaa38",
+  "verdict": "Pass for this exact diagnostic-only migration",
+  "production_diff": [],
+  "changed_paths": [
+    "changes/201-regression-migration.md",
+    "crates/zil-driver/tests/impl180_store_mut.rs"
+  ],
+  "test": "managed_fields_whole_packages_and_escaping_windows_remain_closed",
+  "before": "Copy fields",
+  "after": "Copy or concrete callback fields",
+  "whole_test_file_equals_one_exact_replacement": true,
+  "file_before_sha256": "679bbf4350c92594e325fcfaf4140e96797078c1633b68466f4259ce237fdf31",
+  "file_after_sha256": "a0ca2f8e7bd13796b13cc440105a7949ae5dc2f6ff1e9bff855b9c84fee887d6",
+  "source_programs_unchanged": true,
+  "preserved_assertions": [
+    "All three original body strings are unchanged, including Managed owner replacement, owner.code write and closure capture of an element window.",
+    "All three continue to require Types/Unsupported; the capture message alternative is unchanged.",
+    "All three escaping helper definitions and the complete-Package dereference counterexample retain their previous source and assertions."
+  ],
+  "diagnostic_precision": "The test itself does not separately assert E-UNSUPPORTED or verification_runs=0. Those facts are in root's exact e573 first full-run report and are not newly executed or inferred by this receipt.",
+  "execution_boundary": "Read-only Git diff and whole-file byte equality inspection only. Root's first full run and subsequent execution are separate records; this receipt contains no new compilation or runtime execution.",
+  "executed_test_commands": []
+}
