@@ -186,11 +186,11 @@
   "counting_note": "Each receipt keeps its actual source and repeats. Author, reviewer, platform and workspace counts are not summed as distinct coverage.",
   "handoff_snapshot": {
     "status": "Fail",
-    "source_commit": "7d8cea72460d059f76987f076afa147ed68184eb",
+    "source_commit": "fc4fff748beee48473be6eb073981bbcdac2e544",
     "errors": 1138,
     "errors_in178_through195": 0,
-    "path": "handoff01.json",
-    "scope": "Historical record integrity, not a language correctness verdict. Earlier missing commits/evidence remain unresolved."
+    "path": "handoff-final.json",
+    "scope": "Historical record integrity, not language correctness. Earlier missing commits/evidence remain unresolved."
   },
   "preflights_only": {
     "196": {
@@ -224,5 +224,6 @@
     "breakthrough": "Verified language-composition increment, not a product-level net-breakthrough verdict."
   },
   "recovery_zip_sha256": "6e0273dc58b99f88dbed40fa3a13648314ed816e4631f83e210d24affe2498ed",
-  "created_utc": "2026-10-28T06:18:00.381852+00:00"
+  "created_utc": "2026-10-28T06:18:00.381852+00:00",
+  "post_test_changes_before_packaging": "Evidence and status documentation only; complete crates tree, normative inputs and Cargo.lock match tested1bf8cf."
 }
