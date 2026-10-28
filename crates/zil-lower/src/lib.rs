@@ -47,11 +47,13 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+                    // Verify already qualified the complete captured Store
+                    // leaf, canonical definition, result and actual operands.
+                    // A borrowed Store description still has no owning ABI.
                     || (resource_type(ty, &module.resources)
-                        && !matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
+                        && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
                     || (package_type(ty, &module.resources)
-                        && !package_array_fields(ty)
-                        && !package_store_fields(ty))
+                        && !package_array_fields(ty))
             })
             || !closure.parameters.iter().all(|ty| {
                 ty.is_copy_value()

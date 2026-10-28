@@ -198,6 +198,11 @@ fn actual_package_field_give_and_whole_value_infer_ownership() {
             );
         }
     }
+    let side = package_once(false, false).replace(
+        "let local = give bag.items; return i32(store_len(local))",
+        "let local = give bag.side; local.code; return i32(store_len(bag.items))",
+    );
+    through_types("package-give-other-managed-field", &side);
 }
 
 #[test]
@@ -249,6 +254,55 @@ fn nested_body_give_preserves_the_actual_package_transfer() {
 }
 
 #[test]
+fn leaf_callback_exclusion_does_not_reclose_plain_stores_or_copy_companions() {
+    for (label, definitions, value) in [
+        (
+            "direct-code",
+            "package CodeItem { manages bytes: ByteBuffer; code: fn() -> i32 }",
+            "CodeItem { bytes: bytes_new(), code: answer }",
+        ),
+        (
+            "copy-record-code",
+            "struct Code { value: fn() -> i32 } package CodeItem { manages bytes: ByteBuffer; code: Code }",
+            "CodeItem { bytes: bytes_new(), code: Code { value: answer } }",
+        ),
+        (
+            "managed-record-code",
+            "resource Code { value: fn() -> i32 } package CodeItem { manages code: Code; value: i32 }",
+            "CodeItem { code: Code { value: answer }, value: 7 }",
+        ),
+    ] {
+        let prepare = format!(
+            "let items: Store<CodeItem> = store_new(); store_reserve(items, 1); store_push(items, {value});"
+        );
+        let source = format!(
+            "{definitions} fn answer() -> i32 {{ return 7 }}
+            fn main() -> i32 {{ {prepare} return i32(store_len(items)) - 1 }}"
+        );
+        through_types(&format!("plain-{label}"), &source);
+        let captured = format!(
+            "{definitions} fn answer() -> i32 {{ return 7 }}
+            fn make() -> impl Fn() -> i32 {{ {prepare} return move () => i32(store_len(items)) }}
+            fn main() -> i32 {{ let callback = make(); return callback() - 1 }}"
+        );
+        reject_types(
+            &format!("inner-leaf-{label}"),
+            &captured,
+            "leaf Package elements",
+        );
+    }
+    let source = format!(
+        "{LEAF} package Companion {{ manages items: Store<Item>; code: fn() -> i32 }}
+        fn answer() -> i32 {{ return 7 }}
+        fn make() -> impl Fn() -> i32 {{ {PREPARE}
+            let bag = Companion {{ items: give items, code: answer }}
+            return move () => i32(store_len(bag.items))
+        }}{MAIN_ONCE}"
+    );
+    through_types("copy-companion-code", &source);
+}
+
+#[test]
 fn original_sources_complete_verify_and_native() {
     for (index, source) in ORIGINALS.iter().enumerate() {
         native(&format!("original-{index}-native"), source, "", 0);
@@ -271,6 +325,11 @@ fn once_take_and_package_sibling_cleanup_execute() {
         "ABZ",
         0,
     );
+    let side = package_once(false, false).replace(
+        "let local = give bag.items; return i32(store_len(local))",
+        "let local = give bag.side; local.code; return i32(store_len(bag.items))",
+    );
+    native("package-give-side-native", &side, "BAZ", 0);
     let unused = package_once(false, false).replace("let value = callback()", "let value = 1");
     native("package-auto-unused-native", &unused, "ZAB", 0);
 }
