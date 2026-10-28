@@ -1,0 +1,1 @@
+fn other()->impl Fn()->i64{return move ()=>7}fn apply<F:Fn()->i64>(f:&F)->i64{let dependent=other();return f()}fn value()->i64{let init=()=>42;return apply(&init)}

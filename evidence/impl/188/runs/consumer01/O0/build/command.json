@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author188/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/language14/wt188/examples/mainline/nested_helpers188/main.zil",
+    "--opt",
+    "O0",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/188-author/consumer01/O0/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/188-author/consumer01/O0/phases",
+    "--json"
+  ],
+  "status": "Completed",
+  "start": 1793157659.9025934,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "cd2c58c5a6be5de99b3e94422d6e984ce25acdb67451a33b2336baeae11a7bbd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793157660.033081
+}

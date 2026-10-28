@@ -1,0 +1,88 @@
+
+running 23 tests
+test conditional_and_looping_callback_effects_cover_every_reachable_path ... ok
+test callback_error_and_late_argument_failure_cleanup_once ... ok
+test copy_argument_preparation_still_observes_the_captured_shared_window ... ok
+test current_explicit_arguments_do_not_end_before_a_direct_helper_returns ... ok
+test final_call_cannot_use_its_shared_capture_as_desc_write_permission ... ok
+test local_borrowed_environment_is_valid_but_raw_factory_escape_is_rejected ... ok
+test each_desc_capture_keeps_its_own_read_or_write_origin ... ok
+test mixed_capture_contracts_substitute_actual_normal_function_parameters ... ok
+test mutable_address_capture_reborrows_and_releases_after_last_call ... ok
+test mutable_environment_reborrow_does_not_write_its_readonly_desc_capture ... ok
+test owning_once_cleanup_and_error_exit_keep_other_capture_dependencies ... ok
+test original_probes_keep_inputs_and_remove_the_unrelated_head_switch ... ok
+test raw_and_wire_preserve_capture_indices_hold_and_public_upper_bounds ... ok
+test raw_and_wire_reconstruct_new_desc_writes_in_the_actual_entry ... ok
+test raw_and_wire_reject_forged_borrowed_environment_capture_layout ... ok
+test per_capture_verification_work_has_an_actual_bounded_failure ... ok
+test recursive_helper_effects_include_its_reachable_callback_prefix ... ok
+test same_origin_shared_desc_and_copy_address_read_on_the_final_call ... ok
+test two_layers_of_desc_helpers_export_internal_callback_accesses ... ok
+test runtime_mixed_capture_consumer_uses_four_actual_modules ... ok
+test weak_desc_provenance_is_not_an_address_hold_or_a_forged_empty_window ... ok
+test unused_cleanup_does_not_turn_a_desc_into_a_strong_hold ... ok
+test zero_call_contract_does_not_execute_a_captured_write ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.42s
+
+
+running 13 tests
+test active_mutable_result_prevents_overlapping_call_or_replacement ... ok
+test borrowed_mutable_helper_and_whole_parent_transfer_preserve_result_loans ... ok
+test borrowed_generic_helper_forwards_environment_lending_origin ... ok
+test callable_field_view_keeps_its_actual_field_without_blocking_copy_sibling ... ok
+test conditional_sources_and_ordinary_parameter_forwarding_are_preserved ... ok
+test environment_results_reject_local_external_and_temporary_sources ... ok
+test copy_environment_reads_and_address_writes_use_one_actual_slot ... ok
+test live_byte_environment_views_reject_mutation_move_and_drop ... ok
+test inline_aggregate_projection_and_slice_results_keep_actual_environment_storage ... ok
+test mutable_factory_result_allows_next_call_after_last_use ... ok
+test owned_byte_environment_can_mutate_after_prior_result_last_use ... ok
+test owned_byte_environment_lends_real_storage_and_survives_factory_return ... ok
+test shared_factory_result_uses_real_stored_copy_environment ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+
+running 6 tests
+test analyze_bounds_both_public_lending_vectors_before_fingerprinting ... ok
+test analyzer_rejects_opaque_lending_mismatch_and_pays_nonempty_metadata ... ok
+test raw_and_wire_cannot_erase_result_hold_or_mutate_shared_entry ... ok
+test raw_and_wire_keep_owned_payload_write_and_cleanup_obligations ... ok
+test raw_and_wire_reconstruct_exact_environment_sources ... ok
+test raw_and_wire_reject_consumed_and_by_value_environment_results ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 16 tests
+test a_later_failing_argument_cleans_the_staged_generic_union ... ok
+test an_error_returning_old_branch_does_not_poison_the_surviving_fresh_branch ... ok
+test actual_field_sources_survive_whole_moves_replacements_branches_and_loops ... ok
+test concrete_wide_copy_errors_keep_zero_success_responsibility ... ok
+test direct_store_and_existing_copy_error_inference_keep_their_meaning ... ok
+test error_only_create_consumes_old_success_without_claiming_a_new_resource ... ok
+test incoming_or_mixed_fields_cannot_be_repackaged_as_created ... ok
+test fresh_payload_survives_local_union_moves_and_question_rewrapping ... ok
+test loop_local_and_discarded_unions_clean_exactly_once ... ok
+test propagated_failure_drops_incoming_element_and_earlier_store ... ok
+test two_nominal_shapes_transfer_through_ordinary_union_values ... ok
+test unused_definitions_cannot_launder_old_success_into_create ... ok
+test unused_signatures_require_the_written_mode_and_actual_copy_error_shape ... ok
+test mutable_managed_slots_preserve_creation_through_their_package_representation ... ok
+test unused_union_moves_and_descriptor_aliases_do_not_create_permissions ... ok
+test written_modes_are_checked_with_and_without_instantiation ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.33s
+
+
+running 5 tests
+test generic_origin_does_not_replace_actual_tag_descriptor_or_cleanup_checks ... ok
+test actual_package_field_source_does_not_authorize_duplicate_movement ... ok
+test instantiated_union_still_requires_one_consumption ... ok
+test instantiated_modes_do_not_authorize_false_creation_sources ... ok
+test package_fields_cannot_launder_inputs_or_joined_old_sources_into_create ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+

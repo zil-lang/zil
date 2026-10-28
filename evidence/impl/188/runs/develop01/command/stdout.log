@@ -1,0 +1,25 @@
+
+running 6 tests
+test an_unused_recursive_definition_is_rejected_without_instantiating_it ... FAILED
+test branches_keep_zero_one_and_multiple_actual_calls ... ok
+test an_error_return_cuts_off_later_nested_calls_and_cleans_owned_locals ... ok
+test mutable_reborrows_keep_call_order_and_release_after_the_outer_call ... ok
+test consumed_environments_are_settled_once_even_when_the_leaf_never_calls ... ok
+test the_original_minimal_helper_composes_through_multiple_levels ... ok
+
+failures:
+
+---- an_unused_recursive_definition_is_rejected_without_instantiating_it stdout ----
+
+thread 'an_unused_recursive_definition_is_rejected_without_instantiating_it' (211) panicked at crates/zil-driver/tests/impl188_nested_helpers.rs:74:5:
+assertion `left == right` failed: unused-recursive: {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-TERMINATOR","message":"expected a semicolon, logical newline, or closing brace after the complete statement","span":{"file":0,"start":38,"end":40},"notes":[]}],"artifacts":{},"input_fingerprint":"d0478db3c2a94d4936173b0d9924b28813166e7d810fdfc5d516cb30ec6e256f","seconds":0.001046284,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Unsupported
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    an_unused_recursive_definition_is_rejected_without_instantiating_it
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+

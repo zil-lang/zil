@@ -1,0 +1,1 @@
+pub fn counter(start:i32)->impl FnMut()->&i32{var n=start;return move()=>{n+=1;return &n}}

@@ -1,0 +1,1 @@
+fn apply<F:Fn()->i64>(f:&F)->i64{return f()}fn make()->impl Fn()->i64{var n:i64=0;var init=()=>{n+=1;return n};let state=apply(&init);return move ()=>state}fn value()->i64{return 0}

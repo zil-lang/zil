@@ -1,0 +1,1 @@
+fn apply<F:Fn(i64)->i64>(f:&F,n:i64)->i64{return f(n)}fn make(n:i64)->impl Fn()->i64{let init=(x:i64)=>x;let state=apply(&init,n);return ()=>state}fn value()->i64{return 0}

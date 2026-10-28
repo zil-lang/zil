@@ -1,0 +1,1 @@
+fn bad<F:Fn()->i32>(f:&F)->i32=>bad(f)fn main(){}
