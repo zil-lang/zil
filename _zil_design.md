@@ -347,6 +347,20 @@ prepare/slot/publish/abort 是同一责任规则的实例：构造 RHS 先成功
 
 闭包字段的源 opaque 身份、具体环境布局、调用模式及责任必须同时保留；两个工厂环境恰好同布局不意味着源类型相同。替换先准备新值，成功后按原规则清旧值和提交；失败不恢复已经显式转交的其他责任。
 
+#### 8.1.1 完整嵌套 Package Product（206）
+
+本片将有限完整 Product 的普通按值组合递归到完整 child Package。字段可以是既有有限普通 Copy 值、直接 Managed 的 ByteBuffer/有限 Copy 头用户资源，或同一 profile 的完整子 Package；每层保留实际名义身份、字段声明顺序及目标布局。每个 Package 至少有一个递归拥有叶；父包可以只有 child，不必额外声明无意义的 manages 根，真正 Managed 叶仍由所在子包显式 manages 声明。递归 by-value 布局不准入，有限深度/宽度受既有额度约束。
+
+普通具体参数、返回、SSA和整值局部保持完整。父外壳对一个 child 字段持一笔直接责任，嵌在父中的 child 始终完整；完整取出后才成为独立局部，可沿原字段规则部分移动和补入。部分 child 不能嵌回，缺字段 parent 不能整体传参或返回。child 是非Copy Value，普通值表达式完整移动；不把 give 扩展成 Package 的新语法，也不新增 deep Place。需要操作 child 内部时先将完整 child 取到独立局部；DescribePackageField 仍仅针对 Managed，BorrowPackageField 的旧资格不扩大。
+
+child 替换先按实际源序完成 RHS 的全部准备，再清理旧 child，最后无失败发布；失败按真实已取得责任清理，既有显式转交不回滚。局部退出保持逆成功初始化序，完整 Product 按每层字段声明序递归清理。父字段 flag 只表示完整 child 是否由父持有，不能隐藏 child 的部分形状；取到独立局部后采用该局部自己的直接字段责任。LLVM布局、对齐和GEP必须来自同一已核完整类型，不引入隐式分配、Box、RC、锁或全局表。
+
+Analyze与Verify分别按实际SSA/Local及子树叶位置重建每个Managed叶的Created/Incoming。MakePackage、整值局部转交、完整child取出/补入保留各真实叶来源，本身不制造Created；同型两个child不能合并状态。CFG合流保留可能Incoming，不能把混合来源提升为Created。普通函数返回没有逐叶新鲜性合同，仍按既有Incoming处理；只有原已核Managed create合同可以提供其允许的新鲜结果。已有result(create)必须核实际返回叶，既要拒Incoming，也须接受确实Created的最近正例。
+
+新增Product仅进入普通完整值位置；旧平坦Package的原资格保持。Store元素、拥有数组、ErrorUnion、Closure capture、资源头嵌套拥有字段，以及新Product内部的Store/callable/Sum/拥有数组或借入字段，不因本片自动准入。已支持的旧profile不被反向关闭；完整语言的后续组合、traits/lending/dyn、卫生Syntax及挂起并发义务保留。
+
+复用schema/Wire27的实际Type::Package和既有Make/Take/Drop/StorePackageField，不用序列化前端的叶来源结论授信。各核独立检查完整未用类型、名义/字段唯一性、实际资源和责任、非法重复SSA、覆盖旧债、过期描述及错误父槽。新叶路径/子树映射、状态复制/合流、布局展开和清理路径生成在增长前预付工作/深度/数量费用；旧无child路径不建立新叶表，不提高默认限额。按原120字节源、child-only wrapper、混合来源与失败准备的原样近邻、raw/Wire、N/N−1/fresh及两平台真实机器清理验收；登记不等于实现或完整语言完成。
+
 ### 8.2 泛型 Store 元素资格
 
 `StoreElement` 是编译器保留的有限形状约束，使用既有 `T: StoreElement` bound 语法；它不是可由用户 impl 授予的普通 trait，也不是一个可构造的值类型。其含义是 T 满足当前公开的完整 Store 元素形状：有限非零大小 Package，Copy 字段或直接拥有的已支持 ByteBuffer/用户资源字段，以及确定的移动、实际布局和清理。201增加下述有限具体callback字段元素；嵌套Store、递归拥有或地址字段不由此自动获得资格。
