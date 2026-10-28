@@ -1,0 +1,32 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author194/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/09-cross-module-copy-state/main.zil",
+    "--stop-after",
+    "verify",
+    "--json",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/09-cross-module-copy-state/emitted"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/09-cross-module-copy-state",
+  "source_commit": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+  "source_status_at_build": "",
+  "cli_sha256": "029543198554cd97118e2f4bc4a5b75ef0767ea5cbbf872f5e4fa075439ab119",
+  "cli_bytes": 25447872,
+  "inputs": {
+    "main.zil": "c247bc23d1c93bd96c086082a75ad0ecb1733186cdfadaf3b5c847857c1d9e00",
+    "model.zil": "7f8ee2bf3628473352538487dbbbebb8ad9237f8827f8eb7db59154dd32a670f",
+    "state.zil": "5fe5def30a307109724fff4fa45fdbea32642e5c95fce8e092cf238ee0d088ca"
+  },
+  "phase_limit": "Verify",
+  "scope": "197 read-only preflight, no production edits or compiler rebuild",
+  "start_epoch": 1793166546.6381986,
+  "environment": {
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "exit_code": 3,
+  "end_epoch": 1793166546.6475863,
+  "stdout_sha256": "0b7450ed766f1ca659e6d4d8abb3f64ac66929e505de5cc2d002f23f6032139c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

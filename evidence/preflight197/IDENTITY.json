@@ -1,0 +1,70 @@
+{
+  "kind": "ReadOnlyPreflightIdentity",
+  "task": "197",
+  "author": "/root/resume190",
+  "compiler_source_commit": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+  "compiler_status_at_build": "",
+  "cli_path": "/workspace/scratch/39be3faa4442/targets178/author194/debug/zil",
+  "cli_bytes": 25447872,
+  "cli_sha256": "029543198554cd97118e2f4bc4a5b75ef0767ea5cbbf872f5e4fa075439ab119",
+  "cli_built_by": "/root/resume192 for 194; reused read-only; no 197 rebuild",
+  "build_receipt_origin": "/workspace/scratch/39be3faa4442/run-logs/194-author/final-build01/command/command.json",
+  "proposal_worktree_base": "4549ac8dd258e26da873fc1ff89832fea5021547",
+  "proposal_worktree_is_not_compiler_source": true,
+  "spec_main_commit": "1152dc0893b89f7f7bbb4d4fabafcaf321b3cff7",
+  "spec_sha256": "48641079ef2ecc84aa50a0a9eafd83ae844f0d3de7924fcc8cb3e2fef3f9db5f",
+  "normative_hash": "6488fa9f20121c4268f13153c6daecbfd20da5eb5e8aa86630620413d41edadb",
+  "task194_sha256": "4ae274dc79e194c42454012d98e91dc82ba3b85369777b04ba04a09788a8bb8f",
+  "schema": 24,
+  "static_file_sha256": {
+    "crates/zil-expand/src/generics.rs": {
+      "bytes": 88347,
+      "sha256": "7e34351de294eb62796e2b278e226951c8d7e349ada5115a509791661b1653da"
+    },
+    "crates/zil-expand/src/generic_callable.rs": {
+      "bytes": 10761,
+      "sha256": "72c1df0da795ed3bd23d03ea60cbbe8c0e4b102398fb9c61e34f378329e3547a"
+    },
+    "crates/zil-expand/src/generic_enum.rs": {
+      "bytes": 23587,
+      "sha256": "dcbd1637ac20e19ae23ff9d5e623d8d3ace7b9d229649de0daf48255e2f2a30e"
+    },
+    "crates/zil-expand/src/generic_check.rs": {
+      "bytes": 106074,
+      "sha256": "43620b56d71ac49d31fe63cc4ad1599420cb3d14de581eb005f8632345277d5a"
+    },
+    "crates/zil-expand/src/generic_places.rs": {
+      "bytes": 7338,
+      "sha256": "cdadee0e1007883bd2e45fbddad471c343753c22de007354f20fe20a92b907de"
+    },
+    "crates/zil-expand/src/generic_trait_bounds.rs": {
+      "bytes": 15861,
+      "sha256": "ac66665b2bdd16a700a1f9c164494ded6beea69740dde099edac3cc90d0c1c7f"
+    },
+    "crates/zil-expand/src/generic_copy.rs": {
+      "bytes": 10876,
+      "sha256": "9d9e85b7b6905fc0db144c6d3e217c6d728f6187fe818038df73c8391fde9d05"
+    },
+    "crates/zil-expand/src/generic_store.rs": {
+      "bytes": 8812,
+      "sha256": "d2171bf15c71f34e72deb765e022696088f2be6b7dfc01ef04b32293b431f229"
+    },
+    "crates/zil-types/src/callable_fields.rs": {
+      "bytes": 11385,
+      "sha256": "88b0cef34f67cbb2f65e52e4ba5cbf7cfb8633c744571c38c482005fb67d4ab5"
+    },
+    "crates/zil-types/src/helpers.rs": {
+      "bytes": 30931,
+      "sha256": "cd849f59da9f8144afa2dd016bc997a87320fd2b01ca55a09157747d8e6d3de1"
+    },
+    "crates/zil-ir/src/lib.rs": {
+      "bytes": 71959,
+      "sha256": "daa04f69b3055165e64e08828510b624c7b7b2995a5b4407f51472a397ce1597"
+    },
+    "crates/zil-cli/src/main.rs": {
+      "bytes": 12881,
+      "sha256": "28312fc7cf9663fd89d4f7b67c48b23a58a0e13505cc24ba72d7681fabc71f0b"
+    }
+  },
+  "scope": "Read-only existing final compiler. No production/spec/Task changes, no native execution, no compile/runtime performance measurement."
+}

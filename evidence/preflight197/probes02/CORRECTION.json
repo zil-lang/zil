@@ -1,0 +1,75 @@
+{
+  "authorization": "Parent /root approved one corrected twelve-position run; cumulative cap 24 input checks",
+  "prior_round": "probes01",
+  "preserved": true,
+  "changes": [
+    {
+      "case": "01-existing-state-f-sibling",
+      "path": "main.zil",
+      "old_sha256": "0c3030801ed234d3e6eda32c13aad84f4ddb443fe91132c85f39767c672047ea",
+      "new_sha256": "7cedc0a7d37056c9a4dea902c0e5475768296b83cdb8e9c91c6f3492e0fcb251"
+    },
+    {
+      "case": "02-copy-t-package-no-callback",
+      "path": "main.zil",
+      "old_sha256": "a77c09f53b2de6c26ec1b409797ff9b6daeefa4501038fe6bf60cee15e4b9734",
+      "new_sha256": "ce4d6756ea0bf2858976e6a06e9b39a990c702b6cc766af9e81708d0b46a75b4"
+    },
+    {
+      "case": "03-state-t-f-construction",
+      "path": "main.zil",
+      "old_sha256": "8137a92a35bad01e996bb35f3f8a8bea901701e8eb6387542d175a589714ba9d",
+      "new_sha256": "e6b5600d023a9b2c96966f67b89665e986bb8bcbff8909b94d8f7e73bc0b6116"
+    },
+    {
+      "case": "04-state-t-f-input-signature",
+      "path": "main.zil",
+      "old_sha256": "3fdb7765d567f682a18a20e60ffac55fb378d305b076fc187b8bfccef985637e",
+      "new_sha256": "0cb5aac277122f719599e72439d3234a309c4d492175ac4b87a1613bc68fa2af"
+    },
+    {
+      "case": "05-copy-t-with-old-state-f",
+      "path": "main.zil",
+      "old_sha256": "0189a470a8e5587d4286790424f5ac822c5b0c3edfd381b2e14f585c31e4f1c9",
+      "new_sha256": "6656b9f3a9032f65992bffdc0373b30f3b2b9500139cab5004fda08aca21cb5a"
+    },
+    {
+      "case": "06-phantom-t-f-first",
+      "path": "main.zil",
+      "old_sha256": "47525e120d21e2ef9ff626d66d68f3840596c4726fa3434ea90e224de639e058",
+      "new_sha256": "d6f9bf54d9dc449325e7971863e1ecfb97b8349e6c77092671cd79c46f0c791c"
+    },
+    {
+      "case": "07-same-f-different-width-t",
+      "path": "main.zil",
+      "old_sha256": "f7069157b153d71a0977d263c08039ea38e1316382e7707c0f5197c52ad08d10",
+      "new_sha256": "980077f51c833cfb7a52feb9b802fe8fadbed10659e920f5fc3ffa60661480a0"
+    },
+    {
+      "case": "08-same-f-nominal-a-b",
+      "path": "main.zil",
+      "old_sha256": "53ae3f38a76e7b0400b8557d2518e1156fafa94c71c35193626d425ca394e809",
+      "new_sha256": "78cdd4591c258cc9ba3885ff6bc1fd1c1d20c8699ce0d3667540cbf2de567c2d"
+    },
+    {
+      "case": "09-cross-module-copy-state",
+      "path": "state.zil",
+      "old_sha256": "5fe5def30a307109724fff4fa45fdbea32642e5c95fce8e092cf238ee0d088ca",
+      "new_sha256": "9fdcbed92c074804de6364452b683344ca4ac37508635d90fd1b4952bfc64108"
+    },
+    {
+      "case": "10-mixed-callback-value-address",
+      "path": "main.zil",
+      "old_sha256": "b071dc07714b2f3d22df19ba9069fe07202e951d3ced68983a31ae14f29f16bb",
+      "new_sha256": "3a4424b5357d6f8d1bbd5ec774a623b6f6146c2b4f6d607c28ba50a2e2d26a67"
+    },
+    {
+      "case": "12-mixed-held-field-window-negative",
+      "path": "main.zil",
+      "old_sha256": "ba931e10314fef05e388fa5967ddfb9cc57bf55d8011d02d383564a275828d5b",
+      "new_sha256": "abf1ab9225dd61a989c14f56f119931d11cf8c6bc156f63fd202ce1be386dcf0"
+    }
+  ],
+  "aggregate_bound_status": "Valid syntax, explicitly unsupported aggregate bound solver; independent prerequisite, not dismissed as invalid syntax.",
+  "missing_manages_status": "Fixture omission corrected to the existing package profile."
+}

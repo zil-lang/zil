@@ -1,0 +1,600 @@
+{
+  "kind": "ReadOnlyPreflightResults",
+  "task": "197",
+  "executed_cases": 12,
+  "native_executions": 0,
+  "compiler_source": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+  "cli_sha256": "029543198554cd97118e2f4bc4a5b75ef0767ea5cbbf872f5e4fa075439ab119",
+  "results": [
+    {
+      "name": "01-existing-state-f-sibling",
+      "purpose": "Existing State<F> owning callback and concrete i32 sibling address control",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "package requires at least one manages field and has no custom whole Drop",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 38
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "core": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/01-existing-state-f-sibling/emitted/core.txt",
+          "source-map": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/01-existing-state-f-sibling/emitted/source-map.txt",
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/01-existing-state-f-sibling/emitted/syntax.txt"
+        },
+        "input_fingerprint": "1c15b1690d9e4be6faab043bb1b520f2c095a1f47cdfbef1355ed0b1a66cc9ad",
+        "seconds": 0.012035989,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/01-existing-state-f-sibling/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "02-copy-t-package-no-callback",
+      "purpose": "Ordinary Copy T package and field control without a callable role",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "generic bound, lifetime or const parameter requires its semantic solver",
+            "span": {
+              "file": 0,
+              "start": 13,
+              "end": 19
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/02-copy-t-package-no-callback/emitted/syntax.txt"
+        },
+        "input_fingerprint": "7beb1b3dd95b10e1d97050dee2fc41e17d106330d6408aeb6c83c087edaaca05",
+        "seconds": 0.004254385,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/02-copy-t-package-no-callback/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "03-state-t-f-construction",
+      "purpose": "Actual i32 State<T,F> factory result and direct field call",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "generic bound, lifetime or const parameter requires its semantic solver",
+            "span": {
+              "file": 0,
+              "start": 14,
+              "end": 20
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/03-state-t-f-construction/emitted/syntax.txt"
+        },
+        "input_fingerprint": "3bf2cbfe0b57e44dccdbcd1aba5dfcd51586a3ce77f8c2bde7be2964ac330df8",
+        "seconds": 0.004823944,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/03-state-t-f-construction/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "04-state-t-f-input-signature",
+      "purpose": "Unused mixed State<T,F> input signature still requires definition-time admission",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "generic bound, lifetime or const parameter requires its semantic solver",
+            "span": {
+              "file": 0,
+              "start": 14,
+              "end": 20
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/04-state-t-f-input-signature/emitted/syntax.txt"
+        },
+        "input_fingerprint": "baac14280174731e9bbf38497151d9e5600160db72ce5ac2c0420995c543ec5e",
+        "seconds": 0.002677979,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/04-state-t-f-input-signature/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "05-copy-t-with-old-state-f",
+      "purpose": "Old owning State<F> plus ordinary Copy T must keep the explicit 194 boundary",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "Copy data and owning callable State combinations are not implemented",
+            "span": {
+              "file": 0,
+              "start": 110,
+              "end": 194
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/05-copy-t-with-old-state-f/emitted/syntax.txt"
+        },
+        "input_fingerprint": "6813a25b0e8f618a2d541de61a30a5bdc7f920401ea1a405b3ccf869eb073942",
+        "seconds": 0.003395788,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/05-copy-t-with-old-state-f/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "06-phantom-t-f-first",
+      "purpose": "Same F with phantom data T still needs distinct nominal identity; reversed declaration order",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "generic bound, lifetime or const parameter requires its semantic solver",
+            "span": {
+              "file": 0,
+              "start": 16,
+              "end": 22
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/06-phantom-t-f-first/emitted/syntax.txt"
+        },
+        "input_fingerprint": "c3c1ced27f496d1f0b8f6cb69b31c515c8771bcbbfcfe522291fe4ec8debbb58",
+        "seconds": 0.006241824,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/06-phantom-t-f-first/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "07-same-f-different-width-t",
+      "purpose": "Same factory ClosureId with distinct i32/i64 State data; T absent from the F bound",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "generic bound, lifetime or const parameter requires its semantic solver",
+            "span": {
+              "file": 0,
+              "start": 14,
+              "end": 20
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/07-same-f-different-width-t/emitted/syntax.txt"
+        },
+        "input_fingerprint": "3cde27cecd2535bd4783a383db3eb7cc3231cce37f6b4e490d8ebe8b94af7d20",
+        "seconds": 0.00566212,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/07-same-f-different-width-t/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "08-same-f-nominal-a-b",
+      "purpose": "Same layout nominal A/B and same F require separate State instances",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "generic bound, lifetime or const parameter requires its semantic solver",
+            "span": {
+              "file": 0,
+              "start": 45,
+              "end": 51
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/08-same-f-nominal-a-b/emitted/syntax.txt"
+        },
+        "input_fingerprint": "793bb7d573cd76d29e67c1db5bb7b96410fda1d12bc93f25f61004448cdc79a0",
+        "seconds": 0.006555988,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/08-same-f-nominal-a-b/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "09-cross-module-copy-state",
+      "purpose": "Three real modules export and instantiate State<T,F> with a nominal Copy record",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "generic bound, lifetime or const parameter requires its semantic solver",
+            "span": {
+              "file": 2,
+              "start": 18,
+              "end": 24
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/09-cross-module-copy-state/emitted/syntax.txt"
+        },
+        "input_fingerprint": "611483f3bdaa3a861e0a4bea4d654e3fb0e6392b7cac7e0c7f83a787728249ec",
+        "seconds": 0.007388345,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/09-cross-module-copy-state/main.zil",
+          "1": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/09-cross-module-copy-state/model.zil",
+          "2": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/09-cross-module-copy-state/state.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "10-mixed-callback-value-address",
+      "purpose": "Copy T sibling address beside callback and separate ByteBuffer owner",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "generic bound, lifetime or const parameter requires its semantic solver",
+            "span": {
+              "file": 0,
+              "start": 14,
+              "end": 20
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/10-mixed-callback-value-address/emitted/syntax.txt"
+        },
+        "input_fingerprint": "0460b5937422d9c74c5cc3e2feab03610d86326c5d368b1adc124e991afe24a4",
+        "seconds": 0.00679471,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/10-mixed-callback-value-address/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "11-existing-state-f-record-address",
+      "purpose": "192 existing State<F> record sibling borrow control",
+      "exit_code": 0,
+      "report": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {
+          "candidate": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/11-existing-state-f-record-address/emitted/candidate.txt",
+          "core": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/11-existing-state-f-record-address/emitted/core.txt",
+          "ct-core": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/11-existing-state-f-record-address/emitted/ct-core.txt",
+          "interfaces": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/11-existing-state-f-record-address/emitted/interfaces.txt",
+          "source-map": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/11-existing-state-f-record-address/emitted/source-map.txt",
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/11-existing-state-f-record-address/emitted/syntax.txt",
+          "typed": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/11-existing-state-f-record-address/emitted/typed.txt",
+          "verified": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/11-existing-state-f-record-address/emitted/verified.txt",
+          "verified-interfaces": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/11-existing-state-f-record-address/emitted/verified-interfaces.txt"
+        },
+        "input_fingerprint": "4872d4a5ecdda56fda7b80e9eb83b639757123f6b837f6a8ec7be35576620369",
+        "seconds": 0.03103824,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/11-existing-state-f-record-address/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+            "implementation_fingerprint": "b1f0ec18be4f14d8d944eb99d84add70c969d98f767b1e584801f5cedbfe3bc5",
+            "contract_fingerprint": "b22de8009aee52a1637343be4c015789b55ccac916f670bdc5ef2edcd92800e3",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "12-mixed-held-field-window-negative",
+      "purpose": "Nearest forbidden alias: retained shared T field window overlaps later exclusive callback argument",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "generic bound, lifetime or const parameter requires its semantic solver",
+            "span": {
+              "file": 0,
+              "start": 14,
+              "end": 20
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/12-mixed-held-field-window-negative/emitted/syntax.txt"
+        },
+        "input_fingerprint": "ef8424ee9d482c007b1a7bcd0e662041836ee2ea986841920fa67cab2449091e",
+        "seconds": 0.003912579,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes01/12-mixed-held-field-window-negative/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    }
+  ]
+}

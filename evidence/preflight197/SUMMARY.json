@@ -1,0 +1,519 @@
+{
+  "kind": "ReadOnlyPreflightSummary",
+  "task": "197",
+  "compiler_source": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+  "input_checks": 24,
+  "distinct_input_sets": 23,
+  "status_counts": {
+    "Success": 4,
+    "Unsupported": 20
+  },
+  "verification_runs": 4,
+  "native_executions": 0,
+  "compile_commands_in_this_preflight": 0,
+  "correction_authorized_by": "/root: same twelve-position matrix, cumulative cap 24 checks; preserve first round; verify controls before remainder",
+  "correction_controls_first": [
+    "probes02/01-existing-state-f-sibling",
+    "probes02/02-copy-t-package-no-callback"
+  ],
+  "rounds": [
+    {
+      "round": "probes01",
+      "checks": 12,
+      "status_counts": {
+        "Unsupported": 11,
+        "Success": 1
+      },
+      "actual_phase_counts": {
+        "types": 1,
+        "expand": 10,
+        "verify": 1
+      },
+      "verification_runs": 1,
+      "native_executions": 0,
+      "cases": [
+        {
+          "name": "01-existing-state-f-sibling",
+          "status": "Unsupported",
+          "phase": "types",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "package requires at least one manages field and has no custom whole Drop",
+              "span": {
+                "file": 0,
+                "start": 0,
+                "end": 38
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "02-copy-t-package-no-callback",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "generic bound, lifetime or const parameter requires its semantic solver",
+              "span": {
+                "file": 0,
+                "start": 13,
+                "end": 19
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "03-state-t-f-construction",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "generic bound, lifetime or const parameter requires its semantic solver",
+              "span": {
+                "file": 0,
+                "start": 14,
+                "end": 20
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "04-state-t-f-input-signature",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "generic bound, lifetime or const parameter requires its semantic solver",
+              "span": {
+                "file": 0,
+                "start": 14,
+                "end": 20
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "05-copy-t-with-old-state-f",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "Copy data and owning callable State combinations are not implemented",
+              "span": {
+                "file": 0,
+                "start": 110,
+                "end": 194
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "06-phantom-t-f-first",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "generic bound, lifetime or const parameter requires its semantic solver",
+              "span": {
+                "file": 0,
+                "start": 16,
+                "end": 22
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "07-same-f-different-width-t",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "generic bound, lifetime or const parameter requires its semantic solver",
+              "span": {
+                "file": 0,
+                "start": 14,
+                "end": 20
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "08-same-f-nominal-a-b",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "generic bound, lifetime or const parameter requires its semantic solver",
+              "span": {
+                "file": 0,
+                "start": 45,
+                "end": 51
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "09-cross-module-copy-state",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "generic bound, lifetime or const parameter requires its semantic solver",
+              "span": {
+                "file": 2,
+                "start": 18,
+                "end": 24
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "10-mixed-callback-value-address",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "generic bound, lifetime or const parameter requires its semantic solver",
+              "span": {
+                "file": 0,
+                "start": 14,
+                "end": 20
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "11-existing-state-f-record-address",
+          "status": "Success",
+          "phase": "verify",
+          "exit_code": 0,
+          "verification_runs": 1,
+          "diagnostics": []
+        },
+        {
+          "name": "12-mixed-held-field-window-negative",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "generic bound, lifetime or const parameter requires its semantic solver",
+              "span": {
+                "file": 0,
+                "start": 14,
+                "end": 20
+              },
+              "notes": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "round": "probes02",
+      "checks": 12,
+      "status_counts": {
+        "Success": 3,
+        "Unsupported": 9
+      },
+      "actual_phase_counts": {
+        "verify": 3,
+        "expand": 9
+      },
+      "verification_runs": 3,
+      "native_executions": 0,
+      "cases": [
+        {
+          "name": "01-existing-state-f-sibling",
+          "status": "Success",
+          "phase": "verify",
+          "exit_code": 0,
+          "verification_runs": 1,
+          "diagnostics": []
+        },
+        {
+          "name": "02-copy-t-package-no-callback",
+          "status": "Success",
+          "phase": "verify",
+          "exit_code": 0,
+          "verification_runs": 1,
+          "diagnostics": []
+        },
+        {
+          "name": "03-state-t-f-construction",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 64,
+                "end": 192
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "04-state-t-f-input-signature",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+              "span": {
+                "file": 0,
+                "start": 90,
+                "end": 106
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "05-copy-t-with-old-state-f",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "Copy data and owning callable State combinations are not implemented",
+              "span": {
+                "file": 0,
+                "start": 153,
+                "end": 237
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "06-phantom-t-f-first",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 66,
+                "end": 191
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "07-same-f-different-width-t",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 64,
+                "end": 193
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "08-same-f-nominal-a-b",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 95,
+                "end": 224
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "09-cross-module-copy-state",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 2,
+                "start": 72,
+                "end": 200
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "10-mixed-callback-value-address",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 64,
+                "end": 200
+              },
+              "notes": []
+            }
+          ]
+        },
+        {
+          "name": "11-existing-state-f-record-address",
+          "status": "Success",
+          "phase": "verify",
+          "exit_code": 0,
+          "verification_runs": 1,
+          "diagnostics": []
+        },
+        {
+          "name": "12-mixed-held-field-window-negative",
+          "status": "Unsupported",
+          "phase": "expand",
+          "exit_code": 3,
+          "verification_runs": 0,
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+              "span": {
+                "file": 0,
+                "start": 98,
+                "end": 114
+              },
+              "notes": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "All mixed State<T,F> attempts stop in Expand; they provide no Verify evidence for mixed State nominal identity, borrow safety, cleanup or code generation.",
+    "probes01 aggregate Copy bounds are valid syntax with an explicitly unsupported solver, a separate prerequisite boundary.",
+    "probes01/01 omission of manages is a fixture mistake corrected only in probes02.",
+    "probes02/12 is a future nearest borrow negative masked by the current mixed State gate; not a passing borrow-rejection test.",
+    "The State data nominal family issue is a static prospective risk, not an accepted-program bug observed by these checks.",
+    "No compiler rebuild, public schema changes, performance measurements, production implementation or full-workspace validation."
+  ],
+  "decision": {
+    "complete_language": "NotSatisfied",
+    "product": "NotRun",
+    "B0": "Doing"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author194/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/06-phantom-t-f-first/main.zil",
+    "--stop-after",
+    "verify",
+    "--json",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/06-phantom-t-f-first/emitted"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/06-phantom-t-f-first",
+  "source_commit": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+  "source_status_at_build": "",
+  "cli_sha256": "029543198554cd97118e2f4bc4a5b75ef0767ea5cbbf872f5e4fa075439ab119",
+  "cli_bytes": 25447872,
+  "phase_limit": "Verify",
+  "inputs": {
+    "main.zil": "d6f9bf54d9dc449325e7971863e1ecfb97b8349e6c77092671cd79c46f0c791c"
+  },
+  "start_epoch": 1793166687.9821134,
+  "environment": {
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "scope": "197 read-only preflight, no compiler rebuild or production edits",
+  "exit_code": 3,
+  "end_epoch": 1793166687.9884155,
+  "stdout_sha256": "75c676dab32b43139c47d95796d64cbef40124034dde58274b3799ab26175230",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,638 @@
+{
+  "kind": "ReadOnlyPreflightResults",
+  "task": "197",
+  "executed_cases": 12,
+  "native_executions": 0,
+  "compiler_source": "13df78f532f63874b61d56dc6067884dbac0fe9d",
+  "cli_sha256": "029543198554cd97118e2f4bc4a5b75ef0767ea5cbbf872f5e4fa075439ab119",
+  "results": [
+    {
+      "name": "01-existing-state-f-sibling",
+      "purpose": "Existing State<F> owning callback and concrete i32 sibling address control",
+      "exit_code": 0,
+      "report": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {
+          "candidate": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/01-existing-state-f-sibling/emitted/candidate.txt",
+          "core": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/01-existing-state-f-sibling/emitted/core.txt",
+          "ct-core": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/01-existing-state-f-sibling/emitted/ct-core.txt",
+          "interfaces": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/01-existing-state-f-sibling/emitted/interfaces.txt",
+          "source-map": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/01-existing-state-f-sibling/emitted/source-map.txt",
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/01-existing-state-f-sibling/emitted/syntax.txt",
+          "typed": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/01-existing-state-f-sibling/emitted/typed.txt",
+          "verified": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/01-existing-state-f-sibling/emitted/verified.txt",
+          "verified-interfaces": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/01-existing-state-f-sibling/emitted/verified-interfaces.txt"
+        },
+        "input_fingerprint": "38dd41fa6e7363e3be8a7591def7075492f6995e4122281881d7efde221b7cd8",
+        "seconds": 0.020616896,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/01-existing-state-f-sibling/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+            "implementation_fingerprint": "7cedc0a7d37056c9a4dea902c0e5475768296b83cdb8e9c91c6f3492e0fcb251",
+            "contract_fingerprint": "b22de8009aee52a1637343be4c015789b55ccac916f670bdc5ef2edcd92800e3",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "02-copy-t-package-no-callback",
+      "purpose": "Ordinary Copy T package and field control without a callable role",
+      "exit_code": 0,
+      "report": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {
+          "candidate": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/02-copy-t-package-no-callback/emitted/candidate.txt",
+          "core": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/02-copy-t-package-no-callback/emitted/core.txt",
+          "ct-core": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/02-copy-t-package-no-callback/emitted/ct-core.txt",
+          "interfaces": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/02-copy-t-package-no-callback/emitted/interfaces.txt",
+          "source-map": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/02-copy-t-package-no-callback/emitted/source-map.txt",
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/02-copy-t-package-no-callback/emitted/syntax.txt",
+          "typed": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/02-copy-t-package-no-callback/emitted/typed.txt",
+          "verified": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/02-copy-t-package-no-callback/emitted/verified.txt",
+          "verified-interfaces": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/02-copy-t-package-no-callback/emitted/verified-interfaces.txt"
+        },
+        "input_fingerprint": "3ad34d0443e417e396e753de306cb85cae34e0f275d488d25e19545a65563f05",
+        "seconds": 0.017429919,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/02-copy-t-package-no-callback/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+            "implementation_fingerprint": "ce4d6756ea0bf2858976e6a06e9b39a990c702b6cc766af9e81708d0b46a75b4",
+            "contract_fingerprint": "b22de8009aee52a1637343be4c015789b55ccac916f670bdc5ef2edcd92800e3",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "03-state-t-f-construction",
+      "purpose": "Actual i32 State<T,F> factory result and direct field call",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "escaping callable result is not implemented",
+            "span": {
+              "file": 0,
+              "start": 64,
+              "end": 192
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/03-state-t-f-construction/emitted/syntax.txt"
+        },
+        "input_fingerprint": "f293ea4f7509d1130fbbc1cdc42bdb118cb629e3429e4f272a4a75cf3ab4d97f",
+        "seconds": 0.00366408,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/03-state-t-f-construction/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "04-state-t-f-input-signature",
+      "purpose": "Unused mixed State<T,F> input signature still requires definition-time admission",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+            "span": {
+              "file": 0,
+              "start": 90,
+              "end": 106
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/04-state-t-f-input-signature/emitted/syntax.txt"
+        },
+        "input_fingerprint": "f5ff41ab9627b03c82f1e64cb4a4db2baa0a686d568dd2d1983e3682f5894acb",
+        "seconds": 0.002385015,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/04-state-t-f-input-signature/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "05-copy-t-with-old-state-f",
+      "purpose": "Old owning State<F> plus ordinary Copy T must keep the explicit 194 boundary",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "Copy data and owning callable State combinations are not implemented",
+            "span": {
+              "file": 0,
+              "start": 153,
+              "end": 237
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/05-copy-t-with-old-state-f/emitted/syntax.txt"
+        },
+        "input_fingerprint": "c53286523f428293e3a58e3a3b5f9ba8a6ccac9ab331c4f7ea873fa86c6128a6",
+        "seconds": 0.003723849,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/05-copy-t-with-old-state-f/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "06-phantom-t-f-first",
+      "purpose": "Same F with phantom data T still needs distinct nominal identity; reversed declaration order",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "escaping callable result is not implemented",
+            "span": {
+              "file": 0,
+              "start": 66,
+              "end": 191
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/06-phantom-t-f-first/emitted/syntax.txt"
+        },
+        "input_fingerprint": "e21b2a304bce61e16fdf89c3cbc764d838432fec3d878e6d558d90c44ec27a6d",
+        "seconds": 0.004500092,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/06-phantom-t-f-first/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "07-same-f-different-width-t",
+      "purpose": "Same factory ClosureId with distinct i32/i64 State data; T absent from the F bound",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "escaping callable result is not implemented",
+            "span": {
+              "file": 0,
+              "start": 64,
+              "end": 193
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/07-same-f-different-width-t/emitted/syntax.txt"
+        },
+        "input_fingerprint": "f0cc3234099afff80c2695fc2ba63805f2a3fc8df6bceecde52a2d601237e468",
+        "seconds": 0.004159971,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/07-same-f-different-width-t/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "08-same-f-nominal-a-b",
+      "purpose": "Same layout nominal A/B and same F require separate State instances",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "escaping callable result is not implemented",
+            "span": {
+              "file": 0,
+              "start": 95,
+              "end": 224
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/08-same-f-nominal-a-b/emitted/syntax.txt"
+        },
+        "input_fingerprint": "537fdab70e6e625074a858639fef3db7d42019a2c62bcb242b4733417eec2bc9",
+        "seconds": 0.006649845,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/08-same-f-nominal-a-b/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "09-cross-module-copy-state",
+      "purpose": "Three real modules export and instantiate State<T,F> with a nominal Copy record",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "escaping callable result is not implemented",
+            "span": {
+              "file": 2,
+              "start": 72,
+              "end": 200
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/09-cross-module-copy-state/emitted/syntax.txt"
+        },
+        "input_fingerprint": "36cc3a719d56c9e13444cad787f94eacef6536d28438624542013a6bbbde8d08",
+        "seconds": 0.006172167,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/09-cross-module-copy-state/main.zil",
+          "1": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/09-cross-module-copy-state/model.zil",
+          "2": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/09-cross-module-copy-state/state.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "10-mixed-callback-value-address",
+      "purpose": "Copy T sibling address beside callback and separate ByteBuffer owner",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "escaping callable result is not implemented",
+            "span": {
+              "file": 0,
+              "start": 64,
+              "end": 200
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/10-mixed-callback-value-address/emitted/syntax.txt"
+        },
+        "input_fingerprint": "909504c28a5949f97c43c918279502a4328aac2d266b80b095daf0986c0af450",
+        "seconds": 0.004812763,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/10-mixed-callback-value-address/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    },
+    {
+      "name": "11-existing-state-f-record-address",
+      "purpose": "192 existing State<F> record sibling borrow control",
+      "exit_code": 0,
+      "report": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "artifacts": {
+          "candidate": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/emitted/candidate.txt",
+          "core": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/emitted/core.txt",
+          "ct-core": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/emitted/ct-core.txt",
+          "interfaces": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/emitted/interfaces.txt",
+          "source-map": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/emitted/source-map.txt",
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/emitted/syntax.txt",
+          "typed": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/emitted/typed.txt",
+          "verified": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/emitted/verified.txt",
+          "verified-interfaces": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/emitted/verified-interfaces.txt"
+        },
+        "input_fingerprint": "dcf7739c813233123d6112d308819271fe2b12ef0fbb942df2eaaf2fbc1e8fb8",
+        "seconds": 0.020589276,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          },
+          {
+            "phase": "analyze",
+            "disposition": "executed"
+          },
+          {
+            "phase": "verify",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 1,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/11-existing-state-f-record-address/main.zil"
+        },
+        "scalar_interfaces": [
+          {
+            "module": 0,
+            "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+            "implementation_fingerprint": "b1f0ec18be4f14d8d944eb99d84add70c969d98f767b1e584801f5cedbfe3bc5",
+            "contract_fingerprint": "b22de8009aee52a1637343be4c015789b55ccac916f670bdc5ef2edcd92800e3",
+            "result_origins": [],
+            "callable_contracts": [],
+            "callable_returns": [],
+            "exports": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "12-mixed-held-field-window-negative",
+      "purpose": "Nearest forbidden alias: retained shared T field window overlaps later exclusive callback argument",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+            "span": {
+              "file": 0,
+              "start": 98,
+              "end": 114
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {
+          "syntax": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/12-mixed-held-field-window-negative/emitted/syntax.txt"
+        },
+        "input_fingerprint": "e7e91baa3549bbca4b277c968a7eadb33b01cff0c4eeb6ba2146253069eaa8e5",
+        "seconds": 0.003068442,
+        "cache_hit": false,
+        "commands": [],
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/scratch/39be3faa4442/run-logs/197-preflight/probes02/12-mixed-held-field-window-negative/main.zil"
+        },
+        "scalar_interfaces": []
+      }
+    }
+  ]
+}
