@@ -78,13 +78,6 @@ impl<'a> Budget<'a> {
 /// Reserve the complete retained template before a new deep snapshot. This
 /// reuses the borrowed input walk, so nested statements/types and text all count.
 pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> R<(usize, bool)> {
-    // Public registration does not admit execution before Types implements it.
-    if !function.state_parameters.is_empty() {
-        return Err(unsupported(
-            function.span,
-            "independent State bindings await Types admission",
-        ));
-    }
     let mut budget = Budget::new(limits);
     budget.work(
         function
@@ -101,6 +94,7 @@ pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> 
     for parameter in &function.type_parameters {
         budget.work(parameter.name.len().saturating_add(1), function.span)?;
     }
+    state_snapshot(&function.state_parameters, function.span, &mut budget)?;
     for bound in &function.callable_parameters {
         callable_snapshot(bound, function.span, &mut budget)?;
     }
@@ -125,6 +119,9 @@ pub(super) fn signature_snapshot_work(
     validate_type(&signature.result, 0, span, &mut budget)?;
     if let Some(ty) = &signature.receiver {
         validate_type(ty, 0, span, &mut budget)?;
+    }
+    if let Some(state) = &signature.state_parameter {
+        state_snapshot(std::slice::from_ref(state), span, &mut budget)?;
     }
     for bound in &signature.callable {
         callable_snapshot(bound, span, &mut budget)?;
@@ -158,6 +155,35 @@ fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Bud
     validate_type(&bound.result, 0, span, budget)
 }
 
+fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget<'_>) -> R<()> {
+    if states.is_empty() {
+        return Ok(());
+    }
+    let before = budget.work;
+    budget.work(states.len(), span)?;
+    for state in states {
+        budget.work(state.bindings.len().saturating_add(1), span)?;
+        for binding in &state.bindings {
+            budget.work(
+                binding
+                    .generic_name
+                    .len()
+                    .saturating_add(binding.fields.len())
+                    .saturating_add(binding.parameters.len())
+                    .saturating_add(1),
+                span,
+            )?;
+            for parameter in &binding.parameters {
+                validate_type(parameter, 0, span, budget)?;
+            }
+            validate_type(&binding.result, 0, span, budget)?;
+        }
+    }
+    // Both the public source declaration and its private bound view are copied.
+    // Reserve those snapshots before either allocation, including selectors.
+    budget.work((before - budget.work).saturating_mul(2), span)
+}
+
 /// Infer closure-related source types without executing CT or producing a
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
@@ -167,7 +193,10 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
     let flags = core
         .functions
         .iter()
-        .map(|f| contains_closure(&f.body, 0, &mut budget))
+        .map(|f| {
+            contains_closure(&f.body, 0, &mut budget)
+                .map(|found| found || !f.state_parameters.is_empty())
+        })
         .collect::<R<Vec<_>>>()
         .map_err(|e| vec![e])?;
     names::check(core, limits).map_err(|e| vec![e])?;
@@ -394,13 +423,8 @@ fn headers(
     validate_module_metadata(core, budget)?;
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
-        // Public registration does not admit execution before Types implements it.
-        if !function.state_parameters.is_empty() {
-            return Err(unsupported(
-                function.span,
-                "independent State bindings await Types admission",
-            ));
-        }
+        state_snapshot(&function.state_parameters, function.span, budget)?;
+        state_origins::validate_header(function)?;
         if !function.type_parameters.is_empty() {
             budget.work(function.type_parameters.len(), function.span)?;
             store_templates::validate_header(function)?;
@@ -479,20 +503,20 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
-                callable: function.callable_parameters.clone(),
+                callable: state_origins::bounds(function).into_owned(),
+                state_parameter: function.state_parameters.first().cloned(),
                 callable_return: function.callable_return.clone(),
                 type_parameter: function.type_parameters.first().cloned(),
                 template: (!function.callable_parameters.is_empty()
-                    || !function.type_parameters.is_empty())
+                    || !function.type_parameters.is_empty()
+                    || !function.state_parameters.is_empty())
                 .then_some((core.module_id, function.id)),
                 foreign: function.foreign.is_some(),
                 cleanup: core
                     .aggregates
                     .iter()
                     .any(|a| a.teardown.as_ref() == Some(&function.name)),
-                id: function
-                    .type_parameters
-                    .is_empty()
+                id: (function.type_parameters.is_empty() && function.state_parameters.is_empty())
                     .then_some(FunctionId(id)),
                 parameters: function.parameters.iter().map(|p| p.ty.clone()).collect(),
                 result: function.return_type.clone(),
@@ -513,7 +537,7 @@ fn prepare(
     budget: &mut Budget<'_>,
 ) -> R<CoreFunction> {
     // Scalar-only functions retain their existing inference/default behavior.
-    if !has_closure && function.type_parameters.is_empty() {
+    if !has_closure && function.type_parameters.is_empty() && function.state_parameters.is_empty() {
         let dependencies = retained::dependencies(
             function,
             signatures,
@@ -706,6 +730,9 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
     validate_type(&signature.result, 0, span, budget)?;
     for parameter in &signature.parameters {
         validate_type(parameter, 0, span, budget)?;
+    }
+    if let Some(state) = &signature.state_parameter {
+        state_snapshot(std::slice::from_ref(state), span, budget)?;
     }
     for bound in &signature.callable {
         callable_snapshot(bound, span, budget)?;

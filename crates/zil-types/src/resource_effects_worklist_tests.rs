@@ -102,6 +102,7 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
                 Signature {
                     id: Some(FunctionId(i as u32)),
                     callable: Vec::new(),
+                    state_parameter: None,
                     callable_return: None,
                     type_parameter: None,
                     template: None,

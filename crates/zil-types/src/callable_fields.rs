@@ -7,6 +7,9 @@ pub(super) fn placeholder_package(ty: &Type, name: &str) -> bool {
 }
 
 pub(super) fn template(function: &CoreFunction) -> bool {
+    if !function.state_parameters.is_empty() {
+        return true;
+    }
     owning_profile(
         &function.callable_parameters,
         &function.return_type,
@@ -15,6 +18,9 @@ pub(super) fn template(function: &CoreFunction) -> bool {
 }
 
 pub(super) fn signature(signature: &Signature) -> bool {
+    if signature.state_parameter.is_some() {
+        return true;
+    }
     owning_profile(&signature.callable, &signature.result, |index| {
         signature.parameters.get(index)
     })
