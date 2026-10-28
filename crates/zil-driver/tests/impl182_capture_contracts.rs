@@ -306,6 +306,20 @@ fn mutable_address_capture_reborrows_and_releases_after_last_call() {
 }
 
 #[test]
+fn mutable_environment_reborrow_does_not_write_its_readonly_desc_capture() {
+    let source = format!(
+        "{MODEL}fn main()->i32{{let a=R{{code:65,n:20}};let d=a;let h=&a;var n=0;var f=()=>{{n+=1;return d.n+n}};let answer=apply_mut(&mut f);return answer+h.n+n-42}}"
+    );
+    native(&[("main", &source)], b"A", 0);
+    rejected(
+        &source.replace("n+=1;return d.n+n", "n+=1;d.n+=1;return d.n+n"),
+        ResultCategory::SafeReject,
+        Phase::Verify,
+        "E-BORROW-CONFLICT",
+    );
+}
+
+#[test]
 fn copy_argument_preparation_still_observes_the_captured_shared_window() {
     let source = format!(
         "{MODEL}fn main()->i32{{let r=R{{code:65,n:21}};let p=&r;let q=&p.n;let f=(value:i32)=>*q+value;return f(write(r,42))}}"
