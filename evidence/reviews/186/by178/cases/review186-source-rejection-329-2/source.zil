@@ -1,0 +1,1 @@
+resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn bad(p:P,count:i32)->R contract{result(create)}{var q=p;var i=0;while i<count{q.fresh=R{n:29};i+=1}return give q.fresh}fn main(){}
