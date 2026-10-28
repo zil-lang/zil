@@ -207,11 +207,33 @@ fn storage_end_cannot_leave_an_address_or_captured_address_live() {
 #[test]
 fn unsupported_reference_contracts_and_authority_remain_explicit() {
     // Exact previously closed inputs are now admitted by189 and184.
-    for source in [
+    for text in [
         "fn result() -> i32 { let f = (p: &i32) => *p; return 0; }",
         "fn result() -> i32 { let x = 1; let f = () => &x; return 0; }",
     ] {
-        native(source, 0);
+        // These exact inputs do not invoke their closure. Their signature
+        // admission must not require the local-address GEP used by native().
+        for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+            let temp = Temp::new();
+            let report = compile_source(
+                &source(text),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    optimization,
+                    entry: Some("result".into()),
+                    output: Some(temp.0.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            execute(&report.artifacts["executable"], 0);
+        }
     }
     native(
         "fn result() -> i32 { var x = 1; let p = &mut x; *p=42; return x; }",
