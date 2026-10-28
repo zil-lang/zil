@@ -1,0 +1,3 @@
+wine: created the configuration directory '/workspace/scratch/39be3faa4442/runs178/review181-composition/wine-prefix'
+sock_init: ERROR in sock_check_pollhup()
+wineserver: bind: Operation not permitted

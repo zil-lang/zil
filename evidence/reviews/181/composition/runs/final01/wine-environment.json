@@ -1,0 +1,17 @@
+{
+  "source_prefix": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix-review181",
+  "isolated_copy": "/workspace/scratch/39be3faa4442/runs178/review181-composition/wine-prefix-restored",
+  "symlinks_preserved": true,
+  "reason": "Reuse already restored official Wine module links in a fresh independent prefix; previous first-time setup failures are retained.",
+  "registry_hashes": {
+    "system.reg": "0ebc29d37fbdc6b31bceb829d380c1408adf42b50421785784949efdad59dbb5",
+    "user.reg": "68c736361fe14c54885af401ec344cd14b08ff967bf671cd965bcaf6dd6c1b1a",
+    "userdef.reg": "64128d938c827b3b6e07ede840f6334d651b896cb454f69a8e39b212a82e5a7c"
+  },
+  "environment": {
+    "WINEPREFIX": "/workspace/scratch/39be3faa4442/runs178/review181-composition/wine-prefix-restored",
+    "WINEARCH": "win64",
+    "WINEDEBUG": "-all",
+    "WINEDLLPATH": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu/wine/x86_64-windows:/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu/wine/x86_64-unix"
+  }
+}

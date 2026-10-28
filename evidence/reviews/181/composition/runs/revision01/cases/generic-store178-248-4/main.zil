@@ -1,0 +1,1 @@
+fn wrong<T:StoreElement,U:StoreElement>(s:Store<T>,v:U){store_push(s,v)}fn main(){}

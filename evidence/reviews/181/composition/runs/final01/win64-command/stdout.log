@@ -1,0 +1,17 @@
+{
+  "status": "Pass",
+  "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b",
+  "dirty": "",
+  "cli_sha256": "2a6558f7bce22f51c0d2b9b226641896819bb5fa6292af02a33ef3d2e734890f",
+  "platform": "win64",
+  "execution": "Wine compatibility",
+  "selected": [
+    "composed"
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "executions": 48,
+  "ordinary_executions": 10,
+  "instrumented_executions": 38,
+  "failure_executions": 30
+}

@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/runs178/review181-composition/final01/linux-result/composed/O2/program"
+  ],
+  "status": "Completed",
+  "start": 1793152591.5316122,
+  "stdin_hex": "31",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "0"
+  },
+  "exit_code": 0,
+  "stdout_sha256": "26b1f9631c45805556a7e28e6393b523612ff18f30029fc40e79e3511ab18f12",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793152591.5331273
+}
