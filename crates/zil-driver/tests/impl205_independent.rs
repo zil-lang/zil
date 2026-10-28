@@ -733,6 +733,14 @@ fn raw_legacy_single_state_alias_cannot_depend_on_expand_having_checked_the_body
     );
 }
 
+#[test]
+fn repaired_legacy_definition_check_preserves_actual_lending_callback_use() {
+    // This exact source was independently accepted by frozen 204 CLI05 before
+    // the old single-State raw definition check was activated in 205.
+    let source = include_str!("impl205_independent_fixtures/05_legacy_state_lending.zil");
+    native("legacy-lending-after-definition-repair", source, "", 0);
+}
+
 fn verify_pair(label: &str, module: &TypedModule, candidate: &CandidatePlan, accept: bool) {
     let case = Case::new(label);
     let limits = Limits::default();
