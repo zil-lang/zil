@@ -832,3 +832,420 @@ fn raw_store_two_root_work_bounds_replay_the_same_fresh_result() {
     case.write("verify.txt", format!("{errors:#?}"));
     assert!(errors.iter().any(|d| d.code == "E-WIRE-VERSION"));
 }
+
+#[test]
+fn ordinary_templates_keep_error_payload_and_success_payload_separate() {
+    let prefix = &ORIGINAL[..ORIGINAL.find("fn run<").unwrap()];
+    let source = format!(
+        "{HELPERS}{prefix}{}",
+        r#"
+fn error_route<T:StoreElement>(value:T!void)->T!void{return value}
+fn run<T:Copy,F:Fn()->i32,G:FnOnce()->i32>(state:State<T,F,G>)->State<T,F,G>!i32{
+    let items:Store<State<T,F,G>>=empty()
+    let full:State<T,F,G>!void=push(items,state)
+    let routed:State<T,F,G>!void=error_route::<State<T,F,G>>(full)
+    routed?
+    return 0
+}
+fn main()->i32{let result=run(pack(make(65,10),make(66,20),17));return 0}
+"#
+    );
+    // Main discards the actual returned sum; its active error owns State.
+    native(
+        "error-side-complete-state-through-template",
+        &source,
+        "ZAB",
+        0,
+    );
+    let wrong_success = source.replace(
+        "    routed?",
+        "    let success=routed?\n    success.second()",
+    );
+    reject_source(
+        "try-on-state-error-cannot-project-error-as-success",
+        &wrong_success,
+        &[Phase::Expand, Phase::Types],
+        None,
+    );
+}
+
+fn nominal_source(phantom: bool) -> String {
+    let mut source = ORIGINAL_MARKERS[..ORIGINAL_MARKERS.find("fn main()").unwrap()].to_owned();
+    source = source
+        .replace("-> (i32, T)", "-> i32")
+        .replace("    let tag = state.tag\n", "")
+        .replace(
+            "return (first + again + second - 40, tag)",
+            "return first + again + second - 40",
+        );
+    if phantom {
+        source = source
+            .replace("; tag: T }", " }")
+            .replace(", tag: tag }", " }");
+    }
+    format!(
+        "{source}{}",
+        r#"
+struct Left{value:i32}
+struct Right{value:i32}
+fn main()->i32{
+    let left=run(pack(make(65,10),make(66,20),Left{value:1}))
+    let right=run(pack(make(67,10),make(68,20),Right{value:1}))
+    return left+right
+}
+"#
+    )
+}
+
+#[test]
+fn complete_nominal_and_phantom_t_remain_part_of_dual_state_identity() {
+    for phantom in [false, true] {
+        let source = nominal_source(phantom);
+        native(
+            &format!("dual-state-nominal-phantom-{phantom}"),
+            &source,
+            "MPBQZAMPDQZC",
+            0,
+        );
+        let (_, typed, _) = typed_control(&format!("dual-state-family-phantom-{phantom}"), &source);
+        let states = typed
+            .functions
+            .iter()
+            .flat_map(|f| f.parameters.iter().map(|id| &f.locals[id.0 as usize].ty))
+            .filter_map(|ty| match ty {
+                Type::Package { name, fields }
+                    if fields
+                        .iter()
+                        .filter(|(_, t)| matches!(t, Type::Closure(_)))
+                        .count()
+                        == 2 =>
+                {
+                    Some(name.clone())
+                }
+                _ => None,
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            states.len(),
+            2,
+            "same concrete [C,C] still has two distinct nominal data families: {states:#?}"
+        );
+    }
+}
+
+const QUALIFICATION_ONLY: &str = r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Empty{}
+impl Drop for Empty{fn drop(self:Self){unsafe{putchar(90)}}}
+package Duo<F,G>{manages owner:Empty;first:F;second:G}
+fn first()->impl Fn()->i32{return ()=>7}
+fn second()->impl Fn()->i32{return ()=>9}
+fn pack<F:Fn()->i32,G:FnOnce()->i32>(f:F,g:G)->Duo<F,G>{return Duo::<F,G>{owner:Empty{},first:f,second:g}}
+fn identity<T:StoreElement>(value:T)->T{return value}
+fn run<F:Fn()->i32,G:FnOnce()->i32>(state:Duo<F,G>)->i32{
+    let next=identity::<Duo<F,G>>(state)
+    return 0
+}
+fn main()->i32{return run(pack(first(),second()))}
+"#;
+
+fn no_store_qualification(source: &str) -> (CoreModule, TypedModule, CandidatePlan) {
+    let core = expanded("dual-state-no-store-qualification", source);
+    let case = Case::new("dual-state-no-store-qualification-typed");
+    let typed = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default());
+    case.write("typed.txt", format!("{typed:#?}"));
+    let typed = typed.unwrap();
+    let stores = typed
+        .resources
+        .iter()
+        .filter_map(|r| {
+            if let Type::OwnedStore { element } = &r.payload {
+                Some(element)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !stores.is_empty(),
+        "every actual ordinary T binding must carry canonical qualification even without Store operations"
+    );
+    assert!(stores.iter().any(|element|matches!(element.as_ref(),Type::Package{fields,..} if fields.iter().filter_map(|(_,ty)|if let Type::Closure(id)=ty{Some(*id)}else{None}).collect::<std::collections::BTreeSet<_>>().len()==2)));
+    assert!(
+        typed
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .all(|i| !matches!(
+                i.kind,
+                InstructionKind::OwnedStoreNew { .. }
+                    | InstructionKind::OwnedStoreReserve { .. }
+                    | InstructionKind::OwnedStorePush { .. }
+                    | InstructionKind::OwnedStorePop { .. }
+                    | InstructionKind::OwnedStoreBorrow { .. }
+                    | InstructionKind::OwnedStoreBorrowMut { .. }
+            ))
+    );
+    let plan = zil_analyze::analyze(&typed, &Limits::default());
+    case.write("analyze.txt", format!("{plan:#?}"));
+    (core, typed, plan.unwrap())
+}
+
+#[test]
+fn identity_without_store_operations_still_checks_actual_two_root_layout() {
+    let (_, zero, plan) = no_store_qualification(QUALIFICATION_ONLY);
+    let case = Case::new("two-empty-environments-zero-actual-element");
+    verify_pair(
+        &case,
+        &zero,
+        &plan,
+        Some((ResultCategory::Unsupported, "E-UNSUPPORTED")),
+    );
+    reject_source(
+        "source-two-empty-environments-zero-layout",
+        QUALIFICATION_ONLY,
+        &[Phase::Verify],
+        Some("E-UNSUPPORTED"),
+    );
+    let nonzero = QUALIFICATION_ONLY.replace(
+        "fn first()->impl Fn()->i32{return ()=>7}",
+        "fn first()->impl Fn()->i32{let n=7;return move()=>n}",
+    );
+    native(
+        "one-nonempty-environment-complete-element",
+        &nonzero,
+        "Z",
+        0,
+    );
+    let (core, typed, plan) = no_store_qualification(&nonzero);
+    verify_pair(
+        &Case::new("qualification-only-nonzero-control"),
+        &typed,
+        &plan,
+        None,
+    );
+    let types = boundary(|n| {
+        zil_types::check(
+            &core,
+            &typed.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|actual| assert_eq!(actual, typed))
+    });
+    Case::new("qualification-only-types-work").write("boundaries.json",format!("{{\"types\":{types},\"checks\":\"N, N-1 ResourceLimit, fresh N equal typed result\",\"store_operations\":0}}\n"));
+}
+
+#[test]
+fn unused_raw_state_bodies_cannot_acquire_fields_or_repeat_a_declared_once_call() {
+    let (core, index) = unused_state_core();
+    raw_types(
+        "unused-state-body-control",
+        &core,
+        &Limits::default(),
+        false,
+    );
+    let mut accepted = Vec::new();
+    for attack in ["missing-field", "repeated-once"] {
+        let mut changed = core.clone();
+        let f = &mut changed.functions[index];
+        let span = f.span;
+        let field = if attack == "missing-field" {
+            "not_declared"
+        } else {
+            "second"
+        };
+        let count = if attack == "missing-field" { 1 } else { 2 };
+        let end = f.body.statements.last().unwrap().clone();
+        f.body.statements.clear();
+        for i in 0..count {
+            let base = 990000 + i * 10;
+            f.body.statements.push(CoreStatement {
+                id: NodeId(base),
+                span,
+                kind: CoreStatementKind::Expression(CoreExpr {
+                    id: NodeId(base + 1),
+                    span,
+                    kind: CoreExprKind::Call {
+                        callee: Box::new(CoreExpr {
+                            id: NodeId(base + 2),
+                            span,
+                            kind: CoreExprKind::Member {
+                                object: Box::new(CoreExpr {
+                                    id: NodeId(base + 3),
+                                    span,
+                                    kind: CoreExprKind::Name(f.parameters[0].name.clone()),
+                                }),
+                                member: field.into(),
+                            },
+                        }),
+                        arguments: vec![],
+                    },
+                }),
+            });
+        }
+        f.body.statements.push(end);
+        let case = Case::new(&format!("unused-state-body-{attack}"));
+        case.write("core.txt", format!("{changed:#?}"));
+        let single = zil_types::check(&changed, &TargetProfile::host_llvm(), &Limits::default());
+        let many = zil_types::check_program(
+            &program(changed.clone()),
+            &TargetProfile::host_llvm(),
+            &Limits::default(),
+        )
+        .map(|p| p.module);
+        case.write("single.txt", format!("{single:#?}"));
+        case.write("program.txt", format!("{many:#?}"));
+        for (entry, result) in [("single", single), ("program", many)] {
+            match result {
+                Ok(_) => accepted.push(format!("{attack}/{entry}")),
+                Err(ds) => assert!(
+                    ds.iter().any(|d| d.phase == Phase::Types
+                        && matches!(
+                            d.category,
+                            ResultCategory::SafeReject | ResultCategory::Unsupported
+                        )),
+                    "{ds:#?}"
+                ),
+            }
+        }
+    }
+    assert!(
+        accepted.is_empty(),
+        "unused declared State definition checks were skipped: {accepted:?}"
+    );
+}
+
+#[test]
+fn unused_state_second_binder_metadata_has_a_real_early_budget() {
+    let (core, index) = unused_state_core();
+    raw_types(
+        "unused-state-budget-positive",
+        &core,
+        &Limits::default(),
+        false,
+    );
+    for oversized in [false, true] {
+        let mut changed = core.clone();
+        let limits = if oversized {
+            let long = "Second".repeat(4096);
+            let f = &mut changed.functions[index];
+            f.state_parameters[0].bindings[1].generic_name = long.clone();
+            let Type::Package { fields, .. } = &mut f.parameters[0].ty else {
+                unreachable!()
+            };
+            fields[2].1 = Type::Named(long);
+            Limits {
+                max_analysis_steps: 512,
+                ..Limits::default()
+            }
+        } else {
+            let mut ty = Type::I32;
+            for _ in 0..12 {
+                ty = Type::Tuple(vec![ty]);
+            }
+            changed.functions[index].state_parameters[0].bindings[1].result = ty;
+            Limits {
+                max_call_depth: 4,
+                ..Limits::default()
+            }
+        };
+        let case = Case::new(&format!("unused-second-binder-budget-long-{oversized}"));
+        case.write("core.txt", format!("{changed:#?}"));
+        case.write("limits.txt", format!("{limits:#?}"));
+        let single = zil_types::check(&changed, &TargetProfile::host_llvm(), &limits);
+        let many = zil_types::check_program(
+            &program(changed.clone()),
+            &TargetProfile::host_llvm(),
+            &limits,
+        );
+        case.write("single.txt", format!("{single:#?}"));
+        case.write("program.txt", format!("{many:#?}"));
+        for errors in [single.unwrap_err(), many.unwrap_err()] {
+            assert!(errors.iter().any(|d|d.phase==Phase::Types && d.category==ResultCategory::ResourceLimit),"{errors:#?}");
+        }
+    }
+}
+
+#[test]
+fn cross_module_equal_named_data_families_keep_their_full_state_instance() {
+    let state = ORIGINAL_MARKERS[..ORIGINAL_MARKERS.find("fn main()").unwrap()]
+        .replace("package State", "pub package State")
+        .replace("fn make(", "pub fn make(")
+        .replace("fn pack<", "pub fn pack<")
+        .replace("fn run<", "pub fn run<");
+    let main = r#"
+import state
+import left
+import right
+fn main()->i32{
+    let a=state.run(state.pack(state.make(65,10),state.make(66,20),left.Tag{value:17}))
+    let b=state.run(state.pack(state.make(67,10),state.make(68,20),right.Tag{value:23}))
+    if a.1.value!=17 || b.1.value!=23{return 1}
+    return a.0+b.0
+}
+"#;
+    let files = [
+        ("main", main),
+        ("state", state.as_str()),
+        ("left", "pub struct Tag{pub value:i32}"),
+        ("right", "pub struct Tag{pub value:i32}"),
+    ];
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let case = Case::new("module-nominal-State-family");
+        for (name, source) in files {
+            case.write(&format!("{name}.zil"), source);
+        }
+        let project = ProjectSources {
+            root: ModuleId(0),
+            units: files
+                .iter()
+                .enumerate()
+                .map(|(i, (name, source))| {
+                    SourceUnit::new(
+                        FileId(i as u32),
+                        ModuleId(i as u32),
+                        format!("{name}.zil"),
+                        *source,
+                    )
+                })
+                .collect(),
+            paths: files
+                .iter()
+                .enumerate()
+                .skip(1)
+                .map(|(i, (name, _))| (vec![name.to_string()], ModuleId(i as u32)))
+                .collect(),
+        };
+        let report = compile_project(
+            &project,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization,
+                output: Some(case.0.join("program")),
+                emit_dir: Some(case.0.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        case.write("compile.json", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let output = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        case.write("stdout.log", &output.stdout);
+        case.write("stderr.log", &output.stderr);
+        case.write("native.txt",format!("optimization={optimization:?}\nexit={:?}\nexpected_exit=0\nexpected_stdout=MPBQZAMPDQZC\n",output.status.code()));
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(output.stdout, b"MPBQZAMPDQZC");
+        assert!(output.stderr.is_empty());
+    }
+}
