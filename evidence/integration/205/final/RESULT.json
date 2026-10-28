@@ -305,5 +305,19 @@
   "native_windows": "NotRun",
   "formal_draft_product_pipeline": "NotRun",
   "compiler_speed_claim": "None; separate workstream",
-  "remaining_priority": "206 complete nested owning Package Product with independent per-leaf origins and exact recursive cleanup; other1.4 obligations retained."
+  "remaining_priority": "206 complete nested owning Package Product with independent per-leaf origins and exact recursive cleanup; other1.4 obligations retained.",
+  "formal_plan_check": {
+    "status": "Pass",
+    "source_commit": "448b638fb388a696793785be71932c7a430ccab8",
+    "receipt": "run-logs/205-delivery/plan01/command.json",
+    "scope": "Plan consistency/self-tests only, not compiler execution"
+  },
+  "historical_handoff": {
+    "status": "Fail",
+    "source_commit": "448b638fb388a696793785be71932c7a430ccab8",
+    "errors": 1138,
+    "new_slice_errors_178_through_205": 0,
+    "receipt": "run-logs/205-delivery/handoff01/command.json",
+    "scope": "Inherited historical record integrity errors; no retrospective Pass or full-language acceptance"
+  }
 }
