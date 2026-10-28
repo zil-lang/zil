@@ -306,98 +306,104 @@
     {
       "name": "32_recursive_drop",
       "file": "32_recursive_drop.zil",
-      "bytes": 547,
-      "sha256": "b4a6ceecebc3a552ee66ebc65606c8a68e7e570b75af28ff3acb07ca4eafff87",
+      "bytes": 549,
+      "sha256": "a16b6e1a7cbacc2b08c2089a60e7229960715e527a0c10aec0ba9bcc1bb94227",
       "kind": "native",
       "contract_reason": "Root.branch recursively drops left A/B then right C/D, then Root.tail Z",
-      "execution": "NotRun: frozen before merging 206 implementation",
+      "execution": "NotRun corrected spelling; original source01 Lex failure retained",
       "stdout": "ABCDZ",
       "stderr": "",
       "exit": 0,
       "optimizations": [
         "O0",
         "O2"
-      ]
+      ],
+      "original_freeze_sha256": "b4a6ceecebc3a552ee66ebc65606c8a68e7e570b75af28ff3acb07ca4eafff87"
     },
     {
       "name": "33_partial_refill",
       "file": "33_partial_refill.zil",
-      "bytes": 648,
-      "sha256": "2b5e0e01c8b7d678178e4feb02d7956e5d659fb2b0d9f08f241b83e0ace60f31",
+      "bytes": 650,
+      "sha256": "c576858b49f88304625cb8145e349a6511d4999f74239efb3e6b4a28fcbdc78d",
       "kind": "native",
       "contract_reason": "Most recently initialized old local drops A; final complete root drops E/B/C/D/Z",
-      "execution": "NotRun: frozen before merging 206 implementation",
+      "execution": "NotRun corrected spelling; original source01 Lex failure retained",
       "stdout": "AEBCDZ",
       "stderr": "",
       "exit": 0,
       "optimizations": [
         "O0",
         "O2"
-      ]
+      ],
+      "original_freeze_sha256": "2b5e0e01c8b7d678178e4feb02d7956e5d659fb2b0d9f08f241b83e0ace60f31"
     },
     {
       "name": "34_replace_complete_child",
       "file": "34_replace_complete_child.zil",
-      "bytes": 577,
-      "sha256": "61697c80231dad0f5b817a6b6c20cdbf643b68d597252063ed9b5c8b5465f654",
+      "bytes": 581,
+      "sha256": "e59d8a8a200630178a6d4acb164d91653671fa03c6339bd0b65587dbd118b03a",
       "kind": "native",
       "contract_reason": "Prepared new child succeeds; old complete child A/B/C/D drops before final E/F/G/H/Z",
-      "execution": "NotRun: frozen before merging 206 implementation",
+      "execution": "NotRun corrected spelling; original source01 Lex failure retained",
       "stdout": "ABCDEFGHZ",
       "stderr": "",
       "exit": 0,
       "optimizations": [
         "O0",
         "O2"
-      ]
+      ],
+      "original_freeze_sha256": "61697c80231dad0f5b817a6b6c20cdbf643b68d597252063ed9b5c8b5465f654"
     },
     {
       "name": "35_failed_rhs_keeps_old",
       "file": "35_failed_rhs_keeps_old.zil",
-      "bytes": 641,
-      "sha256": "d362d8d1ffc2331753dc1d17d3f9df89bebfed71305f0e090e0d28b29cf5eae3",
+      "bytes": 645,
+      "sha256": "aaf913783865fe9af5068ee4fbbab5bfab3191643886fa1485b77a77518c4e97",
       "kind": "native",
       "contract_reason": "Only acquired RHS left E/F is cleaned on failure; old complete branch A/B/C/D remains before Z",
-      "execution": "NotRun: frozen before merging 206 implementation",
+      "execution": "NotRun corrected spelling; original source01 Lex failure retained",
       "stdout": "EFABCDZ",
       "stderr": "",
       "exit": 1,
       "optimizations": [
         "O0",
         "O2"
-      ]
+      ],
+      "original_freeze_sha256": "d362d8d1ffc2331753dc1d17d3f9df89bebfed71305f0e090e0d28b29cf5eae3"
     },
     {
       "name": "36_failed_rhs_no_rollback",
       "file": "36_failed_rhs_no_rollback.zil",
-      "bytes": 663,
-      "sha256": "cd6ee1c145f7e9d57437cd9c72319abaac1927dad760377628f1386165eb121c",
+      "bytes": 667,
+      "sha256": "375e15ffb77f70c2f620dd11d92861f4f6ef80ffd0408d060e755e66f8fcd423",
       "kind": "native",
       "contract_reason": "Explicitly transferred prior.left A/B is RHS debt; remaining prior.right C/D and root.tail Z clean once, no rollback of prior whole take",
-      "execution": "NotRun: frozen before merging 206 implementation",
+      "execution": "NotRun corrected spelling; original source01 Lex failure retained",
       "stdout": "ABCDZ",
       "stderr": "",
       "exit": 1,
       "optimizations": [
         "O0",
         "O2"
-      ]
+      ],
+      "original_freeze_sha256": "cd6ee1c145f7e9d57437cd9c72319abaac1927dad760377628f1386165eb121c"
     },
     {
       "name": "37_layout_actual_values",
       "file": "37_layout_actual_values.zil",
-      "bytes": 682,
-      "sha256": "c5a6dea0f9c90e659c3575bc5671d4dce2452f4fe95f0ed5761a6a9cad954f7e",
+      "bytes": 684,
+      "sha256": "dfbe51b41d0481844406de0a0f864d829b03bcfdc20be9c19342f9557f265049",
       "kind": "native",
       "contract_reason": "Actual inline fields total389; newest right drops C/D, then left A/B, then remaining parent Z",
-      "execution": "NotRun: frozen before merging 206 implementation",
+      "execution": "NotRun corrected spelling; original source01 Lex failure retained",
       "stdout": "CDABZ",
       "stderr": "",
       "exit": 0,
       "optimizations": [
         "O0",
         "O2"
-      ]
+      ],
+      "original_freeze_sha256": "c5a6dea0f9c90e659c3575bc5671d4dce2452f4fe95f0ed5761a6a9cad954f7e"
     },
     {
       "name": "38_raw_metadata_control",
@@ -418,5 +424,50 @@
     "ordinary call result give-to-create forgery must reject",
     "unused malformed complete nested type and forbidden owning combinations must reject raw/Wire",
     "exact N/N-1/fresh at all five existing stages, no guessed thresholds/default increase"
-  ]
+  ],
+  "initial_fixture_freeze_commit": "59838f05ec6dedd43ff11b3bdf7b1c0953b9cea0",
+  "syntax_corrections": [
+    {
+      "file": "32_recursive_drop.zil",
+      "before_sha256": "b4a6ceecebc3a552ee66ebc65606c8a68e7e570b75af28ff3acb07ca4eafff87",
+      "after_sha256": "a16b6e1a7cbacc2b08c2089a60e7229960715e527a0c10aec0ba9bcc1bb94227",
+      "reason": "Unsupported i64 literal suffix corrected to existing explicit conversion; exact mathematical values, field order and declared machine stdout/exit unchanged"
+    },
+    {
+      "file": "33_partial_refill.zil",
+      "before_sha256": "2b5e0e01c8b7d678178e4feb02d7956e5d659fb2b0d9f08f241b83e0ace60f31",
+      "after_sha256": "c576858b49f88304625cb8145e349a6511d4999f74239efb3e6b4a28fcbdc78d",
+      "reason": "Unsupported i64 literal suffix corrected to existing explicit conversion; exact mathematical values, field order and declared machine stdout/exit unchanged"
+    },
+    {
+      "file": "34_replace_complete_child.zil",
+      "before_sha256": "61697c80231dad0f5b817a6b6c20cdbf643b68d597252063ed9b5c8b5465f654",
+      "after_sha256": "e59d8a8a200630178a6d4acb164d91653671fa03c6339bd0b65587dbd118b03a",
+      "reason": "Unsupported i64 literal suffix corrected to existing explicit conversion; exact mathematical values, field order and declared machine stdout/exit unchanged"
+    },
+    {
+      "file": "35_failed_rhs_keeps_old.zil",
+      "before_sha256": "d362d8d1ffc2331753dc1d17d3f9df89bebfed71305f0e090e0d28b29cf5eae3",
+      "after_sha256": "aaf913783865fe9af5068ee4fbbab5bfab3191643886fa1485b77a77518c4e97",
+      "reason": "Unsupported i64 literal suffix corrected to existing explicit conversion; exact mathematical values, field order and declared machine stdout/exit unchanged"
+    },
+    {
+      "file": "36_failed_rhs_no_rollback.zil",
+      "before_sha256": "cd6ee1c145f7e9d57437cd9c72319abaac1927dad760377628f1386165eb121c",
+      "after_sha256": "375e15ffb77f70c2f620dd11d92861f4f6ef80ffd0408d060e755e66f8fcd423",
+      "reason": "Unsupported i64 literal suffix corrected to existing explicit conversion; exact mathematical values, field order and declared machine stdout/exit unchanged"
+    },
+    {
+      "file": "37_layout_actual_values.zil",
+      "before_sha256": "c5a6dea0f9c90e659c3575bc5671d4dce2452f4fe95f0ed5761a6a9cad954f7e",
+      "after_sha256": "dfbe51b41d0481844406de0a0f864d829b03bcfdc20be9c19342f9557f265049",
+      "reason": "Unsupported i64 literal suffix corrected to existing explicit conversion; exact mathematical values, field order and declared machine stdout/exit unchanged"
+    }
+  ],
+  "source_20_diagnostic_correction": {
+    "source_sha256": "d60a0e725f04744d30ecb13dca120707517e8358bd672b51620c1b0ca7220132",
+    "old_expected": "Verify E-BORROW-CONFLICT",
+    "corrected_expected": "Analyze E-ANALYZE-IR: head transition invalidates a description required later",
+    "reason": "Existing early ownership rejection is sufficient; source safety oracle is unchanged; source01 actual rejection retained"
+  }
 }

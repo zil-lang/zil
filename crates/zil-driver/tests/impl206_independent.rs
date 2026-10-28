@@ -445,6 +445,87 @@ fn raw_unused_nested_metadata_does_not_gain_ordinary_or_legacy_authority() {
     }
 }
 
+#[test]
+fn raw_late_desc_read_cannot_revive_after_child_refill_and_embedding() {
+    let (mut module, plan) = control("desc-last-use-control", source!("19_desc_last_use"));
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let mut changed = 0;
+    for block in &mut function.blocks {
+        let Some(read_index) = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::ReadDesc { .. }))
+        else {
+            continue;
+        };
+        let result = block.instructions[read_index].result.unwrap();
+        let store_index = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::Store { value, .. } if value == result))
+            .unwrap();
+        assert!(store_index > read_index);
+        let store = block.instructions.remove(store_index);
+        let read = block.instructions.remove(read_index);
+        let last_refill = block
+            .instructions
+            .iter()
+            .rposition(|i| matches!(i.kind, InstructionKind::StorePackageField { .. }))
+            .unwrap();
+        block.instructions.insert(last_refill + 1, read);
+        block.instructions.insert(last_refill + 2, store);
+        changed += 1;
+    }
+    assert_eq!(changed, 1);
+    // Both ReadDesc and its scalar Store move together; SSA definition order
+    // remains valid. The same actual description is now read after invalidation.
+    attack("desc-late-after-refill-and-embed", &module, &plan, true);
+}
+
+#[test]
+fn raw_unused_resource_head_cannot_hide_an_ordinary_product() {
+    let (mut module, mut plan) = control(
+        "unused-resource-control",
+        source!("38_raw_metadata_control"),
+    );
+    let product = module
+        .functions
+        .iter()
+        .flat_map(|f| &f.locals)
+        .find(|l| named_package(&l.ty, ":Root"))
+        .unwrap()
+        .ty
+        .clone();
+    let name = "review206:UnusedHead".to_string();
+    module.resources.push(ResourceDefinition {
+        name: name.clone(),
+        payload: Type::Record {
+            name,
+            fields: vec![("copy".into(), Type::I32)],
+        },
+        teardown: None,
+    });
+    plan.module_fingerprint = module.fingerprint();
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    verify_pair("unused-copy-resource-head", &module, &plan, true);
+    let Type::Record { fields, .. } = &mut module.resources.last_mut().unwrap().payload else {
+        unreachable!()
+    };
+    fields.push(("hidden_product".into(), product));
+    attack("unused-resource-product-head", &module, &plan, false);
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.phase == Phase::Analyze
+            && d.category == ResultCategory::Unsupported
+            && d.message.contains("resource payload")),
+        "{errors:#?}"
+    );
+}
+
 fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize {
     let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
     run(high).unwrap();
@@ -693,10 +774,10 @@ fn source_20_desc_does_not_revive() {
     rejected(
         "20_desc_does_not_revive",
         source!("20_desc_does_not_revive"),
-        Phase::Verify,
+        Phase::Analyze,
         ResultCategory::SafeReject,
-        Some("E-BORROW-CONFLICT"),
-        None,
+        Some("E-ANALYZE-IR"),
+        Some("head transition invalidates a description required later"),
     );
 }
 
