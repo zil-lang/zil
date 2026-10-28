@@ -576,7 +576,7 @@ fn raw_template_headers_and_lexical_free_binders_are_checked_in_both_entries() {
 fn raw_type_application_constraints_cannot_be_dropped_or_become_runtime_values() {
     let core = expanded("application-control", ORIGINAL_PUSH);
     raw_types("application-valid", &core, &Limits::default(), false);
-    for attack in 0..8 {
+    for attack in 0..9 {
         let mut changed = core.clone();
         first_application(&mut changed, |expr| {
             let CoreExprKind::TypeApply {
@@ -601,6 +601,7 @@ fn raw_type_application_constraints_cannot_be_dropped_or_become_runtime_values()
                     };
                 }
                 7 => expr.kind = callee.kind.clone(),
+                8 => callee.kind = CoreExprKind::Name("run".into()),
                 _ => unreachable!(),
             }
         });
@@ -629,6 +630,55 @@ fn raw_type_application_constraints_cannot_be_dropped_or_become_runtime_values()
     assert!(done);
     raw_types(
         "type-application-as-bare-value",
+        &changed,
+        &Limits::default(),
+        true,
+    );
+}
+
+#[test]
+fn a_raw_recursive_template_cannot_reuse_an_unfinished_function_identity() {
+    let core = expanded("unfinished-instance-control", ORIGINAL_PUSH);
+    raw_types(
+        "unfinished-instance-valid",
+        &core,
+        &Limits::default(),
+        false,
+    );
+    let mut changed = core.clone();
+    let mut changed_calls = 0;
+    for f in &mut changed.functions {
+        if f.type_parameters.len() != 1 {
+            continue;
+        }
+        let target = f.name.clone();
+        let argument = Type::Named(f.type_parameters[0].name.clone());
+        visit_block(&mut f.body, &mut |expr| {
+            let CoreExprKind::Call { callee, .. } = &mut expr.kind else {
+                return false;
+            };
+            if !matches!(&callee.kind, CoreExprKind::Name(name) if name == "store_push") {
+                return false;
+            }
+            // Existing value arguments, result and parameter modes still
+            // match. Only replace the real builtin edge with this exact
+            // template's own type-constrained edge, preserving caller T.
+            let original = callee.clone();
+            callee.kind = CoreExprKind::TypeApply {
+                callee: Box::new(CoreExpr {
+                    id: NodeId(910_001),
+                    span: original.span,
+                    kind: CoreExprKind::Name(target.clone()),
+                }),
+                type_arguments: vec![argument.clone()],
+            };
+            changed_calls += 1;
+            true
+        });
+    }
+    assert_eq!(changed_calls, 1);
+    raw_types(
+        "unfinished-self-instance",
         &changed,
         &Limits::default(),
         true,
