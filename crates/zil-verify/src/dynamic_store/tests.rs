@@ -113,6 +113,28 @@ fn actual_zero_stride_rejects_after_the_manages_package_requirement() {
 }
 
 #[test]
+fn zero_payload_package_capture_still_has_actual_environment_live_flags() {
+    let captured = Type::Package {
+        name: "Token".into(),
+        fields: vec![("empty".into(), Type::Managed(Box::new(zero())))],
+    };
+    let m = module(vec![captured.clone()]);
+    let limits = Limits::default();
+    let mut budget = Budget::new(&limits);
+    assert_eq!(layout(&captured, None, &mut budget).unwrap(), (0, 1));
+    let layouts = closure_layouts(&m, ClosureId(0), Some(&limits), &mut budget).unwrap();
+    // Owning Package captures carry one shell flag and one field flag even
+    // when their data is empty. Store's nonzero condition applies to the
+    // whole element, not independently to every captured payload.
+    assert_eq!(layouts[0], Some((2, 1)));
+    assert_eq!(
+        layout(&element(&[0]), Some(&layouts), &mut budget).unwrap(),
+        (2, 1)
+    );
+    admit(&m, &element(&[0]), &limits).unwrap();
+}
+
+#[test]
 fn one_type_binding_keeps_both_fields_and_rejects_extra_or_heterogeneous_fields() {
     let mut m = module(vec![Type::I64]);
     let limits = Limits::default();
