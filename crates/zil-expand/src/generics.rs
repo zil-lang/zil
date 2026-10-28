@@ -416,8 +416,7 @@ impl<'a> Engine<'a> {
         self.traits.check_arguments(
             params(item),
             &substitution,
-            &trait_bounds::Bounds::new(),
-            &BTreeSet::new(),
+            (&trait_bounds::Bounds::new(), &BTreeSet::new()),
             &mut self.budget,
             span,
             retained.as_ref().map(|bound| bound.generic_name.as_str()),

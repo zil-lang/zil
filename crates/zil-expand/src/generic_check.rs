@@ -2013,8 +2013,7 @@ impl Check<'_, '_, '_> {
                 self.traits.check_arguments(
                     &function.generics,
                     &found,
-                    &self.bounds,
-                    &self.variables,
+                    (&self.bounds, &self.variables),
                     self.budget,
                     e.span,
                     callable.as_ref().map(|bound| bound.generic_name.as_str()),
