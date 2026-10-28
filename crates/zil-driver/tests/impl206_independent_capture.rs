@@ -60,10 +60,9 @@ fn pair(
             let errors = result.expect_err("206 ordinary Product capture must remain closed");
             assert!(errors.iter().all(|e| e.code != "E-VERIFY-PLAN-IDENTITY"));
             assert!(errors.iter().any(|e| e.phase == Phase::Verify
-                && matches!(
-                    e.category,
-                    ResultCategory::Unsupported | ResultCategory::SafeReject
-                )));
+                && e.category == ResultCategory::Unsupported
+                && e.code == "E-UNSUPPORTED"
+                && e.message == "non-Copy type requires another checker"));
             assert!(
                 errors
                     .iter()
