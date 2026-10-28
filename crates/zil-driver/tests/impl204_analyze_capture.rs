@@ -231,3 +231,88 @@ fn actual_consuming_entry_cannot_copy_or_repeat_taken_store() {
         "owned field was already given away",
     );
 }
+
+#[test]
+fn callee_preparation_failure_keeps_owned_store_debt_and_body_take_is_observable() {
+    for fail in [false, true] {
+        let source = format!(
+            r#"
+extern "C" fn putchar(value:i32)->i32;
+resource Ticket {{ code:i32 }}
+impl Drop for Ticket {{ fn drop(self:Self) {{ unsafe {{ putchar(.code) }} }} }}
+package Item {{ manages ticket:Ticket; value:i32 }}
+fn make()->impl FnOnce(i32)->i32 {{
+    let ticket=Ticket {{ code:84 }}
+    let items:Store<Item>=store_new()
+    store_reserve(items,1)
+    store_push(items,Item {{ ticket:Ticket {{ code:65 }}, value:1 }})
+    return move (delta:i32)=>{{
+        unsafe {{ putchar(67) }}
+        ticket.code
+        let local=give items
+        unsafe {{ putchar(88) }}
+        return delta+i32(store_len(local))
+    }}
+}}
+fn argument(fail:bool)->void!i32 {{ unsafe {{ putchar(80) }} if fail {{ return () }} return 1 }}
+fn main()->void!i32 {{
+    let guard=Ticket {{ code:90 }}
+    let callback=make()
+    return callback(argument({fail})?)-2
+}}
+"#
+        );
+        for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+            let case = Case::new(&format!("callee-fail-{fail}-{optimization:?}"), &source);
+            let report = zil_driver::compile_project(
+                &zil_driver::ProjectSources {
+                    root: ModuleId(0),
+                    modules: vec![SourceUnit::new(
+                        FileId(0),
+                        ModuleId(0),
+                        "source.zil",
+                        &source,
+                    )],
+                    paths: Default::default(),
+                },
+                &zil_driver::CompileOptions {
+                    stop_after: zil_driver::Stage::Build,
+                    optimization,
+                    output: Some(case.0.join("program")),
+                    emit_dir: Some(case.0.join("phases")),
+                    ..Default::default()
+                },
+            );
+            case.write("compile.json", report.to_json());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let result = std::process::Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            case.write("stdout.log", &result.stdout);
+            case.write("stderr.log", &result.stderr);
+            case.write(
+                "native.txt",
+                format!(
+                    "exit={:?}; optimization={optimization:?}; argument_failure={fail}",
+                    result.status.code()
+                ),
+            );
+            assert_eq!(result.status.code(), Some(i32::from(fail)));
+            assert_eq!(
+                result.stdout,
+                if fail {
+                    b"PTAZ".as_slice()
+                } else {
+                    b"PCXATZ".as_slice()
+                }
+            );
+            assert!(result.stderr.is_empty());
+        }
+    }
+}
