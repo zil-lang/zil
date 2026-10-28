@@ -247,7 +247,7 @@ fn error_operands_still_require_valid_ids_and_definition_dominance() {
 }
 
 #[test]
-fn error_union_payloads_are_independently_limited_to_copy_values() {
+fn owned_success_payload_requires_an_explicit_result_mode() {
     let mut body = Body::new(Type::ErrorUnion {
         error: Box::new(Type::I32),
         result: Box::new(owned()),
@@ -262,7 +262,7 @@ fn error_union_payloads_are_independently_limited_to_copy_values() {
     );
     rejected(
         body.close(Some(result), CleanupExitKind::Return),
-        "non-Copy type",
+        "owned success result requires an explicit create or give result mode",
     );
 }
 

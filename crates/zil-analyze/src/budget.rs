@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use zil_ir::{CallableFlowNext, CallableTraces};
 
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span};
 use zil_ir::{Constant, InstructionKind, LocalId, Terminator, Type, TypedModule};
@@ -439,15 +440,52 @@ pub(super) fn preflight(
                     .len()
                     .saturating_add(contract.call.len())
                     .saturating_add(contract.writes.len())
-                    .saturating_add(contract.traces.len())
-                    .saturating_add(4),
+                    .saturating_add(5),
                 "callable contract metadata",
             )?;
-            for trace in &contract.traces {
-                budget.input(
-                    trace.calls.len().saturating_add(1),
-                    "callable trace metadata",
-                )?;
+            match &contract.traces {
+                CallableTraces::Finite(traces) => {
+                    budget.input(traces.len(), "callable finite trace count")?;
+                    for trace in traces {
+                        budget.input(
+                            trace.calls.len().saturating_add(1),
+                            "callable trace metadata",
+                        )?;
+                    }
+                }
+                CallableTraces::Flow(flow) => {
+                    count(0, flow.nodes.len(), limits.max_nodes, "callable flow node")?;
+                    budget.input(
+                        flow.nodes.len().saturating_add(1),
+                        "callable flow node metadata",
+                    )?;
+                    let (mut calls, mut edges) = (0, 0);
+                    for node in &flow.nodes {
+                        calls = count(
+                            calls,
+                            node.calls.len(),
+                            limits.max_instructions,
+                            "callable flow call",
+                        )?;
+                        budget.input(
+                            node.calls.len().saturating_add(1),
+                            "callable flow calls and next tag",
+                        )?;
+                        match &node.next {
+                            CallableFlowNext::Edges(next) => {
+                                edges = count(
+                                    edges,
+                                    next.len(),
+                                    limits.max_analysis_steps,
+                                    "callable flow edge",
+                                )?;
+                                budget
+                                    .input(next.len().saturating_add(1), "callable flow edges")?;
+                            }
+                            CallableFlowNext::Exit(_) => budget.input(1, "callable flow exit")?,
+                        }
+                    }
+                }
             }
         }
         if let Some(foreign) = &function.foreign {

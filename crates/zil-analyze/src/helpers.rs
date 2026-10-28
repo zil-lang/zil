@@ -113,8 +113,160 @@ fn parameter_invocation(origin: u8, borrowed: bool) -> CompileResult<bool> {
     }
 }
 
+// This dependency order belongs to Analyze. Edges come from reachable direct
+// Calls, not from producer-supplied trace rows. Duplicate call sites are real
+// charged edges and are removed separately by the topological frontier.
+fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<Vec<usize>> {
+    let count = module.functions.len();
+    budget.product(count, 4, 1, "helper dependency tables")?;
+    let mut incoming = vec![0usize; count];
+    let mut users = vec![Vec::new(); count];
+    for (caller, function) in module.functions.iter().enumerate() {
+        if function.callable_contract.is_none() {
+            continue;
+        }
+        budget.spend(
+            function.blocks.len().saturating_add(1),
+            "helper dependency reachability",
+        )?;
+        let mut seen = vec![false; function.blocks.len()];
+        let mut pending = vec![function.entry.0 as usize];
+        while let Some(index) = pending.pop() {
+            budget.spend(1, "helper dependency block")?;
+            let block = function
+                .blocks
+                .get(index)
+                .ok_or_else(|| bad("helper dependency CFG outside table"))?;
+            if seen[index] {
+                continue;
+            }
+            seen[index] = true;
+            for instruction in &block.instructions {
+                budget.spend(1, "helper dependency instruction")?;
+                if let InstructionKind::Call {
+                    function: callee, ..
+                } = instruction.kind
+                {
+                    let callee = callee.0 as usize;
+                    let target = module
+                        .functions
+                        .get(callee)
+                        .ok_or_else(|| bad("helper dependency target is absent"))?;
+                    if target.callable_contract.is_some() {
+                        budget.spend(2, "helper dependency edge")?;
+                        incoming[caller] += 1;
+                        users[callee].push(caller);
+                    }
+                }
+            }
+            match block.terminator {
+                Terminator::Jump(next) => {
+                    budget.spend(1, "helper dependency CFG edge")?;
+                    pending.push(next.0 as usize);
+                }
+                Terminator::Branch {
+                    then_block,
+                    else_block,
+                    ..
+                } => {
+                    budget.spend(2, "helper dependency CFG edges")?;
+                    pending.extend([then_block.0 as usize, else_block.0 as usize]);
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut ready: VecDeque<_> = incoming
+        .iter()
+        .enumerate()
+        .filter_map(|(i, n)| (*n == 0).then_some(i))
+        .collect();
+    let mut order = Vec::with_capacity(count);
+    while let Some(function) = ready.pop_front() {
+        budget.spend(
+            users[function].len().saturating_add(1),
+            "helper dependency frontier",
+        )?;
+        order.push(function);
+        for &user in &users[function] {
+            incoming[user] -= 1;
+            if incoming[user] == 0 {
+                ready.push_back(user);
+            }
+        }
+    }
+    if order.len() != count {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "recursive callable helper dependency requires an explicit finite contract",
+            None,
+        )]);
+    }
+    Ok(order)
+}
+
+fn forwarded<'a>(
+    module: &'a TypedModule,
+    function: &TypedFunction,
+    instruction: &Instruction,
+    origins: &[u8],
+    kind: CallableKind,
+    checked: &[bool],
+    budget: &mut Budget,
+) -> CompileResult<Option<&'a [CallableTrace]>> {
+    let InstructionKind::Call {
+        function: callee,
+        arguments,
+    } = &instruction.kind
+    else {
+        return Ok(None);
+    };
+    budget.spend(arguments.len(), "helper forwarded environment scan")?;
+    let mut environment = None;
+    for (index, value) in arguments.iter().enumerate() {
+        if env(&function.values[value.0 as usize]).is_some()
+            && environment.replace((index, *value)).is_some()
+        {
+            return Err(bad("nested helper forwards more than one environment"));
+        }
+    }
+    let Some((parameter, value)) = environment else {
+        return Ok(None);
+    };
+    let target = module
+        .functions
+        .get(callee.0 as usize)
+        .ok_or_else(|| bad("forwarded helper target is absent"))?;
+    let claim = target
+        .callable_contract
+        .as_ref()
+        .ok_or_else(|| bad("forwarded helper has no finite contract"))?;
+    if !checked[callee.0 as usize]
+        || claim.parameter as usize != parameter
+        || claim.kind != kind
+        || origins[value.0 as usize] != 1
+        || env(&function.values[value.0 as usize]).map(|(id, _)| id) != Some(claim.closure)
+    {
+        return Err(bad(
+            "nested helper must forward its actual parameter to an independently checked matching contract",
+        ));
+    }
+    let finite = claim.traces.as_finite().ok_or_else(|| {
+        vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "cyclic callable Flow semantics are not implemented",
+            Some(instruction.span),
+        )]
+    })?;
+    Ok(Some(finite))
+}
+
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
-    for function in &module.functions {
+    let order = dependency_order(module, budget)?;
+    budget.spend(module.functions.len(), "checked helper dependencies")?;
+    let mut checked = vec![false; module.functions.len()];
+    for index in order {
+        let function = &module.functions[index];
         let candidates = function
             .parameters
             .iter()
@@ -143,6 +295,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .callable_contract
             .as_ref()
             .ok_or_else(|| bad("callable parameter has no public helper contract"))?;
+        let CallableTraces::Finite(claim_traces) = &claim.traces else {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "cyclic callable Flow semantics are not implemented",
+                Some(function.span),
+            )]);
+        };
         if candidates.len() != 1 || function.environment.is_some() || function.foreign.is_some() {
             return Err(bad("helper requires one concrete environment parameter"));
         }
@@ -277,9 +436,45 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         let mut processed = 0usize;
         while let Some(b) = queue.pop_front() {
             processed += 1;
-            let mut suffix = 0usize;
+            let mut output = std::mem::take(&mut prefixes[b]);
             for instruction in &function.blocks[b].instructions {
                 budget.spend(1, "helper finite trace instruction")?;
+                if let Some(children) = forwarded(
+                    module,
+                    function,
+                    instruction,
+                    &values,
+                    claim.kind,
+                    &checked,
+                    budget,
+                )? {
+                    let mut continuing = BTreeSet::new();
+                    for prefix in &output {
+                        for child in children {
+                            budget.spend(1, "helper nested trace concatenation")?;
+                            let calls = prefix.checked_add(child.calls.len()).ok_or_else(|| {
+                                vec![Diagnostic::limit(
+                                    Phase::Analyze,
+                                    "nested helper call count overflow",
+                                    Some(instruction.span),
+                                )]
+                            })?;
+                            if claim.kind == CallableKind::FnOnce && calls > 1 {
+                                return Err(bad("helper exceeds its finite call allowance"));
+                            }
+                            if child.exit == CallableExit::Trap {
+                                budget.lookup(traces.len(), "nested helper terminating prefix")?;
+                                traces.insert((calls, CallableExit::Trap));
+                            } else {
+                                budget
+                                    .lookup(continuing.len(), "nested helper returning prefix")?;
+                                continuing.insert(calls);
+                            }
+                        }
+                    }
+                    output = continuing;
+                    continue;
+                }
                 let callback = match &instruction.kind {
                     InstructionKind::CallClosure { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. } => {
@@ -327,18 +522,22 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     if kind != claim.kind {
                         return Err(bad("helper callback call mode differs from its bound"));
                     }
-                    suffix = suffix.saturating_add(1);
+                    let mut next = BTreeSet::new();
+                    for calls in output {
+                        budget.lookup(next.len(), "helper direct call prefix")?;
+                        if claim.kind == CallableKind::FnOnce && calls != 0 {
+                            return Err(bad("helper exceeds its finite call allowance"));
+                        }
+                        next.insert(calls.checked_add(1).ok_or_else(|| {
+                            vec![Diagnostic::limit(
+                                Phase::Analyze,
+                                "helper call count overflow",
+                                Some(instruction.span),
+                            )]
+                        })?);
+                    }
+                    output = next;
                 }
-            }
-            let mut output = BTreeSet::new();
-            for prefix in &prefixes[b] {
-                budget.spend(1, "helper exact call-count concatenation")?;
-                let calls = prefix.saturating_add(suffix);
-                if claim.kind == CallableKind::FnOnce && calls > 1 {
-                    return Err(bad("helper exceeds its finite call allowance"));
-                }
-                budget.lookup(output.len(), "helper exact call-count insertion")?;
-                output.insert(calls);
             }
             let exit = match function.blocks[b].terminator {
                 Terminator::Return(_) => Some(CallableExit::Return),
@@ -370,11 +569,11 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         if processed != reachable.iter().filter(|r| **r).count() {
             return Err(bad("cyclic helper requires an explicit loop contract"));
         }
-        budget.spend(claim.traces.len(), "helper public trace comparison")?;
-        if traces.len() != claim.traces.len() {
+        budget.spend(claim_traces.len(), "helper public trace comparison")?;
+        if traces.len() != claim_traces.len() {
             return Err(bad("public helper trace claim differs from its CFG"));
         }
-        for ((count, exit), claim_trace) in traces.into_iter().zip(&claim.traces) {
+        for ((count, exit), claim_trace) in traces.into_iter().zip(claim_traces) {
             budget.spend(claim_trace.calls.len(), "helper public call comparison")?;
             if count != claim_trace.calls.len()
                 || exit != claim_trace.exit
@@ -383,6 +582,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 return Err(bad("public helper trace claim differs from its CFG"));
             }
         }
+        checked[index] = true;
     }
     Ok(())
 }

@@ -18,6 +18,8 @@ mod bytes;
 pub(super) mod callable;
 #[path = "generic_enum.rs"]
 mod enums;
+#[path = "generic_helper_graph.rs"]
+mod helper_graph;
 #[path = "generic_store.rs"]
 mod stores;
 #[path = "generic_trait_bounds.rs"]
@@ -187,6 +189,7 @@ impl<'a> Engine<'a> {
             }
         }
         // Validate the parametric subset even when a template is not instantiated.
+        let mut helper_dependencies = helper_graph::Dependencies::default();
         for item in engine.templates.values() {
             if !item.attributes.is_empty() {
                 return Err(unsupported(
@@ -231,11 +234,14 @@ impl<'a> Engine<'a> {
                 stores::result_mode(f)?;
                 validate_parametric(
                     f,
-                    &engine.nominals,
-                    &engine.enums,
-                    &engine.signatures,
-                    engine.pattern_types,
-                    &engine.traits,
+                    check::ParametricTables {
+                        nominals: &engine.nominals,
+                        enums: &engine.enums,
+                        signatures: &engine.signatures,
+                        pattern_types: engine.pattern_types,
+                        traits: &engine.traits,
+                    },
+                    &mut helper_dependencies,
                     &mut engine.budget,
                 )?;
             }
@@ -291,6 +297,7 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        helper_dependencies.check(&mut engine.budget)?;
         Ok(engine)
     }
     fn tick(&mut self, span: Span, depth: usize) -> R<()> {

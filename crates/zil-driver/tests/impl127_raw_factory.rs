@@ -117,10 +117,10 @@ fn fixture(parameter_alias: bool) -> TypedModule {
         call: vec![],
         writes: vec![],
         cleanup: CallableCleanup::Owned,
-        traces: vec![CallableTrace {
+        traces: zil_ir::CallableTraces::Finite(vec![CallableTrace {
             calls: vec![CallableKind::Fn; if parameter_alias { 2 } else { 1 }],
             exit: CallableExit::Return,
-        }],
+        }]),
     });
     let mut factory = function(1, env.clone(), &[Type::I32], &[0]);
     factory.values = vec![Type::I32, env];
@@ -271,8 +271,14 @@ fn independent_same_id_instances_and_parameter_aliases_have_exact_counts() {
     observe("parameter-alias", &fixture(true), None);
     for alias in [false, true] {
         let mut m = fixture(alias);
-        m.functions[0].callable_contract.as_mut().unwrap().traces[0].calls =
-            vec![CallableKind::Fn; if alias { 1 } else { 2 }];
+        m.functions[0]
+            .callable_contract
+            .as_mut()
+            .unwrap()
+            .traces
+            .as_finite_mut()
+            .unwrap()[0]
+            .calls = vec![CallableKind::Fn; if alias { 1 } else { 2 }];
         observe(
             if alias {
                 "alias-hidden-call"

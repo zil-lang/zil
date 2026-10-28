@@ -1932,7 +1932,14 @@ impl Flow<'_> {
                         .ok_or_else(|| error("absent callee"))?;
                     if let Some(contract) = &callee.callable_contract {
                         let environment = &self.module.closures[contract.closure.0 as usize];
-                        if contract.traces.iter().any(|t| !t.calls.is_empty())
+                        let CallableTraces::Finite(traces) = &contract.traces else {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "cyclic callable Flow semantics are not implemented",
+                                Some(callee.span),
+                            )]);
+                        };
+                        if traces.iter().any(|t| !t.calls.is_empty())
                             && contract
                                 .writes
                                 .iter()

@@ -755,10 +755,10 @@ fn concrete_helper_contract_roundtrips_and_binds_each_claim() {
         call: vec![0, 2],
         writes: vec![2],
         cleanup: CallableCleanup::Borrowed,
-        traces: vec![CallableTrace {
+        traces: crate::CallableTraces::Finite(vec![CallableTrace {
             calls: vec![CallableKind::Fn, CallableKind::Fn],
             exit: CallableExit::Return,
-        }],
+        }]),
     };
     module.functions[0].callable_contract = Some(contract.clone());
     let plan = CandidatePlan::empty_for(&module);
@@ -782,8 +782,14 @@ fn concrete_helper_contract_roundtrips_and_binds_each_claim() {
         |c| c.call.pop().map(|_| ()).unwrap_or(()),
         |c| c.writes.clear(),
         |c| c.cleanup = CallableCleanup::Owned,
-        |c| c.traces[0].calls.pop().map(|_| ()).unwrap_or(()),
-        |c| c.traces[0].exit = CallableExit::Trap,
+        |c| {
+            c.traces.as_finite_mut().unwrap()[0]
+                .calls
+                .pop()
+                .map(|_| ())
+                .unwrap_or(())
+        },
+        |c| c.traces.as_finite_mut().unwrap()[0].exit = CallableExit::Trap,
     ];
     for change in mutate {
         let mut changed = module.clone();
