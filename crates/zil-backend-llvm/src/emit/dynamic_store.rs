@@ -33,7 +33,10 @@ pub(super) fn helper(
     Ok(format!("zil.store.{index}.{operation}"))
 }
 
-pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
+pub(super) fn runtime(
+    lir: &LirModule,
+    closures: &BTreeMap<ClosureId, &ClosureDefinition>,
+) -> CompileResult<String> {
     if !lir
         .resources
         .iter()
@@ -68,7 +71,7 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
             );
         };
         let item = llvm_type(element)?;
-        let align = alignment(element, &BTreeMap::new())?;
+        let align = alignment(element, closures)?;
         let push = llvm_type(&Type::ErrorUnion {
             error: element.clone(),
             result: Box::new(Type::Unit),
@@ -165,6 +168,10 @@ element:
 "#
         ));
         for (field_index, (_, ty)) in fields.iter().enumerate() {
+            if let Type::Closure(id) = ty {
+                output.push_str(&format!("  %field.{field_index} = getelementptr {item}, ptr %slot, i32 0, i32 {field_index}\n  call void @zil.closure.drop.{}(ptr %field.{field_index})\n", id.0));
+                continue;
+            }
             let Type::Managed(payload) = ty else { continue };
             let definition = lir
                 .resources

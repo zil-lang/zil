@@ -1,6 +1,9 @@
 //! Independent sealed prefix admission. No frontend facts confer authority.
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 pub(super) const PREFIX: &str = "@builtin:OwnedStore<";
 
 pub(super) fn element(ty: &Type) -> Option<&Type> {
@@ -46,6 +49,16 @@ pub(super) fn check_element(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    check_element_with_limits(module, element, span, None, budget)
+}
+
+fn check_element_with_limits(
+    module: &TypedModule,
+    element: &Type,
+    span: Option<Span>,
+    limits: Option<&Limits>,
+    budget: &mut Budget,
+) -> Check<()> {
     resources::charge_payload(element, budget)?;
     let Type::Package { fields, .. } = element else {
         return Err(unsupported(
@@ -53,10 +66,19 @@ pub(super) fn check_element(
             span,
         ));
     };
+    let mut callback = None;
+    let mut callback_fields = 0usize;
     if !fields.iter().all(|(_, ty)| {
-        ty.is_copy_value()
-            || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer
-            || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))
+        if let Type::Closure(id) = ty {
+            callback_fields += 1;
+            let same = callback.is_none_or(|actual| actual == *id);
+            callback = Some(*id);
+            same && callback_fields <= 2
+        } else {
+            ty.is_copy_value()
+                || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer
+                || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))
+        }
     }) || !has_storage(element)
     {
         return Err(unsupported(
@@ -64,11 +86,136 @@ pub(super) fn check_element(
             span,
         ));
     }
+    // Resource definitions are admitted before the module-wide closure pass.
+    // Only the new callback route walks reachable capture metadata here, with
+    // the caller's depth limits before any recursive Copy/layout predicate.
+    // Ordinary Store follows its original work and admission path unchanged.
+    let environments = callback
+        .map(|id| closure_layouts(module, id, limits, budget))
+        .transpose()?;
     packages::check_type_for(module, element, span, budget)?;
     // Array lengths are metadata, not expanded slots. Their actual byte
     // product must still fit the target even when the type tree is shallow.
-    layout(element, budget)?;
+    let (bytes, _) = layout(element, environments.as_deref(), budget)?;
+    if bytes == 0 {
+        return Err(unsupported(
+            "Store element requires a nonzero actual inline layout",
+            span,
+        ));
+    }
     Ok(())
+}
+
+/// Independently size the reachable concrete environment DAG. These are not
+/// LLVM sizes or producer layout claims. Capture data precedes its live flags;
+/// a Unit capture occupies one byte, unlike a Unit aggregate field.
+fn closure_layouts(
+    module: &TypedModule,
+    root: ClosureId,
+    limits: Option<&Limits>,
+    budget: &mut Budget,
+) -> Check<Vec<Option<(u64, u64)>>> {
+    if limits.is_some_and(|limits| module.closures.len() > limits.max_functions) {
+        return Err(limit("Store callback count exceeds the selected bound"));
+    }
+    budget.spend(module.closures.len().saturating_mul(3).saturating_add(1))?;
+    let mut state = vec![0u8; module.closures.len()];
+    let mut heights = vec![0usize; module.closures.len()];
+    let mut layouts = vec![None; module.closures.len()];
+    let mut pending = vec![(root, false)];
+    while let Some((id, exit)) = pending.pop() {
+        budget.spend(1)?;
+        let definition = closures::definition(module, id, None)?;
+        let index = id.0 as usize;
+        if definition.id != id {
+            return Err(reject(
+                "E-VERIFY-CLOSURE",
+                None,
+                "Store callback identity differs from its actual definition",
+            ));
+        }
+        if exit {
+            budget.spend(definition.captures.len())?;
+            let (mut bytes, mut maximum, mut flags, mut height) = (0u64, 1u64, 0u64, 0usize);
+            for capture in &definition.captures {
+                let (size, align) = if *capture == Type::Unit {
+                    budget.spend(1)?;
+                    (1, 1)
+                } else {
+                    layout(capture, Some(&layouts), budget)?
+                };
+                bytes = bounded(align_to(bytes, align)?.checked_add(size))?;
+                maximum = maximum.max(align);
+                let added = match capture {
+                    Type::Managed(_) | Type::Closure(_) => 1,
+                    Type::Package { fields, .. } => {
+                        budget.spend(fields.len())?;
+                        1 + fields
+                            .iter()
+                            .filter(|(_, ty)| matches!(ty, Type::Managed(_)))
+                            .count() as u64
+                    }
+                    _ => 0,
+                };
+                flags = bounded(flags.checked_add(added))?;
+                if let Type::Closure(child) = capture {
+                    height = height.max(heights[child.0 as usize].saturating_add(1));
+                }
+            }
+            if limits.is_some_and(|limits| height > limits.max_call_depth) {
+                return Err(limit("Store callback layout depth exceeds selected bound"));
+            }
+            bytes = bounded(bytes.checked_add(flags))?;
+            layouts[index] = Some((align_to(bytes, maximum)?, maximum));
+            heights[index] = height;
+            state[index] = 2;
+            continue;
+        }
+        match state[index] {
+            2 => continue,
+            1 => {
+                return Err(reject(
+                    "E-VERIFY-CLOSURE-LAYOUT",
+                    None,
+                    "recursive inline Store callback environment layout",
+                ));
+            }
+            _ => {}
+        }
+        if limits.is_some_and(|limits| definition.captures.len() > limits.max_locals) {
+            return Err(limit("Store callback capture count exceeds selected bound"));
+        }
+        budget.spend(definition.captures.len().saturating_add(1))?;
+        state[index] = 1;
+        pending.push((id, true));
+        for capture in definition.captures.iter().rev() {
+            if let Some(limits) = limits {
+                check_type_shape(capture, &module.target, limits, budget)?;
+            }
+            if is_carrier(capture)
+                || packages::has_store_fields(capture)
+                || packages::has_array_fields(capture)
+                || packages::has_callable_fields(capture)
+            {
+                return Err(unsupported(
+                    "Store callback captures retain the existing finite owning environment profile",
+                    None,
+                ));
+            }
+            match capture {
+                Type::Closure(child) => pending.push((*child, false)),
+                Type::Managed(_) | Type::Package { .. } => {}
+                ty if ty.is_copy_value() => {}
+                _ => {
+                    return Err(unsupported(
+                        "Store callback requires a self-contained environment",
+                        None,
+                    ));
+                }
+            }
+        }
+    }
+    Ok(layouts)
 }
 
 fn bounded(value: Option<u64>) -> Check<u64> {
@@ -83,11 +230,12 @@ fn align_to(size: u64, align: u64) -> Check<u64> {
 
 fn fields_layout<'a>(
     fields: impl IntoIterator<Item = &'a Type>,
+    environments: Option<&[Option<(u64, u64)>]>,
     budget: &mut Budget,
 ) -> Check<(u64, u64)> {
     let (mut bytes, mut maximum) = (0u64, 1u64);
     for field in fields {
-        let (size, alignment) = layout(field, budget)?;
+        let (size, alignment) = layout(field, environments, budget)?;
         bytes = bounded(align_to(bytes, alignment)?.checked_add(size))?;
         maximum = maximum.max(alignment);
     }
@@ -96,7 +244,11 @@ fn fields_layout<'a>(
 
 /// Independent x64 layout admission. LLVM emission computes its own actual
 /// stride; this walk prevents zero/overflow types from reaching that code.
-fn layout(ty: &Type, budget: &mut Budget) -> Check<(u64, u64)> {
+fn layout(
+    ty: &Type,
+    environments: Option<&[Option<(u64, u64)>]>,
+    budget: &mut Budget,
+) -> Check<(u64, u64)> {
     budget.spend(1)?;
     Ok(match ty {
         Type::Unit => (0, 1),
@@ -109,22 +261,35 @@ fn layout(ty: &Type, budget: &mut Budget) -> Check<(u64, u64)> {
         | Type::FunctionPointer { .. }
         | Type::ForeignCallback { .. } => (8, 8),
         Type::ByteBuffer => (24, 8),
-        Type::Managed(payload) => layout(payload, budget)?,
+        Type::Managed(payload) => layout(payload, environments, budget)?,
+        Type::Closure(id) => environments
+            .and_then(|layouts| layouts.get(id.0 as usize))
+            .copied()
+            .flatten()
+            .ok_or_else(|| {
+                reject(
+                    "E-VERIFY-CLOSURE-LAYOUT",
+                    None,
+                    "Store callback layout lacks a checked concrete environment",
+                )
+            })?,
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
-            fields_layout(fields.iter().map(|(_, ty)| ty), budget)?
+            fields_layout(fields.iter().map(|(_, ty)| ty), environments, budget)?
         }
-        Type::Tuple(fields) => fields_layout(fields, budget)?,
+        Type::Tuple(fields) => fields_layout(fields, environments, budget)?,
         Type::Array { element, length } => {
-            let (size, alignment) = layout(element, budget)?;
+            let (size, alignment) = layout(element, environments, budget)?;
             (bounded(size.checked_mul(u64::from(*length)))?, alignment)
         }
-        Type::ErrorUnion { error, result } => {
-            fields_layout([&Type::Bool, error.as_ref(), result.as_ref()], budget)?
-        }
+        Type::ErrorUnion { error, result } => fields_layout(
+            [&Type::Bool, error.as_ref(), result.as_ref()],
+            environments,
+            budget,
+        )?,
         Type::Enum { variants, .. } => {
             let (mut bytes, mut alignment) = (0u64, 1u64);
             for (_, fields) in variants {
-                let (size, align) = fields_layout(fields, budget)?;
+                let (size, align) = fields_layout(fields, environments, budget)?;
                 bytes = bytes.max(size);
                 alignment = alignment.max(align);
             }
@@ -150,6 +315,7 @@ pub(super) fn definition_name(element: &Type) -> String {
 pub(super) fn check_definition(
     module: &TypedModule,
     definition: &ResourceDefinition,
+    limits: &Limits,
     budget: &mut Budget,
 ) -> Check<bool> {
     if !matches!(definition.payload, Type::OwnedStore { .. })
@@ -165,7 +331,7 @@ pub(super) fn check_definition(
             "Store resource identity requires its exact sealed payload",
         ));
     };
-    check_element(module, element, None, budget)?;
+    check_element_with_limits(module, element, None, Some(limits), budget)?;
     if definition.name != definition_name(element) || definition.teardown.is_some() {
         return Err(reject(
             "E-VERIFY-OWNED-STORE",
