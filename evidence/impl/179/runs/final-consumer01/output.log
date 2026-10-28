@@ -1,0 +1,303 @@
+{
+  "status": "Pass",
+  "source_commit": "204fea481d8770bf53f2e81324830b4f375d954e",
+  "compiler_source_commit": "204fea481d8770bf53f2e81324830b4f375d954e",
+  "cli_sha256": "8ddb5982fe24c10190a6ac45503f557229b80586230cf17ffd9749896f7344e2",
+  "sources": {
+    "callbacks.zil": "17597b71abc57b029baa66b458673dee891ff7d736c83bbcaba74509b417e0fe",
+    "collection.zil": "fecf9ab1c6b7544ebf5c81ba661ece184a86a299012047b26d8b149b34beb84e",
+    "main.zil": "6b683fcd87be846398160e72e1cf1320809c744d520fb8ab2009bb91df7dd5bd",
+    "model.zil": "7c0af7109eaee83e9afc360060530b0bdf1148f4f3d18a79738359c4a32f28d5",
+    "state.zil": "19ea0f599265d0af835db338556b9e0b7d926a24be9fe9fb90ea5f7841e3971d"
+  },
+  "probe_sources": {
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5"
+  },
+  "builds": [
+    {
+      "optimization": "O0",
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/main.zil",
+        "1": "/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/model.zil",
+        "2": "/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/callbacks.zil",
+        "3": "/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/collection.zil"
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "36f95708def16a6fb9b949187c4515b27633bcf204a6f932d9e038ac1bd43d91",
+      "native_sha256": "92e663a3f3ede74b0cd904efb2dcd97945b7d9e35d734bab1f02c7ad25a7f468",
+      "probe_sha256": "71720e6077621eb60b2d81a4d45ef961471cfc014b10e776de5f9a1a6fc38fbe"
+    },
+    {
+      "optimization": "O2",
+      "source_files": {
+        "0": "/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/main.zil",
+        "1": "/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/model.zil",
+        "2": "/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/callbacks.zil",
+        "3": "/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/collection.zil"
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "36f95708def16a6fb9b949187c4515b27633bcf204a6f932d9e038ac1bd43d91",
+      "native_sha256": "b9590939c7cd8d2cf47900868bf4aab31e362343381896559205ee72792bc6e7",
+      "probe_sha256": "3ebd871b8168ea7c0a5ab0f2f331f4d64d6b71b6f604bd9283cb8fb457540025"
+    }
+  ],
+  "observations": [
+    {
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "31",
+      "exit_code": 0,
+      "stdout": "BA",
+      "fail_at": 0
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "31",
+      "exit_code": 0,
+      "stdout": "BA",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 12
+      }
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "exit_code": 21,
+      "stdout": "A",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "exit_code": 22,
+      "stdout": "BA",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "32",
+      "exit_code": 0,
+      "stdout": "BCA",
+      "fail_at": 0
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocation",
+      "stdin_hex": "32",
+      "exit_code": 0,
+      "stdout": "BCA",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 20
+      }
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "exit_code": 21,
+      "stdout": "A",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "exit_code": 22,
+      "stdout": "BCA",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16
+      }
+    },
+    {
+      "optimization": "O0",
+      "mode": "ordinary",
+      "stdin_hex": "39",
+      "exit_code": 9,
+      "stdout": "",
+      "fail_at": 0
+    },
+    {
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "31",
+      "exit_code": 0,
+      "stdout": "BA",
+      "fail_at": 0
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "31",
+      "exit_code": 0,
+      "stdout": "BA",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 12
+      }
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "exit_code": 21,
+      "stdout": "A",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "31",
+      "exit_code": 22,
+      "stdout": "BA",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "32",
+      "exit_code": 0,
+      "stdout": "BCA",
+      "fail_at": 0
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocation",
+      "stdin_hex": "32",
+      "exit_code": 0,
+      "stdout": "BCA",
+      "fail_at": 0,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 20
+      }
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "exit_code": 21,
+      "stdout": "A",
+      "fail_at": 1,
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocation_failure",
+      "stdin_hex": "32",
+      "exit_code": 22,
+      "stdout": "BCA",
+      "fail_at": 2,
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 16
+      }
+    },
+    {
+      "optimization": "O2",
+      "mode": "ordinary",
+      "stdin_hex": "39",
+      "exit_code": 9,
+      "stdout": "",
+      "fail_at": 0
+    }
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_executions": 18,
+  "allocation_failure_executions": 8
+}
