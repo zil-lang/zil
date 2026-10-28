@@ -1,0 +1,41 @@
+{
+  "case": "05_same_f_mut_same_actual",
+  "purpose": "Proposed rejection: simultaneous exclusive actuals alias; loan checker not reached today",
+  "source_sha256": "f86676c75241924c95787167d0db50368c6276d38b7bae107f92d5539b02c6a4",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/05_same_f_mut_same_actual/source.zil",
+    "--stop-after",
+    "verify",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/05_same_f_mut_same_actual/phases",
+    "--json"
+  ],
+  "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "exit_code": 3,
+  "start": 1793165162.306135,
+  "end": 1793165162.3133788,
+  "status": "Unsupported",
+  "phase": "expand",
+  "expected_current_status": "Unsupported",
+  "verification_runs": 0,
+  "diagnostics": [
+    {
+      "phase": "expand",
+      "category": "Unsupported",
+      "code": "E-UNSUPPORTED",
+      "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+      "span": {
+        "file": 0,
+        "start": 121,
+        "end": 133
+      },
+      "notes": []
+    }
+  ],
+  "stdout_sha256": "f59089785c25b4b867de6243422ed3a690ac139397d5c22d68e7e3e997e13879",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

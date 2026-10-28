@@ -1,0 +1,41 @@
+{
+  "case": "08_same_f_once_distinct",
+  "purpose": "Proposed positive: each actual environment is consumed once",
+  "source_sha256": "89b324db943456ce74c4afe535c4a12590253090768d78f8d367bcbf81581fb6",
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/08_same_f_once_distinct/source.zil",
+    "--stop-after",
+    "verify",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/language14/review190/evidence/preflight196/cases/08_same_f_once_distinct/phases",
+    "--json"
+  ],
+  "compiler_source": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "compiler_production": "03c20e5b05c8066ed703d6d00e3968e9ac134585",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "exit_code": 3,
+  "start": 1793165162.329225,
+  "end": 1793165162.3354526,
+  "status": "Unsupported",
+  "phase": "expand",
+  "expected_current_status": "Unsupported",
+  "verification_runs": 0,
+  "diagnostics": [
+    {
+      "phase": "expand",
+      "category": "Unsupported",
+      "code": "E-UNSUPPORTED",
+      "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+      "span": {
+        "file": 0,
+        "start": 80,
+        "end": 87
+      },
+      "notes": []
+    }
+  ],
+  "stdout_sha256": "19282bfe9f9606b55d35a571acf4023c13bf197727fc5626a3100effb8fad85f",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
