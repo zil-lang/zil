@@ -99,7 +99,7 @@ fn ct203_preserves_two_declared_modes_and_reversed_selectors_during_runtime_fold
             input.functions[0].parameters
         );
         assert!(matches!(&result.functions[0].body.statements[0].kind,
-            CoreStatementKind::Return(Some(CoreExpr { kind: CoreExprKind::Integer(n), .. })) if n == "42"));
+            CoreStatementKind::Return(Some(CoreExpr { kind: CoreExprKind::Integer(n), .. })) if n == "42i32"));
     }
     let exact = Limits {
         max_nodes: usage.nodes,
