@@ -1,0 +1,18 @@
+{
+  "status": "Fail",
+  "source_commit": "087020115beca4cde72ae3302f58a398652188a8",
+  "git_status": " M crates/zil-analyze/src/budget.rs\n M crates/zil-analyze/src/helpers.rs\n M crates/zil-analyze/src/holds.rs\n M crates/zil-analyze/src/resources.rs\n M crates/zil-analyze/src/retained.rs\n M crates/zil-backend-llvm/src/emit.rs\n M crates/zil-backend-llvm/src/emit/resource_closures.rs\n M crates/zil-lower/src/lib.rs\n M crates/zil-types/src/addresses.rs\n M crates/zil-types/src/closures.rs\n M crates/zil-types/src/helpers.rs\n M crates/zil-types/src/inference.rs\n M crates/zil-types/src/lending.rs\n M crates/zil-types/src/lib.rs\n M crates/zil-types/src/program.rs\n M crates/zil-types/src/retained.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/borrows/loans.rs\n M crates/zil-verify/src/closures.rs\n M crates/zil-verify/src/helpers.rs\n M crates/zil-verify/src/resources.rs\n M crates/zil-verify/src/retained.rs\n?? crates/zil-driver/tests/impl184_lending.rs\n?? crates/zil-driver/tests/impl184_lending_raw.rs\n?? examples/mainline/lending184/\n?? tools/language/184/\n",
+  "cli_sha256": "de5b8515f45b8b7ae017583d9f98e9b9113bbdb8e3777d03f6c7b0518c6c5f72",
+  "sources": {
+    "factory.zil": "8b6358b07053c8ac8cbe6e27aba4348eb6536842dbfb2f955b7c0a3f4f4743cf",
+    "helpers.zil": "b25617bc80d36f06c242938c6659d47275e7fb7ceed7ad089ca1c1b0b4e7d001",
+    "main.zil": "89a677763a7b1a961b9e6f716d1ccd79ed9df53b7424d858f8c133ad4b632fa1",
+    "state.zil": "61c8087662c625d84ab3fda73ac6e1d01293a5b6abc5d7f0a11a2417d7316598"
+  },
+  "builds": [],
+  "observations": [],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "error_type": "RuntimeError",
+  "error": "O0 source failed: {'status': 'Unsupported', 'phase': 'expand', 'diagnostics': [{'phase': 'expand', 'category': 'Unsupported', 'code': 'E-UNSUPPORTED', 'message': 'this parametric statement requires additional symbolic checking', 'span': {'file': 3, 'start': 578, 'end': 626}, 'notes': []}], 'artifacts': {'syntax': '/workspace/scratch/39be3faa4442/runs178/author184/consumer02/O0/phases/syntax.txt'}, 'input_fingerprint': '4a8c1e0f90189751b1b24e3ea8518d84885df70153ffe89f01fd84d1bd547fb6', 'seconds': 0.01515918, 'cache_hit': False, 'commands': [], 'disk_cache': 'disabled', 'query_events': [{'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'expand', 'disposition': 'executed'}], 'verification_runs': 0, 'source_files': {'0': '/workspace/scratch/39be3faa4442/language14/wt184/examples/mainline/lending184/main.zil', '1': '/workspace/scratch/39be3faa4442/language14/wt184/examples/mainline/lending184/factory.zil', '2': '/workspace/scratch/39be3faa4442/language14/wt184/examples/mainline/lending184/helpers.zil', '3': '/workspace/scratch/39be3faa4442/language14/wt184/examples/mainline/lending184/state.zil'}, 'scalar_interfaces': []}"
+}

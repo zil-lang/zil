@@ -1,0 +1,4 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt184/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.28s
+     Running tests/impl099_owned_bytes.rs (/workspace/scratch/39be3faa4442/targets178/author184freeze/debug/deps/impl099_owned_bytes-ca18ea3e28820a9d)
+error: test failed, to rerun pass `-p zil-driver --test impl099_owned_bytes`

@@ -1,0 +1,40 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-types",
+    "-p",
+    "zil-analyze",
+    "-p",
+    "zil-verify",
+    "-p",
+    "zil-lower",
+    "-p",
+    "zil-backend-llvm",
+    "--lib",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt184",
+  "start": 1793155150.0374649,
+  "source_commit": "9e42d3a3a647d022b67672dbaf149fc81b06b3af",
+  "git_status": " M crates/zil-analyze/src/budget.rs\n M crates/zil-analyze/src/helpers.rs\n M crates/zil-analyze/src/holds.rs\n M crates/zil-analyze/src/resources.rs\n M crates/zil-analyze/src/retained.rs\n M crates/zil-backend-llvm/src/emit.rs\n M crates/zil-backend-llvm/src/emit/resource_closures.rs\n M crates/zil-lower/src/lib.rs\n M crates/zil-types/src/addresses.rs\n M crates/zil-types/src/closures.rs\n M crates/zil-types/src/helpers.rs\n M crates/zil-types/src/inference.rs\n M crates/zil-types/src/lending.rs\n M crates/zil-types/src/lib.rs\n M crates/zil-types/src/program.rs\n M crates/zil-types/src/retained.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/borrows/loans.rs\n M crates/zil-verify/src/closures.rs\n M crates/zil-verify/src/helpers.rs\n M crates/zil-verify/src/resources.rs\n M crates/zil-verify/src/retained.rs\n?? crates/zil-driver/tests/impl184_lending.rs\n?? crates/zil-driver/tests/impl184_lending_raw.rs\n?? examples/mainline/lending184/\n?? tools/language/184/\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author184fresh",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/runs178/author184/development11/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793155153.3819578,
+  "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr.log_sha256": "a4a95fb8da9c6704b9d1cecb4a3b0029e25106e3f479c9613f2aa59e89cbc158"
+}

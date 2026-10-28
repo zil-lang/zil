@@ -1,0 +1,30 @@
+
+running 13 tests
+test closure_local_windows_do_not_escape_the_environment_boundary ... ok
+test cross_module_parameter_and_result_contracts_keep_element_identity ... ok
+test endpoint_order_is_base_then_left_then_right_without_implicit_reborrow ... ok
+test all_endpoint_forms_reborrow_and_existing_copy_shapes_are_admitted ... ok
+test foreign_abi_and_closure_windows_remain_closed ... ok
+test ordinary_len_methods_and_non_slice_closures_keep_their_meaning ... ok
+test one_ordinary_signature_handles_runtime_windows_and_preserves_origins ... ok
+test public_ct_preflight_bounds_slice_element_trees_before_copying ... ok
+test range_endpoints_are_not_erased_before_name_checking ... ok
+test scalar_ct_endpoints_work_while_ct_slice_execution_is_closed ... ok
+test ownership_and_whole_base_exclusivity_are_independently_verified ... ok
+test suspended_parent_cannot_read_explicit_or_implicit_slice_metadata ... ok
+test views_require_real_places_integer_bounds_and_matching_mutability ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+
+running 7 tests
+test failed_growth_inside_saved_environment_preserves_payload_and_later_use ... ok
+test four_module_saved_state_consumer_matches_rust_on_binary_batches ... ok
+test direct_and_package_owned_factories_keep_state_and_release_when_dropped ... ok
+test mutable_factory_recovers_after_an_error_before_successful_replacement ... ok
+test once_capture_consumption_and_partial_package_error_discharge_remaining_debt ... ok
+test package_transfer_take_refill_and_replace_release_each_payload_once ... ok
+test ordinary_errors_and_failed_preparation_settle_only_acquired_responsibilities ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.38s
+

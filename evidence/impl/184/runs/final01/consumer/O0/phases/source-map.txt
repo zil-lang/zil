@@ -1,0 +1,6127 @@
+[
+    SourceMap {
+        module_id: ModuleId(
+            0,
+        ),
+        entries: [
+            SourceMapEntry {
+                id: SourceMapId(
+                    0,
+                ),
+                target: Node(
+                    NodeId(
+                        0,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 54,
+                    end: 74,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    1,
+                ),
+                target: Node(
+                    NodeId(
+                        1,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 76,
+                    end: 607,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    2,
+                ),
+                target: Node(
+                    NodeId(
+                        2,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 111,
+                    end: 112,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    3,
+                ),
+                target: Node(
+                    NodeId(
+                        3,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 99,
+                    end: 113,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    4,
+                ),
+                target: Node(
+                    NodeId(
+                        4,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 126,
+                    end: 131,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    5,
+                ),
+                target: Node(
+                    NodeId(
+                        5,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 134,
+                    end: 141,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    6,
+                ),
+                target: Node(
+                    NodeId(
+                        6,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 134,
+                    end: 143,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    7,
+                ),
+                target: Node(
+                    NodeId(
+                        7,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 126,
+                    end: 143,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    8,
+                ),
+                target: Node(
+                    NodeId(
+                        8,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 117,
+                    end: 145,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    9,
+                ),
+                target: Node(
+                    NodeId(
+                        9,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 153,
+                    end: 158,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    10,
+                ),
+                target: Node(
+                    NodeId(
+                        10,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 161,
+                    end: 163,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    11,
+                ),
+                target: Node(
+                    NodeId(
+                        11,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 153,
+                    end: 163,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    12,
+                ),
+                target: Node(
+                    NodeId(
+                        12,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 167,
+                    end: 172,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    13,
+                ),
+                target: Node(
+                    NodeId(
+                        13,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 175,
+                    end: 177,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    14,
+                ),
+                target: Node(
+                    NodeId(
+                        14,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 167,
+                    end: 177,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    15,
+                ),
+                target: Node(
+                    NodeId(
+                        15,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 153,
+                    end: 177,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    16,
+                ),
+                target: Node(
+                    NodeId(
+                        16,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 187,
+                    end: 188,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    17,
+                ),
+                target: Node(
+                    NodeId(
+                        17,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 180,
+                    end: 188,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    18,
+                ),
+                target: Node(
+                    NodeId(
+                        18,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 150,
+                    end: 190,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    19,
+                ),
+                target: Node(
+                    NodeId(
+                        19,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 210,
+                    end: 226,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    20,
+                ),
+                target: Node(
+                    NodeId(
+                        20,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 210,
+                    end: 226,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    21,
+                ),
+                target: Node(
+                    NodeId(
+                        21,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 227,
+                    end: 231,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    22,
+                ),
+                target: Node(
+                    NodeId(
+                        22,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 210,
+                    end: 232,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    23,
+                ),
+                target: Node(
+                    NodeId(
+                        23,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 195,
+                    end: 233,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    24,
+                ),
+                target: Node(
+                    NodeId(
+                        24,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 249,
+                    end: 261,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    25,
+                ),
+                target: Node(
+                    NodeId(
+                        25,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 249,
+                    end: 261,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    26,
+                ),
+                target: Node(
+                    NodeId(
+                        26,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 263,
+                    end: 271,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    27,
+                ),
+                target: Node(
+                    NodeId(
+                        27,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 262,
+                    end: 271,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    28,
+                ),
+                target: Node(
+                    NodeId(
+                        28,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 249,
+                    end: 272,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    29,
+                ),
+                target: Node(
+                    NodeId(
+                        29,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 237,
+                    end: 273,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    30,
+                ),
+                target: Node(
+                    NodeId(
+                        30,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 280,
+                    end: 285,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    31,
+                ),
+                target: Node(
+                    NodeId(
+                        31,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 280,
+                    end: 289,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    32,
+                ),
+                target: Node(
+                    NodeId(
+                        32,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 280,
+                    end: 291,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    33,
+                ),
+                target: Node(
+                    NodeId(
+                        33,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 295,
+                    end: 296,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    34,
+                ),
+                target: Node(
+                    NodeId(
+                        34,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 280,
+                    end: 296,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    35,
+                ),
+                target: Node(
+                    NodeId(
+                        35,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 306,
+                    end: 307,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    36,
+                ),
+                target: Node(
+                    NodeId(
+                        36,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 299,
+                    end: 307,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    37,
+                ),
+                target: Node(
+                    NodeId(
+                        37,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 277,
+                    end: 309,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    38,
+                ),
+                target: Node(
+                    NodeId(
+                        38,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 314,
+                    end: 326,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    39,
+                ),
+                target: Node(
+                    NodeId(
+                        39,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 314,
+                    end: 326,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    40,
+                ),
+                target: Node(
+                    NodeId(
+                        40,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 331,
+                    end: 336,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    41,
+                ),
+                target: Node(
+                    NodeId(
+                        41,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 337,
+                    end: 338,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    42,
+                ),
+                target: Node(
+                    NodeId(
+                        42,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 331,
+                    end: 339,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    43,
+                ),
+                target: Node(
+                    NodeId(
+                        43,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 327,
+                    end: 340,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    44,
+                ),
+                target: Node(
+                    NodeId(
+                        44,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 314,
+                    end: 341,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    45,
+                ),
+                target: Node(
+                    NodeId(
+                        45,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 314,
+                    end: 342,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    46,
+                ),
+                target: Node(
+                    NodeId(
+                        46,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 360,
+                    end: 370,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    47,
+                ),
+                target: Node(
+                    NodeId(
+                        47,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 360,
+                    end: 370,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    48,
+                ),
+                target: Node(
+                    NodeId(
+                        48,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 371,
+                    end: 383,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    49,
+                ),
+                target: Node(
+                    NodeId(
+                        49,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 371,
+                    end: 383,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    50,
+                ),
+                target: Node(
+                    NodeId(
+                        50,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 371,
+                    end: 385,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    51,
+                ),
+                target: Node(
+                    NodeId(
+                        51,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 360,
+                    end: 386,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    52,
+                ),
+                target: Node(
+                    NodeId(
+                        52,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 346,
+                    end: 387,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    53,
+                ),
+                target: Node(
+                    NodeId(
+                        53,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 404,
+                    end: 413,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    54,
+                ),
+                target: Node(
+                    NodeId(
+                        54,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 404,
+                    end: 413,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    55,
+                ),
+                target: Node(
+                    NodeId(
+                        55,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 414,
+                    end: 421,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    56,
+                ),
+                target: Node(
+                    NodeId(
+                        56,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 427,
+                    end: 432,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    57,
+                ),
+                target: Node(
+                    NodeId(
+                        57,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 435,
+                    end: 437,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    58,
+                ),
+                target: Node(
+                    NodeId(
+                        58,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 427,
+                    end: 437,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    59,
+                ),
+                target: Node(
+                    NodeId(
+                        59,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 423,
+                    end: 438,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    60,
+                ),
+                target: Node(
+                    NodeId(
+                        60,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 404,
+                    end: 439,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    61,
+                ),
+                target: Node(
+                    NodeId(
+                        61,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 391,
+                    end: 440,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    62,
+                ),
+                target: Node(
+                    NodeId(
+                        62,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 447,
+                    end: 453,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    63,
+                ),
+                target: Node(
+                    NodeId(
+                        63,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 457,
+                    end: 458,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    64,
+                ),
+                target: Node(
+                    NodeId(
+                        64,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 447,
+                    end: 458,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    65,
+                ),
+                target: Node(
+                    NodeId(
+                        65,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 468,
+                    end: 474,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    66,
+                ),
+                target: Node(
+                    NodeId(
+                        66,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 461,
+                    end: 474,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    67,
+                ),
+                target: Node(
+                    NodeId(
+                        67,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 444,
+                    end: 476,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    68,
+                ),
+                target: Node(
+                    NodeId(
+                        68,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 494,
+                    end: 506,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    69,
+                ),
+                target: Node(
+                    NodeId(
+                        69,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 494,
+                    end: 506,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    70,
+                ),
+                target: Node(
+                    NodeId(
+                        70,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 508,
+                    end: 516,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    71,
+                ),
+                target: Node(
+                    NodeId(
+                        71,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 507,
+                    end: 516,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    72,
+                ),
+                target: Node(
+                    NodeId(
+                        72,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 494,
+                    end: 517,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    73,
+                ),
+                target: Node(
+                    NodeId(
+                        73,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 481,
+                    end: 518,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    74,
+                ),
+                target: Node(
+                    NodeId(
+                        74,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 522,
+                    end: 534,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    75,
+                ),
+                target: Node(
+                    NodeId(
+                        75,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 522,
+                    end: 534,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    76,
+                ),
+                target: Node(
+                    NodeId(
+                        76,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 539,
+                    end: 545,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    77,
+                ),
+                target: Node(
+                    NodeId(
+                        77,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 546,
+                    end: 547,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    78,
+                ),
+                target: Node(
+                    NodeId(
+                        78,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 539,
+                    end: 548,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    79,
+                ),
+                target: Node(
+                    NodeId(
+                        79,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 535,
+                    end: 549,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    80,
+                ),
+                target: Node(
+                    NodeId(
+                        80,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 522,
+                    end: 550,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    81,
+                ),
+                target: Node(
+                    NodeId(
+                        81,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 522,
+                    end: 551,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    82,
+                ),
+                target: Node(
+                    NodeId(
+                        82,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 558,
+                    end: 563,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    83,
+                ),
+                target: Node(
+                    NodeId(
+                        83,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 564,
+                    end: 565,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    84,
+                ),
+                target: Node(
+                    NodeId(
+                        84,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 558,
+                    end: 566,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    85,
+                ),
+                target: Node(
+                    NodeId(
+                        85,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 570,
+                    end: 576,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    86,
+                ),
+                target: Node(
+                    NodeId(
+                        86,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 577,
+                    end: 578,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    87,
+                ),
+                target: Node(
+                    NodeId(
+                        87,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 570,
+                    end: 579,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    88,
+                ),
+                target: Node(
+                    NodeId(
+                        88,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 558,
+                    end: 579,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    89,
+                ),
+                target: Node(
+                    NodeId(
+                        89,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 589,
+                    end: 590,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    90,
+                ),
+                target: Node(
+                    NodeId(
+                        90,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 582,
+                    end: 590,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    91,
+                ),
+                target: Node(
+                    NodeId(
+                        91,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 555,
+                    end: 592,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    92,
+                ),
+                target: Node(
+                    NodeId(
+                        92,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 604,
+                    end: 605,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    93,
+                ),
+                target: Node(
+                    NodeId(
+                        93,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 597,
+                    end: 606,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+        ],
+    },
+    SourceMap {
+        module_id: ModuleId(
+            1,
+        ),
+        entries: [
+            SourceMapEntry {
+                id: SourceMapId(
+                    0,
+                ),
+                target: Node(
+                    NodeId(
+                        0,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 16,
+                    end: 45,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    1,
+                ),
+                target: Node(
+                    NodeId(
+                        1,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 69,
+                    end: 112,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    2,
+                ),
+                target: Parameter {
+                    function: NodeId(
+                        1,
+                    ),
+                    index: 0,
+                },
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 77,
+                    end: 87,
+                },
+                role: ReceiverExplicit,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    3,
+                ),
+                target: Node(
+                    NodeId(
+                        2,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 91,
+                    end: 103,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    4,
+                ),
+                target: Node(
+                    NodeId(
+                        3,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 91,
+                    end: 103,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    5,
+                ),
+                target: Node(
+                    NodeId(
+                        4,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 104,
+                    end: 109,
+                },
+                role: ReceiverShorthand,
+                related: [
+                    Span {
+                        file: FileId(
+                            1,
+                        ),
+                        start: 77,
+                        end: 87,
+                    },
+                ],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    6,
+                ),
+                target: Node(
+                    NodeId(
+                        5,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 104,
+                    end: 109,
+                },
+                role: ReceiverShorthand,
+                related: [
+                    Span {
+                        file: FileId(
+                            1,
+                        ),
+                        start: 77,
+                        end: 87,
+                    },
+                ],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    7,
+                ),
+                target: Node(
+                    NodeId(
+                        6,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 91,
+                    end: 110,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    8,
+                ),
+                target: Node(
+                    NodeId(
+                        7,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 91,
+                    end: 110,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        1,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    9,
+                ),
+                target: Node(
+                    NodeId(
+                        8,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 120,
+                    end: 354,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    10,
+                ),
+                target: Parameter {
+                    function: NodeId(
+                        8,
+                    ),
+                    index: 0,
+                },
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 132,
+                    end: 141,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    11,
+                ),
+                target: Span(
+                    Span {
+                        file: FileId(
+                            1,
+                        ),
+                        start: 184,
+                        end: 203,
+                    },
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 184,
+                    end: 203,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    12,
+                ),
+                target: Node(
+                    NodeId(
+                        9,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 199,
+                    end: 201,
+                },
+                role: RecordField,
+                related: [
+                    Span {
+                        file: FileId(
+                            1,
+                        ),
+                        start: 184,
+                        end: 203,
+                    },
+                ],
+                parent: Some(
+                    SourceMapId(
+                        11,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    13,
+                ),
+                target: Node(
+                    NodeId(
+                        10,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 193,
+                    end: 201,
+                },
+                role: TemporaryRead,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        11,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    14,
+                ),
+                target: Node(
+                    NodeId(
+                        11,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 184,
+                    end: 203,
+                },
+                role: RecordResult,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        11,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    15,
+                ),
+                target: Node(
+                    NodeId(
+                        12,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 184,
+                    end: 203,
+                },
+                role: RecordResult,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        11,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    16,
+                ),
+                target: Node(
+                    NodeId(
+                        13,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 171,
+                    end: 204,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    17,
+                ),
+                target: Node(
+                    NodeId(
+                        14,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 220,
+                    end: 229,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    18,
+                ),
+                target: Node(
+                    NodeId(
+                        15,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 220,
+                    end: 231,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    19,
+                ),
+                target: Node(
+                    NodeId(
+                        16,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 208,
+                    end: 232,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    20,
+                ),
+                target: Node(
+                    NodeId(
+                        17,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 236,
+                    end: 249,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    21,
+                ),
+                target: Node(
+                    NodeId(
+                        18,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 250,
+                    end: 255,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    22,
+                ),
+                target: Node(
+                    NodeId(
+                        19,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 257,
+                    end: 258,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    23,
+                ),
+                target: Node(
+                    NodeId(
+                        20,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 236,
+                    end: 259,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    24,
+                ),
+                target: Node(
+                    NodeId(
+                        21,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 236,
+                    end: 260,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    25,
+                ),
+                target: Node(
+                    NodeId(
+                        22,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 264,
+                    end: 274,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    26,
+                ),
+                target: Node(
+                    NodeId(
+                        23,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 275,
+                    end: 280,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    27,
+                ),
+                target: Node(
+                    NodeId(
+                        24,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 282,
+                    end: 287,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    28,
+                ),
+                target: Node(
+                    NodeId(
+                        25,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 264,
+                    end: 288,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    29,
+                ),
+                target: Node(
+                    NodeId(
+                        26,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 264,
+                    end: 289,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    30,
+                ),
+                target: Node(
+                    NodeId(
+                        27,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 313,
+                    end: 319,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    31,
+                ),
+                target: Node(
+                    NodeId(
+                        28,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 313,
+                    end: 324,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    32,
+                ),
+                target: Node(
+                    NodeId(
+                        29,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 313,
+                    end: 325,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    33,
+                ),
+                target: Node(
+                    NodeId(
+                        30,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 333,
+                    end: 343,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    34,
+                ),
+                target: Node(
+                    NodeId(
+                        31,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 344,
+                    end: 349,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    35,
+                ),
+                target: Node(
+                    NodeId(
+                        32,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 333,
+                    end: 350,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    36,
+                ),
+                target: Node(
+                    NodeId(
+                        33,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 326,
+                    end: 350,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    37,
+                ),
+                target: Node(
+                    NodeId(
+                        34,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 300,
+                    end: 352,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    38,
+                ),
+                target: Node(
+                    NodeId(
+                        35,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 293,
+                    end: 353,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        9,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    39,
+                ),
+                target: Node(
+                    NodeId(
+                        36,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 360,
+                    end: 637,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    40,
+                ),
+                target: Span(
+                    Span {
+                        file: FileId(
+                            1,
+                        ),
+                        start: 416,
+                        end: 435,
+                    },
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 416,
+                    end: 435,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    41,
+                ),
+                target: Node(
+                    NodeId(
+                        37,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 431,
+                    end: 433,
+                },
+                role: RecordField,
+                related: [
+                    Span {
+                        file: FileId(
+                            1,
+                        ),
+                        start: 416,
+                        end: 435,
+                    },
+                ],
+                parent: Some(
+                    SourceMapId(
+                        40,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    42,
+                ),
+                target: Node(
+                    NodeId(
+                        38,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 425,
+                    end: 433,
+                },
+                role: TemporaryRead,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        40,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    43,
+                ),
+                target: Node(
+                    NodeId(
+                        39,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 416,
+                    end: 435,
+                },
+                role: RecordResult,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        40,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    44,
+                ),
+                target: Node(
+                    NodeId(
+                        40,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 416,
+                    end: 435,
+                },
+                role: RecordResult,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        40,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    45,
+                ),
+                target: Node(
+                    NodeId(
+                        41,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 403,
+                    end: 436,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    46,
+                ),
+                target: Node(
+                    NodeId(
+                        42,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 452,
+                    end: 461,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    47,
+                ),
+                target: Node(
+                    NodeId(
+                        43,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 452,
+                    end: 463,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    48,
+                ),
+                target: Node(
+                    NodeId(
+                        44,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 440,
+                    end: 464,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    49,
+                ),
+                target: Node(
+                    NodeId(
+                        45,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 501,
+                    end: 507,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    50,
+                ),
+                target: Node(
+                    NodeId(
+                        46,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 501,
+                    end: 512,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    51,
+                ),
+                target: Node(
+                    NodeId(
+                        47,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 501,
+                    end: 513,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    52,
+                ),
+                target: Node(
+                    NodeId(
+                        48,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 521,
+                    end: 534,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    53,
+                ),
+                target: Node(
+                    NodeId(
+                        49,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 535,
+                    end: 540,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    54,
+                ),
+                target: Node(
+                    NodeId(
+                        50,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 542,
+                    end: 551,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    55,
+                ),
+                target: Node(
+                    NodeId(
+                        51,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 552,
+                    end: 557,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    56,
+                ),
+                target: Node(
+                    NodeId(
+                        52,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 542,
+                    end: 558,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    57,
+                ),
+                target: Node(
+                    NodeId(
+                        53,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 561,
+                    end: 562,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    58,
+                ),
+                target: Node(
+                    NodeId(
+                        54,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 542,
+                    end: 562,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    59,
+                ),
+                target: Node(
+                    NodeId(
+                        55,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 521,
+                    end: 563,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    60,
+                ),
+                target: Node(
+                    NodeId(
+                        56,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 521,
+                    end: 564,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    61,
+                ),
+                target: Node(
+                    NodeId(
+                        57,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 572,
+                    end: 582,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    62,
+                ),
+                target: Node(
+                    NodeId(
+                        58,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 583,
+                    end: 588,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    63,
+                ),
+                target: Node(
+                    NodeId(
+                        59,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 590,
+                    end: 595,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    64,
+                ),
+                target: Node(
+                    NodeId(
+                        60,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 572,
+                    end: 596,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    65,
+                ),
+                target: Node(
+                    NodeId(
+                        61,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 572,
+                    end: 597,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    66,
+                ),
+                target: Node(
+                    NodeId(
+                        62,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 612,
+                    end: 622,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    67,
+                ),
+                target: Node(
+                    NodeId(
+                        63,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 623,
+                    end: 628,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    68,
+                ),
+                target: Node(
+                    NodeId(
+                        64,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 612,
+                    end: 629,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    69,
+                ),
+                target: Node(
+                    NodeId(
+                        65,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 605,
+                    end: 630,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    70,
+                ),
+                target: Node(
+                    NodeId(
+                        66,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 475,
+                    end: 635,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    71,
+                ),
+                target: Node(
+                    NodeId(
+                        67,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        1,
+                    ),
+                    start: 468,
+                    end: 636,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        39,
+                    ),
+                ),
+            },
+        ],
+    },
+    SourceMap {
+        module_id: ModuleId(
+            2,
+        ),
+        entries: [
+            SourceMapEntry {
+                id: SourceMapId(
+                    0,
+                ),
+                target: Node(
+                    NodeId(
+                        0,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 4,
+                    end: 78,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    1,
+                ),
+                target: Parameter {
+                    function: NodeId(
+                        0,
+                    ),
+                    index: 0,
+                },
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 30,
+                    end: 42,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        0,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    2,
+                ),
+                target: Node(
+                    NodeId(
+                        1,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 66,
+                    end: 74,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        0,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    3,
+                ),
+                target: Node(
+                    NodeId(
+                        2,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 66,
+                    end: 76,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        0,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    4,
+                ),
+                target: Node(
+                    NodeId(
+                        3,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 59,
+                    end: 77,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        0,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    5,
+                ),
+                target: Node(
+                    NodeId(
+                        4,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 84,
+                    end: 185,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    6,
+                ),
+                target: Parameter {
+                    function: NodeId(
+                        4,
+                    ),
+                    index: 0,
+                },
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 117,
+                    end: 133,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        5,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    7,
+                ),
+                target: Parameter {
+                    function: NodeId(
+                        4,
+                    ),
+                    index: 1,
+                },
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 135,
+                    end: 144,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        5,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    8,
+                ),
+                target: Node(
+                    NodeId(
+                        5,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 168,
+                    end: 176,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        5,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    9,
+                ),
+                target: Node(
+                    NodeId(
+                        6,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 177,
+                    end: 182,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        5,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    10,
+                ),
+                target: Node(
+                    NodeId(
+                        7,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 168,
+                    end: 183,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        5,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    11,
+                ),
+                target: Node(
+                    NodeId(
+                        8,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 161,
+                    end: 184,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        5,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    12,
+                ),
+                target: Node(
+                    NodeId(
+                        9,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 197,
+                    end: 227,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    13,
+                ),
+                target: Node(
+                    NodeId(
+                        10,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 232,
+                    end: 281,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    14,
+                ),
+                target: Parameter {
+                    function: NodeId(
+                        10,
+                    ),
+                    index: 0,
+                },
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 240,
+                    end: 250,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    15,
+                ),
+                target: Node(
+                    NodeId(
+                        11,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 263,
+                    end: 270,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    16,
+                ),
+                target: Node(
+                    NodeId(
+                        12,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 271,
+                    end: 276,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    17,
+                ),
+                target: Node(
+                    NodeId(
+                        13,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 263,
+                    end: 277,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    18,
+                ),
+                target: Node(
+                    NodeId(
+                        14,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 263,
+                    end: 277,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    19,
+                ),
+                target: Node(
+                    NodeId(
+                        15,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        2,
+                    ),
+                    start: 254,
+                    end: 279,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+        ],
+    },
+    SourceMap {
+        module_id: ModuleId(
+            3,
+        ),
+        entries: [
+            SourceMapEntry {
+                id: SourceMapId(
+                    0,
+                ),
+                target: Node(
+                    NodeId(
+                        0,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 99,
+                    end: 235,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    1,
+                ),
+                target: Parameter {
+                    function: NodeId(
+                        0,
+                    ),
+                    index: 0,
+                },
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 130,
+                    end: 141,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        0,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    2,
+                ),
+                target: Span(
+                    Span {
+                        file: FileId(
+                            3,
+                        ),
+                        start: 168,
+                        end: 233,
+                    },
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 168,
+                    end: 233,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        0,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    3,
+                ),
+                target: Node(
+                    NodeId(
+                        1,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 190,
+                    end: 199,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        2,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    4,
+                ),
+                target: Node(
+                    NodeId(
+                        2,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 190,
+                    end: 201,
+                },
+                role: RecordField,
+                related: [
+                    Span {
+                        file: FileId(
+                            3,
+                        ),
+                        start: 168,
+                        end: 233,
+                    },
+                ],
+                parent: Some(
+                    SourceMapId(
+                        2,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    5,
+                ),
+                target: Node(
+                    NodeId(
+                        3,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 181,
+                    end: 201,
+                },
+                role: TemporaryRead,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        2,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    6,
+                ),
+                target: Node(
+                    NodeId(
+                        4,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 213,
+                    end: 221,
+                },
+                role: RecordField,
+                related: [
+                    Span {
+                        file: FileId(
+                            3,
+                        ),
+                        start: 168,
+                        end: 233,
+                    },
+                ],
+                parent: Some(
+                    SourceMapId(
+                        2,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    7,
+                ),
+                target: Node(
+                    NodeId(
+                        5,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 203,
+                    end: 221,
+                },
+                role: TemporaryRead,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        2,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    8,
+                ),
+                target: Node(
+                    NodeId(
+                        6,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 230,
+                    end: 231,
+                },
+                role: RecordField,
+                related: [
+                    Span {
+                        file: FileId(
+                            3,
+                        ),
+                        start: 168,
+                        end: 233,
+                    },
+                ],
+                parent: Some(
+                    SourceMapId(
+                        2,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    9,
+                ),
+                target: Node(
+                    NodeId(
+                        7,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 223,
+                    end: 231,
+                },
+                role: TemporaryRead,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        2,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    10,
+                ),
+                target: Node(
+                    NodeId(
+                        8,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 168,
+                    end: 233,
+                },
+                role: RecordResult,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        2,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    11,
+                ),
+                target: Node(
+                    NodeId(
+                        9,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 168,
+                    end: 233,
+                },
+                role: RecordResult,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        2,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    12,
+                ),
+                target: Node(
+                    NodeId(
+                        10,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 161,
+                    end: 234,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        0,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    13,
+                ),
+                target: Node(
+                    NodeId(
+                        11,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 241,
+                    end: 614,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    14,
+                ),
+                target: Parameter {
+                    function: NodeId(
+                        11,
+                    ),
+                    index: 0,
+                },
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 271,
+                    end: 286,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    15,
+                ),
+                target: Parameter {
+                    function: NodeId(
+                        11,
+                    ),
+                    index: 1,
+                },
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 288,
+                    end: 298,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    16,
+                ),
+                target: Node(
+                    NodeId(
+                        12,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 327,
+                    end: 332,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    17,
+                ),
+                target: Node(
+                    NodeId(
+                        13,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 313,
+                    end: 333,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    18,
+                ),
+                target: Node(
+                    NodeId(
+                        14,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 343,
+                    end: 350,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    19,
+                ),
+                target: Node(
+                    NodeId(
+                        15,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 343,
+                    end: 356,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    20,
+                ),
+                target: Node(
+                    NodeId(
+                        16,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 359,
+                    end: 364,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    21,
+                ),
+                target: Node(
+                    NodeId(
+                        17,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 343,
+                    end: 364,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    22,
+                ),
+                target: Node(
+                    NodeId(
+                        18,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 395,
+                    end: 402,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    23,
+                ),
+                target: Node(
+                    NodeId(
+                        19,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 395,
+                    end: 411,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    24,
+                ),
+                target: Node(
+                    NodeId(
+                        20,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 390,
+                    end: 411,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    25,
+                ),
+                target: Node(
+                    NodeId(
+                        21,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 375,
+                    end: 412,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    26,
+                ),
+                target: Node(
+                    NodeId(
+                        22,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 431,
+                    end: 439,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    27,
+                ),
+                target: Node(
+                    NodeId(
+                        23,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 443,
+                    end: 450,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    28,
+                ),
+                target: Node(
+                    NodeId(
+                        24,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 443,
+                    end: 456,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    29,
+                ),
+                target: Node(
+                    NodeId(
+                        25,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 459,
+                    end: 461,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    30,
+                ),
+                target: Node(
+                    NodeId(
+                        26,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 443,
+                    end: 461,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    31,
+                ),
+                target: Node(
+                    NodeId(
+                        27,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 440,
+                    end: 462,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    32,
+                ),
+                target: Node(
+                    NodeId(
+                        28,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 431,
+                    end: 463,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    33,
+                ),
+                target: Node(
+                    NodeId(
+                        29,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 420,
+                    end: 464,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    34,
+                ),
+                target: Node(
+                    NodeId(
+                        30,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 472,
+                    end: 479,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    35,
+                ),
+                target: Node(
+                    NodeId(
+                        31,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 472,
+                    end: 485,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    36,
+                ),
+                target: Node(
+                    NodeId(
+                        32,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 489,
+                    end: 490,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    37,
+                ),
+                target: Node(
+                    NodeId(
+                        33,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 472,
+                    end: 479,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    38,
+                ),
+                target: Node(
+                    NodeId(
+                        34,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 472,
+                    end: 479,
+                },
+                role: TemporaryRead,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    39,
+                ),
+                target: Node(
+                    NodeId(
+                        35,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 472,
+                    end: 485,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    40,
+                ),
+                target: Node(
+                    NodeId(
+                        36,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 472,
+                    end: 485,
+                },
+                role: TemporaryRead,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    41,
+                ),
+                target: Node(
+                    NodeId(
+                        37,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 472,
+                    end: 491,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    42,
+                ),
+                target: Node(
+                    NodeId(
+                        38,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 472,
+                    end: 491,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    43,
+                ),
+                target: Node(
+                    NodeId(
+                        39,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 502,
+                    end: 506,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    44,
+                ),
+                target: Node(
+                    NodeId(
+                        40,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 502,
+                    end: 510,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    45,
+                ),
+                target: Node(
+                    NodeId(
+                        41,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 502,
+                    end: 512,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    46,
+                ),
+                target: Node(
+                    NodeId(
+                        42,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 516,
+                    end: 523,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    47,
+                ),
+                target: Node(
+                    NodeId(
+                        43,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 516,
+                    end: 529,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    48,
+                ),
+                target: Node(
+                    NodeId(
+                        44,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 502,
+                    end: 529,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    49,
+                ),
+                target: Node(
+                    NodeId(
+                        45,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 539,
+                    end: 540,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    50,
+                ),
+                target: Node(
+                    NodeId(
+                        46,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 532,
+                    end: 540,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    51,
+                ),
+                target: Node(
+                    NodeId(
+                        47,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 499,
+                    end: 542,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    52,
+                ),
+                target: Node(
+                    NodeId(
+                        48,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 551,
+                    end: 563,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    53,
+                ),
+                target: Node(
+                    NodeId(
+                        49,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 551,
+                    end: 563,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    54,
+                ),
+                target: Node(
+                    NodeId(
+                        50,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 568,
+                    end: 572,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    55,
+                ),
+                target: Node(
+                    NodeId(
+                        51,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 573,
+                    end: 580,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    56,
+                ),
+                target: Node(
+                    NodeId(
+                        52,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 573,
+                    end: 586,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    57,
+                ),
+                target: Node(
+                    NodeId(
+                        53,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 589,
+                    end: 590,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    58,
+                ),
+                target: Node(
+                    NodeId(
+                        54,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 573,
+                    end: 590,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    59,
+                ),
+                target: Node(
+                    NodeId(
+                        55,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 568,
+                    end: 591,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    60,
+                ),
+                target: Node(
+                    NodeId(
+                        56,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 564,
+                    end: 592,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    61,
+                ),
+                target: Node(
+                    NodeId(
+                        57,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 551,
+                    end: 593,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    62,
+                ),
+                target: Node(
+                    NodeId(
+                        58,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 551,
+                    end: 594,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    63,
+                ),
+                target: Node(
+                    NodeId(
+                        59,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 337,
+                    end: 599,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    64,
+                ),
+                target: Node(
+                    NodeId(
+                        60,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 611,
+                    end: 612,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    65,
+                ),
+                target: Node(
+                    NodeId(
+                        61,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 604,
+                    end: 613,
+                },
+                role: Source,
+                related: [],
+                parent: Some(
+                    SourceMapId(
+                        13,
+                    ),
+                ),
+            },
+            SourceMapEntry {
+                id: SourceMapId(
+                    66,
+                ),
+                target: Node(
+                    NodeId(
+                        62,
+                    ),
+                ),
+                origin: Span {
+                    file: FileId(
+                        3,
+                    ),
+                    start: 16,
+                    end: 93,
+                },
+                role: Source,
+                related: [],
+                parent: None,
+            },
+        ],
+    },
+]
