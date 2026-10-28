@@ -222,6 +222,25 @@ fn caller_binders_nominal_names_and_child_binders_have_lexical_identity() {
     );
 }
 
+fn shadow_without_nominal() -> String {
+    SHADOW
+        .replace(
+            "struct T { value:i32 }\nfn concrete(value:T)->i32{return value.value}\n",
+            "",
+        )
+        .replace("concrete(T{value:0})+", "")
+}
+
+#[test]
+fn same_named_child_binders_execute_without_an_unrelated_nominal_collision() {
+    let source = shadow_without_nominal();
+    assert_ne!(source, SHADOW);
+    native("nested-no-nominal-collision", &source, "1A2BZ", 0);
+    let inferred = source.replace("nested_empty::<Item<i32,T>>()", "nested_empty()");
+    assert_ne!(inferred, source);
+    native("nested-result-inferred-no-nominal", &inferred, "1A2BZ", 0);
+}
+
 fn nominal_pair_source(phantom: bool, reversed: bool) -> String {
     let mut prefix = PAIR[..PAIR.find("fn run<").unwrap()].to_owned();
     if phantom {
@@ -281,7 +300,11 @@ fn full_nominal_and_phantom_data_arguments_are_not_a_closure_only_instance_key()
 
 #[test]
 fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
-    native("desc-write-before-window", SHADOW, "1A2BZ", 0);
+    // Isolate actual parameter-remapped writes from the separate nominal-name
+    // collision test; both must pass, but one early failure must not hide the
+    // other independent borrow-checking obligation.
+    let control = shadow_without_nominal();
+    native("desc-write-before-window", &control, "1A2BZ", 0);
     for (label, changed) in [
         (
             "nested-reserve",
@@ -296,7 +319,7 @@ fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
             "let first = store_at_mut(items, 0)\nshifted(0,items,-1)",
         ),
     ] {
-        let source = SHADOW.replace("let first = store_at_mut(items, 0)", changed);
+        let source = control.replace("let first = store_at_mut(items, 0)", changed);
         reject_source(label, &source, &[Phase::Verify], Some("E-BORROW-CONFLICT"));
     }
 }
