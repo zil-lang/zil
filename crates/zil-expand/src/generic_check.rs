@@ -305,8 +305,9 @@ struct State {
     store_origins: BTreeMap<usize, BTreeSet<usize>>,
     invalidated_stores: BTreeSet<usize>,
     // A new symbolic position is not necessarily a newly created resource.
-    // Only written create producers and transfers of their direct locals carry
-    // this fact; give parameters, give calls and Package field takes do not.
+    // Written create producers and transfers of their direct locals or union
+    // success payloads carry this fact. Give parameters, give calls and
+    // Package field takes do not.
     fresh_stores: BTreeSet<usize>,
 }
 struct Check<'s, 'b, 'l> {

@@ -158,7 +158,7 @@ pub(super) fn result_mode(function: &Function) -> R<zil_ir::PassingMode> {
         if function.return_type.as_ref().and_then(carrier).is_none() {
             return Err(unsupported(
                 clause.span,
-                "generic resource result mode requires a direct Store or explicit Store success result",
+                "generic resource result mode requires a direct Store result or an explicit Store success result",
             ));
         }
         mode = selected;
