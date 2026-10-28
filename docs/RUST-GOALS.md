@@ -239,3 +239,15 @@ Package完整拥有数组字段、真实共享用户资源头、有限动态Stor
 | 至少一项实质突破 | 完整T组合和五模块故障闭环已真实推进，整仓2319/0 | 完整产品四目标合取与产品级净突破尚未建立，既有product-gates保持 |
 
 身份、实际失败和重放边界见docs/LANGUAGE-202.md与evidence/integration/202/final/RESULT.json。B0 Doing、完整1.4 NotSatisfied、产品/原生Windows NotRun。
+
+## 203：独立声明State、双环境Store与完整T推导
+
+| 目标 | 当前实证 | 限制与下一义务 |
+|---|---|---|
+| Rust同类安全 | 两根捕获资格/真实布局、字段与别名身份、未用定义、循环和raw/Wire由独立输入复核；原用例已有Verify拒绝与Types定义漏洞分别记账 | 有限同步片成立，完整语言安全、保留/挂起/并发仍未完成 |
+| 运行与内存同级 | Linux/Wine各128执行、各88真实分配失败，live0；72B元素实际flags与所有清理顺序得到核对，无新隐式Box/RC/锁 | 301B为实际请求payload峰值而非RSS；没有同语义Rust运行/峰值内存/尾延迟配对结论 |
+| 表达与维护更简单 | 同一State保存F/G并经普通完整T helper、Store和错误联合流动；裸静态调用从真实值唯一推T | 动态子项Store仍不能随环境拥有捕获，204接续；真实框架维护成本尚未测量 |
+| 编译成本更低 | 旧有限精确N控制保持，新身份/队列/图遍历有预费及N/N−1/fresh验证，默认限额不升 | 不代表所有旧输入零成本；本线不混入或重标独立速度专项成绩 |
+| 至少一项实质突破 | 声明模式与实际环境身份分离的可运行组合片推进；正式全仓2404/0/0，原失败与修复可核 | 完整产品四目标合取与产品级净突破尚未建立，原product-gates不改 |
+
+证据和准确身份见docs/LANGUAGE-203.md与evidence/integration/203/final/RESULT.json。完整1.4 NotSatisfied、B0 Doing、产品及原生Windows NotRun；重复执行集合不相加。
