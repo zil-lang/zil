@@ -95,7 +95,7 @@ fn baseline(s: &str) -> (TypedModule, CandidatePlan) {
 }
 #[test]
 fn aligned_and_zero_sized_fields_preserve_inline_storage() {
-    let s = "struct Empty{} struct Pair{large:i64;small:u8} resource R{n:i32} package P{manages owner:R;empty:Empty;byte:u8;pair:Pair;tail:i64} fn pick(p:&mut Pair)->&mut i64{return &mut p.large} fn main()->i32{var state=P{owner:R{n:1},empty:Empty{},byte:7u8,pair:Pair{large:5000000000i64,small:9u8},tail:11i64};let z=&mut state.empty;*z=Empty{};let p=pick(&mut state.pair);let t=&mut state.tail;*p+=*t;*t+=i64(state.byte);return i32(*p-5000000011i64)+i32(*t-18i64)}";
+    let s = "struct Empty{} struct Pair{large:i64;small:u8} resource R{n:i32} package P{manages owner:R;empty:Empty;byte:u8;pair:Pair;tail:i64} fn pick(p:&mut Pair)->&mut i64{return &mut p.large} fn main()->i32{var state=P{owner:R{n:1},empty:Empty{},byte:7u8,pair:Pair{large:5000000000,small:9u8},tail:11};let z=&mut state.empty;*z=Empty{};let p=pick(&mut state.pair);let t=&mut state.tail;*p+=*t;*t+=i64(state.byte);return i32(*p-5000000011)+i32(*t-18)}";
     native("alignment", s, b"", 0);
     conflict(
         "projection-parent",
@@ -104,12 +104,12 @@ fn aligned_and_zero_sized_fields_preserve_inline_storage() {
 }
 #[test]
 fn an_owning_sibling_can_be_taken_and_replaced_during_a_copy_window() {
-    let s = "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages owner:R;count:i64}fn main()->i32{var state=P{owner:R{n:65},count:2i64};let p=&mut state.count;{let old=give state.owner;state.owner=R{n:66};*p+=i64(old.n)}return i32(*p)-67}";
+    let s = "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages owner:R;count:i64}fn main()->i32{var state=P{owner:R{n:65},count:2};let p=&mut state.count;if true{let old=give state.owner;state.owner=R{n:66};*p+=i64(old.n)}return i32(*p)-67}";
     native("sibling-take-replace", s, b"AB", 0);
 }
 #[test]
 fn nested_helpers_keep_owned_environment_and_explicit_field_arguments_separate() {
-    let s = "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages owner:R;count:i64}fn leaf<F:FnMut(&mut i64)->i64>(f:&mut F,p:&mut i64)->i64{return f(p)}fn twice<F:FnMut(&mut i64)->i64>(f:&mut F,p:&mut i64)->i64{return leaf(f,p)+leaf(f,p)}fn main()->i32{var state=P{owner:R{n:66},count:20i64};var captured=P{owner:R{n:65},count:10i64};var f=move(p:&mut i64)=>{let c=&mut captured.count;*c+=*p;*p+=1i64;return *c};let p=&mut state.count;let total=twice(&mut f,p);return i32(total+*p)-103}";
+    let s = "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages owner:R;count:i64}fn leaf<F:FnMut(&mut i64)->i64>(f:&mut F,p:&mut i64)->i64{return f(p)}fn twice<F:FnMut(&mut i64)->i64>(f:&mut F,p:&mut i64)->i64{return leaf(f,p)+leaf(f,p)}fn main()->i32{var state=P{owner:R{n:66},count:20};var captured=P{owner:R{n:65},count:10};var f=move(p:&mut i64)=>{let c=&mut captured.count;*c+=*p;*p+=1;return *c};let p=&mut state.count;let total=twice(&mut f,p);return i32(total+*p)-103}";
     native("owned-helper-field", s, b"AB", 0);
 }
 #[test]
