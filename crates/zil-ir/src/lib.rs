@@ -2253,7 +2253,9 @@ fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract) {
         b.push(callable_kind_tag(role.kind));
         for indices in [&role.hold, &role.call, &role.writes] {
             encode_len(b, indices.len());
-            for index in indices { encode_u32(b, *index); }
+            for index in indices {
+                encode_u32(b, *index);
+            }
         }
         b.push(match role.cleanup {
             CallableCleanup::Owned => 0,
