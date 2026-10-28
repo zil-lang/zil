@@ -1,0 +1,1 @@
+fn bad<T:Copy,F:Fn(T)->T>(f:&F,x:T)->T=>x+1;fn main(){}

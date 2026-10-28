@@ -64,14 +64,7 @@ pub(super) fn copy_error(
     nominals: &BTreeMap<String, &Item>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
-    Shape {
-        nominals,
-        budget,
-        active: BTreeSet::new(),
-        depth: 0,
-    }
-    .copy(ty)
-    .map(|_| ())
+    copy::concrete_storage(ty, nominals, budget).map(|_| ())
 }
 
 pub(super) fn primitive(name: &str) -> bool {
@@ -171,12 +164,7 @@ pub(super) fn concrete_element(
     nominals: &BTreeMap<String, &Item>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
-    let mut shape = Shape {
-        nominals,
-        budget,
-        active: BTreeSet::new(),
-        depth: 0,
-    };
+    let mut shape = Shape { nominals, budget };
     let (aggregate, substitutions) = shape.aggregate(ty, AggregateKind::Package)?;
     let mut owns = false;
     let mut storage = false;
@@ -202,8 +190,6 @@ pub(super) fn concrete_element(
 struct Shape<'s, 'b, 'n, 'l> {
     nominals: &'s BTreeMap<String, &'n Item>,
     budget: &'b mut Budget<'l>,
-    active: BTreeSet<String>,
-    depth: usize,
 }
 
 impl<'n> Shape<'_, '_, 'n, '_> {
@@ -277,137 +263,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
         Ok(storage)
     }
 
-    /// Returns whether the finite Copy layout has any storage. Keeping this
-    /// separate avoids granting eligibility to a zero-size managed Package.
     fn copy(&mut self, ty: &TypeRef) -> R<bool> {
-        self.depth += 1;
-        self.budget.node(ty.span, self.depth)?;
-        let result = self.copy_inner(ty);
-        self.depth -= 1;
-        result
-    }
-
-    fn copy_inner(&mut self, ty: &TypeRef) -> R<bool> {
-        self.budget.ty(ty)?;
-        match &grouped(ty).kind {
-            TypeKind::Tuple(fields) => {
-                let mut storage = false;
-                for field in fields {
-                    storage |= self.copy(field)?;
-                }
-                Ok(storage)
-            }
-            TypeKind::Array {
-                element,
-                length: Some(length),
-            } => {
-                let size = array_length(length)?;
-                Ok(self.copy(element)? && size != 0)
-            }
-            TypeKind::Error { error, result } => {
-                self.copy(error)?;
-                self.copy(result)?;
-                Ok(true)
-            }
-            TypeKind::ForeignFunction { .. } => {
-                // The registered foreign callback shape was checked by the
-                // budget preflight. Require its concrete C profile here;
-                // a callback is a Copy code pointer, not an owning closure.
-                super::super::foreign::callback_type_formation(ty, Some(&BTreeSet::new()))?;
-                Ok(true)
-            }
-            TypeKind::Function { params, result } => {
-                for ty in params {
-                    self.copy(ty)?;
-                }
-                self.copy(result)?;
-                Ok(true)
-            }
-            TypeKind::Named { path, args } => {
-                if args.is_empty() && path.len() == 1 {
-                    match path[0].as_str() {
-                        "void" => return Ok(false),
-                        "bool" | "i32" | "i64" | "u8" | "u16" | "c_handle" | "c_wstr" => {
-                            return Ok(true);
-                        }
-                        _ => {}
-                    }
-                }
-                let name = path.join(".");
-                if !self.active.insert(name.clone()) {
-                    return Err(error(
-                        ty.span,
-                        "StoreElement requires a finite nonrecursive layout",
-                    ));
-                }
-                let outcome = match self.nominals.get(&name) {
-                    Some(Item {
-                        kind: ItemKind::Aggregate(a),
-                        ..
-                    }) if a.kind == AggregateKind::Struct => {
-                        let (aggregate, substitutions) =
-                            self.aggregate(ty, AggregateKind::Struct)?;
-                        let mut storage = false;
-                        for field in &aggregate.fields {
-                            if field.manages {
-                                return Err(error(
-                                    field.span,
-                                    "StoreElement Copy field cannot own resources",
-                                ));
-                            }
-                            let field_type = self.substitute(&field.ty, &substitutions)?;
-                            storage |= self.copy(&field_type)?;
-                        }
-                        Ok(storage)
-                    }
-                    Some(Item {
-                        kind: ItemKind::Enum(e),
-                        ..
-                    }) => {
-                        if e.generics.len() != args.len() {
-                            return Err(error(ty.span, "StoreElement enum type arity mismatch"));
-                        }
-                        let mut substitutions = BTreeMap::new();
-                        for (p, arg) in e.generics.iter().zip(args) {
-                            let GenericArg::Type(ty) = arg else {
-                                return Err(unsupported(ty.span, "StoreElement const enum"));
-                            };
-                            self.budget.ty(ty)?;
-                            substitutions.insert(p.name.clone(), ty.clone());
-                        }
-                        for variant in &e.variants {
-                            self.budget.node(variant.span, 0)?;
-                            match &variant.fields {
-                                VariantFields::Unit => {}
-                                VariantFields::Tuple(fields) => {
-                                    for field in fields {
-                                        let field_type = self.substitute(field, &substitutions)?;
-                                        self.copy(&field_type)?;
-                                    }
-                                }
-                                VariantFields::Record(fields) => {
-                                    for field in fields {
-                                        let field_type =
-                                            self.substitute(&field.ty, &substitutions)?;
-                                        self.copy(&field_type)?;
-                                    }
-                                }
-                            }
-                        }
-                        Ok(true)
-                    }
-                    _ => Err(error(
-                        ty.span,
-                        "StoreElement fields require finite Copy or explicit direct manages resources",
-                    )),
-                };
-                self.active.remove(&name);
-                outcome
-            }
-            _ => Err(error(
-                ty.span,
-                "StoreElement fields cannot contain addresses, borrowed or unknown ownership shapes",
-            )),
-        }
+        copy::concrete_storage(ty, self.nominals, self.budget)
     }
 }

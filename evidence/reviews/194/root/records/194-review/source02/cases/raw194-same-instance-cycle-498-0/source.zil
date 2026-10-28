@@ -1,0 +1,1 @@
+struct Cycle<T>{next:Cycle<T>}fn id<T:Copy>(x:T)->T=>x;fn inspect(x:Cycle<i32>)->i32{let y=id(x);return 0}fn main(){}

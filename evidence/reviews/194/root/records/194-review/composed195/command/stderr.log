@@ -1,0 +1,9 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/review194/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review194/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.60s
+     Running tests/impl194_copy_callable.rs (/workspace/scratch/39be3faa4442/targets178/review194/debug/deps/impl194_copy_callable-26f7c818b29b11b9)
+     Running tests/impl194_copy_callable_raw.rs (/workspace/scratch/39be3faa4442/targets178/review194/debug/deps/impl194_copy_callable_raw-9303849bd31ec92d)
+     Running tests/impl195_loop_control_raw.rs (/workspace/scratch/39be3faa4442/targets178/review194/debug/deps/impl195_loop_control_raw-8976dd459426336d)
+     Running tests/impl195_loop_control_source.rs (/workspace/scratch/39be3faa4442/targets178/review194/debug/deps/impl195_loop_control_source-bd84e41436bd6321)
+     Running tests/impl195_symbolic.rs (/workspace/scratch/39be3faa4442/targets178/review194/debug/deps/impl195_symbolic-4d6de1d6769d326d)
+     Running tests/review194_composition.rs (/workspace/scratch/39be3faa4442/targets178/review194/debug/deps/review194_composition-beb270ca2e964990)

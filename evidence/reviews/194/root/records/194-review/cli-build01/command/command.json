@@ -1,0 +1,31 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "-j",
+    "2",
+    "-p",
+    "zil-cli",
+    "--bin",
+    "zil"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/review194",
+  "start": 1793166448.5282817,
+  "source_commit": "f45462be07dc3ec09bea8f97edc0e21329025e19",
+  "git_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/review194",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": null,
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793166448.95699,
+  "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr.log_sha256": "856102774c682276c39839694784f260d722b457fcc999584338181b04c9d8cd"
+}

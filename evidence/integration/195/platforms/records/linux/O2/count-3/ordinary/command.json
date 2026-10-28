@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/195-integration/platform-linux/O2/program"
+  ],
+  "status": "Completed",
+  "start": 1793166554.2551346,
+  "stdin_hex": "33",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793166554.2588904
+}

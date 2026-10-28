@@ -1,0 +1,1 @@
+fn bad<T>(value:T)->i32{break}fn main(){}

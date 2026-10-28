@@ -1,0 +1,1 @@
+fn read<T:Copy,F:Fn()->T>(f:&F)->T=>f();fn main(){let f=move()=>7;let n=read(&f)}

@@ -1,0 +1,1 @@
+fn sink<T>(value:T){}fn bad<T>(value:T,flag:bool){for index in 0..2{let taken=value;let value=0;continue}}fn main(){}

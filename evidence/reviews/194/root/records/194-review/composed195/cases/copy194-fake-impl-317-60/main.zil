@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}impl Copy for P{}fn main(){}

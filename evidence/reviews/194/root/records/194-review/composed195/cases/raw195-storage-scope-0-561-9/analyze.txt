@@ -1,0 +1,12 @@
+Err(
+    [
+        Diagnostic {
+            phase: Analyze,
+            category: SafeReject,
+            code: "E-ANALYZE-IR",
+            message: "scope exit retains live storage",
+            span: None,
+            notes: [],
+        },
+    ],
+)

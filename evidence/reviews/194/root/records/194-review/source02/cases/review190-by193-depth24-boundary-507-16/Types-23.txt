@@ -1,0 +1,20 @@
+Err(
+    [
+        Diagnostic {
+            phase: Types,
+            category: ResourceLimit,
+            code: "E-RESOURCE-LIMIT",
+            message: "callable helper nesting exceeds selected bound",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 1378,
+                    end: 1395,
+                },
+            ),
+            notes: [],
+        },
+    ],
+)

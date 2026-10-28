@@ -1,0 +1,9 @@
+Merge made by the 'ort' strategy.
+ changes/194-implementation.md                      | 10 ++++
+ crates/zil-driver/tests/impl194_copy_callable.rs   | 66 ++++++++++++++++++++++
+ .../zil-driver/tests/impl194_copy_callable_raw.rs  | 35 ++++++++++++
+ crates/zil-expand/src/generic_check.rs             |  3 +-
+ crates/zil-expand/src/generic_copy.rs              | 12 +++-
+ crates/zil-expand/src/generic_trait_bounds.rs      |  3 +-
+ crates/zil-expand/src/generics.rs                  |  3 +-
+ 7 files changed, 124 insertions(+), 8 deletions(-)

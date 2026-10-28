@@ -1,0 +1,1 @@
+trait Copy{}fn main(){}

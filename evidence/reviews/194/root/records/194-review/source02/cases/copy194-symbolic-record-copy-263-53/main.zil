@@ -1,0 +1,1 @@
+struct Box<T>{value:T}fn twice<T:Copy>(x:Box<T>)->(Box<T>,Box<T>)=>(x,x);fn main()->i32{let p=twice(Box::<i32>{value:7});return p.0.value+p.1.value-14}

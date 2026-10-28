@@ -1,0 +1,1 @@
+struct Box<T>{value:T}resource R{code:i32}package Item{manages r:R;data:Box<Box<i32>>}fn size<T:StoreElement>(x:T)->i32=>0;fn main()->i32{let x=Item{r:R{code:65},data:Box::<Box<i32>>{value:Box::<i32>{value:7}}};return size(x)}

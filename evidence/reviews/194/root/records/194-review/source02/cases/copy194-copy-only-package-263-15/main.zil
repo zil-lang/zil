@@ -1,0 +1,1 @@
+fn id<T:Copy>(x:T)->T=>x;package P{n:i32}fn main(){id(P{n:7})}
