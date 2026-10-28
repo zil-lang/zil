@@ -197,9 +197,9 @@ fn make(label:i32,seed:i32)->impl FnMut(i32)->i32{
 fn run<F:FnMut(i32)->i32>(pair:Pair<F>)->void!i32{
     let items:Store<Item<F>>=store_new();
     if !store_reserve(items,2){return ()}
-    let first=Item::<F>{callback:pair.first,pad:(1u8,2i64,3u16),owner:Ticket{code:80},value:7};
+    let first=Item::<F>{callback:pair.first,pad:(1u8,i64(2),3u16),owner:Ticket{code:80},value:7};
     store_push(items,first);
-    let second=Item::<F>{callback:pair.second,pad:(4u8,5i64,6u16),owner:Ticket{code:81},value:9};
+    let second=Item::<F>{callback:pair.second,pad:(4u8,i64(5),6u16),owner:Ticket{code:81},value:9};
     store_push(items,second);
     let a=store_at_mut(items,0);let x=a.callback(1);let y=a.callback(2);
     let b=store_at_mut(items,1);let z=b.callback(3);
@@ -357,9 +357,9 @@ fn two_fn_once_fields_are_consumed_only_after_pop_owns_the_whole_element() {
     rejected(
         "fnonce-borrowed-element",
         &borrowed,
-        ResultCategory::Unsupported,
-        &[Phase::Expand, Phase::Types],
-        "FnOnce",
+        ResultCategory::SafeReject,
+        &[Phase::Expand],
+        "FnOnce requires an owned Store element obtained by pop",
     );
 }
 
@@ -510,9 +510,9 @@ fn raw_redirect_to_same_typed_parent_cannot_borrow_another_stores_authority() {
 fn run<F:FnMut(i32)->i32>(pair:Pair<F>)->void!i32{{
     let left:Store<Item<F>>=store_new();let right:Store<Item<F>>=store_new();
     store_reserve(left,1);store_reserve(right,1);
-    let first=Item::<F>{{callback:pair.first,pad:(1u8,2i64,3u16),owner:Ticket{{code:80}},value:7}};
+    let first=Item::<F>{{callback:pair.first,pad:(1u8,i64(2),3u16),owner:Ticket{{code:80}},value:7}};
     store_push(left,first);
-    let second=Item::<F>{{callback:pair.second,pad:(4u8,5i64,6u16),owner:Ticket{{code:81}},value:9}};
+    let second=Item::<F>{{callback:pair.second,pad:(4u8,i64(5),6u16),owner:Ticket{{code:81}},value:9}};
     store_push(right,second);
     let view=store_at_mut(left,0);store_reserve(right,2);return view.callback(1)-11
 }}
