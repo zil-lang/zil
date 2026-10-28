@@ -59,7 +59,7 @@ struct MoveWalk<'a, 's> {
     generation: u64,
     flow: MoveFlow,
     loops: Vec<(Option<MoveFlow>, Option<MoveFlow>)>,
-    loop_alias_uses: Vec<std::collections::BTreeSet<u64>>,
+    loop_alias_uses: Vec<std::collections::BTreeSet<(AliasKey, u64)>>,
     state: &'s mut closures::State,
     limits: &'a Limits,
 }
@@ -169,7 +169,7 @@ impl MoveWalk<'_, '_> {
                     )),
                     span,
                 )?;
-                uses.extend(values.iter().map(|alias| alias.borrowed_at));
+                uses.extend(values.iter().map(|alias| (key, alias.borrowed_at)));
             }
         }
         Ok(())
@@ -713,7 +713,7 @@ impl MoveWalk<'_, '_> {
         &mut self,
         value: &CoreExpr,
         depth: usize,
-    ) -> R<std::collections::BTreeSet<u64>> {
+    ) -> R<std::collections::BTreeSet<(AliasKey, u64)>> {
         self.state
             .snapshot(self.loop_alias_uses.len().saturating_add(1), value.span)?;
         self.loop_alias_uses.push(Default::default());
@@ -723,12 +723,42 @@ impl MoveWalk<'_, '_> {
             .pop()
             .expect("State condition alias uses"))
     }
+    fn retire_loop_locals(
+        &mut self,
+        mut flow: MoveFlow,
+        first_local: u32,
+        span: Span,
+    ) -> R<MoveFlow> {
+        // Break/continue snapshots precede the lexical block's pop_scope.
+        // Retire only locals born inside this loop body. References copied
+        // into an outer local keep their now-invalid original parent.
+        self.state.snapshot(flow.work(), span)?;
+        flow.moved.retain(|(root, _)| *root < first_local);
+        let generation = self.next_generation(span)?;
+        let mut removed = 0usize;
+        flow.aliases.retain(|key, values| {
+            if matches!(key, AliasKey::Local(root) if *root >= first_local) {
+                removed = values
+                    .iter()
+                    .fold(removed, |n, alias| n.saturating_add(alias.work()));
+                return false;
+            }
+            for alias in values {
+                if alias.parent.0 >= first_local {
+                    alias.invalidated_at.get_or_insert(generation);
+                }
+            }
+            true
+        });
+        flow.alias_entries -= removed;
+        Ok(flow)
+    }
     fn loop_body(
         &mut self,
         body: &CoreBlock,
         before: MoveFlow,
         exit: MoveFlow,
-        condition_uses: std::collections::BTreeSet<u64>,
+        condition_uses: std::collections::BTreeSet<(AliasKey, u64)>,
         depth: usize,
     ) -> R<()> {
         self.state.snapshot(
@@ -740,11 +770,13 @@ impl MoveWalk<'_, '_> {
         )?;
         self.loops.push((None, None));
         self.loop_alias_uses.push(condition_uses);
+        let first_local = self.next;
         self.block(body, depth + 1)?;
         let (breaks, continues) = self.loops.pop().expect("State move loop");
         let used = self.loop_alias_uses.pop().expect("State alias loop");
         let mut back = self.snapshot_flow(body.span)?;
         if let Some(continues) = continues {
+            let continues = self.retire_loop_locals(continues, first_local, body.span)?;
             back = self.join(back, continues, body.span)?;
         }
         self.state.snapshot(
@@ -759,46 +791,39 @@ impl MoveWalk<'_, '_> {
             ));
         }
         if back.live {
-            self.state.snapshot(
-                before
-                    .alias_entries
-                    .saturating_mul(helpers::plan::tree_work(used.len()))
-                    .saturating_add(before.aliases.len()),
-                body.span,
-            )?;
-            self.state.snapshot(
-                before
-                    .alias_entries
-                    .saturating_mul(helpers::plan::tree_work(before.alias_entries)),
-                body.span,
-            )?;
-            let previous = before
-                .aliases
-                .values()
-                .flatten()
-                .filter(|alias| used.contains(&alias.borrowed_at))
-                .map(|alias| alias.borrowed_at)
-                .collect::<std::collections::BTreeSet<_>>();
-            self.state.snapshot(
-                back.alias_entries
-                    .saturating_mul(helpers::plan::tree_work(previous.len()))
-                    .saturating_add(back.aliases.len()),
-                body.span,
-            )?;
-            if back.aliases.values().flatten().any(|alias| {
-                alias.invalidated_at.is_some() && previous.contains(&alias.borrowed_at)
-            }) {
-                return Err(error(
-                    "E-STATE-ALIAS",
+            self.state.snapshot(used.len(), body.span)?;
+            for (key, borrowed_at) in used {
+                self.state.snapshot(
+                    helpers::plan::tree_work(before.aliases.len())
+                        .saturating_add(helpers::plan::tree_work(back.aliases.len())),
                     body.span,
-                    "a repeated loop path would reuse an invalidated State field alias",
-                ));
+                )?;
+                let prior = before.aliases.get(&key).map_or(&[][..], Vec::as_slice);
+                self.state.snapshot(prior.len(), body.span)?;
+                if !prior.iter().any(|alias| alias.borrowed_at == borrowed_at) {
+                    continue;
+                }
+                // The next iteration reads this actual local's current
+                // source. An obsolete Expression snapshot is re-evaluated,
+                // while a stale copied local remains independently invalid.
+                // Check every current version, including one freshly bound
+                // and then invalidated during this iteration.
+                let current = back.aliases.get(&key).map_or(&[][..], Vec::as_slice);
+                self.state.snapshot(current.len(), body.span)?;
+                if current.iter().any(|alias| alias.invalidated_at.is_some()) {
+                    return Err(error(
+                        "E-STATE-ALIAS",
+                        body.span,
+                        "a repeated loop path would reuse an invalidated State field alias",
+                    ));
+                }
             }
         }
         // A loop can replace a field and therefore restore its owning
         // position while permanently invalidating an older borrowed alias.
         let exit = self.join(exit, back, body.span)?;
         self.flow = if let Some(breaks) = breaks {
+            let breaks = self.retire_loop_locals(breaks, first_local, body.span)?;
             self.join(exit, breaks, body.span)?
         } else {
             exit
