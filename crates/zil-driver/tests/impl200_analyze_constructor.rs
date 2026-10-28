@@ -8,9 +8,7 @@ use std::{
 use zil_base::{
     FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile, json_string,
 };
-use zil_ir::{
-    CandidatePlan, Instruction, InstructionKind as I, LocalId, Type, TypedFunction, TypedModule,
-};
+use zil_ir::{CandidatePlan, Instruction, InstructionKind as I, Type, TypedFunction, TypedModule};
 const SINGLE: &str = include_str!("impl200_fixtures/00_single_callback_state.zil");
 const DOUBLE: &str = include_str!("impl200_fixtures/01_same_f_two_callback_state.zil");
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -284,6 +282,79 @@ fn new_constructor_does_not_accept_a_borrowed_extra_parameter_or_input() {
 }
 
 #[test]
+fn new_extra_parameters_are_checked_without_a_call_site_type_mismatch() {
+    let (mut module, _) = candidate(DOUBLE);
+    let mut isolated = constructor(&mut module).clone();
+    isolated.id = zil_ir::FunctionId(module.functions.len() as u32);
+    isolated.name = "independent_new_two_input_extra".into();
+    let extra = zil_ir::LocalId(isolated.locals.len() as u32);
+    isolated.locals.push(zil_ir::LocalDecl {
+        id: extra,
+        name: "ordinary_extra".into(),
+        ty: Type::Tuple(vec![Type::I32, Type::I64]),
+        mutable: false,
+        span: isolated.span,
+    });
+    isolated.parameters.push(extra);
+    for block in &mut isolated.blocks {
+        if matches!(block.terminator, zil_ir::Terminator::Return(_)) {
+            let at = block
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, I::ScopeExit { .. }))
+                .unwrap();
+            block.instructions.insert(
+                at,
+                Instruction {
+                    result: None,
+                    kind: I::StorageDead(extra),
+                    span: isolated.span,
+                },
+            );
+        }
+    }
+    let function = isolated.id.0 as usize;
+    module.functions.push(isolated);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    pair(
+        "extra-isolated-copy-control",
+        DOUBLE,
+        module.clone(),
+        plan.clone(),
+        None,
+    );
+    let package = module.functions[function].return_type.clone();
+    let payload = match &package {
+        Type::Package { fields, .. } => match &fields[0].1 {
+            Type::Managed(inner) => (**inner).clone(),
+            _ => unreachable!(),
+        },
+        _ => unreachable!(),
+    };
+    for (label, ty) in [
+        (
+            "extra-isolated-address",
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            },
+        ),
+        ("extra-isolated-desc", Type::Desc(Box::new(payload))),
+        ("extra-isolated-state", package),
+    ] {
+        let mut mutated = module.clone();
+        mutated.functions[function].locals[extra.0 as usize].ty = ty;
+        pair(
+            label,
+            DOUBLE,
+            mutated,
+            plan.clone(),
+            Some((ResultCategory::SafeReject, "no public helper contract")),
+        );
+    }
+}
+
+#[test]
 fn concrete_type_identity_and_actual_capture_graph_are_rechecked() {
     let source = format!(
         "{DOUBLE}\nfn other_factory(seed:i32)->impl Fn()->i32{{let log=bytes_new();return move()=>{{bytes_len(log);return seed+1}}}}\n"
@@ -342,7 +413,11 @@ fn concrete_type_identity_and_actual_capture_graph_are_rechecked() {
         &source,
         borrowed,
         plan,
-        Some((ResultCategory::Unsupported, "self-contained")),
+        // The retained factory is checked before the new constructor gate.
+        Some((
+            ResultCategory::SafeReject,
+            "captures an external address or description",
+        )),
     );
 }
 
@@ -371,6 +446,88 @@ fn ordinary_two_role_helper_cannot_use_the_constructor_exception() {
         plan,
         Some((ResultCategory::SafeReject, "no public helper contract")),
     );
+}
+
+#[test]
+fn a_copy_callback_load_is_not_an_owned_state_publication() {
+    let source = DOUBLE
+        .replace("    let log = bytes_new()\n", "")
+        .replace("bytes_len(log); ", "");
+    let (original, plan) = candidate(&source);
+    pair(
+        "copy-publication-control",
+        &source,
+        original.clone(),
+        plan,
+        None,
+    );
+    let mut module = original;
+    let target = constructor(&mut module).id;
+    let caller = module
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, I::Call { function, .. } if function == target))
+        })
+        .unwrap();
+    let argument = caller
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match &i.kind {
+            I::Call {
+                function,
+                arguments,
+            } if *function == target => Some(arguments[0]),
+            _ => None,
+        })
+        .unwrap();
+    let producer = caller
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(argument))
+        .unwrap();
+    let I::TakeLocal { local } = producer.kind else {
+        panic!("actual source must publish from its independent temporary: {producer:?}")
+    };
+    producer.kind = I::Load(local);
+    let case = Case::new("copy-publication-load");
+    fs::write(case.0.join("source.zil"), &source).unwrap();
+    fs::write(case.0.join("module.txt"), format!("{module:#?}")).unwrap();
+    // The existing Verify move boundary is authoritative here. No new resource
+    // cleanup obligation is fabricated for this finite Copy environment.
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    fs::write(case.0.join("analyze.txt"), format!("{plan:#?}")).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    fs::write(case.0.join("candidate.wire"), &bytes).unwrap();
+    for (route, result) in [
+        (
+            "raw",
+            zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default()),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()),
+        ),
+    ] {
+        let errors = result.unwrap_err();
+        fs::write(
+            case.0.join(format!("{route}.txt")),
+            format!("{errors:#?}\n"),
+        )
+        .unwrap();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-VERIFY-MOVE"
+                && d.message.contains("Load/projection is an access view")),
+            "{route}: {errors:?}"
+        );
+    }
 }
 
 #[test]
