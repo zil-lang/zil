@@ -500,7 +500,7 @@ impl Builder<'_, '_> {
                 } else {
                     CallableCleanup::Owned
                 },
-                traces: traces(&typed, &bound, self.closures, span)?,
+                traces: CallableTraces::Finite(traces(&typed, &bound, self.closures, span)?),
             });
         }
         self.closures.helper_exports.push(Export {

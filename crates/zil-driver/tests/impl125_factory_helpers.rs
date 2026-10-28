@@ -530,6 +530,8 @@ fn independent_raw_and_wire_checks_reject_both_helper_and_factory_forgery() {
                 .find_map(|f| f.callable_contract.as_mut())
                 .unwrap()
                 .traces
+                .as_finite_mut()
+                .unwrap()
                 .clear(),
             "factory-kind" => {
                 changed

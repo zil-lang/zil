@@ -399,8 +399,8 @@ fn helper065_analyze_reconstructs_hold_and_call_paths() {
             assert!(!claim.hold.is_empty());
             claim.hold.clear();
         } else {
-            assert!(!claim.traces.is_empty());
-            claim.traces.clear();
+            assert!(!claim.traces.as_finite().unwrap().is_empty());
+            claim.traces.as_finite_mut().unwrap().clear();
         }
         let errors = zil_analyze::analyze(&changed, &limits).unwrap_err();
         assert!(
