@@ -284,7 +284,7 @@ fn a_cross_module_wrong_instance_is_rejected_with_matching_candidate_identity() 
         assert!(
             errors.iter().any(|d| d.phase == Phase::Verify
                 && d.category == ResultCategory::SafeReject
-                && d.code == "E-VERIFY-TYPE"),
+                && d.code == "E-VERIFY-CALL"),
             "{errors:#?}"
         );
     }
@@ -316,7 +316,7 @@ fn slice_elements_use_copy_specialization_without_copying_exclusive_windows() {
 }
 
 #[test]
-fn a_finite_repeated_generic_record_is_copy_but_never_a_recursive_layout() {
+fn finite_repeated_generic_record_preserves_copy_across_helper_boundaries() {
     native(
         "finite-repeated-nominal",
         &[(
