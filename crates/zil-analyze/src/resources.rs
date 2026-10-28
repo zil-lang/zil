@@ -1931,36 +1931,60 @@ impl Flow<'_> {
                         .get(function.0 as usize)
                         .ok_or_else(|| error("absent callee"))?;
                     if let Some(contract) = &callee.callable_contract {
-                        let environment = &self.module.closures[contract.closure.0 as usize];
-                        let invokes = match &contract.traces {
-                            CallableTraces::Finite(paths) => {
-                                budget.spend(paths.len(), "helper finite invocation presence")?;
-                                paths.iter().any(|path| !path.calls.is_empty())
+                        budget.spend(contract.roles.len(), "helper role write projection")?;
+                        for role in &contract.roles {
+                            let environment = &self.module.closures[role.closure.0 as usize];
+                            let mut invokes = false;
+                            match &contract.traces {
+                                CallableTraces::Finite(paths) => {
+                                    budget.spend(
+                                        paths.len(),
+                                        "helper finite role invocation presence",
+                                    )?;
+                                    for path in paths {
+                                        budget
+                                            .spend(path.calls.len(), "helper finite role events")?;
+                                        invokes |= path
+                                            .calls
+                                            .iter()
+                                            .any(|event| event.parameter == role.parameter);
+                                    }
+                                }
+                                CallableTraces::Flow(flow) => {
+                                    // The complete graph includes reachable prefixes
+                                    // with no Return. Inspect the current role, not
+                                    // whether any unrelated environment was called.
+                                    budget.spend(
+                                        flow.nodes.len(),
+                                        "helper flow role invocation presence",
+                                    )?;
+                                    for node in &flow.nodes {
+                                        budget
+                                            .spend(node.calls.len(), "helper flow role events")?;
+                                        invokes |= node
+                                            .calls
+                                            .iter()
+                                            .any(|event| event.parameter == role.parameter);
+                                    }
+                                }
                             }
-                            CallableTraces::Flow(flow) => {
-                                // All nodes have been independently reconstructed,
-                                // including reachable prefixes without a Return.
-                                budget
-                                    .spend(flow.nodes.len(), "helper flow invocation presence")?;
-                                flow.nodes.iter().any(|node| !node.calls.is_empty())
+                            budget.spend(role.writes.len(), "helper role capture writes")?;
+                            if invokes
+                                && role.writes.iter().any(|i| {
+                                    matches!(environment.captures[*i as usize], Type::Desc(_))
+                                })
+                            {
+                                let value = arguments
+                                    .get(role.parameter as usize)
+                                    .ok_or_else(|| error("missing helper environment argument"))?;
+                                record_write(
+                                    &copied(state, Place::Value(*value), budget)?.sources,
+                                    effect,
+                                    shared,
+                                    check,
+                                    budget,
+                                )?;
                             }
-                        };
-                        if invokes
-                            && contract
-                                .writes
-                                .iter()
-                                .any(|i| matches!(environment.captures[*i as usize], Type::Desc(_)))
-                        {
-                            let value = arguments
-                                .get(contract.parameter as usize)
-                                .ok_or_else(|| error("missing helper environment argument"))?;
-                            record_write(
-                                &copied(state, Place::Value(*value), budget)?.sources,
-                                effect,
-                                shared,
-                                check,
-                                budget,
-                            )?;
                         }
                     } else if callee.callable_return_contract.is_none() {
                         // Callable helpers and self-contained factory callers
