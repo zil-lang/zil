@@ -1,0 +1,9 @@
+# 206 完整Product的机器表示接续
+
+本分支从正式206合同61272028开始，规范20e0ebc8、设计76f4d2ec、schema/Wire27。仅Lower和LLVM的普通完整值入口采用递归Product资格，旧capture、array、error payload继续原predicate；新Product内部仅Copy、受支持非Store Managed叶、完整child。parent-only-child通过递归拥有叶成立，不增加无意义manages根。
+
+LLVM owned_field把已核完整Package child作为父的一个直接责任位，复用package_flags和字段Take/Drop/Store；递归teardown_paths按声明序输出真实叶的GEP与清理。嵌入child不保存partial flags，取到独立局部后才使用该局部直接字段flags。既有llvm_type、aggregate_field_type、alignment、MakePackage insertvalue继续提供相同的内联载荷。BorrowPackageField、DescribePackageField、resource_closures和dynamic_store机器协议不扩展。
+
+原消费者草稿与所有预声明输入逐字收入tools/language/206/consumer/predeclared；其中五模块也逐字作为examples/mainline/package_product206施工源。ORACLE.json SHA956e2142fc79cd4ea0431c5cfecdaa8d54d47072873795e88a3c8d1df929ec6d保持；未执行的草稿元数据仍保NotRun，不改成通过。源码入口、字段类型、实际Created/Incoming与有界费用须由Types/Analyze/Verify分别完成，机器predicate不构成权限证明。
+
+本次提交是待联合验证的表示变更；所有新206语言贯通、机器执行及分配观察此刻NotRun。有限旧核回归/Clippy、后续五模块真实执行与独审分别留准确源码身份，不能用旧片结果替代本片。完整1.4 NotSatisfied、B0 Doing、产品与原生Windows NotRun。
