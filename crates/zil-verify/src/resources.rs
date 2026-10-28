@@ -1579,35 +1579,52 @@ impl Transfer<'_> {
                         // helpers::check_module already checked this relation.
                         // Callback consumers use its public write upper bound,
                         // never the helper's private body or inferred effects.
-                        let invokes = match &contract.traces {
-                            CallableTraces::Finite(paths) => {
-                                budget.spend(paths.len())?;
-                                paths.iter().any(|path| !path.calls.is_empty())
-                            }
-                            CallableTraces::Flow(flow) => {
-                                // Verify's helper reconstruction established every
-                                // reachable prefix, not merely returning paths.
-                                budget.spend(flow.nodes.len())?;
-                                flow.nodes.iter().any(|node| !node.calls.is_empty())
-                            }
-                        };
-                        budget.spend(contract.writes.len())?;
-                        let definition = &self.module.closures[contract.closure.0 as usize];
-                        if invokes
-                            && contract
-                                .writes
-                                .iter()
-                                .any(|i| matches!(definition.captures[*i as usize], Type::Desc(_)))
-                        {
-                            let argument = arguments[contract.parameter as usize];
-                            if let Some(row) = slots.desc_value[argument.0 as usize] {
-                                self.write_roots(
-                                    &state.desc[row],
-                                    written,
-                                    span,
-                                    validate,
-                                    budget,
-                                )?;
+                        budget.spend(contract.roles.len())?;
+                        for role in &contract.roles {
+                            let invokes = match &contract.traces {
+                                CallableTraces::Finite(paths) => {
+                                    budget.spend(paths.len())?;
+                                    let mut invokes = false;
+                                    for path in paths {
+                                        budget.spend(path.calls.len())?;
+                                        invokes |= path
+                                            .calls
+                                            .iter()
+                                            .any(|event| event.parameter == role.parameter);
+                                    }
+                                    invokes
+                                }
+                                CallableTraces::Flow(flow) => {
+                                    // Every reachable prefix includes nonreturning paths.
+                                    budget.spend(flow.nodes.len())?;
+                                    let mut invokes = false;
+                                    for node in &flow.nodes {
+                                        budget.spend(node.calls.len())?;
+                                        invokes |= node
+                                            .calls
+                                            .iter()
+                                            .any(|event| event.parameter == role.parameter);
+                                    }
+                                    invokes
+                                }
+                            };
+                            budget.spend(role.writes.len())?;
+                            let definition = &self.module.closures[role.closure.0 as usize];
+                            if invokes
+                                && role.writes.iter().any(|i| {
+                                    matches!(definition.captures[*i as usize], Type::Desc(_))
+                                })
+                            {
+                                let argument = arguments[role.parameter as usize];
+                                if let Some(row) = slots.desc_value[argument.0 as usize] {
+                                    self.write_roots(
+                                        &state.desc[row],
+                                        written,
+                                        span,
+                                        validate,
+                                        budget,
+                                    )?;
+                                }
                             }
                         }
                     } else {
