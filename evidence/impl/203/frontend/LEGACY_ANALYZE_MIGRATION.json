@@ -1,0 +1,198 @@
+{
+  "task": "203",
+  "scope": "Test-only migration of crates/zil-analyze/tests/impl201_store.rs; no production change and no new whole-workspace run.",
+  "registration_commit": "3f2ed472e400fad47fc408e3792b991094d50807",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "test_commit": "ebd9fbc5a410dab6fb90627c1d56d8db4e4a522e",
+  "historical_full_run": {
+    "source_commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+    "status": "Fail",
+    "path": "/workspace/scratch/39be3faa4442/run-logs/203-root/workspace01",
+    "analyze_target": {
+      "passed": 7,
+      "failed": 2
+    },
+    "diagnosis": "Both failing groups stop at the first three-callback-field diagnostic substring. Later mutations in the fields group did not execute in that run. Later ENOSPC/cache failures are separate and are not relabelled by this limited replay.",
+    "stdout_sha256": "73b3b53a4e57b16ca856acd585498e538dcdc5771301dae901d5aad27933861b",
+    "stderr_sha256": "fe69e6bde0d32dba7b5460bc64765fee83257319b4b0b5b4bde013957bcc1375"
+  },
+  "original_expectation_failure": {
+    "run": "legacy_analyze01",
+    "status": "Fail",
+    "passed": 0,
+    "failed": 1,
+    "command_receipt": {
+      "command": [
+        "bash",
+        "-c",
+        "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+        "zil203",
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "fields_require_one_same_environment_type_and_direct_finite_shape",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "environment": {
+        "TMPDIR": "/dev/shm/zil203-types",
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/dev/shm/zil203-types/legacy_analyze01"
+      },
+      "head": "c9ccbfb5e4e599cff9459575f780032a1d17ee03",
+      "tracked_diff_sha256": "078c2de1b34f22a40f99a8ddf43df855b008cb936b336af61c314ee505bbbb13",
+      "started_utc": "2026-10-28T13:33:04Z",
+      "untracked": {}
+    },
+    "exact_patch_sha256": "078c2de1b34f22a40f99a8ddf43df855b008cb936b336af61c314ee505bbbb13",
+    "diagnosis": "Only five diagnostic substrings were updated. The original three-field input still rejected, then the unchanged two-distinct-root input returned Ok and its original rejected/unwrap_err assertion failed."
+  },
+  "promoted_original_input": {
+    "test": "two_distinct_self_contained_copy_result_callbacks_are_accepted_since_203",
+    "qualification": "Exactly two direct ClosureId(0)/ClosureId(1) fields; both definitions Fn with empty captures and Unit Copy results; complete Managed ByteBuffer field and finite i32 data. Admitted by the explicit 203 two-root profile.",
+    "old_module_path": "legacy_analyze01/raw201-739852-1/module.txt",
+    "new_module_path": "legacy_analyze02/raw201-740515-42/module.txt",
+    "module_sha256": "5faa62ae0a36fa2489d873fa6aac6d38e4faefa81aedda114aa5ddafa6e82015",
+    "analyze_plan_sha256": "4d19c5d1b7a321d6d0056caa90d63b918c25f58c3c4c57e57a185dc7882d9c55",
+    "byte_equal_module": true,
+    "byte_equal_plan": true
+  },
+  "retained_negative_inputs": [
+    {
+      "input": "three direct callback fields",
+      "phase": "Analyze",
+      "category": "Unsupported",
+      "module_path": "legacy_analyze02/raw201-740515-21/module.txt",
+      "module_sha256": "e152eb7030b3944b3082d5971e3ffd961347749f0504f75bdc254eb24ec1c7bd",
+      "result_sha256": "1e1c3eac7066a3922de58cd8fc5729922e67a985be849ed5e297d2be89b0a9a0",
+      "diagnostic": "callback Store requires a complete State with one or two direct self-contained callbacks, finite Copy fields and direct Managed resources"
+    },
+    {
+      "input": "missing actual closure environment",
+      "phase": "Analyze",
+      "category": "SafeReject",
+      "module_path": "legacy_analyze02/raw201-740515-22/module.txt",
+      "module_sha256": "d2b13a77fd55135606781a57857f41b6cd19178fd6ca8a50d5b22e56228f4587",
+      "result_sha256": "3bf372d1465be8f6c77fec3197728203dbcd39f5617c52b7e2ae1c5ce7b53bbd",
+      "diagnostic": "callback State environment is absent"
+    },
+    {
+      "input": "no direct Managed resource field",
+      "phase": "Analyze",
+      "category": "Unsupported",
+      "module_path": "legacy_analyze02/raw201-740515-23/module.txt",
+      "module_sha256": "0038a121f8ccb8e89f84a8bb92222b27ec484698124174213e1637919ec34031",
+      "result_sha256": "1e1c3eac7066a3922de58cd8fc5729922e67a985be849ed5e297d2be89b0a9a0",
+      "diagnostic": "callback Store requires a complete State with one or two direct self-contained callbacks, finite Copy fields and direct Managed resources"
+    },
+    {
+      "input": "callback hidden in Address",
+      "phase": "Analyze",
+      "category": "Unsupported",
+      "module_path": "legacy_analyze02/raw201-740515-24/module.txt",
+      "module_sha256": "6c883e0441219c74a4db0fc743e846658dd511746159e257b745c94414155a46",
+      "result_sha256": "1e1c3eac7066a3922de58cd8fc5729922e67a985be849ed5e297d2be89b0a9a0",
+      "diagnostic": "callback Store requires a complete State with one or two direct self-contained callbacks, finite Copy fields and direct Managed resources"
+    },
+    {
+      "input": "callback hidden in Array",
+      "phase": "Analyze",
+      "category": "Unsupported",
+      "module_path": "legacy_analyze02/raw201-740515-25/module.txt",
+      "module_sha256": "23faa9b7567e39ed9a7301dcbcad5d50e2cb47b6a9781db78dbfb61c92445a75",
+      "result_sha256": "1e1c3eac7066a3922de58cd8fc5729922e67a985be849ed5e297d2be89b0a9a0",
+      "diagnostic": "callback Store requires a complete State with one or two direct self-contained callbacks, finite Copy fields and direct Managed resources"
+    },
+    {
+      "input": "callback hidden in nested Package",
+      "phase": "Analyze",
+      "category": "Unsupported",
+      "module_path": "legacy_analyze02/raw201-740515-26/module.txt",
+      "module_sha256": "da733544f4e37f7e3beceb078cea6d2238a359ccbb2cb6109126b17699d21060",
+      "result_sha256": "1e1c3eac7066a3922de58cd8fc5729922e67a985be849ed5e297d2be89b0a9a0",
+      "diagnostic": "callback Store requires a complete State with one or two direct self-contained callbacks, finite Copy fields and direct Managed resources"
+    },
+    {
+      "input": "callback hidden in Managed OwnedStore",
+      "phase": "Analyze",
+      "category": "Unsupported",
+      "module_path": "legacy_analyze02/raw201-740515-27/module.txt",
+      "module_sha256": "4819b351df01ea11d780a2a94380c102fc5e4df17c1af2bb1593d062e8de8f11",
+      "result_sha256": "1e1c3eac7066a3922de58cd8fc5729922e67a985be849ed5e297d2be89b0a9a0",
+      "diagnostic": "callback Store requires a complete State with one or two direct self-contained callbacks, finite Copy fields and direct Managed resources"
+    },
+    {
+      "input": "three callback fields only in raw OwnedStoreNew metadata",
+      "phase": "Analyze",
+      "category": "Unsupported",
+      "module_path": "legacy_analyze02/raw201-740515-40/module.txt",
+      "module_sha256": "07bfa3e215496cba8b8a97e572091509604cccc5603f795e6d1a683864c6a28c",
+      "result_sha256": "1e1c3eac7066a3922de58cd8fc5729922e67a985be849ed5e297d2be89b0a9a0",
+      "diagnostic": "callback Store requires a complete State with one or two direct self-contained callbacks, finite Copy fields and direct Managed resources"
+    }
+  ],
+  "clean_target_replay": {
+    "run": "legacy_analyze02",
+    "status": "Pass",
+    "passed": 10,
+    "failed": 0,
+    "command_receipt": {
+      "command": [
+        "bash",
+        "-c",
+        "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+        "zil203",
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "zil-analyze",
+        "--test",
+        "impl201_store",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "environment": {
+        "TMPDIR": "/dev/shm/zil203-types",
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/dev/shm/zil203-types/legacy_analyze02"
+      },
+      "head": "ebd9fbc5a410dab6fb90627c1d56d8db4e4a522e",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "started_utc": "2026-10-28T13:33:55Z",
+      "untracked": {}
+    },
+    "old_noncallback_analyze_work": 561,
+    "callback_work_boundaries": [
+      772,
+      1031,
+      2023,
+      1613
+    ],
+    "note": "Existing exact N/N-1/fresh controls and borrowed/lending/capture controls passed unchanged."
+  },
+  "evidence_level": "These are author hand-built TypedIR Analyze admission/responsibility controls. They are not new source, independent Verify/Wire, native, non-author approval, or whole-workspace acceptance evidence.",
+  "external_evidence": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/203-types/203-analyze-legacy-migration-evidence.zip",
+    "bytes": 111091,
+    "sha256": "f02978cdb437c78c450183ebea5bd31b9a35909dc2f3be39972c27059517b2b5",
+    "payload_files": 107,
+    "verification": "ZIP CRC plus every manifest payload size and SHA256 checked; no execution/build products."
+  }
+}
