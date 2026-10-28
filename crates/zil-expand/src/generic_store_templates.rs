@@ -2,6 +2,15 @@
 //! known. These syntax constraints grant no element or ownership certificate.
 use super::*;
 
+fn single_key_fee(budget: &mut Budget<'_>, key: &str, entries: usize, span: Span) -> R<()> {
+    let comparisons = (usize::BITS - entries.saturating_add(1).leading_zeros()) as usize + 1;
+    for _ in 0..comparisons {
+        budget.node(span, 0)?;
+        budget.text(key, span)?;
+    }
+    Ok(())
+}
+
 pub(super) enum Instantiation {
     Eager(String),
     Deferred { template: String, element: TypeRef },
@@ -176,22 +185,50 @@ impl Engine<'_> {
 }
 
 impl Engine<'_> {
-    /// Register only a real dual-callable producer's returned complete nominal
+    pub(super) fn note_single_state_value_result(
+        &mut self,
+        ty: &TypeRef,
+        callable: &callable::CallableTemplates,
+    ) -> R<()> {
+        if self.has_store_templates
+            && callable.owned_state
+            && let Some(name) = callable.single_generic()
+        {
+            self.note_state_value_result(ty, callable::StoreCallbacks::Single(name), 0)?;
+        }
+        Ok(())
+    }
+
+    /// Register only a real callable producer's returned complete nominal
     /// shape. Reserved generated identities are used, never global F/G names.
     /// This fact only delays specialization: it grants no Store eligibility.
     pub(super) fn note_state_value_result(
         &mut self,
         ty: &TypeRef,
-        names: [&str; 2],
+        callbacks: callable::StoreCallbacks<'_>,
         depth: usize,
     ) -> R<()> {
         self.budget.node(ty.span, depth)?;
         match &grouped(ty).kind {
             TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => {
                 self.budget.text(&path[0], ty.span)?;
+                if matches!(callbacks, callable::StoreCallbacks::Single(_)) {
+                    single_key_fee(
+                        &mut self.budget,
+                        &path[0],
+                        self.instance_types.len(),
+                        ty.span,
+                    )?;
+                }
                 if let Some(original) = self.instance_types.get(&path[0]) {
                     self.budget.ty(original)?;
-                    if callable::StoreCallbacks::Pair(names).active(original)
+                    if matches!(callbacks, callable::StoreCallbacks::Single(_))
+                        && let TypeKind::Named { path: family, .. } = &grouped(original).kind
+                        && family.len() == 1
+                    {
+                        single_key_fee(&mut self.budget, &family[0], self.nominals.len(), ty.span)?;
+                    }
+                    if callbacks.active(original)
                         && let TypeKind::Named { path: family, .. } = &grouped(original).kind
                         && family.len() == 1
                         && matches!(self.nominals.get(&family[0]), Some(Item {
@@ -199,17 +236,26 @@ impl Engine<'_> {
                         }) if aggregate.kind == AggregateKind::Package)
                     {
                         self.budget.text(&path[0], ty.span)?;
+                        if matches!(callbacks, callable::StoreCallbacks::Single(_)) {
+                            single_key_fee(
+                                &mut self.budget,
+                                &path[0],
+                                self.inferred_state_values.len(),
+                                ty.span,
+                            )?;
+                            self.has_single_state_values = true;
+                        }
                         self.inferred_state_values.insert(path[0].clone());
                     }
                 }
             }
             TypeKind::Error { error, result } => {
-                self.note_state_value_result(error, names, depth + 1)?;
-                self.note_state_value_result(result, names, depth + 1)?;
+                self.note_state_value_result(error, callbacks, depth + 1)?;
+                self.note_state_value_result(result, callbacks, depth + 1)?;
             }
             // These are only the already admitted complete carrier wrappers.
             TypeKind::Named { .. } if stores::element(ty).is_some() => {
-                self.note_state_value_result(stores::element(ty).unwrap(), names, depth + 1)?;
+                self.note_state_value_result(stores::element(ty).unwrap(), callbacks, depth + 1)?;
             }
             _ => {}
         }
@@ -224,6 +270,14 @@ impl Engine<'_> {
         match &grouped(ty).kind {
             TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => {
                 self.budget.text(&path[0], ty.span)?;
+                if self.has_single_state_values {
+                    single_key_fee(
+                        &mut self.budget,
+                        &path[0],
+                        self.inferred_state_values.len(),
+                        ty.span,
+                    )?;
+                }
                 Ok(self.inferred_state_values.contains(&path[0]))
             }
             TypeKind::Named { .. } if stores::element(ty).is_some() => {
