@@ -1,0 +1,20 @@
+{
+  "cargo_target_dir": "/workspace/scratch/39be3faa4442/targets178/review181-by179",
+  "toolchain_environment": "/workspace/scratch/39be3faa4442/toolchains178/env.sh",
+  "rust": "1.99.1",
+  "llvm": "17.0.6",
+  "cargo_flags": [
+    "--offline",
+    "--locked",
+    "-j2"
+  ],
+  "test_threads": 2,
+  "wine_prefix": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix-review181",
+  "wine_environment_source": "Only official builtin symlink/environment files copied from prepared private wine-prefix181. No execution outputs or measurements reused.",
+  "wine_arch": "win64",
+  "wine_debug": "-all",
+  "wine_library_path": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu",
+  "wine_server": "No explicit -p start; private relocated wrapper already supplies absolute wineserver64.",
+  "execution_permission": "require_escalated only for Wine local IPC, granted by automatic review.",
+  "native_windows": "NotRun"
+}

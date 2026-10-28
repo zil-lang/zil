@@ -1,0 +1,15 @@
+{
+  "name": "cli-build",
+  "command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-cli",
+    "-j2"
+  ],
+  "exit_code": 0,
+  "status": "Pass",
+  "elapsed_seconds": 0.40363478660583496
+}

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-ir",
+    "--lib",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "exit_code": 0,
+  "status": "Pass",
+  "elapsed_seconds": 0.03469133377075195
+}

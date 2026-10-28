@@ -1,0 +1,30 @@
+{
+  "method": "Independent Python struct reads of actual executed files; no executable copied into evidence.",
+  "observations": [
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/181-review179/win64-padded01/padded/O0/program.exe",
+      "sha256": "5b195be9fa697ea43fa50ec67e7fea4aa748672685e6d571ec825b318d247295",
+      "size_bytes": 8192,
+      "dos_magic": "MZ",
+      "pe_offset": 120,
+      "pe_signature_hex": "50450000",
+      "machine_hex": "0x8664",
+      "optional_header_magic_hex": "0x20b"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/181-review179/win64-padded01/padded/O2/program.exe",
+      "sha256": "ef723c8d767752f412704aba202a4703735796345d170c57b45c21e805c0cd41",
+      "size_bytes": 3584,
+      "dos_magic": "MZ",
+      "pe_offset": 120,
+      "pe_signature_hex": "50450000",
+      "machine_hex": "0x8664",
+      "optional_header_magic_hex": "0x20b"
+    }
+  ],
+  "optional_earlier_inspection": {
+    "command": "llvm-readobj --file-headers --coff-imports <O2 program.exe>",
+    "status": "Unavailable",
+    "reason": "Private LLVM toolchain has no llvm-readobj binary; shell exit127 created empty pe-headers.txt, excluded here. This is not a language test or an executed-program failure."
+  }
+}
