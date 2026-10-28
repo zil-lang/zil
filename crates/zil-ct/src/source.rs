@@ -98,6 +98,32 @@ impl<'a> SourceProgramContext<'a> {
                         .or_insert(Some(function));
                     usable = false;
                 }
+                if !function.state_parameters.is_empty() {
+                    state_template_shape(function)?;
+                    nodes = nodes
+                        .checked_add(1)
+                        .filter(|n| *n <= limits.max_nodes)
+                        .ok_or_else(limit)?;
+                    work = work.checked_sub(1).ok_or_else(limit)?;
+                    for bound in &function.state_parameters[0].bindings {
+                        if bound.parameters.len() > limits.max_locals {
+                            return Err(limit());
+                        }
+                        nodes = nodes
+                            .checked_add(1 + bound.fields.len())
+                            .filter(|n| *n <= limits.max_nodes)
+                            .ok_or_else(limit)?;
+                        work = work
+                            .checked_sub(1 + bound.fields.len())
+                            .and_then(|n| n.checked_sub(bound.generic_name.len()))
+                            .ok_or_else(limit)?;
+                        hint_type(&bound.result, 0, &mut nodes, &mut work, limits)?;
+                        for ty in &bound.parameters {
+                            hint_type(ty, 0, &mut nodes, &mut work, limits)?;
+                        }
+                    }
+                    usable = false;
+                }
                 functions
                     .entry((id, function.name.as_str()))
                     .and_modify(|entry| *entry = None)
@@ -148,12 +174,6 @@ impl<'a> SourceProgramContext<'a> {
 }
 
 fn ordinary_template_shape(function: &CoreFunction) -> CompileResult<()> {
-    if !function.state_parameters.is_empty() {
-        return Err(unsupported(
-            function.span,
-            "independent State metadata awaits bounded CT normalization",
-        ));
-    }
     if function.type_parameters.is_empty() {
         return Ok(());
     }
@@ -161,6 +181,7 @@ fn ordinary_template_shape(function: &CoreFunction) -> CompileResult<()> {
         || function.type_parameters[0].index != 0
         || function.type_parameters[0].name.is_empty()
         || !function.callable_parameters.is_empty()
+        || !function.state_parameters.is_empty()
         || function.callable_return.is_some()
         || function.receiver.is_some()
         || function.foreign.is_some()
@@ -169,6 +190,56 @@ fn ordinary_template_shape(function: &CoreFunction) -> CompileResult<()> {
             function.span,
             "ordinary StoreElement template metadata requires one lexical binder and no callable, receiver or foreign role",
         ));
+    }
+    Ok(())
+}
+
+// This only bounds transport metadata. Types checks actual symbolic fields and
+// declaration capabilities; preserving this table never permits CT execution.
+fn state_template_shape(function: &CoreFunction) -> CompileResult<()> {
+    if function.state_parameters.is_empty() {
+        return Ok(());
+    }
+    let invalid = || {
+        unsupported(
+            function.span,
+            "independent State metadata requires one owner and two ordered field bindings",
+        )
+    };
+    if function.state_parameters.len() != 1
+        || !function.type_parameters.is_empty()
+        || !function.callable_parameters.is_empty()
+        || function.callable_return.is_some()
+        || function.receiver.is_some()
+        || function.foreign.is_some()
+    {
+        return Err(invalid());
+    }
+    let state = &function.state_parameters[0];
+    if state.bindings.len() != 2
+        || !function
+            .parameters
+            .get(state.index as usize)
+            .is_some_and(|p| {
+                matches!(
+                    p.mode,
+                    PassingMode::Infer | PassingMode::Move | PassingMode::Give
+                )
+            })
+    {
+        return Err(invalid());
+    }
+    for (index, bound) in state.bindings.iter().enumerate() {
+        if bound.generic_index as usize != index
+            || bound.generic_name.is_empty()
+            || bound.kind == CallableKind::FunctionPointer
+            || bound.fields.len() != 1
+        {
+            return Err(invalid());
+        }
+    }
+    if state.bindings[0].fields[0] == state.bindings[1].fields[0] {
+        return Err(invalid());
     }
     Ok(())
 }
@@ -453,6 +524,18 @@ impl<'a> Walker<'a> {
             self.charge(0, f.span)?;
             self.text(&f.name, Some(f.span))?;
             ordinary_template_shape(f)?;
+            if !f.state_parameters.is_empty() {
+                state_template_shape(f)?;
+                self.charge(0, f.span)?;
+                for bound in &f.state_parameters[0].bindings {
+                    self.charge(0, f.span)?;
+                    self.text(&bound.generic_name, Some(f.span))?;
+                    self.parameters(&bound.parameters, &bound.result, f.span)?;
+                    for _ in &bound.fields {
+                        self.charge(0, f.span)?;
+                    }
+                }
+            }
             for parameter in &f.type_parameters {
                 self.charge(0, f.span)?;
                 self.text(&parameter.name, Some(f.span))?;
