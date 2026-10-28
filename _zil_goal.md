@@ -129,3 +129,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-28：206施工
 
 以205最终61c2d252为基线，正式并行完整嵌套Package Product、独立逐叶来源与机器清理。原120B和child-only等9源在旧CLI04实际Unsupported；新规范登记与预声明oracle不计实现。Types/Analyze、Verify、Lower/LLVM消费者及独审独立，完整1.4/B0/产品状态保持。
+
+## 2026-10-28：206普通完整Product接受
+
+206将普通完整Package递归到完整child，父单责任、独立逐叶Created/Incoming和递归声明序清理已贯通。clean bf44fb1e全仓2615/0/0、Clippy和最终Linux/Wine消费者经非作者6bc19f7a核回；原full Fail和局部raw捕获资格漏洞及修复完整保留。详见docs/LANGUAGE-206.md。207继续完整Product拥有捕获、默认真实消费推导与持久环境，不混入编译速度支线；完整1.4 NotSatisfied、B0 Doing、产品/原生Windows NotRun。
