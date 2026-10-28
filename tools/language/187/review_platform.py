@@ -172,7 +172,7 @@ def main():
                 altered = directory / "probe.ll"
                 altered.write_text(text)
                 ir_object, shim_object = directory / "probe.obj", directory / "heap_probe.obj"
-                for label, command in [
+                for label, command_argv in [
                     ("probe-ir", ["clang", "--target=x86_64-pc-windows-msvc", "-x", "ir", "-" + opt,
                                   "-c", altered, "-o", ir_object]),
                     ("probe-shim", ["clang", "--target=x86_64-pc-windows-msvc", "-" + opt,
@@ -183,7 +183,7 @@ def main():
                                    "/nodefaultlib", "/timestamp:0", "/out:" + str(probe),
                                    ir_object, shim_object, *args.windows_lib]),
                 ]:
-                    linked = command(command, directory / label)
+                    linked = command(command_argv, directory / label)
                     if linked.returncode:
                         raise RuntimeError(f"{opt}/{label} failed: {linked.stderr!r}")
                 report["builds"][-1].update(probe_llvm_sha256=digest(altered),
