@@ -169,11 +169,11 @@ fn reviewer_raw_and_wire_must_follow_construction_operand_and_physical_field_ind
     let f = m.functions.iter_mut().find(|f| f.name == "origin").unwrap();
     let mut changed = false;
     for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
-        if let I::MakePackage { fields } = &mut i.kind {
-            if fields.len() == 4 {
-                fields.swap(1, 3);
-                changed = true;
-            }
+        if let I::MakePackage { fields } = &mut i.kind
+            && fields.len() == 4
+        {
+            fields.swap(1, 3);
+            changed = true;
         }
     }
     assert!(changed);
@@ -182,11 +182,11 @@ fn reviewer_raw_and_wire_must_follow_construction_operand_and_physical_field_ind
     let f = m.functions.iter_mut().find(|f| f.name == "origin").unwrap();
     let mut changed = false;
     for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
-        if let I::TakePackageField { index, .. } = &mut i.kind {
-            if *index == 3 {
-                *index = 1;
-                changed = true;
-            }
+        if let I::TakePackageField { index, .. } = &mut i.kind
+            && *index == 3
+        {
+            *index = 1;
+            changed = true;
         }
     }
     assert!(changed);
