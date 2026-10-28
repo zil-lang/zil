@@ -548,6 +548,57 @@ impl Walk<'_, '_> {
         }
         Ok(())
     }
+    fn infer_value_shape(
+        &mut self,
+        pattern: &Type,
+        name: &str,
+        actual: &Shape,
+        inferred: &mut Option<Shape>,
+        span: Span,
+    ) -> R<()> {
+        let work = inference::type_snapshot_work(pattern, span, self.limits)?;
+        self.state
+            .snapshot(work.saturating_add(actual.work()), span)?;
+        if matches!(pattern, Type::Named(n) if n == name) {
+            if let Some(previous) = inferred {
+                self.same_origin(previous, actual, span)?;
+            } else {
+                *inferred = Some(self.copy(actual, span)?);
+            }
+        } else if let Some(element) = dynamic_store::element(pattern) {
+            let Shape::Store(value) = actual else {
+                if actual.has_origin() {
+                    return Err(error(
+                        "E-STATE-ORIGIN",
+                        span,
+                        "inferred Store source shape differs",
+                    ));
+                }
+                return Ok(());
+            };
+            self.infer_value_shape(element, name, value, inferred, span)?;
+        } else if let Type::ErrorUnion {
+            error: error_type,
+            result,
+        } = pattern
+        {
+            if let Shape::Union {
+                error: failure,
+                result: success,
+            } = actual
+            {
+                self.infer_value_shape(error_type, name, failure, inferred, span)?;
+                self.infer_value_shape(result, name, success, inferred, span)?;
+            } else if actual.has_origin() {
+                return Err(error(
+                    "E-STATE-ORIGIN",
+                    span,
+                    "inferred error-union source shape differs",
+                ));
+            }
+        }
+        Ok(())
+    }
     fn consume_once(&mut self, shape: &Shape, span: Span) -> R<()> {
         let Some(slot) = shape.slot() else {
             return Ok(());
@@ -678,6 +729,21 @@ impl Walk<'_, '_> {
                         self.state
                             .snapshot(bound.name.len().saturating_add(1), span)?;
                         substitutions.push((bound.name.clone(), shape));
+                    } else if let Some(bound) = &signature.type_parameter {
+                        let mut inferred = None;
+                        for (pattern, shape) in signature.parameters.iter().zip(&shapes) {
+                            self.infer_value_shape(
+                                pattern,
+                                &bound.name,
+                                shape,
+                                &mut inferred,
+                                span,
+                            )?;
+                        }
+                        let source = inferred.unwrap_or(Shape::None);
+                        self.state
+                            .snapshot(bound.name.len().saturating_add(1), span)?;
+                        substitutions.push((bound.name.clone(), source));
                     } else {
                         for bound in &signature.callable {
                             let argument = shapes.get(bound.index as usize).ok_or_else(|| {

@@ -1600,11 +1600,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 }
                 let signature = self.resolve_callee(callee)?.clone();
                 if signature.type_parameter.is_some() {
-                    return Err(error(
-                        "E-TYPE-APPLICATION",
-                        callee.span,
-                        "an ordinary template call requires one explicit complete type constraint",
-                    ));
+                    return self
+                        .call_inferred_type_template(signature, arguments, expected, e.span);
                 }
                 if signature.callable_return.is_some()
                     && matches!(signature.result, Type::Opaque { .. })
