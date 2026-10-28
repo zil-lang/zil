@@ -922,4 +922,11 @@ fn legacy_single_field_state_has_fresh_exact_expand_budget_measurement() {
     let case = Case::new("legacy-single-field-expand");
     case.write("source.zil", source);
     case.write("boundaries.json",format!("{{\"expand\":{expand},\"checks\":\"N, N-1 ResourceLimit, fresh N\",\"purpose\":\"Compare the unchanged single-F input on the actual fff8 compiler and the 200 candidate; not a language safety test\"}}\n"));
+    // Independently measured on exact fff8 production, using this unchanged
+    // 197 input, in review/200-legacy-budget-by197 at d2e2cc3b. The initial
+    // 200 candidate needed 1807; its extra single-field scan was removed.
+    assert_eq!(
+        expand, 1731,
+        "200 must preserve the old single-field budget"
+    );
 }
