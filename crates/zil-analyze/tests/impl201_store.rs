@@ -251,21 +251,23 @@ fn unused_parameter_and_resource_only_callback_elements_are_checked() {
 }
 
 #[test]
-fn fields_require_one_same_environment_type_and_direct_finite_shape() {
-    rejected(
-        &fixture(element(3), 1),
-        ResultCategory::Unsupported,
-        "one or two same-type",
-    );
+fn two_distinct_self_contained_copy_result_callbacks_are_accepted_since_203() {
+    // This is the original 201 heterogeneous-root input. The explicit 203
+    // profile now admits its two direct, self-contained Fn/Unit roots.
     let mut different = element(2);
     let Type::Package { fields, .. } = &mut different else {
         unreachable!()
     };
     fields[2].1 = Type::Closure(ClosureId(1));
+    accepted(&fixture(different, 2));
+}
+
+#[test]
+fn fields_require_direct_finite_shape_and_complete_resources() {
     rejected(
-        &fixture(different, 2),
+        &fixture(element(3), 1),
         ResultCategory::Unsupported,
-        "one or two same-type",
+        "one or two direct self-contained callbacks",
     );
     rejected(
         &fixture(element(1), 0),
@@ -281,7 +283,7 @@ fn fields_require_one_same_environment_type_and_direct_finite_shape() {
     rejected(
         &fixture(no_resource, 1),
         ResultCategory::Unsupported,
-        "one or two same-type",
+        "one or two direct self-contained callbacks",
     );
 
     for hidden in [
@@ -312,7 +314,7 @@ fn fields_require_one_same_environment_type_and_direct_finite_shape() {
         rejected(
             &fixture(bad, 1),
             ResultCategory::Unsupported,
-            "one or two same-type",
+            "one or two direct self-contained callbacks",
         );
     }
 }
@@ -405,7 +407,7 @@ fn store_return_error_payload_and_raw_new_metadata_are_independently_walked() {
     rejected(
         &attacked,
         ResultCategory::Unsupported,
-        "one or two same-type",
+        "one or two direct self-contained callbacks",
     );
     accepted(&baseline);
 }
