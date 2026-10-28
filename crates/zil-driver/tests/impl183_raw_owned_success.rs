@@ -356,10 +356,10 @@ fn raw_shape_claims_cannot_extend_resource_error_nesting_or_capture_profiles() {
             unreachable!()
         };
         if nested {
-            *error = Box::new(Type::ErrorUnion {
+            **error = Type::ErrorUnion {
                 error: error.clone(),
                 result: result.clone(),
-            });
+            };
         } else {
             *error = result.clone();
         }
