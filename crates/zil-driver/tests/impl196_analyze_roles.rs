@@ -116,6 +116,46 @@ fn reject(label: &str, module: TypedModule, mut plan: CandidatePlan, analyze_mes
 #[test]
 fn actual_nested_same_type_instances_keep_both_static_role_mappings() {
     let (module, plan) = baseline("nested", NESTED);
+    let mut low = 0;
+    let mut high = Limits::default().max_analysis_steps;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let limits = Limits {
+            max_analysis_steps: middle,
+            ..Limits::default()
+        };
+        match zil_analyze::analyze(&module, &limits) {
+            Ok(_) => high = middle,
+            Err(errors) => {
+                assert!(
+                    errors.iter().any(|d| d.phase == Phase::Analyze
+                        && d.category == ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                low = middle + 1;
+            }
+        }
+    }
+    assert!(low > 0);
+    let at = Limits {
+        max_analysis_steps: low,
+        ..Limits::default()
+    };
+    let below = Limits {
+        max_analysis_steps: low - 1,
+        ..Limits::default()
+    };
+    assert!(zil_analyze::analyze(&module, &at).is_ok());
+    assert!(
+        zil_analyze::analyze(&module, &below)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.category == ResultCategory::ResourceLimit)
+    );
+    assert!(zil_analyze::analyze(&module, &at).is_ok());
+    println!(
+        "source-derived Analyze196 joint child frontier: {low}; N-1 rejected and fresh N accepted"
+    );
     let parent = module.functions.iter().position(|function| function.callable_contract.as_ref().is_some_and(|c|
         matches!(&c.traces, CallableTraces::Finite(paths) if paths.len()==1 && paths[0].calls.len()==4))).unwrap();
     let contract = module.functions[parent].callable_contract.as_ref().unwrap();
