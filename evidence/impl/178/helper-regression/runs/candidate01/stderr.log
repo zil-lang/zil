@@ -1,0 +1,11 @@
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 3.46s
+     Running tests/impl064.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl064-ca51857e9cc709d7)
+     Running tests/impl065_helpers.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl065_helpers-086b76848dc0a398)
+     Running tests/impl070_retained.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl070_retained-e288f22da3bca16f)
+     Running tests/impl178_generic_store.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl178_generic_store-eea2fb8f5cc12906)
+     Running tests/impl178_helper_give.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl178_helper_give-e728c84151563936)
+error: test failed, to rerun pass `-p zil-driver --test impl178_helper_give`
+error: 1 target failed:
+    `-p zil-driver --test impl178_helper_give`

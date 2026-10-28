@@ -1,0 +1,1 @@
+fn accept<F:Fn()->i64>(f:&F,give bytes:ByteBuffer)->i64{return f()+bytes_len(bytes)}fn main()->i64{let f=()->i64=>2;let bytes=bytes_new();return accept(&f,give bytes)-2}

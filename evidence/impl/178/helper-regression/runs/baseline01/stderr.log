@@ -1,0 +1,17 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-analyze)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-expand)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt178-helper/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 9.29s
+     Running tests/impl065_helpers.rs (/workspace/scratch/39be3faa4442/targets178/author178-helper/debug/deps/impl065_helpers-086b76848dc0a398)
+error: test failed, to rerun pass `-p zil-driver --test impl065_helpers`
+error: 1 target failed:
+    `-p zil-driver --test impl065_helpers`
