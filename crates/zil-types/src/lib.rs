@@ -2118,6 +2118,18 @@ impl<'a, 'c> Builder<'a, 'c> {
             return Ok(());
         }
         let (parameters, result) = pending.inference.resolve(true, pending.span)?;
+        if pending.owns_leaf_store {
+            let span = pending.span;
+            let cost = inference::type_snapshot_work(&result, span, self.limits)?;
+            self.closures.snapshot(cost, span)?;
+            if !result.is_copy_value() {
+                return Err(unsupported(
+                    span,
+                    "owned Store capture environments require Copy results",
+                ));
+            }
+        }
+        let pending = &self.closures.pending[id.0 as usize];
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
