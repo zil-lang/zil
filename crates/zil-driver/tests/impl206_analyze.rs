@@ -170,3 +170,111 @@ fn child_refill_preserves_actual_leaf_origins_and_partial_shapes_stay_local() {
         );
     }
 }
+
+fn wrap_type(ty: &mut Type, old: &Type, outer: &Type) {
+    if ty == old {
+        *ty = outer.clone();
+        return;
+    }
+    match ty {
+        Type::Managed(inner)
+        | Type::Desc(inner)
+        | Type::Address { inner, .. }
+        | Type::Array { element: inner, .. }
+        | Type::Slice { element: inner }
+        | Type::OwnedStore { element: inner }
+        | Type::Opaque { hidden: inner, .. } => wrap_type(inner, old, outer),
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            for (_, ty) in fields {
+                wrap_type(ty, old, outer)
+            }
+        }
+        Type::Tuple(types) => {
+            for ty in types {
+                wrap_type(ty, old, outer)
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (_, types) in variants {
+                for ty in types {
+                    wrap_type(ty, old, outer)
+                }
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            wrap_type(error, old, outer);
+            wrap_type(result, old, outer);
+        }
+        Type::FunctionPointer { parameters, result }
+        | Type::ForeignCallback { parameters, result } => {
+            for ty in parameters {
+                wrap_type(ty, old, outer)
+            }
+            wrap_type(result, old, outer);
+        }
+        _ => {}
+    }
+}
+
+#[test]
+fn ordinary_product_admission_does_not_widen_other_raw_parent_contexts() {
+    for (label, body) in [
+        ("address", "fn boundary(p:&P){}fn main(){}"),
+        ("array", "fn boundary(p:[P;1])->[P;1]{return p}fn main(){}"),
+        ("sum", "fn boundary(p:bool!P)->bool!P{return p}fn main(){}"),
+        ("store", "fn boundary(give s:Store<P>){}fn main(){}"),
+        (
+            "capture",
+            "fn main(){let p=P{r:R{n:1}};let f=move()=>{return p.r.n};f()}",
+        ),
+    ] {
+        let source = format!(
+            "resource R{{n:i32}}package P{{manages r:R}}package Outer{{child:P}}fn identity(p:P)->P{{return p}}{body}"
+        );
+        let mut module = typed(label, &source);
+        analyze(&format!("old-{label}"), &module, None);
+        let old = module
+            .functions
+            .iter()
+            .find(|f| f.name == "identity")
+            .unwrap()
+            .return_type
+            .clone();
+        let outer = Type::Package {
+            name: "@module0:Outer".into(),
+            fields: vec![("child".into(), old.clone())],
+        };
+        for function in &mut module.functions {
+            wrap_type(&mut function.return_type, &old, &outer);
+            for local in &mut function.locals {
+                wrap_type(&mut local.ty, &old, &outer);
+            }
+            for value in &mut function.values {
+                wrap_type(value, &old, &outer);
+            }
+        }
+        for resource in &mut module.resources {
+            wrap_type(&mut resource.payload, &old, &outer);
+        }
+        for closure in &mut module.closures {
+            for capture in &mut closure.captures {
+                wrap_type(capture, &old, &outer);
+            }
+            for parameter in &mut closure.parameters {
+                wrap_type(parameter, &old, &outer);
+            }
+            wrap_type(&mut closure.result, &old, &outer);
+        }
+        let dir = directory(&format!("closed-{label}"));
+        fs::write(dir.join("typed.txt"), format!("{module:#?}")).unwrap();
+        let result = zil_analyze::analyze(&module, &Limits::default());
+        fs::write(dir.join("analyze.txt"), format!("{result:#?}")).unwrap();
+        let errors = result.expect_err(label);
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::Unsupported),
+            "{label}: {errors:#?}"
+        );
+    }
+}
