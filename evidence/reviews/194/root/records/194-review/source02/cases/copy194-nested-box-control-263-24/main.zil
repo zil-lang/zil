@@ -1,0 +1,1 @@
+struct Box<T>{value:T}fn id<T>(x:T)->T=>x;fn main()->i32{let x=Box::<Box<i32>>{value:Box::<i32>{value:7}};let y=id(x);return y.value.value-7}

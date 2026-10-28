@@ -1,0 +1,1 @@
+fn twice<F:Fn()->i32>(a:&F,b:&F)->i32=>a()+b();fn main(){}

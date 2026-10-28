@@ -1,0 +1,1 @@
+fn leaf<T:Copy,F:Fn(&mut [T],T)->T>(f:&F,s:&mut[T],x:T)->T{return f(s,x)}fn twice<T:Copy,F:Fn(&mut [T],T)->T>(f:&F,s:&mut[T],x:T)->T{let a=leaf(f,s,x);return leaf(f,s,a)}fn main()->i32{var values:[i64;2]=[1,2];let f=(s:&mut[i64],n:i64)=>{s[0]+=n;return s[0]};let window=&mut values[..];let child=&mut window[0];let n=twice(&f,window,i64(3));return i32(n+*child)}

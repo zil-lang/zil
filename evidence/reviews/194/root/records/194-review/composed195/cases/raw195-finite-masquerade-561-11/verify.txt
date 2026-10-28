@@ -1,0 +1,36 @@
+raw=[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-CALLABLE-CONTRACT",
+        message: "callback Hold/Call/write bound/Cleanup/traces differ from the independent contract",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 59,
+                end: 291,
+            },
+        ),
+        notes: [],
+    },
+]
+wire=[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-CALLABLE-CONTRACT",
+        message: "callback Hold/Call/write bound/Cleanup/traces differ from the independent contract",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 59,
+                end: 291,
+            },
+        ),
+        notes: [],
+    },
+]

@@ -1,0 +1,1 @@
+fn make()->impl FnMut()->&i32{var value=0;return move()=>{value+=1;return &value}}fn run<F:FnMut()->&i32>(f:&mut F,n:i32)->i32{var total=0;for index in 0..n{let view=f();total+=*view;if index==1{break}}return total}fn main()->i32{var f=make();return run(&mut f,3)-3}

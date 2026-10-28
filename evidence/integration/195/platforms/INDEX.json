@@ -1,0 +1,3673 @@
+{
+  "original_files": [
+    {
+      "path": "linux/O0/allocation-probe",
+      "bytes": 21832,
+      "sha256": "c96bbd1817f0fdad6e93d3a8457e585f580445c81e592a9d2f4636e3616020ac",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "linux/O0/build/command.json",
+      "bytes": 779,
+      "sha256": "ed6229fac306335e86ddbabde76a0f3848b5df8992014fd2b081044633f9d6ed",
+      "included": true
+    },
+    {
+      "path": "linux/O0/build/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/build/stdout.log",
+      "bytes": 6957,
+      "sha256": "d16bbc19e2eb9be695216368979aa57586d12d80dd595f30374f7759bf965647",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-0/after-last-allocation/command.json",
+      "bytes": 481,
+      "sha256": "ee0def717db3d965d55165d242e09280a36a551abad424fdf1a31021950e9786",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-0/after-last-allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-0/after-last-allocation/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-0/allocation/command.json",
+      "bytes": 482,
+      "sha256": "84af3fdb5ad6ed2901fb0d82e2dc173fa20452da647935975943a6fa6980d1bb",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-0/allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-0/allocation/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-0/ordinary/command.json",
+      "bytes": 440,
+      "sha256": "58162300ba2c059d77c99f131cc2f34ecc3d7faab0fd4837f73dca1c49527c89",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-0/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-0/ordinary/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/after-last-allocation/command.json",
+      "bytes": 481,
+      "sha256": "374a8e86c4b639139454d18d641338480999842425f3d6242066c836b7352922",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/after-last-allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "b45fc77cd558d0422ad7bb400718f68fe4a59194abed333c2e52bde67486ee75",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/after-last-allocation/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/allocation/command.json",
+      "bytes": 482,
+      "sha256": "8724dd91efe94bf650b408db3aad5b69673c4231ce3728f3a42076de90a6ae77",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "b45fc77cd558d0422ad7bb400718f68fe4a59194abed333c2e52bde67486ee75",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/allocation/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/failure-1/command.json",
+      "bytes": 482,
+      "sha256": "a6454e31877ac459e44f0c1bedd64bd2b7d37c6c33f2749386abf609b1bf1967",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/failure-1/stderr.log",
+      "bytes": 93,
+      "sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/failure-2/command.json",
+      "bytes": 482,
+      "sha256": "7066df035d85bfabe1bf43837bd8439cc36d87a01783c9e809c962123f8a3777",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/failure-2/stderr.log",
+      "bytes": 93,
+      "sha256": "fc0b59a2e41e2e22397d6085c489e17cf6cd657f48405c285cde7e7bc4d4884a",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/failure-3/command.json",
+      "bytes": 482,
+      "sha256": "52d350c2f77f7855ff025166707898f79a627ee3cc662db5558f5f826a858827",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/failure-3/stderr.log",
+      "bytes": 93,
+      "sha256": "d6e74dde0cb408b87429e1a58144575e24d39115b50e9d87415df9a8e151d566",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/ordinary/command.json",
+      "bytes": 442,
+      "sha256": "36eeaae28e7f07f471c07edc73e7af40d496db8332f6046a49c1f70a6a57b873",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-1/ordinary/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/after-last-allocation/command.json",
+      "bytes": 482,
+      "sha256": "63d03feb3420918790698f4b0f0f05acce5f937e2442aa96252d596c536af270",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/after-last-allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "4686aa5aae16e9c3ae627078957b61896d83e6054345764b63b7131055d3c23e",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/after-last-allocation/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/allocation/command.json",
+      "bytes": 481,
+      "sha256": "6ec3ed4d51e713fb05a9015719af420c28afb87b6a7daf54d7d9b829c3229b08",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "4686aa5aae16e9c3ae627078957b61896d83e6054345764b63b7131055d3c23e",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/allocation/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-1/command.json",
+      "bytes": 481,
+      "sha256": "1dea48fad7919afe70b8c1a6ff65bd3bffcc5c88fae1524cb5307b6fdf82670e",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-1/stderr.log",
+      "bytes": 93,
+      "sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-2/command.json",
+      "bytes": 482,
+      "sha256": "9f70ea76f50729fe2b5c9b983cd88a006ad7bc2109da51a7f52fa1697051dd60",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-2/stderr.log",
+      "bytes": 93,
+      "sha256": "fc0b59a2e41e2e22397d6085c489e17cf6cd657f48405c285cde7e7bc4d4884a",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-3/command.json",
+      "bytes": 482,
+      "sha256": "e8f0c3554e8998f14b5a6c6de46bb3f5502cbd53d7fddc17521f708b48bc5540",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-3/stderr.log",
+      "bytes": 93,
+      "sha256": "d6e74dde0cb408b87429e1a58144575e24d39115b50e9d87415df9a8e151d566",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-4/command.json",
+      "bytes": 481,
+      "sha256": "1946cf16cdf38f52e57fd907b130a04031bb91486cab2b1a318997c1df20e952",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-4/stderr.log",
+      "bytes": 93,
+      "sha256": "30d194faca499de1ecce8708ea7b03310e4a5a8fa9436494d15ffd06759d6e10",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/ordinary/command.json",
+      "bytes": 442,
+      "sha256": "101b623eacd10c83638df073b9d85d6a3cc1e2528d11ca0b5dd02aa0e3729fb1",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-2/ordinary/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/after-last-allocation/command.json",
+      "bytes": 481,
+      "sha256": "9a22504ddd9b7d932c85a5149cc1fb74437bfcf123e5441cbdb8cfc95f0af3df",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/after-last-allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "c3e04670e26a62d498d24a56ed2e72ae7317644c0b922d1a8ae96f99e376b463",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/after-last-allocation/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/allocation/command.json",
+      "bytes": 482,
+      "sha256": "a0d6e24bbfa7f04e1f406b5fb369d8207a3f9ffbd6df1681c70805284156c437",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "c3e04670e26a62d498d24a56ed2e72ae7317644c0b922d1a8ae96f99e376b463",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/allocation/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-1/command.json",
+      "bytes": 481,
+      "sha256": "12cb8a4c285eacfa2712caf9e59a10feb089b4d804badc2bd270723b263b597f",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-1/stderr.log",
+      "bytes": 93,
+      "sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-2/command.json",
+      "bytes": 480,
+      "sha256": "954f8d606f85988136453875e629e124cffeccdb80ca142442eea75dd2abb9b6",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-2/stderr.log",
+      "bytes": 93,
+      "sha256": "fc0b59a2e41e2e22397d6085c489e17cf6cd657f48405c285cde7e7bc4d4884a",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-3/command.json",
+      "bytes": 482,
+      "sha256": "1e69af8f40480f2e803a202655a5f82448bdace83bece4ad033c84fbc1437b39",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-3/stderr.log",
+      "bytes": 93,
+      "sha256": "d6e74dde0cb408b87429e1a58144575e24d39115b50e9d87415df9a8e151d566",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-4/command.json",
+      "bytes": 481,
+      "sha256": "69a566d34422e13f85833fef13a7a9e704971c4aad718f97ae9445a176cd28eb",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-4/stderr.log",
+      "bytes": 93,
+      "sha256": "30d194faca499de1ecce8708ea7b03310e4a5a8fa9436494d15ffd06759d6e10",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-5/command.json",
+      "bytes": 480,
+      "sha256": "fbf9a807d39d3c06bd2decb3cdb1767e51e4b34f855cef59a977faf969ece06e",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-5/stderr.log",
+      "bytes": 93,
+      "sha256": "97bb058f77636094120134c9f8026a28fe703e5068817d06727ae406239ee6c3",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-5/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-6/command.json",
+      "bytes": 482,
+      "sha256": "25a2799e7583cd8944c8a62d56cb79cf393d89be9b1b155aa5155873e764465c",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-6/stderr.log",
+      "bytes": 93,
+      "sha256": "92f566c002edff69dcee641df8a05be746f9ac26888cbfb2bb32dbb2370e6509",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-6/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-7/command.json",
+      "bytes": 482,
+      "sha256": "f1fc9f2892a4ffe9488910c9c433be20cace633b410290792df3f54fad795d07",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-7/stderr.log",
+      "bytes": 93,
+      "sha256": "dd9b7404f02a15c2a44eb6086717f22be98e69f364158d107e9e4ec01a52ec22",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/failure-7/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/ordinary/command.json",
+      "bytes": 442,
+      "sha256": "632e9a2b3de682c6f7e1ae05dc4cb279505113e9fc6815a38226c1294e566751",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-3/ordinary/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/after-last-allocation/command.json",
+      "bytes": 483,
+      "sha256": "88f8f4f87315e29366b4b6813c014a59d2fcda4ac5a96eadc2837565146c73e6",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/after-last-allocation/stderr.log",
+      "bytes": 94,
+      "sha256": "4839c5d094a79eba6588d53537738bdcb625d5587446f4a1a0cc92551d5c8e3b",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/after-last-allocation/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/allocation/command.json",
+      "bytes": 482,
+      "sha256": "c57b46079b4871295809c7b4342dd6bffd2aef057d5499f9dc6ec4409e558c1a",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/allocation/stderr.log",
+      "bytes": 94,
+      "sha256": "4839c5d094a79eba6588d53537738bdcb625d5587446f4a1a0cc92551d5c8e3b",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/allocation/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-1/command.json",
+      "bytes": 481,
+      "sha256": "4a414c0814d10bd2517273c7290c7b876a34dd398ad9d885c8f7c0d7eef7a3a7",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-1/stderr.log",
+      "bytes": 93,
+      "sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-10/command.json",
+      "bytes": 482,
+      "sha256": "ed11f4c2e921849796159b5395501832d18476704a532005e323b605e438485a",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-10/stderr.log",
+      "bytes": 94,
+      "sha256": "f098489be26e9fae5d0b9e155620ed9bf2d9feaaf5bc59a6650688c962407a01",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-10/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-11/command.json",
+      "bytes": 483,
+      "sha256": "9dbaf4453c31980c80aebbae264593dc118839b1056ee84c6e25c2387b7c57f4",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-11/stderr.log",
+      "bytes": 94,
+      "sha256": "d7fdb3cc1cb6e052529637f21ac8b4faaa4bbc33877fabbd83e3c3a5b42ddd14",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-11/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-2/command.json",
+      "bytes": 482,
+      "sha256": "88fce6e46a667dc6c9f25829267ff30fb4e009ea0b60a5d07b84c675171a1b51",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-2/stderr.log",
+      "bytes": 93,
+      "sha256": "fc0b59a2e41e2e22397d6085c489e17cf6cd657f48405c285cde7e7bc4d4884a",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-3/command.json",
+      "bytes": 482,
+      "sha256": "91f6871528d9ae297f2dedf6fc72c5144d79a2a38ef737759f83685fee7a563e",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-3/stderr.log",
+      "bytes": 93,
+      "sha256": "d6e74dde0cb408b87429e1a58144575e24d39115b50e9d87415df9a8e151d566",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-4/command.json",
+      "bytes": 481,
+      "sha256": "c67c58f325bb335dae6bde9063eaf3a51b370135eddb5e560a6d951c5a3f9b7e",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-4/stderr.log",
+      "bytes": 93,
+      "sha256": "30d194faca499de1ecce8708ea7b03310e4a5a8fa9436494d15ffd06759d6e10",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-5/command.json",
+      "bytes": 480,
+      "sha256": "be758516ad6b6792396d4a42b763aaeb10b4f548dbe754dc52253d2d3d1cec96",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-5/stderr.log",
+      "bytes": 93,
+      "sha256": "97bb058f77636094120134c9f8026a28fe703e5068817d06727ae406239ee6c3",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-5/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-6/command.json",
+      "bytes": 482,
+      "sha256": "b7e4cdc173b9616d558892570015ee04255fdb2208419dbe854dffc5b14012e4",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-6/stderr.log",
+      "bytes": 93,
+      "sha256": "92f566c002edff69dcee641df8a05be746f9ac26888cbfb2bb32dbb2370e6509",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-6/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-7/command.json",
+      "bytes": 481,
+      "sha256": "420abd28627907a482f0f79a531d5808d73047603878ed1eb77e10b580ddcbd0",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-7/stderr.log",
+      "bytes": 93,
+      "sha256": "dd9b7404f02a15c2a44eb6086717f22be98e69f364158d107e9e4ec01a52ec22",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-7/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-8/command.json",
+      "bytes": 481,
+      "sha256": "0abf0c8af1668bcfebe5fa82ff4e9b13355d8a976e87a73ce422c26bbabb0abe",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-8/stderr.log",
+      "bytes": 93,
+      "sha256": "4e92670ad32018ac2b49720625007faa059ef9681c4aa659ad69f048f433c2ae",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-8/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-9/command.json",
+      "bytes": 482,
+      "sha256": "ea4d6e46de2654a90089abaa5f6547bba6956c00953151260157f818e8935d01",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-9/stderr.log",
+      "bytes": 93,
+      "sha256": "70365a0d48493a39ba80a946294133cc2b7840690a7a24c2a1927d60c62b3b5a",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/failure-9/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/ordinary/command.json",
+      "bytes": 442,
+      "sha256": "2b202da874f26129b1897ff1bc2d8e2265bfd5487e06b9a6c65023d86c517590",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/count-7/ordinary/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "linux/O0/eof/ordinary/command.json",
+      "bytes": 440,
+      "sha256": "0d4c03712d1b8cfa7f0188bc83bbb4406fadc9ddb8539f1a432d642da3f967c3",
+      "included": true
+    },
+    {
+      "path": "linux/O0/eof/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/eof/ordinary/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/invalid-input/ordinary/command.json",
+      "bytes": 442,
+      "sha256": "deca4d09325be31ee0c692538a3d1c88a5c59c1317b9cd9eddc51ab3b05877a1",
+      "included": true
+    },
+    {
+      "path": "linux/O0/invalid-input/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/invalid-input/ordinary/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/phases/candidate.txt",
+      "bytes": 102333,
+      "sha256": "961713279507d276d5b8be786ef281055f9ddef20a6b154e339e301f01121b9e",
+      "included": true
+    },
+    {
+      "path": "linux/O0/phases/core.txt",
+      "bytes": 331167,
+      "sha256": "8243ecc791718e829e1a383e8c0119044bf51df5e7a7b4d15a9083df330b9523",
+      "included": true
+    },
+    {
+      "path": "linux/O0/phases/ct-core.txt",
+      "bytes": 337656,
+      "sha256": "afbc275b36d5bbcd1a1158cecd159140edb3ad6de8850139dc92997558bd42d7",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O0/phases/interfaces.txt",
+      "bytes": 12091,
+      "sha256": "d2783b500a681e2d853268e48f2cbbd8a39933e94ef6104ac4ab4111a75b135c",
+      "included": true
+    },
+    {
+      "path": "linux/O0/phases/lir.txt",
+      "bytes": 416648,
+      "sha256": "c50bfa964f7e0308d184ec785d10486eff92270e656b603915eac7ec114a55d1",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O0/phases/llvm.ll",
+      "bytes": 34294,
+      "sha256": "8218d4d0071780552dedf35ff40c24a1afc338748e9eb75e351710bf24eb3e82",
+      "included": true
+    },
+    {
+      "path": "linux/O0/phases/source-map.txt",
+      "bytes": 173627,
+      "sha256": "bb5dac29c491074c8975dfbe41871ddfd9afad183e794b0aebc535c6f2aaa089",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O0/phases/syntax.txt",
+      "bytes": 718685,
+      "sha256": "5f4e33f2203b07f4bdc1ceca3264eb5b1d79d8aa312a8d3a39e722f6a44677aa",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O0/phases/typed.txt",
+      "bytes": 415809,
+      "sha256": "73be565cdbe3c1d116d44b1f3a30216a8bd90f23254614d64d3f0f222e21a991",
+      "included": true
+    },
+    {
+      "path": "linux/O0/phases/verified-interfaces.txt",
+      "bytes": 32395,
+      "sha256": "5b2ff389517596b2df2cf1907f609c328ea226ae125d8928b399794bc2733b53",
+      "included": true
+    },
+    {
+      "path": "linux/O0/phases/verified.txt",
+      "bytes": 415886,
+      "sha256": "0acf335f86468383a182279f465ed1b7e173e6f34c2d388a2037230f61d790e1",
+      "included": true
+    },
+    {
+      "path": "linux/O0/probe-link/command.json",
+      "bytes": 726,
+      "sha256": "49ea3a8c972d1706d4febcb7cc9517158164ef369412f6a1b11f29f7148ee9ec",
+      "included": true
+    },
+    {
+      "path": "linux/O0/probe-link/stderr.log",
+      "bytes": 111,
+      "sha256": "48039da247e1a8a23378c1c14be1456d540d28a2c01409ef938236f17df7f996",
+      "included": true
+    },
+    {
+      "path": "linux/O0/probe-link/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O0/program",
+      "bytes": 20832,
+      "sha256": "88af6db626b081e940589f4c952a2bfc68028d7d7e76a8d5fa95db8b763ab60b",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "linux/O0/program.ll",
+      "bytes": 34294,
+      "sha256": "8218d4d0071780552dedf35ff40c24a1afc338748e9eb75e351710bf24eb3e82",
+      "included": true
+    },
+    {
+      "path": "linux/O2/allocation-probe",
+      "bytes": 17448,
+      "sha256": "c88132a4dac5b25617323d078fb139bcc948ad5621d653e96dee39633297033a",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "linux/O2/build/command.json",
+      "bytes": 780,
+      "sha256": "8209e1e323be020569e4b2df4815d9693ac726c0cf26b3434bf2dc11a5a99106",
+      "included": true
+    },
+    {
+      "path": "linux/O2/build/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/build/stdout.log",
+      "bytes": 6957,
+      "sha256": "97b34c9d8378d2dbba00b02a3789b461c883f028957f245431f89f8a7780282f",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-0/after-last-allocation/command.json",
+      "bytes": 481,
+      "sha256": "000920b56c5c6644b64db4f621898d105642a7c502d097bdeabca2dcd8f6e169",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-0/after-last-allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-0/after-last-allocation/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-0/allocation/command.json",
+      "bytes": 482,
+      "sha256": "15132afc4859fe138c27a215052c49ee4beb32839887378d57a7eb0f78305b42",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-0/allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "c8c982d493d330c574bca535e6f5942c69b029c7686a93d1bd0e27dd20d40224",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-0/allocation/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-0/ordinary/command.json",
+      "bytes": 442,
+      "sha256": "f13c3577dc9fcd499547d41ae54e7d6398b453fafe1e66051a1e1d5b14e5481c",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-0/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-0/ordinary/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/after-last-allocation/command.json",
+      "bytes": 482,
+      "sha256": "f3ebb269431b9afe654faf4268a26fee9919b6fb7d4b09b0608fcbaba591d0ba",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/after-last-allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "b45fc77cd558d0422ad7bb400718f68fe4a59194abed333c2e52bde67486ee75",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/after-last-allocation/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/allocation/command.json",
+      "bytes": 482,
+      "sha256": "2dd00731647fb80802f78ab6d4049cc05239c79819e47f2b2b052027b400d8b2",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "b45fc77cd558d0422ad7bb400718f68fe4a59194abed333c2e52bde67486ee75",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/allocation/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/failure-1/command.json",
+      "bytes": 482,
+      "sha256": "d39c4cc5c9c30435f166bd0045ef2a63bb44de90d57182133cf50a9314b4ed28",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/failure-1/stderr.log",
+      "bytes": 93,
+      "sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/failure-2/command.json",
+      "bytes": 480,
+      "sha256": "33cb5535086f707185f2f5e11c5b27083373ca0c4f9c7ed8d91bab8fe3247ba3",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/failure-2/stderr.log",
+      "bytes": 93,
+      "sha256": "fc0b59a2e41e2e22397d6085c489e17cf6cd657f48405c285cde7e7bc4d4884a",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/failure-3/command.json",
+      "bytes": 480,
+      "sha256": "2b2b3be2187d56e4dfd8f2c5f6902678248a9b3ef5c316cce15d4118e75b1125",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/failure-3/stderr.log",
+      "bytes": 93,
+      "sha256": "d6e74dde0cb408b87429e1a58144575e24d39115b50e9d87415df9a8e151d566",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/ordinary/command.json",
+      "bytes": 442,
+      "sha256": "0a6a8d0ec51c0bdd61878efa1e7f3242f7a2f3f1bfa328654d40d66ba541b065",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-1/ordinary/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/after-last-allocation/command.json",
+      "bytes": 481,
+      "sha256": "9459f4791e00c3e1b5483db2cb4da31294c302d95acdf1ec9db0e71ba71a26a2",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/after-last-allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "4686aa5aae16e9c3ae627078957b61896d83e6054345764b63b7131055d3c23e",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/after-last-allocation/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/allocation/command.json",
+      "bytes": 482,
+      "sha256": "b34115d1d157218b176e00ffc337ce18bba4ddedcf5a6b7200ef7c0ec8da8e47",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "4686aa5aae16e9c3ae627078957b61896d83e6054345764b63b7131055d3c23e",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/allocation/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-1/command.json",
+      "bytes": 482,
+      "sha256": "51a892137a6de1e0274951e6a89c2bd17c224787391fb248f4095171d6afb350",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-1/stderr.log",
+      "bytes": 93,
+      "sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-2/command.json",
+      "bytes": 481,
+      "sha256": "4de55573fe77cd9ca721dfdc8a010eee544306460abd7c15592e2c169b375b2b",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-2/stderr.log",
+      "bytes": 93,
+      "sha256": "fc0b59a2e41e2e22397d6085c489e17cf6cd657f48405c285cde7e7bc4d4884a",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-3/command.json",
+      "bytes": 482,
+      "sha256": "573a198d7ba812d04601160573e9cca787b97f2bb10bdbb18b52a84b26b7be82",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-3/stderr.log",
+      "bytes": 93,
+      "sha256": "d6e74dde0cb408b87429e1a58144575e24d39115b50e9d87415df9a8e151d566",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-4/command.json",
+      "bytes": 482,
+      "sha256": "ab4b6261ebdbb503aab659a4e847d6f0014e441daac70f12506906b39413c647",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-4/stderr.log",
+      "bytes": 93,
+      "sha256": "30d194faca499de1ecce8708ea7b03310e4a5a8fa9436494d15ffd06759d6e10",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/ordinary/command.json",
+      "bytes": 442,
+      "sha256": "842c5badff9993f6f708611627aac7d98156ad1805e7afcc1ff6d4bd1cf446d7",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-2/ordinary/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/after-last-allocation/command.json",
+      "bytes": 481,
+      "sha256": "3d9fa5161d7c383fc737a10c9a5f1921209937a7119a56bd011dd24d1b532902",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/after-last-allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "c3e04670e26a62d498d24a56ed2e72ae7317644c0b922d1a8ae96f99e376b463",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/after-last-allocation/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/allocation/command.json",
+      "bytes": 482,
+      "sha256": "dde868eb052f6425f217985d84ce8a9c1fedcbc096719060be6f40bbcd509094",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/allocation/stderr.log",
+      "bytes": 93,
+      "sha256": "c3e04670e26a62d498d24a56ed2e72ae7317644c0b922d1a8ae96f99e376b463",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/allocation/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-1/command.json",
+      "bytes": 481,
+      "sha256": "f4c8230b954e5e63858e9684f1c76c8d506b112079f3c2c312558b3d4ef65de0",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-1/stderr.log",
+      "bytes": 93,
+      "sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-2/command.json",
+      "bytes": 482,
+      "sha256": "0eb53a472e1bbaec07fdbd5095c571fa872f7fc618c17d180a27839244e7f68f",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-2/stderr.log",
+      "bytes": 93,
+      "sha256": "fc0b59a2e41e2e22397d6085c489e17cf6cd657f48405c285cde7e7bc4d4884a",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-3/command.json",
+      "bytes": 482,
+      "sha256": "41f2c726158ba24180634b1250d715e0280f5a6a4defda2ee7ef2d91c9635ec6",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-3/stderr.log",
+      "bytes": 93,
+      "sha256": "d6e74dde0cb408b87429e1a58144575e24d39115b50e9d87415df9a8e151d566",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-4/command.json",
+      "bytes": 482,
+      "sha256": "8d3c6631cb1cfb538201a4a6bbe7122edf2922e963fa08d919c8f5a5a2fc813d",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-4/stderr.log",
+      "bytes": 93,
+      "sha256": "30d194faca499de1ecce8708ea7b03310e4a5a8fa9436494d15ffd06759d6e10",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-5/command.json",
+      "bytes": 481,
+      "sha256": "59f908e4434c972369bf54c77b7ba92cadae699fa033d23ab110b0dc46e93dd8",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-5/stderr.log",
+      "bytes": 93,
+      "sha256": "97bb058f77636094120134c9f8026a28fe703e5068817d06727ae406239ee6c3",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-5/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-6/command.json",
+      "bytes": 482,
+      "sha256": "981a680e17495650c8af77ee3fe599b61b026423031fa0e4d77edbe20496ce02",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-6/stderr.log",
+      "bytes": 93,
+      "sha256": "92f566c002edff69dcee641df8a05be746f9ac26888cbfb2bb32dbb2370e6509",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-6/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-7/command.json",
+      "bytes": 482,
+      "sha256": "978ae027810a64d432d0e4ed99cc7700f45c96f0db12cd419a76d5336015da75",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-7/stderr.log",
+      "bytes": 93,
+      "sha256": "dd9b7404f02a15c2a44eb6086717f22be98e69f364158d107e9e4ec01a52ec22",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/failure-7/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/ordinary/command.json",
+      "bytes": 442,
+      "sha256": "78ff3a3ac6379caee435e6da9cc8e7c325da1e7c2d14facab9e0376d088b033c",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-3/ordinary/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/after-last-allocation/command.json",
+      "bytes": 483,
+      "sha256": "e3d07dfbf98a0f0d89516a9f6c88721c4fa5ca5e5b190f0bd586e82d675a8b0c",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/after-last-allocation/stderr.log",
+      "bytes": 94,
+      "sha256": "4839c5d094a79eba6588d53537738bdcb625d5587446f4a1a0cc92551d5c8e3b",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/after-last-allocation/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/allocation/command.json",
+      "bytes": 482,
+      "sha256": "17a85995d50a634c276323275d3e7363e720e2dc2b516eec9bd81e25e2b82d71",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/allocation/stderr.log",
+      "bytes": 94,
+      "sha256": "4839c5d094a79eba6588d53537738bdcb625d5587446f4a1a0cc92551d5c8e3b",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/allocation/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-1/command.json",
+      "bytes": 482,
+      "sha256": "a46c2645cd7f1a6eec891a9c3aed2fd880804b34ef96cdae2ae7d92fd74c720e",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-1/stderr.log",
+      "bytes": 93,
+      "sha256": "4d3897637abd22916973c6e9e124b249567b6a61411b46bd499c6ee2ae7608e8",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-10/command.json",
+      "bytes": 482,
+      "sha256": "f3db45dc3fcaa0dbbc3f05f744e8461d6fc371fe0ccb1fe636fa135b6c644eb1",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-10/stderr.log",
+      "bytes": 94,
+      "sha256": "f098489be26e9fae5d0b9e155620ed9bf2d9feaaf5bc59a6650688c962407a01",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-10/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-11/command.json",
+      "bytes": 483,
+      "sha256": "47cfff6d632c9e5a17555623668e88753a7c8c94b79abad8951167ae32531495",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-11/stderr.log",
+      "bytes": 94,
+      "sha256": "d7fdb3cc1cb6e052529637f21ac8b4faaa4bbc33877fabbd83e3c3a5b42ddd14",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-11/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-2/command.json",
+      "bytes": 480,
+      "sha256": "d9cc3a02051278c9e42a8f520d58aa11d37343a5af5c62364e58008bd71ca792",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-2/stderr.log",
+      "bytes": 93,
+      "sha256": "fc0b59a2e41e2e22397d6085c489e17cf6cd657f48405c285cde7e7bc4d4884a",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-3/command.json",
+      "bytes": 481,
+      "sha256": "90c14c72fa2dc0419b04a3d74749909b705f15a1e49856de895c6706a62a3851",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-3/stderr.log",
+      "bytes": 93,
+      "sha256": "d6e74dde0cb408b87429e1a58144575e24d39115b50e9d87415df9a8e151d566",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-4/command.json",
+      "bytes": 482,
+      "sha256": "fa6af46e1836b341e771fbf161f520aa870bd6621b1182fe2e997899be3cfca0",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-4/stderr.log",
+      "bytes": 93,
+      "sha256": "30d194faca499de1ecce8708ea7b03310e4a5a8fa9436494d15ffd06759d6e10",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-5/command.json",
+      "bytes": 481,
+      "sha256": "1f686cfbf6b5763b7567789e978195673c3954f04eebfd522e9cbc437a3ed283",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-5/stderr.log",
+      "bytes": 93,
+      "sha256": "97bb058f77636094120134c9f8026a28fe703e5068817d06727ae406239ee6c3",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-5/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-6/command.json",
+      "bytes": 482,
+      "sha256": "ccc08fcf721017278919dbc88b000e26b06d430cf4ce02b415a7ef84b205443b",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-6/stderr.log",
+      "bytes": 93,
+      "sha256": "92f566c002edff69dcee641df8a05be746f9ac26888cbfb2bb32dbb2370e6509",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-6/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-7/command.json",
+      "bytes": 480,
+      "sha256": "86f81e36ceb396d147e297e45a4e011f1649bad3a680af2d7ff1a0eef69d9999",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-7/stderr.log",
+      "bytes": 93,
+      "sha256": "dd9b7404f02a15c2a44eb6086717f22be98e69f364158d107e9e4ec01a52ec22",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-7/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-8/command.json",
+      "bytes": 479,
+      "sha256": "1bd3eddd111b91caf624968a9564ed0bb9463bba8e56151d688d43eadfefb163",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-8/stderr.log",
+      "bytes": 93,
+      "sha256": "4e92670ad32018ac2b49720625007faa059ef9681c4aa659ad69f048f433c2ae",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-8/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-9/command.json",
+      "bytes": 482,
+      "sha256": "3e52b74f8186992f11b5491bfb4628d5145d50815bf12f8a5be4ab2a3cddcad3",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-9/stderr.log",
+      "bytes": 93,
+      "sha256": "70365a0d48493a39ba80a946294133cc2b7840690a7a24c2a1927d60c62b3b5a",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/failure-9/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/ordinary/command.json",
+      "bytes": 442,
+      "sha256": "d8cdf8a7ef43f7615370f5ddd992c2569fff8b3c7b3851a9b9f7029f781f64a6",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/count-7/ordinary/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "linux/O2/eof/ordinary/command.json",
+      "bytes": 439,
+      "sha256": "ff7617e57b23d890bf6ccfbffff5318252269828c57ed61402530d981d7d6e4e",
+      "included": true
+    },
+    {
+      "path": "linux/O2/eof/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/eof/ordinary/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/invalid-input/ordinary/command.json",
+      "bytes": 441,
+      "sha256": "10d33c644a98c8ffbe3618b4f9f747efa9992f1e0b91020c83c8f1d633808412",
+      "included": true
+    },
+    {
+      "path": "linux/O2/invalid-input/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/invalid-input/ordinary/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/phases/candidate.txt",
+      "bytes": 102333,
+      "sha256": "961713279507d276d5b8be786ef281055f9ddef20a6b154e339e301f01121b9e",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/phases/core.txt",
+      "bytes": 331167,
+      "sha256": "8243ecc791718e829e1a383e8c0119044bf51df5e7a7b4d15a9083df330b9523",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/phases/ct-core.txt",
+      "bytes": 337656,
+      "sha256": "afbc275b36d5bbcd1a1158cecd159140edb3ad6de8850139dc92997558bd42d7",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/phases/interfaces.txt",
+      "bytes": 12091,
+      "sha256": "d2783b500a681e2d853268e48f2cbbd8a39933e94ef6104ac4ab4111a75b135c",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/phases/lir.txt",
+      "bytes": 416648,
+      "sha256": "c50bfa964f7e0308d184ec785d10486eff92270e656b603915eac7ec114a55d1",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/phases/llvm.ll",
+      "bytes": 34294,
+      "sha256": "8218d4d0071780552dedf35ff40c24a1afc338748e9eb75e351710bf24eb3e82",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/phases/source-map.txt",
+      "bytes": 173627,
+      "sha256": "bb5dac29c491074c8975dfbe41871ddfd9afad183e794b0aebc535c6f2aaa089",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/phases/syntax.txt",
+      "bytes": 718685,
+      "sha256": "5f4e33f2203b07f4bdc1ceca3264eb5b1d79d8aa312a8d3a39e722f6a44677aa",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/phases/typed.txt",
+      "bytes": 415809,
+      "sha256": "73be565cdbe3c1d116d44b1f3a30216a8bd90f23254614d64d3f0f222e21a991",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/phases/verified-interfaces.txt",
+      "bytes": 32395,
+      "sha256": "5b2ff389517596b2df2cf1907f609c328ea226ae125d8928b399794bc2733b53",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/phases/verified.txt",
+      "bytes": 415886,
+      "sha256": "0acf335f86468383a182279f465ed1b7e173e6f34c2d388a2037230f61d790e1",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "linux/O2/probe-link/command.json",
+      "bytes": 725,
+      "sha256": "0ad93987bac560377daff60ca1deaf2d148fcb6cbcef942f596c84d81a715865",
+      "included": true
+    },
+    {
+      "path": "linux/O2/probe-link/stderr.log",
+      "bytes": 111,
+      "sha256": "48039da247e1a8a23378c1c14be1456d540d28a2c01409ef938236f17df7f996",
+      "included": true
+    },
+    {
+      "path": "linux/O2/probe-link/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "linux/O2/program",
+      "bytes": 16440,
+      "sha256": "8dbb777dacd21b1854f62d72a7353eb5598b76d8e06106defe1ebcbe060fca50",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "linux/O2/program.ll",
+      "bytes": 34294,
+      "sha256": "8218d4d0071780552dedf35ff40c24a1afc338748e9eb75e351710bf24eb3e82",
+      "included": true
+    },
+    {
+      "path": "linux/summary.json",
+      "bytes": 45299,
+      "sha256": "70bb31b7d7a3e6f9a5d1d0a89b696f4980ff06566349873aa67fcc463a70b7d2",
+      "included": true
+    },
+    {
+      "path": "win64/O0/allocation-probe.exe",
+      "bytes": 11776,
+      "sha256": "dbe68f71c4a86a41e1f7b227cc9de4a1bd905921ace3c18b20131251c6629b88",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "win64/O0/build/command.json",
+      "bytes": 1225,
+      "sha256": "0a147fc62c16f61bf9927d8a5eaa5a6ea18dcf12ba92e9209d77e3e6bc443d56",
+      "included": true
+    },
+    {
+      "path": "win64/O0/build/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/build/stdout.log",
+      "bytes": 7654,
+      "sha256": "98710c894da0f750a890d8b645b7a481a05d466668936984539a94c65e36ebd3",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-0/after-last-allocation/command.json",
+      "bytes": 668,
+      "sha256": "ed13bc22810317b4a3aac0755286f20a8495003bcc06b18d34e8ab4b2826bae3",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-0/after-last-allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "7b9f44bc41e7d5f5c48918f773a2130c179e1b9e9716ef4f72c7cc1d848d7387",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-0/after-last-allocation/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-0/allocation/command.json",
+      "bytes": 668,
+      "sha256": "95ad3b59666326c1ae1663a8e1e22fef17b755a44ce88c8f68b9cf8744f82c1a",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-0/allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "7b9f44bc41e7d5f5c48918f773a2130c179e1b9e9716ef4f72c7cc1d848d7387",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-0/allocation/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-0/ordinary/command.json",
+      "bytes": 629,
+      "sha256": "e0d2bd0b8feffc7c4fd4747f5d79cecf13287456be510702cfcceedc1ce3613a",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-0/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-0/ordinary/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/after-last-allocation/command.json",
+      "bytes": 668,
+      "sha256": "b61d0e30061d51f7f6df1903eb18098ab7542d4e5232b4d9b7eb0ef78e59db43",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/after-last-allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "dfe636929d9982a44929168624d569b25db860c42fd8e58da2f8e5c77552129f",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/after-last-allocation/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/allocation/command.json",
+      "bytes": 668,
+      "sha256": "0f7a429438daca526c52f679e8777c64eac735c1be40cb7733929f92cb0b2722",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "dfe636929d9982a44929168624d569b25db860c42fd8e58da2f8e5c77552129f",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/allocation/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/failure-1/command.json",
+      "bytes": 668,
+      "sha256": "b5287f16b6add78ba40c4cfbb1109e4ebdbf8c38ae044cf771f342b3e31e1b2e",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/failure-1/stderr.log",
+      "bytes": 112,
+      "sha256": "f7e4bf74a31e756181e06f0e989fdcefcc62d8e29b648dc51c378be855b45d75",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/failure-2/command.json",
+      "bytes": 668,
+      "sha256": "510ddf781db37804d4be2b7b2a32e1abf8e62f19437e3091fcbd587c2d99dca3",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/failure-2/stderr.log",
+      "bytes": 112,
+      "sha256": "a6bf2b7c8a8f7a148c2909bd3bd39659b50c9010774db01140368367ef55eaf8",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/failure-3/command.json",
+      "bytes": 668,
+      "sha256": "2824d18f4c07cbd33ef2b2d7995287d5dd17e0ffd4f391cb9d792054b478cade",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/failure-3/stderr.log",
+      "bytes": 112,
+      "sha256": "ee8ab90eadfadab9543055e6016c7b3a3f6c926e16a33c07f3863f042b72bc39",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/ordinary/command.json",
+      "bytes": 630,
+      "sha256": "014f8a407a2cb3ba9d11fd95adb1f8c3b1cf358ac32fdc52a269af3d967c26ac",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-1/ordinary/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/after-last-allocation/command.json",
+      "bytes": 667,
+      "sha256": "91cfe569bf40cba3bfdfed13fe777db70eb5accb1b57ab17ad1a5fbe07db3745",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/after-last-allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "142fcd56d77508912b48bdae31489b42a6120037af22a8b4cec7feb76c89d7ce",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/after-last-allocation/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/allocation/command.json",
+      "bytes": 666,
+      "sha256": "71c59836b685334f8330f600de13af5d2f6799b13e1904c6d86c726713c050d1",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "142fcd56d77508912b48bdae31489b42a6120037af22a8b4cec7feb76c89d7ce",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/allocation/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-1/command.json",
+      "bytes": 668,
+      "sha256": "da97c8780a26f8e4267c417940c262e19501d87ffea73a87a111a3620fab6888",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-1/stderr.log",
+      "bytes": 112,
+      "sha256": "f7e4bf74a31e756181e06f0e989fdcefcc62d8e29b648dc51c378be855b45d75",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-2/command.json",
+      "bytes": 667,
+      "sha256": "97625d12e1b7fff8f1ddc5b3c805c6900bf7d1c25bc200c0db8ee15a9d5bd4e9",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-2/stderr.log",
+      "bytes": 112,
+      "sha256": "a6bf2b7c8a8f7a148c2909bd3bd39659b50c9010774db01140368367ef55eaf8",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-3/command.json",
+      "bytes": 668,
+      "sha256": "fdc5b794eddb161d93f2b761a9ed0dbeeb825824c4b4e734d28c386429e3b27a",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-3/stderr.log",
+      "bytes": 112,
+      "sha256": "ee8ab90eadfadab9543055e6016c7b3a3f6c926e16a33c07f3863f042b72bc39",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-4/command.json",
+      "bytes": 668,
+      "sha256": "54a8488e1005cb03d401cef7545a2e77a60a4055a786874931a43185af50972e",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-4/stderr.log",
+      "bytes": 112,
+      "sha256": "5d086ea3f084dce07948cbe38197af2b9834597b26a13d6e255875a38b33ce9c",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/ordinary/command.json",
+      "bytes": 630,
+      "sha256": "f52e999d1b2a085c1054658f167eb48ab6c0d567c918792c13301a245c8fefb7",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-2/ordinary/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/after-last-allocation/command.json",
+      "bytes": 668,
+      "sha256": "bbeba1e2e1311be40ef22f7dcb14ae340d8bf4d13c4c804a76bdf5e4857cabab",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/after-last-allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "e68d87b80c051c978c077d9a3e4a5d5fadb70007314ba3def8f61ec1e90dfb2f",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/after-last-allocation/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/allocation/command.json",
+      "bytes": 668,
+      "sha256": "2cac6dc26bd36999f18f341372860db522b5538d92cdf1cc860fbb9398256c10",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "e68d87b80c051c978c077d9a3e4a5d5fadb70007314ba3def8f61ec1e90dfb2f",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/allocation/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-1/command.json",
+      "bytes": 668,
+      "sha256": "d7c256c0a6fbba33ed72c576dabab369f544237127417b44b4f8ce5180480022",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-1/stderr.log",
+      "bytes": 112,
+      "sha256": "f7e4bf74a31e756181e06f0e989fdcefcc62d8e29b648dc51c378be855b45d75",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-2/command.json",
+      "bytes": 668,
+      "sha256": "776c008333597b0d647e034f166259b8275cebefa53014b773a62d16e72d23cf",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-2/stderr.log",
+      "bytes": 112,
+      "sha256": "a6bf2b7c8a8f7a148c2909bd3bd39659b50c9010774db01140368367ef55eaf8",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-3/command.json",
+      "bytes": 667,
+      "sha256": "d54184cb11fe4c0300c8997ed3863b4c292a070b1ae8631cc9c848f627fb7a33",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-3/stderr.log",
+      "bytes": 112,
+      "sha256": "ee8ab90eadfadab9543055e6016c7b3a3f6c926e16a33c07f3863f042b72bc39",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-4/command.json",
+      "bytes": 668,
+      "sha256": "8de2e482dafee091a398442e4c953f3b50f67467d6fcf98d66f22d9ca95c5718",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-4/stderr.log",
+      "bytes": 112,
+      "sha256": "5d086ea3f084dce07948cbe38197af2b9834597b26a13d6e255875a38b33ce9c",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-5/command.json",
+      "bytes": 668,
+      "sha256": "07ba8d23ae8def2995925e0fe347a639e96e4aa7718244514f6d9f7c192d24d0",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-5/stderr.log",
+      "bytes": 112,
+      "sha256": "919bd8a6bbfa92a320420feea5bc02ab3569318bbb5e5b5c57adbfa8b83b125f",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-5/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-6/command.json",
+      "bytes": 668,
+      "sha256": "2b1807f854050d48ecca9206f46eb451a699032a418b39e09501c11bfd2db46c",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-6/stderr.log",
+      "bytes": 112,
+      "sha256": "dbdfcbd9ce1ab5b6e604bf07a9e2b63543ab337a8ff4c81bda4d9b519da51407",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-6/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-7/command.json",
+      "bytes": 668,
+      "sha256": "2975fc6d2bff30f639d43e0b4d7a239cc794013b9343568b1d70a2176d4ecc8b",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-7/stderr.log",
+      "bytes": 112,
+      "sha256": "53ec714d8d840980d4cf0434fceb01330eb6b2d8e0fd0e044c6057db87209643",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/failure-7/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/ordinary/command.json",
+      "bytes": 629,
+      "sha256": "65dc80660539d1893771cf0f3f006a219b790f8d932d1da7c7060d336a303fd4",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-3/ordinary/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/after-last-allocation/command.json",
+      "bytes": 669,
+      "sha256": "7d64edfada95d906948004c8e2da294feedf42fcc5a5911c93062a9fc82716d4",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/after-last-allocation/stderr.log",
+      "bytes": 113,
+      "sha256": "5ebfc95ae36b7cce28f8b81f36fffe93c0a9d281cecb10518dcd13b65a25af45",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/after-last-allocation/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/allocation/command.json",
+      "bytes": 668,
+      "sha256": "af12e298b7b479dc36eba0e49730965c35b1b438b6cabd489aef1932e93c8f5a",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/allocation/stderr.log",
+      "bytes": 113,
+      "sha256": "5ebfc95ae36b7cce28f8b81f36fffe93c0a9d281cecb10518dcd13b65a25af45",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/allocation/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-1/command.json",
+      "bytes": 667,
+      "sha256": "81aed68d8210e464ccdd1f5e7bb4daf1e1746ddb1aeb612f063d827f946a3c8b",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-1/stderr.log",
+      "bytes": 112,
+      "sha256": "f7e4bf74a31e756181e06f0e989fdcefcc62d8e29b648dc51c378be855b45d75",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-10/command.json",
+      "bytes": 667,
+      "sha256": "3f5d8296c0466054082bd2119d885d051fc76c193def4efd1471d3515c40d0f5",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-10/stderr.log",
+      "bytes": 113,
+      "sha256": "7af5854e62874c54f96ab58cd8a6f06541b38c15686ec532e18722c1151e9350",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-10/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-11/command.json",
+      "bytes": 669,
+      "sha256": "bba1decab50854b7a2438d8f350c5146dfb49a049d025224ffbff93cce59b045",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-11/stderr.log",
+      "bytes": 113,
+      "sha256": "7ddb00fd2f3c884b1c98d9103f7460a5679e2714f33227e00fc490e02e10f87c",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-11/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-2/command.json",
+      "bytes": 666,
+      "sha256": "b447b46773dd9d4e937017b6f17db9255657bc80dcff92a32506fb945e46c244",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-2/stderr.log",
+      "bytes": 112,
+      "sha256": "a6bf2b7c8a8f7a148c2909bd3bd39659b50c9010774db01140368367ef55eaf8",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-3/command.json",
+      "bytes": 668,
+      "sha256": "1c69764228f27c52ef9efd7285c96ea443e813865f6befe109d3d4978e3b23c1",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-3/stderr.log",
+      "bytes": 112,
+      "sha256": "ee8ab90eadfadab9543055e6016c7b3a3f6c926e16a33c07f3863f042b72bc39",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-4/command.json",
+      "bytes": 668,
+      "sha256": "b58b637b6bce958ff7865c10fb53bd733a332ea06f3a70465a9a92c0a977e9f9",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-4/stderr.log",
+      "bytes": 112,
+      "sha256": "5d086ea3f084dce07948cbe38197af2b9834597b26a13d6e255875a38b33ce9c",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-5/command.json",
+      "bytes": 668,
+      "sha256": "044088dede4df0d7b8a008a4cd2f097b61a37d7a1c1fb839b74615ef962397d5",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-5/stderr.log",
+      "bytes": 112,
+      "sha256": "919bd8a6bbfa92a320420feea5bc02ab3569318bbb5e5b5c57adbfa8b83b125f",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-5/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-6/command.json",
+      "bytes": 666,
+      "sha256": "1b98e2946536fe03375684eee122b2da35e810e5348b58e920746e71ec78e650",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-6/stderr.log",
+      "bytes": 112,
+      "sha256": "dbdfcbd9ce1ab5b6e604bf07a9e2b63543ab337a8ff4c81bda4d9b519da51407",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-6/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-7/command.json",
+      "bytes": 667,
+      "sha256": "a066753117a38204404bd194c1233ef628b84805b776240d2aaa1b3c6086fdb4",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-7/stderr.log",
+      "bytes": 112,
+      "sha256": "53ec714d8d840980d4cf0434fceb01330eb6b2d8e0fd0e044c6057db87209643",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-7/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-8/command.json",
+      "bytes": 668,
+      "sha256": "b4b79e43e2f9fe1e1f1d42212146052e9810db769d988f12d2e0c8fd108149f5",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-8/stderr.log",
+      "bytes": 112,
+      "sha256": "ff4df80784a72f1657d1279322764e3b18b1e1077ad43308fcb2ffa19dbceb98",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-8/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-9/command.json",
+      "bytes": 667,
+      "sha256": "124660e0fc1911ad0c1a93eca76169dd050d365ee304d04c32ddd2cd2b99ffe3",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-9/stderr.log",
+      "bytes": 112,
+      "sha256": "d349c9cf3bd31803e49cac6123799d24eb446c5cfaf13957b0033d6ab48026f5",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/failure-9/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/ordinary/command.json",
+      "bytes": 630,
+      "sha256": "f53ce473e5a4673c783bb5106a353a343299f5b8cb668110b12d0fbf324caa92",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/count-7/ordinary/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "win64/O0/eof/ordinary/command.json",
+      "bytes": 628,
+      "sha256": "73ea123802933ca2e80089a58f35c453581081dfc1ed9bae83b1b0e6325f478b",
+      "included": true
+    },
+    {
+      "path": "win64/O0/eof/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/eof/ordinary/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/heap_probe.obj",
+      "bytes": 6313,
+      "sha256": "53555468b4cd19efc33df29bde632997840e84004060ed615bf9b375c81947d8",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "win64/O0/invalid-input/ordinary/command.json",
+      "bytes": 630,
+      "sha256": "e8abd6766a4a52026b32765a42c0b77ee1d073d9ebea89202f27fc6ec150ee32",
+      "included": true
+    },
+    {
+      "path": "win64/O0/invalid-input/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/invalid-input/ordinary/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/phases/candidate.txt",
+      "bytes": 102327,
+      "sha256": "be72a12b8e932b7f53af54df8bb68fff72763f8a42000bf9ed5967af04988368",
+      "included": true
+    },
+    {
+      "path": "win64/O0/phases/core.txt",
+      "bytes": 331167,
+      "sha256": "8243ecc791718e829e1a383e8c0119044bf51df5e7a7b4d15a9083df330b9523",
+      "included": true
+    },
+    {
+      "path": "win64/O0/phases/ct-core.txt",
+      "bytes": 337656,
+      "sha256": "afbc275b36d5bbcd1a1158cecd159140edb3ad6de8850139dc92997558bd42d7",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O0/phases/interfaces.txt",
+      "bytes": 12084,
+      "sha256": "e80532305d39aabf87ea302b2ee220583b0f2be497a89080e3de4b12478f9271",
+      "included": true
+    },
+    {
+      "path": "win64/O0/phases/lir.txt",
+      "bytes": 416639,
+      "sha256": "8358296fe0ad236107d6139791f96d9c827588e37b30403104ef49c999b81a89",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O0/phases/llvm.ll",
+      "bytes": 35153,
+      "sha256": "b0ff273412621cf38579a000f4b88ad2b50a424cfd80b8184f7fae2113391fbd",
+      "included": true
+    },
+    {
+      "path": "win64/O0/phases/source-map.txt",
+      "bytes": 173627,
+      "sha256": "bb5dac29c491074c8975dfbe41871ddfd9afad183e794b0aebc535c6f2aaa089",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O0/phases/syntax.txt",
+      "bytes": 718685,
+      "sha256": "5f4e33f2203b07f4bdc1ceca3264eb5b1d79d8aa312a8d3a39e722f6a44677aa",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O0/phases/typed.txt",
+      "bytes": 415806,
+      "sha256": "0d11df8c513caeb1a1ac4c8cdf88e67f116f44ffb7e3433fc4994cc4a6934343",
+      "included": true
+    },
+    {
+      "path": "win64/O0/phases/verified-interfaces.txt",
+      "bytes": 32398,
+      "sha256": "c65f743483d0b0381245a60dc16feb40391b6d9cf3041e6116ffa95a0b3639fc",
+      "included": true
+    },
+    {
+      "path": "win64/O0/phases/verified.txt",
+      "bytes": 415883,
+      "sha256": "a5062a4ade479fa173e90cfc2af6dfa58269d50b2f1c0e1b2551f76afb1dd33e",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe-ir/command.json",
+      "bytes": 632,
+      "sha256": "a05017b8d49eb84cf70185e847fbf1b16373879fcfcbb5d9fc7d34679f57630c",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe-ir/stderr.log",
+      "bytes": 121,
+      "sha256": "0eeba7d03c8ec46cd7dd832388a5305d2f0c3e2f16afacc34e35bd2ae6156ee4",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe-ir/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe-link/command.json",
+      "bytes": 1095,
+      "sha256": "e009f171668bfb072fd4a3571f0ab0eaa38fe8b32452dc6eb81bf969246c9645",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe-link/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe-link/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe-shim/command.json",
+      "bytes": 735,
+      "sha256": "3f403562c1a0d4b98be7f83b7d080aeec7efed3498e7d65cd0c5929272088576",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe-shim/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe-shim/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe.ll",
+      "bytes": 35233,
+      "sha256": "ba5976ef9bc65b1acb688ebefbc97a836bd57530fb016f3ac05b1ea6aef94fe9",
+      "included": true
+    },
+    {
+      "path": "win64/O0/probe.obj",
+      "bytes": 9257,
+      "sha256": "c0e7d91b6daee60d67fa116530f3dd79b9e186de156b97e03f104fed48f3b457",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "win64/O0/program.exe",
+      "bytes": 8704,
+      "sha256": "a3731733f81c400369a9d38d62924e34b3871d7501ef5e10be131d57119d7c4a",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "win64/O0/program.exe.ll",
+      "bytes": 35153,
+      "sha256": "b0ff273412621cf38579a000f4b88ad2b50a424cfd80b8184f7fae2113391fbd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/allocation-probe.exe",
+      "bytes": 9216,
+      "sha256": "5db6c9e1426787b3d75aff4f1215e47a2c8672251fad37b3481446c60c949bbe",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "win64/O2/build/command.json",
+      "bytes": 1225,
+      "sha256": "9effe2e1cf8785305ff764024e898485ea80be97d00cd5440cb6dd622b2c9ed1",
+      "included": true
+    },
+    {
+      "path": "win64/O2/build/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/build/stdout.log",
+      "bytes": 7653,
+      "sha256": "8987f0ecd936e858ab1949d26d6d2ec126f5a85159f142af22909c82e2ac3824",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-0/after-last-allocation/command.json",
+      "bytes": 668,
+      "sha256": "305b24a3ca649b55b968bb5dd3ffa3ef3a194a90ffb231900e9dc0e771af27af",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-0/after-last-allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "7b9f44bc41e7d5f5c48918f773a2130c179e1b9e9716ef4f72c7cc1d848d7387",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-0/after-last-allocation/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-0/allocation/command.json",
+      "bytes": 667,
+      "sha256": "4dc50165d6215cf77fe91547a3c3cbbef68b52b8d4d20452e90bc2e1926c32d7",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-0/allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "7b9f44bc41e7d5f5c48918f773a2130c179e1b9e9716ef4f72c7cc1d848d7387",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-0/allocation/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-0/ordinary/command.json",
+      "bytes": 628,
+      "sha256": "3b70fc9020504c63145607c356ed074ddc2562a7ed10a5710bf6e73146b868b0",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-0/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-0/ordinary/stdout.log",
+      "bytes": 1,
+      "sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/after-last-allocation/command.json",
+      "bytes": 667,
+      "sha256": "d764086075776934166ba3df951c42bc89dd57b7d82087ad85104a64b9813943",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/after-last-allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "dfe636929d9982a44929168624d569b25db860c42fd8e58da2f8e5c77552129f",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/after-last-allocation/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/allocation/command.json",
+      "bytes": 668,
+      "sha256": "fee1564e064bb7c9b6cde758c6b4defe0003515c0763a6db17a97ab4da929554",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "dfe636929d9982a44929168624d569b25db860c42fd8e58da2f8e5c77552129f",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/allocation/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/failure-1/command.json",
+      "bytes": 668,
+      "sha256": "f923fd9187a303944eac8ea1b7eee9ef3cab2df3461149dc96893a10c8a07ace",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/failure-1/stderr.log",
+      "bytes": 112,
+      "sha256": "f7e4bf74a31e756181e06f0e989fdcefcc62d8e29b648dc51c378be855b45d75",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/failure-2/command.json",
+      "bytes": 668,
+      "sha256": "f0c918b043a692fbed2ba2d8846ef58b9fa55db548a158cb1adc0f207c67b088",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/failure-2/stderr.log",
+      "bytes": 112,
+      "sha256": "a6bf2b7c8a8f7a148c2909bd3bd39659b50c9010774db01140368367ef55eaf8",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/failure-3/command.json",
+      "bytes": 668,
+      "sha256": "28e0adfbbdd3981eef5f7d94e85e9a188c5e656aa839bcd894569c43f1da270a",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/failure-3/stderr.log",
+      "bytes": 112,
+      "sha256": "ee8ab90eadfadab9543055e6016c7b3a3f6c926e16a33c07f3863f042b72bc39",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/ordinary/command.json",
+      "bytes": 630,
+      "sha256": "e937d0bb113dad4fd87b77aceacea84645d47735d3f76b654452d328931251fc",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-1/ordinary/stdout.log",
+      "bytes": 3,
+      "sha256": "9ed8176effa161246c0fea656ce4d9162683ef7b9c11f421e7687964158afe0c",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/after-last-allocation/command.json",
+      "bytes": 666,
+      "sha256": "694c526e7ecb49a48f85cef6b617ae231605d50ec7af0be177c944581d9bf15f",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/after-last-allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "142fcd56d77508912b48bdae31489b42a6120037af22a8b4cec7feb76c89d7ce",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/after-last-allocation/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/allocation/command.json",
+      "bytes": 668,
+      "sha256": "475e78a51ec8ef35e53493ff9fb63fd840621f41e6327ab0d945e072e47712f0",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "142fcd56d77508912b48bdae31489b42a6120037af22a8b4cec7feb76c89d7ce",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/allocation/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-1/command.json",
+      "bytes": 667,
+      "sha256": "3c19d8212c5ed547a84aae8ea666d3b30fbb1afcf286f5de62f1fe1837fcc25e",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-1/stderr.log",
+      "bytes": 112,
+      "sha256": "f7e4bf74a31e756181e06f0e989fdcefcc62d8e29b648dc51c378be855b45d75",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-2/command.json",
+      "bytes": 668,
+      "sha256": "a1f5aec5d43c0ef859d2e47ac895a440224be78866f55534e51c650fecf873d8",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-2/stderr.log",
+      "bytes": 112,
+      "sha256": "a6bf2b7c8a8f7a148c2909bd3bd39659b50c9010774db01140368367ef55eaf8",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-3/command.json",
+      "bytes": 668,
+      "sha256": "f9146cafcb2b43e2b47afe3487cfe59391f436777964063451576eb4d8b6146f",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-3/stderr.log",
+      "bytes": 112,
+      "sha256": "ee8ab90eadfadab9543055e6016c7b3a3f6c926e16a33c07f3863f042b72bc39",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-4/command.json",
+      "bytes": 668,
+      "sha256": "171f2143b9b1165a5891d4c3d554876e7174927d047aa09d18918b5813a33ec0",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-4/stderr.log",
+      "bytes": 112,
+      "sha256": "5d086ea3f084dce07948cbe38197af2b9834597b26a13d6e255875a38b33ce9c",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/ordinary/command.json",
+      "bytes": 630,
+      "sha256": "9ba7f8cd9ed1c2182dcba539f480d2b78e561f501909ac99b8e7ef08dc6a487b",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-2/ordinary/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/after-last-allocation/command.json",
+      "bytes": 668,
+      "sha256": "41f741e65981e7ea72e1700aada55ba3cda3ebb5dc1345f0c1dc07383dfbcdeb",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/after-last-allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "e68d87b80c051c978c077d9a3e4a5d5fadb70007314ba3def8f61ec1e90dfb2f",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/after-last-allocation/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/allocation/command.json",
+      "bytes": 667,
+      "sha256": "98ddc14db89568539150e52ed64697921b1ee3d1eb41ce891d65e763f825e754",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/allocation/stderr.log",
+      "bytes": 112,
+      "sha256": "e68d87b80c051c978c077d9a3e4a5d5fadb70007314ba3def8f61ec1e90dfb2f",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/allocation/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-1/command.json",
+      "bytes": 667,
+      "sha256": "ed4ed3ffd00fa8a2330af223945de4a6bf5e427d3a394e16915ebc91441cd4c9",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-1/stderr.log",
+      "bytes": 112,
+      "sha256": "f7e4bf74a31e756181e06f0e989fdcefcc62d8e29b648dc51c378be855b45d75",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-2/command.json",
+      "bytes": 668,
+      "sha256": "be5d77745b6dc738c4263b39d7126f752df6b51a27249eee3e46cedffd7d9055",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-2/stderr.log",
+      "bytes": 112,
+      "sha256": "a6bf2b7c8a8f7a148c2909bd3bd39659b50c9010774db01140368367ef55eaf8",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-3/command.json",
+      "bytes": 667,
+      "sha256": "e6bd6991b77125f224e716633a2073850e9a95f51cea869c6a01a2fce30bb65f",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-3/stderr.log",
+      "bytes": 112,
+      "sha256": "ee8ab90eadfadab9543055e6016c7b3a3f6c926e16a33c07f3863f042b72bc39",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-4/command.json",
+      "bytes": 667,
+      "sha256": "fe7b08f8ade43d173c2397f4e14331776f03e58ef33d677bd7fde15a0cf22b89",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-4/stderr.log",
+      "bytes": 112,
+      "sha256": "5d086ea3f084dce07948cbe38197af2b9834597b26a13d6e255875a38b33ce9c",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-5/command.json",
+      "bytes": 665,
+      "sha256": "0e6cc33193cf2ced808ef64e57652a4a1df164ef2acac19d0357902d775272a8",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-5/stderr.log",
+      "bytes": 112,
+      "sha256": "919bd8a6bbfa92a320420feea5bc02ab3569318bbb5e5b5c57adbfa8b83b125f",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-5/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-6/command.json",
+      "bytes": 668,
+      "sha256": "32451da21621dfbb82dbd9eb7ad41be0ac0872a03bbc47b73baf1d0acbc40882",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-6/stderr.log",
+      "bytes": 112,
+      "sha256": "dbdfcbd9ce1ab5b6e604bf07a9e2b63543ab337a8ff4c81bda4d9b519da51407",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-6/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-7/command.json",
+      "bytes": 668,
+      "sha256": "b61c833da018c34a1dce9787a90598c66bf5498cf2f7062a6bb9c47a76f62b4a",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-7/stderr.log",
+      "bytes": 112,
+      "sha256": "53ec714d8d840980d4cf0434fceb01330eb6b2d8e0fd0e044c6057db87209643",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/failure-7/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/ordinary/command.json",
+      "bytes": 630,
+      "sha256": "e3afc083553a2b5085c37986a3060164c451f666953aaebddd8fd98b8efaa5e0",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-3/ordinary/stdout.log",
+      "bytes": 6,
+      "sha256": "80b8635fc227046b89ea5f7f96d6ea12b0ac75d491990c8f13f1b7b5d1288c31",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/after-last-allocation/command.json",
+      "bytes": 667,
+      "sha256": "ba61327c4405ad908c4075a29060c8b0bd9ee04bbb059f0b2bd7dd9d0b194574",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/after-last-allocation/stderr.log",
+      "bytes": 113,
+      "sha256": "5ebfc95ae36b7cce28f8b81f36fffe93c0a9d281cecb10518dcd13b65a25af45",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/after-last-allocation/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/allocation/command.json",
+      "bytes": 668,
+      "sha256": "34cff5ae7b2b17f85bc21a9f8606345e2c1f618b8e6a9884c6d697f786970f19",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/allocation/stderr.log",
+      "bytes": 113,
+      "sha256": "5ebfc95ae36b7cce28f8b81f36fffe93c0a9d281cecb10518dcd13b65a25af45",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/allocation/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-1/command.json",
+      "bytes": 668,
+      "sha256": "e61e8a1b0cb35cf9c696304951e107afb19c651978c2ee5fffc9b113e66fbb4f",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-1/stderr.log",
+      "bytes": 112,
+      "sha256": "f7e4bf74a31e756181e06f0e989fdcefcc62d8e29b648dc51c378be855b45d75",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-1/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-10/command.json",
+      "bytes": 669,
+      "sha256": "658452c70c5d4ecaa04f637752758bcd3790b15aea25cf0de3721047d3fd06ad",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-10/stderr.log",
+      "bytes": 113,
+      "sha256": "7af5854e62874c54f96ab58cd8a6f06541b38c15686ec532e18722c1151e9350",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-10/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-11/command.json",
+      "bytes": 668,
+      "sha256": "d2f75c322d1a7bf513cbcfd8927245c95d0bf4a59f6f315346a73add7c3ce524",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-11/stderr.log",
+      "bytes": 113,
+      "sha256": "7ddb00fd2f3c884b1c98d9103f7460a5679e2714f33227e00fc490e02e10f87c",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-11/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-2/command.json",
+      "bytes": 668,
+      "sha256": "843259027307987db0feea12da2862f3d01ec5a1353d580b36196266a46b3fce",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-2/stderr.log",
+      "bytes": 112,
+      "sha256": "a6bf2b7c8a8f7a148c2909bd3bd39659b50c9010774db01140368367ef55eaf8",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-2/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-3/command.json",
+      "bytes": 667,
+      "sha256": "102e1911be2f24e2dbd6e0db1faac3a976122e9a062387b0ee33923905b03986",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-3/stderr.log",
+      "bytes": 112,
+      "sha256": "ee8ab90eadfadab9543055e6016c7b3a3f6c926e16a33c07f3863f042b72bc39",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-3/stdout.log",
+      "bytes": 2,
+      "sha256": "06ad71c1b243e412c63fc0851b9a10c863b8bb09bf0871d5218812fa3b0933cd",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-4/command.json",
+      "bytes": 667,
+      "sha256": "c0f360993a10522a8412884d596ec1c62e19bdbbf4c9b81ddfd14a0fe676ab7b",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-4/stderr.log",
+      "bytes": 112,
+      "sha256": "5d086ea3f084dce07948cbe38197af2b9834597b26a13d6e255875a38b33ce9c",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-4/stdout.log",
+      "bytes": 4,
+      "sha256": "9d2a5c1d95cf9faa4eda7ba1a44d69cb55c8e7ead877caa1642058d6ba6ca173",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-5/command.json",
+      "bytes": 667,
+      "sha256": "7359a85ba4deba28d9aa0f213220c4674bd522494ce8eaa3489f0b375646c0c4",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-5/stderr.log",
+      "bytes": 112,
+      "sha256": "919bd8a6bbfa92a320420feea5bc02ab3569318bbb5e5b5c57adbfa8b83b125f",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-5/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-6/command.json",
+      "bytes": 667,
+      "sha256": "80f07b36bf417297006d1b25527be1dff6399df55e56db63906c9e6842996fce",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-6/stderr.log",
+      "bytes": 112,
+      "sha256": "dbdfcbd9ce1ab5b6e604bf07a9e2b63543ab337a8ff4c81bda4d9b519da51407",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-6/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-7/command.json",
+      "bytes": 667,
+      "sha256": "644dd9d35df3e7112feb2abb99fab66099272721de0501e25a9e66cc547ebc8a",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-7/stderr.log",
+      "bytes": 112,
+      "sha256": "53ec714d8d840980d4cf0434fceb01330eb6b2d8e0fd0e044c6057db87209643",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-7/stdout.log",
+      "bytes": 5,
+      "sha256": "bfca22c8660ea9320aa3f368b56168e5c70fc35018a115e4254b97de928af0c3",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-8/command.json",
+      "bytes": 668,
+      "sha256": "9d3d92a944e944b86befab64f0bd5d78e52abd348b71815aef91f668f9022515",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-8/stderr.log",
+      "bytes": 112,
+      "sha256": "ff4df80784a72f1657d1279322764e3b18b1e1077ad43308fcb2ffa19dbceb98",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-8/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-9/command.json",
+      "bytes": 668,
+      "sha256": "62ab859240bd17ab39bf1540b83d082bba51bd27e70112ab6aa6e6e5667d90fc",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-9/stderr.log",
+      "bytes": 112,
+      "sha256": "d349c9cf3bd31803e49cac6123799d24eb446c5cfaf13957b0033d6ab48026f5",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/failure-9/stdout.log",
+      "bytes": 7,
+      "sha256": "cefac3fb0a45234b70d49e4a5afed321f8d0f78a40c522a8790d235a8fffa8aa",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/ordinary/command.json",
+      "bytes": 630,
+      "sha256": "c1a6519876f12c8d0f53fc7d3f3b651c9d9b9511770c12719df9a6951e981f41",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/count-7/ordinary/stdout.log",
+      "bytes": 9,
+      "sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+      "included": true
+    },
+    {
+      "path": "win64/O2/eof/ordinary/command.json",
+      "bytes": 628,
+      "sha256": "14102822f9d40f12c4cc5e03d525c79edf107b75dff146d92f8a185eb63a9f81",
+      "included": true
+    },
+    {
+      "path": "win64/O2/eof/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/eof/ordinary/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/heap_probe.obj",
+      "bytes": 6984,
+      "sha256": "40527c46ab5fd6f8d2e688ddd88cf45a4dcdae393f9844ed12c93ed1a768a715",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "win64/O2/invalid-input/ordinary/command.json",
+      "bytes": 629,
+      "sha256": "998cf00e8e2667fd28b0bb6629b0c74d460b5337a705f51ed16645020423de0d",
+      "included": true
+    },
+    {
+      "path": "win64/O2/invalid-input/ordinary/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/invalid-input/ordinary/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/phases/candidate.txt",
+      "bytes": 102327,
+      "sha256": "be72a12b8e932b7f53af54df8bb68fff72763f8a42000bf9ed5967af04988368",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/phases/core.txt",
+      "bytes": 331167,
+      "sha256": "8243ecc791718e829e1a383e8c0119044bf51df5e7a7b4d15a9083df330b9523",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/phases/ct-core.txt",
+      "bytes": 337656,
+      "sha256": "afbc275b36d5bbcd1a1158cecd159140edb3ad6de8850139dc92997558bd42d7",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/phases/interfaces.txt",
+      "bytes": 12084,
+      "sha256": "e80532305d39aabf87ea302b2ee220583b0f2be497a89080e3de4b12478f9271",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/phases/lir.txt",
+      "bytes": 416639,
+      "sha256": "8358296fe0ad236107d6139791f96d9c827588e37b30403104ef49c999b81a89",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/phases/llvm.ll",
+      "bytes": 35153,
+      "sha256": "b0ff273412621cf38579a000f4b88ad2b50a424cfd80b8184f7fae2113391fbd",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/phases/source-map.txt",
+      "bytes": 173627,
+      "sha256": "bb5dac29c491074c8975dfbe41871ddfd9afad183e794b0aebc535c6f2aaa089",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/phases/syntax.txt",
+      "bytes": 718685,
+      "sha256": "5f4e33f2203b07f4bdc1ceca3264eb5b1d79d8aa312a8d3a39e722f6a44677aa",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/phases/typed.txt",
+      "bytes": 415806,
+      "sha256": "0d11df8c513caeb1a1ac4c8cdf88e67f116f44ffb7e3433fc4994cc4a6934343",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/phases/verified-interfaces.txt",
+      "bytes": 32398,
+      "sha256": "c65f743483d0b0381245a60dc16feb40391b6d9cf3041e6116ffa95a0b3639fc",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/phases/verified.txt",
+      "bytes": 415883,
+      "sha256": "a5062a4ade479fa173e90cfc2af6dfa58269d50b2f1c0e1b2551f76afb1dd33e",
+      "included": false,
+      "excluded_reason": "repeated phase dump; original hash retained"
+    },
+    {
+      "path": "win64/O2/probe-ir/command.json",
+      "bytes": 636,
+      "sha256": "fd844159df4ea0a921cb06fbae5f11c614cd86dd31df993a39a62cb195bd6c8b",
+      "included": true
+    },
+    {
+      "path": "win64/O2/probe-ir/stderr.log",
+      "bytes": 121,
+      "sha256": "0eeba7d03c8ec46cd7dd832388a5305d2f0c3e2f16afacc34e35bd2ae6156ee4",
+      "included": true
+    },
+    {
+      "path": "win64/O2/probe-ir/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/probe-link/command.json",
+      "bytes": 1095,
+      "sha256": "c6ce02e6b710fc23356683bb925509481913c68be6900a921dcf8e4e0d7d2236",
+      "included": true
+    },
+    {
+      "path": "win64/O2/probe-link/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/probe-link/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/probe-shim/command.json",
+      "bytes": 733,
+      "sha256": "7f6cfcbb4e51b7be4047c3beab2b75cd90e986a48aa5f9face1549f396f4df73",
+      "included": true
+    },
+    {
+      "path": "win64/O2/probe-shim/stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/probe-shim/stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "included": true
+    },
+    {
+      "path": "win64/O2/probe.ll",
+      "bytes": 35233,
+      "sha256": "ba5976ef9bc65b1acb688ebefbc97a836bd57530fb016f3ac05b1ea6aef94fe9",
+      "included": true
+    },
+    {
+      "path": "win64/O2/probe.obj",
+      "bytes": 3226,
+      "sha256": "dd057f7cf231ab0ca3a917b96bd91fa75c23a7c2d3f5c52694db53672a4da242",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "win64/O2/program.exe",
+      "bytes": 4096,
+      "sha256": "45a8a998dcf1743d46b10d711ea7b873faa0a733b516471acecaad22ea6514fc",
+      "included": false,
+      "excluded_reason": "executable/build output"
+    },
+    {
+      "path": "win64/O2/program.exe.ll",
+      "bytes": 35153,
+      "sha256": "b0ff273412621cf38579a000f4b88ad2b50a424cfd80b8184f7fae2113391fbd",
+      "included": true
+    },
+    {
+      "path": "win64/summary.json",
+      "bytes": 47947,
+      "sha256": "048c3672ede9d0b1a6f75d5a3b3f570c162ae1fa8cd0ae54bb7dcba5f8a89cc7",
+      "included": true
+    }
+  ],
+  "included_files": 562,
+  "included_bytes": 3141926,
+  "executables_included": false
+}

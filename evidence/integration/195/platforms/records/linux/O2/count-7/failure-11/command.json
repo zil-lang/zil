@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/195-integration/platform-linux/O2/allocation-probe"
+  ],
+  "status": "Completed",
+  "start": 1793166554.3564062,
+  "stdin_hex": "37",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "11"
+  },
+  "exit_code": 1,
+  "stdout_sha256": "f374612361160cc7dbc70a36bf5cfb9ad0644f747e0f2e5509432bdfeeea9eda",
+  "stderr_sha256": "d7fdb3cc1cb6e052529637f21ac8b4faaa4bbc33877fabbd83e3c3a5b42ddd14",
+  "end": 1793166554.3585474
+}

@@ -1,0 +1,1 @@
+struct Grow<T>{next:Grow<(T,T)>}fn id<T:Copy>(x:T)->T=>x;fn inspect(x:Grow<i32>)->i32{let y=id(x);return 0}fn main(){}

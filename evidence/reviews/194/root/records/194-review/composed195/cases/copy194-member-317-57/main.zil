@@ -1,0 +1,1 @@
+fn bad<T:Copy>(x:T)->i32=>x.n;fn main(){}

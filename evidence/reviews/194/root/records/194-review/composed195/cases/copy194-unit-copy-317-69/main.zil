@@ -1,0 +1,1 @@
+fn id<T:Copy>(x:T)->T=>x;fn main(){id(())}

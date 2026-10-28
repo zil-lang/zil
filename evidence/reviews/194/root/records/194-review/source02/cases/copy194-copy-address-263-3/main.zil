@@ -1,0 +1,1 @@
+fn apply<T:Copy,F:Fn(&mut T)->i32>(f:&F,x:&mut T)->i32=>f(x);fn main()->i32{let f=move(n:&mut i32)=>{*n+=1;return *n};var n=6;return apply(&f,&mut n)-7}

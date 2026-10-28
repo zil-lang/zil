@@ -1,0 +1,1 @@
+struct Nest<T>{value:T}type Deep=Nest<Nest<i64>>;fn dup<T:Copy>(x:T)->(T,T){return(x,x)}fn keep<T:Copy,F:Fn()->i32>(f:&F,x:T)->T{f();return x}fn main()->i32{let f=move()=>1;let original:Deep=Nest::<Nest<i64>>{value:Nest::<i64>{value:7}};let pair=dup(keep(&f,original));return i32(pair.0.value.value+pair.1.value.value)-14}
