@@ -125,6 +125,26 @@ fn reject_window(label: &str, source: &str) {
     );
 }
 
+fn reject_captured_transition(label: &str, source: &str) {
+    let (_, report) = compile(label, source, Stage::Verify);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == "E-ANALYZE-IR"
+                && d.message == "captured Store transition invalidates a live element window"
+        }),
+        "{}",
+        report.to_json()
+    );
+}
+
 fn through_types(label: &str, source: &str) {
     let (_, report) = compile(label, source, Stage::Types);
     assert_eq!(
@@ -525,5 +545,45 @@ fn body_take_keeps_the_existing_capture_element_parent_window() {
     );
     native("take-after-window-last-use", &source, "AZ", 0);
     let conflict = source.replace("+ answer - 42", "+ view.value - 42");
-    reject_window("take-with-window-live", &conflict);
+    // The unchanged bad source now reaches Analyze's independently recovered
+    // strong-address liveness gate. Raw/Wire Verify rejection is a separate
+    // independent test; this earlier source stage is not a substitute for it.
+    reject_captured_transition("take-with-window-live", &conflict);
+}
+
+fn package_window_source(take: &str, store: &str, read: &str) -> String {
+    format!(
+        "{LEAF}
+        package PairBag {{ manages left: Store<Item>; manages right: Store<Item>; manages marker: Ticket }}
+        fn make() -> impl FnOnce() -> i32 {{ {PREPARE}
+            let right: Store<Item> = store_new()
+            store_reserve(right, 1)
+            store_push(right, Item {{ ticket: Ticket {{ code: 66 }}, value: 84 }})
+            let bag = PairBag {{ left: give items, right: give right, marker: Ticket {{ code: 67 }} }}
+            return () => {{
+                let view = store_at(bag.left, 0)
+                let answer = view.value
+                let taken = {take}
+                return i32(store_len({store})) + {read} - 42
+            }}
+        }}{MAIN_ONCE}"
+    )
+}
+
+#[test]
+fn package_capture_field_windows_keep_sibling_independence() {
+    let sibling = package_window_source("give bag.right", "taken", "view.value");
+    native("package-sibling-window", &sibling, "BACZ", 0);
+    let last_use = package_window_source("give bag.left", "taken", "answer");
+    native("package-field-window-last-use", &last_use, "ABCZ", 0);
+    let conflict = package_window_source("give bag.left", "taken", "view.value");
+    reject_captured_transition("package-field-window-live", &conflict);
+}
+
+#[test]
+fn package_capture_whole_transfer_respects_element_windows() {
+    let last_use = package_window_source("bag", "taken.left", "answer");
+    native("package-whole-window-last-use", &last_use, "ABCZ", 0);
+    let conflict = package_window_source("bag", "taken.left", "view.value");
+    reject_captured_transition("package-whole-window-live", &conflict);
 }
