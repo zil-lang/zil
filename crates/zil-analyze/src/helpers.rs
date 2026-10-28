@@ -121,13 +121,16 @@ fn parameter_invocation(origin: u8, borrowed: bool) -> CompileResult<bool> {
 fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<Vec<usize>> {
     let count = module.functions.len();
     budget.product(count, 4, 1, "helper dependency tables")?;
-    budget.spend(count, "helper dependency depth table")?;
-    let mut depth = vec![1usize; count];
+    let mut depths: Option<Vec<usize>> = None;
     let mut incoming = vec![0usize; count];
     let mut users = vec![Vec::new(); count];
     for (caller, function) in module.functions.iter().enumerate() {
         if function.callable_contract.is_none() {
             continue;
+        }
+        if depths.is_none() {
+            budget.spend(count, "helper dependency depth table")?;
+            depths = Some(vec![1usize; count]);
         }
         budget.spend(
             function.blocks.len().saturating_add(1),
@@ -193,6 +196,7 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         )?;
         order.push(function);
         for &user in &users[function] {
+            let depth = depths.as_mut().expect("helper edges have a depth table");
             let candidate = depth[function]
                 .checked_add(1)
                 .filter(|n| *n <= budget.helper_depth)
@@ -217,12 +221,7 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             None,
         )]);
     }
-    if module
-        .functions
-        .iter()
-        .any(|f| f.callable_contract.is_some())
-        && budget.helper_depth == 0
-    {
+    if depths.is_some() && budget.helper_depth == 0 {
         return Err(vec![Diagnostic::limit(
             Phase::Analyze,
             "helper dependency call depth exhausted",
