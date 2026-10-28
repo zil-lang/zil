@@ -1,0 +1,51 @@
+{
+  "kind": "read-only-preflight",
+  "cli": "/workspace/scratch/39be3faa4442/targets178/author193/debug/zil",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "cli_size": 25051792,
+  "native_executed": 0,
+  "evidence_worktree_head_before_probes": "4cd98aa82d1670e1e0a4d9f11cc23ed5561ce7db",
+  "evidence_worktree_status_before_probes": "?? evidence/preflight194/\n",
+  "build_receipt_origin": "/workspace/scratch/39be3faa4442/run-logs/193-author/final-build01/command",
+  "snapshots": {
+    "observed_cli_source": {
+      "commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+      "design_sha256": "d66bf6d16f2c1adecc4fe8e03d4898560acc88e6406e798c1c13f424287f7f64",
+      "normative_hash_from_committed_registry": "d20398d8a0291e1e8eef74bf74c557e992fa176e7e5abe09f924071fd1cc2a25",
+      "source_sha256": {
+        "crates/zil-expand/src/generics.rs": "73a02837de0c353f77a6a9a3ae42b8dcd983565a305fd960eaea1235ef93044a",
+        "crates/zil-expand/src/generic_callable.rs": "edd2cf0b39974ca1c7c56bcda207f3d76c6ec9e3bf15c7e2f077e504c8dbabf0",
+        "crates/zil-expand/src/generic_check.rs": "72974343fc4295f4843ba935ae45105c86c628bf28caceed16dd58b483f2ae7e",
+        "crates/zil-expand/src/generic_trait_bounds.rs": "9b991405036f2dd5817c93992fa6c0d30d5cb7eeef99c83da3d0e1446a2817b3",
+        "crates/zil-expand/src/generic_store.rs": "35d132319049740301ecbcdfc4a16f1ab48677dabd52c90232069d0f976e0085",
+        "crates/zil-expand/src/receivers.rs": "f4022f37448170cf72296751fbf82e4048f1dfcd879affd808986b4085c83f67",
+        "crates/zil-types/src/helpers.rs": "d8afb0e06d2b94d6dd6818b821a022de4074c7b928224d2f679b8b116cbd3add",
+        "crates/zil-types/src/helper_plan.rs": "0e06cf3b68cf84e152a6cca9a8013e8775c9151d281030ae75ec2b7007c24270",
+        "crates/zil-types/src/closures.rs": "50b1295daf9cc9d5b637779c6676372446114dfbadfce385e63e9cae33c1300b",
+        "crates/zil-ir/src/lib.rs": "daa04f69b3055165e64e08828510b624c7b7b2995a5b4407f51472a397ce1597",
+        "crates/zil-ir/src/wire.rs": "51b9992106d3d543b4fc6c9dd7d98681d03eb81e3ab7a7cad5216a5476fac0fe",
+        "crates/zil-ir/src/program.rs": "faf6d430a202892500079a03048269c46370a63b54ec81309a50a2f732f9c0d2"
+      }
+    },
+    "read_main": {
+      "commit": "df4546b15d98647a0a677aa9ac279b55868bfe46",
+      "design_sha256": "d66bf6d16f2c1adecc4fe8e03d4898560acc88e6406e798c1c13f424287f7f64",
+      "normative_hash_from_committed_registry": "d20398d8a0291e1e8eef74bf74c557e992fa176e7e5abe09f924071fd1cc2a25",
+      "source_sha256": {
+        "crates/zil-expand/src/generics.rs": "73a02837de0c353f77a6a9a3ae42b8dcd983565a305fd960eaea1235ef93044a",
+        "crates/zil-expand/src/generic_callable.rs": "edd2cf0b39974ca1c7c56bcda207f3d76c6ec9e3bf15c7e2f077e504c8dbabf0",
+        "crates/zil-expand/src/generic_check.rs": "72974343fc4295f4843ba935ae45105c86c628bf28caceed16dd58b483f2ae7e",
+        "crates/zil-expand/src/generic_trait_bounds.rs": "9b991405036f2dd5817c93992fa6c0d30d5cb7eeef99c83da3d0e1446a2817b3",
+        "crates/zil-expand/src/generic_store.rs": "35d132319049740301ecbcdfc4a16f1ab48677dabd52c90232069d0f976e0085",
+        "crates/zil-expand/src/receivers.rs": "f4022f37448170cf72296751fbf82e4048f1dfcd879affd808986b4085c83f67",
+        "crates/zil-types/src/helpers.rs": "5e914dd861b6ebd7989eafef2a01107367aa909d9f651d09c00e7f03f366bc76",
+        "crates/zil-types/src/helper_plan.rs": "0e06cf3b68cf84e152a6cca9a8013e8775c9151d281030ae75ec2b7007c24270",
+        "crates/zil-types/src/closures.rs": "72c8bb66cacb80d98b95753d7c49704347e5b2cf098a092200b9c36758c85ea5",
+        "crates/zil-ir/src/lib.rs": "daa04f69b3055165e64e08828510b624c7b7b2995a5b4407f51472a397ce1597",
+        "crates/zil-ir/src/wire.rs": "51b9992106d3d543b4fc6c9dd7d98681d03eb81e3ab7a7cad5216a5476fac0fe",
+        "crates/zil-ir/src/program.rs": "faf6d430a202892500079a03048269c46370a63b54ec81309a50a2f732f9c0d2"
+      }
+    }
+  },
+  "note": "Probe results belong to clean f594 build, not main or the evidence worktree. No production source changed."
+}

@@ -1,0 +1,1 @@
+fn id<T>(x:T)->T=>x;fn main()->i32{let a:i32=id(7);let b:i64=id(i64(9));return a+i32(b)-16}

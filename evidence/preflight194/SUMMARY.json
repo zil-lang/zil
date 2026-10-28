@@ -1,0 +1,728 @@
+{
+  "kind": "read-only-preflight",
+  "observed_source_commit": "f594c57665aaf34d0c1d54df11d5047d4d042f0d",
+  "cli_sha256": "3830f924b7fa1223aeec88ecfd406f0a3012095ebd5be42a10aae0a7357ae33e",
+  "executed": 19,
+  "native_executed": 0,
+  "verification_runs": 3,
+  "outcomes": {
+    "SafeReject": 1,
+    "Success": 3,
+    "Unsupported": 15
+  },
+  "rows": [
+    {
+      "name": "01-ordinary-unbound-control",
+      "purpose": "ordinary single-use generic baseline",
+      "input": "cases/01-ordinary-unbound-control/main.zil",
+      "input_sha256": "cf2caf685d275b27a24f486599702fba0fc2f741e0ac97bddfa1d7def47fb160",
+      "exit_code": 0,
+      "requested_stop_after": "verify",
+      "status": "Success",
+      "stop_phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "02-one-callable-control",
+      "purpose": "existing one-environment helper baseline",
+      "input": "cases/02-one-callable-control/main.zil",
+      "input_sha256": "ba6f208585658608f8ba656f5c53c23b848788b0bd819445761b7bf8be86a017",
+      "exit_code": 0,
+      "requested_stop_after": "verify",
+      "status": "Success",
+      "stop_phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "03-copy-bound-alone",
+      "purpose": "Copy bound independent prerequisite",
+      "input": "cases/03-copy-bound-alone/main.zil",
+      "input_sha256": "8b75355d1cb9eb85394c92d4f09e5504957e1c16003757232980ec44c12edea6",
+      "exit_code": 1,
+      "requested_stop_after": "verify",
+      "status": "SafeReject",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic bound Copy is not a declared nominal trait",
+          "span": {
+            "file": 0,
+            "start": 8,
+            "end": 12
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "04-map-copy-f",
+      "purpose": "unchanged historical audit input",
+      "input": "cases/04-map-copy-f/main.zil",
+      "input_sha256": "61babdb5a7e7a9a7dbc2bd0a26fbc132e0845fc87a23ff6d5e465069229d9bb3",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 47
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "05-map-f-copy",
+      "purpose": "generic order must not determine inference or identity",
+      "input": "cases/05-map-f-copy/main.zil",
+      "input_sha256": "ae103ae3eaf6fb6cc93f2b8815b6e88f627b5ccccccd356ef0c927469ff703f6",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 47
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "06-extra-i32-i64",
+      "purpose": "same closure identity, T absent from callable signature, differing scalar widths",
+      "input": "cases/06-extra-i32-i64/main.zil",
+      "input_sha256": "61825b141f4d7233aa6d91cba8a6008c4343490adbbf93bb7ac3faa83b4baded",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 54
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "07-extra-nominal",
+      "purpose": "same closure identity and layout, distinct nominal Copy arguments",
+      "input": "cases/07-extra-nominal/main.zil",
+      "input_sha256": "59867129891eb0802fc9f5158f8185daaca82f320ceb9bb9bb6d6a25d8975cc2",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 30,
+            "end": 84
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "08-nested-map",
+      "purpose": "symbolic T substitution through existing acyclic helper composition",
+      "input": "cases/08-nested-map/main.zil",
+      "input_sha256": "8056aad81946f5b148fd652ecfd3cd46ae8790bcf0bb821f6534920f3425c883",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 46
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "09-fnmut-copy",
+      "purpose": "existing mutable environment mode plus Copy data",
+      "input": "cases/09-fnmut-copy/main.zil",
+      "input_sha256": "82e2c91c678c2d84de37a6a6b242f8edcb116bd766633ddf9984895f4bf94d3a",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 54
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "10-fnonce-copy",
+      "purpose": "existing owned environment mode plus Copy data",
+      "input": "cases/10-fnonce-copy/main.zil",
+      "input_sha256": "01899d0e13102270ec694b5c04f07b6f0dd59523f0e3c903ee0b7317e6c5b8eb",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 50
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "11-copy-address-parameter",
+      "purpose": "189 explicit address shape must survive substitution",
+      "input": "cases/11-copy-address-parameter/main.zil",
+      "input_sha256": "50d4fc62306762ea4ddc61dea6ad3f499b7362d9511819a18522815a849ad758",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 61
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "12-unused-bad-copy-body",
+      "purpose": "unused Copy bound grants no numeric capability",
+      "input": "cases/12-unused-bad-copy-body/main.zil",
+      "input_sha256": "ed3bd51017f0d29c76281fb87b71daf9ae19c6776f59426b1294538ff9b679b9",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 44
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "13-unbounded-data-type",
+      "purpose": "proposed slice does not infer a missing Copy bound from one scalar use",
+      "input": "cases/13-unbounded-data-type/main.zil",
+      "input_sha256": "573a05713187f4a23b0d9c8d55973d38e97558d580c8492a24ab7550ce877ec9",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 42
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "14-owned-package-data",
+      "purpose": "Copy generic must not admit an owning Package",
+      "input": "cases/14-owned-package-data/main.zil",
+      "input_sha256": "eae8f46a0f0c1d74b268e724405903af06a38378b1011249b7c9f0a40a70c86f",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 39,
+            "end": 90
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "15-two-parameters-one-f",
+      "purpose": "unchanged historical audit input; two runtime environment roles",
+      "input": "cases/15-two-parameters-one-f/main.zil",
+      "input_sha256": "a046e733c9cfb41e105f54adf9405b5b6ddc88af8aa3c9db93ff7c81f6bf6e48",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>",
+          "span": {
+            "file": 0,
+            "start": 27,
+            "end": 31
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "16-two-callable-types",
+      "purpose": "unchanged historical audit input; independent environments",
+      "input": "cases/16-two-callable-types/main.zil",
+      "input_sha256": "a910b30e3f3b6717e81e699ec9e4b4e414c24416c353c4adf09891e830d19d96",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 71
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "17-nested-mixed-mode",
+      "purpose": "existing explicit boundary between parent and child declared modes",
+      "input": "cases/17-nested-mixed-mode/main.zil",
+      "input_sha256": "1d78ab97792c1d1150668b5fdff0a53a4b47f8c02d6401bc57dd37c269c23a55",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "nested synchronous helpers require the same declared callable kind",
+          "span": {
+            "file": 0,
+            "start": 83,
+            "end": 91
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "18-mode-adaptation-control",
+      "purpose": "one concrete Fn environment may instantiate separate Fn and FnMut helpers",
+      "input": "cases/18-mode-adaptation-control/main.zil",
+      "input_sha256": "2d8555b70dabf502c2a9b1e3be66e106c1b627e603a380e4e7023e2b59169d54",
+      "exit_code": 0,
+      "requested_stop_after": "verify",
+      "status": "Success",
+      "stop_phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    },
+    {
+      "name": "19-runtime-loop-copy",
+      "purpose": "existing Flow loop with ordinary Copy carrier",
+      "input": "cases/19-runtime-loop-copy/main.zil",
+      "input_sha256": "fbeb0001601015a76878ee33ee9d3dda0896ee866ae23d34877004890fe1568b",
+      "exit_code": 3,
+      "requested_stop_after": "verify",
+      "status": "Unsupported",
+      "stop_phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 111
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "cache_hit": false,
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        }
+      ],
+      "native_executed": 0
+    }
+  ],
+  "note": "Observed acceptance and rejection, not a 194 implementation or acceptance verdict. All original failures retained."
+}

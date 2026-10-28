@@ -1,0 +1,1 @@
+fn keep<T:Copy,F:Fn()->i32>(f:&F,x:T)->T{f();return x}fn main()->i32{let f=move()=>1;let a:i32=keep(&f,i32(7));let b:i64=keep(&f,i64(9));return a+i32(b)-16}
