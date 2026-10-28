@@ -73,11 +73,13 @@ pub(super) fn field_root(
     };
     // Package validation separately proves the real inline field layout and
     // self-contained callback environment. Never infer separation from a name
-    // or a distinct payload type. Unknown user cleanup keeps its coarse root.
+    // or a distinct payload type. User resources must have an independently
+    // checked nominal finite Copy record payload; opaque carriers stay coarse.
     resources::charge_payload(ty, budget)?;
     Ok(
         if ty.is_copy_value()
             || matches!(ty, Type::Closure(_))
+            || matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value())
             || byte_buffers::is_owned(ty)
             || matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. }))
         {
