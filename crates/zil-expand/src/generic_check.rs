@@ -243,7 +243,7 @@ fn group(ty: &TypeRef) -> &TypeRef {
         _ => ty,
     }
 }
-fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
+pub(super) fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
     match &ty.kind {
         TypeKind::Named { path, args } => {
             path.len() == 1 && vars.contains(&path[0])
