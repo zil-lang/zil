@@ -618,7 +618,7 @@ impl<'a> Engine<'a> {
                 body,
                 pattern,
             } => {
-                let ty = self.expr(iterable, env, depth + 1)?;
+                let ty = self.range_expression(iterable, env, depth + 1)?;
                 let mut inner = self.clone_env(env)?;
                 bind(pattern, ty, &mut inner);
                 self.block(body, &mut inner, depth + 1)?;
@@ -651,6 +651,265 @@ impl<'a> Engine<'a> {
             }
         }
     }
+    fn range_expression(
+        &mut self,
+        expression: &mut Expr,
+        env: &mut Env,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        self.tick(expression.span, depth)?;
+        match &mut expression.kind {
+            ExprKind::Group(inner) => self.range_expression(inner, env, depth + 1),
+            ExprKind::Binary {
+                op: BinaryOp::Range,
+                left,
+                right,
+            } => {
+                let hint = match self.range_hint(left, env, depth + 1)? {
+                    Some(ty) => Some(ty),
+                    None => self.range_hint(right, env, depth + 1)?,
+                };
+                // The lookahead never transforms or evaluates an endpoint.
+                // Actual expansion and runtime evaluation keep source order.
+                let start = self.expr_expected(left, env, hint.as_ref(), depth + 1)?;
+                self.expr_expected(right, env, start.as_ref(), depth + 1)?;
+                Ok(start)
+            }
+            _ => self.expr(expression, env, depth + 1),
+        }
+    }
+
+    /// Read-only type hints for a range. This does not instantiate a function,
+    /// consume an argument, update the AST or confer any typing authority.
+    fn range_hint(&mut self, e: &Expr, env: &Env, depth: usize) -> R<Option<TypeRef>> {
+        self.tick(e.span, depth)?;
+        match &e.kind {
+            ExprKind::Name(name) => {
+                self.budget.text(name, e.span)?;
+                let ty = env.get(name).and_then(Option::as_ref);
+                if let Some(ty) = ty {
+                    self.budget.ty(ty)?;
+                }
+                Ok(ty.cloned())
+            }
+            ExprKind::Literal(Literal::Integer(text)) => {
+                self.budget.text(text, e.span)?;
+                Ok(["u8", "u16", "i32", "i64"]
+                    .into_iter()
+                    .find(|suffix| text.ends_with(suffix))
+                    .map(|suffix| named(suffix, e.span)))
+            }
+            ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", e.span))),
+            ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
+                self.range_hint(inner, env, depth + 1)
+            }
+            ExprKind::Unary {
+                op: UnaryOp::Not, ..
+            } => Ok(Some(named("bool", e.span))),
+            ExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } => {
+                let Some(ty) = self.range_hint(operand, env, depth + 1)? else {
+                    return Ok(None);
+                };
+                let TypeKind::Reference { inner, .. } = &grouped(&ty).kind else {
+                    return Ok(None);
+                };
+                self.budget.ty(inner)?;
+                Ok(Some(*inner.clone()))
+            }
+            ExprKind::Unary { operand, .. } => self.range_hint(operand, env, depth + 1),
+            ExprKind::Binary {
+                op:
+                    BinaryOp::Equal
+                    | BinaryOp::NotEqual
+                    | BinaryOp::Less
+                    | BinaryOp::LessEqual
+                    | BinaryOp::Greater
+                    | BinaryOp::GreaterEqual
+                    | BinaryOp::And
+                    | BinaryOp::Or,
+                ..
+            } => Ok(Some(named("bool", e.span))),
+            ExprKind::Binary { left, right, .. } => match self.range_hint(left, env, depth + 1)? {
+                Some(ty) => Ok(Some(ty)),
+                None => self.range_hint(right, env, depth + 1),
+            },
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => match self.range_hint(then_value, env, depth + 1)? {
+                Some(ty) => Ok(Some(ty)),
+                None => self.range_hint(else_value, env, depth + 1),
+            },
+            ExprKind::Try(operand) => {
+                let Some(ty) = self.range_hint(operand, env, depth + 1)? else {
+                    return Ok(None);
+                };
+                let TypeKind::Error { result, .. } = &grouped(&ty).kind else {
+                    return Ok(None);
+                };
+                self.budget.ty(result)?;
+                Ok(Some(*result.clone()))
+            }
+            ExprKind::Index { object, .. } | ExprKind::Member { object, .. } => {
+                let Some(ty) = self.range_hint(object, env, depth + 1)? else {
+                    return Ok(None);
+                };
+                let original = self.original_type(projection_shape(&ty))?;
+                match (&e.kind, &grouped(&original).kind) {
+                    (ExprKind::Index { .. }, TypeKind::Array { element, .. }) => {
+                        self.budget.ty(element)?;
+                        Ok(Some(*element.clone()))
+                    }
+                    (
+                        ExprKind::Member {
+                            member: MemberName::TupleIndex(index),
+                            ..
+                        },
+                        TypeKind::Tuple(fields),
+                    ) => {
+                        let field = fields.get(*index as usize);
+                        if let Some(field) = field {
+                            self.budget.ty(field)?;
+                        }
+                        Ok(field.cloned())
+                    }
+                    (
+                        ExprKind::Member {
+                            member: MemberName::Name(member),
+                            ..
+                        },
+                        TypeKind::Named { path, args },
+                    ) => {
+                        for part in path {
+                            self.budget.text(part, e.span)?;
+                        }
+                        let Some(Item {
+                            kind: ItemKind::Aggregate(decl),
+                            ..
+                        }) = self.nominals.get(&path.join("."))
+                        else {
+                            return Ok(None);
+                        };
+                        for field in &decl.fields {
+                            self.budget.text(&field.name, e.span)?;
+                        }
+                        let Some(field) = decl.fields.iter().find(|f| f.name == *member) else {
+                            return Ok(None);
+                        };
+                        if decl.generics.len() != args.len() {
+                            return Ok(None);
+                        }
+                        let mut found = BTreeMap::new();
+                        for (parameter, argument) in decl.generics.iter().zip(args) {
+                            let GenericArg::Type(ty) = argument else {
+                                return Ok(None);
+                            };
+                            self.budget.text(&parameter.name, e.span)?;
+                            self.budget.ty(ty)?;
+                            found.insert(parameter.name.clone(), ty.clone());
+                        }
+                        enums::substituted(&field.ty, &found, &mut self.budget).map(Some)
+                    }
+                    _ => Ok(None),
+                }
+            }
+            ExprKind::Call { callee, arguments } => {
+                if let Some(name) = super::integer_conversion_name(callee) {
+                    return Ok(Some(named(name, e.span)));
+                }
+                if let ExprKind::Member {
+                    object,
+                    member: MemberName::Name(name),
+                } = &callee.kind
+                {
+                    if name == "len"
+                        && self.range_hint(object, env, depth + 1)?.is_some_and(|ty| {
+                            matches!(&grouped(&ty).kind, TypeKind::Reference { inner, .. }
+                            if matches!(grouped(inner).kind, TypeKind::Array { length: None, .. }))
+                        })
+                    {
+                        return Ok(Some(named("i64", e.span)));
+                    }
+                    return Ok(None);
+                }
+                let (target, explicit) = match &callee.kind {
+                    ExprKind::Name(name) => (name, None),
+                    ExprKind::TypeApply { callee, arguments } => match &callee.kind {
+                        ExprKind::Name(name) => (name, Some(arguments)),
+                        _ => return Ok(None),
+                    },
+                    _ => return Ok(None),
+                };
+                self.budget.text(target, e.span)?;
+                if matches!(
+                    target.as_str(),
+                    "bytes_len" | "bytes_capacity" | "store_len" | "store_capacity"
+                ) {
+                    return Ok(Some(named("i64", e.span)));
+                }
+                if let Some(local) = env.get(target) {
+                    let result = local.as_ref().and_then(|ty| match &grouped(ty).kind {
+                        TypeKind::Function { result, .. } => Some(result.as_ref()),
+                        _ => callable::opaque_signature(ty).map(|(_, _, result)| result),
+                    });
+                    if let Some(result) = result {
+                        self.budget.ty(result)?;
+                    }
+                    return Ok(result.cloned());
+                }
+                let mut actuals = Vec::new();
+                for arg in arguments {
+                    actuals.push(self.range_hint(&arg.value, env, depth + 1)?);
+                }
+                let Some(function) = self.signatures.get(target) else {
+                    return Ok(None);
+                };
+                let Some(result) = &function.return_type else {
+                    return Ok(Some(check::unit(e.span)));
+                };
+                let mut variables = BTreeSet::new();
+                for parameter in &function.generics {
+                    self.budget.text(&parameter.name, e.span)?;
+                    variables.insert(parameter.name.clone());
+                }
+                self.budget.ty(result)?;
+                let mut found = BTreeMap::new();
+                if let Some(arguments) = explicit {
+                    if arguments.len() != function.generics.len() {
+                        return Ok(None);
+                    }
+                    for (parameter, argument) in function.generics.iter().zip(arguments) {
+                        let GenericArg::Type(ty) = argument else {
+                            return Ok(None);
+                        };
+                        self.budget.text(&parameter.name, e.span)?;
+                        self.budget.ty(ty)?;
+                        found.insert(parameter.name.clone(), ty.clone());
+                    }
+                }
+                for (parameter, actual) in function.params.iter().zip(actuals) {
+                    if let Some(actual) = actual {
+                        unify(
+                            &parameter.ty,
+                            &actual,
+                            &variables,
+                            &mut found,
+                            e.span,
+                            &mut self.budget,
+                        )?;
+                    }
+                }
+                let result = enums::substituted(result, &found, &mut self.budget)?;
+                Ok((!check::dependent(&result, &variables)).then_some(result))
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn expr(&mut self, e: &mut Expr, env: &mut Env, depth: usize) -> R<Option<TypeRef>> {
         self.expr_expected(e, env, None, depth)
     }

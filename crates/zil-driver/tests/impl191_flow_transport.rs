@@ -1,4 +1,4 @@
-//! Public graph claims remain untrusted before runtime helper semantics exist.
+//! Public graph claims remain untrusted when runtime helper semantics exist.
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_ir::{
     CallableExit, CallableFlow, CallableFlowNext, CallableFlowNode, CallableKind, CallableTraces,
@@ -71,8 +71,13 @@ fn flow_transport_roundtrip_does_not_grant_analysis_or_verification() {
     ] {
         assert!(
             errors.iter().any(|d| d.phase == phase
-                && d.category == ResultCategory::Unsupported
-                && d.message.contains("Flow semantics")),
+                && d.category == ResultCategory::SafeReject
+                && d.code
+                    == if phase == Phase::Analyze {
+                        "E-ANALYZE-IR"
+                    } else {
+                        "E-VERIFY-CALLABLE-CONTRACT"
+                    }),
             "{errors:?}"
         );
     }
