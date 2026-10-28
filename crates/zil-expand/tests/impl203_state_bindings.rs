@@ -219,7 +219,13 @@ fn relay<F: Fn() -> i32, G: FnOnce() -> i32>(state: State<i32,F,G>) -> State<i32
     assert_eq!(identity.type_parameters.len(), 1);
     assert!(identity.state_parameters.is_empty());
     assert!(identity.callable_parameters.is_empty());
-    assert!(format!("{core:#?}").contains("TypeApply"));
+    // With value inference in the final 203 contract, this implicit call may
+    // remain static without manufacturing the producer's F/G as a type arg.
+    let explicit = expand(&source.replace(
+        "return identity(state)",
+        "return identity::<State<i32,F,G>>(state)",
+    ));
+    assert!(format!("{explicit:#?}").contains("TypeApply"));
 }
 
 #[test]
@@ -335,4 +341,90 @@ fn extract<F: Fn() -> i32, G: FnOnce() -> i32>(state: State<i32,F,G>) -> Item<F>
         families.push(nominal.rsplit_once('_').unwrap().0);
     }
     assert_eq!(families[0], families[1]);
+}
+
+#[test]
+fn an_owned_dual_state_can_remain_complete_on_an_error_union_side() {
+    let original = include_str!("impl203_fixtures/05_independent_error_side.zil");
+    let core = expand(original);
+    expand(&original.replace("    return 0\n}", "    return -1\n}"));
+    let function = core
+        .functions
+        .iter()
+        .find(|f| !f.state_parameters.is_empty())
+        .unwrap();
+    assert_eq!(function.state_parameters[0].bindings.len(), 2);
+    assert!(matches!(function.return_type, Type::ErrorUnion { .. }));
+    for changed in [
+        original.replace(
+            "error_route::<State<T,F,G>>(full)",
+            "error_route::<State<T,G,F>>(full)",
+        ),
+        original.replace(
+            "let routed:State<T,F,G>!void",
+            "let routed:void!State<T,F,G>",
+        ),
+        original.replace("->State<T,F,G>!i32", "->(State<T,F,G>, i32)"),
+        original.replace("    return 0\n}", "    return true\n}"),
+        original.replace("    return 0\n}", "    return i64(0)\n}"),
+    ] {
+        let errors = rejection(&changed);
+        assert!(
+            errors.iter().any(|d| matches!(
+                d.category,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            )),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn non_generic_values_keep_original_ordinary_templates_without_fake_binders() {
+    let prefix = SAME.split("fn main()").next().unwrap();
+    let source = format!(
+        r#"{prefix}
+fn identity<T: StoreElement>(value: T) -> T {{ return value }}
+fn route<T: StoreElement>(value: T!void) -> T!void {{ return value }}
+fn empty<T: StoreElement>() -> Store<T> contract {{ result(create) }} {{ return store_new() }}
+fn main() -> i32 {{
+    let first = pack(make(65, 10), make(66, 20), 17)
+    let copied_name = identity(first)
+    let result = run(copied_name)
+    return result.0
+}}
+"#
+    );
+    let core = expand(&source);
+    let main = core.functions.iter().find(|f| f.name == "main").unwrap();
+    assert!(main.state_parameters.is_empty());
+    assert!(main.callable_parameters.is_empty());
+    assert!(main.type_parameters.is_empty());
+    let original = core
+        .functions
+        .iter()
+        .find(|f| f.name == "identity")
+        .unwrap();
+    assert_eq!(original.type_parameters.len(), 1);
+    assert!(!format!("{:#?}", main.body).contains("TypeApply"));
+    assert!(format!("{:#?}", main.body).contains("identity"));
+    // A real producer in the same function cannot seed an unrelated empty
+    // factory, a bare callable variable, or a fake explicit out-of-scope F/G.
+    for changed in [
+        source.replace("identity(first)", "empty()"),
+        source.replace("identity(first)", "identity::<State<i32,F,G>>(first)"),
+        source.replace(
+            "let copied_name = identity(first)",
+            "let f = identity; let copied_name = f(first)",
+        ),
+    ] {
+        let errors = rejection(&changed);
+        assert!(
+            errors.iter().any(|d| matches!(
+                d.category,
+                ResultCategory::Unsupported | ResultCategory::SafeReject
+            )),
+            "{errors:?}"
+        );
+    }
 }
