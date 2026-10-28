@@ -969,7 +969,7 @@ pub(super) fn check(
                 }
                 InstructionKind::CallClosureMut { callee, arguments }
                 | InstructionKind::CallClosureShared { callee, arguments } => {
-check_pairs(arguments, module, f, &flow, span, apart_ref, budget)?;
+                    check_pairs(arguments, module, f, &flow, span, apart_ref, budget)?;
                     access.check(
                         &empty,
                         &[Root::Local(*callee)],
