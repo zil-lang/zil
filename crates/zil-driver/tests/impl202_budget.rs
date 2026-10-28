@@ -114,12 +114,14 @@ fn pre202_callback_store_paths_keep_their_recorded_types_boundaries() {
             .replace("second.callback()", "invoke(&mut second.callback)")
     );
     let nested = measure("old-nested-helper", &nested, Some((11792, 40)));
-    // Record every unchanged input and its real N/N-1/fresh checks before an
-    // aggregate assertion can fail. The original 201 expectations remain here
-    // until a separately recorded migration establishes every new boundary.
+    // 205 checks the old State definitions as well as their concrete instances.
+    // Keep the original 201 values in each boundary record above; only the work
+    // limits change after measuring these exact sources, including N-1/fresh.
+    // See changes/205-legacy-types-budget.md for the original failure and the
+    // accepted 204 baseline, whose test and input bytes were identical.
     assert_eq!(
         [original, pair, nested],
-        [(4241, 16), (11851, 39), (11792, 40)],
-        "measured on accepted 201 f484589d, original bytes unchanged"
+        [(6326, 16), (29030, 39), (29566, 40)],
+        "205 measured State definition checks; original 201 input bytes unchanged"
     );
 }
