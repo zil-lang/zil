@@ -554,3 +554,47 @@ fn impl204_owning_store_qualification_has_an_exact_fresh_work_boundary() {
     admit(&m, &ty, &exact).unwrap();
     println!("impl204 independent owning Store qualification work={n}");
 }
+
+#[test]
+fn impl204_callable_types_cannot_hide_in_copy_leaf_fields_or_resource_heads() {
+    let limits = Limits::default();
+    for callback in [
+        Type::Closure(ClosureId(0)),
+        Type::FunctionPointer {
+            parameters: vec![],
+            result: Box::new(Type::I32),
+        },
+        Type::ForeignCallback {
+            parameters: vec![],
+            result: Box::new(Type::I32),
+        },
+    ] {
+        for inside_resource in [false, true] {
+            let (mut store, _) = captured_leaf_store();
+            let Type::Managed(payload) = &mut store else {
+                unreachable!()
+            };
+            let Type::OwnedStore { element: leaf } = payload.as_mut() else {
+                unreachable!()
+            };
+            let Type::Package { fields, .. } = leaf.as_mut() else {
+                unreachable!()
+            };
+            let hidden = Type::Record {
+                name: "Hidden204".into(),
+                fields: vec![("callback".into(), Type::Tuple(vec![callback.clone()]))],
+            };
+            fields.push((
+                "extra".into(),
+                if inside_resource {
+                    Type::Managed(Box::new(hidden))
+                } else {
+                    hidden
+                },
+            ));
+            let m = module(vec![store]);
+            let error = admit(&m, &element(&[0]), &limits).unwrap_err();
+            assert!(error.message.contains("inner leaf types cannot hide"));
+        }
+    }
+}

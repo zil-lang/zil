@@ -20,6 +20,55 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
     element(ty).is_some()
 }
 
+fn check_capture_leaf_tree(element: &Type, budget: &mut Budget) -> Check<()> {
+    budget.spend(1)?;
+    let mut pending = vec![element];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1)?;
+        match ty {
+            Type::Closure(_)
+            | Type::FunctionPointer { .. }
+            | Type::ForeignCallback { .. }
+            | Type::OwnedStore { .. }
+            | Type::Address { .. }
+            | Type::Desc(_) => {
+                return Err(unsupported(
+                    "Store callback captures retain the finite owning environment profile: inner leaf types cannot hide callable, Store or borrowed fields",
+                    None,
+                ));
+            }
+            Type::Managed(inner)
+            | Type::Array { element: inner, .. }
+            | Type::Slice { element: inner }
+            | Type::Opaque { hidden: inner, .. } => {
+                budget.spend(1)?;
+                pending.push(inner);
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len())?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                budget.spend(2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 /// The inner Store of an owning capture deliberately uses the old leaf
 /// element profile, not the broader callback Store predicate. This check is
 /// also used while qualifying resource-only outer Store metadata, before the
@@ -43,6 +92,7 @@ fn check_captured_store(
     // Copy predicates or canonical identity allocation below.
     budget.spend(1)?;
     resources::charge_payload(element, budget)?;
+    check_capture_leaf_tree(element, budget)?;
     let Type::Package { name, fields } = element.as_ref() else {
         return Err(unsupported(
             "Store capture requires a finite leaf Package element",
