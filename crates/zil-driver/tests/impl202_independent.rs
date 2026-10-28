@@ -299,6 +299,25 @@ fn full_nominal_and_phantom_data_arguments_are_not_a_closure_only_instance_key()
 }
 
 #[test]
+fn ordinary_pop_success_payload_preserves_the_callback_helper_dependency() {
+    let helper = "fn invoke<G:FnMut()->i32>(callback:&mut G)->i32{return callback()}\n";
+    for phantom in [false, true] {
+        let original = nominal_pair_source(phantom, false);
+        let source = original.replace(
+            "return left.callback()+right.callback()-32",
+            "return invoke(&mut left.callback)+invoke(&mut right.callback)-32",
+        );
+        assert_ne!(source, original);
+        native(
+            &format!("ordinary-pop-success-helper-phantom-{phantom}"),
+            &format!("{helper}{source}"),
+            "2B1AZ",
+            0,
+        );
+    }
+}
+
+#[test]
 fn actual_desc_structural_writes_survive_nested_helper_parameter_remapping() {
     // Isolate actual parameter-remapped writes from the separate nominal-name
     // collision test; both must pass, but one early failure must not hide the
