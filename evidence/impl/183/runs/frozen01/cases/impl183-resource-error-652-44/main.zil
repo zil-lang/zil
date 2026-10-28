@@ -1,0 +1,1 @@
+resource R{n:i32}enum E{Fail}fn make()->E!R contract{result(create)}=>R{n:1};fn wrap(give r:R)->E!R contract{result(give)}=>give r;fn bad()->R!i32=>0;fn main(){}

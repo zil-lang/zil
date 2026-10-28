@@ -1,0 +1,723 @@
+{
+  "implementation_commit": "19f58c16ed800b0cee5a8afcc11908925920cd63",
+  "own_native_executions": [
+    {
+      "case": "frozen01/cases/impl183-loop-652-14",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4142",
+      "expected_stdout_hex": "4142"
+    },
+    {
+      "case": "frozen01/cases/impl183-staged-652-15",
+      "optimization": "O2",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "415a",
+      "expected_stdout_hex": "415a"
+    },
+    {
+      "case": "frozen01/cases/impl183-loop-652-13",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4142",
+      "expected_stdout_hex": "4142"
+    },
+    {
+      "case": "frozen01/cases/impl183-zero-resource-652-28",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "5a",
+      "expected_stdout_hex": "5a"
+    },
+    {
+      "case": "frozen01/cases/impl183-bytes-store-652-2",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4142",
+      "expected_stdout_hex": "4142"
+    },
+    {
+      "case": "frozen01/cases/impl183-padded-resource-652-19",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    },
+    {
+      "case": "frozen01/cases/impl183-create-give-652-3",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "415a",
+      "expected_stdout_hex": "415a"
+    },
+    {
+      "case": "frozen01/cases/impl183-question-created-652-38",
+      "optimization": "O0",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "4c4d",
+      "expected_stdout_hex": "4c4d"
+    },
+    {
+      "case": "frozen01/cases/impl183-staged-652-9",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "43415a",
+      "expected_stdout_hex": "43415a"
+    },
+    {
+      "case": "frozen01/cases/impl183-nll-652-49",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    },
+    {
+      "case": "frozen01/cases/impl183-create-give-652-6",
+      "optimization": "O2",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "5a",
+      "expected_stdout_hex": "5a"
+    },
+    {
+      "case": "frozen01/cases/impl183-discard-652-5",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4141",
+      "expected_stdout_hex": "4141"
+    },
+    {
+      "case": "frozen01/cases/impl183-staged-652-12",
+      "optimization": "O0",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "415a",
+      "expected_stdout_hex": "415a"
+    },
+    {
+      "case": "frozen01/cases/impl183-prepare-failure-652-17",
+      "optimization": "O0",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "425a41",
+      "expected_stdout_hex": "425a41"
+    },
+    {
+      "case": "frozen01/cases/impl183-modules-652-24",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    },
+    {
+      "case": "frozen01/cases/impl183-failure-no-owner-652-11",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "5a41",
+      "expected_stdout_hex": "5a41"
+    },
+    {
+      "case": "frozen01/cases/impl183-create-give-652-4",
+      "optimization": "O0",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "5a",
+      "expected_stdout_hex": "5a"
+    },
+    {
+      "case": "frozen01/cases/impl183-question-created-652-26",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4c414d",
+      "expected_stdout_hex": "4c414d"
+    },
+    {
+      "case": "frozen01/cases/impl183-padded-resource-652-25",
+      "optimization": "O2",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "",
+      "expected_stdout_hex": ""
+    },
+    {
+      "case": "frozen01/cases/impl183-discard-652-7",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4141",
+      "expected_stdout_hex": "4141"
+    },
+    {
+      "case": "frozen01/cases/impl183-failure-no-owner-652-8",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "5a41",
+      "expected_stdout_hex": "5a41"
+    },
+    {
+      "case": "frozen01/cases/impl183-prepare-failure-652-20",
+      "optimization": "O2",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "425a41",
+      "expected_stdout_hex": "425a41"
+    },
+    {
+      "case": "frozen01/cases/impl183-zero-resource-652-27",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "5a",
+      "expected_stdout_hex": "5a"
+    },
+    {
+      "case": "frozen01/cases/impl183-question-created-652-48",
+      "optimization": "O2",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "4c4d",
+      "expected_stdout_hex": "4c4d"
+    },
+    {
+      "case": "frozen01/cases/impl183-padded-resource-652-22",
+      "optimization": "O0",
+      "exit_code": 1,
+      "expected_exit": 1,
+      "stdout_hex": "",
+      "expected_stdout_hex": ""
+    },
+    {
+      "case": "frozen01/cases/impl183-staged-652-10",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "43415a",
+      "expected_stdout_hex": "43415a"
+    },
+    {
+      "case": "frozen01/cases/impl183-question-created-652-29",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4c414d",
+      "expected_stdout_hex": "4c414d"
+    },
+    {
+      "case": "frozen01/cases/impl183-nll-652-47",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    },
+    {
+      "case": "frozen01/cases/impl183-bytes-store-652-0",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "4142",
+      "expected_stdout_hex": "4142"
+    },
+    {
+      "case": "frozen01/cases/impl183-create-give-652-1",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "415a",
+      "expected_stdout_hex": "415a"
+    },
+    {
+      "case": "frozen01/cases/impl183-modules-652-23",
+      "optimization": "O0",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    },
+    {
+      "case": "frozen01/cases/impl183-padded-resource-652-21",
+      "optimization": "O2",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "stdout_hex": "41",
+      "expected_stdout_hex": "41"
+    }
+  ],
+  "own_source_rejections": [
+    {
+      "case": "frozen01/cases/impl183-implicit-result-652-30",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+          "span": {
+            "file": 0,
+            "start": 131,
+            "end": 153
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-create-resource-input-652-41",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: create result forwards an incoming responsibility",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-create-rewrap-input-652-40",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: create result forwards an incoming responsibility",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-implicit-parameter-652-31",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+          "span": {
+            "file": 0,
+            "start": 138,
+            "end": 143
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-union-reassignment-652-42",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "owned error-union whole-local reassignment requires a retained slot",
+          "span": {
+            "file": 0,
+            "start": 154,
+            "end": 162
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-give-union-652-34",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-GIVE-TYPE",
+          "message": "give requires a managed resource carrier",
+          "span": {
+            "file": 0,
+            "start": 160,
+            "end": 166
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-duplicate-union-652-35",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 0 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 168,
+            "end": 169
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-entry-boundary-652-16",
+      "status": "Unsupported",
+      "phase": "codegen",
+      "diagnostics": [
+        {
+          "phase": "codegen",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "native main must return i32, unit, E!i32, or E!unit",
+          "span": {
+            "file": 0,
+            "start": 12,
+            "end": 73
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-union-capture-652-43",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer",
+          "span": {
+            "file": 0,
+            "start": 175,
+            "end": 176
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-give-descriptor-652-32",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-GIVE-DESCRIPTOR",
+          "message": "a descriptor does not own the resource carrier",
+          "span": {
+            "file": 0,
+            "start": 177,
+            "end": 187
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-descriptor-injection-652-33",
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-ERROR-INJECTION",
+          "message": "Desc(Record { name: \"@module0:R\", fields: [(\"n\", I32)] }) matches neither payload of ErrorUnion { error: Enum { name: \"@module0:E\", variants: [(\"Fail\", [])] }, result: Managed(Record { name: \"@module0:R\", fields: [(\"n\", I32)] }) }",
+          "span": {
+            "file": 0,
+            "start": 172,
+            "end": 173
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-resource-error-652-44",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+          "span": {
+            "file": 0,
+            "start": 131,
+            "end": 150
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-duplicate-owner-652-36",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 1 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 184,
+            "end": 190
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-package-error-resource-success-652-45",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+          "span": {
+            "file": 0,
+            "start": 153,
+            "end": 200
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-live-byte-window-652-46",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use",
+          "span": {
+            "file": 0,
+            "start": 169,
+            "end": 175
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-create-input-union-652-39",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: create result forwards an incoming responsibility",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-live-description-652-37",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: head transition invalidates a description required later",
+          "span": null,
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "raw_mutations": [
+    {
+      "case": "frozen01/cases/impl183-raw-opposite-tag-edge-794-1",
+      "candidate_sha256": "3d13c7b523c8bb8cb0cd689ed6c5deb3fc9350c429932e900b98391f6867a0ff",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-direct-resource-error-794-14",
+      "candidate_sha256": "ad9ee0273f54f2e29da94cc6c6b1d5c5c92d3a84550bf64a9a2ea5f014fc423a",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-incoming-as-create-wrap-794-13",
+      "candidate_sha256": "fba83a4dbfefd5cd05311e3e4dd30fc3efce3045cc0edefc69fb95652e3a2194",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-invented-tag-794-2",
+      "candidate_sha256": "ffbb46b91ea985b86fd9c4ee84073655749f645bd28a4f59f0cbe9d8c203fd48",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-omitted-cleanup-794-8",
+      "candidate_sha256": "302de8e214d645cd5aee51efcd2cfcd011c6fd4b9b2074eadaa8a70ed6419f05",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-nonconsuming-success-794-5",
+      "candidate_sha256": "e4b446ac4e79ff78b1b4fc440b45011a9c3064c5d5a7645969b1f391ec095693",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-unknown-resource-794-16",
+      "candidate_sha256": "b4532899df03db0bca5b90e98608b94f4f14ead37ccc44d0f0b9de23863c03df",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-nested-owned-error-794-15",
+      "candidate_sha256": "cc0f7293d054a058d0c2e4982c0047b522827e4077aae9db67be6b6b6a254563",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-missing-result-mode-794-9",
+      "candidate_sha256": "3672d7c133632de25dd3ea5c209b976d931e1ffbd1417431061b746a19ee388e",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-copy-union-local-794-7",
+      "candidate_sha256": "cd6bcd029453a7493cb97b765553d14303e4198f2ed6ef2a6b5c87e0c192dc53",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-descriptor-as-owner-794-6",
+      "candidate_sha256": "17ad87253d753541b1297328ce889df7994bffff51c5bba0d69398db054784a6",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-duplicate-take-794-0",
+      "candidate_sha256": "7f1c444450594339534f50a9f93f30560e1b11f8f04ae1367c36bbf2e408d586",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-duplicate-success-injection-794-3",
+      "candidate_sha256": "c491b70a87c32cbbdae2a46dafd6b40d2d868f07018e5f56a198a8e9dea0843f",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-owner-in-error-arm-794-4",
+      "candidate_sha256": "216069d5111c14698c9fdb2acec478b0f1eb25179deda1c608a9ecf691762474",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-tag-after-transfer-794-12",
+      "candidate_sha256": "1f86624873cbf7b130e3fd44de2430ce91e2316c8b3f8f9e34a84bac02243a77",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-owned-success-capture-794-17",
+      "candidate_sha256": "d9d1e3eee7ebe378f8b3faa6d4e25eb8f4b49564e6b94fa033c80b764008e532",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-incoming-as-create-rewrap-794-11",
+      "candidate_sha256": "f77407d3c4b2239af4b830042e0d75fde8087b442ac9ddabf4bdc5b4f29a13af",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    },
+    {
+      "case": "frozen01/cases/impl183-raw-incoming-as-create-pass-794-10",
+      "candidate_sha256": "ad9546874cd8c81f9924342c77db782016800bc1af0561d59e139461f61d98f5",
+      "routes": [
+        "raw",
+        "wire"
+      ]
+    }
+  ],
+  "consumer_records": [
+    "runs/linux-final01/summary.json",
+    "runs/win64-final01/summary.json"
+  ],
+  "consumer_executions": 124,
+  "actual_allocation_failure_injections": 72,
+  "native_windows": "NotRun"
+}

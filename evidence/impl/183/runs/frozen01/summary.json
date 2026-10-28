@@ -1,0 +1,80 @@
+{
+  "source_commit": "19f58c16ed800b0cee5a8afcc11908925920cd63",
+  "dirty": "",
+  "results": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl183_owned_resource_results",
+        "--test",
+        "impl183_raw_owned_success",
+        "--test",
+        "impl166_owned_results",
+        "--test",
+        "impl163_resource_methods",
+        "--test",
+        "impl171_resource_heads",
+        "--test",
+        "impl172_owned_store",
+        "--test",
+        "impl181_win64_store",
+        "-j2",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 8.750178575515747
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--check",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-verify",
+        "-p",
+        "zil-lower",
+        "-p",
+        "zil-backend-llvm",
+        "-p",
+        "zil-driver"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 1.0152196884155273
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl183_owned_resource_results",
+        "--test",
+        "impl183_raw_owned_success",
+        "-j2",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 0.10432600975036621
+    }
+  ],
+  "status": "Pass"
+}

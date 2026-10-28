@@ -1,0 +1,121 @@
+{
+  "task": "183",
+  "implementation_author": "/root/design14_acceptance",
+  "implementation_commit": "19f58c16ed800b0cee5a8afcc11908925920cd63",
+  "status": "Pass",
+  "scope": "Finite direct Managed success payloads with Copy errors: ByteBuffer, nominal finite user resource, concrete Store<Package>; author bounded slice only.",
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "642f7de6249bdc52b42fd3c2ad16059cc801ae68c9c94cce83f205c51a55e063",
+  "schema_version": 22,
+  "rule_version": "ZIL-LANG-1.4",
+  "checks": {
+    "final_bounded": {
+      "record": "runs/frozen01/summary.json",
+      "passed": 92,
+      "failed": 0,
+      "ignored": 0,
+      "suites": {
+        "impl163_resource_methods": 25,
+        "impl166_owned_results": 13,
+        "impl171_resource_heads": 17,
+        "impl172_owned_store": 16,
+        "impl181_win64_store": 3,
+        "impl183_owned_resource_results": 13,
+        "impl183_raw_owned_success": 5
+      }
+    },
+    "own_tests": {
+      "groups": 18,
+      "native_executions": 32,
+      "raw_mutations": 18,
+      "raw_wire_routes": 36,
+      "source_rejections": 17
+    },
+    "quality": {
+      "format": "Pass",
+      "production_clippy": "runs/quality01/summary.json:results[1]",
+      "new_test_clippy": "runs/frozen01/summary.json:results[2]"
+    },
+    "linux_consumer": {
+      "record": "runs/linux-final01/summary.json",
+      "executions": 62,
+      "ordinary": 14,
+      "instrumented": 48,
+      "actual_failures": 36,
+      "status": "Pass"
+    },
+    "win64_consumer": {
+      "record": "runs/win64-final01/summary.json",
+      "execution": "Actual PE via Wine compatibility; independent prefix183",
+      "executions": 62,
+      "ordinary": 14,
+      "instrumented": 48,
+      "actual_failures": 36,
+      "status": "Pass"
+    }
+  },
+  "implemented": [
+    "Explicit create/give return and give parameter modes select the success Managed payload, leaving the outer union an affine ordinary Value.",
+    "Nominal/sealed supported resource admission and Copy error requirement are independently rechecked by Verify.",
+    "Analyze and Verify each preserve success birth through injection/extraction. Copy error injection carries no success freshness; an incoming resource cannot be laundered into create by wrapping, unwrapping or ordinary forwarding.",
+    "Ordinary parameters/returns, stored/discarded unions, question propagation, late argument and aggregate preparation failure, loop cleanup and NLL use existing exact ownership and tag checks.",
+    "LLVM direct payload cleanup uses the actual active tag and the existing verified teardown path; whole live responsibility clears before user Drop/free.",
+    "Concrete Store constructor expected type comes from the explicit owned success shape. No new public IR or opcode."
+  ],
+  "first_failures_preserved": [
+    {
+      "record": "runs/develop01/command.json",
+      "reason": "New test harness used wrong driver API types; production built, test harness did not. Corrected SourceUnit/ProjectSources calls."
+    },
+    {
+      "record": "runs/develop02/command.json",
+      "reason": "Types path implemented but Analyze preflight still rejected Managed success. Added finite success admission; next run passed."
+    },
+    {
+      "record": "runs/develop04/command.json",
+      "reason": "Cross-module test directly constructed a private field. Fixture now calls the public resource factory; privacy checks remain."
+    },
+    {
+      "record": "runs/cli-build01/command.json",
+      "reason": "Wrong Cargo package for CLI selected. Actual bin is zil-cli; no execution."
+    },
+    {
+      "record": "runs/cli-build02/command.json",
+      "reason": "Host Rust reported required zil_verify rlib unavailable although files existed. Identical production source built in fresh author183-final; precise compiler/cache cause not independently diagnosed. No language workaround."
+    },
+    {
+      "record": "runs/linux-consumer01/invocation-failure.json",
+      "reason": "Runner invoked without a built CLI after wrong-package error; no source compilation or execution."
+    },
+    {
+      "record": "runs/linux-consumer02/summary.json",
+      "reason": "Consumer fixture used unsupported unsafe expression syntax; changed to an unsafe statement assigning a local."
+    },
+    {
+      "record": "runs/linux-consumer03/summary.json",
+      "reason": "Consumer duplicated putchar foreign declaration across modules; changed to one model wrapper."
+    },
+    {
+      "record": "runs/quality01/summary.json",
+      "reason": "Raw test replace_box lint; only test allocation style changed, then frozen tests/Clippy passed."
+    }
+  ],
+  "remaining_boundaries": [
+    "Generic E!Store<T> and symbolic create/give success mode are not claimed; assigned separate186.",
+    "Resources in the error arm, arbitrary owning nested Sum, owning-union captures, whole-union reassignment, direct [R;N] default-category reinterpretation and lending escape remain closed.",
+    "Native main still requires Unit/i32 success; it does not silently discard a Managed success result.",
+    "No complete language, GUI, async, trait solver or Rust performance claim."
+  ],
+  "rust_four_goals": {
+    "safety": "Finite source/raw/Wire and actual failure cleanup checked; not a full-language proof.",
+    "runtime_memory": "Actual allocation/free and direct layout checked, no runtime or memory comparison to equivalent Rust.",
+    "expression_maintenance": "Four modules expose fallible resources without Package wrappers; no measured maintenance comparison.",
+    "compile_cost": "NotMeasured; compiler-speed line unchanged.",
+    "net_product_breakthrough": "NotProven"
+  },
+  "independent_review": "Pending",
+  "formal_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing"
+}

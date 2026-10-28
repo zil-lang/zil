@@ -1,0 +1,34 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.34s
+     Running tests/impl183_owned_resource_results.rs (/workspace/scratch/39be3faa4442/targets178/author183/debug/deps/impl183_owned_resource_results-cde2e45a50b8154c)
+
+running 11 tests
+test bytebuffer_and_store_success_payloads_reach_real_native_operations ... ok
+test create_and_give_success_transfer_once_and_copy_error_has_no_resource ... ok
+test discarded_and_stored_unions_drop_only_the_active_resource ... ok
+test failure_only_create_result_does_not_relabel_or_leak_an_incoming_owner ... ok
+test failed_later_argument_disposes_staged_union_before_older_local ... ok
+test original159_direct_bytebuffer_success_probe_is_accepted_without_rewriting ... ok
+test public_owned_success_crosses_four_modules_and_explicit_union_parameters ... FAILED
+test loop_and_prepare_failure_clean_actual_owned_success_once ... ok
+test source_ownership_modes_and_existing_rejection_boundaries_stay_explicit ... ok
+test unwrapped_payload_has_actual_description_and_nonlexical_lifetime ... ok
+test question_propagation_preserves_created_payload_and_each_cleanup_exit ... ok
+
+failures:
+
+---- public_owned_success_crosses_four_modules_and_explicit_union_parameters stdout ----
+
+thread 'public_owned_success_crosses_four_modules_and_explicit_union_parameters' (215) panicked at crates/zil-driver/tests/impl183_owned_resource_results.rs:75:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-FIELD-PRIVATE","message":"record construction requires access to every private field","span":{"file":2,"start":70,"end":86},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/183-author/develop04/cases/impl183-modules-141-18/phases/syntax.txt"},"input_fingerprint":"1a9475ed048e732c21b90523eddeda77b76b2f4d1eb4bdc6cd9726a57ad2b876","seconds":0.006241528,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil","1":"model.zil","2":"factory.zil","3":"adapter.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    public_owned_success_crosses_four_modules_and_explicit_union_parameters
+
+test result: FAILED. 10 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.51s
+
+error: test failed, to rerun pass `-p zil-driver --test impl183_owned_resource_results`

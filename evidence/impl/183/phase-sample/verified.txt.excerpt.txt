@@ -1,0 +1,354 @@
+393:             environment: None,
+394:             parameters: [],
+395:             return_type: ErrorUnion {
+396:                 error: Enum {
+397:                     name: "@module0:$module0_E",
+398:                     variants: [
+403:                     ],
+404:                 },
+405:                 result: Managed(
+406:                     ByteBuffer,
+407:                 ),
+408:             },
+414:                     ),
+415:                     name: "b",
+416:                     ty: Managed(
+417:                         ByteBuffer,
+418:                     ),
+419:                     mutable: false,
+428:             ],
+429:             values: [
+430:                 Managed(
+431:                     ByteBuffer,
+432:                 ),
+433:                 Desc(
+446:                     ],
+447:                 },
+448:                 ErrorUnion {
+449:                     error: Enum {
+450:                         name: "@module0:$module0_E",
+451:                         variants: [
+456:                         ],
+457:                     },
+458:                     result: Managed(
+459:                         ByteBuffer,
+460:                     ),
+461:                 },
+466:                 U8,
+467:                 Bool,
+468:                 Managed(
+469:                     ByteBuffer,
+470:                 ),
+471:                 ErrorUnion {
+472:                     error: Enum {
+473:                         name: "@module0:$module0_E",
+474:                         variants: [
+479:                         ],
+480:                     },
+481:                     result: Managed(
+482:                         ByteBuffer,
+483:                     ),
+484:                 },
+705:                                 ),
+706:                             ),
+707:                             kind: MakeErrorUnion {
+708:                                 is_error: true,
+709:                                 value: ValueId(
+710:                                     5,
+927:                                 ),
+928:                             ),
+929:                             kind: MakeErrorUnion {
+930:                                 is_error: false,
+931:                                 value: ValueId(
+932:                                     11,
+1034:             environment: None,
+1035:             parameters: [],
+1036:             return_type: ErrorUnion {
+1037:                 error: Enum {
+1038:                     name: "@module0:$module0_E",
+1039:                     variants: [
+1044:                     ],
+1045:                 },
+1046:                 result: Managed(
+1047:                     OwnedStore {
+1048:                         element: Package {
+1049:                             name: "@module0:$module0_P",
+1051:                                 (
+1052:                                     "r",
+1053:                                     Managed(
+1054:                                         Record {
+1055:                                             name: "@module0:$module0_R",
+1056:                                             fields: [
+1071:             locals: [],
+1072:             values: [
+1073:                 Managed(
+1074:                     OwnedStore {
+1075:                         element: Package {
+1076:                             name: "@module0:$module0_P",
+1078:                                 (
+1079:                                     "r",
+1080:                                     Managed(
+1081:                                         Record {
+1082:                                             name: "@module0:$module0_R",
+1083:                                             fields: [
+1094:                     },
+1095:                 ),
+1096:                 ErrorUnion {
+1097:                     error: Enum {
+1098:                         name: "@module0:$module0_E",
+1099:                         variants: [
+1104:                         ],
+1105:                     },
+1106:                     result: Managed(
+1107:                         OwnedStore {
+1108:                             element: Package {
+1109:                                 name: "@module0:$module0_P",
+1111:                                     (
+1112:                                         "r",
+1113:                                         Managed(
+1114:                                             Record {
+1115:                                                 name: "@module0:$module0_R",
+1116:                                                 fields: [
+1177:                                         (
+1178:                                             "r",
+1179:                                             Managed(
+1180:                                                 Record {
+1181:                                                     name: "@module0:$module0_R",
+1182:                                                     fields: [
+1206:                                 ),
+1207:                             ),
+1208:                             kind: MakeErrorUnion {
+1209:                                 is_error: false,
+1210:                                 value: ValueId(
+1211:                                     0,
+1283:             environment: None,
+1284:             parameters: [],
+1285:             return_type: ErrorUnion {
+1286:                 error: Enum {
+1287:                     name: "@module0:$module0_E",
+1288:                     variants: [
+1302:                     ),
+1303:                     name: "b",
+1304:                     ty: Managed(
+1305:                         ByteBuffer,
+1306:                     ),
+1307:                     mutable: false,
+1319:                     ),
+1320:                     name: "s",
+1321:                     ty: Managed(
+1322:                         OwnedStore {
+1323:                             element: Package {
+1324:                                 name: "@module0:$module0_P",
+1326:                                     (
+1327:                                         "r",
+1328:                                         Managed(
+1329:                                             Record {
+1330:                                                 name: "@module0:$module0_R",
+1331:                                                 fields: [
+1371:                     ),
+1372:                     name: "$record_field_1",
+1373:                     ty: Managed(
+1374:                         Record {
+1375:                             name: "@module0:$module0_R",
+1376:                             fields: [
+1396:                     ),
+1397:                     name: "$temporary4",
+1398:                     ty: Managed(
+1399:                         Record {
+1400:                             name: "@module0:$module0_R",
+1401:                             fields: [
+1421:                     ),
+1422:                     name: "$temporary5",
+1423:                     ty: ErrorUnion {
+1424:                         error: Package {
+1425:                             name: "@module0:$module0_P",
+1426:                             fields: [
+1427:                                 (
+1428:                                     "r",
+1429:                                     Managed(
+1430:                                         Record {
+1431:                                             name: "@module0:$module0_R",
+1432:                                             fields: [
+1474:             ],
+1475:             values: [
+1476:                 ErrorUnion {
+1477:                     error: Enum {
+1478:                         name: "@module0:$module0_E",
+1479:                         variants: [
+1484:                         ],
+1485:                     },
+1486:                     result: Managed(
+1487:                         ByteBuffer,
+1488:                     ),
+1489:                 },
+1498:                     ],
+1499:                 },
+1500:                 ErrorUnion {
+1501:                     error: Enum {
+1502:                         name: "@module0:$module0_E",
+1503:                         variants: [
+1510:                     result: I32,
+1511:                 },
+1512:                 Managed(
+1513:                     ByteBuffer,
+1514:                 ),
+1515:                 ErrorUnion {
+1516:                     error: Enum {
+1517:                         name: "@module0:$module0_E",
+1518:                         variants: [
+1523:                         ],
+1524:                     },
+1525:                     result: Managed(
+1526:                         OwnedStore {
+1527:                             element: Package {
+1528:                                 name: "@module0:$module0_P",
+1530:                                     (
+1531:                                         "r",
+1532:                                         Managed(
+1533:                                             Record {
+1534:                                                 name: "@module0:$module0_R",
+1535:                                                 fields: [
+1557:                     ],
+1558:                 },
+1559:                 ErrorUnion {
+1560:                     error: Enum {
+1561:                         name: "@module0:$module0_E",
+1562:                         variants: [
+1569:                     result: I32,
+1570:                 },
+1571:                 Managed(
+1572:                     OwnedStore {
+1573:                         element: Package {
+1574:                             name: "@module0:$module0_P",
+1576:                                 (
+1577:                                     "r",
+1578:                                     Managed(
+1579:                                         Record {
+1580:                                             name: "@module0:$module0_R",
+1581:                                             fields: [
+1599:                                 (
+1600:                                     "r",
+1601:                                     Managed(
+1602:                                         Record {
+1603:                                             name: "@module0:$module0_R",
+1604:                                             fields: [
+1627:                     ],
+1628:                 },
+1629:                 ErrorUnion {
+1630:                     error: Enum {
+1631:                         name: "@module0:$module0_E",
+1632:                         variants: [
+1646:                                 (
+1647:                                     "r",
+1648:                                     Managed(
+1649:                                         Record {
+1650:                                             name: "@module0:$module0_R",
+1651:                                             fields: [
+1664:                 I32,
+1665:                 I32,
+1666:                 Managed(
+1667:                     Record {
+1668:                         name: "@module0:$module0_R",
+1669:                         fields: [
+1675:                     },
+1676:                 ),
+1677:                 Managed(
+1678:                     Record {
+1679:                         name: "@module0:$module0_R",
+1680:                         fields: [
+1686:                     },
+1687:                 ),
+1688:                 Managed(
+1689:                     Record {
+1690:                         name: "@module0:$module0_R",
+1691:                         fields: [
+1702:                         (
+1703:                             "r",
+1704:                             Managed(
+1705:                                 Record {
+1706:                                     name: "@module0:$module0_R",
+1707:                                     fields: [
+1716:                     ],
+1717:                 },
+1718:                 ErrorUnion {
+1719:                     error: Package {
+1720:                         name: "@module0:$module0_P",
+1721:                         fields: [
+1722:                             (
+1723:                                 "r",
+1724:                                 Managed(
+1725:                                     Record {
+1726:                                         name: "@module0:$module0_R",
+1727:                                         fields: [
+1776:                                 (
+1777:                                     "r",
+1778:                                     Managed(
+1779:                                         Record {
+1780:                                             name: "@module0:$module0_R",
+1781:                                             fields: [
+1797:                 I32,
+1798:                 I32,
+1799:                 ErrorUnion {
+1800:                     error: Enum {
+1801:                         name: "@module0:$module0_E",
+1802:                         variants: [
+1924:                                 ),
+1925:                             ),
+1926:                             kind: TakeErrorUnion {
+1927:                                 value: ValueId(
+1928:                                     0,
+1929:                                 ),
+1944:                                 ),
+1945:                             ),
+1946:                             kind: MakeErrorUnion {
+1947:                                 is_error: true,
+1948:                                 value: ValueId(
+1949:                                     2,
+2025:                                 ),
+2026:                             ),
+2027:                             kind: TakeErrorUnion {
+2028:                                 value: ValueId(
+2029:                                     0,
+2030:                                 ),
+2135:                                 ),
+2136:                             ),
+2137:                             kind: TakeErrorUnion {
+2138:                                 value: ValueId(
+2139:                                     5,
+2140:                                 ),
+2155:                                 ),
+2156:                             ),
+2157:                             kind: MakeErrorUnion {
+2158:                                 is_error: true,
+2159:                                 value: ValueId(
+2160:                                     7,
+2266:                                 ),
+2267:                             ),
+2268:                             kind: TakeErrorUnion {
+2269:                                 value: ValueId(
+2270:                                     5,
+2271:                                 ),
+2450:                                 ),
+2451:                             ),
+2452:                             kind: MakeErrorUnion {
+2453:                                 is_error: true,
+2454:                                 value: ValueId(
+2455:                                     14,
+3027:                         Instruction {
+3028:                             result: None,
+3029:                             kind: DropErrorUnion {
+3030:                                 local: LocalId(
+3031:                                     5,
+3032:                                 ),
+3480:                                 ),
+3481:                             ),
+3482:                             kind: MakeErrorUnion {
+3483:                                 is_error: false,
+3484:                                 value: ValueId(
+3485:                                     40,
+3670:                         (
+3671:                             "r",
+3672:                             Managed(
+3673:                                 Record {
+3674:                                     name: "@module0:$module0_R",
+3675:                                     fields: [

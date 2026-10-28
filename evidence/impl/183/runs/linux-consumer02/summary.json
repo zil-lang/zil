@@ -1,0 +1,25 @@
+{
+  "status": "Fail",
+  "source_commit": "0d19b096b574156b3d54fe3589f1d03e99eb93c2",
+  "dirty": "",
+  "cli_sha256": "f2dba1910007eeca2c2732af20a5100796952508436c2c68ef12698d31ac494f",
+  "platform": "linux",
+  "execution": "native",
+  "source_hashes": {
+    "examples/mainline/owned_result183/adapter.zil": "b5aac263341f9dd7cd7db57ba97bca05bd693964efda74be373624e51ac11544",
+    "examples/mainline/owned_result183/factory.zil": "16cafbe46c708bb9b8ffbb5f35c06895281c1232ac2bb265334a4f9452241d6d",
+    "examples/mainline/owned_result183/main.zil": "567f81815021104e972300be8b3f64c31fc1f3eea18c8a2d653b2433169ad25b",
+    "examples/mainline/owned_result183/model.zil": "8588c0b28523dfb7d108c0a706e64e0b1d138fa0f65526e55f02fd781b1a0958",
+    "tools/language/183/consumer.py": "41c150a9f866c85231fa19659c0fa9dca4bf70cfa1335fa6f0c679a2882fe777",
+    "tools/language/177/consumer.py": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb",
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5",
+    "tools/language/181/heap_probe.c": "aa078bd0c5247d0ed0bb4baa2dbf56f9c765940b2ef06b248177a12537d5fd03"
+  },
+  "builds": [],
+  "observations": [],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "error_type": "RuntimeError",
+  "error": "O0 compiler rejection: {'status': 'SafeReject', 'phase': 'parse', 'diagnostics': [{'phase': 'parse', 'category': 'SafeReject', 'code': 'E-PARSE-IDENTIFIER', 'message': 'expected an identifier', 'span': {'file': 0, 'start': 157, 'end': 163}, 'notes': []}], 'artifacts': {}, 'input_fingerprint': '567f81815021104e972300be8b3f64c31fc1f3eea18c8a2d653b2433169ad25b', 'seconds': 0.000565815, 'cache_hit': False, 'commands': [], 'disk_cache': 'disabled', 'query_events': [], 'verification_runs': 0, 'source_files': {'0': '/workspace/scratch/39be3faa4442/language14/wt183/examples/mainline/owned_result183/main.zil'}, 'scalar_interfaces': []}"
+}

@@ -1,0 +1,22 @@
+{
+  "source_commit": "afaa3b4a872e5bda1024f3e1e4b97802c291a1bd",
+  "dirty": "",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl183_owned_resource_results",
+    "--test",
+    "impl183_raw_owned_success",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 1.792381763458252,
+  "status": "Pass"
+}

@@ -1,0 +1,136 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.38s
+     Running tests/impl163_resource_methods.rs (/workspace/scratch/39be3faa4442/targets178/author183-final/debug/deps/impl163_resource_methods-8cbe20cf9ee2f06c)
+
+running 25 tests
+test byte_buffer_method_writes_are_persistent_in_retained_fnmut ... ok
+test byte_buffer_methods_use_existing_descriptor_and_transfer_operations ... ok
+test byte_storage_windows_remain_subject_to_mutation_and_transfer_checks ... ok
+test callback_contracts_and_consumed_values_cannot_be_reused ... ok
+test captured_owner_is_consumed_once_by_an_explicit_give_method ... ok
+test consuming_and_refilling_a_package_method_receiver_remains_fnmut ... ok
+test descriptor_and_explicit_owned_receivers_keep_unique_cleanup ... ok
+test descriptor_method_calls_inside_effect_wrappers_keep_fnmut ... ok
+test imported_package_receiver_and_resource_nominal_identity_remain_exact ... ok
+test fresh_receiver_precedes_arguments_and_failed_preparation_cleans_in_reverse_order ... ok
+test ordinary_call_cannot_silently_give_and_old_descriptors_cannot_survive_consumption ... ok
+test original_resource_address_receiver_declaration_probe_now_succeeds ... ok
+test method_effect_dependencies_wake_earlier_callers_in_the_worklist_path ... ok
+test owned_group_default_can_be_overridden_with_a_descriptor ... ok
+test owned_package_method_inside_move_closure_runs_once_and_cleans_all_fields ... ok
+test package_by_value_receiver_consumes_the_whole_package ... ok
+test private_owner_private_methods_and_drop_entry_are_not_exported ... ok
+test package_receiver_error_before_refill_is_once_and_keeps_unique_cleanup ... ok
+test raw_and_wire_candidates_cannot_relabel_a_mutating_owned_method_callback_as_fn ... ok
+test public_resource_methods_cross_module_boundaries_and_retained_callbacks ... ok
+test receiver_is_staged_before_later_argument_failure_and_dropped_once ... ok
+test resource_callable_fields_keep_field_precedence_and_do_not_add_receiver_writes ... ok
+test resource_method_effects_include_arguments_after_the_receiver ... ok
+test stored_closures_call_read_and_write_resource_methods ... ok
+test transitively_readonly_resource_methods_keep_fn_and_borrowed_writes_remain_local ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.98s
+
+     Running tests/impl166_owned_results.rs (/workspace/scratch/39be3faa4442/targets178/author183-final/debug/deps/impl166_owned_results-c517e595343f1e06)
+
+running 13 tests
+test continue_and_break_discharge_each_actual_loop_union ... ok
+test failed_binding_cleans_partial_preparation_then_existing_union_in_order ... ok
+test both_owned_arms_propagate_and_native_boundary_cleans_only_returned_error ... ok
+test named_success_payload_crosses_two_ordinary_functions_then_cleans_once ... ok
+test native_entry_keeps_void_or_i32_success_boundary ... ok
+test failing_later_argument_cleans_staged_union_before_earlier_local ... ok
+test raw_and_wire_do_not_extend_ordinary_union_admission_to_closure_capture ... ok
+test raw_and_wire_reconstruct_union_debt_and_exact_active_tag ... ok
+test public_owned_result_crosses_module_boundaries ... ok
+test source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode ... ok
+test stored_and_discarded_unions_drop_active_payloads_in_lexical_order ... ok
+test whole_local_reassignment_is_explicitly_outside_first_owned_union_profile ... ok
+test success_and_returned_error_buffers_are_really_freed_before_later_fields ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.85s
+
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/39be3faa4442/targets178/author183-final/debug/deps/impl171_resource_heads-eb5aeb3f3386f885)
+
+running 17 tests
+test active_head_prevents_write_move_replacement_and_old_address_revival ... ok
+test desc_only_imported_helpers_export_writes_into_caller_head_window ... ok
+test actual_head_trait_and_inherent_methods_and_plain_parameters ... ok
+test descriptor_callback_cannot_use_a_captured_field_address_as_write_permission ... ok
+test descriptor_and_head_parameters_do_not_assume_distinct_origins ... ok
+test descriptor_capturing_callbacks_cannot_write_under_a_live_head ... ok
+test descriptor_callback_helpers_preserve_head_conflicts_and_disjoint_controls ... ok
+test descriptor_only_helper_exports_its_internal_callback_effect_across_modules ... ok
+test head_metadata_work_has_an_exact_finite_budget_boundary ... ok
+test failed_argument_preparation_ends_head_window_and_cleans_owner_once ... ok
+test heads_are_not_descriptors_mutable_windows_returns_or_captures ... ok
+test imported_heads_keep_nominal_identity_visibility_and_actual_storage ... ok
+test original_159_resource_address_receiver_probe_is_unchanged_and_now_supported ... ok
+test last_use_then_descriptor_write_is_allowed ... ok
+test raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head ... ok
+test resource_trait_nonshared_receivers_and_head_indirect_calls_stay_closed ... ok
+test unrelated_owned_callback_and_shared_head_compose ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s
+
+     Running tests/impl172_owned_store.rs (/workspace/scratch/39be3faa4442/targets178/author183-final/debug/deps/impl172_owned_store-46f517749f5328ff)
+
+running 16 tests
+test empty_context_and_factory_own_a_real_allocation_free_head ... ok
+test empty_pop_propagates_unit_error_without_an_element_obligation ... ok
+test exact_verify_budget_boundary_and_untrusted_constructor_metadata_are_bounded ... ok
+test full_push_returns_the_uninserted_package_to_native_error_cleanup ... ok
+test original_package_store_field_declaration_is_now_supported ... ok
+test raw_wire_actual_inline_size_product_is_bounded ... ok
+test raw_wire_constructor_depth_is_bounded_before_identity ... ok
+test negative_and_overflow_capacity_requests_preserve_populated_prefix ... ok
+test raw_wire_reject_forged_heads_bad_elements_and_double_transfer ... ok
+test raw_wire_store_is_not_byte_storage_and_pop_result_keeps_cleanup_debt ... ok
+test raw_wire_store_composition_boundaries_and_head_access_are_independently_checked ... ok
+test reserved_prefix_push_pop_and_drop_transfer_each_package_once ... ok
+test source_guards_reject_missing_context_and_capture ... ok
+test source_neighbours_preserve_transfer_and_nested_composition_boundaries ... ok
+test whole_give_roundtrip_preserves_ascending_prefix_cleanup ... ok
+test runtime_count_crosses_four_modules_then_drains_real_prefix ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.79s
+
+     Running tests/impl181_win64_store.rs (/workspace/scratch/39be3faa4442/targets178/author183-final/debug/deps/impl181_win64_store-c8ea97d08b63b7a9)
+
+running 3 tests
+test candidate_cannot_swap_linux_and_windows_after_verification ... ok
+test linux_and_win64_accept_the_same_padded_store_and_owned_error_shapes ... ok
+test forged_store_target_profiles_cannot_use_the_host_layout ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/impl183_owned_resource_results.rs (/workspace/scratch/39be3faa4442/targets178/author183-final/debug/deps/impl183_owned_resource_results-cde2e45a50b8154c)
+
+running 13 tests
+test bytebuffer_and_store_success_payloads_reach_real_native_operations ... ok
+test create_and_give_success_transfer_once_and_copy_error_has_no_resource ... ok
+test discarded_and_stored_unions_drop_only_the_active_resource ... ok
+test failure_only_create_result_does_not_relabel_or_leak_an_incoming_owner ... ok
+test failed_later_argument_disposes_staged_union_before_older_local ... ok
+test native_entry_does_not_implicitly_discard_a_managed_success_return ... ok
+test original159_direct_bytebuffer_success_probe_is_accepted_without_rewriting ... ok
+test loop_and_prepare_failure_clean_actual_owned_success_once ... ok
+test public_owned_success_crosses_four_modules_and_explicit_union_parameters ... ok
+test padded_resource_and_copy_error_layouts_and_zero_sized_resource_are_real ... ok
+test source_ownership_modes_and_existing_rejection_boundaries_stay_explicit ... ok
+test question_propagation_preserves_created_payload_and_each_cleanup_exit ... ok
+test unwrapped_payload_has_actual_description_and_nonlexical_lifetime ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.36s
+
+     Running tests/impl183_raw_owned_success.rs (/workspace/scratch/39be3faa4442/targets178/author183-final/debug/deps/impl183_raw_owned_success-221b39545c4bf08a)
+
+running 5 tests
+test active_tag_and_source_category_are_checked_without_candidate_permission ... ok
+test independent_verify_rejects_copying_and_double_transfer_of_managed_success_union ... ok
+test omitted_union_cleanup_and_post_transfer_tag_are_rejected ... ok
+test independent_verify_rejects_missing_result_mode_and_laundered_freshness ... ok
+test raw_shape_claims_cannot_extend_resource_error_nesting_or_capture_profiles ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

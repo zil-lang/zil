@@ -1,0 +1,20 @@
+{
+  "source_commit": "494e0ccc05ce697dae0e0b887ddd0fb27018ed31",
+  "dirty": "",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl183_owned_resource_results",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "exit_code": 101,
+  "elapsed_seconds": 4.133280992507935,
+  "status": "Fail"
+}

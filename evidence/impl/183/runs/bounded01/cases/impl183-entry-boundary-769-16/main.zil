@@ -1,0 +1,1 @@
+enum E{Fail}fn main()->E!ByteBuffer contract{result(create)}=>bytes_new()

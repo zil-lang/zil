@@ -1,0 +1,30 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt183/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.45s
+     Running tests/impl183_owned_resource_results.rs (/workspace/scratch/39be3faa4442/targets178/author183/debug/deps/impl183_owned_resource_results-cde2e45a50b8154c)
+
+running 11 tests
+test bytebuffer_and_store_success_payloads_reach_real_native_operations ... ok
+test create_and_give_success_transfer_once_and_copy_error_has_no_resource ... ok
+test discarded_and_stored_unions_drop_only_the_active_resource ... ok
+test failure_only_create_result_does_not_relabel_or_leak_an_incoming_owner ... ok
+test failed_later_argument_disposes_staged_union_before_older_local ... ok
+test original159_direct_bytebuffer_success_probe_is_accepted_without_rewriting ... ok
+test loop_and_prepare_failure_clean_actual_owned_success_once ... ok
+test public_owned_success_crosses_four_modules_and_explicit_union_parameters ... ok
+test source_ownership_modes_and_existing_rejection_boundaries_stay_explicit ... ok
+test unwrapped_payload_has_actual_description_and_nonlexical_lifetime ... ok
+test question_propagation_preserves_created_payload_and_each_cleanup_exit ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s
+
+     Running tests/impl183_raw_owned_success.rs (/workspace/scratch/39be3faa4442/targets178/author183/debug/deps/impl183_raw_owned_success-221b39545c4bf08a)
+
+running 5 tests
+test active_tag_and_source_category_are_checked_without_candidate_permission ... ok
+test independent_verify_rejects_copying_and_double_transfer_of_managed_success_union ... ok
+test omitted_union_cleanup_and_post_transfer_tag_are_rejected ... ok
+test independent_verify_rejects_missing_result_mode_and_laundered_freshness ... ok
+test raw_shape_claims_cannot_extend_resource_error_nesting_or_capture_profiles ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

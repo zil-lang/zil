@@ -1,0 +1,1 @@
+import model;fn identity(give x:model.E!model.R)->model.E!model.R contract{result(give)}=>x;pub fn forward(give x:model.E!model.R)->model.E!model.R contract{result(give)}=>identity(x)

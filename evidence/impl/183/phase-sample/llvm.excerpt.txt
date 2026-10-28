@@ -1,0 +1,158 @@
+7: declare void @free(ptr)
+8: 
+9: define internal ptr @zil.bytes.reallocate(ptr %old, i64 %size) {
+10: entry:
+11:   %result = call ptr @realloc(ptr %old, i64 %size)
+12:   ret ptr %result
+13: }
+14: define internal void @zil.bytes.release(ptr %payload) {
+15: entry:
+16:   call void @free(ptr %payload)
+17:   ret void
+18: }
+19: 
+20: define internal i1 @zil.bytes.reserve(ptr %head, i64 %requested) {
+21: entry:
+22:   %negative = icmp slt i64 %requested, 0
+23:   br i1 %negative, label %failed, label %capacity
+42:   ret i1 false
+43: }
+44: define internal i1 @zil.bytes.truncate(ptr %head, i64 %requested) {
+45: entry:
+46:   %len.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 1
+47:   %len = load i64, ptr %len.field, align 8
+56:   ret i1 false
+57: }
+58: define internal i1 @zil.bytes.push(ptr %head, i8 %byte) {
+59: entry:
+60:   %len.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 1
+61:   %cap.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 2
+75:   ret i1 false
+76: }
+77: define internal void @zil.bytes.drop(ptr %head) {
+78: entry:
+79:   %ptr.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 0
+80:   %payload = load ptr, ptr %ptr.field, align 8
+83: }
+84: 
+85: define internal i1 @zil.store.2.reserve(ptr %head, i64 %requested) {
+86: entry:
+87:   %stride = ptrtoint ptr getelementptr ({ { i32 } }, ptr null, i64 1) to i64
+88:   %maximum = udiv i64 9223372036854775807, %stride
+112:   ret i1 false
+113: }
+114: define internal { i1, { { i32 } }, {} } @zil.store.2.push(ptr %head, { { i32 } } %item) {
+115: entry:
+116:   %len.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 1
+117:   %cap.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 2
+133:   ret { i1, { { i32 } }, {} } %error
+134: }
+135: define internal { i1, {}, { { i32 } } } @zil.store.2.pop(ptr %head) {
+136: entry:
+137:   %len.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 1
+138:   %len = load i64, ptr %len.field, align 8
+152:   ret { i1, {}, { { i32 } } } %error
+153: }
+154: define internal void @zil.store.2.drop(ptr %head) {
+155: entry:
+156:   %len.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 1
+157:   %ptr.field = getelementptr { ptr, i64, i64 }, ptr %head, i32 0, i32 0
+178: 
+179: declare i32 @putchar(i32) nonlazybind
+180: define void @zil.fn.1(ptr %arg.0) {
+181: entry:
+182:   %local.0 = alloca ptr, align 8
+183:   store ptr %arg.0, ptr %local.0, align 8
+194: }
+195: 
+196: define { i1, { i32, [0 x i8] }, { ptr, i64, i64 } } @zil.fn.2() {
+197: entry:
+198:   %resource.live.0 = alloca i1, align 1
+199:   store i1 false, ptr %resource.live.0, align 1
+223: resource.drop.0:
+224:   store i1 false, ptr %resource.live.0, align 1
+225:   call void @zil.bytes.drop(ptr %local.0)
+226:   br label %resource.done.0
+227: resource.done.0:
+228:   store i1 false, ptr %resource.live.0, align 1
+246: resource.drop.2:
+247:   store i1 false, ptr %resource.live.0, align 1
+248:   call void @zil.bytes.drop(ptr %local.0)
+249:   br label %resource.done.2
+250: resource.done.2:
+251:   store i1 false, ptr %resource.live.0, align 1
+256: }
+257: 
+258: define { i1, { i32, [0 x i8] }, { ptr, i64, i64 } } @zil.fn.3() {
+259: entry:
+260:   br label %bb.0
+261: bb.0:
+269: }
+270: 
+271: define { i1, { i32, [0 x i8] }, i32 } @zil.fn.4() {
+272: entry:
+273:   %resource.live.0 = alloca i1, align 1
+274:   store i1 false, ptr %resource.live.0, align 1
+329: resource.drop.3:
+330:   store i1 false, ptr %resource.live.0, align 1
+331:   call void @zil.bytes.drop(ptr %local.0)
+332:   br label %resource.done.3
+333: resource.done.3:
+334:   store i1 false, ptr %resource.live.0, align 1
+346:   %v.10 = getelementptr i8, ptr %local.1, i64 0
+347:   %v.11 = add i64 0, 1
+348:   %v.12 = call i1 @zil.store.2.reserve(ptr %v.10, i64 %v.11)
+349:   %v.13 = xor i1 %v.12, true
+350:   br i1 %v.13, label %bb.5, label %bb.6
+351: bb.5:
+361: resource.drop.5:
+362:   store i1 false, ptr %resource.live.1, align 1
+363:   call void @zil.store.2.drop(ptr %local.1)
+364:   br label %resource.done.5
+365: resource.done.5:
+366:   store i1 false, ptr %resource.live.1, align 1
+369: resource.drop.6:
+370:   store i1 false, ptr %resource.live.0, align 1
+371:   call void @zil.bytes.drop(ptr %local.0)
+372:   br label %resource.done.6
+373: resource.done.6:
+374:   store i1 false, ptr %resource.live.0, align 1
+410: resource.done.8:
+411:   store i1 false, ptr %resource.live.3, align 1
+412:   %v.23 = call { i1, { { i32 } }, {} } @zil.store.2.push(ptr %v.16, { { i32 } } %v.22)
+413:   store { i1, { { i32 } }, {} } %v.23, ptr %local.5, align 4
+414:   store i1 true, ptr %resource.live.5, align 1
+415:   %tmp.18 = load i1, ptr %resource.live.5, align 1
+416:   br i1 %tmp.18, label %error.drop.9, label %error.done.9
+417: error.drop.9:
+418:   store i1 false, ptr %resource.live.5, align 1
+419:   %tmp.19 = getelementptr { i1, { { i32 } }, {} }, ptr %local.5, i32 0, i32 0
+420:   %tmp.20 = load i1, ptr %tmp.19, align 1
+421:   br i1 %tmp.20, label %error.payload.9, label %success.payload.9
+422: error.payload.9:
+423:   %tmp.21 = getelementptr { i1, { { i32 } }, {} }, ptr %local.5, i32 0, i32 1
+424:   %tmp.22 = getelementptr { { i32 } }, ptr %tmp.21, i32 0, i32 0
+425:   call void @zil.fn.1(ptr %tmp.22)
+426:   br label %error.done.9
+427: success.payload.9:
+428:   br label %error.done.9
+429: error.done.9:
+430:   %v.24 = getelementptr i8, ptr %local.0, i64 0
+478: resource.drop.14:
+479:   store i1 false, ptr %resource.live.1, align 1
+480:   call void @zil.store.2.drop(ptr %local.1)
+481:   br label %resource.done.14
+482: resource.done.14:
+483:   store i1 false, ptr %resource.live.1, align 1
+486: resource.drop.15:
+487:   store i1 false, ptr %resource.live.0, align 1
+488:   call void @zil.bytes.drop(ptr %local.0)
+489:   br label %resource.done.15
+490: resource.done.15:
+491:   store i1 false, ptr %resource.live.0, align 1
+496: }
+497: 
+498: define i32 @main() {
+499: entry:
+500:   %entry.result = call { i1, { i32, [0 x i8] }, i32 } @zil.fn.4()
+501:   %entry.error = extractvalue { i1, { i32, [0 x i8] }, i32 } %entry.result, 0
