@@ -3,7 +3,7 @@
   "file": "203-all-components-evidence-compact.zip",
   "bytes": 46922427,
   "sha256": "7672f080faaab062491aef381eba979ae545cf785a47e9f01c8326e394a390a6",
-  "format": "content-addressed ZIP; original logical paths and metadata in INDEX.json, verify.py checks every reference and blob, restore into a new directory only",
+  "format": "content-addressed ZIP; INDEX.json preserves logical paths and metadata; compact_evidence.py verify checks every reference and blob, restore writes a new directory only",
   "statistics": {
     "logical_files": 60614,
     "logical_bytes": 4334912056,
