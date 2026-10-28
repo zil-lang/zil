@@ -837,6 +837,33 @@ fn alias_join_excludes_returned_branches_and_keeps_fresh_pointer_assignments() {
     );
 }
 
+#[test]
+fn unused_loop_refresh_keeps_the_old_alias_copy_invalid_at_the_join() {
+    let fresh = r#"package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}
+fn revise<T:Copy,F:Fn()->i32>(state:State<T,F>,replacement:F,flag:bool)->State<T,F>{
+var next=state;var view=&next.a;let stale=view;var again=flag;
+while again{let moved=next.a;next.a=moved;view=&next.a;again=false;}
+view();return next
+}
+fn main(){}"#;
+    let stale = fresh.replace("\nview();return next", "\nstale();return next");
+    // Observe both before any assertion: the invalid copy may not be erased
+    // merely to make the distinct refreshed local succeed.
+    let good = compile(&Case::new("fresh-loop-view-after-join"), fresh, None);
+    let bad = compile(&Case::new("stale-loop-copy-after-join"), &stale, None);
+    assert_eq!(bad.phase, Phase::Expand, "{}", bad.to_json());
+    assert_eq!(bad.status, ResultCategory::SafeReject, "{}", bad.to_json());
+    assert!(
+        bad.diagnostics
+            .iter()
+            .any(|d| d.code == "E-GENERIC-ARGUMENT")
+    );
+    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+    assert_eq!(good.verification_runs, 1);
+    assert!(!good.artifacts.contains_key("executable"));
+    assert!(!bad.artifacts.contains_key("executable"));
+}
+
 fn verify_pair(label: &str, module: &TypedModule, candidate: &CandidatePlan, accept: bool) {
     let case = Case::new(label);
     let limits = Limits::default();
