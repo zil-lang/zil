@@ -29,7 +29,7 @@ pub(super) fn single(
         core.functions
             .iter()
             .filter(|function| {
-                function.callable_parameter.is_none()
+                function.callable_parameters.is_empty()
                     && function
                         .parameters
                         .iter()
@@ -51,7 +51,7 @@ pub(super) fn program(program: &CoreProgram, tables: &Tables, limits: &Limits) -
     for module in &program.modules {
         let table = &tables[&module.core.module_id];
         for function in &module.core.functions {
-            if function.callable_parameter.is_some() {
+            if !function.callable_parameters.is_empty() {
                 continue;
             }
             if !function
