@@ -642,6 +642,9 @@ pub struct CallableReturnContract {
     pub writes: Vec<u32>,
     /// Direct Managed capture indices, in exact environment field order.
     pub cleanup: Vec<u32>,
+    /// Sorted unique actual environment captures lending the shared result.
+    /// Raw provenance claim only; independent CFG and loan checks are required.
+    pub lending_captures: Vec<u32>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CallableCleanup {
@@ -691,6 +694,9 @@ pub struct ClosureDefinition {
     pub parameters: Vec<Type>,
     pub result: Type,
     pub kind: CallableKind,
+    /// Sorted unique capture positions that own storage borrowed by the result.
+    /// Distinct from external captured Address/Desc targets and ordinary parameters.
+    pub lending_captures: Vec<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
@@ -1344,7 +1350,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V22\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V23\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1372,6 +1378,10 @@ fn encode_module(module: &TypedModule) -> Vec<u8> {
             CallableKind::FnMut => 2,
             CallableKind::FnOnce => 3,
         });
+        encode_len(&mut bytes, closure.lending_captures.len());
+        for index in &closure.lending_captures {
+            encode_u32(&mut bytes, *index);
+        }
     }
     encode_len(&mut bytes, module.resources.len());
     for resource in &module.resources {
@@ -2164,14 +2174,14 @@ pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fi
 }
 /// Deterministic identity only; this hash never grants verification authority.
 pub fn callable_return_contract_fingerprint(contract: &CallableReturnContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-1\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-2\0".to_vec();
     encode_callable_return_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
 fn encode_callable_return_contract(b: &mut Vec<u8>, c: &CallableReturnContract) {
     encode_u32(b, c.closure.0);
     b.push(callable_kind_tag(c.kind));
-    for indices in [&c.hold, &c.call, &c.writes, &c.cleanup] {
+    for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
         encode_len(b, indices.len());
         for index in indices {
             encode_u32(b, *index);

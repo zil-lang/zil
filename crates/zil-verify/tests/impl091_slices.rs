@@ -885,6 +885,7 @@ fn slice_captures_and_explicit_callable_signatures_remain_closed() {
         let mut body = Body::new(0, Type::Unit);
         body.f.environment = Some(ClosureId(0));
         let mut closure = ClosureDefinition {
+            lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(0),
             captures: vec![],
@@ -936,6 +937,7 @@ fn closure_body_local_slice_does_not_cross_its_callable_boundary() {
     body.emit(InstructionKind::StorageDead(local));
     let mut test = case(vec![body.finish(Some(n))]);
     test.module.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(0),
         captures: vec![],

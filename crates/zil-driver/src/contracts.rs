@@ -106,9 +106,9 @@ pub(super) fn callable_return_json(interface: &ScalarInterface) -> String {
     interface.callable_returns.as_ref().map_or_else(|| "null".into(), |contracts| {
         format!("[{}]", contracts.iter().map(|entry| {
             let c = &entry.contract;
-            format!("{{\"name\":{},\"closure\":{},\"kind\":{},\"hold\":{:?},\"call\":{:?},\"writes\":{:?},\"cleanup\":{:?}}}",
+            format!("{{\"name\":{},\"closure\":{},\"kind\":{},\"hold\":{:?},\"call\":{:?},\"writes\":{:?},\"cleanup\":{:?},\"lending_captures\":{:?}}}",
                 json_string(&entry.name), c.closure.0, json_string(&format!("{:?}", c.kind)),
-                c.hold, c.call, c.writes, c.cleanup)
+                c.hold, c.call, c.writes, c.cleanup, c.lending_captures)
         }).collect::<Vec<_>>().join(","))
     })
 }

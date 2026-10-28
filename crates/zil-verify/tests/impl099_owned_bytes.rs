@@ -365,6 +365,7 @@ fn captured(body: Body, result: ValueId, kind: CallableKind, package_capture: bo
     let result_type = body.f.return_type.clone();
     let mut t = case(vec![body.finish(Some(result))]);
     t.module.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(0),
         kind,

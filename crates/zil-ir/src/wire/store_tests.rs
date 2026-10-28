@@ -148,17 +148,17 @@ fn store_type_has_distinct_tag_and_nested_metadata_is_bounded_both_ways() {
 }
 
 #[test]
-fn schema22_wire_rejects_all_old_versions_and_next_unknown_version() {
+fn current_wire_rejects_all_old_versions_and_next_unknown_version() {
     let limits = Limits::default();
     let mut writer = Writer::new(&limits);
     writer.header(MODULE_MAGIC).unwrap();
-    assert_eq!(WIRE_VERSION, 22);
-    assert_eq!(SCHEMA_VERSION, 22);
+    assert_eq!(WIRE_VERSION, 23);
+    assert_eq!(SCHEMA_VERSION, 23);
     Reader::new(&writer.output, &limits)
         .unwrap()
         .header(MODULE_MAGIC)
         .unwrap();
-    for version in (0u32..22).chain([23, u32::MAX]) {
+    for version in (0u32..WIRE_VERSION).chain([WIRE_VERSION + 1, u32::MAX]) {
         let mut bytes = writer.output.clone();
         bytes[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

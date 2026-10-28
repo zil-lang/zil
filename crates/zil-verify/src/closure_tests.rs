@@ -118,6 +118,7 @@ fn candidate() -> (TypedModule, CandidatePlan) {
         functions: vec![main, entry],
         unsupported: vec![],
         closures: vec![ClosureDefinition {
+            lending_captures: Vec::new(),
             id: closure,
             function: FunctionId(1),
             captures: vec![Type::I32],
@@ -250,6 +251,7 @@ fn orphaned_and_crossed_entry_identities_are_rejected() {
     rejected(
         |m| {
             m.closures.push(ClosureDefinition {
+                lending_captures: Vec::new(),
                 id: ClosureId(1),
                 ..m.closures[0].clone()
             })

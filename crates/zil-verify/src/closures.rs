@@ -31,6 +31,34 @@ pub(super) fn check_definitions(
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
         budget.spend(1)?;
+        if closure.lending_captures.len() > limits.max_locals {
+            return Err(limit(
+                "closure lending source count exceeds the local bound",
+            ));
+        }
+        budget.spend(closure.lending_captures.len())?;
+        if closure.lending_captures.len() > closure.captures.len()
+            || closure
+                .lending_captures
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            || closure
+                .lending_captures
+                .iter()
+                .any(|capture| *capture as usize >= closure.captures.len())
+        {
+            return Err(reject(
+                "E-VERIFY-CLOSURE",
+                None,
+                "lending capture indices must be sorted, unique and within the actual environment",
+            ));
+        }
+        if !closure.lending_captures.is_empty() {
+            return Err(unsupported(
+                "environment lending requires its independently checked result and loan protocol",
+                None,
+            ));
+        }
         if closure.id.0 as usize != index {
             return Err(reject(
                 "E-VERIFY-CLOSURE",

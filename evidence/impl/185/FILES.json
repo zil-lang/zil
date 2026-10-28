@@ -1,0 +1,107 @@
+[
+  {
+    "path": "runs/final03-clippy/command.json",
+    "bytes": 1039,
+    "sha256": "0abaece727767d15ac329f043970f13b39fe5902a32a642616cf2ac5307a8522"
+  },
+  {
+    "path": "runs/final03-clippy/stderr.log",
+    "bytes": 1242,
+    "sha256": "4a9db133dadfbc1e3efca91233595a6c3af41c9c294cba84a34e7c11564ab746"
+  },
+  {
+    "path": "runs/final03-clippy/stdout.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "runs/final03-driver/command.json",
+    "bytes": 966,
+    "sha256": "6865be7044b3eb7e6cea28185155289044da644920eb62dee8869d26c9d239e8"
+  },
+  {
+    "path": "runs/final03-driver/stderr.log",
+    "bytes": 392,
+    "sha256": "7675d9f7571cc0734534ddbc3cc21f1185b2aca3b0f0a66c49a087da4f6c7a2c"
+  },
+  {
+    "path": "runs/final03-driver/stdout.log",
+    "bytes": 1414,
+    "sha256": "c047e7fc7042c007edc152f3df5c387d88d7a22e5157c55e951e9e4eff4aaba3"
+  },
+  {
+    "path": "runs/final03-ir/command.json",
+    "bytes": 928,
+    "sha256": "0acf50c651cfc17056e19823725b0e532f279a8ffb75bf26de6d18aa32b834e7"
+  },
+  {
+    "path": "runs/final03-ir/stderr.log",
+    "bytes": 277,
+    "sha256": "f533659a625866122fb1fed20774e1ebd14e9298703a350000012f2a034a5073"
+  },
+  {
+    "path": "runs/final03-ir/stdout.log",
+    "bytes": 2997,
+    "sha256": "9c6d89194f0addb24a1e18ab6f341e7918b016034abff2f05fb19c102c9fe757"
+  },
+  {
+    "path": "runs/final04-driver/command.json",
+    "bytes": 964,
+    "sha256": "e51309e03dd441f232e6c906a9815cb879f76bea1df4a35a0fb62f9c45066d8e"
+  },
+  {
+    "path": "runs/final04-driver/stderr.log",
+    "bytes": 312,
+    "sha256": "9ffbe1d362d2ab507b6e9f905e22066fc4924ca03529708149d485a015a3718a"
+  },
+  {
+    "path": "runs/final04-driver/stdout.log",
+    "bytes": 463,
+    "sha256": "ff1a697811ce8b109e9755013f9338a49062821c60469820c219a6879f624410"
+  },
+  {
+    "path": "runs/final04-test-clippy/command.json",
+    "bytes": 967,
+    "sha256": "9c09ae9decd697f5a3203baaf94dc72ae81c5571bdf3cf17a4ead236861f2de4"
+  },
+  {
+    "path": "runs/final04-test-clippy/stderr.log",
+    "bytes": 160,
+    "sha256": "1281cf5630914fe28ffa33d5b57376fcb1c6bc1b78403f25d3127768c67cce2d"
+  },
+  {
+    "path": "runs/final04-test-clippy/stdout.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "runs/ir02/command.json",
+    "bytes": 930,
+    "sha256": "51636e5fe8e4a8ae024aef49fd5952ec8ab3cef1466fed71e4e098bae16eab48"
+  },
+  {
+    "path": "runs/ir02/stderr.log",
+    "bytes": 329,
+    "sha256": "ada9067f91ff59e9f1dd7fc431845ebcd06a36515dac7830a7afe072ea9c6670"
+  },
+  {
+    "path": "runs/ir02/stdout.log",
+    "bytes": 3502,
+    "sha256": "66d95d950ee53527ee49906c68940c4131e2e6b363d7b2ba0eb1a98c5ee0f9b5"
+  },
+  {
+    "path": "runs/targeted01/command/command.json",
+    "bytes": 1054,
+    "sha256": "8fbcdb39f7520e826a36c2f63dbf0d3c91981535cefd1a3a2aa6716c448928d8"
+  },
+  {
+    "path": "runs/targeted01/command/stderr.log",
+    "bytes": 1394,
+    "sha256": "b3a4c6cfe4ed37c176bfa668b98fd1e419f5e276befcec6fed80b1864d83408b"
+  },
+  {
+    "path": "runs/targeted01/command/stdout.log",
+    "bytes": 403,
+    "sha256": "97fd48a89942f6e02d416f46d9e4134029b57be04658379e8b6a6ba9a9a29484"
+  }
+]
