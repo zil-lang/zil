@@ -303,6 +303,7 @@ fn inspect<F:Fn()->i32,G:FnOnce()->i32>(state:State<F,G>,flag:bool)->i32{
     if flag{return state.second()}
     return state.second()
 }
+
 fn main()->i32{return 0}
 "#,
     );
@@ -344,4 +345,124 @@ fn main()->i32{return 0}
         &collision,
         Some("E-STATE-ORIGIN"),
     );
+}
+
+#[test]
+fn error_side_complete_state_keeps_its_owning_payload() {
+    native(
+        "error-side",
+        include_str!("../../zil-expand/tests/impl203_fixtures/05_independent_error_side.zil"),
+        "ZAB",
+        0,
+    );
+}
+
+#[test]
+fn five_module_consumer_infers_complete_value_types() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let entries = [
+        (
+            "main",
+            include_str!("../../../examples/mainline/state_bindings203/main.zil"),
+        ),
+        (
+            "factory",
+            include_str!("../../../examples/mainline/state_bindings203/factory.zil"),
+        ),
+        (
+            "state",
+            include_str!("../../../examples/mainline/state_bindings203/state.zil"),
+        ),
+        (
+            "portable",
+            include_str!("../../../examples/mainline/state_bindings203/portable.zil"),
+        ),
+        (
+            "store_helpers",
+            include_str!("../../../examples/mainline/state_bindings203/store_helpers.zil"),
+        ),
+    ];
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let case = Case::new("five-module-inferred-values");
+        let sources = ProjectSources {
+            root: ModuleId(0),
+            modules: entries
+                .iter()
+                .enumerate()
+                .map(|(i, (name, source))| {
+                    fs::write(case.0.join(format!("{name}.zil")), source).unwrap();
+                    SourceUnit::new(
+                        FileId(i as u32),
+                        ModuleId(i as u32),
+                        format!("{name}.zil"),
+                        *source,
+                    )
+                })
+                .collect(),
+            paths: entries
+                .iter()
+                .enumerate()
+                .map(|(i, (name, _))| (vec![(*name).into()], ModuleId(i as u32)))
+                .collect(),
+        };
+        let report = compile_project(
+            &sources,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization,
+                output: Some(case.0.join("program")),
+                emit_dir: Some(case.0.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        fs::write(case.0.join("compile.json"), report.to_json()).unwrap();
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        for (input, expected) in [
+            ("0", "PDdQC2c1ab"),
+            ("1", "ACCAPDdQC2c1ab"),
+            ("6", "2cd1ab"),
+        ] {
+            let mut child = Command::new(&report.artifacts["executable"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(input.as_bytes())
+                .unwrap();
+            let output = child.wait_with_output().unwrap();
+            fs::write(
+                case.0.join(format!("input{input}-stdout.log")),
+                &output.stdout,
+            )
+            .unwrap();
+            fs::write(
+                case.0.join(format!("input{input}-stderr.log")),
+                &output.stderr,
+            )
+            .unwrap();
+            fs::write(
+                case.0.join(format!("input{input}-result.txt")),
+                format!(
+                    "exit={:?}\nexpected_stdout={expected}\n",
+                    output.status.code()
+                ),
+            )
+            .unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, expected.as_bytes(), "{output:?}");
+            assert!(output.stderr.is_empty(), "{output:?}");
+        }
+    }
 }
