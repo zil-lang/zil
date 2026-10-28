@@ -12,6 +12,7 @@ pub fn item(code: i32) -> Item {
 
 pub fn other(code: i32) -> void!Other {
     let bytes = bytes_new()
+    if !bytes_reserve(bytes, 1) { return () }
     if !bytes_push(bytes, u8(code)) { return () }
     return Other { ticket: Ticket { code: code }, bytes: give bytes, value: i64(code) }
 }

@@ -254,8 +254,14 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 self.copy(result)?;
                 Ok(true)
             }
-            TypeKind::Function { params, result }
-            | TypeKind::ForeignFunction { params, result, .. } => {
+            TypeKind::ForeignFunction { .. } => {
+                // The registered foreign callback shape was checked by the
+                // budget preflight. Require its concrete C profile here;
+                // a callback is a Copy code pointer, not an owning closure.
+                super::super::foreign::callback_type_formation(ty, Some(&BTreeSet::new()))?;
+                Ok(true)
+            }
+            TypeKind::Function { params, result } => {
                 for ty in params {
                     self.copy(ty)?;
                 }
@@ -266,7 +272,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 if args.is_empty() && path.len() == 1 {
                     match path[0].as_str() {
                         "void" => return Ok(false),
-                        "bool" | "i32" | "i64" | "u8" | "u16" | "CHandle" | "CWStr" => {
+                        "bool" | "i32" | "i64" | "u8" | "u16" | "c_handle" | "c_wstr" => {
                             return Ok(true);
                         }
                         _ => {}
