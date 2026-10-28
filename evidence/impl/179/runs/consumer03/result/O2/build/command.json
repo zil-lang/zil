@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/author179/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/language14/wt179/examples/mainline/field_views179/main.zil",
+    "--opt",
+    "O2",
+    "-o",
+    "/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/consumer03/result/O2/program",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/consumer03/result/O2/phases",
+    "--json"
+  ],
+  "status": "Completed",
+  "start": 1793150320.685745,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "a50df8f2ce4d4762155b90adad647972a7584f06b772ec8cfaef4429c4cf1aea",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793150320.8554516
+}
