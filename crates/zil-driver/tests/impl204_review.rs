@@ -1309,6 +1309,7 @@ fn legacy_byte_capture_has_exact_fresh_budget_control() {
 #[test]
 fn new_owned_store_capture_has_exact_recoverable_phase_budgets() {
     phase_budgets("new-two-store-capture", &format!("{PREFIX}{TWO_STORES}"));
+    phase_budgets("new-store-take-window", &format!("{PREFIX}{TAKE_WINDOW}"));
 }
 
 #[test]
