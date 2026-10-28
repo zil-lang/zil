@@ -1,0 +1,35 @@
+
+running 16 tests
+test cross_function_aliases_cannot_hide_mutation_or_second_window ... ok
+test actual_copy_scalar_array_and_record_fields_update_in_place ... ok
+test live_exclusive_window_blocks_structure_metadata_and_responsibility_changes ... ok
+test index_effect_runs_before_window_and_error_rhs_cleans_store ... ok
+test raw_and_wire_rebuild_mutability_index_shape_and_actual_holds ... ok
+test raw_and_wire_reject_resource_projection_and_early_owner_drop ... ok
+test raw_and_wire_retargeted_structure_write_cannot_cross_exclusive_window ... ok
+test managed_fields_whole_packages_and_escaping_windows_remain_closed ... ok
+test rhs_and_child_capture_cannot_hide_a_live_window ... FAILED
+test receiver_index_and_rhs_are_evaluated_once_and_in_source_order ... ok
+test runtime_index_traps_before_address_even_when_capacity_has_spare_slots ... ok
+test separate_store_fields_and_parameter_apart_checks_preserve_updates ... ok
+test shared_windows_cannot_be_upgraded_or_written ... ok
+test synchronous_helper_reborrows_then_last_use_allows_reserve_and_pop ... ok
+test whole_store_exclusive_loan_blocks_shared_and_other_exclusive_views ... ok
+test runtime_updates_cross_four_modules_without_moving_element_resources ... ok
+
+failures:
+
+---- rhs_and_child_capture_cannot_hide_a_live_window stdout ----
+
+thread 'rhs_and_child_capture_cannot_hide_a_live_window' (86) panicked at crates/zil-driver/tests/impl180_store_mut.rs:191:5:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-CLOSURE-MUTABILITY","message":"FnMut call requires a mutable closure position; bind it with var","span":{"file":0,"start":667,"end":677},"notes":[]}],"artifacts":{"core":"/workspace/scratch/39be3faa4442/run-logs/180-author/tests03/cases/store-mut180-52-36/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/180-author/tests03/cases/store-mut180-52-36/phases/ct-core.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/180-author/tests03/cases/store-mut180-52-36/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/180-author/tests03/cases/store-mut180-52-36/phases/syntax.txt"},"input_fingerprint":"73feacb3ece0c8b2cfe9fc9720b4ecb81edfa7ab7c2f71cf03d6bb19fa61591b","seconds":0.0142672,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Types
+ right: Verify
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    rhs_and_child_capture_cannot_hide_a_live_window
+
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.48s
+

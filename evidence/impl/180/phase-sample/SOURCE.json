@@ -1,0 +1,50 @@
+{
+  "actual_case": "store-mut180-401-47",
+  "source_commit": "74254d8da12004519ca342b1c0602a5a90831c44",
+  "files": {
+    "candidate.txt": {
+      "sha256": "74b1875d5aeb69f880ea3462c83a912c7d2b1ed70bb902fe16e679182cf442c0",
+      "bytes": 98376
+    },
+    "core.txt": {
+      "sha256": "25f242636d853ef99e2b440c6dabdbbde6a7a9160d2f5dbfa68c06d53b4402ff",
+      "bytes": 391878
+    },
+    "ct-core.txt": {
+      "sha256": "25f242636d853ef99e2b440c6dabdbbde6a7a9160d2f5dbfa68c06d53b4402ff",
+      "bytes": 391878
+    },
+    "interfaces.txt": {
+      "sha256": "9d388be552bfde56752e2022ff26938ecf6077a854ebba0a9b8c66b07cd1c26c",
+      "bytes": 24643
+    },
+    "lir.txt": {
+      "sha256": "373858f4c7a4ccaa23c2ad9c04e395b67d76b6fd36e5fbc9c42f5fd8029ff72c",
+      "bytes": 545302
+    },
+    "llvm.ll": {
+      "sha256": "3703751105e2c5ea3840c7b5914aa31674a061e5731b6e0311fd48b7e1b15e02",
+      "bytes": 44019
+    },
+    "source-map.txt": {
+      "sha256": "7174df9072e45085a6239dff7631ed5b2f1484e56a73114cf81c708c8d0414d9",
+      "bytes": 226138
+    },
+    "syntax.txt": {
+      "sha256": "529abb2ffd0ecdcd3c373b35f633c5834f49e17a3a4bbce89d47a4234be527d0",
+      "bytes": 734090
+    },
+    "typed.txt": {
+      "sha256": "f0cc4036890051d899699b631ce743004d085a3412ab69bdc6ee969c7e8d7511",
+      "bytes": 544467
+    },
+    "verified-interfaces.txt": {
+      "sha256": "c40606af91be9bb1ea4f447450ee20120842eadcbaf4684a2df5cc351b2f08ca",
+      "bytes": 29402
+    },
+    "verified.txt": {
+      "sha256": "c11d58171fd110fae521fb03b9c4bfe892567d8fc793fe3b9b83045418c1070c",
+      "bytes": 544544
+    }
+  }
+}
