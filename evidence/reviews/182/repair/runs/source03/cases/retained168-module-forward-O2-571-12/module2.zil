@@ -1,0 +1,1 @@
+pub fn make(n:i32)->impl Fn()->i32{return move ()=>n}

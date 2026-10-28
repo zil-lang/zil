@@ -1,0 +1,1 @@
+extern "C" fn store_at(x:i32)->i32;fn main(){}

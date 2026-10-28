@@ -1,0 +1,1 @@
+extern "C" fn putchar(x:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}fn make(n:i32)->impl Fn()->i32{let r=R{code:n};return move ()=>r.code}fn wrap(n:i32)->impl Fn()->i32{let f=make(n);return move ()=>f()}fn outer(n:i32)->impl Fn()->i32{let f=wrap(n);return move ()=>f()}fn main()->i32{let f=outer(65);return f()+f()-130}

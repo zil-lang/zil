@@ -1,0 +1,1 @@
+pub resource R{pub n:i32}pub fn make()->R contract{result(create)}{return R{n:42}}

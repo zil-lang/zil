@@ -1,0 +1,4 @@
+extern "C" fn putchar(x:i32)->i32;
+pub resource R{code:i32;pub n:i32}
+impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
+pub fn make(code:i32)->R contract{result(create)}{return R{code:code,n:42}}

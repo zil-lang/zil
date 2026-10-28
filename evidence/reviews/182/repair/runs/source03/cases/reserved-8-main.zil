@@ -1,0 +1,1 @@
+fn main(){let f=(store_at:i32)=>store_at;}

@@ -1,0 +1,1 @@
+import model;import helpers;fn main()->i32{let r=model.make();let p=&r;helpers.write(r);return p.n}

@@ -1,0 +1,1 @@
+import model;import helper;fn main()->i32{let r=model.make(65,21);let other=model.make(66,21);let p=&other;return helper.relay(r)+p.n-43}

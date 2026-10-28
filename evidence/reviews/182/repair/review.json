@@ -1,0 +1,95 @@
+{
+  "verdict": "Pass",
+  "status": "Pass",
+  "reviewer": "/root",
+  "implementation_author": "/root/restore177_inventory",
+  "implementation_commit": "ebaddd7faf7b83b257b873e8544af0fef13e670a",
+  "review_test_commit": "3ef6c68dec8e41777c7457a4da04c821f5d51713",
+  "production_identical_to_reviewed_source": true,
+  "nonproduction_delta": [
+    "changes/181-integration-assertions23.md",
+    "crates/zil-driver/tests/impl175_store_views.rs",
+    "crates/zil-driver/tests/review182_capture_boundaries.rs"
+  ],
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "1068cda3fe79b906f49eeee4bd3f62863f9db4ae85e8a0dbaa3c439d310777b8",
+  "executed": 418,
+  "assertions": 418,
+  "final_counts": {
+    "passed": 418,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 14
+  },
+  "runs": {
+    "frozen01": {
+      "status": "Pass",
+      "passed": 263,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 2,
+      "source_commit": "ebaddd7faf7b83b257b873e8544af0fef13e670a"
+    },
+    "source01": {
+      "status": "Fail",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 0,
+      "source_commit": "d24b6c4aca41b9f1fa55b785535f8b71c469fab5"
+    },
+    "source02": {
+      "status": "Fail",
+      "passed": 88,
+      "failed": 1,
+      "ignored": 0,
+      "groups": 6,
+      "source_commit": "d24b6c4aca41b9f1fa55b785535f8b71c469fab5"
+    },
+    "source03": {
+      "status": "Fail",
+      "passed": 154,
+      "failed": 1,
+      "ignored": 0,
+      "groups": 12,
+      "source_commit": "be0351abad9c4c6c759b4a19002efc1c3da5afbb"
+    },
+    "source04": {
+      "status": "Pass",
+      "passed": 155,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 12,
+      "source_commit": "3ef6c68dec8e41777c7457a4da04c821f5d51713"
+    }
+  },
+  "reviewed_files": [
+    "crates/zil-analyze/src/holds.rs",
+    "crates/zil-verify/src/borrows.rs",
+    "crates/zil-verify/src/closures.rs"
+  ],
+  "findings": [
+    "Private weak description provenance and public actual address dependency facts are reconstructed separately, with exact public-row equality retained.",
+    "Existing resource instance checks still reject stale captures; a description does not become an address hold or extend its owner.",
+    "All 65 previous raw fixture regressions and original Analyze exact budget boundaries pass without source or expectation changes.",
+    "The removed blanket Address<Closure> gate restores previously supported local borrowing; factory escape remains independently rejected.",
+    "Independent new controls prove a sibling field replacement is legal and a captured field replacement is rejected through both producer and raw/Wire entry points.",
+    "Independent nested environment controls prove last-call release permits later move, while a move before the pending call remains rejected."
+  ],
+  "independent_groups": 6,
+  "independent_native_runs": 8,
+  "new_independent_raw_wire_pairs": 1,
+  "fixture_failures_preserved": {
+    "source01": "No tests executed: incorrect cargo test target name.",
+    "source02": "Original stale Store raw mutation now correctly reaches E-VERIFY-RESOURCE instead of the previous false strong-Hold conflict; test input unchanged, precise diagnostic migrated in be0351, independently reviewed by the 182 author.",
+    "source03": "New reviewer stale-source probe was already rejected during Analyze; corrected the reviewer-only stage assertion and added explicit raw/Wire bypass probes, rather than weakening source rejection."
+  },
+  "author_scope_note": "Author443 is separate; root final verification here is418. Formal combined workspace will run after integration.",
+  "supersedes": "22a91 scoped review for182 only; original receipts and9ae1651/77 failure are retained.",
+  "boundaries": [
+    "Borrowed ByteBuffer capture belongs to187; environment lending belongs to184.",
+    "No complete language, product, concurrency or full ZUI claim."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
