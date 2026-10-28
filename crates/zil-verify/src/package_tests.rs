@@ -290,6 +290,7 @@ fn package_names_field_names_and_manages_admission_are_checked() {
             fields: vec![("r".into(), owned()), ("r".into(), Type::I32)],
         },
     ] {
+        let nested = matches!(&extra, Type::Package { .. });
         let mut m = plain();
         m.functions[0].locals[0].ty = ty;
         rejected(m, "E-VERIFY-PACKAGE");
@@ -349,7 +350,24 @@ fn package_fields_reject_noncopy_and_nested_owners() {
             unreachable!()
         };
         fields[2].1 = extra;
-        rejected(m, "non-Copy type");
+        if nested {
+            // 206 admits this complete nested type, but the unchanged raw
+            // input still stores its former flat SSA value into the relabeled
+            // local. Both APIs must reject that precise type forgery.
+            let (raw, wire) = check_both(m);
+            for result in [raw, wire] {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors.iter().any(|d| d.phase == Phase::Verify
+                        && d.category == zil_base::ResultCategory::SafeReject
+                        && d.code == "E-VERIFY-TYPE"
+                        && d.message == "stored value does not match local type"),
+                    "{errors:?}"
+                );
+            }
+        } else {
+            rejected(m, "non-Copy type");
+        }
     }
 }
 
