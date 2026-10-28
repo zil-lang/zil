@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl178_generic_store",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt178",
+  "start": 1793150912.9558268,
+  "source_commit": "0bf78569396d6975f619013b5ccc86a0cd701f63",
+  "git_status": " M crates/zil-driver/tests/impl178_generic_store.rs\n M crates/zil-expand/src/generic_store.rs\n M crates/zil-expand/src/generics.rs\n M examples/mainline/generic_store178/model.zil\n?? tools/language/178/consumer.py\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author178",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/runs178/author178/candidate10/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793150917.3453908,
+  "stdout.log_sha256": "b8c73ec387473065c40bc4f516227abf1e7c875bbafdb244e0e3f9172c3658ed",
+  "stderr.log_sha256": "26ef6d6440539a69105f6c9e02acf21f0cae92511559a3c248e66b763e870cc6"
+}
