@@ -289,9 +289,9 @@ fn consumed_and_cyclic_nearest_neighbors_still_reject() {
         (
             "loop",
             "fn batch<F:Fn()->i32>(f:&F)->i32{var n=0;while n<3{n+=f()}return n}fn main()->i32{let x=1;let f=()=>x;return batch(&f)}",
-            Phase::Expand,
+            Phase::Types,
             ResultCategory::Unsupported,
-            "additional symbolic checking",
+            "cyclic callable helper trace requires a loop contract",
         ),
     ] {
         let case = Case::new(label);
