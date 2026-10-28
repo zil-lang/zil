@@ -1,8 +1,15 @@
 //! Transport oracles do not grant a loan, field authority or an owning result.
 use super::*;
 
-fn cases() -> [(InstructionKind, Vec<u8>); 3] {
+fn cases() -> [(InstructionKind, Vec<u8>); 4] {
     [
+        (
+            InstructionKind::OwnedStoreBorrowMut {
+                store: ValueId(11),
+                index: ValueId(13),
+            },
+            vec![1, 7, 0, 0, 0, 88, 11, 0, 0, 0, 13, 0, 0, 0],
+        ),
         (
             InstructionKind::OwnedStoreBorrow {
                 store: ValueId(11),
@@ -54,7 +61,7 @@ fn new_window_instructions_match_manual_bytes_and_all_truncations_fail() {
                     .is_err()
             );
         }
-        for tag in [88, 89, 254] {
+        for tag in [89, 90, 254] {
             let mut bad = expected.clone();
             bad[5] = tag;
             assert_eq!(

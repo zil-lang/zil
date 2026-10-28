@@ -1041,6 +1041,12 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::OwnedStoreBorrowMut { .. } => {
+            return Err(unsupported(
+                "exclusive Store window semantics pending",
+                span,
+            ));
+        }
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
         | InstructionKind::OwnedStorePush { .. }
@@ -2209,7 +2215,10 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
             ([Some(*store), Some(*capacity)], &[])
         }
         InstructionKind::OwnedStorePush { store, value } => ([Some(*store), Some(*value)], &[]),
-        InstructionKind::OwnedStoreBorrow { store, index } => ([Some(*store), Some(*index)], &[]),
+        InstructionKind::OwnedStoreBorrow { store, index }
+        | InstructionKind::OwnedStoreBorrowMut { store, index } => {
+            ([Some(*store), Some(*index)], &[])
+        }
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store } => ([Some(*store), None], &[]),

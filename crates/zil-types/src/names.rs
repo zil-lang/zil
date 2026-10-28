@@ -47,6 +47,7 @@ fn primitive_name(name: &str) -> bool {
             | "c_wstr"
             | "c_callback"
             | "Store"
+            | "StoreElement"
             | "store_new"
             | "store_reserve"
             | "store_push"
@@ -54,6 +55,7 @@ fn primitive_name(name: &str) -> bool {
             | "store_len"
             | "store_capacity"
             | "store_at"
+            | "store_at_mut"
             | "ByteBuffer"
             | "bytes_new"
             | "bytes_reserve"
@@ -66,7 +68,7 @@ fn primitive_name(name: &str) -> bool {
     )
 }
 fn primitive_reserved(name: &str, span: Span) -> Diagnostic {
-    if name == "Store" || name.starts_with("store_") {
+    if matches!(name, "Store" | "StoreElement") || name.starts_with("store_") {
         return error(
             "E-OWNED-STORE-NAME",
             span,
