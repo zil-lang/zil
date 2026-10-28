@@ -129,17 +129,8 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            if dynamic_store::is_carrier(ty) {
-                return Err(unsupported(
-                    "Store capture requires a separate retained storage profile",
-                    None,
-                ));
-            }
-            if packages::has_store_fields(ty) {
-                return Err(unsupported(
-                    "Package capture with Store fields requires a retained storage protocol",
-                    None,
-                ));
+            if dynamic_store::is_carrier(ty) || packages::has_store_fields(ty) {
+                dynamic_store::check_owned_capture(module, ty, Some(limits), budget)?;
             }
             if packages::has_array_fields(ty) || packages::has_callable_fields(ty) {
                 return Err(unsupported(
@@ -258,6 +249,10 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
     let mut state = vec![0u8; module.closures.len()];
     let mut heights = vec![0usize; module.closures.len()];
     let mut expanded = vec![0usize; module.closures.len()];
+    // Allocate only when an actual Store-bearing capture is found. The
+    // existing bounded DAG walk carries the new result restriction upward;
+    // old no-Store environments retain their exact charged work.
+    let mut store_profiles: Option<Vec<bool>> = None;
     for root in 0..state.len() {
         let mut stack = vec![(ClosureId(root as u32), false, 0usize)];
         while let Some((id, exit, depth)) = stack.pop() {
@@ -284,11 +279,15 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
                     return Err(limit("closure layout depth exceeds selected bound"));
                 }
                 let mut work = 1usize;
+                let mut owns_store = false;
                 for ty in &definition.captures {
                     let field = if let Type::Closure(child) = ty {
+                        owns_store |= store_profiles.as_ref().is_some_and(|p| p[child.0 as usize]);
                         expanded[child.0 as usize]
                     } else {
-                        type_layout_work(ty, budget)?
+                        let (work, contains_store) = type_layout_work_with_store(ty, budget)?;
+                        owns_store |= contains_store;
+                        work
                     };
                     work = work
                         .checked_add(field)
@@ -297,6 +296,15 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
                 budget
                     .spend(work)
                     .map_err(|_| limit("closure layout expansion budget exceeded"))?;
+                if owns_store {
+                    dynamic_store::check_capture_result(module, &definition.result, None, budget)?;
+                    if store_profiles.is_none() {
+                        budget.spend(module.closures.len())?;
+                        store_profiles = Some(vec![false; module.closures.len()]);
+                    }
+                    store_profiles.as_mut().expect("allocated Store profiles")[id.0 as usize] =
+                        true;
+                }
                 expanded[id.0 as usize] = work;
                 heights[id.0 as usize] = height;
                 state[id.0 as usize] = 2;
@@ -386,13 +394,23 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
 /// only explicit Closure fields are expanded through the separate DAG above.
 /// Array repetition is charged by the owning-array caller, not by Copy arrays.
 pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
+    type_layout_work_with_store(ty, budget).map(|(work, _)| work)
+}
+
+fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, bool)> {
+    let root = ty;
     let mut pending = vec![ty];
     let mut work = 0usize;
+    let mut contains_store = false;
     while let Some(ty) = pending.pop() {
         budget.spend(1)?;
         work = work
             .checked_add(1)
             .ok_or_else(|| limit("inline type layout work overflow"))?;
+        if std::ptr::eq(ty, root) {
+            contains_store |= matches!(ty, Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::OwnedStore { .. }));
+        }
         match ty {
             Type::Array { element, .. }
             | Type::Slice { element }
@@ -409,7 +427,14 @@ pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
             }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 budget.spend(fields.len())?;
-                pending.extend(fields.iter().map(|(_, ty)| ty));
+                let capture_fields = std::ptr::eq(ty, root) && matches!(ty, Type::Package { .. });
+                pending.extend(fields.iter().map(|(_, field)| {
+                    if capture_fields {
+                        contains_store |= matches!(field, Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::OwnedStore { .. }));
+                    }
+                    field
+                }));
             }
             Type::Enum { variants, .. } => {
                 budget.spend(variants.len())?;
@@ -431,7 +456,7 @@ pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
             _ => {}
         }
     }
-    Ok(work)
+    Ok((work, contains_store))
 }
 
 pub(super) fn self_contained(
