@@ -309,6 +309,7 @@ fn resolve_indexed(
     }
     let mut resolver = Resolver {
         ordinary_parameter: None,
+        active_callable_parameters: &[],
         callable_names: core
             .functions
             .iter()
@@ -344,7 +345,8 @@ fn resolve_indexed(
         declaration.variants = variants;
     }
     let mut functions = core.functions.clone();
-    for f in &mut functions {
+    for (f, original) in functions.iter_mut().zip(&core.functions) {
+        resolver.active_callable_parameters = &original.callable_parameters;
         store_templates::validate_header(f).map_err(|e| vec![e])?;
         if let Some(parameter) = f.type_parameters.first() {
             resolver.remaining = resolver
@@ -401,6 +403,7 @@ fn resolve_indexed(
         }
         resolver.block(&mut f.body, 0).map_err(|e| vec![e])?;
         resolver.ordinary_parameter = None;
+        resolver.active_callable_parameters = &[];
     }
     *remaining = resolver.remaining;
     let mut aggregates = core.aggregates.clone();
@@ -431,6 +434,7 @@ fn owned_mode_type(ty: &Type) -> Type {
 struct Resolver<'a> {
     callable_names: BTreeSet<String>,
     ordinary_parameter: Option<String>,
+    active_callable_parameters: &'a [CoreCallableParameter],
     declarations: BTreeMap<String, &'a CoreAggregate>,
     enum_declarations: BTreeMap<String, &'a CoreEnum>,
     owners: BTreeMap<String, u32>,
@@ -440,6 +444,37 @@ struct Resolver<'a> {
     depth_limit: usize,
 }
 impl Resolver<'_> {
+    fn callback_error_payload(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
+        let Type::Package { fields, .. } = ty else {
+            return Ok(false);
+        };
+        if self.active_callable_parameters.is_empty() {
+            return Ok(false);
+        }
+        for (_, field) in fields {
+            self.charge(depth, span)?;
+            if let Type::Named(name) = field {
+                self.remaining = self
+                    .remaining
+                    .checked_sub(
+                        name.len()
+                            .saturating_add(1)
+                            .saturating_mul(self.active_callable_parameters.len()),
+                    )
+                    .ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "callback error payload budget exceeded",
+                            Some(span),
+                        )
+                    })?;
+            }
+        }
+        Ok(dynamic_store::callback_element(
+            ty,
+            |field| matches!(field, Type::Named(name) if self.active_callable_parameters.iter().any(|b| &b.generic_name == name)),
+        ))
+    }
     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
         let resolved = self.ty(&field.ty, depth, field.span)?;
         if dynamic_store::is_carrier(&resolved) && !field.manages {
@@ -756,10 +791,19 @@ impl Resolver<'_> {
                     result: Box::new(result),
                 };
                 if !errors::supported(&union) {
-                    let symbolic = self
+                    let mut symbolic = self
                         .ordinary_parameter
                         .as_ref()
                         .is_some_and(|name| store_templates::symbolic_type(&union, name));
+                    if !symbolic && let Type::ErrorUnion { error, result } = &union {
+                        let error_ok = error.is_copy_value()
+                            || packages::supported(error)
+                            || self.callback_error_payload(error, depth + 1, span)?;
+                        let result_ok = result.is_copy_value()
+                            || packages::supported(result)
+                            || self.callback_error_payload(result, depth + 1, span)?;
+                        symbolic = error_ok && result_ok;
+                    }
                     if !symbolic {
                         return Err(unsupported(
                             span,
