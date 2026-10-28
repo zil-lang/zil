@@ -1,0 +1,1 @@
+fn make(n:i32)->impl Fn()->i32{return move()=>n}fn twice<F:Fn()->i32>(f:&F)->i32{return f()+f()}fn once<F:FnOnce()->i32>(f:F)->i32{return f()}fn main()->i32{let a=make(7);let b=make(4);return twice(&a)+once(b)-18}
