@@ -1,0 +1,25 @@
+{
+  "status": "NotRun",
+  "scope": "205 inputs preserved before new production; original 138-byte case was observed under204 workspace02 at85, not reexecuted as205",
+  "baseline": "4fa100e4b2f2cad5e480129263463a5914a36a5f",
+  "old_204_source_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
+  "original_204_result": "Expand Unsupported/E-UNSUPPORTED, Verify0",
+  "files": {
+    "00_original_state_and_replacement.zil": {
+      "bytes": 138,
+      "sha256": "5251f83be296a6273532690540cfde459938f39801afc614ba1cbb672df2b05a"
+    },
+    "01_mixed_unused_copy_alias.zil": {
+      "bytes": 239,
+      "sha256": "ea27ef687fb8e03cbf5c3f8216fa2b904064575490155e7296da1c351ab31f8b"
+    },
+    "02_single_state_unused_copy_alias.zil": {
+      "bytes": 252,
+      "sha256": "2601332cc0d78658ac96f105e83fea18ce8544bccafe45f2e1ccc8e0254b2d62"
+    },
+    "03_mixed_unused_copy_alias_last_use.zil": {
+      "bytes": 239,
+      "sha256": "6c1b1cda1d54109b904bde79195d32e9cbb6eab0045c42254446b63381bc6982"
+    }
+  }
+}
