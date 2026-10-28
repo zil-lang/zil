@@ -100,3 +100,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-28：202 完整普通T模板接受
 
 202的caller词法作用域、完整名义T实例、未用定义检查、真实Desc效果、无Store操作的资格核、CT边界和IDE失效均完成有限验收。最终clean b73ba8a7全仓2319/0/0；五模块Linux/Wine各126/0、各86真实分配失败，非作者另行Linux126通过。原四类实现缺陷、夹具/环境失败与迁移按原身份保留，详见docs/LANGUAGE-202.md。下一203同批推进F/G持久State、声明模式来源与最多两种具体callback的有限Store资格，使普通T组合继续按声明约束检查。完整1.4 NotSatisfied、产品/原生Windows NotRun、B0 Doing，编译专项独立。
+
+## 2026-10-28：203 独立State绑定施工
+
+依据§8.2.2并行实施Core独立State声明表、F/G模式来源和有限双环境Store资格；真实完整T及字段/元素责任保真。202已接受记录保持；203登记不计实现完成，验收需精确候选与独立证据，完整1.4及产品状态保持。
