@@ -17,3 +17,5 @@ Types作者 source09 真实经过 main identity/seed 后，在跨模块 `a.activ
 CLI05阶段实测：clean `5e101737eea87074fe0531a2ab9371efc44062d4` 与匹配CLI在Linux和Win64/Wine分别完成128次执行，各16普通、112分配probe、88真实分配失败；每个平台O0/O2各一份完整五模块构建、Verify各1次。预期保持原样，所有probe最终live=0，Win64同时bad_operations=0。原生Windows仍NotRun。首次Linux启动仅因同步临时目录被clean-source门拒绝，编译/执行均0；目录自行消失后以同源新目录执行，原失败保留。
 
 这组成绩只绑定CLI05，不计最终203验收：随后独审的未用定义While条件别名近邻另有修复，最终消费者将用新冻结CLI按相同源和oracle另行执行，原ZIP不覆盖或倒标。阶段小收据是`evidence/impl/203/consumer/CLI05_RESULT.json`，独立文本证据包约1.47MB，无执行产物。
+
+CLI06最终作者重放已实际完成：clean消费者`7afbb6493cde414b042dcd0dfc67fc7d2579d63d`，生产与CLI来源`ee0ebb3f78d942a58c8cf3576654e937c5e35629`字节一致；Linux03和Wine02各128次执行、各88次真实分配失败全部符合原oracle。与CLI05的五源及oracle完全相同；两套成绩分开保存，不累计冒充一套独审。最终小收据是`evidence/impl/203/consumer/RESULT.json`，完整说明在`changes/203-consumer.md`，新文本证据包约1.47MB。原生Windows、完整语言和产品状态保持原界限。
