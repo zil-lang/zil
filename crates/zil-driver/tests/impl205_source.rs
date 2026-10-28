@@ -215,7 +215,7 @@ fn refreshed_loop_alias_executes_zero_one_and_three_iterations() {
     let source = format!(
         r#"{RESOURCE}extern "C" fn getchar()->i32;
 {definitions}
-fn make(label:i32)->impl Fn()->i32{{let ticket=Ticket{{code:label}};return move()=>{{ticket.code;unsafe{{return getchar()}}}}}}
+fn make(label:i32)->impl Fn()->i32{{let ticket=Ticket{{code:label}};return move()=>{{ticket.code;unsafe{{let value=getchar();putchar(67);return value}}}}}}
 fn pack<T:Copy,F:Fn()->i32>(a:F,b:F,tag:T)->State<T,F>{{return State::<T,F>{{bytes:bytes_new(),a:a,b:b,tag:tag}}}}
 fn main()->i32{{let state=pack(make(65),make(66),7);let next=recycle(state);return next.tag-7}}
 "#
@@ -233,6 +233,7 @@ fn main()->i32{{let state=pack(make(65),make(66),7);let next=recycle(state);retu
         for iterations in [0, 1, 3] {
             let mut input = vec![0; iterations];
             input.extend([1, 1]); // Exit condition, then the post-loop call.
+            let expected = format!("{}AB", "C".repeat(iterations + 2));
             let prefix = format!("iterations-{iterations}");
             fs::write(directory.join(format!("{prefix}.stdin")), &input).unwrap();
             let mut child = Command::new(&report.artifacts["executable"])
@@ -248,13 +249,13 @@ fn main()->i32{{let state=pack(make(65),make(66),7);let next=recycle(state);retu
             fs::write(
                 directory.join(format!("{prefix}.txt")),
                 format!(
-                    "optimization={optimization:?}\niterations={iterations}\nexit={:?}\nexpected_exit=0\nexpected_stdout=AB\n",
+                    "optimization={optimization:?}\niterations={iterations}\nexit={:?}\nexpected_exit=0\nexpected_stdout={expected}\n",
                     output.status.code()
                 ),
             )
             .unwrap();
             assert_eq!(output.status.code(), Some(0), "{output:?}");
-            assert_eq!(output.stdout, b"AB", "{output:?}");
+            assert_eq!(output.stdout, expected.as_bytes(), "{output:?}");
             assert!(output.stderr.is_empty(), "{output:?}");
         }
     }
