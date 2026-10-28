@@ -52,9 +52,23 @@ pub(crate) fn refers(ty: &TypeRef, name: &str) -> bool {
 /// A nominal container carrying F is resolved to a real Package by Types.
 /// This is syntax classification only, never an owning admission proof.
 pub(crate) fn state_type(ty: &TypeRef, name: &str) -> bool {
-    matches!(&grouped(ty).kind, TypeKind::Named { path, args }
-        if path.as_slice() != [name] && matches!(args.as_slice(),[GenericArg::Type(t)]
-            if matches!(&grouped(t).kind, TypeKind::Named{path,args} if path.as_slice()==[name] && args.is_empty())) )
+    let TypeKind::Named { path, args } = &grouped(ty).kind else {
+        return false;
+    };
+    path.as_slice() != [name]
+        && (1..=2).contains(&args.len())
+        && args
+            .iter()
+            .filter(|argument| {
+                matches!(argument, GenericArg::Type(t)
+            if parameter_mode(t, name) == Some(None))
+            })
+            .count()
+            == 1
+        && args.iter().all(|argument| {
+            matches!(argument, GenericArg::Type(t)
+            if parameter_mode(t, name) == Some(None) || !refers(t, name))
+        })
 }
 
 pub(crate) fn parameter_mode(ty: &TypeRef, name: &str) -> Option<Option<bool>> {
@@ -246,10 +260,10 @@ fn template_with_state(
                 .iter()
                 .any(|p| is_state(&p.ty, &parameter.name));
         owned_state |= owning;
-        if owning && function.generics.len() != 1 {
+        if owning && callables.len() != 1 {
             return Err(unsupported(
                 function.span,
-                "Copy data and owning callable State combinations are not implemented",
+                "owning State helpers require one callable type",
             ));
         }
         let mut count = 0;
@@ -262,7 +276,7 @@ fn template_with_state(
             if (mode.is_none() && !is_state(&input.ty, &parameter.name)) || input.give {
                 return Err(unsupported(
                     input.span,
-                    "callable parameter must be F, &F, &mut F or one owning State<F>",
+                    "callable parameter must be F, &F, &mut F or a single owning State",
                 ));
             }
             if owning && count != 0 {

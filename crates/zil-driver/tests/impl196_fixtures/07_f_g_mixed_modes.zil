@@ -1,0 +1,1 @@
+fn step<F:FnMut(i32)->i32,G:Fn(i32)->i32>(update:&mut F,read:&G,x:i32)->i32{let next=update(x);return read(next)}fn main()->i32{var total=0;var update=move(v:i32)=>{total+=v;return total};let read=move(v:i32)=>v*2;return step(&mut update,&read,21)-42}
