@@ -47,3 +47,10 @@ unchanged. Cache disabled by default: `--cache-dir` does NOT silently opt into a
 trusted object cache. Native object caching is currently a Linux-host capability.
 Windows object output may be separately checked; Windows-host and remote caches
 are not advertised. Independent external review and formal product gates: NotRun.
+
+Pre-measurement test correction: first full regression stopped on the new cached
+State/Store test because it wrongly expected field_exit to return zero. Existing
+177 source and llvm_api208 control expect exit 1 on that cleanup path. Correct only
+the new test oracle; keep failed log, do not alter producer code. Also use a mutable
+source in the borrow negative so it specifically checks E-BORROW-CONFLICT rather
+than an earlier immutable-assignment diagnostic. No timings had been collected.

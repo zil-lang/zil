@@ -199,10 +199,11 @@ fn unsafe_or_invalid_current_source_never_reuses_a_success_capability() {
     let before = entries(o.object_cache.as_ref().unwrap());
     d.write(
         "main.zil",
-        "fn main()->i32 { let a=1; let r=&a; a=2; return *r; }",
+        "fn main()->i32 { var a=1; let r=&a; a=2; return *r; }",
     );
     let bad = d.build(&o);
-    assert_ne!(bad.status, ResultCategory::Success);
+    assert_eq!(bad.status, ResultCategory::SafeReject);
+    assert_eq!(bad.diagnostics[0].code, "E-BORROW-CONFLICT");
     assert!(bad.commands.is_empty());
     assert!(bad.native_codegen.is_none());
     assert_eq!(fs::read(o.output.as_ref().unwrap()).unwrap(), bytes);
@@ -338,7 +339,11 @@ fn owned_state_store_and_callbacks_match_on_cold_and_warm_o0_o2() {
                             .unwrap();
                         child.stdin.take().unwrap().write_all(&[input]).unwrap();
                         let out = child.wait_with_output().unwrap();
-                        assert!(out.status.success());
+                        assert_eq!(
+                            out.status.code(),
+                            Some(if entry == "main" { 0 } else { 1 }),
+                            "{entry} {opt:?} units={units} warm={warm} {out:?}"
+                        );
                         assert_eq!(
                             out.stdout,
                             if entry == "main" { main } else { field }.as_bytes()
