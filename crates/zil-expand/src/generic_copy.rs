@@ -193,7 +193,15 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                     }
                 }
                 let name = path.join(".");
-                if !self.active.insert(name.clone()) {
+                // Copy qualification distinguishes Box<Box<i32>> from Box<i32>.
+                // The complete instance key pays its normal syntax work first.
+                // StoreElement retains its prior nominal activity rule and cost.
+                let key = if self.symbolic.is_some() {
+                    Cow::Owned(type_key(ty, self.budget)?)
+                } else {
+                    Cow::Borrowed(name.as_str())
+                };
+                if !self.active.insert(key.to_string()) {
                     return Err(error(
                         ty.span,
                         "StoreElement requires a finite nonrecursive layout",
@@ -260,7 +268,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                         "StoreElement fields require finite Copy or explicit direct manages resources",
                     )),
                 };
-                self.active.remove(&name);
+                self.active.remove(key.as_ref());
                 outcome
             }
             _ => Err(error(
