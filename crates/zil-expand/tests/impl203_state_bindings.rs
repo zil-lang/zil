@@ -360,7 +360,7 @@ fn an_owned_dual_state_can_remain_complete_on_an_error_union_side() {
         ),
         original.replace("->State<T,F,G>!i32", "->(State<T,F,G>, i32)"),
         original.replace("    return 0\n}", "    return true\n}"),
-        original.replace("    return 0\n}", "    return 0i64\n}"),
+        original.replace("    return 0\n}", "    return i64(0)\n}"),
     ] {
         let errors = rejection(&changed);
         assert!(
