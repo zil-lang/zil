@@ -278,3 +278,99 @@ fn ordinary_product_admission_does_not_widen_other_raw_parent_contexts() {
         );
     }
 }
+
+#[test]
+fn same_typed_children_keep_their_own_actual_leaf_origins() {
+    let source = "resource R{n:i32}package P{manages leaf:R}package Outer{left:P;right:P}fn origin(give old:R)->R contract{result(create)}{let left=P{leaf:R{n:29}};let right=P{leaf:give old};let outer=Outer{left:left,right:right};let child=outer.left;return give child.leaf}fn main(){}";
+    let base = typed("same-types", source);
+    analyze("same-types-good", &base, None);
+    analyze(
+        "same-types-source-incoming",
+        &typed(
+            "same-types-source-incoming",
+            &source.replace("outer.left", "outer.right"),
+        ),
+        Some("create result forwards an incoming responsibility"),
+    );
+    let mut raw = base.clone();
+    let function = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "origin")
+        .unwrap();
+    let mut changed = 0;
+    for instruction in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let I::TakePackageField { local, index } = &mut instruction.kind
+            && matches!(&function.locals[local.0 as usize].ty, Type::Package { fields, .. }
+                if fields.len() == 2 && fields.iter().all(|(_, ty)| matches!(ty, Type::Package { .. })))
+        {
+            assert_eq!(*index, 0);
+            *index = 1;
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    analyze(
+        "same-types-raw-retarget",
+        &raw,
+        Some("create result forwards an incoming responsibility"),
+    );
+}
+
+#[test]
+fn cfg_joins_preserve_incoming_on_each_reachable_product_path() {
+    let model = "resource R{n:i32}package P{manages leaf:R}package Outer{child:P}";
+    let both_created = format!(
+        "{model}fn origin(give old:R,choose:bool)->R contract{{result(create)}}{{var outer=Outer{{child:P{{leaf:R{{n:1}}}}}};if choose{{outer.child=P{{leaf:R{{n:2}}}}}}else{{outer.child=P{{leaf:R{{n:3}}}}}};let child=outer.child;return give child.leaf}}fn main(){{}}"
+    );
+    analyze("cfg-created", &typed("cfg-created", &both_created), None);
+    let mixed = both_created.replace("leaf:R{n:3}", "leaf:give old");
+    analyze(
+        "cfg-mixed",
+        &typed("cfg-mixed", &mixed),
+        Some("create result forwards an incoming responsibility"),
+    );
+    let loop_source = format!(
+        "{model}fn origin(give old:R,choose:bool)->R contract{{result(create)}}{{var outer=Outer{{child:P{{leaf:give old}}}};while choose{{outer.child=P{{leaf:R{{n:2}}}};break}};let child=outer.child;return give child.leaf}}fn main(){{}}"
+    );
+    analyze(
+        "zero-iteration-incoming",
+        &typed("zero-iteration-incoming", &loop_source),
+        Some("create result forwards an incoming responsibility"),
+    );
+}
+
+#[test]
+fn unused_resource_payload_does_not_admit_an_ordinary_product() {
+    let types = typed(
+        "resource-product-shape",
+        "resource R{n:i32}package P{manages leaf:R}package Outer{child:P}fn identity(p:Outer)->Outer{return p}fn main(){}",
+    );
+    let product = types
+        .functions
+        .iter()
+        .find(|f| f.name == "identity")
+        .unwrap()
+        .return_type
+        .clone();
+    let mut module = typed(
+        "resource-unused-control",
+        "resource Unused{n:i32}fn main(){}",
+    );
+    analyze("resource-unused-control", &module, None);
+    let Type::Record { fields, .. } = &mut module.resources[0].payload else {
+        panic!("Copy head")
+    };
+    fields.push(("hidden".into(), product));
+    let dir = directory("resource-unused-product");
+    fs::write(dir.join("typed.txt"), format!("{module:#?}")).unwrap();
+    let result = zil_analyze::analyze(&module, &Limits::default());
+    fs::write(dir.join("analyze.txt"), format!("{result:#?}")).unwrap();
+    let errors = result.expect_err("unused resource head cannot own Product");
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::Unsupported),
+        "{errors:#?}"
+    );
+}
