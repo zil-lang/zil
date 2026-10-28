@@ -157,11 +157,16 @@ fn a_descriptor_environment_does_not_extend_the_owners_last_use() {
         "{}",
         report.to_json()
     );
+    assert_eq!(
+        report.phase,
+        zil_base::Phase::Analyze,
+        "{}",
+        report.to_json()
+    );
     assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "E-VERIFY-RESOURCE" || d.code == "E-UNINITIALIZED"),
+        report.diagnostics.iter().any(|d| d.code == "E-ANALYZE-IR"
+            && d.message
+                .contains("head transition invalidates a description required later")),
         "{}",
         report.to_json()
     );
