@@ -335,8 +335,7 @@ fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
             report
                 .diagnostics
                 .iter()
-                .any(|d| d.message.contains("Copy or concrete callback fields")
-                    || d.message.contains("capture")),
+                .any(|d| d.message.contains("Copy or concrete callback fields") || d.message.contains("capture")),
             "{}",
             report.to_json()
         );
