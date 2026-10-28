@@ -880,7 +880,7 @@ fn slice_profiles_reject_foreign_abi_and_ct() {
 }
 
 #[test]
-fn slice_captures_and_explicit_callable_signatures_remain_closed() {
+fn explicit_slice_parameters_preserve_closed_captures_and_lending_sources() {
     for position in 0..3 {
         let mut body = Body::new(0, Type::Unit);
         body.f.environment = Some(ClosureId(0));
@@ -906,13 +906,16 @@ fn slice_captures_and_explicit_callable_signatures_remain_closed() {
         }
         let mut test = case(vec![body.finish(None)]);
         test.module.closures.push(closure);
-        // 184 admits only declared environment lending sources. This original
-        // empty environment has none and still cannot manufacture a window.
-        test.reject(if position == 2 {
-            "E-VERIFY-LENDING"
-        } else {
-            "E-UNSUPPORTED"
-        });
+        match position {
+            // The original raw entry has no actual window capture.
+            0 => test.reject("E-UNSUPPORTED"),
+            // 193 admits this same explicit one-layer slice parameter with a
+            // Copy result; `pass` verifies both raw and serialized Wire input.
+            1 => test.pass(),
+            // Preserve main's 184 fixture migration: an empty environment
+            // cannot advertise a borrowed result without lending sources.
+            _ => test.reject("E-VERIFY-LENDING"),
+        }
     }
 }
 

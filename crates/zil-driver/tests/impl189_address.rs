@@ -376,10 +376,20 @@ fn unused_generic_helpers_are_checked_and_shared_inputs_cannot_grant_mutability(
 
 #[test]
 fn address_parameter_results_and_unsupported_shapes_remain_closed() {
+    // The original unused explicit slice signature is admitted by 193. It
+    // does not need an actual index or GEP to exist in a native test helper.
+    let report = check("fn main(){let f=(p:&[i32])=>p.len();}");
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
     for source in [
         "fn main(){let n=3;let f=(p:&i32)->&i32=>p;let q=f(&n);}",
         "fn make()->impl Fn(&i32)->&i32{let n=3;return move(p:&i32)=>&n}fn main(){}",
-        "fn main(){let f=(p:&[i32])=>p.len();}",
         "resource R{n:i32}fn main(){let f=(p:&R)=>p.n;}",
         "resource R{n:i32}package P{manages r:R;n:i32}fn main(){let f=(p:&P)=>p.n;}",
         "fn main(){let f=(p:&(&i32))=>**p;}",

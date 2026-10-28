@@ -546,12 +546,14 @@ pub(super) fn check_module(
             }
             let ty = &f.locals[local.0 as usize].ty;
             if !ty.is_copy_value()
-                && !matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+                && !matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()
+                    || (f.return_type.is_copy_value()
+                        && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
                 && !matches!(ty, Type::Managed(_) | Type::Package { .. })
                 && !matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
             {
                 return Err(unsupported(
-                    "other callback helper parameters must be finite Copy, Managed, complete Package or ByteBuffer description values",
+                    "other callback helper parameters must be finite Copy, one Copy/slice address, Managed, complete Package or ByteBuffer description values; slice arguments require a Copy helper result",
                     Some(f.span),
                 ));
             }
