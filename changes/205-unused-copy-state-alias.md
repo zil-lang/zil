@@ -23,3 +23,9 @@ fn main(){}
 集成方授权在既已登记generic_check/generic_places/generic_loop_control/generic_aliases写集中修复该源定义漏检。适用于新205混合入口及实证旧单State定义中的实际借址/别名操作；恢复既有窗口与未用定义规则，不新增安全权限，不改变规范hash。完整State/field真实位置和代次必须保留，take/refill不能复活旧alias，分支/循环/条件和callee-before-arguments均按实际使用检查。无此新操作的旧路径与具名精确费用保持，不能用全局保守拒绝代替last-use/sibling近邻。
 
 原01/03在旧204只遇混合头Unsupported，不能计作alias核通过。修复须用相同字节重新检查02，并以真实last-use、兄弟字段、不冲突转交、take/refill旧epoch和调用准备负例闭合。Types与raw Verify独立入口另核，不能以Expand提前拒绝冒充。完整1.4/B0/产品状态不变。
+
+## 非T最近对照与预算补充
+
+去除普通T后的最近原样顺序同样实际Success/Verify1。Core保留recycle，但Typed只main，仍未native；原source SHA256 `7a88eac73129444f5035e476ce4c406beb12b902b37f63bff466dd98f54c718a`，固定副本见evidence/impl/205/preflight/04_single_state_non_t_alias.zil，原阶段/命令见run-logs/205-expand/baseline-non-t01。该实证否定了“非T保留Core即已检查旧alias”的假设。
+
+修复覆盖有限owning State定义中的真实borrow/alias，而不只含普通T。先实跑并保留原N1731控制；若新位置/别名检查带来真实新增工作，按同输入记录新N及N−1/fresh N，不用旧数字阻挡正确检查。此为具名实际缺陷的预算规则补充，默认limits/product阈值不变；设计§8.2.3及接口同批更新，新规范`9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e`，所有旧运行仍保持原规范身份。
