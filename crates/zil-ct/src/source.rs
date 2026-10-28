@@ -21,13 +21,14 @@ pub struct SourceEvaluationUsage {
     pub nodes: usize,
 }
 
-/// A bounded index of raw serializable-value headers. These are type hints, not permissions:
+/// A bounded index of raw value and runtime-template headers. These are type hints, not permissions:
 /// types still checks visibility, aliases, argument types and arity afterwards.
 /// No dependency body is copied or executed while constructing or using it.
 pub struct SourceProgramContext<'a> {
     functions: BTreeMap<(zil_base::ModuleId, &'a str), Option<&'a CoreFunction>>,
-    // Explicit runtime type applications may use ordinary scalar argument
-    // hints from these bounded headers. They never authorize CT execution.
+    // Explicit runtime type applications only target ordinary templates.
+    // Bare calls also use their bounded headers through `functions`; neither
+    // lookup authorizes CT execution or supplies a missing type argument.
     type_templates: BTreeMap<(zil_base::ModuleId, &'a str), Option<&'a CoreFunction>>,
     imports: BTreeMap<(zil_base::ModuleId, &'a str), Option<zil_base::ModuleId>>,
 }
@@ -96,7 +97,9 @@ impl<'a> SourceProgramContext<'a> {
                         .entry((id, function.name.as_str()))
                         .and_modify(|entry| *entry = None)
                         .or_insert(Some(function));
-                    usable = false;
+                    // Full value inference is checked later by Types. Known
+                    // scalar positions still provide runtime argument hints.
+                    usable = true;
                 }
                 if !function.state_parameters.is_empty() {
                     state_template_shape(function)?;
@@ -122,7 +125,10 @@ impl<'a> SourceProgramContext<'a> {
                             hint_type(ty, 0, &mut nodes, &mut work, limits)?;
                         }
                     }
-                    usable = false;
+                    // The State binding table has now been bounded as well.
+                    // Preserve scalar hints without treating State as an
+                    // explicit ordinary type-application target.
+                    usable = true;
                 }
                 functions
                     .entry((id, function.name.as_str()))
@@ -1461,7 +1467,7 @@ impl<'a> Walker<'a> {
             self.core
                 .functions
                 .iter()
-                .find(|f| &f.name == name && (!f.type_parameters.is_empty()) == template)
+                .find(|f| &f.name == name && (!template || !f.type_parameters.is_empty()))
         } else {
             None
         }
