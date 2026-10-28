@@ -180,3 +180,11 @@ SCC/可达性/BFS 使用显式队列或栈；不对 graph cycle 递归，不按 
 ## 2026-10-28 接续：ForRange具体展开的整数上下文
 
 符号正文已接受 `0..identity(bounds.high)`（high:i64），但具体AST展开仍把Range交普通Binary路径，先把左0猜i32后把错误的i32期望交右generic调用，真实源测试9/10保留。按root 3d10918派工，只在For语句增加范围专用入口：先以有界只读元数据查询端点已知类型（未定无后缀整数不先定宽），再左→右各调用一次正常expr_expected。元数据查询不实例化函数、不改AST、不消费资源、不运行端点，实际表达式与后续Types仍重检真实类型/权限。普通Binary行为、188具体helper调度、默认额度和loop责任不变式不变。
+
+## 2026-10-28 三阶段接续初版（尚待语义验收）
+
+以统一公共候选a00472da（188/189实际合流、schema24显式运输）和root c92146b的Verify limits实参授权为基础，实现三个彼此独立的私有模块。Types先建立有界block片段并拼接每个静态child副本，再BFS编号与拓扑判环；Analyze以独立来源标记和精确单模式计数行重建、逐字段比对；Verify从实际指令续点及按调用点区分的child节点直接BFS展开，再用独立显式DFS判环与有限路径求值。三者均只从已完成的callee合同组合，Return接续、Trap停止，不把公共Flow声明当成调用权限。旧来源核验、capture/argument权限与资源状态worklist保留。
+
+图复制前分别检查节点、调用事件、边的checked累计值，按公共191语义使用原max_nodes/max_instructions/max_analysis_steps；扫描、拥有复制/重定位、BFS/判环/结果比较分别计费。静态helper依赖路径在Analyze和Verify独立核max_call_depth，Types仍由188计划核验；runtime回边不累计该depth。默认Limits没有变化。新增实际工作可能改变精确工作量夹具的边界，必须保留原失败并由root逐例批准迁移；不增加预算掩盖失败。
+
+资源Call消费者对Finite逐路径、Flow逐可达节点核是否含callback事件，覆盖不返回前缀；仅有Flow字样不豁免真实Live/Drop/Hold或当前实参义务。FnOnce有环仍明确Unsupported，有限0/1次仍按真实图构建Finite。ForRange与全部Flow初版check通过仅是编译事实，不是安全/运行验收。

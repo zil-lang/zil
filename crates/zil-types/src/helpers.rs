@@ -2,6 +2,8 @@
 //! checked in the defining module; consumers receive a normal direct call.
 use super::*;
 
+#[path = "helper_flow.rs"]
+mod flow;
 #[path = "helper_plan.rs"]
 mod plan;
 use std::collections::BTreeSet;
@@ -524,7 +526,7 @@ impl Builder<'_, '_> {
                 } else {
                     CallableCleanup::Owned
                 },
-                traces: CallableTraces::Finite(traces(&typed, &bound, self.closures, span)?),
+                traces: flow::contract(&typed, &bound, self.closures, self.limits, span)?,
             });
         }
         self.closures.helper_exports.push(Export {
@@ -740,13 +742,13 @@ fn environment_origins(
     Ok((locals, values))
 }
 
-fn forwarded_traces(
+fn forwarded_contract(
     function: &TypedFunction,
     instruction: &Instruction,
     origins: &[u8],
     kind: CallableKind,
     state: &mut closures::State,
-) -> R<Option<Vec<CallableTrace>>> {
+) -> R<Option<usize>> {
     let InstructionKind::Call {
         function: callee,
         arguments,
@@ -783,7 +785,7 @@ fn forwarded_traces(
         .ok_or_else(|| {
             unsupported(
                 instruction.span,
-                "nested helper has no completed finite callable contract",
+                "nested helper has no completed callable contract",
             )
         })?;
     let contract = state.helper_functions[position]
@@ -796,231 +798,5 @@ fn forwarded_traces(
             "nested helper parameter or declared callable kind differs",
         ));
     }
-    let count = contract
-        .traces
-        .as_finite()
-        .ok_or_else(|| {
-            unsupported(
-                instruction.span,
-                "cyclic callable Flow semantics are not implemented",
-            )
-        })?
-        .len();
-    state.snapshot(count, instruction.span)?;
-    for index in 0..count {
-        let length = state.helper_functions[position]
-            .callable_contract
-            .as_ref()
-            .unwrap()
-            .traces
-            .as_finite()
-            .expect("finite contract checked above")[index]
-            .calls
-            .len();
-        // Charge the following kind check and owned trace clone separately.
-        state.snapshot(length.saturating_mul(2).saturating_add(1), instruction.span)?;
-        if state.helper_functions[position]
-            .callable_contract
-            .as_ref()
-            .unwrap()
-            .traces
-            .as_finite()
-            .expect("finite contract checked above")[index]
-            .calls
-            .iter()
-            .any(|mode| *mode != kind)
-        {
-            return Err(unsupported(
-                instruction.span,
-                "nested helper contains a different invocation kind",
-            ));
-        }
-    }
-    Ok(Some(
-        state.helper_functions[position]
-            .callable_contract
-            .as_ref()
-            .unwrap()
-            .traces
-            .as_finite()
-            .expect("finite contract checked above")
-            .to_vec(),
-    ))
-}
-
-fn traces(
-    function: &TypedFunction,
-    bound: &CoreCallableParameter,
-    state: &mut closures::State,
-    span: Span,
-) -> R<Vec<CallableTrace>> {
-    let parameter = function.parameters[bound.index as usize];
-    let (locals, values) = environment_origins(function, parameter, state, span)?;
-    // Only actual parameter invocations enter this trace. Local self-contained
-    // factories keep their own kinds and ordinary resource checks. A count is
-    // exact for the resulting single-kind parameter sequence.
-    state.snapshot(2, span)?;
-    let mut pending = vec![(function.entry, BTreeSet::from([0usize]), BTreeSet::new())];
-    let mut result = BTreeSet::new();
-    while let Some((block, mut calls, mut active)) = pending.pop() {
-        state.snapshot(active.len().saturating_add(1), span)?;
-        if !active.insert(block) {
-            return Err(unsupported(
-                span,
-                "cyclic callable helper trace requires a loop contract",
-            ));
-        }
-        let block = &function.blocks[block.0 as usize];
-        for instruction in &block.instructions {
-            state.snapshot(1, instruction.span)?;
-            if let Some(children) =
-                forwarded_traces(function, instruction, &values, bound.kind, state)?
-            {
-                let mut continuing = BTreeSet::new();
-                for prefix in &calls {
-                    for child in &children {
-                        state.snapshot(1, instruction.span)?;
-                        let count = prefix.checked_add(child.calls.len()).ok_or_else(|| {
-                            Diagnostic::limit(
-                                Phase::Types,
-                                "nested helper call count overflow",
-                                Some(instruction.span),
-                            )
-                        })?;
-                        if bound.kind == CallableKind::FnOnce && count > 1 {
-                            return Err(unsupported(
-                                instruction.span,
-                                "finite helper supports at most one consumed call",
-                            ));
-                        }
-                        let size = if child.exit == CallableExit::Trap {
-                            result.len()
-                        } else {
-                            continuing.len()
-                        };
-                        state.snapshot(
-                            size.checked_ilog2().map_or(1, |n| n as usize + 2),
-                            instruction.span,
-                        )?;
-                        if child.exit == CallableExit::Trap {
-                            result.insert((count, CallableExit::Trap));
-                        } else {
-                            continuing.insert(count);
-                        }
-                    }
-                }
-                calls = continuing;
-                continue;
-            }
-            let invocation = match instruction.kind {
-                InstructionKind::CallClosure { callee, .. } => {
-                    Some((values[callee.0 as usize], CallableKind::Fn, false))
-                }
-                InstructionKind::CallClosureShared { callee, .. } => {
-                    Some((locals[callee.0 as usize], CallableKind::Fn, false))
-                }
-                InstructionKind::CallClosureMut { callee, .. } => {
-                    Some((locals[callee.0 as usize], CallableKind::FnMut, false))
-                }
-                InstructionKind::CallClosureOnce { callee, .. } => {
-                    Some((values[callee.0 as usize], CallableKind::FnOnce, false))
-                }
-                InstructionKind::CallClosureBorrowed { callee, kind, .. } => {
-                    Some((values[callee.0 as usize], kind, true))
-                }
-                _ => None,
-            };
-            if let Some((origin, mode, borrowed)) = invocation {
-                if origin == 2 && !borrowed {
-                    continue;
-                }
-                if origin != 1 {
-                    return Err(unsupported(
-                        instruction.span,
-                        "helper callable origin is unknown, mixed, or a borrowed local factory result",
-                    ));
-                }
-                if mode != bound.kind {
-                    return Err(error(
-                        "E-CLOSURE-MODE",
-                        instruction.span,
-                        "helper callback mode differs from its bound",
-                    ));
-                }
-                let mut next = BTreeSet::new();
-                for count in calls {
-                    state.snapshot(
-                        next.len().checked_ilog2().map_or(1, |n| n as usize + 2),
-                        instruction.span,
-                    )?;
-                    if bound.kind == CallableKind::FnOnce && count != 0 {
-                        return Err(unsupported(
-                            span,
-                            "finite helper supports at most one consumed call",
-                        ));
-                    }
-                    next.insert(count.checked_add(1).ok_or_else(|| {
-                        Diagnostic::limit(
-                            Phase::Types,
-                            "helper call count overflow",
-                            Some(instruction.span),
-                        )
-                    })?);
-                }
-                calls = next;
-            }
-        }
-        match block.terminator {
-            Terminator::Return(_) => {
-                for count in calls {
-                    state.snapshot(
-                        result.len().checked_ilog2().map_or(1, |n| n as usize + 2),
-                        span,
-                    )?;
-                    result.insert((count, CallableExit::Return));
-                }
-            }
-            Terminator::Trap => {
-                for count in calls {
-                    state.snapshot(
-                        result.len().checked_ilog2().map_or(1, |n| n as usize + 2),
-                        span,
-                    )?;
-                    result.insert((count, CallableExit::Trap));
-                }
-            }
-            Terminator::Jump(target) => {
-                state.snapshot(1, span)?;
-                pending.push((target, calls, active));
-            }
-            Terminator::Branch {
-                then_block,
-                else_block,
-                ..
-            } => {
-                state.snapshot(
-                    active.len().saturating_add(calls.len()).saturating_add(2),
-                    span,
-                )?;
-                pending.push((then_block, calls.clone(), active.clone()));
-                pending.push((else_block, calls, active));
-            }
-            Terminator::Unreachable => {
-                return Err(error(
-                    "E-HELPER-TRACE",
-                    span,
-                    "reachable helper path has no defined exit",
-                ));
-            }
-        }
-    }
-    let mut traces = Vec::new();
-    for (count, exit) in result {
-        state.snapshot(count.saturating_add(1), span)?;
-        traces.push(CallableTrace {
-            calls: vec![bound.kind; count],
-            exit,
-        });
-    }
-    Ok(traces)
+    Ok(Some(position))
 }
