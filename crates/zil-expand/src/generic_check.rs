@@ -58,6 +58,7 @@ pub(super) fn validate_parametric<'l>(
         next_local: function.params.len(),
         package_slots: BTreeMap::new(),
         loops: Vec::new(),
+        aliases: state_aliases::Tracker::default(),
         nominals,
         enums,
         signatures,
@@ -108,6 +109,7 @@ pub(super) fn validate_parametric<'l>(
         store_origins: BTreeMap::new(),
         invalidated_stores: BTreeSet::new(),
         fresh_stores: BTreeSet::new(),
+        aliases: None,
     };
     for (id, parameter) in function.params.iter().enumerate() {
         check.traits.store_types(
@@ -372,6 +374,7 @@ struct State {
     // success payloads carry this fact. Give parameters, give calls and
     // Package field takes do not.
     fresh_stores: BTreeSet<usize>,
+    aliases: Option<state_aliases::AliasState>,
 }
 struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
@@ -383,6 +386,7 @@ struct Check<'s, 'b, 'l> {
     next_local: usize,
     package_slots: BTreeMap<(usize, String), usize>,
     loops: Vec<loop_control::LoopFrame>,
+    aliases: state_aliases::Tracker,
     nominals: &'s BTreeMap<String, &'l Item>,
     enums: &'s BTreeMap<String, &'l EnumDecl>,
     signatures: &'s BTreeMap<String, Cow<'l, Function>>,
@@ -982,6 +986,7 @@ impl Check<'_, '_, '_> {
         Ok(ty)
     }
     fn clone_state(&mut self, state: &State) -> R<State> {
+        self.alias_clone_fee(state, self.result.span)?;
         for local in state.locals.values() {
             self.budget.ty(&local.ty)?;
         }
@@ -1002,6 +1007,7 @@ impl Check<'_, '_, '_> {
         Ok(state.clone())
     }
     fn join_states(&mut self, state: &mut State, branches: &[&State], span: Span) -> R<()> {
+        self.alias_join(state, branches, span)?;
         state.moved.clear();
         state.invalidated_stores.clear();
         state.store_origins.clear();
@@ -1384,7 +1390,8 @@ impl Check<'_, '_, '_> {
         self.bind_local(&mut iteration, name.clone(), ty)?;
         // The concrete For continue edge goes through its increment block.
         // Here each such edge must retain the same outer symbolic obligations.
-        self.loop_body(body, state, iteration, span)
+        let aliases = self.alias_mark_loop();
+        self.loop_body(body, state, iteration, span, aliases)
     }
     // The concrete argument checker reborrows address parameters. Mirror only
     // that written reference shape here; an unconstrained T still consumes its
@@ -1423,6 +1430,7 @@ impl Check<'_, '_, '_> {
             unreachable!()
         };
         *mode = *mutable;
+        self.alias_hold_result(state, *mutable, expression.span)?;
         Ok(actual)
     }
 
@@ -1520,6 +1528,31 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         borrowing: bool,
     ) -> R<TypeRef> {
+        self.aliases.result.clear();
+        let base = self.alias_call_start();
+        let ty = self.expr_inner(e, state, expected, borrowing)?;
+        match &e.kind {
+            ExprKind::Call { .. } => self.alias_call_end(state, base, &ty, e.span)?,
+            ExprKind::Name(_)
+            | ExprKind::Group(_)
+            | ExprKind::MetaEval(_)
+            | ExprKind::If { .. }
+            | ExprKind::Unary {
+                op: UnaryOp::Borrow | UnaryOp::BorrowMut,
+                ..
+            } => {}
+            _ => self.aliases.result.clear(),
+        }
+        Ok(ty)
+    }
+
+    fn expr_inner(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
         self.tick(e.span)?;
         let enum_context = expected.map(|ty| stores::success(ty).map_or(ty, |(error, _)| error));
         if let Some(ty) = self.enum_expression(e, state, enum_context)? {
@@ -1557,12 +1590,14 @@ impl Check<'_, '_, '_> {
                         "Store descriptor depends on a carrier or field that was moved",
                     ));
                 }
+                self.alias_use_local(state, id, e.span)?;
                 let owning_package = self
                     .callable
                     .as_ref()
                     .is_some_and(|bound| bound.owned_state)
                     && self.package_local(e, state).is_some();
                 if !borrowing && (!self.known_copy(&ty)? || owning_package) {
+                    self.alias_invalidate(state, id, None, e.span)?;
                     for ((owner, _), field) in &self.package_slots {
                         self.budget.node(e.span, 0)?;
                         if *owner == id && state.moved.contains(field) {
@@ -1801,6 +1836,7 @@ impl Check<'_, '_, '_> {
                 if mutable && !writable {
                     return Err(error(e.span, "exclusive borrow requires a writable place"));
                 }
+                self.alias_borrow(operand, state, mutable)?;
                 Ok(TypeRef {
                     span: e.span,
                     kind: TypeKind::Reference {
@@ -1821,6 +1857,7 @@ impl Check<'_, '_, '_> {
                 if !borrowing && !self.known_copy(inner)? {
                     return Err(needs_bound());
                 }
+                self.alias_read_place(e, state)?;
                 Ok(*inner.clone())
             }
             ExprKind::Unary {
@@ -2139,6 +2176,7 @@ impl Check<'_, '_, '_> {
                             "generic callable used after its environment was consumed",
                         ));
                     }
+                    self.alias_use_local(state, local.id, callee.span)?;
                     match kind {
                         zil_ir::CallableKind::Fn => {}
                         zil_ir::CallableKind::FnMut if mode == Some(true) => {}
@@ -2151,6 +2189,7 @@ impl Check<'_, '_, '_> {
                             ));
                         }
                         zil_ir::CallableKind::FnOnce if mode.is_none() => {
+                            self.alias_invalidate(state, local.id, None, callee.span)?;
                             state.moved.insert(local.id);
                         }
                         _ => {
@@ -2159,6 +2198,16 @@ impl Check<'_, '_, '_> {
                                 "callable bound requires its matching environment passing mode",
                             ));
                         }
+                    }
+                    if kind != zil_ir::CallableKind::FnOnce {
+                        if mode.is_none() {
+                            self.alias_borrow(callee, state, kind == zil_ir::CallableKind::FnMut)?;
+                        }
+                        self.alias_hold_result(
+                            state,
+                            kind == zil_ir::CallableKind::FnMut,
+                            callee.span,
+                        )?;
                     }
                     for (argument, parameter) in arguments.iter().zip(&parameters) {
                         if argument.spread {
@@ -2418,9 +2467,11 @@ impl Check<'_, '_, '_> {
                 let mut a = self.clone_state(state)?;
                 let mut b = self.clone_state(state)?;
                 let lhs = self.expr(then_value, &mut a, expected, borrowing)?;
+                let aliases_a = self.alias_result_copy(e.span)?;
                 let rhs = self.expr(else_value, &mut b, Some(&lhs), borrowing)?;
                 same(&lhs, &rhs, e.span, self.budget)?;
                 self.join_states(state, &[&a, &b], e.span)?;
+                self.alias_result_union(aliases_a, e.span)?;
                 Ok(lhs)
             }
             ExprKind::Member {
@@ -2509,6 +2560,7 @@ impl Check<'_, '_, '_> {
                 {
                     return Err(error(e.span, "managed Package field used after give"));
                 }
+                self.alias_read_place(e, state)?;
                 if let Some(local) = package
                     && self.callable.as_ref().is_some_and(|bounds| {
                         bounds.bindings().any(|bound| {
@@ -2524,6 +2576,7 @@ impl Check<'_, '_, '_> {
                         ));
                     }
                     if !borrowing {
+                        self.alias_invalidate(state, local, Some(slot), e.span)?;
                         state.moved.insert(slot);
                     }
                 }
@@ -2623,6 +2676,7 @@ impl Check<'_, '_, '_> {
             zil_ir::CallableKind::Fn => {}
             zil_ir::CallableKind::FnMut if mutable => {}
             zil_ir::CallableKind::FnOnce if slot.is_some() => {
+                self.alias_invalidate(state, owner.expect("owning State"), slot, callee.span)?;
                 state.moved.insert(slot.expect("owning field"));
             }
             zil_ir::CallableKind::FnOnce => {
@@ -2640,6 +2694,14 @@ impl Check<'_, '_, '_> {
         }
         if arguments.len() != bound.parameters.len() {
             return Err(error(callee.span, "callable field argument count differs"));
+        }
+        if bound.kind != zil_ir::CallableKind::FnOnce {
+            self.alias_borrow(callee, state, bound.kind == zil_ir::CallableKind::FnMut)?;
+            self.alias_hold_result(
+                state,
+                bound.kind == zil_ir::CallableKind::FnMut,
+                callee.span,
+            )?;
         }
         for (argument, parameter) in arguments.iter().zip(&bound.parameters) {
             if argument.spread {
@@ -2713,6 +2775,7 @@ impl Check<'_, '_, '_> {
                         same(&actual, ty, statement.span, self.budget)?;
                     }
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
+                    self.alias_bind(state, state.locals[n].id, statement.span)?;
                     let local = state.locals.get_mut(n).expect("just bound");
                     local.mutable = *mutable;
                     local.owned_resource =
@@ -2744,7 +2807,7 @@ impl Check<'_, '_, '_> {
                     }
                 }
                 StmtKind::Assign { target, op, value } => {
-                    let (ty, writable) = self.place(target, state)?;
+                    let (ty, writable) = self.assignment_place(target, state)?;
                     if stores::success(&ty).is_some() {
                         return Err(unsupported(
                             target.span,
@@ -2802,6 +2865,7 @@ impl Check<'_, '_, '_> {
                     };
                     let actual = self.expr(value, state, Some(&ty), false)?;
                     same(&actual, &ty, value.span, self.budget)?;
+                    self.alias_replace_place(target, state)?;
                     let mut whole = target;
                     while let ExprKind::Group(inner) = &whole.kind {
                         self.budget.node(whole.span, 0)?;
@@ -2809,6 +2873,7 @@ impl Check<'_, '_, '_> {
                     }
                     if let ExprKind::Name(name) = &whole.kind {
                         let local = state.locals[name].id;
+                        self.alias_bind(state, local, target.span)?;
                         // Restore only after the complete RHS succeeded. A
                         // move from this very target during RHS evaluation is
                         // still checked, including repeated argument uses.
@@ -2915,6 +2980,7 @@ impl Check<'_, '_, '_> {
                     condition: Condition::Expression(condition),
                     body,
                 } => {
+                    let aliases = self.alias_mark_loop();
                     let entry = self.clone_loop_state(state, condition.span)?;
                     let actual = self.expr(
                         condition,
@@ -2930,7 +2996,8 @@ impl Check<'_, '_, '_> {
                     )?;
                     self.loop_invariant(&entry, state, condition.span)?;
                     let iteration = self.clone_loop_state(state, body.span)?;
-                    let iteration_flow = self.loop_body(body, state, iteration, statement.span)?;
+                    let iteration_flow =
+                        self.loop_body(body, state, iteration, statement.span, aliases)?;
                     flow.returns |= iteration_flow.returns;
                 }
                 StmtKind::For {
@@ -2985,3 +3052,6 @@ mod loop_control;
 
 #[path = "generic_places.rs"]
 mod places;
+
+#[path = "generic_aliases.rs"]
+mod state_aliases;
