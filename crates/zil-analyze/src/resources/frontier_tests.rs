@@ -115,7 +115,7 @@ fn compare(module: &TypedModule) -> (usize, usize) {
         ..Limits::default()
     };
     TEST_EFFECT_SOLVES.with(|value| value.set(0));
-    let actual = infer_effects(module, &graphs, &mut Budget::new(&limits)).unwrap();
+    let actual = infer_effects_frontier(module, &graphs, &mut Budget::new(&limits)).unwrap();
     let queued = TEST_EFFECT_SOLVES.with(|value| value.get());
     TEST_EFFECT_SOLVES.with(|value| value.set(0));
     let reference = infer_effects_full_scan(module, &graphs, &mut Budget::new(&limits)).unwrap();
@@ -124,7 +124,32 @@ fn compare(module: &TypedModule) -> (usize, usize) {
         actual, reference,
         "complete input/capture effect rows differ"
     );
+    let compiled = summary_graph::solve(module, &graphs, &mut Budget::new(&limits)).unwrap();
+    assert_eq!(
+        compiled, reference,
+        "146 compiled fact closure differs from full transfer oracle"
+    );
     for (function, (_, reachable)) in module.functions.iter().zip(&graphs) {
+        let lazy = analyze_function(
+            module,
+            function,
+            reachable,
+            &actual,
+            false,
+            &mut Budget::new(&limits),
+        );
+        let eager = analyze_function_eager_reference(
+            module,
+            function,
+            reachable,
+            &actual,
+            false,
+            &mut Budget::new(&limits),
+        );
+        assert_eq!(
+            lazy, eager,
+            "144 omitted-liveness/replay transformation changed an effect or diagnostic"
+        );
         let left = analyze_function(
             module,
             function,
@@ -401,4 +426,70 @@ fn public_helper_contract_cuts_the_private_effect_dependency() {
     )
     .unwrap();
     assert!(rows[1].is_empty());
+}
+
+#[test]
+fn compiled_effect_constraints_cover_large_cycles_permutations_and_disconnected_components() {
+    for n in [32, 64, 128] {
+        for swapped in [false, true] {
+            let edges: Vec<_> = (0..n)
+                .map(|i| vec![((i + 1) % n, swapped), ((i + 3) % n, false)])
+                .collect();
+            let mut writes = vec![0; n];
+            writes[0] = 1;
+            writes[n / 2] = 2;
+            compare(&fixture(&edges, &writes));
+            let disconnected: Vec<_> = (0..n)
+                .map(|i| {
+                    if i < n / 2 {
+                        vec![((i + 1) % (n / 2), swapped)]
+                    } else {
+                        vec![]
+                    }
+                })
+                .collect();
+            compare(&fixture(&disconnected, &writes));
+        }
+    }
+}
+#[test]
+fn compiled_graph_has_exact_budget_boundary_and_does_not_reuse_stale_effects() {
+    let n = 32;
+    let edges: Vec<_> = (0..n).map(|i| vec![((i + 1) % n, true)]).collect();
+    let mut writes = vec![0; n];
+    writes[0] = 1;
+    let module = fixture(&edges, &writes);
+    let gs = graphs(&module);
+    let mut low = 0;
+    let mut high = 10_000_000;
+    while low + 1 < high {
+        let mid = (low + high) / 2;
+        let limits = Limits {
+            max_analysis_steps: mid,
+            ..Limits::default()
+        };
+        if summary_graph::solve(&module, &gs, &mut Budget::new(&limits)).is_ok() {
+            high = mid
+        } else {
+            low = mid
+        }
+    }
+    for amount in [high, high - 1, high] {
+        let limits = Limits {
+            max_analysis_steps: amount,
+            ..Limits::default()
+        };
+        let r = summary_graph::solve(&module, &gs, &mut Budget::new(&limits));
+        assert_eq!(r.is_ok(), amount == high);
+        if let Err(ds) = r {
+            assert_eq!(ds[0].category, zil_base::ResultCategory::ResourceLimit);
+        }
+    }
+    let clean = fixture(&edges, &vec![0; n]);
+    assert!(
+        summary_graph::solve(&clean, &gs, &mut Budget::new(&Limits::default()))
+            .unwrap()
+            .iter()
+            .all(|r| r.arguments.is_empty() && r.borrowed_fields.is_empty())
+    );
 }

@@ -1,4 +1,23 @@
-# ZIL — draft23 施工恢复检查点（2026-10-26）
+# ZIL — 208 LLVM API首版集成（2026-10-28）
+
+本版在语言174–177/Wire21上整合编译专项204/206/207和用户Ante-R1设计义务，增加可选的进程内LLVM API对象后端。用法见[LLVM API安装与使用](docs/LLVM-API.md)，集成范围见[208说明](docs/research/208/INTEGRATION.md)。默认仍为Clang、单代码生成单元；本版尚非直接Builder，不启用原生对象缓存。完整语言/产品门和B0状态不升级。
+
+作者实际回归：启用API的workspace **1660/0/0**，默认构建 **1642/0/0**；两者共享大量测试，不能相加为独立用例数。API专属9项叶子测试与11项driver测试、真实177消费者的16次构建/128次运行另见[208实测报告](docs/research/208/RESULTS.md)。默认测试的未启用API拒绝控制已执行；默认编译器无需LLVM动态库。
+
+## 语言主线174–177（2026-10-27，以下数字为该交付历史）
+
+本轮入口见 [174–177 实施报告](docs/LANGUAGE-177.md)：普通 State 拥有动态 Store、共享读取实际元素、保存并多次调用具体回调环境，以及三者的真实组合。内部 schema/raw Wire 为 **21**；完整 workspace **1620项通过、0失败、0忽略**，Clippy与格式检查通过。新组合完成64次原生执行，其中28次分配失败注入；上一阶段44次消费者也已重跑。完整语言 NotSatisfied、产品 NotRun、B0 Doing。源码包不放执行产物或证据；见 [交付与恢复](docs/DELIVERY.md)和[下一阶段建议](docs/NEXT-LANGUAGE-178.md)。
+
+```sh
+cargo build --offline --locked -p zil-cli
+python3 tools/language/177/consumer.py --repo . --cli target/debug/zil --out out/language177-new-run
+```
+
+每次使用新的输出目录，消费者运行真实O0/O2及分配失败检查；它不代表完整GUI或产品验收。当前Store机器profile仅支持Linux x64 LLVM，元素窗口只读，callback贷款保守覆盖父local。泛型Store原语、精确独立字段借用、就地元素更新、Win64及外部保留回调关闭仍有明确前置。
+
+此前 [170–173报告](docs/LANGUAGE-173.md)、[166–169报告](docs/LANGUAGE-169.md)和以下介绍保留各自历史身份、schema及受测数字，不代表本轮新增运行。
+
+## draft23 施工恢复检查点（2026-10-26，历史）
 
 120字段借用精度、121跨模块callable名义类型、122纯CT与运行时析构组合已独审合入。合并后整个Rust workspace **1195项通过、0失败、0忽略**；三项能力合成的原生程序在O0/O2均输出T42，最近的同字段冲突仍拒绝。见[恢复与语言主线报告](docs/DRAFT23-RECOVERY.md)及[实际集成收据](evidence/recovery-20261026/integration.json)。
 

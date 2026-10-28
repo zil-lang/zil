@@ -1,4 +1,6 @@
+mod arrays;
 mod byte_buffer;
+mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
@@ -40,7 +42,7 @@ pub fn emit_with_options(
         .iter()
         .map(|closure| (closure.id, closure))
         .collect::<BTreeMap<_, _>>();
-    let wrapper = entry_wrapper(&functions, options.entry)?;
+    let wrapper = entry_wrapper(&functions, options.entry, &lir.resources)?;
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     let mut intrinsics = BTreeSet::new();
     let mut body = String::new();
@@ -122,6 +124,7 @@ pub fn emit_with_options(
     }
     text.push_str("declare void @llvm.trap()\n");
     text.push_str(&byte_buffer::runtime(lir)?);
+    text.push_str(&dynamic_store::runtime(lir)?);
     for (operation, bits) in intrinsics {
         text.push_str(&format!(
             "declare {{ i{bits}, i1 }} @llvm.{operation}.with.overflow.i{bits}(i{bits}, i{bits})\n"
@@ -236,8 +239,10 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
         ) || !closure.result.is_copy_value()
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
-                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+                    || matches!(ty, Type::Closure(_))
+                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     || (resources::supported_type(ty, &lir.resources)
+                        && !matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }))
                         && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
                     || packages::supported_type(ty, &lir.resources)
             })
@@ -251,6 +256,8 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             || function.return_type.is_scalar_or_address()
             || resources::supported_type(&function.return_type, &lir.resources)
             || packages::supported_type(&function.return_type, &lir.resources)
+            || errors::supported_type(&function.return_type, &lir.resources)
+            || arrays::supported_type(&function.return_type, &lir.resources)
             || (matches!(function.return_type, Type::Closure(_))
                 && function.callable_return_contract.is_some()))
             || function.parameters.iter().any(|id| {
@@ -259,6 +266,8 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                     || ty.is_scalar_or_address()
                     || resources::supported_type(ty, &lir.resources)
                     || packages::supported_type(ty, &lir.resources)
+                    || errors::supported_type(ty, &lir.resources)
+                    || arrays::supported_type(ty, &lir.resources)
                     || callable_parameter_type(ty, &lir.closures))
             })
         {
@@ -274,8 +283,12 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             if !ty.is_copy_value()
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+                && !ty.is_shared_resource_head_address()
+                && !ty.is_shared_package_address()
                 && !resources::supported_type(ty, &lir.resources)
                 && !packages::supported_type(ty, &lir.resources)
+                && !errors::supported_type(ty, &lir.resources)
+                && !arrays::supported_type(ty, &lir.resources)
             {
                 return unsupported(
                     format!("LLVM representation for {}", ty.name()),
@@ -290,6 +303,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
 fn entry_wrapper(
     functions: &BTreeMap<FunctionId, &TypedFunction>,
     entry: EntryPoint,
+    resources: &[ResourceDefinition],
 ) -> CompileResult<String> {
     let function = match entry {
         EntryPoint::None => return Ok(String::new()),
@@ -350,8 +364,10 @@ fn entry_wrapper(
             {
                 let llvm = llvm_type(&function.return_type)?;
                 text.push_str(&format!(
-                    "  %entry.result = call {llvm} @{symbol}()\n  %entry.error = extractvalue {llvm} %entry.result, 0\n  br i1 %entry.error, label %error, label %success\nerror:\n  ret i32 1\nsuccess:\n"
+                    "  %entry.result = call {llvm} @{symbol}()\n  %entry.error = extractvalue {llvm} %entry.result, 0\n  br i1 %entry.error, label %error, label %success\nerror:\n"
                 ));
+                text.push_str(&errors::entry_cleanup(&function.return_type, resources)?);
+                text.push_str("  ret i32 1\nsuccess:\n");
                 if **result == Type::I32 {
                     text.push_str(&format!(
                         "  %entry.success = extractvalue {llvm} %entry.result, 2\n  ret i32 %entry.success\n"
@@ -465,7 +481,7 @@ impl FunctionEmitter<'_> {
                 self.package_capture_storage(local.id, *index)?;
                 continue;
             }
-            if self.owns_resource(&local.ty) {
+            if self.owns_storage(&local.ty) {
                 self.line(format!(
                     "  %resource.live.{} = alloca i1, align 1",
                     local.id.0
@@ -488,6 +504,7 @@ impl FunctionEmitter<'_> {
                 ));
             }
             self.package_flags(local.id, true, self.function.parameters.contains(&local.id))?;
+            self.owned_array_flags(local.id, true, self.function.parameters.contains(&local.id))?;
         }
         // Fixed entry-block scratch slots prevent dynamic indexing inside a
         // loop from growing the stack on every iteration.
@@ -548,6 +565,15 @@ impl FunctionEmitter<'_> {
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
         match &instruction.kind {
+            InstructionKind::OwnedStoreNew { .. }
+            | InstructionKind::OwnedStoreReserve { .. }
+            | InstructionKind::OwnedStorePush { .. }
+            | InstructionKind::OwnedStorePop { .. }
+            | InstructionKind::OwnedStoreLen { .. }
+            | InstructionKind::OwnedStoreCapacity { .. }
+            | InstructionKind::OwnedStoreBorrow { .. } => {
+                self.dynamic_store_instruction(instruction)?;
+            }
             InstructionKind::ByteBufferNew
             | InstructionKind::ByteBufferReserve { .. }
             | InstructionKind::ByteBufferTruncate { .. }
@@ -557,13 +583,27 @@ impl FunctionEmitter<'_> {
             | InstructionKind::ByteBufferBorrow { .. } => {
                 self.byte_buffer_instruction(instruction)?
             }
+            InstructionKind::BorrowPackageField { local, index, .. } => {
+                self.borrow_package_field(instruction, *local, *index)?;
+            }
             InstructionKind::ReadPackageField { local, index } => {
                 self.read_package_field(instruction, *local, *index)?
+            }
+            InstructionKind::ProjectOwnedArrayField { .. }
+            | InstructionKind::TakeOwnedArrayElement { .. }
+            | InstructionKind::DropOwnedArrayElement { .. }
+            | InstructionKind::StoreOwnedArrayElement { .. }
+            | InstructionKind::DropOwnedArray { .. }
+            | InstructionKind::BorrowOwnedArrayElement { .. } => {
+                self.owned_array_instruction(instruction)?;
             }
             InstructionKind::DescribePackageField { local, index } => {
                 self.describe_package_field(instruction, *local, *index)?
             }
             InstructionKind::DropPackage { local } => self.drop_package(instruction, *local)?,
+            InstructionKind::DropErrorUnion { local } => {
+                self.drop_error_union(instruction, *local)?
+            }
             InstructionKind::TakePackageField { local, index } => {
                 self.take_package_field(instruction, *local, *index)?
             }
@@ -590,6 +630,9 @@ impl FunctionEmitter<'_> {
             }
             InstructionKind::DropManaged { local } => self.drop_managed(instruction, *local)?,
             InstructionKind::DropClosure { local } => self.drop_closure(instruction, *local)?,
+            InstructionKind::BorrowCapture { index, .. } => {
+                self.borrow_capture(instruction, *index)?
+            }
             InstructionKind::DescribeCapture { index } => {
                 self.describe_capture(instruction, *index)?
             }
@@ -615,7 +658,8 @@ impl FunctionEmitter<'_> {
                 self.make_error_union(instruction, *is_error, *value)?;
             }
             InstructionKind::ErrorTag { value } => self.error_tag(instruction, *value)?,
-            InstructionKind::ReadErrorUnion { value, is_error } => {
+            InstructionKind::ReadErrorUnion { value, is_error }
+            | InstructionKind::TakeErrorUnion { value, is_error } => {
                 self.read_error_union(instruction, *value, *is_error)?;
             }
             InstructionKind::ForeignCall {
@@ -666,13 +710,14 @@ impl FunctionEmitter<'_> {
                     ));
                 }
                 if matches!(instruction.kind, InstructionKind::TakeLocal { .. })
-                    && self.owns_resource(self.local_type(*local)?)
+                    && self.owns_storage(self.local_type(*local)?)
                 {
                     self.line(format!(
                         "  store i1 false, ptr %resource.live.{}, align 1",
                         local.0
                     ));
                     self.package_flags(*local, false, false)?;
+                    self.owned_array_flags(*local, false, false)?;
                 }
             }
             InstructionKind::Store { local, value } => {
@@ -686,12 +731,13 @@ impl FunctionEmitter<'_> {
                         alignment(ty, self.closures)?
                     ));
                 }
-                if self.owns_resource(self.local_type(*local)?) {
+                if self.owns_storage(self.local_type(*local)?) {
                     self.line(format!(
                         "  store i1 true, ptr %resource.live.{}, align 1",
                         local.0
                     ));
                     self.package_flags(*local, false, true)?;
+                    self.owned_array_flags(*local, false, true)?;
                 }
             }
             InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
@@ -813,12 +859,13 @@ impl FunctionEmitter<'_> {
                 }
             }
             InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
-                if self.owns_resource(self.local_type(*local)?) {
+                if self.owns_storage(self.local_type(*local)?) {
                     self.line(format!(
                         "  store i1 false, ptr %resource.live.{}, align 1",
                         local.0
                     ));
                     self.package_flags(*local, false, false)?;
+                    self.owned_array_flags(*local, false, false)?;
                 }
                 // S0 keeps the real stack allocation until return. Lexical
                 // validity was independently proved; no runtime table needed.
@@ -949,6 +996,7 @@ impl FunctionEmitter<'_> {
             } => self.indexed(instruction, *aggregate, *index, Some(*value))?,
             InstructionKind::MakeAggregate { fields }
             | InstructionKind::MakeManaged { fields }
+            | InstructionKind::MakeOwnedArray { elements: fields }
             | InstructionKind::MakePackage { fields } => {
                 let result = instruction.result.expect("verified aggregate result");
                 let ty = &self.function.values[result.0 as usize];
@@ -1591,7 +1639,7 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
         Type::I64 => Ok("i64".into()),
         Type::U8 => Ok("i8".into()),
         Type::U16 => Ok("i16".into()),
-        Type::ByteBuffer => Ok("{ ptr, i64, i64 }".into()),
+        Type::ByteBuffer | Type::OwnedStore { .. } => Ok("{ ptr, i64, i64 }".into()),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok("ptr".into()),
         Type::Array { element, length } => {
             Ok(format!("[{length} x {}]", aggregate_field_type(element)?))
@@ -1624,19 +1672,24 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
             Ok("{ ptr, i64 }".into())
         }
         Type::Address { inner, .. }
-            if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)) =>
+            if inner.is_copy_value()
+                || matches!(inner.as_ref(), Type::Closure(_))
+                || ty.is_shared_resource_head_address()
+                || ty.is_shared_package_address() =>
         {
             Ok("ptr".into())
         }
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok("ptr".into())
         }
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             llvm_type(payload)
         }
@@ -1654,7 +1707,8 @@ fn capture_type(ty: &Type) -> CompileResult<String> {
     match ty {
         Type::Unit => Ok("i8".into()),
         _ if ty.is_copy_value()
-            || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+            || matches!(ty, Type::Closure(_))
+            || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
             || matches!(ty, Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer)
             || matches!(ty, Type::Package { .. }) =>
@@ -1669,25 +1723,30 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
-        Type::ByteBuffer => Ok(8),
+        Type::ByteBuffer | Type::OwnedStore { .. } => Ok(8),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
         Type::I32 => Ok(4),
         Type::I64 => Ok(8),
         Type::FunctionPointer { .. } => Ok(8),
         Type::Address { inner, .. }
-            if inner.is_address_pointee() || matches!(inner.as_ref(), Type::Closure(_)) =>
+            if inner.is_address_pointee()
+                || matches!(inner.as_ref(), Type::Closure(_))
+                || ty.is_shared_resource_head_address()
+                || ty.is_shared_package_address() =>
         {
             Ok(8)
         }
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok(8)
         }
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer =>
+                || payload.as_ref() == &Type::ByteBuffer
+                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             alignment(payload, closures)
         }
@@ -1712,9 +1771,11 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 )]
             })?;
             definition.captures.iter().try_fold(1, |maximum, field| {
-                // Closed Copy aggregates are finite; nested closure environments remain forbidden.
+                // Verify checked the complete inline environment DAG and depth
+                // before this recursive machine-alignment calculation.
                 if !field.is_copy_value()
-                    && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value())
+                    && !matches!(field, Type::Closure(_))
+                    && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
                     && !matches!(field,Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer)
                     && !matches!(field, Type::Package { .. })

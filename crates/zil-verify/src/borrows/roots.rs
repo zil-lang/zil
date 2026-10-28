@@ -51,7 +51,12 @@ pub(super) fn field_root(function: &TypedFunction, local: LocalId, index: u32) -
         return Root::Local(local);
     };
     match fields.get(index as usize) {
-        Some((_, ty)) if byte_buffers::is_owned(ty) => Root::Field(local, index),
+        Some((_, ty))
+            if byte_buffers::is_owned(ty)
+                || matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) =>
+        {
+            Root::Field(local, index)
+        }
         _ => Root::Local(local),
     }
 }

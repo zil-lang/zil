@@ -1,6 +1,6 @@
 # ZIL 收尾语法速读 · draft08
 
-本页以当前可运行用法为主。规范由 `_zil_design.md` 及具名附件定义；精确实现提交、审核和执行成绩见 [施工状态](IMPLEMENTATION-STATUS.md) 与[本轮报告](../evidence/REPORT.md)。当前语言保持 1.3/A，内部 schema/wire 为 5；完整语言仍 NotSatisfied，产品门 NotRun，B0 Doing。
+本页保留 **draft08 历史速读**。下文“当前”、schema/wire 5 和未实现列表属于该历史版本；当前主线 schema/wire 为 19，能力与拒绝边界见 [166–169 实施报告](LANGUAGE-169.md)。规范仍由 `_zil_design.md` 及具名附件定义；历史实现与执行身份见 [施工状态](IMPLEMENTATION-STATUS.md) 与[历史报告](../evidence/REPORT.md)。完整语言仍 NotSatisfied，产品门 NotRun，B0 Doing。
 
 ## 1. 从一个完整程序开始
 

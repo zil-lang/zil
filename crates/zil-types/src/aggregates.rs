@@ -50,7 +50,24 @@ impl<'a> Visibility<'a> {
             return Ok(());
         };
         self.spend(name.len(), span)?;
-        let Some((owner, fields)) = self.records.get(name) else {
+        if !self.records.contains_key(name) {
+            self.spend(
+                self.records
+                    .keys()
+                    .map(|key| key.len().saturating_add(1))
+                    .sum(),
+                span,
+            )?;
+        }
+        let record = self.records.get(name).or_else(|| {
+            self.records
+                .iter()
+                .find(|(key, _)| {
+                    callable_fields::nominal_base(key) == callable_fields::nominal_base(name)
+                })
+                .map(|(_, record)| record)
+        });
+        let Some((owner, fields)) = record else {
             return Ok(());
         };
         if *owner == module {
@@ -95,10 +112,18 @@ impl<'a> Visibility<'a> {
                     | InstructionKind::DescribePackageField { local, index }
                     | InstructionKind::TakePackageField { local, index }
                     | InstructionKind::DropPackageField { local, index }
-                    | InstructionKind::StorePackageField { local, index, .. } => function
+                    | InstructionKind::StorePackageField { local, index, .. }
+                    | InstructionKind::BorrowPackageField { local, index, .. } => function
                         .locals
                         .get(local.0 as usize)
                         .map(|local| (&local.ty, *index)),
+                    InstructionKind::ProjectOwnedArrayField { local, field, .. } => function
+                        .locals
+                        .get(local.0 as usize)
+                        .and_then(|local| match &local.ty {
+                            Type::Array { element, .. } => Some((element.as_ref(), *field)),
+                            _ => None,
+                        }),
                     _ => None,
                 };
                 if let Some((ty, field)) = access {
@@ -283,6 +308,25 @@ fn resolve_indexed(
         }
     }
     let mut resolver = Resolver {
+        callable_names: core
+            .functions
+            .iter()
+            .filter_map(|f| {
+                f.callable_parameter
+                    .as_ref()
+                    .map(|b| b.generic_name.clone())
+            })
+            .chain(
+                project
+                    .iter()
+                    .flat_map(|m| m.functions.iter())
+                    .filter_map(|f| {
+                        f.callable_parameter
+                            .as_ref()
+                            .map(|b| b.generic_name.clone())
+                    }),
+            )
+            .collect(),
         declarations,
         enum_declarations,
         owners,
@@ -306,7 +350,7 @@ fn resolve_indexed(
         };
         declaration.variants = variants;
     }
-    let mut functions = core.functions.clone();
+    let mut functions = std::mem::take(&mut core.functions);
     for f in &mut functions {
         if let Some(bound) = &mut f.callable_parameter {
             bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
@@ -338,7 +382,15 @@ fn resolve_indexed(
             }
         }
         if let Some(r) = &mut f.receiver {
-            r.ty = resolver.ty(&r.ty, 0, f.span).map_err(|e| vec![e])?;
+            let raw = if r.mode == PassingMode::Give {
+                Type::Managed(Box::new(r.ty.clone()))
+            } else {
+                r.ty.clone()
+            };
+            r.ty = resolver.ty(&raw, 0, f.span).map_err(|e| vec![e])?;
+            if matches!(r.ty, Type::Desc(_)) {
+                r.mode = PassingMode::Describe;
+            }
         }
         resolver.block(&mut f.body, 0).map_err(|e| vec![e])?;
     }
@@ -356,6 +408,7 @@ fn resolve_indexed(
     Ok(core)
 }
 struct Resolver<'a> {
+    callable_names: BTreeSet<String>,
     declarations: BTreeMap<String, &'a CoreAggregate>,
     enum_declarations: BTreeMap<String, &'a CoreEnum>,
     owners: BTreeMap<String, u32>,
@@ -367,6 +420,18 @@ struct Resolver<'a> {
 impl Resolver<'_> {
     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
         let resolved = self.ty(&field.ty, depth, field.span)?;
+        if dynamic_store::is_carrier(&resolved) && !field.manages {
+            return Err(unsupported(
+                field.span,
+                "Store fields require an explicit package manages declaration",
+            ));
+        }
+        if matches!(&resolved, Type::Array { element, .. } if packages::has_store_fields(element)) {
+            return Err(unsupported(
+                field.span,
+                "Store fields require direct manages ownership outside owning array fields",
+            ));
+        }
         if byte_buffer::resource(&resolved) && !field.manages {
             return Err(unsupported(
                 field.span,
@@ -376,7 +441,12 @@ impl Resolver<'_> {
         if field.manages {
             // A source Ref/Desc spelling cannot turn a borrowed entry into an
             // ownership declaration. Re-resolution of normalized Core is safe.
-            if !matches!(field.ty, Type::Named(_) | Type::Managed(_)) {
+            // The reserved Store<T> source spelling expands directly to its
+            // sealed Desc payload. Ref<Store<T>> instead has an additional
+            // wrapper and cannot manufacture an ownership declaration.
+            if !matches!(field.ty, Type::Named(_) | Type::Managed(_))
+                && !matches!(&field.ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
+            {
                 return Err(error(
                     "E-RESOURCE-TYPE",
                     field.span,
@@ -440,9 +510,9 @@ impl Resolver<'_> {
                                 pending.extend(variants.iter().flat_map(|(_, fields)| fields))
                             }
                             Type::Tuple(fields) => pending.extend(fields),
-                            Type::Array { element, .. } | Type::Slice { element } => {
-                                pending.push(element)
-                            }
+                            Type::Array { element, .. }
+                            | Type::Slice { element }
+                            | Type::OwnedStore { element } => pending.push(element),
                             Type::ErrorUnion { error, result } => {
                                 pending.push(error);
                                 pending.push(result);
@@ -481,13 +551,20 @@ impl Resolver<'_> {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
                             || (d.kind == AggregateKind::Package
+                                && !f.manages
+                                && d.name.starts_with("$generic_")
+                                && matches!(&ty, Type::Named(name) if self.callable_names.contains(name)))
+                            || (d.kind == AggregateKind::Package
+                                && !f.manages
+                                && packages::array_field_supported(&ty))
+                            || (d.kind == AggregateKind::Package
                                 && f.manages
                                 && matches!(ty, Type::Managed(_))
                                 && resources::supported(&ty)))
                         {
                             return Err(unsupported(
                                 f.span,
-                                "aggregate field requires finite Copy or an explicit package manages resource",
+                                "aggregate field requires finite Copy, an explicit package manages resource, or a complete fixed Package array",
                             ));
                         }
                         fields.push((f.name.clone(), ty));
@@ -507,6 +584,18 @@ impl Resolver<'_> {
                 self.active.remove(name);
                 self.cache.insert(name.clone(), result.clone());
                 result
+            }
+            Type::OwnedStore { element } => {
+                let element = self.ty(element, depth + 1, span)?;
+                if !dynamic_store::supported_element(&element) {
+                    return Err(unsupported(
+                        span,
+                        "Store elements require nonzero complete direct-Managed Packages",
+                    ));
+                }
+                Type::OwnedStore {
+                    element: Box::new(element),
+                }
             }
             Type::Array { element, length } => {
                 if *length as usize > self.remaining {
@@ -544,6 +633,11 @@ impl Resolver<'_> {
                 let resolved = self.ty(inner, depth + 1, span)?;
                 let payload = match resolved {
                     Type::Managed(payload) | Type::Desc(payload) => payload,
+                    Type::OwnedStore { .. }
+                        if matches!(inner.as_ref(), Type::OwnedStore { .. }) =>
+                    {
+                        Box::new(resolved)
+                    }
                     Type::ByteBuffer if matches!(inner.as_ref(), Type::ByteBuffer) => {
                         Box::new(Type::ByteBuffer)
                     }
@@ -566,15 +660,27 @@ impl Resolver<'_> {
             }
             Type::Address { mutable, inner } => {
                 let inner = self.ty(inner, depth + 1, span)?;
-                if matches!(
-                    inner,
-                    Type::Managed(_) | Type::Desc(_) | Type::Package { .. }
-                ) {
-                    return Err(unsupported(
-                        span,
-                        "addresses to resource or package heads are not implemented",
-                    ));
-                }
+                let inner = match inner {
+                    Type::Managed(payload) | Type::Desc(payload)
+                        if !*mutable
+                            && matches!(payload.as_ref(), Type::Record { .. })
+                            && payload.is_copy_value() =>
+                    {
+                        Type::Managed(payload)
+                    }
+                    Type::Package { .. }
+                        if !*mutable && dynamic_store::supported_element(&inner) =>
+                    {
+                        inner
+                    }
+                    Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
+                        return Err(unsupported(
+                            span,
+                            "head addresses require a shared finite user-resource head; mutable, byte-storage and Package heads are not implemented",
+                        ));
+                    }
+                    other => other,
+                };
                 Type::Address {
                     mutable: *mutable,
                     inner: Box::new(inner),
@@ -586,10 +692,12 @@ impl Resolver<'_> {
             } => {
                 let failure = self.ty(failure, depth + 1, span)?;
                 let result = self.ty(result, depth + 1, span)?;
-                if !failure.is_copy_value() || !result.is_copy_value() {
+                if !(failure.is_copy_value() || packages::supported(&failure))
+                    || !(result.is_copy_value() || packages::supported(&result))
+                {
                     return Err(unsupported(
                         span,
-                        "error union payloads require finite Copy values",
+                        "error union payloads require finite Copy values or complete owned Packages",
                     ));
                 }
                 Type::ErrorUnion {
@@ -820,6 +928,12 @@ impl Resolver<'_> {
 }
 
 pub(super) fn field(ty: &Type, name: &str, span: Span) -> R<(u32, Type)> {
+    // Address<Managed<R>> projects the actual inline payload, not a copied
+    // head or a descriptor. Other callers still decide the access operation.
+    let ty = match ty {
+        Type::Managed(payload) => payload.as_ref(),
+        other => other,
+    };
     let selected = match ty {
         Type::Tuple(fields) => name
             .parse::<usize>()
@@ -842,23 +956,66 @@ pub(super) fn field(ty: &Type, name: &str, span: Span) -> R<(u32, Type)> {
         .map(|(i, t)| (i as u32, t.clone()))
         .ok_or_else(|| error("E-UNKNOWN-FIELD", span, format!("unknown field {name}")))
 }
+/// Look up an exact nominal owner's method, never a global same-name method.
+/// Imported lookup observes actual exports and an explicit module edge; the
+/// later ordinary Call still carries its original FunctionId and full ABI.
+pub(super) fn resolve_method<'a>(
+    name: &str,
+    member: &str,
+    local: &'a BTreeMap<String, Signature>,
+    imports: Option<&program::Imports<'a>>,
+) -> Option<&'a Signature> {
+    let (owner, nominal) = name.split_once(':')?;
+    let key = format!("{nominal}.{member}");
+    if let Some(signature) = local.get(&key).filter(|s| s.receiver.is_some()) {
+        return Some(signature);
+    }
+    let module = zil_base::ModuleId(owner.strip_prefix("@module")?.parse().ok()?);
+    let imports = imports?;
+    if !imports.aliases.values().any(|id| *id == module) {
+        return None;
+    }
+    imports
+        .signatures
+        .get(&module)?
+        .get(&key)
+        .filter(|s| s.public && s.receiver.is_some() && !s.cleanup)
+}
+
+/// One concrete nominal receiver, including the sealed builtin resource.
+/// ByteBuffer inherent methods are local: it has no user defining module from
+/// which to infer an imported extension. No global same-name search is used.
+pub(super) fn resolve_type_method<'a>(
+    ty: &Type,
+    member: &str,
+    local: &'a BTreeMap<String, Signature>,
+    imports: Option<&program::Imports<'a>>,
+) -> Option<&'a Signature> {
+    match ty {
+        Type::Record { name, fields } | Type::Package { name, fields }
+            if !fields.iter().any(|(field, _)| field == member) =>
+        {
+            resolve_method(name, member, local, imports)
+        }
+        Type::ByteBuffer => local
+            .get(&format!("ByteBuffer.{member}"))
+            .filter(|s| s.receiver.is_some() && !s.cleanup),
+        _ => None,
+    }
+}
+
 impl Builder<'_, '_> {
     pub(super) fn method_signature(&self, object: &CoreExpr, member: &str) -> Option<&Signature> {
         let ty = self.known_type(object)?;
         let ty = match ty {
-            Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => *inner,
+            Type::Address { inner, .. } => match *inner {
+                Type::Managed(payload) => *payload,
+                other => other,
+            },
+            Type::Managed(inner) | Type::Desc(inner) => *inner,
             other => other,
         };
-        let (Type::Record { name, fields } | Type::Package { name, fields }) = ty else {
-            return None;
-        };
-        if fields.iter().any(|(name, _)| name == member) {
-            return None;
-        }
-        let name = name.split_once(':')?.1;
-        self.signatures
-            .get(&format!("{name}.{member}"))
-            .filter(|s| s.receiver.is_some())
+        resolve_type_method(&ty, member, self.signatures, self.imports)
     }
     pub(super) fn method_call(
         &mut self,
@@ -876,21 +1033,22 @@ impl Builder<'_, '_> {
             ));
         }
         let receiver = &signature.parameters[0];
-        let first = if matches!(receiver, Type::Address { .. })
+        let (first, actual) = if matches!(receiver, Type::Address { .. })
             && !matches!(self.known_type(object), Some(Type::Address { .. }))
         {
             let (value, ty) = self.borrow_place_mode(
                 object,
                 matches!(receiver, Type::Address { mutable: true, .. }),
             )?;
-            self.same(&ty, receiver, object.span)?;
-            value
+            (value, ty)
         } else {
-            self.argument_expr(object, receiver)?.0
+            self.argument_expr(object, receiver)?
         };
+        self.same(&actual, receiver, object.span)?;
         let mut arguments = vec![self.stage_argument(first, receiver, object.span)?];
         for (arg, ty) in args.iter().zip(&signature.parameters[1..]) {
             let (value, actual) = self.argument_expr(arg, ty)?;
+            self.same(&actual, ty, arg.span)?;
             arguments.push(self.stage_argument(value, &actual, arg.span)?);
         }
         let arguments = self.commit_arguments(arguments, span)?;
@@ -928,13 +1086,15 @@ impl Builder<'_, '_> {
                         "array literal length does not match its type",
                     ));
                 }
-                let mut fields = Vec::new();
+                self.closures.snapshot(items.len(), e.span)?;
+                let mut staged = Vec::new();
                 for v in items {
-                    let (id, t) = self.expr(v, element.as_ref())?;
+                    let (id, t) = self.owned_array_input(v, element.as_ref())?;
                     if element.is_none() {
-                        element = Some(t);
+                        element = Some(t.clone());
                     }
-                    fields.push(id);
+                    self.same(&t, element.as_ref().expect("known array element"), v.span)?;
+                    staged.push(self.stage_argument(id, &t, v.span)?);
                 }
                 let element = element.ok_or_else(|| {
                     error(
@@ -943,16 +1103,28 @@ impl Builder<'_, '_> {
                         "empty array requires an element type",
                     )
                 })?;
-                if !element.is_copy_value() {
-                    return Err(unsupported(e.span, "array element requires a Copy value"));
-                }
                 let ty = Type::Array {
                     element: Box::new(element),
                     length,
                 };
+                let owned = packages::owned_array_supported(&ty);
+                if let Type::Array { element, length } = &ty {
+                    self.check_owned_array_closure(element, *length, e.span)?;
+                }
+                if !owned && !ty.is_copy_value() {
+                    return Err(unsupported(
+                        e.span,
+                        "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
+                    ));
+                }
+                let fields = self.commit_arguments(staged, e.span)?;
                 Ok((
                     self.value(
-                        InstructionKind::MakeAggregate { fields },
+                        if owned {
+                            InstructionKind::MakeOwnedArray { elements: fields }
+                        } else {
+                            InstructionKind::MakeAggregate { fields }
+                        },
                         ty.clone(),
                         e.span,
                     )?,
@@ -960,7 +1132,19 @@ impl Builder<'_, '_> {
                 ))
             }
             CoreExprKind::Index { object, index } => {
-                if matches!(self.known_type(object), Some(Type::Address { .. })) {
+                if let Some((local, index, ty)) = self.owned_array_place(e)? {
+                    return Ok((
+                        self.value(
+                            InstructionKind::TakeOwnedArrayElement { local, index },
+                            ty.clone(),
+                            e.span,
+                        )?,
+                        ty,
+                    ));
+                }
+                if matches!(self.known_type(object), Some(Type::Address { .. }))
+                    || dynamic_store::borrow_expression(object)
+                {
                     let (address, ty) = self.borrow_place(e)?;
                     let Type::Address { inner, .. } = ty else {
                         unreachable!()
@@ -1049,7 +1233,12 @@ impl Builder<'_, '_> {
                         ));
                     }
                     slots[i as usize] = Some(if matches!(ty, Type::Package { .. }) {
-                        let (prepared, actual) = self.argument_expr(value, &t)?;
+                        let (prepared, actual) = if matches!(t, Type::Closure(_)) {
+                            self.check_owned_array_closure(&t, 1, value.span)?;
+                            self.owned_array_input(value, Some(&t))?
+                        } else {
+                            self.argument_expr(value, &t)?
+                        };
                         let (prepared, guard) =
                             self.stage_argument(prepared, &actual, value.span)?;
                         guarded[i as usize] = guard;
@@ -1144,7 +1333,9 @@ impl Builder<'_, '_> {
                         "instance method value requires an explicit closure",
                     ));
                 }
-                if matches!(self.known_type(object), Some(Type::Address { .. })) {
+                if matches!(self.known_type(object), Some(Type::Address { .. }))
+                    || dynamic_store::borrow_expression(object)
+                {
                     let (address, ty) = self.borrow_place(e)?;
                     let Type::Address { inner, .. } = ty else {
                         unreachable!()
@@ -1203,7 +1394,7 @@ impl Builder<'_, '_> {
             .lookup(name)
             .ok_or_else(|| error("E-UNKNOWN-NAME", root.span, "unknown assignment root"))?;
         let decl = self.function.locals[local.0 as usize].clone();
-        if matches!(decl.ty, Type::Package { .. }) {
+        if matches!(decl.ty, Type::Package { .. }) || packages::owned_array_supported(&decl.ty) {
             return Err(unsupported(
                 target.span,
                 "nested package Copy projection assignment is not implemented; assign the direct Copy field",

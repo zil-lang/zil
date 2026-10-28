@@ -214,6 +214,26 @@
       ]
     },
     {
+      "code": "E-CODEGEN-OPTIONS",
+      "phases": [
+        "link"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-CODEGEN-WORKER",
+      "phases": [
+        "link"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-ARCH"
+      ]
+    },
+    {
       "code": "E-CT-ARITHMETIC",
       "phases": [
         "ct"
@@ -489,6 +509,87 @@
       ]
     },
     {
+      "code": "E-LLVM-API-CANCELLED",
+      "phases": [
+        "link"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-LLVM-API-EMIT",
+      "phases": [
+        "link"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-LLVM-API-OPTIMIZE",
+      "phases": [
+        "link"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-LLVM-API-PARSE",
+      "phases": [
+        "link"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-LLVM-API-TARGET",
+      "phases": [
+        "link"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-LLVM-API-UNAVAILABLE",
+      "phases": [
+        "codegen",
+        "link"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-LLVM-API-VERIFY",
+      "phases": [
+        "link"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-ARCH"
+      ]
+    },
+    {
+      "code": "E-LLVM-API-VERSION",
+      "phases": [
+        "link"
+      ],
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-ARCH"
+      ]
+    },
+    {
       "code": "E-MATCH-ARITY",
       "phases": [
         "types"
@@ -556,6 +657,26 @@
       "requirements": [
         "ZIL-CAPTURE",
         "ZIL-TRAIT"
+      ]
+    },
+    {
+      "code": "E-OWNED-STORE-NAME",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES"
+      ]
+    },
+    {
+      "code": "E-OWNED-STORE-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD"
       ]
     },
     {
@@ -938,6 +1059,17 @@
       "requirements": [
         "ZIL-ACCESS",
         "ZIL-MODES"
+      ]
+    },
+    {
+      "code": "E-VERIFY-OWNED-STORE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-CLEANUP",
+        "ZIL-ARCH"
       ]
     },
     {

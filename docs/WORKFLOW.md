@@ -66,7 +66,7 @@ Done需要`acceptance_record`及真实result.json定位；所有规定case都有
 
 ## 8. Codex冷启动与编号切片
 
-先运行`node tools/handoff.mjs --check`。脚本从Git工作树中查找main，输出当前主树位置和相对工单路径；不依赖工单内保存的旧机器绝对路径。无法唯一定位时显式传`--main-tree PATH`，并验证它属于同一仓库的main分支。只有源码ZIP也可直接构建；要核验历史和继续原分支，另取配套历史bundle，使用其实际路径执行`git clone --branch main <history.bundle路径> zil-checkout`，再从恢复的checkout接续。主源码包只含紧凑证据，完整原始运行产物的位置与校验见交付manifest和docs/DELIVERY.md。
+先运行`node tools/handoff.mjs --check`。脚本从Git工作树中查找main，输出当前主树位置和相对工单路径；不依赖工单内保存的旧机器绝对路径。无法唯一定位时显式传`--main-tree PATH`，并验证它属于同一仓库的main分支。只有源码ZIP也可直接构建；要核验历史和继续原分支，另取配套历史bundle，使用其实际路径执行`git clone --branch main <history.bundle路径> zil-checkout`，再从恢复的checkout接续。主源码包只含按 Git 收录规则导出的源码、测试、工具和文档，不放证据、执行产物或 Git 目录；精简审计与可恢复历史另置附件，详见交付 manifest 和 docs/DELIVERY.md。
 
 切片首行状态为施工、待验、退回、已合入或卡住，与JSON一致；JSON保存编号、正式父任务、完整基线、规范摘要、写集、实施者、交付提交、独立审核和合入提交。正文只由集成者调整。末节只追加开工、交付、退回/验收、合入的必要往来，不复制完整对话。
 

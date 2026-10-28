@@ -22,11 +22,15 @@
 //! substitution participates in this ABI.
 
 mod build;
+mod cgu;
 mod emit;
 
 use zil_ir::FunctionId;
 
-pub use build::{BuildArtifact, BuildOptions, Optimization, WindowsLinkOptions, build};
+pub use build::{
+    BuildArtifact, BuildOptions, CodegenOptions, CodegenSummary, NativeBackend, Optimization,
+    WindowsLinkOptions, build, build_with_cancellation,
+};
 pub use emit::{emit, emit_with_options};
 
 /// Wrappers are explicit. `ReturnValue` is a test/CLI harness which calls the

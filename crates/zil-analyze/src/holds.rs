@@ -15,8 +15,31 @@ enum Root {
 type Roots = BTreeSet<Root>;
 type State = BTreeMap<LocalId, Roots>;
 
-fn buffer_desc(ty: &Type) -> bool {
-    matches!(ty, Type::Desc(inner) if **inner == Type::ByteBuffer)
+fn tracked_desc(ty: &Type, head_windows: bool) -> bool {
+    matches!(ty, Type::Desc(inner) if head_windows || **inner == Type::ByteBuffer)
+}
+
+// A module may use the head only in its caller. Desc-only callees still need
+// grounded effects, so enable the lane once for the complete actual module.
+fn head_windows(module: &TypedModule, budget: &mut Budget) -> CompileResult<bool> {
+    if module.resources.is_empty() {
+        return Ok(false);
+    }
+    for function in &module.functions {
+        budget.spend(
+            function
+                .locals
+                .len()
+                .saturating_add(function.values.len())
+                .saturating_add(1),
+            "resource head window discovery",
+        )?;
+        if function.locals.iter().map(|l| &l.ty).chain(&function.values)
+            .any(|ty| ty.is_shared_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn state_cost(state: &State, budget: &mut Budget) -> CompileResult<()> {
@@ -39,6 +62,7 @@ fn extend(target: &mut Roots, source: &Roots, budget: &mut Budget) -> CompileRes
 fn infer(
     module: &TypedModule,
     summaries: &[Roots],
+    head_windows: bool,
     f: &TypedFunction,
     predecessors: &[Vec<usize>],
     reachable: &[bool],
@@ -46,22 +70,36 @@ fn infer(
 ) -> CompileResult<Vec<ValueHold>> {
     let v = f.values.len();
     budget.spend(v, "dense Hold candidate")?;
-    let captured_address = |ty: &Type| match ty {
-        Type::Closure(id) => module
-            .closures
-            .get(id.0 as usize)
-            .is_some_and(|c| c.captures.iter().any(|t| matches!(t, Type::Address { .. }))),
-        _ => false,
+    let captured_address = |ty: &Type, budget: &mut Budget| -> CompileResult<bool> {
+        let Type::Closure(id) = ty else {
+            return Ok(false);
+        };
+        let Some(closure) = module.closures.get(id.0 as usize) else {
+            return Ok(false);
+        };
+        if head_windows {
+            budget.spend(closure.captures.len(), "head descriptor capture scan")?;
+        }
+        Ok(closure.captures.iter().any(|ty| {
+            matches!(ty, Type::Address { .. }) || (head_windows && matches!(ty, Type::Desc(_)))
+        }))
     };
-    if !f
+    let mut has_sources = f
         .values
         .iter()
-        .any(|ty| matches!(ty, Type::Address { .. }) || buffer_desc(ty))
-        && !f
-            .parameters
-            .iter()
-            .any(|p| captured_address(&f.locals[p.0 as usize].ty))
-    {
+        .any(|ty| matches!(ty, Type::Address { .. }) || tracked_desc(ty, head_windows));
+    if !has_sources {
+        if head_windows {
+            budget.spend(f.parameters.len(), "head incoming source scan")?;
+        }
+        for local in &f.parameters {
+            if captured_address(&f.locals[local.0 as usize].ty, budget)? {
+                has_sources = true;
+                break;
+            }
+        }
+    }
+    if !has_sources {
         return Ok((0..v)
             .map(|i| ValueHold {
                 value: ValueId(i as u32),
@@ -84,8 +122,8 @@ fn infer(
                 budget.spend(f.parameters.len(), "incoming Hold parameters")?;
                 for (index, local) in f.parameters.iter().enumerate() {
                     if matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
-                        || buffer_desc(&f.locals[local.0 as usize].ty)
-                        || captured_address(&f.locals[local.0 as usize].ty)
+                        || tracked_desc(&f.locals[local.0 as usize].ty, head_windows)
+                        || captured_address(&f.locals[local.0 as usize].ty, budget)?
                     {
                         state.insert(*local, Roots::from([Root::Parameter(index as u32)]));
                     }
@@ -106,34 +144,49 @@ fn infer(
                 budget.spend(1, "Hold instruction")?;
                 let mut found = Roots::new();
                 match &instruction.kind {
-                    InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if **inner == Type::ByteBuffer) =>
+                    InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if head_windows || **inner == Type::ByteBuffer) =>
                     {
                         found.insert(Root::Local(*local));
                     }
                     InstructionKind::DescribePackageField { local, index }
-                        if instruction
-                            .result
-                            .is_some_and(|value| buffer_desc(&f.values[value.0 as usize])) =>
+                        if instruction.result.is_some_and(|value| {
+                            tracked_desc(&f.values[value.0 as usize], head_windows)
+                        }) =>
                     {
                         let root = match &f.locals[local.0 as usize].ty {
                             Type::Package { fields, .. } if fields.get(*index as usize)
-                                .is_some_and(|(_, ty)| matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer)) => Root::Field(*local, *index),
+                                .is_some_and(|(_, ty)| matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer || matches!(inner.as_ref(), Type::OwnedStore { .. }))) => Root::Field(*local, *index),
                             _ => Root::Local(*local),
                         };
                         found.insert(root);
                     }
+                    InstructionKind::ProjectOwnedArrayField { local, .. }
+                        if instruction.result.is_some_and(|value| {
+                            tracked_desc(&f.values[value.0 as usize], head_windows)
+                        }) =>
+                    {
+                        // Array element slots are independently owned, but the
+                        // initial window profile keeps a conservative whole
+                        // array storage origin across element replacement.
+                        found.insert(Root::Local(*local));
+                    }
                     InstructionKind::DescribeCapture { index }
-                        if instruction
-                            .result
-                            .is_some_and(|value| buffer_desc(&f.values[value.0 as usize])) =>
+                        if instruction.result.is_some_and(|value| {
+                            tracked_desc(&f.values[value.0 as usize], head_windows)
+                        }) =>
                     {
                         found.insert(Root::Capture(*index));
                     }
-                    InstructionKind::ByteBufferBorrow { buffer, .. } => {
+                    InstructionKind::ByteBufferBorrow { buffer, .. }
+                    | InstructionKind::OwnedStoreBorrow { store: buffer, .. } => {
                         let source = values
                             .get(buffer.0 as usize)
                             .ok_or_else(|| bad("ByteBuffer source outside table"))?;
                         extend(&mut found, source, budget)?;
+                    }
+                    InstructionKind::BorrowOwnedArrayElement { local, .. }
+                    | InstructionKind::BorrowPackageField { local, .. } => {
+                        found.insert(Root::Local(*local));
                     }
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {
@@ -153,11 +206,14 @@ fn infer(
                             .ok_or_else(|| bad("projection address outside table"))?;
                         extend(&mut found, source, budget)?;
                     }
-                    InstructionKind::ReadCapture { index } => {
+                    InstructionKind::BorrowCapture { index, .. }
+                    | InstructionKind::ReadCapture { index } => {
                         let ty = instruction
                             .result
                             .and_then(|id| f.values.get(id.0 as usize));
-                        if matches!(ty, Some(Type::Address { .. })) {
+                        if matches!(ty, Some(Type::Address { .. }))
+                            || ty.is_some_and(|ty| head_windows && matches!(ty, Type::Desc(_)))
+                        {
                             found.insert(Root::Capture(*index));
                         }
                     }
@@ -272,6 +328,7 @@ pub(super) fn infer_module(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
+    let head_windows = head_windows(module, budget)?;
     if !module
         .functions
         .iter()
@@ -281,7 +338,9 @@ pub(super) fn infer_module(
             .functions
             .iter()
             .zip(graphs)
-            .map(|(f, (preds, reachable))| infer(module, &[], f, preds, reachable, budget))
+            .map(|(f, (preds, reachable))| {
+                infer(module, &[], head_windows, f, preds, reachable, budget)
+            })
             .collect();
     }
     let count = module.functions.len();
@@ -334,6 +393,7 @@ pub(super) fn infer_module(
         let values = infer(
             module,
             &summaries,
+            head_windows,
             function,
             predecessors,
             reachable,
@@ -490,6 +550,7 @@ mod frontier_tests {
         graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
         budget: &mut Budget,
     ) -> CompileResult<Vec<Vec<ValueHold>>> {
+        let head_windows = head_windows(module, budget)?;
         if !module
             .functions
             .iter()
@@ -499,7 +560,9 @@ mod frontier_tests {
                 .functions
                 .iter()
                 .zip(graphs)
-                .map(|(f, (preds, reachable))| infer(module, &[], f, preds, reachable, budget))
+                .map(|(f, (preds, reachable))| {
+                    infer(module, &[], head_windows, f, preds, reachable, budget)
+                })
                 .collect();
         }
         budget.spend(module.functions.len(), "return contract table")?;
@@ -513,6 +576,7 @@ mod frontier_tests {
                 let values = infer(
                     module,
                     &summaries,
+                    head_windows,
                     function,
                     predecessors,
                     reachable,

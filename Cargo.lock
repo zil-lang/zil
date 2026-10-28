@@ -16,6 +16,7 @@ version = "0.1.0"
 dependencies = [
  "zil-base",
  "zil-ir",
+ "zil-llvm-api",
  "zil-verify",
 ]
 
@@ -87,6 +88,10 @@ version = "0.1.0"
 dependencies = [
  "zil-base",
 ]
+
+[[package]]
+name = "zil-llvm-api"
+version = "0.1.0"
 
 [[package]]
 name = "zil-lower"

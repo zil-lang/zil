@@ -4,6 +4,8 @@ impl Builder<'_, '_> {
     pub(super) fn affine_type(&self, ty: &Type) -> bool {
         match ty {
             Type::Package { .. } => true,
+            Type::ErrorUnion { .. } => errors::owned(ty),
+            ty if packages::owned_array_supported(ty) => true,
             Type::Address { mutable: true, .. } => true,
             Type::Closure(id) => self.closures.pending[id.0 as usize]
                 .captures
@@ -14,6 +16,7 @@ impl Builder<'_, '_> {
                         Type::Address { mutable: true, .. }
                             | Type::Managed(_)
                             | Type::Package { .. }
+                            | Type::Closure(_)
                     )
                 }),
             _ => false,
@@ -24,10 +27,32 @@ impl Builder<'_, '_> {
         e: &CoreExpr,
         expected: Option<&Type>,
     ) -> R<(ValueId, Type)> {
+        // An owned ordinary Value may inject into one union arm. Comparing its
+        // unwrapped type against the whole union before injection would reject
+        // a named Package even though a constructor of the same type works.
+        if matches!(expected, Some(Type::ErrorUnion { .. })) {
+            return self.expr(e, expected);
+        }
         if let CoreExprKind::Name(name) = &e.kind
             && let Some(local) = self.lookup(name)
             && !self.borrowed_captures.contains_key(&local)
         {
+            if self.closure_slots.contains_key(&local) {
+                let ty = Type::Closure(self.closure_slots[&local]);
+                if let Some(expected) = expected {
+                    self.same(&ty, expected, e.span)?;
+                }
+                return self.take_closure_slot(local, e.span);
+            }
+            if let Some((index, ty)) = self.closure_captures.get(&local).cloned() {
+                if let Some(expected) = expected {
+                    self.same(&ty, expected, e.span)?;
+                }
+                return Ok((
+                    self.value(InstructionKind::TakeCapture { index }, ty.clone(), e.span)?,
+                    ty,
+                ));
+            }
             let ty = self.function.locals[local.0 as usize].ty.clone();
             // A hygienic Sequence only preserves the value already evaluated
             // for a pipeline/spread. A fresh or explicitly given owner must
@@ -128,6 +153,31 @@ impl Builder<'_, '_> {
                     error("E-UNKNOWN-NAME", e.span, format!("unknown value {name}"))
                 })?;
                 let decl = self.function.locals[local.0 as usize].clone();
+                if self.closure_slots.contains_key(&local) {
+                    return self.borrow_closure_slot(local, mutable, e.span);
+                }
+                if let Some((index, inner)) = self.closure_captures.get(&local).cloned() {
+                    let available = matches!(decl.ty, Type::Address { mutable: true, .. });
+                    if mutable && !available {
+                        return Err(error(
+                            "E-IMMUTABLE-ASSIGNMENT",
+                            e.span,
+                            "captured closure has no exclusive access",
+                        ));
+                    }
+                    let ty = Type::Address {
+                        mutable,
+                        inner: Box::new(inner),
+                    };
+                    return Ok((
+                        self.value(
+                            InstructionKind::BorrowCapture { index, mutable },
+                            ty.clone(),
+                            e.span,
+                        )?,
+                        ty,
+                    ));
+                }
                 if self.borrowed_captures.contains_key(&local) {
                     let Type::Address {
                         mutable: available, ..
@@ -143,10 +193,22 @@ impl Builder<'_, '_> {
                         decl.ty,
                     ));
                 }
-                if !decl.ty.is_copy_value() && !matches!(decl.ty, Type::Closure(_)) {
+                let resource_head = !mutable
+                    && matches!(&decl.ty, Type::Managed(payload)
+                        if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
+                if resource_head && self.managed_captures.contains_key(&local) {
                     return Err(unsupported(
                         e.span,
-                        "address targets must be finite Copy values; nested addresses are not implemented",
+                        "borrowing a captured resource head requires an explicit environment-head protocol",
+                    ));
+                }
+                if !decl.ty.is_copy_value()
+                    && !matches!(decl.ty, Type::Closure(_))
+                    && !resource_head
+                {
+                    return Err(unsupported(
+                        e.span,
+                        "address targets must be finite Copy values or actual shared user-resource heads; descriptors and nested addresses are not head positions",
                     ));
                 }
                 if mutable && !decl.mutable {
@@ -172,7 +234,10 @@ impl Builder<'_, '_> {
                 operand,
             } => {
                 let result = self.expr(operand, None)?;
-                if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee()) {
+                if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee())
+                    && !result.1.is_shared_resource_head_address()
+                    && !result.1.is_shared_package_address()
+                {
                     return Err(error(
                         "E-OPERATOR-TYPE",
                         e.span,
@@ -182,11 +247,43 @@ impl Builder<'_, '_> {
                 Ok(result)
             }
             CoreExprKind::Member { object, member } => {
+                if let Some((local, index, field @ Type::Closure(_))) = self.package_place(e)? {
+                    if mutable && !self.function.locals[local.0 as usize].mutable {
+                        return Err(error(
+                            "E-IMMUTABLE-ASSIGNMENT",
+                            e.span,
+                            "exclusive callback field borrow requires a mutable State",
+                        ));
+                    }
+                    self.check_owned_array_closure(&field, 1, e.span)?;
+                    let ty = Type::Address {
+                        mutable,
+                        inner: Box::new(field),
+                    };
+                    return Ok((
+                        self.value(
+                            InstructionKind::BorrowPackageField {
+                                local,
+                                index,
+                                mutable,
+                            },
+                            ty.clone(),
+                            e.span,
+                        )?,
+                        ty,
+                    ));
+                }
                 let (address, ty) = self.projection_base(object, mutable)?;
                 let Type::Address { mutable, inner } = ty else {
                     unreachable!()
                 };
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
+                if matches!(inner.as_ref(), Type::Package { .. }) && !field.is_copy_value() {
+                    return Err(unsupported(
+                        e.span,
+                        "Store element windows only project finite Copy fields",
+                    ));
+                }
                 let ty = Type::Address {
                     mutable,
                     inner: Box::new(field),
@@ -201,6 +298,33 @@ impl Builder<'_, '_> {
                 ))
             }
             CoreExprKind::Index { object, index } => {
+                if let Some((local, index, element @ Type::Closure(_))) =
+                    self.owned_array_place(e)?
+                {
+                    if mutable && !self.function.locals[local.0 as usize].mutable {
+                        return Err(error(
+                            "E-IMMUTABLE-ASSIGNMENT",
+                            e.span,
+                            "exclusive callback element borrow requires a mutable array",
+                        ));
+                    }
+                    let ty = Type::Address {
+                        mutable,
+                        inner: Box::new(element),
+                    };
+                    return Ok((
+                        self.value(
+                            InstructionKind::BorrowOwnedArrayElement {
+                                local,
+                                index,
+                                mutable,
+                            },
+                            ty.clone(),
+                            e.span,
+                        )?,
+                        ty,
+                    ));
+                }
                 let (address, ty) = self.projection_base(object, mutable)?;
                 let Type::Address { mutable, inner } = ty else {
                     unreachable!()
@@ -307,7 +431,9 @@ impl Builder<'_, '_> {
         }
     }
     fn projection_base(&mut self, object: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
-        if matches!(self.known_type(object), Some(Type::Address { .. })) {
+        if matches!(self.known_type(object), Some(Type::Address { .. }))
+            || dynamic_store::borrow_expression(object)
+        {
             self.expr(object, None)
         } else {
             self.address_place(object, mutable)
@@ -324,6 +450,7 @@ impl Builder<'_, '_> {
             } => true,
             CoreExprKind::Member { object, .. } | CoreExprKind::Index { object, .. } => {
                 matches!(self.known_type(object), Some(Type::Address { .. }))
+                    || dynamic_store::borrow_expression(object)
                     || self.indirect_place(object)
             }
             _ => false,

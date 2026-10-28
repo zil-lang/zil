@@ -1,0 +1,18 @@
+{
+  "ante": {
+    "commit": "9f8f3def5a23ca38a8de4c891b386da429a89521",
+    "path": "src/codegen/llvm/mod.rs",
+    "url": "https://github.com/jfecher/ante/blob/9f8f3def5a23ca38a8de4c891b386da429a89521/src/codegen/llvm/mod.rs"
+  },
+  "rust": {
+    "blob": "bf5d67c2135731605e3e07f0df2bfb27c8475ea5",
+    "path": "compiler/rustc_codegen_ssa/src/traits/backend.rs",
+    "url": "https://github.com/rust-lang/rust/blob/main/compiler/rustc_codegen_ssa/src/traits/backend.rs"
+  },
+  "llvm": {
+    "ref": "llvmorg-17.0.6",
+    "blob": "7885c36a79876a7936ee87f26f84b277dfc4c40f",
+    "path": "llvm/lib/IRReader/IRReader.cpp",
+    "url": "https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/lib/IRReader/IRReader.cpp"
+  }
+}

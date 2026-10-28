@@ -31,11 +31,35 @@ pub(super) enum RawSnapshot {
     ProjectTyped(Arc<zil_ir::TypedProgram>),
 }
 impl RawSnapshot {
-    fn digest(&self) -> Fingerprint {
-        match self {
-            Self::Typed(typed) => typed.fingerprint(),
-            other => Fingerprint::of(format!("{other:?}").as_bytes()),
+    /// Identity of a deterministic, private, process-local construction. This is
+    /// NOT a content checksum or a verifier capability. Its complete query key
+    /// binds source bytes/positions, rules, every limit and target; ordered
+    /// dependency identities bind the exact upstream constructions observed.
+    /// Raw snapshots cannot be deserialized or injected through the public API.
+    /// The public Typed/Verified fingerprints and independent Verify are intact.
+    fn digest(&self, key: &QueryKey, dependencies: &[Arc<QuerySnapshot>]) -> Fingerprint {
+        if let Self::Typed(typed) = self {
+            return typed.fingerprint();
         }
+        let tag = match self {
+            Self::Parse(_) => 0,
+            Self::Expanded(_) => 1,
+            Self::Core(_) => 2,
+            Self::Candidate(_) => 3,
+            Self::Project(_) => 4,
+            Self::ProjectCore(_) => 5,
+            Self::ProjectTyped(_) => 6,
+            Self::Typed(_) => unreachable!(),
+        };
+        let mut bytes = b"ZIL-PRIVATE-CONSTRUCTION-150\0".to_vec();
+        bytes.push(tag);
+        bytes.extend_from_slice(&key.fingerprint().0);
+        bytes.extend_from_slice(&(dependencies.len() as u64).to_le_bytes());
+        for dependency in dependencies {
+            bytes.extend_from_slice(&dependency.key.fingerprint().0);
+            bytes.extend_from_slice(&dependency.fingerprints.private_implementation.0);
+        }
+        Fingerprint::of(&bytes)
     }
 }
 
@@ -137,7 +161,7 @@ impl CompilationSession {
             self.database.abort(&key);
             return Err(vec![error]);
         }
-        let digest = raw.digest();
+        let digest = raw.digest(&key, dependencies);
         // The current whole-module raw queries conservatively observe complete
         // implementation identity. Kind-selective graph support is separate;
         // this does not claim cross-module private-body incremental checking.
@@ -443,7 +467,9 @@ impl CompilationSession {
         };
         let publication = artifacts.native()?;
         let mut build = BuildOptions::new(publication.output());
+        build.backend = options.backend;
         build.optimization = options.optimization;
+        build.codegen = options.codegen;
         build.windows = options.windows.clone();
         build.clang = options
             .clang
@@ -457,7 +483,9 @@ impl CompilationSession {
         // itself is a single external build step; this API does not claim to
         // interrupt a linker already running. Outputs stay in a private directory
         // until the last cancellation check and all fallible dumps have finished.
-        let artifact = zil_backend_llvm::build(&verified, &lir, &build)?;
+        let artifact = zil_backend_llvm::build_with_cancellation(&verified, &lir, &build, &|| {
+            options.cancellation.check(Phase::Link).is_err()
+        })?;
         event(Phase::Link, QueryDisposition::Executed, report, observer);
         if let Err(error) = options.cancellation.check(Phase::Link) {
             return Err(vec![error]);
@@ -472,6 +500,7 @@ impl CompilationSession {
         report
             .artifacts
             .insert("executable".into(), artifact.executable);
+        report.native_codegen = Some(artifact.codegen);
         report.commands.extend(artifact.commands);
         Ok(())
     }
@@ -628,4 +657,135 @@ pub(super) fn check_entry_contract(core: &CoreModule) -> CompileResult<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod construction_identity150_tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId};
+
+    fn input() -> SourceUnit {
+        SourceUnit::new(FileId(1), ModuleId(2), "identity.zil", "fn main()->i32=>0")
+    }
+    fn raw(source: &SourceUnit) -> RawSnapshot {
+        RawSnapshot::Parse(Arc::new(zil_syntax::parse_with_limits(
+            source,
+            &Limits::default(),
+        )))
+    }
+    fn snapshot(key: QueryKey, observation: &[u8]) -> Arc<QuerySnapshot> {
+        Arc::new(QuerySnapshot {
+            key,
+            status: ResultCategory::Success,
+            fingerprints: ResultFingerprints {
+                private_implementation: Fingerprint::of(observation),
+                ..ResultFingerprints::default()
+            },
+            dependencies: vec![],
+            bytes: Arc::from([]),
+            revision: 1,
+        })
+    }
+    #[test]
+    fn construction_identity_binds_order_count_upstream_key_and_observation() {
+        let source = input();
+        let raw = raw(&source);
+        let key = query_key(&source, &CompileOptions::default(), Phase::Parse, false);
+        let a = snapshot(key.clone(), b"a");
+        let mut second = key.clone();
+        second.module = ModuleId(3);
+        let b = snapshot(second.clone(), b"b");
+        let base = raw.digest(&key, &[a.clone(), b.clone()]);
+        assert_eq!(base, raw.digest(&key, &[a.clone(), b.clone()]));
+        assert_ne!(base, raw.digest(&key, &[b.clone(), a.clone()]));
+        assert_ne!(base, raw.digest(&key, std::slice::from_ref(&a)));
+        assert_ne!(
+            base,
+            raw.digest(&key, &[a.clone(), snapshot(second, b"changed")])
+        );
+        assert_ne!(
+            base,
+            raw.digest(&key, &[a.clone(), snapshot(key.clone(), b"b")])
+        );
+        assert_ne!(raw.digest(&key, &[]), raw.digest(&key, &[a]));
+    }
+    #[test]
+    fn construction_identity_binds_every_query_axis_and_all_limits() {
+        let source = input();
+        let raw = raw(&source);
+        let options = CompileOptions::default();
+        let key = query_key(&source, &options, Phase::Parse, false);
+        let base = raw.digest(&key, &[]);
+        for k in [
+            QueryKey {
+                module: ModuleId(8),
+                ..key.clone()
+            },
+            QueryKey {
+                phase: Phase::Expand,
+                ..key.clone()
+            },
+            QueryKey {
+                input: Fingerprint::of(b"changed"),
+                ..key.clone()
+            },
+            QueryKey {
+                rules: Fingerprint::of(b"changed"),
+                ..key.clone()
+            },
+            QueryKey {
+                target: Fingerprint::of(b"changed"),
+                ..key.clone()
+            },
+        ] {
+            assert_ne!(base, raw.digest(&k, &[]));
+        }
+        macro_rules! limit_changes {
+            ($($field:ident),* $(,)?) => { $(
+                let mut o = options.clone();
+                o.limits.$field += 1;
+                assert_ne!(base, raw.digest(&query_key(&source, &o, Phase::Parse, false), &[]), stringify!($field));
+            )* };
+        }
+        limit_changes!(
+            max_source_bytes,
+            max_tokens,
+            max_nodes,
+            max_functions,
+            max_blocks,
+            max_instructions,
+            max_locals,
+            max_values,
+            max_analysis_steps,
+            max_ct_steps,
+            max_call_depth
+        );
+        for changed in [
+            SourceUnit::new(FileId(9), source.module_id, &source.path, &source.text),
+            SourceUnit::new(source.file_id, ModuleId(9), &source.path, &source.text),
+            SourceUnit::new(
+                source.file_id,
+                source.module_id,
+                "elsewhere.zil",
+                &source.text,
+            ),
+            SourceUnit::new(
+                source.file_id,
+                source.module_id,
+                &source.path,
+                "fn main()->i32=>1",
+            ),
+        ] {
+            assert_ne!(
+                base,
+                raw.digest(&query_key(&changed, &options, Phase::Parse, false), &[])
+            );
+        }
+        let mut changed = options.clone();
+        changed.build_inputs = Fingerprint::of(b"other build inputs");
+        assert_ne!(
+            base,
+            raw.digest(&query_key(&source, &changed, Phase::Parse, false), &[])
+        );
+    }
 }

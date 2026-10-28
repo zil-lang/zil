@@ -20,3 +20,7 @@ zil-ct.workspace = true
 zil-lower.workspace = true
 zil-db.workspace = true
 zil-backend-llvm.workspace = true
+
+[features]
+default = []
+llvm-api = ["zil-backend-llvm/llvm-api"]

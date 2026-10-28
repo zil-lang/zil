@@ -1,0 +1,67 @@
+{
+  "scope": "secondary scaling diagnostic, selected before its own measurements, not original weighted primary",
+  "processes": 64,
+  "requests": 256,
+  "cases": {
+    "reverse4096": {
+      "size": {
+        "modules": 1,
+        "source_bytes": 202666,
+        "lines": 4098,
+        "declared_functions": 4097
+      },
+      "request_ratio_C_over_A": 0.4941936953057246,
+      "block_ratios": [
+        0.5162126481924455,
+        0.512321768151067,
+        0.4758873196908744,
+        0.4752016762231802
+      ]
+    },
+    "cycle1024x8": {
+      "size": {
+        "modules": 1,
+        "source_bytes": 126078,
+        "lines": 1027,
+        "declared_functions": 1026
+      },
+      "request_ratio_C_over_A": 0.5866538495522955,
+      "block_ratios": [
+        0.5641080568619363,
+        0.6036478105957312,
+        0.5772351512397719,
+        0.6005478109225509
+      ]
+    },
+    "tree256x8": {
+      "size": {
+        "modules": 257,
+        "source_bytes": 80439,
+        "lines": 2561,
+        "declared_functions": 2305
+      },
+      "request_ratio_C_over_A": 0.43330189906211863,
+      "block_ratios": [
+        0.45973559355011184,
+        0.4182026239470476,
+        0.41680021889847296,
+        0.4387927381390173
+      ]
+    },
+    "tree1024x8": {
+      "size": {
+        "modules": 1025,
+        "source_bytes": 322407,
+        "lines": 10241,
+        "declared_functions": 9217
+      },
+      "request_ratio_C_over_A": 0.42787898591153245,
+      "block_ratios": [
+        0.4099195648256798,
+        0.4148848531004944,
+        0.4370067571458674,
+        0.45047119502498906
+      ]
+    }
+  }
+}

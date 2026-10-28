@@ -41,10 +41,14 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
         ) || !closure.result.is_copy_value()
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
+                    || callable_parameter_type(ty, &module.closures)
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
                     || (resource_type(ty, &module.resources)
+                        && !matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }))
                         && !matches!(ty, Type::Desc(p) if p.as_ref() == &Type::ByteBuffer))
-                    || package_type(ty, &module.resources)
+                    || (package_type(ty, &module.resources)
+                        && !package_array_fields(ty)
+                        && !package_store_fields(ty))
             })
             || !closure.parameters.iter().all(Type::is_copy_value)
         {
@@ -60,6 +64,8 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
             || function.return_type.is_scalar_or_address()
             || resource_type(&function.return_type, &module.resources)
             || package_type(&function.return_type, &module.resources)
+            || error_type(&function.return_type, &module.resources)
+            || owned_array_type(&function.return_type, &module.resources)
             || (matches!(function.return_type, Type::Closure(_))
                 && function.callable_return_contract.is_some()))
             || function.parameters.iter().any(|id| {
@@ -68,6 +74,8 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                     || ty.is_scalar_or_address()
                     || resource_type(ty, &module.resources)
                     || package_type(ty, &module.resources)
+                    || error_type(ty, &module.resources)
+                    || owned_array_type(ty, &module.resources)
                     || callable_parameter_type(ty, &module.closures))
             })
         {
@@ -87,8 +95,12 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
             if !ty.is_copy_value()
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+                && !ty.is_shared_resource_head_address()
+                && !ty.is_shared_package_address()
                 && !resource_type(ty, &module.resources)
                 && !package_type(ty, &module.resources)
+                && !error_type(ty, &module.resources)
+                && !owned_array_type(ty, &module.resources)
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Lower,
@@ -112,6 +124,12 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
 
 fn resource_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     if matches!(ty, Type::Managed(payload) | Type::Desc(payload)
+        if matches!(payload.as_ref(), Type::OwnedStore { .. })
+        && resources.iter().any(|r| r.payload == **payload && r.teardown.is_none()))
+    {
+        return true;
+    }
+    if matches!(ty, Type::Managed(payload) | Type::Desc(payload)
         if payload.as_ref() == &Type::ByteBuffer
         && resources.iter().any(|r| r.name == zil_ir::BYTE_BUFFER_RESOURCE_NAME
             && r.payload == Type::ByteBuffer && r.teardown.is_none()))
@@ -133,8 +151,28 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     };
     fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
         && fields.iter().all(|(_, ty)| {
-            ty.is_copy_value() || matches!(ty, Type::Managed(_) if resource_type(ty, resources))
+            ty.is_copy_value() || matches!(ty, Type::Closure(_)) || matches!(ty, Type::Managed(_) if resource_type(ty, resources))
+                || matches!(ty, Type::Array { element, length } if *length > 0 && package_type(element, resources) && !package_array_fields(element) && !package_store_fields(element))
         })
+}
+
+fn package_array_fields(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
+}
+
+fn package_store_fields(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))))
+}
+
+fn error_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    matches!(ty, Type::ErrorUnion { error, result }
+        if (error.is_copy_value() || package_type(error, resources))
+            && (result.is_copy_value() || package_type(result, resources)))
+}
+
+fn owned_array_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    matches!(ty, Type::Array { element, length }
+        if *length > 0 && (package_type(element, resources) || matches!(element.as_ref(), Type::Closure(_))))
 }
 
 /// The B0 ABI uses no storage for unit and natural scalar size/alignment. This

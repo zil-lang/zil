@@ -3,7 +3,129 @@
 //! here. This deliberately simple representation is not a compact-union ABI.
 use super::*;
 
+pub(super) fn owned(ty: &Type) -> bool {
+    matches!(ty, Type::ErrorUnion { error, result }
+        if matches!(error.as_ref(), Type::Package { .. })
+            || matches!(result.as_ref(), Type::Package { .. }))
+}
+
+pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    matches!(ty, Type::ErrorUnion { error, result }
+        if (error.is_copy_value() || packages::supported_type(error, resources))
+            && (result.is_copy_value() || packages::supported_type(result, resources)))
+}
+
+fn teardowns(
+    payload: &Type,
+    resources: &[ResourceDefinition],
+) -> CompileResult<Vec<(Vec<u32>, String)>> {
+    if matches!(payload, Type::Package { .. }) {
+        packages::teardown_paths(payload, resources)
+    } else {
+        Ok(Vec::new())
+    }
+}
+
+/// The native boundary consumes the returned error Value. Source main's own
+/// cleanup has already run; only this selected returned payload remains owed.
+pub(super) fn entry_cleanup(ty: &Type, resources: &[ResourceDefinition]) -> CompileResult<String> {
+    let Type::ErrorUnion { error, .. } = ty else {
+        return Ok(String::new());
+    };
+    if !matches!(error.as_ref(), Type::Package { .. }) {
+        return Ok(String::new());
+    }
+    let union = llvm_type(ty)?;
+    let payload = llvm_type(error)?;
+    let mut text = format!(
+        "  %entry.error.value = extractvalue {union} %entry.result, 1\n  %entry.error.storage = alloca {payload}\n  store {payload} %entry.error.value, ptr %entry.error.storage\n"
+    );
+    for (index, (path, teardown)) in teardowns(error, resources)?.iter().enumerate() {
+        let suffix = path
+            .iter()
+            .map(|index| format!(", i32 {index}"))
+            .collect::<String>();
+        text.push_str(&format!(
+            "  %entry.error.field.{index} = getelementptr {payload}, ptr %entry.error.storage, i32 0{suffix}\n  call void @{teardown}(ptr %entry.error.field.{index})\n"
+        ));
+    }
+    Ok(text)
+}
+
 impl FunctionEmitter<'_> {
+    pub(super) fn drop_error_union(
+        &mut self,
+        instruction: &Instruction,
+        local: LocalId,
+    ) -> CompileResult<()> {
+        let ty = self.local_type(local)?.clone();
+        let Type::ErrorUnion { error, result } = &ty else {
+            return invalid(
+                "E-CODEGEN-CFG",
+                "error cleanup requires an error union local",
+                Some(instruction.span),
+            );
+        };
+        let union = llvm_type(&ty)?;
+        let error_drops = teardowns(error, self.resources)?;
+        let success_drops = teardowns(result, self.resources)?;
+        let flag = self.temp();
+        let label = self.continuation;
+        self.continuation += 1;
+        self.line(format!(
+            "  {flag} = load i1, ptr %resource.live.{}, align 1",
+            local.0
+        ));
+        self.line(format!(
+            "  br i1 {flag}, label %error.drop.{label}, label %error.done.{label}"
+        ));
+        self.line(format!("error.drop.{label}:"));
+        // Cleanup owns the selected carrier before it can enter user teardown.
+        // The inactive payload is never read or given a cleanup obligation.
+        self.line(format!(
+            "  store i1 false, ptr %resource.live.{}, align 1",
+            local.0
+        ));
+        let tag_pointer = self.temp();
+        let tag = self.temp();
+        self.line(format!(
+            "  {tag_pointer} = getelementptr {union}, ptr %local.{}, i32 0, i32 0",
+            local.0
+        ));
+        self.line(format!("  {tag} = load i1, ptr {tag_pointer}, align 1"));
+        self.line(format!(
+            "  br i1 {tag}, label %error.payload.{label}, label %success.payload.{label}"
+        ));
+        for (name, arm, payload, drops) in [
+            ("error", 1, error.as_ref(), error_drops),
+            ("success", 2, result.as_ref(), success_drops),
+        ] {
+            self.line(format!("{name}.payload.{label}:"));
+            if !drops.is_empty() {
+                let pointer = self.temp();
+                let payload_llvm = llvm_type(payload)?;
+                self.line(format!(
+                    "  {pointer} = getelementptr {union}, ptr %local.{}, i32 0, i32 {arm}",
+                    local.0
+                ));
+                for (path, teardown) in drops {
+                    let field = self.temp();
+                    let suffix = path
+                        .iter()
+                        .map(|index| format!(", i32 {index}"))
+                        .collect::<String>();
+                    self.line(format!(
+                        "  {field} = getelementptr {payload_llvm}, ptr {pointer}, i32 0{suffix}"
+                    ));
+                    self.line(format!("  call void @{teardown}(ptr {field})"));
+                }
+            }
+            self.line(format!("  br label %error.done.{label}"));
+        }
+        self.line(format!("error.done.{label}:"));
+        Ok(())
+    }
+
     pub(super) fn make_error_union(
         &mut self,
         instruction: &Instruction,

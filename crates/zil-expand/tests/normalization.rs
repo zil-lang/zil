@@ -179,12 +179,12 @@ fn plan_t01_002_trait_receiver_comes_from_signature_not_body_or_order() {
         CoreExprKind::ReceiverMember(_)
     ));
     assert!(
-        expanded
+        !expanded
             .core
             .unsupported
             .iter()
             .any(|u| u.feature.contains("trait")),
-        "shape normalization must not claim trait contract checking"
+        "slice147 admits the checked finite local trait shape; a static body still receives no implicit self"
     );
 }
 

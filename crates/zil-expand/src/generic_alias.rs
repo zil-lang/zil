@@ -52,7 +52,9 @@ pub(super) fn normalize(module: &Module, limits: &Limits) -> R<Option<Normalized
                 if !parameters.insert(parameter.name.as_str()) {
                     return Err(error(parameter.span, "duplicate alias type parameter"));
                 }
-                if super::super::byte_buffer_name(&parameter.name) {
+                if super::super::byte_buffer_name(&parameter.name)
+                    || super::super::owned_store_name(&parameter.name)
+                {
                     return Err(super::super::primitive_name_error(
                         &parameter.name,
                         parameter.span,
@@ -216,7 +218,9 @@ impl Resolver<'_, '_> {
                     *ty = self.instantiate(&path[0], args, variables, ty.span, depth)?;
                     return Ok(());
                 }
-                let arity = if variables.contains(&path[0])
+                let arity = if path[0] == "Store" {
+                    1
+                } else if variables.contains(&path[0])
                     || matches!(
                         path[0].as_str(),
                         "u8" | "u16"
@@ -227,7 +231,8 @@ impl Resolver<'_, '_> {
                             | "c_handle"
                             | "c_wstr"
                             | "ByteBuffer"
-                    ) {
+                    )
+                {
                     0
                 } else {
                     *self

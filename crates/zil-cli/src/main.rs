@@ -6,11 +6,11 @@ use std::process::{Command, ExitCode, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zil_base::{Diagnostic, Phase, ResultCategory, TargetProfile, json_string};
 use zil_driver::{
-    CancellationToken, CompileOptions, CompileReport, ExecutionProfile, Optimization, Stage,
-    WindowsLinkOptions, compile_path,
+    CancellationToken, CompileOptions, CompileReport, ExecutionProfile, NativeBackend,
+    Optimization, Stage, WindowsLinkOptions, compile_path,
 };
 
-const HELP: &str = "ZIL 0.1.0 — compiler draft\n\nUsage:\n  zil check FILE [--stop-after parse|core|types|analyze|verify] [--json]\n  zil build FILE [-o OUTPUT] [--entry NAME] [--emit-dir DIR] [--json]\n  zil run FILE [--entry NAME] [--emit-dir DIR] [--json]\n  zil qc [--tool PATH] COMMAND [OPTIONS]\n  zil version\n\nOptions:\n  --cache-dir DIR           Store unverified source candidates\n  --clang PATH              LLVM clang executable (default: ZIL_CLANG or clang)\n  --emit-dir DIR            Write actual phase artifacts\n  --target native|win64     Select the checked target ABI\n  --windows-lib PATH        Explicit Win64 import archive (repeatable)\n  --linker PATH             Win64 lld-link executable\n  --opt O0|O2               Native LLVM optimization level\n  --compile-timeout-ms N    Cooperative deadline checked between compiler phases\n  --profile native|managed  Managed is explicitly Unsupported\n\nNative run requires an explicit main; it adds no implicit module execution or GC.\nUnsupported language features return Unsupported; they are never silently accepted.\n";
+const HELP: &str = "ZIL 0.1.0 — compiler draft\n\nUsage:\n  zil check FILE [--stop-after parse|core|types|analyze|verify] [--json]\n  zil build FILE [-o OUTPUT] [--entry NAME] [--emit-dir DIR] [--json]\n  zil run FILE [--entry NAME] [--emit-dir DIR] [--json]\n  zil qc [--tool PATH] COMMAND [OPTIONS]\n  zil version\n\nOptions:\n  --cache-dir DIR           Store unverified source candidates\n  --backend clang|llvm-api  Object generation strategy (default: clang)\n  --clang PATH              LLVM clang executable (default: ZIL_CLANG or clang)\n  --emit-dir DIR            Write actual phase artifacts\n  --target native|win64     Select the checked target ABI\n  --windows-lib PATH        Explicit Win64 import archive (repeatable)\n  --linker PATH             Win64 lld-link executable\n  --opt O0|O2               Native LLVM optimization level\n  --codegen-units N         Maximum native units, 1..64 (default: 1)\n  --codegen-jobs N          Concurrent native compiles, 1..64 (default: 1)\n  --compile-timeout-ms N    Cooperative deadline checked between compiler phases\n  --profile native|managed  Managed is explicitly Unsupported\n\nNative run requires an explicit main; it adds no implicit module execution or GC.\nUnsupported language features return Unsupported; they are never silently accepted.\n";
 fn usage(message: &str, json: bool) -> ExitCode {
     let diagnostic = Diagnostic::error(Phase::Driver, "E-CLI-ARGUMENT", None, message);
     if json {
@@ -72,11 +72,14 @@ fn main() -> ExitCode {
             | "--emit-dir"
             | "--stop-after"
             | "--cache-dir"
+            | "--backend"
             | "--clang"
             | "--target"
             | "--windows-lib"
             | "--linker"
             | "--opt"
+            | "--codegen-units"
+            | "--codegen-jobs"
             | "--profile"
             | "--compile-timeout-ms" => {
                 if index + 1 == args.len() {
@@ -90,6 +93,13 @@ fn main() -> ExitCode {
                     "--entry" => options.entry = Some(value.clone()),
                     "--emit-dir" => options.emit_dir = Some(PathBuf::from(value)),
                     "--cache-dir" => options.cache_dir = Some(PathBuf::from(value)),
+                    "--backend" => {
+                        options.backend = match value.as_str() {
+                            "clang" => NativeBackend::Clang,
+                            "llvm-api" => NativeBackend::LlvmApi,
+                            _ => return usage("backend must be clang or llvm-api", json),
+                        }
+                    }
                     "--clang" => options.clang = Some(PathBuf::from(value)),
                     "--target" => {
                         options.target = match value.as_str() {
@@ -115,6 +125,16 @@ fn main() -> ExitCode {
                             .windows
                             .get_or_insert_with(WindowsLinkOptions::default)
                             .linker = PathBuf::from(value)
+                    }
+                    "--codegen-units" | "--codegen-jobs" => {
+                        let Ok(count @ 1..=64) = value.parse::<usize>() else {
+                            return usage("codegen units and jobs must be in 1..=64", json);
+                        };
+                        if flag == "--codegen-units" {
+                            options.codegen.units = count;
+                        } else {
+                            options.codegen.jobs = count;
+                        }
                     }
                     "--opt" => {
                         options.optimization = match value.as_str() {

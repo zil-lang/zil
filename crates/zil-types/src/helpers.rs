@@ -47,13 +47,19 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
             "one finite Copy callable signature and one nonescaping environment parameter are implemented",
         )
     };
+    let owned_state = callable_fields::template(function);
     if function.foreign.is_some()
         || function.receiver.is_some()
         || bound.generic_name.is_empty()
         || bound.kind == CallableKind::FunctionPointer
         || !bound.parameters.iter().all(Type::is_copy_value)
         || !bound.result.is_copy_value()
-        || !function.return_type.is_copy_value()
+        || !(function.return_type.is_copy_value()
+            || (owned_state
+                && callable_fields::placeholder_package(
+                    &function.return_type,
+                    &bound.generic_name,
+                )))
     {
         return Err(reject());
     }
@@ -62,7 +68,9 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
         .get(bound.index as usize)
         .ok_or_else(reject)?;
     let mode = parameter_mode(&parameter.ty, &bound.generic_name);
-    if mode.is_none()
+    if (mode.is_none()
+        && !(owned_state
+            && callable_fields::placeholder_package(&parameter.ty, &bound.generic_name)))
         || function.parameters.iter().enumerate().any(|(i, p)| {
             i != bound.index as usize
                 && !(p.ty.is_copy_value()
@@ -72,8 +80,8 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
     {
         return Err(reject());
     }
-    match (bound.kind, mode.expect("checked mode")) {
-        (CallableKind::FnMut, None) => {
+    match (bound.kind, mode.unwrap_or(None)) {
+        (CallableKind::FnMut, None) if !owned_state => {
             return Err(unsupported(
                 parameter.span,
                 "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
@@ -136,8 +144,8 @@ pub(super) fn reserve_signatures(
 }
 
 /// Templates can run while opaque factories are being checked, but their lookup
-/// snapshot keeps every opaque result unresolved until that entire pass ends.
-/// Then update only the concrete result slots; no second deep table clone.
+/// snapshot is updated after each dependency-ordered factory completes.
+/// Only concrete result slots change; no second deep table clone is required.
 pub(super) fn resolve_factory_result(
     state: &mut closures::State,
     module: ModuleId,
@@ -218,7 +226,8 @@ impl Builder<'_, '_> {
             ));
         }
         let bound = signature.callable.as_ref().expect("template signature");
-        if let Some(expected) = expected {
+        let owned_state = callable_fields::signature(signature);
+        if !owned_state && let Some(expected) = expected {
             self.same(&signature.result, expected, span)?;
         }
         if arguments.len() != signature.parameters.len() {
@@ -232,47 +241,74 @@ impl Builder<'_, '_> {
         let mut environment = None;
         for (index, (argument, ty)) in arguments.iter().zip(&signature.parameters).enumerate() {
             let (value, actual) = if index == bound.index as usize {
-                let mode = parameter_mode(ty, &bound.generic_name)
-                    .ok_or_else(|| unsupported(span, "invalid callable template parameter"))?;
-                let (mut value, mut actual) = if mode.is_none() {
+                let mode = if owned_state {
+                    None
+                } else {
+                    parameter_mode(ty, &bound.generic_name)
+                        .ok_or_else(|| unsupported(span, "invalid callable template parameter"))?
+                };
+                let (mut value, mut actual) = if owned_state {
+                    self.owned_array_input(argument, None)?
+                } else if mode.is_none() {
                     self.transfer_expr(argument, None)?
                 } else {
                     self.expr(argument, None)?
                 };
-                let closure = match (&actual, mode) {
-                    (Type::Closure(id), None) => *id,
-                    (Type::Address { mutable, inner }, Some(wanted)) if !wanted || *mutable => {
-                        let Type::Closure(id) = inner.as_ref() else {
+                let closure = if owned_state {
+                    let pattern_work =
+                        inference::type_snapshot_work(ty, argument.span, self.limits)?;
+                    let actual_work =
+                        inference::type_snapshot_work(&actual, argument.span, self.limits)?;
+                    self.closures
+                        .snapshot(pattern_work.saturating_add(actual_work), argument.span)?;
+                    callable_fields::environment(ty, &actual, &bound.generic_name, argument.span)?
+                } else {
+                    match (&actual, mode) {
+                        (Type::Closure(id), None) => *id,
+                        (Type::Address { mutable, inner }, Some(wanted)) if !wanted || *mutable => {
+                            let Type::Closure(id) = inner.as_ref() else {
+                                return Err(error(
+                                    "E-TYPE-MISMATCH",
+                                    argument.span,
+                                    "helper requires an address to a concrete environment",
+                                ));
+                            };
+                            let id = *id;
+                            let wanted_type = Type::Address {
+                                mutable: wanted,
+                                inner: Box::new(Type::Closure(id)),
+                            };
+                            value = self.value(
+                                InstructionKind::ReborrowAddress {
+                                    address: value,
+                                    mutable: wanted,
+                                },
+                                wanted_type.clone(),
+                                argument.span,
+                            )?;
+                            actual = wanted_type;
+                            id
+                        }
+                        _ => {
                             return Err(error(
                                 "E-TYPE-MISMATCH",
                                 argument.span,
-                                "helper requires an address to a concrete environment",
+                                "helper requires its declared concrete environment passing mode",
                             ));
-                        };
-                        let id = *id;
-                        let wanted_type = Type::Address {
-                            mutable: wanted,
-                            inner: Box::new(Type::Closure(id)),
-                        };
-                        value = self.value(
-                            InstructionKind::ReborrowAddress {
-                                address: value,
-                                mutable: wanted,
-                            },
-                            wanted_type.clone(),
-                            argument.span,
-                        )?;
-                        actual = wanted_type;
-                        id
-                    }
-                    _ => {
-                        return Err(error(
-                            "E-TYPE-MISMATCH",
-                            argument.span,
-                            "helper requires its declared concrete environment passing mode",
-                        ));
+                        }
                     }
                 };
+                if owned_state {
+                    let mut work = self.limits.max_analysis_steps;
+                    retained::self_contained(
+                        &self.closures.pending,
+                        closure,
+                        &mut work,
+                        argument.span,
+                    )?;
+                    self.closures
+                        .snapshot(self.limits.max_analysis_steps - work, argument.span)?;
+                }
                 let pending = self
                     .closures
                     .pending
@@ -312,17 +348,33 @@ impl Builder<'_, '_> {
             environment.ok_or_else(|| unsupported(span, "missing concrete helper environment"))?;
         let instance =
             self.instantiate_helper(signature.template.expect("template key"), closure, span)?;
+        let result = if owned_state {
+            self.closures
+                .snapshot(self.closures.helper_functions.len(), span)?;
+            self.closures
+                .helper_functions
+                .iter()
+                .find(|f| f.id == instance)
+                .ok_or_else(|| unsupported(span, "concrete owning helper result is unavailable"))?
+                .return_type
+                .clone()
+        } else {
+            signature.result.clone()
+        };
+        if let Some(expected) = expected {
+            self.same(&result, expected, span)?;
+        }
         let values = self.commit_arguments(staged, span)?;
         let instruction = InstructionKind::Call {
             function: instance,
             arguments: values,
         };
-        if signature.result == Type::Unit {
+        if result == Type::Unit {
             self.emit(instruction, None, span)?;
             self.constant(Constant::Unit, span)
         } else {
-            let value = self.value(instruction, signature.result.clone(), span)?;
-            Ok((value, signature.result.clone()))
+            let value = self.value(instruction, result.clone(), span)?;
+            Ok((value, result))
         }
     }
 
@@ -334,6 +386,13 @@ impl Builder<'_, '_> {
     ) -> R<FunctionId> {
         if let Some(id) = self.closures.helper_instances.get(&(key, closure)) {
             return Ok(*id);
+        }
+        if self.closures.active_helpers.len() >= self.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "callable State helper nesting exceeds selected bound",
+                Some(span),
+            ));
         }
         let template = self
             .closures
@@ -348,20 +407,26 @@ impl Builder<'_, '_> {
             .as_ref()
             .expect("validated template")
             .clone();
+        let owned_state = callable_fields::template(&function);
         let mode = parameter_mode(
             &function.parameters[bound.index as usize].ty,
             &bound.generic_name,
         )
-        .expect("validated parameter");
-        let concrete = Type::Closure(closure);
-        function.parameters[bound.index as usize].ty = if let Some(mutable) = mode {
-            Type::Address {
-                mutable,
-                inner: Box::new(concrete),
-            }
+        .unwrap_or(None);
+        if owned_state {
+            callable_fields::specialize(&mut function, &bound.generic_name, closure);
+            function.callable_parameter = None;
         } else {
-            concrete
-        };
+            let concrete = Type::Closure(closure);
+            function.parameters[bound.index as usize].ty = if let Some(mutable) = mode {
+                Type::Address {
+                    mutable,
+                    inner: Box::new(concrete),
+                }
+            } else {
+                concrete
+            };
+        }
         let id = self.closures.allocate_function(span)?;
         function.name = format!("{}::<env{}>", function.name, closure.0);
         let tables = self.closures.helper_tables.clone();
@@ -373,6 +438,12 @@ impl Builder<'_, '_> {
             aliases: template.context.imports.clone(),
             signatures: &tables,
         };
+        if !self.closures.active_helpers.insert(key) {
+            return Err(unsupported(
+                span,
+                "recursive callable State instantiation requires a finite declared contract",
+            ));
+        }
         let mut builder = Builder::new(
             &function,
             id,
@@ -382,7 +453,9 @@ impl Builder<'_, '_> {
         )?;
         builder.imports = Some(&imports);
         builder.enums = Some(&template.context.enums);
-        let mut typed = builder.finish(&function.body)?;
+        let typed_result = builder.finish(&function.body);
+        self.closures.active_helpers.remove(&key);
+        let mut typed = typed_result?;
         // Public export names are module-local. The generated implementation
         // label includes definition identity, independently of caller order.
         typed.name = format!(
@@ -409,20 +482,22 @@ impl Builder<'_, '_> {
                 writes.push(index as u32);
             }
         }
-        typed.callable_contract = Some(CallableParameterContract {
-            parameter: bound.index,
-            closure,
-            kind: bound.kind,
-            hold,
-            call,
-            writes,
-            cleanup: if mode.is_some() {
-                CallableCleanup::Borrowed
-            } else {
-                CallableCleanup::Owned
-            },
-            traces: traces(&typed, &bound, self.closures, span)?,
-        });
+        if !owned_state {
+            typed.callable_contract = Some(CallableParameterContract {
+                parameter: bound.index,
+                closure,
+                kind: bound.kind,
+                hold,
+                call,
+                writes,
+                cleanup: if mode.is_some() {
+                    CallableCleanup::Borrowed
+                } else {
+                    CallableCleanup::Owned
+                },
+                traces: traces(&typed, &bound, self.closures, span)?,
+            });
+        }
         self.closures.helper_exports.push(Export {
             module: template.context.module,
             public: template.public,
@@ -451,13 +526,18 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        let bound = self.helper_bound.clone().ok_or_else(|| {
-            unsupported(
-                span,
-                "borrowed closure calls require a concrete helper contract",
+        let (address, ty) = if let CoreExprKind::Name(name) = &callee.kind
+            && let Some(local) = self.lookup(name)
+            && matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))
+        {
+            let ty = self.function.locals[local.0 as usize].ty.clone();
+            (
+                self.value(InstructionKind::Load(local), ty.clone(), span)?,
+                ty,
             )
-        })?;
-        let (address, ty) = self.expr(callee, None)?;
+        } else {
+            self.expr(callee, None)?
+        };
         let Type::Address { mutable, inner } = ty else {
             return Err(unsupported(
                 span,
@@ -470,17 +550,29 @@ impl Builder<'_, '_> {
                 "borrowed helper environment has no concrete identity",
             ));
         };
-        if bound.kind == CallableKind::FnOnce || (bound.kind == CallableKind::FnMut && !mutable) {
+        let parameter_bound = self
+            .helper_bound
+            .as_ref()
+            .filter(|bound| {
+                matches!(&callee.kind, CoreExprKind::Name(name)
+                if self.lookup(name) == self.function.parameters.get(bound.index as usize).copied())
+            })
+            .cloned();
+        let (kind, parameters, result) = if let Some(bound) = parameter_bound {
+            (bound.kind, bound.parameters, bound.result)
+        } else {
+            let pending = &mut self.closures.pending[id.0 as usize];
+            let (parameters, result) = pending.inference.resolve(false, span)?;
+            (pending.callable_kind(), parameters, result)
+        };
+        if kind == CallableKind::FnOnce || (kind == CallableKind::FnMut && !mutable) {
             return Err(error(
                 "E-CLOSURE-MODE",
                 span,
                 "borrowed environment lacks the requested call mode",
             ));
         }
-        if !compatible(
-            self.closures.pending[id.0 as usize].callable_kind(),
-            bound.kind,
-        ) {
+        if !compatible(self.closures.pending[id.0 as usize].callable_kind(), kind) {
             return Err(error(
                 "E-CLOSURE-MODE",
                 span,
@@ -488,9 +580,9 @@ impl Builder<'_, '_> {
             ));
         }
         if let Some(expected) = expected {
-            self.same(&bound.result, expected, span)?;
+            self.same(&result, expected, span)?;
         }
-        if arguments.len() != bound.parameters.len() {
+        if arguments.len() != parameters.len() {
             return Err(error(
                 "E-CALL-ARITY",
                 span,
@@ -498,22 +590,22 @@ impl Builder<'_, '_> {
             ));
         }
         let mut values = Vec::new();
-        for (argument, parameter) in arguments.iter().zip(&bound.parameters) {
+        for (argument, parameter) in arguments.iter().zip(&parameters) {
             let (value, actual) = self.expr(argument, Some(parameter))?;
             self.same(&actual, parameter, argument.span)?;
             values.push(value);
         }
         let instruction = InstructionKind::CallClosureBorrowed {
             callee: address,
-            kind: bound.kind,
+            kind,
             arguments: values,
         };
-        if bound.result == Type::Unit {
+        if result == Type::Unit {
             self.emit(instruction, None, span)?;
             self.constant(Constant::Unit, span)
         } else {
-            let value = self.value(instruction, bound.result.clone(), span)?;
-            Ok((value, bound.result))
+            let value = self.value(instruction, result.clone(), span)?;
+            Ok((value, result))
         }
     }
 }

@@ -1,8 +1,11 @@
 //! Local Copy aggregate, resource and shared-address closures. Inference variables are private compiler state, never
 //! forged `Type::Unsupported` values in the public IR.
 use super::*;
+use std::collections::BTreeSet;
+mod methods;
 mod package_effects;
 mod patterns;
+mod slots;
 
 #[derive(Clone)]
 pub(super) struct Capture {
@@ -75,7 +78,7 @@ impl Pending {
         self.captures.iter().any(|capture| {
             matches!(
                 capture.stored_type(),
-                Type::Managed(_) | Type::Package { .. }
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
             )
         })
     }
@@ -93,6 +96,7 @@ pub(super) struct State {
     pub resource_writes: resource_effects::Writes,
     next_function: usize,
     pub helper_templates: BTreeMap<helpers::TemplateKey, helpers::Template>,
+    pub active_helpers: std::collections::BTreeSet<helpers::TemplateKey>,
     pub helper_tables: std::rc::Rc<helpers::Tables>,
     pub helper_instances: BTreeMap<(helpers::TemplateKey, ClosureId), FunctionId>,
     pub helper_functions: Vec<TypedFunction>,
@@ -116,6 +120,7 @@ impl State {
             resource_writes: BTreeMap::new(),
             next_function: ordinary_functions,
             helper_templates: BTreeMap::new(),
+            active_helpers: std::collections::BTreeSet::new(),
             helper_tables: std::rc::Rc::new(BTreeMap::new()),
             helper_instances: BTreeMap::new(),
             helper_functions: Vec::new(),
@@ -197,6 +202,7 @@ impl State {
                 signatures,
                 imports,
                 resource_writes: &self.resource_writes,
+                closures: &self.pending,
             },
             &self.limits,
             &mut self.work_left,
@@ -209,6 +215,7 @@ impl State {
             input.body,
             input.parameters,
             &mut checker.captures,
+            &checker.nested_package_moves,
             &self.limits,
             checker.work_left,
         )?;
@@ -217,6 +224,33 @@ impl State {
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         for capture in &checker.captures {
+            if dynamic_store::is_carrier(&capture.stored_type()) {
+                return Err(unsupported(
+                    capture.span,
+                    "Store capture requires a separate retained storage profile",
+                ));
+            }
+            if packages::has_store_fields(&capture.stored_type()) {
+                return Err(unsupported(
+                    capture.span,
+                    "Package capture with Store fields requires a retained storage protocol",
+                ));
+            }
+            if packages::has_array_fields(&capture.stored_type()) {
+                return Err(unsupported(
+                    capture.span,
+                    "Package capture with owning array fields requires a retained nested-field protocol",
+                ));
+            }
+            if packages::owned_array_supported(&capture.stored_type()) {
+                return Err(unsupported(
+                    capture.span,
+                    "owned array capture requires a separate retained array protocol",
+                ));
+            }
+            if let Type::Closure(id) = capture.stored_type() {
+                retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
+            }
             if matches!(capture.stored_type(), Type::Desc(inner) if *inner == Type::ByteBuffer) {
                 return Err(unsupported(
                     capture.span,
@@ -424,6 +458,7 @@ impl Graph {
             }
             Type::Array { element, .. }
             | Type::Slice { element }
+            | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
             | Type::Desc(element)
@@ -513,8 +548,15 @@ impl Graph {
             Type::I32 => I32,
             Type::I64 => I64,
             ty if *ty == Type::ByteBuffer
+                || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
+                || errors::owned(ty)
                 || packages::supported(ty)
+                || packages::owned_array_supported(ty)
+                // This is only a pointee constraint node for a shared head.
+                // It does not make a Managed value Copy or grant a capture.
+                || matches!(ty, Type::Managed(payload)
+                    if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || matches!(ty, Type::Slice { element } if element.is_copy_value()) =>
             {
                 AGGREGATE
@@ -1020,20 +1062,30 @@ enum LocalType {
     Scalar(Variable),
     Address(Variable, bool),
     Resource(Variable, bool),
+    Closure(ClosureId, Option<bool>),
     SliceLength,
 }
 impl LocalType {
     fn scalar(self, span: Span) -> R<Variable> {
         match self {
             Self::Scalar(variable) => Ok(variable),
-            Self::Address(..) | Self::Resource(..) | Self::SliceLength => Err(unsupported(
-                span,
-                "address/resource cannot be used in a Copy closure signature or operation",
-            )),
+            Self::Address(..) | Self::Resource(..) | Self::Closure(..) | Self::SliceLength => {
+                Err(unsupported(
+                    span,
+                    "address/resource cannot be used in a Copy closure signature or operation",
+                ))
+            }
         }
     }
     fn bind(self, graph: &mut Graph, ty: &Type, span: Span) -> R<()> {
         match (self, ty) {
+            (Self::Closure(actual, None), Type::Closure(expected)) if actual == *expected => Ok(()),
+            (Self::Closure(actual, Some(available)), Type::Address { mutable, inner })
+                if matches!(inner.as_ref(), Type::Closure(expected) if actual == *expected)
+                    && (available || !mutable) =>
+            {
+                Ok(())
+            }
             (Self::Scalar(variable), _) => graph.bind(variable, ty, span),
             (Self::Resource(variable, _), Type::Desc(payload))
             | (Self::Resource(variable, true), Type::Managed(payload)) => {
@@ -1045,7 +1097,11 @@ impl LocalType {
                     mutable: wanted,
                     inner,
                 },
-            ) if inner.is_address_pointee() && (mutable || !wanted) => {
+            ) if (inner.is_address_pointee()
+                || ty.is_shared_resource_head_address()
+                || ty.is_shared_package_address())
+                && (mutable || !wanted) =>
+            {
                 graph.bind(variable, inner, span)
             }
             (Self::Address(..), Type::Address { .. }) => Err(unsupported(
@@ -1061,6 +1117,7 @@ impl LocalType {
     }
     fn unify(self, other: Self, graph: &mut Graph, span: Span) -> R<()> {
         match (self, other) {
+            (Self::Closure(a, am), Self::Closure(b, bm)) if a == b && am == bm => Ok(()),
             (Self::Scalar(a), Self::Scalar(b)) => graph.unify(a, b, span),
             (Self::Address(a, am), Self::Address(b, bm)) if am == bm => graph.unify(a, b, span),
             (Self::Resource(a, am), Self::Resource(b, bm)) if am == bm => graph.unify(a, b, span),
@@ -1074,11 +1131,13 @@ impl LocalType {
 }
 
 struct Functions<'a> {
+    closures: &'a [Pending],
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     resource_writes: &'a resource_effects::Writes,
 }
 struct InferBuilder<'a, 'b> {
+    closures: &'a [Pending],
     resource_writes: &'a resource_effects::Writes,
     graph: Graph,
     parameters: Vec<Variable>,
@@ -1093,6 +1152,12 @@ struct InferBuilder<'a, 'b> {
     imports: Option<&'a program::Imports<'a>>,
     enums: Option<&'a BTreeMap<String, Type>>,
     move_capture: bool,
+    // A move boundary copies an ordinary Copy capture but transfers an owned
+    // carrier. This belongs to capture inference, not to the safety proof.
+    nested_moves: usize,
+    nested_depth: usize,
+    nested_root: Option<zil_base::NodeId>,
+    nested_package_moves: BTreeMap<zil_base::NodeId, BTreeSet<String>>,
     has_return: bool,
     limits: &'a Limits,
     work_left: &'b mut usize,
@@ -1119,6 +1184,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             graph.bind(result, ty, input.span)?;
         }
         let mut this = Self {
+            closures: functions.closures,
             resource_writes: functions.resource_writes,
             graph,
             parameters: vec![],
@@ -1133,6 +1199,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             imports: functions.imports,
             enums: None,
             move_capture: input.move_capture,
+            nested_moves: 0,
+            nested_depth: 0,
+            nested_root: None,
+            nested_package_moves: BTreeMap::new(),
             has_return: false,
             limits,
             work_left,
@@ -1208,16 +1278,87 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 format!("unknown value {name}"),
             ));
         };
+        if ty.is_shared_package_address() {
+            return Err(unsupported(
+                span,
+                "Store element address capture requires a separate retained element-window contract",
+            ));
+        }
+        if ty.is_shared_resource_head_address() {
+            return Err(unsupported(
+                span,
+                "resource-head address capture requires a separate retained head-window contract",
+            ));
+        }
+        // A write behind a nested move changes that inner snapshot, not the
+        // outer position. Managed/Package captures instead change ownership at
+        // creation, even if the nested environment is never invoked.
+        let write = write && !(self.nested_moves != 0 && ty.is_copy_value());
+        let nested_owned = self.nested_moves != 0
+            && matches!(
+                ty,
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+            );
+        let nested_writeback =
+            write && self.nested_depth != 0 && self.move_capture && ty.is_copy_value();
+        if nested_owned && matches!(ty, Type::Package { .. }) {
+            *self.work_left = self
+                .work_left
+                .checked_sub(name.len().saturating_add(1))
+                .ok_or_else(|| limit("nested Package capture budget exceeded", span))?;
+            self.nested_package_moves
+                .entry(self.nested_root.expect("nested move root"))
+                .or_default()
+                .insert(name.into());
+        }
+        // Package slots may be restored after the nested creation. Their flow
+        // classification below decides FnMut/FnOnce at each actual exit.
+        let nested_consumed = nested_owned && matches!(ty, Type::Managed(_) | Type::Closure(_));
+        if self.nested_moves != 0 && matches!(ty, Type::Address { mutable: true, .. }) {
+            return Err(unsupported(
+                span,
+                "moving a captured exclusive address into a nested environment requires an explicit transfer contract",
+            ));
+        }
         if write && matches!(ty, Type::Address { .. }) {
             return Err(unsupported(
                 span,
                 "rebinding a captured address requires a nested address window",
             ));
         }
+        if let Type::Closure(id) = ty {
+            let moved = self.move_capture || nested_owned;
+            if let Some(variable) = self.captured_variables.get(local) {
+                let capture = self
+                    .captures
+                    .iter_mut()
+                    .find(|c| c.source == *local)
+                    .expect("capture");
+                capture.written |= write;
+                capture.moved |= nested_owned;
+                capture.borrowed &= !nested_owned;
+                capture.consumed |= nested_consumed;
+                return Ok(*variable);
+            }
+            let value = LocalType::Closure(*id, None);
+            self.captures.push(Capture {
+                name: name.into(),
+                source: *local,
+                ty: ty.clone(),
+                borrowed: !moved,
+                written: write,
+                address_written: false,
+                moved,
+                consumed: nested_consumed,
+                span,
+            });
+            self.captured_variables.insert(*local, value);
+            return Ok(value);
+        }
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
             ty @ Type::Package { .. } if packages::supported(ty) => {
-                if !self.move_capture {
+                if !self.move_capture && !nested_owned {
                     return Err(unsupported(span, "Package capture requires explicit move"));
                 }
                 (ty, None)
@@ -1236,13 +1377,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
         };
         if let Some(variable) = self.captured_variables.get(local) {
-            if write {
-                self.captures
-                    .iter_mut()
-                    .find(|c| c.source == *local)
-                    .expect("capture index")
-                    .written = true;
-            }
+            let capture = self
+                .captures
+                .iter_mut()
+                .find(|c| c.source == *local)
+                .expect("capture index");
+            capture.written |= write;
+            capture.address_written |= nested_writeback;
+            capture.moved |= nested_owned;
+            capture.consumed |= nested_consumed;
             return Ok(*variable);
         }
         let variable = self.graph.fresh(VALUE, false);
@@ -1253,9 +1396,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             ty: ty.clone(),
             borrowed: !self.move_capture && address.is_none() && ty.is_copy_value(),
             written: write,
-            address_written: false,
-            moved: self.move_capture,
-            consumed: false,
+            address_written: nested_writeback,
+            moved: self.move_capture || nested_owned,
+            consumed: nested_consumed,
             span,
         });
         let value = if matches!(ty, Type::Managed(_) | Type::Desc(_)) {
@@ -1284,6 +1427,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         return Err(unsupported(statement.span, "uninitialized closure binding"));
                     };
                     let variable = self.expr_expected(expression, ty.as_ref(), depth + 1)?;
+                    self.transferred_closure(expression, variable);
                     if let Some(ty) = ty {
                         variable.bind(&mut self.graph, ty, statement.span)?;
                     }
@@ -1308,6 +1452,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         _ => None,
                     };
                     let value_type = self.expr_expected(value, hint.as_ref(), depth + 1)?;
+                    self.transferred_closure(value, value_type);
                     target_type.unify(value_type, &mut self.graph, value.span)?;
                 }
                 CoreStatementKind::Expression(expression) => {
@@ -1427,7 +1572,34 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.scopes.pop();
         Ok(())
     }
+    fn name_if_capture_written(&mut self, expression: &CoreExpr) {
+        if let CoreExprKind::Name(name) = &expression.kind
+            && self.lookup(name).is_none()
+            && let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name)
+        {
+            capture.written = true;
+        }
+    }
+    fn transferred_closure(&mut self, expression: &CoreExpr, term: LocalType) {
+        if matches!(term, LocalType::Closure(_, None))
+            && let CoreExprKind::Name(name) = &expression.kind
+            && self.lookup(name).is_none()
+            && let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name)
+        {
+            capture.moved = true;
+            capture.borrowed = false;
+            capture.consumed = true;
+        }
+    }
     fn known(&mut self, ty: &Type, span: Span) -> R<LocalType> {
+        if let Type::Closure(id) = ty {
+            return Ok(LocalType::Closure(*id, None));
+        }
+        if let Type::Address { mutable, inner } = ty
+            && let Type::Closure(id) = inner.as_ref()
+        {
+            return Ok(LocalType::Closure(*id, Some(*mutable)));
+        }
         let variable = self.graph.fresh(VALUE, false);
         if let Type::Managed(payload) | Type::Desc(payload) = ty {
             if !resources::supported(ty) {
@@ -1595,7 +1767,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 } else if let Some((local, ty)) = self.outer.get(name).cloned() {
                     if ty.is_copy_value() {
                         self.name(name, true, expression.span)?;
-                        if self.move_capture {
+                        if self.move_capture && self.nested_moves == 0 {
                             for capture in &mut self.captures {
                                 *self.work_left =
                                     self.work_left.checked_sub(1).ok_or_else(|| {
@@ -1833,6 +2005,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     ) {
                         return Err(unsupported(span, "shared borrow requires a place"));
                     }
+                    if let LocalType::Closure(id, None) = value {
+                        if *op == UnaryOp::BorrowMut {
+                            self.name_if_capture_written(operand);
+                        }
+                        return Ok(LocalType::Closure(id, Some(*op == UnaryOp::BorrowMut)));
+                    }
                     if matches!(value, LocalType::Address(..)) {
                         return Err(unsupported(
                             span,
@@ -1895,6 +2073,62 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }))
             }
             CoreExprKind::Call { callee, arguments } => {
+                if let Some(name) = dynamic_store::primitive(callee) {
+                    self.visit(depth + 1, callee.span)?;
+                    let arity = match name {
+                        "store_new" => 0,
+                        "store_reserve" | "store_push" | "store_at" => 2,
+                        _ => 1,
+                    };
+                    if arguments.len() != arity {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "Store primitive argument count mismatch",
+                        ));
+                    }
+                    if name == "store_new" {
+                        let element =
+                            expected.and_then(dynamic_store::element).ok_or_else(|| {
+                                error(
+                                    "E-OWNED-STORE-TYPE",
+                                    span,
+                                    "store_new requires a concrete Store context",
+                                )
+                            })?;
+                        self.graph.reserve_type(element, 0, span)?;
+                        return self.known(&dynamic_store::result_type(name, element), span);
+                    }
+                    let first = self.expr(&arguments[0], depth + 1)?;
+                    let LocalType::Resource(variable, _) = first else {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    };
+                    let Some(Type::OwnedStore { element }) = self.graph.ty(variable)? else {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a concrete Store element",
+                        ));
+                    };
+                    self.graph.reserve_type(&element, 0, span)?;
+                    if matches!(name, "store_reserve" | "store_push" | "store_at") {
+                        let wanted = if matches!(name, "store_reserve" | "store_at") {
+                            Type::I64
+                        } else {
+                            (*element).clone()
+                        };
+                        let value = self.expr_expected(&arguments[1], Some(&wanted), depth + 1)?;
+                        value.bind(&mut self.graph, &wanted, arguments[1].span)?;
+                    }
+                    if matches!(name, "store_reserve" | "store_push" | "store_pop") {
+                        self.mark_resource_write(first, arguments[0].span)?;
+                    }
+                    return self.known(&dynamic_store::result_type(name, &element), span);
+                }
                 if let Some(name) = byte_buffer::primitive(callee) {
                     self.visit(depth + 1, callee.span)?;
                     let parameters = byte_buffer::parameters(name);
@@ -1959,7 +2193,27 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     return self.variant(&ty, variant, arguments, depth, span);
                 }
                 if !self.direct(callee) {
-                    let callee_type = self.expr(callee, depth + 1)?;
+                    // Infer the receiver once. Function-valued fields and slice
+                    // len keep their existing precedence over nominal methods.
+                    let callee_type = if let CoreExprKind::Member { object, member } = &callee.kind
+                    {
+                        self.visit(depth + 1, callee.span)?;
+                        let base = self.expr(object, depth + 2)?;
+                        if let Some(result) =
+                            self.nominal_method_call(base, object, member, arguments, depth, span)?
+                        {
+                            return Ok(result);
+                        }
+                        if member == "len"
+                            && matches!(base, LocalType::Address(v, _) if self.graph.is_slice(v))
+                        {
+                            LocalType::SliceLength
+                        } else {
+                            self.project(base, Projection::Field(member.clone()), callee.span)?
+                        }
+                    } else {
+                        self.expr(callee, depth + 1)?
+                    };
                     if matches!(callee_type, LocalType::SliceLength) {
                         if !arguments.is_empty() {
                             return Err(error(
@@ -1969,6 +2223,71 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                             ));
                         }
                         return self.known(&Type::I64, span);
+                    }
+                    if let LocalType::Closure(id, permission) = callee_type {
+                        let pending = self.closures.get(id.0 as usize).ok_or_else(|| {
+                            error(
+                                "E-CLOSURE-INFERENCE",
+                                span,
+                                "concrete captured closure is absent",
+                            )
+                        })?;
+                        let kind = pending.callable_kind();
+                        if permission.is_some()
+                            && (kind == CallableKind::FnOnce
+                                || (kind == CallableKind::FnMut && permission == Some(false)))
+                        {
+                            return Err(error(
+                                "E-CLOSURE-MODE",
+                                span,
+                                "borrowed closure lacks its call permission",
+                            ));
+                        }
+                        if arguments.len() != pending.inference.arity() {
+                            return Err(error(
+                                "E-CALL-ARITY",
+                                span,
+                                "captured callback argument count differs",
+                            ));
+                        }
+                        let parameters = (0..arguments.len())
+                            .map(|i| pending.inference.parameter(i))
+                            .collect::<R<Vec<_>>>()?;
+                        let result = pending.inference.result()?.ok_or_else(|| {
+                            error(
+                                "E-CLOSURE-INFERENCE",
+                                span,
+                                "captured closure result is unresolved",
+                            )
+                        })?;
+                        if let CoreExprKind::Name(name) = &callee.kind
+                            && self.lookup(name).is_none()
+                            && let Some(capture) = self
+                                .captures
+                                .iter_mut()
+                                .find(|capture| capture.name == *name)
+                        {
+                            if kind == CallableKind::FnOnce {
+                                capture.moved = true;
+                                capture.borrowed = false;
+                                capture.consumed = true;
+                            } else if kind == CallableKind::FnMut {
+                                capture.written = true;
+                            }
+                        }
+                        for (argument, parameter) in arguments.iter().zip(parameters) {
+                            let parameter = parameter.ok_or_else(|| {
+                                error(
+                                    "E-CLOSURE-INFERENCE",
+                                    span,
+                                    "captured closure parameter is unresolved",
+                                )
+                            })?;
+                            let value =
+                                self.expr_expected(argument, Some(&parameter), depth + 1)?;
+                            value.bind(&mut self.graph, &parameter, argument.span)?;
+                        }
+                        return self.known(&result, span);
                     }
                     let callee_type = callee_type.scalar(callee.span)?;
                     let mut parameters = Vec::new();
@@ -2120,15 +2439,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 Ok(result)
             }
             CoreExprKind::Closure {
+                move_capture,
                 parameters,
                 return_type,
-                ..
+                body,
             } => {
-                // Source inference has resolved contextual fn literals. This
-                // private graph collects only their signature; Builder still
-                // checks the entire nested body and its capture set when it
-                // constructs the actual ordinary entry. No verified artifact
-                // or capture permission is produced here.
+                // Source inference has resolved each nested signature. Visit
+                // its body as well so free paths cross every enclosing layer.
+                // The graph uses a private callable signature only; Builder
+                // still creates the actual environment and ordinary entry.
                 let Some(result) = return_type else {
                     return Err(unsupported(
                         span,
@@ -2136,7 +2455,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     ));
                 };
                 let mut types = Vec::with_capacity(parameters.len());
+                let outer_result = self.result;
+                let outer_has_return = self.has_return;
+                self.result = self.graph.fresh(VALUE, false);
+                self.graph.bind(self.result, result, span)?;
+                self.has_return = false;
+                self.scopes.push(BTreeMap::new());
                 for parameter in parameters {
+                    self.visit(depth + 1, parameter.span)?;
                     let Some(ty) = &parameter.ty else {
                         return Err(unsupported(
                             parameter.span,
@@ -2145,7 +2471,23 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     };
                     self.graph.reserve_type(ty, 0, parameter.span)?;
                     types.push(ty.clone());
+                    let value = self.known(ty, parameter.span)?;
+                    self.scopes
+                        .last_mut()
+                        .expect("nested parameter scope")
+                        .insert(parameter.name.clone(), value);
                 }
+                self.nested_moves += usize::from(*move_capture);
+                self.nested_depth += 1;
+                let outer_nested_root = self.nested_root;
+                self.nested_root = self.nested_root.or(Some(expression.id));
+                self.block(body, depth + 1)?;
+                self.nested_root = outer_nested_root;
+                self.nested_depth -= 1;
+                self.nested_moves -= usize::from(*move_capture);
+                self.scopes.pop();
+                self.result = outer_result;
+                self.has_return = outer_has_return;
                 self.graph.reserve_type(result, 0, span)?;
                 self.known(
                     &Type::FunctionPointer {

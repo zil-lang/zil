@@ -1,25 +1,29 @@
 {
   "schema_version": 1,
-  "profile_id": "x86_64-linux-gnu-llvm23-zil1.1",
+  "profile_id": "x86_64-llvm17-api208",
   "rust_version": "1.99.1",
   "edition": "2024",
-  "llvm_version": "23.1.5",
+  "llvm_version": "17.0.6",
+  "rustc_bundled_llvm": "23.1.1",
   "target": "x86_64-unknown-linux-gnu",
   "pointer_bits": 64,
   "endian": "little",
   "native_host": "linux-x86_64",
-  "linker": "clang with system GNU linker",
-  "rustc_bundled_llvm": "23.1.1",
-  "verification_scope": "Compiler toolchain installation and smoke only; language evidence separate",
-  "commands": {
-    "rustc": "/workspace/scratch/88febaa630a7/toolchains/rust-1.99.1/bin/rustc",
-    "cargo": "/workspace/scratch/88febaa630a7/toolchains/rust-1.99.1/bin/cargo",
-    "clang": "/workspace/scratch/88febaa630a7/toolchains/llvm-23.1.5/usr/lib/llvm-23/bin/clang",
-    "llc": "/workspace/scratch/88febaa630a7/toolchains/llvm-23.1.5/usr/lib/llvm-23/bin/llc",
-    "llvm-as": "/workspace/scratch/88febaa630a7/toolchains/llvm-23.1.5/usr/lib/llvm-23/bin/llvm-as",
-    "opt": "/workspace/scratch/88febaa630a7/toolchains/llvm-23.1.5/usr/lib/llvm-23/bin/opt",
-    "ld.lld": "/workspace/scratch/88febaa630a7/toolchains/llvm-23.1.5/usr/lib/llvm-23/bin/ld.lld"
+  "linker": "clang-17 with system linker; explicit lld-link for Win64",
+  "configuration": "ZIL_CLANG for link driver; ZIL_LLVM_LIB_DIR at Cargo build; dynamic loader path for libLLVM-17.so.1",
+  "llvm_api": {
+    "feature": "llvm-api",
+    "module_input": "text parser, not direct Builder",
+    "version_exact": "17.0.6",
+    "cpu": "x86-64",
+    "features": "",
+    "relocation": "PIC",
+    "code_model": "default",
+    "pipelines": [
+      "default<O0>",
+      "default<O2>"
+    ],
+    "verification": "before and after passes"
   },
-  "configuration": "Use PATH / ZIL_CLANG; local absolute paths record this execution environment only.",
-  "recovery_evidence": "evidence/environment/draft13/toolchain-recovery.json"
+  "verification_scope": "current 208 evidence, not earlier 23.1.5 installation record"
 }

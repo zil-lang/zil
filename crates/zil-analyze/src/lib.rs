@@ -9,6 +9,8 @@
 //! materialized are charged before the corresponding work or allocation. These
 //! are deterministic logical units, not elapsed time or an allocator byte count.
 mod budget;
+mod callable_fields;
+mod dynamic_store;
 mod helpers;
 mod holds;
 #[cfg(test)]
@@ -200,6 +202,12 @@ fn analyze_budgeted(
                     | InstructionKind::TakePackageField { local, .. }
                     | InstructionKind::DropPackageField { local, .. }
                     | InstructionKind::StorePackageField { local, .. }
+                    | InstructionKind::ProjectOwnedArrayField { local, .. }
+                    | InstructionKind::TakeOwnedArrayElement { local, .. }
+                    | InstructionKind::DropOwnedArrayElement { local, .. }
+                    | InstructionKind::StoreOwnedArrayElement { local, .. }
+                    | InstructionKind::BorrowOwnedArrayElement { local, .. }
+                    | InstructionKind::BorrowPackageField { local, .. }
                     | InstructionKind::CallClosureMut { callee: local, .. }
                     | InstructionKind::CallClosureShared { callee: local, .. } => {
                         budget.lookup(state.len(), "initialized local lookup")?;
@@ -226,7 +234,9 @@ fn analyze_budgeted(
                     InstructionKind::StorageLive(local)
                     | InstructionKind::StorageDead(local)
                     | InstructionKind::DropManaged { local }
+                    | InstructionKind::DropErrorUnion { local }
                     | InstructionKind::DropPackage { local }
+                    | InstructionKind::DropOwnedArray { local }
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::DropClosure { local } => {
                         budget.lookup(state.len(), "storage initialization removal")?;
@@ -259,6 +269,7 @@ fn analyze_budgeted(
     for (function, package) in module.functions.iter().zip(package_functions) {
         scopes::check(module, function, package, budget)?;
     }
+    callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
     resources::check_module(module, &hold_graphs, budget)?;
     for (function, holds) in
@@ -292,7 +303,9 @@ fn transfer(
             }
             InstructionKind::TakeLocal { local }
             | InstructionKind::DropManaged { local }
+            | InstructionKind::DropErrorUnion { local }
             | InstructionKind::DropPackage { local }
+            | InstructionKind::DropOwnedArray { local }
             | InstructionKind::EndPackageCapture { local, .. }
             | InstructionKind::DropClosure { local }
             | InstructionKind::StorageLive(local)
