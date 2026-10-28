@@ -1,0 +1,135 @@
+{
+  "status": "ScopedPass",
+  "source_test_author": "/root/resume192",
+  "production_and_raw_author": "/root/resume190",
+  "source_commit": "7491c212d392b12bb90f735b90f535066fa00a47",
+  "fixture_commit": "4d0151501e2eee0965d276beb9691a96f43b31b3",
+  "schema": 24,
+  "spec_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "1f847737718bca55856287ea124f8c9084a4f5d838f466c0d6da5a04594b1113",
+  "normative_registry_matches_actual": true,
+  "commands": {
+    "source_first_execution": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "4d0151501e2eee0965d276beb9691a96f43b31b3",
+      "git_status": "",
+      "receipt": "runs/source-author/development02/command/command.json",
+      "tests": {
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "joint_final_source_and_raw": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "7491c212d392b12bb90f735b90f535066fa00a47",
+      "git_status": "",
+      "receipt": "runs/production-author/flow-joint01/command/command.json",
+      "tests": {
+        "passed": 31,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "final_clippy": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "7491c212d392b12bb90f735b90f535066fa00a47",
+      "git_status": "",
+      "receipt": "runs/production-author/flow-clippy02/command/command.json"
+    },
+    "consumer_build": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "8644848b80f09a0507f47054830f56f1ef193c9d",
+      "git_status": "",
+      "receipt": "runs/source-author/development-build01/command/command.json"
+    },
+    "consumer_command": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "8644848b80f09a0507f47054830f56f1ef193c9d",
+      "git_status": "",
+      "receipt": "runs/source-author/development-consumer01/command/command.json"
+    }
+  },
+  "source_tests": {
+    "passed": 17,
+    "failed": 0,
+    "ignored": 0,
+    "formal_native_executions": 112,
+    "runtime_inputs": [
+      0,
+      1,
+      2,
+      7
+    ],
+    "largest_runtime_loop_count": 7000
+  },
+  "joint_tests": {
+    "passed": 31,
+    "failed": 0,
+    "ignored": 0,
+    "source": 17,
+    "raw": 14,
+    "executor": "/root/resume190",
+    "raw_details": "Owned separately by evidence/impl/190/raw-and-finite; this directory preserves the joint command and source fixture results."
+  },
+  "consumer": {
+    "source_commit": "8644848b80f09a0507f47054830f56f1ef193c9d",
+    "cli_sha256": "164ca2a261317c9db1c3e332aa359da765d6a9818c97cf99e1a21a74fb100a80",
+    "modules": 4,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "runtime_inputs": [
+      0,
+      1,
+      2,
+      3,
+      7
+    ],
+    "native_executions": 84,
+    "actual_allocation_failures": 62,
+    "actual_flow_and_finite_contracts": true,
+    "allocation_oracles": "Each instrumented path checks exact alloc_calls, failures, allocated=frees and live0. Callback owns ByteBuffer+Ticket, State owns the other ByteBuffer. Expected output and exit are checked for every ordinary, allocation, failure and invalid-input process.",
+    "receipt": "runs/source-author/development-consumer01/results/summary.json"
+  },
+  "consumer_production_equivalence": {
+    "from": "8644848b80f09a0507f47054830f56f1ef193c9d",
+    "to": "7491c212d392b12bb90f735b90f535066fa00a47",
+    "only_changed_file": "crates/zil-driver/tests/impl190_flow_raw.rs",
+    "production_and_fixture_bytes_identical": true,
+    "policy": "Bind actual864 CLI/build and execution; do not relabel as7491 execution or rerun unchanged native fixtures solely for evidence metadata."
+  },
+  "coverage": [
+    "Fn and FnMut while/for receive actual stdin-driven zero, one, two and seven iteration counts; outputs and final mutable state are checked.",
+    "A runtime count of7000 uses unchanged static helper depth and work budgets.",
+    "Finite leaf into Flow and Flow into caller, two Flow call sites with separate continuations inside an outer loop, and zero-callback cyclic graph retention.",
+    "Owned and borrowed environments drop once with distinct observable cleanup order, including zero iterations; zero-callback owned helper still cleans its environment.",
+    "Early Return stops later callbacks; Copy ErrorUnion failure cleans each active iteration and the outer owners.",
+    "A finite defensive Trap exit remains in the generated contract copied into a Flow parent. Native cases execute valid bool arms only; actual process Trap execution is not claimed.",
+    "189 explicit mutable Copy arguments remain bound to the actual current storage across repeated calls; captured alias of the same argument is rejected.",
+    "184 borrowed environment lending results allow next iteration after last use; a still-live result across a new Flow call or across loop iterations rejects in Verify."
+  ],
+  "closed_control": "A cyclic FnOnce profile remains Unsupported even with zero callback events; no generic break/continue or new slice/address/result-borrow shape is opened here.",
+  "preserved_first_failure": {
+    "run": "development01",
+    "source_commit": "0e2a97bbd44f10004c671b4b034928e8aeb5791c",
+    "status": "Fail",
+    "meaning": "Rust E0463 could not load zil_driver while compiling the new test crate; no ZIL program tests ran. Both driver rlib/rmeta existed. After coordination, cargo clean -p zil-driver rebuilt only that package cache; development02 clean4d passed. Original stderr retained, not counted as a language rejection or pass."
+  },
+  "source_and_runtime_limits": "No compiler or old assertion changed by the source-test author. Native child processes have a ten-second termination bound. Existing compiler default budgets remain unchanged.",
+  "evidence_policy": "Source fixtures, command/diagnostic/native observations and selected complete phase chains retained. Executables and duplicate phase payloads omitted with SHA256 and bytes; no original run files deleted.",
+  "review": "AwaitingIndependentRootReview",
+  "platforms": {
+    "linux_native": "Pass",
+    "windows_native": "NotRunBySourceAuthor"
+  },
+  "full_workspace": "NotRunBySourceAuthor",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

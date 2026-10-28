@@ -1,0 +1,22 @@
+
+running 17 tests
+test a_cyclic_once_profile_is_not_made_repeatable_by_zero_callback_events ... ok
+test actual_capture_and_explicit_address_still_must_be_separate ... ok
+test a_zero_callback_loop_keeps_its_cycle_and_owned_cleanup ... ok
+test copy_error_return_cleans_each_live_iteration_and_the_outer_owners ... ok
+test early_return_stops_later_calls_without_resetting_the_mutable_environment ... ok
+test finite_defensive_trap_exits_survive_copying_into_a_flow_parent ... ok
+test flow_calls_do_not_release_a_lending_window_still_needed_later ... ok
+test four_module_consumer_contains_a_real_flow_helper_and_owned_state ... ok
+test finite_leaf_and_outer_call_sites_compose_with_a_flow_child ... ok
+test lending_results_end_at_last_use_before_the_next_iteration ... ok
+test mutable_for_keeps_the189_current_explicit_address_across_calls ... ok
+test mutable_while_reuses_the_actual_environment_and_ends_its_window ... ok
+test runtime_iteration_count_does_not_spend_the_static_helper_depth ... ok
+test shared_for_passes_the_runtime_index_in_order ... ok
+test owned_and_borrowed_environments_cleanup_once_even_on_zero_iterations ... ok
+test shared_while_runs_zero_one_two_and_many_actual_calls ... ok
+test two_flow_call_sites_keep_their_own_continuations_inside_an_outer_loop ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.90s
+
