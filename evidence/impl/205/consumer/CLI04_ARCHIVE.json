@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task": "205",
+  "scope": "CLI04 author consumer evidence, old CLI03 records separate",
+  "path": "/workspace/scratch/39be3faa4442/deliverables/205-consumer-cli04-evidence-compact.zip",
+  "bytes": 867237,
+  "sha256": "d7e0a990e3c6b1c9775e83a581f5091013418c8470c659b3f6fa5463d5beeae2",
+  "integrity": "Pass",
+  "logical_files": 952,
+  "logical_bytes": 41486558,
+  "unique_contents": 427,
+  "unique_bytes": 16440472,
+  "execution_products_hash_only": 12,
+  "pack_receipt": "/workspace/scratch/39be3faa4442/run-logs/205-consumer-followup-pack01/command/command.json",
+  "language_test_execution": "NotRun by packager",
+  "inputs_frozen": true,
+  "source_result": "evidence/impl/205/consumer/CLI04.json",
+  "legacy_phase_archive": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/205-legacy-phase-evidence-compact.zip",
+    "bytes": 2146870,
+    "sha256": "69804cb87561bd9c955e48fdf979ced856ca076c15ebde39ca2f24194a8697c1",
+    "status": "Verified",
+    "logical_files": 1211,
+    "unique_contents": 700,
+    "execution_products_hash_only": 52,
+    "scope": "Author limited phase migration component; original Fail preserved; not final acceptance"
+  }
+}
