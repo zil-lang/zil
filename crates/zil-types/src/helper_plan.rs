@@ -17,12 +17,16 @@ impl Node {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Shape {
     Unknown,
     Environment(ClosureId),
     Package(Vec<(String, ClosureId)>),
     Store(Box<Shape>),
+    ErrorUnion {
+        error: Box<Shape>,
+        result: Box<Shape>,
+    },
 }
 
 impl Shape {
@@ -32,6 +36,9 @@ impl Shape {
                 n.saturating_add(name.len()).saturating_add(1)
             }),
             Self::Store(element) => 1usize.saturating_add(element.work()),
+            Self::ErrorUnion { error, result } => 1usize
+                .saturating_add(error.work())
+                .saturating_add(result.work()),
             _ => 1,
         }
     }
@@ -42,7 +49,7 @@ impl Shape {
                 let id = fields.first()?.1;
                 fields.iter().all(|(_, other)| *other == id).then_some(id)
             }
-            Self::Unknown | Self::Store(_) => None,
+            Self::Unknown | Self::Store(_) | Self::ErrorUnion { .. } => None,
         }
     }
 }
@@ -225,6 +232,27 @@ impl Walk<'_, '_> {
             _ => Ok(None),
         }
     }
+    fn applied_result_shape(
+        &mut self,
+        ty: &Type,
+        bounds: &[CoreCallableParameter],
+        bindings: Bindings,
+        span: Span,
+        depth: usize,
+    ) -> R<Shape> {
+        if let Type::ErrorUnion { error, result } = ty {
+            self.node(depth, span)?;
+            self.state.snapshot(2, span)?;
+            let error = self.applied_result_shape(error, bounds, bindings, span, depth + 1)?;
+            let result = self.applied_result_shape(result, bounds, bindings, span, depth + 1)?;
+            Ok(Shape::ErrorUnion {
+                error: Box::new(error),
+                result: Box::new(result),
+            })
+        } else {
+            self.shape(ty, bounds, bindings, span, depth)
+        }
+    }
     fn pattern(&mut self, pattern: &CorePattern, shape: &Shape, depth: usize) -> R<()> {
         self.node(depth, pattern.span)?;
         match &pattern.kind {
@@ -274,7 +302,17 @@ impl Walk<'_, '_> {
                         Shape::Unknown
                     };
                     let shape = if let Some(ty) = ty {
-                        self.shape(ty, self.bounds, self.bindings, statement.span, depth + 1)?
+                        if matches!(inferred, Shape::ErrorUnion { .. }) {
+                            self.applied_result_shape(
+                                ty,
+                                self.bounds,
+                                self.bindings,
+                                statement.span,
+                                depth + 1,
+                            )?
+                        } else {
+                            self.shape(ty, self.bounds, self.bindings, statement.span, depth + 1)?
+                        }
                     } else {
                         inferred
                     };
@@ -424,7 +462,7 @@ impl Walk<'_, '_> {
                         callee.span,
                         &mut |n| self.state.snapshot(n, callee.span),
                     )?;
-                    return self.shape(
+                    return self.applied_result_shape(
                         &result,
                         &[],
                         Bindings::default(),
@@ -493,12 +531,28 @@ impl Walk<'_, '_> {
                 }
             }
             CoreExprKind::Ascribed { ty, value } => {
-                self.expr(value, depth + 1)?;
-                self.shape(ty, self.bounds, self.bindings, expression.span, depth + 1)?
+                let value = self.expr(value, depth + 1)?;
+                if matches!(value, Shape::ErrorUnion { .. }) {
+                    self.applied_result_shape(
+                        ty,
+                        self.bounds,
+                        self.bindings,
+                        expression.span,
+                        depth + 1,
+                    )?
+                } else {
+                    self.shape(ty, self.bounds, self.bindings, expression.span, depth + 1)?
+                }
             }
-            CoreExprKind::Unary { operand, .. }
-            | CoreExprKind::CompileTime(operand)
-            | CoreExprKind::Try(operand) => self.expr(operand, depth + 1)?,
+            CoreExprKind::Unary { operand, .. } | CoreExprKind::CompileTime(operand) => {
+                self.expr(operand, depth + 1)?
+            }
+            CoreExprKind::Try(operand) => match self.expr(operand, depth + 1)? {
+                // Only the success alternative reaches the continuation. In
+                // particular T!void never becomes a callback Package here.
+                Shape::ErrorUnion { result, .. } => *result,
+                old_primitive_shape => old_primitive_shape,
+            },
             CoreExprKind::IntegerConvert { value, .. } => {
                 self.expr(value, depth + 1)?;
                 Shape::Unknown
@@ -746,4 +800,72 @@ pub(super) fn order(
         }
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod result_shape_tests {
+    use super::*;
+
+    // Private scheduling facts only. Owned union branch patterns remain closed
+    // at source/Types; source/native tests separately exercise real pop and push.
+    #[test]
+    fn binding_a_whole_union_preserves_both_sides_and_try_selects_only_success() {
+        let limits = Limits::default();
+        let context = Context {
+            module: ModuleId(0),
+            imports: BTreeMap::new(),
+            enums: BTreeMap::new(),
+        };
+        let mut state = closures::State::new(0, &limits);
+        let mut walk = Walk {
+            context: &context,
+            bounds: &[],
+            bindings: Bindings::default(),
+            tables: Rc::new(BTreeMap::new()),
+            scopes: vec![BTreeMap::new()],
+            found: BTreeSet::new(),
+            state: &mut state,
+            limits: &limits,
+            store_shapes: false,
+        };
+        let span = Span::default();
+        let pattern = CorePattern {
+            kind: CorePatternKind::Name("bound".into()),
+            span,
+        };
+        let name = CoreExpr {
+            id: NodeId(0),
+            kind: CoreExprKind::Name("bound".into()),
+            span,
+        };
+        let question = CoreExpr {
+            id: NodeId(1),
+            kind: CoreExprKind::Try(Box::new(name.clone())),
+            span,
+        };
+        for (error_shape, result_shape) in [
+            (
+                Shape::Package(vec![("callback".into(), ClosureId(0))]),
+                Shape::Unknown,
+            ),
+            (
+                Shape::Unknown,
+                Shape::Package(vec![("callback".into(), ClosureId(1))]),
+            ),
+            (
+                Shape::Package(vec![("callback".into(), ClosureId(0))]),
+                Shape::Package(vec![("callback".into(), ClosureId(1))]),
+            ),
+        ] {
+            let union = Shape::ErrorUnion {
+                error: Box::new(error_shape),
+                result: Box::new(result_shape.clone()),
+            };
+            walk.pattern(&pattern, &union, 0).unwrap();
+            let stored = walk.expr(&name, 0).unwrap();
+            assert_eq!(stored, union);
+            assert_eq!(stored.environment(), None);
+            assert_eq!(walk.expr(&question, 0).unwrap(), result_shape);
+        }
+    }
 }
