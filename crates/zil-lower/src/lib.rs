@@ -72,7 +72,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
         if !(function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || resource_type(&function.return_type, &module.resources)
-            || package_type(&function.return_type, &module.resources)
+            || package_value_type(&function.return_type, &module.resources)
             || error_type(&function.return_type, &module.resources)
             || owned_array_type(&function.return_type, &module.resources)
             || (matches!(function.return_type, Type::Closure(_))
@@ -82,7 +82,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                 !(ty.is_copy_value()
                     || ty.is_scalar_or_address()
                     || resource_type(ty, &module.resources)
-                    || package_type(ty, &module.resources)
+                    || package_value_type(ty, &module.resources)
                     || error_type(ty, &module.resources)
                     || owned_array_type(ty, &module.resources)
                     || callable_parameter_type(ty, &module.closures))
@@ -107,7 +107,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_package_address()
                 && !resource_type(ty, &module.resources)
-                && !package_type(ty, &module.resources)
+                && !package_value_type(ty, &module.resources)
                 && !error_type(ty, &module.resources)
                 && !owned_array_type(ty, &module.resources)
             {
@@ -163,6 +163,34 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
             ty.is_copy_value() || matches!(ty, Type::Closure(_)) || matches!(ty, Type::Managed(_) if resource_type(ty, resources))
                 || matches!(ty, Type::Array { element, length } if *length > 0 && package_type(element, resources) && !package_array_fields(element) && !package_store_fields(element))
         })
+}
+
+// The new recursive Product is an ordinary complete value only. Keep the
+// existing predicate above for capture, error-payload and array qualification.
+// Verify has already bounded the full inline type and its cleanup paths.
+fn package_value_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    package_type(ty, resources) || product_type(ty, resources)
+}
+
+fn product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    let Type::Package { fields, .. } = ty else {
+        return false;
+    };
+    let mut owns = false;
+    for (_, field) in fields {
+        match field {
+            Type::Managed(payload)
+                if !matches!(payload.as_ref(), Type::OwnedStore { .. })
+                    && resource_type(field, resources) =>
+            {
+                owns = true;
+            }
+            Type::Package { .. } if product_type(field, resources) => owns = true,
+            field if field.is_copy_value() => {}
+            _ => return false,
+        }
+    }
+    owns
 }
 
 fn package_array_fields(ty: &Type) -> bool {

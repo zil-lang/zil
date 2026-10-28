@@ -162,7 +162,16 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            check_local_type(ty, None, module, budget)?;
+            // A capture is not an ordinary local value boundary. In 206 the
+            // recursive Product profile is deliberately closed here, including
+            // local environments with no returned-factory contract. Reuse the
+            // exact old Package gate so flat capture admission and work remain
+            // unchanged; later capture support needs its own machine protocol.
+            if matches!(ty, Type::Package { .. }) {
+                packages::check_type_for(module, ty, None, budget)?;
+            } else {
+                check_local_type(ty, None, module, budget)?;
+            }
         }
         if closure.kind == CallableKind::Fn
             && closure

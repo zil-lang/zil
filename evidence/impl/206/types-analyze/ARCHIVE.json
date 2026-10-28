@@ -1,0 +1,17 @@
+{
+  "scope": "evidence transport integrity only, not compiler or language acceptance",
+  "file": "206-types-analyze-evidence-compact.zip",
+  "bytes": 925125,
+  "sha256": "009583c10e8a3d918d5944bc14a2fa85d1bc50864260ac3083749c5a31342f2f",
+  "pack_integrity": "Pass",
+  "verify_integrity": "Pass",
+  "statistics": {
+    "logical_files": 1093,
+    "logical_bytes": 40443002,
+    "unique_contents": 276,
+    "unique_bytes": 7278263,
+    "excluded_execution_products": 0
+  },
+  "inputs": "/workspace/scratch/39be3faa4442/206-types-analyze-evidence-inputs.json",
+  "execution_by_packager": "NotRun"
+}

@@ -1,0 +1,22 @@
+{
+  "status": "Pass",
+  "archive": "/workspace/scratch/39be3faa4442/deliverables/206-machine-consumer-evidence-compact.zip",
+  "bytes": 2358943,
+  "sha256": "12c1286a4524c59074d46fcc06d30b579f11ab22d6a2ffe567f87d55c2847523",
+  "manifest_sha256": "8e1c985c4b6347a22a0b10984d0b692dbe11b85003395ca928fb215ec9cd58df",
+  "included_files": 1109,
+  "excluded_execution_products": 18,
+  "included_uncompressed_bytes": 54656008,
+  "excluded_execution_bytes": 489309,
+  "all_member_digests_verified": true,
+  "zip_crc_verified": true,
+  "metadata_source_commit": "350c6891230abf89c382ec7d45ae5a77f2dba439",
+  "acceptance_source_commit": "41d02b5147cee2f82df91de05a4711bb8e8a88b7",
+  "compiler_source_commit": "7726490b66794ec7cd1a6f6b0d62e2ca8315ed9b",
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "packing_command": "/workspace/scratch/39be3faa4442/run-logs/206-machine-pack02-command/command.json",
+  "packing_command_sha256": "b3d3e308cf2e10176a527e38af57d728eac34716da1bf1e59a4ee46fba3a5d92",
+  "original_pack01_failure": "Retained in archive: explicit tracked LEGACY01 input absent from sparse worktree; archive02 reads that unchanged input from frozen Git object without materializing or changing checkout."
+}

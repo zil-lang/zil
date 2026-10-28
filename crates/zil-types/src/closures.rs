@@ -654,7 +654,7 @@ impl Graph {
                 || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
-                || packages::supported(ty)
+                || packages::ordinary(ty)
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
                 || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
