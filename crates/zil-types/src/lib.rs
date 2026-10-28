@@ -17,6 +17,7 @@ mod foreign;
 mod functions;
 mod helpers;
 mod inference;
+mod lending;
 mod managed_slots;
 mod names;
 mod packages;
