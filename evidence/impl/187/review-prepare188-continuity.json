@@ -1,0 +1,24 @@
+{
+  "reviewer": "/root/restore177_inventory",
+  "reviewed_commit": "91feaa919bf3f02a36b50bf5e13cbddec4ede87b",
+  "baseline": "ebaddd7faf7b83b257b873e8544af0fef13e670a",
+  "scope": "Read-only continuity of root integration of repaired182 and184; not a new independent audit of my own182 semantics, not full184 review",
+  "result": "Pass",
+  "observations": [
+    "184 lending return-source comparison occurs before the unchanged182 public Hold equality check",
+    "Private descriptor reconstruction and separate reconstruct_module(false) public Hold graph both retained",
+    "loans retains descriptor_origins and the ordinary environment-position/capture-target separation;184 extends early-return admission for lending",
+    "No head_windows flag was reintroduced in either file"
+  ],
+  "files": {
+    "crates/zil-verify/src/borrows.rs": {
+      "blob": "e9fc3ebffdc7cab140c413fe7421a8a78898662d",
+      "sha256": "f202fd04429b56998c3ad226679d422d61e64cf670044bf8b42f5d6973a9fa68"
+    },
+    "crates/zil-verify/src/borrows/loans.rs": {
+      "blob": "28880ca9e53e87fc8796b3b3b15e18a8bc43509c",
+      "sha256": "5b9da810bd0796468cb4dfcb297268748631b2043e7068fa711b8c19f23e5e36"
+    }
+  },
+  "tests": "NotRun; source-only integration continuity review requested by root"
+}

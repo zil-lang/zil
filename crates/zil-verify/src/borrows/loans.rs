@@ -329,6 +329,8 @@ fn active(
     Ok(active)
 }
 struct Access<'a> {
+    module: &'a TypedModule,
+    function: &'a TypedFunction,
     flow: &'a Flow,
     active: &'a Loans,
     ignore: &'a Loans,
@@ -352,6 +354,8 @@ impl Access<'_> {
         join(&mut active, held, budget)?;
         let own = environment_loans(self.flow, held, budget)?;
         Access {
+            module: self.module,
+            function: self.function,
             flow: self.flow,
             active: &active,
             ignore: self.ignore,
@@ -373,6 +377,8 @@ impl Access<'_> {
             if !overlaps(roots, &self.flow.roots[other], budget)? {
                 if let Some(apart) = self.apart {
                     buffer_effects::unknown_pairs(
+                        self.module,
+                        self.function,
                         roots,
                         &self.flow.roots[other],
                         &mut apart.borrow_mut(),
@@ -409,7 +415,8 @@ impl Access<'_> {
 }
 fn check_pairs(
     values: &[ValueId],
-    _f: &TypedFunction,
+    module: &TypedModule,
+    f: &TypedFunction,
     flow: &Flow,
     span: Span,
     apart: Option<&RefCell<Apart>>,
@@ -428,6 +435,8 @@ fn check_pairs(
                         && let Some(apart) = apart
                     {
                         buffer_effects::unknown_pairs(
+                            module,
+                            f,
                             &flow.roots[*left],
                             &flow.roots[*right],
                             &mut apart.borrow_mut(),
@@ -764,6 +773,8 @@ pub(super) fn check(
             let span = instruction.span;
             let empty = Loans::new();
             let access = Access {
+                module,
+                function: f,
                 flow: &flow,
                 active: &active,
                 ignore: &ignore,
@@ -933,7 +944,7 @@ pub(super) fn check(
                     captures: arguments,
                     ..
                 } => {
-                    check_pairs(arguments, f, &flow, span, apart_ref, budget)?;
+                    check_pairs(arguments, module, f, &flow, span, apart_ref, budget)?;
                     for value in arguments {
                         if let Type::Address { mutable, ref inner } = f.values[value.0 as usize] {
                             if matches!(inner.as_ref(), Type::Closure(_)) {
@@ -958,13 +969,14 @@ pub(super) fn check(
                 }
                 InstructionKind::CallClosureMut { callee, arguments }
                 | InstructionKind::CallClosureShared { callee, arguments } => {
-                    check_pairs(arguments, f, &flow, span, apart_ref, budget)?;
+check_pairs(arguments, module, f, &flow, span, apart_ref, budget)?;
                     access.check(
                         &empty,
                         &[Root::Local(*callee)],
                         matches!(instruction.kind, InstructionKind::CallClosureMut { .. }),
                         budget,
                     )?;
+
                     if let Some(held) = locals.get(callee) {
                         for &loan in held {
                             access.check(held, &flow.roots[loan], flow.mutable[loan], budget)?;
