@@ -18,6 +18,7 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
         || function.type_parameters[0].index != 0
         || function.type_parameters[0].name.is_empty()
         || !function.callable_parameters.is_empty()
+        || !function.state_parameters.is_empty()
         || function.callable_return.is_some()
         || function.foreign.is_some()
         || function.receiver.is_some()
@@ -121,6 +122,27 @@ pub(super) fn resolve_argument(
     let work = inference::type_snapshot_work(argument, span, limits)?;
     state.snapshot(work.saturating_mul(2), span)?;
     let mut actual = argument.clone();
+    if bounds
+        .iter()
+        .any(|bound| bound.generic_index != bounds[0].generic_index)
+    {
+        state.snapshot(
+            work.saturating_mul(2)
+                .saturating_add(bounds.len().saturating_mul(3)),
+            span,
+        )?;
+        let replacements = bounds
+            .iter()
+            .map(|bound| {
+                Ok((
+                    bound.generic_name.as_str(),
+                    bindings.get(bound.generic_index, span)?,
+                ))
+            })
+            .collect::<R<Vec<_>>>()?;
+        callable_fields::specialize_type_all(&mut actual, &replacements);
+        return Ok(actual);
+    }
     for bound in bounds {
         state.snapshot(work.saturating_add(bound.generic_name.len()), span)?;
         callable_fields::specialize_type(
