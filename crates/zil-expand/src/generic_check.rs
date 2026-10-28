@@ -78,10 +78,10 @@ pub(super) fn validate_parametric<'l>(
             if parameter.give {
                 state.store_owners.insert(id);
             }
-        } else if parameter.give {
+        } else if parameter.give && !check.concrete_helper_resource(&parameter.ty) {
             return Err(unsupported(
                 parameter.span,
-                "generic give parameter requires a direct Store carrier",
+                "generic give parameter requires a direct Store carrier or a concrete resource in a callable helper",
             ));
         }
     }
@@ -309,6 +309,20 @@ struct Check<'s, 'b, 'l> {
     budget: &'b mut Budget<'l>,
 }
 impl Check<'_, '_, '_> {
+    fn concrete_helper_resource(&self, ty: &TypeRef) -> bool {
+        if self.callable.is_none() || dependent(ty, &self.variables) {
+            return false;
+        }
+        match &group(ty).kind {
+            TypeKind::Named { path, args } if path.as_slice() == ["ByteBuffer"] => args.is_empty(),
+            TypeKind::Named { path, args } => matches!(self.nominals.get(&path.join(".")),
+                Some(Item { kind: ItemKind::Aggregate(resource), .. })
+                if resource.kind == AggregateKind::Resource
+                    && resource.generics.len() == args.len()
+                    && args.iter().all(|arg| matches!(arg, GenericArg::Type(_)))),
+            _ => false,
+        }
+    }
     fn tick(&mut self, span: Span) -> R<()> {
         // The borrowed preflight checked full AST depth before any cloning.
         self.budget.node(span, 0)
