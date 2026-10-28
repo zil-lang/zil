@@ -518,7 +518,18 @@ fn finite_contract_cannot_hide_a_reachable_cycle() {
         instructions: vec![],
         terminator: Terminator::Return(Some(ValueId(0))),
     });
-    raw.reject("acyclic finite call-trace");
+    // 190 independently reconstructs Flow; a Finite claim cannot hide this cycle.
+    for result in raw.both() {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.phase == zil_base::Phase::Verify
+                && d.category == zil_base::ResultCategory::SafeReject
+                && d.code == "E-VERIFY-CALLABLE-CONTRACT"
+                && d.message
+                    .contains("traces differ from the independent contract")),
+            "{errors:#?}"
+        );
+    }
 }
 #[test]
 fn helper_forwarding_does_not_guess_an_empty_nested_contract() {

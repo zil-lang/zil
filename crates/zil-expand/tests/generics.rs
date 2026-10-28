@@ -62,7 +62,7 @@ fn unused_generic_declaration_attributes_are_not_erased() {
 }
 
 #[test]
-fn unused_generic_bounds_require_declared_nominal_traits() {
+fn unused_generic_bounds_require_builtin_copy_or_declared_nominal_traits() {
     for (prefix, bound) in [
         ("", "Copy"),
         ("", "MissingRead"),
@@ -71,6 +71,18 @@ fn unused_generic_bounds_require_declared_nominal_traits() {
         let text = format!("{prefix}fn id<T: {bound}>(x:T)->T=>x\nfn sample()->i32=>0");
         let source = SourceUnit::new(FileId(0), ModuleId(0), "bounds.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        if bound == "Copy" {
+            // Keep the original input; structural Copy is now a builtin bound.
+            let expanded = zil_expand::expand_with_map(&source, &parsed).unwrap();
+            assert!(expanded.core.unsupported.is_empty());
+            assert_eq!(expanded.core.functions.len(), 1);
+            assert_eq!(expanded.core.functions[0].name, "sample");
+            expanded
+                .source_map
+                .validate(&[source], &zil_base::Limits::default())
+                .unwrap();
+            continue;
+        }
         let errors = zil_expand::expand_with_map(&source, &parsed).unwrap_err();
         assert_eq!(errors.len(), 1, "{bound}: {errors:#?}");
         let diagnostic = &errors[0];
