@@ -59,6 +59,10 @@ def main():
         result = subprocess.run(command, cwd=repo, env=env, stdout=stdout, stderr=stderr)
     receipt.update(exit_code=result.returncode, seconds=time.monotonic() - start,
                    completed_at=datetime.datetime.now(datetime.timezone.utc).isoformat())
+    receipt["source_commit_after"] = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    receipt["source_status_after"] = subprocess.check_output(
+        ["git", "status", "--porcelain"], cwd=repo, text=True)
     receipt["outputs"] = {}
     for name in ["stdout.log", "stderr.log"]:
         data = (out / name).read_bytes()
