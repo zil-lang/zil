@@ -1,6 +1,6 @@
 //! Exclusive authority is reconstructed from executable CFG operations. The
 //! public Hold candidate describes origins only and cannot manufacture a loan.
-use super::buffer_effects::{Apart, Effects};
+use super::buffer_effects::Apart;
 use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
@@ -30,28 +30,20 @@ struct Flow {
     inputs: Vec<Locals>,
     parents: Vec<Loans>,
     mutable: Vec<bool>,
+    environment: Vec<bool>,
     roots: Vec<Roots>,
 }
 
 /// Descriptor writes do not mutate the closure's environment position. Only
 /// that position's loan is delegated here; shared addresses captured alongside
 /// a Desc keep their own read-only qualification and cannot authorize a write.
-fn environment_loans(function: &TypedFunction, loans: &Loans, budget: &mut Budget) -> Check<Loans> {
+fn environment_loans(flow: &Flow, loans: &Loans, budget: &mut Budget) -> Check<Loans> {
     budget.spend(loans.len())?;
-    let mut result = Loans::new();
-    for &loan in loans {
-        let ty = if loan < function.values.len() {
-            &function.values[loan]
-        } else {
-            let local = function.parameters[loan - function.values.len()];
-            &function.locals[local.0 as usize].ty
-        };
-        if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))) {
-            budget.spend(result.len().saturating_add(1))?;
-            result.insert(loan);
-        }
-    }
-    Ok(result)
+    Ok(loans
+        .iter()
+        .copied()
+        .filter(|loan| flow.environment[*loan])
+        .collect())
 }
 
 fn local_transfer(
@@ -87,12 +79,27 @@ fn reconstruct(
     budget: &mut Budget,
 ) -> Check<Flow> {
     let v = f.values.len();
-    let count = v
+    let base = v
         .checked_add(f.parameters.len())
         .ok_or_else(|| limit("loan identity count overflow"))?;
+    let mut incoming = Vec::new();
+    for (parameter, local) in f.parameters.iter().enumerate() {
+        budget.spend(1)?;
+        if let Some((id, _)) = helpers::parameter_type(&f.locals[local.0 as usize].ty) {
+            for (capture, ty) in module.closures[id.0 as usize].captures.iter().enumerate() {
+                budget.spend(2)?;
+                if let Type::Address { mutable, .. } = ty {
+                    incoming.push((parameter, capture as u32, *mutable));
+                }
+            }
+        }
+    }
+    let count = base
+        .checked_add(incoming.len())
+        .ok_or_else(|| limit("capture loan identity count overflow"))?;
     budget.spend(
         count
-            .saturating_mul(4)
+            .saturating_mul(5)
             .saturating_add(f.blocks.len().saturating_mul(2)),
     )?;
     let mut flow = Flow {
@@ -100,16 +107,37 @@ fn reconstruct(
         inputs: vec![Locals::new(); f.blocks.len()],
         parents: vec![Loans::new(); count],
         mutable: vec![false; count],
+        environment: vec![false; count],
         roots: vec![vec![]; count],
     };
     for (i, ty) in f.values.iter().enumerate() {
         flow.mutable[i] = matches!(ty, Type::Address { mutable: true, .. });
+        flow.environment[i] =
+            matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)));
         budget.spend(facts.values[i].len())?;
         flow.roots[i] = facts.values[i].clone();
     }
     for (i, local) in f.parameters.iter().enumerate() {
-        flow.mutable[v + i] = affine_type(module, &f.locals[local.0 as usize].ty);
+        let ty = &f.locals[local.0 as usize].ty;
+        flow.mutable[v + i] = matches!(ty, Type::Address { mutable: true, .. });
+        flow.environment[v + i] =
+            matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)));
         flow.roots[v + i] = vec![Root::Parameter(i as u32)];
+    }
+    let mut initial = Locals::new();
+    for (i, local) in f.parameters.iter().enumerate() {
+        if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) {
+            initial.insert(*local, Loans::from([v + i]));
+        }
+    }
+    for (offset, (parameter, capture, mutable)) in incoming.iter().enumerate() {
+        let loan = base + offset;
+        flow.mutable[loan] = *mutable;
+        flow.roots[loan] = vec![Root::ParameterCapture(*parameter as u32, *capture)];
+        initial
+            .entry(f.parameters[*parameter])
+            .or_default()
+            .insert(loan);
     }
     let mut outputs = vec![Locals::new(); f.blocks.len()];
     loop {
@@ -121,12 +149,7 @@ fn reconstruct(
             }
             let mut state = Locals::new();
             if b == f.entry.0 as usize {
-                budget.spend(f.parameters.len())?;
-                for (i, local) in f.parameters.iter().enumerate() {
-                    if closures::holds_addresses(module, &f.locals[local.0 as usize].ty) {
-                        state.insert(*local, Loans::from([v + i]));
-                    }
-                }
+                state = copy_state(&initial, budget)?;
             } else {
                 for &p in &graph.predecessors[b] {
                     if !graph.reachable[p] {
@@ -172,7 +195,28 @@ fn reconstruct(
                         }
                         InstructionKind::ReborrowAddress { address, .. } => {
                             row.insert(id);
-                            join(&mut parents, &flow.values[address.0 as usize], budget)?;
+                            let source = &flow.values[address.0 as usize];
+                            if flow.environment[id] {
+                                // Reborrow the environment position only. Its
+                                // external captures retain their own loans and
+                                // cannot become delegated position authority.
+                                let positions = environment_loans(&flow, source, budget)?;
+                                flow.roots[id].clear();
+                                for loan in &positions {
+                                    budget.spend(flow.roots[*loan].len())?;
+                                    let roots = flow.roots[*loan].clone();
+                                    roots_join(&mut flow.roots[id], &roots, budget)?;
+                                }
+                                join(&mut parents, &positions, budget)?;
+                                for loan in source {
+                                    budget.spend(1)?;
+                                    if !flow.environment[*loan] {
+                                        row.insert(*loan);
+                                    }
+                                }
+                            } else {
+                                join(&mut parents, source, budget)?;
+                            }
                         }
                         InstructionKind::AddressField { address, .. }
                         | InstructionKind::AddressSlice { address, .. }
@@ -282,7 +326,7 @@ struct Access<'a> {
 impl Access<'_> {
     fn check_descriptor_callback(
         &self,
-        function: &TypedFunction,
+        _function: &TypedFunction,
         held: &Loans,
         roots: &[Root],
         write: bool,
@@ -294,7 +338,7 @@ impl Access<'_> {
         budget.spend(self.active.len())?;
         let mut active = self.active.clone();
         join(&mut active, held, budget)?;
-        let own = environment_loans(function, held, budget)?;
+        let own = environment_loans(self.flow, held, budget)?;
         Access {
             flow: self.flow,
             active: &active,
@@ -578,11 +622,11 @@ pub(super) fn check(
     f: &TypedFunction,
     graph: &FunctionGraph,
     facts: &Facts,
-    effects: &[Effects],
-    head_windows: bool,
+    capture: Option<captures::Context<'_>>,
+    descriptor_origins: bool,
     budget: &mut Budget,
 ) -> Check<Apart> {
-    if !head_windows
+    if !descriptor_origins
         && !f.locals.iter().any(|l| {
             affine_type(module, &l.ty)
                 || byte_buffers::is_carrier(&l.ty)
@@ -599,7 +643,7 @@ pub(super) fn check(
         return Ok(Apart::new());
     }
     let apart = RefCell::new(Apart::new());
-    let apart_ref = (!effects.is_empty()).then_some(&apart);
+    let apart_ref = capture.is_some().then_some(&apart);
     let view = ownership(module, f, graph, budget)?;
     let flow = reconstruct(module, f, graph, facts, budget)?;
     let n = f.blocks.len();
@@ -649,18 +693,46 @@ pub(super) fn check(
             reverse(&mut live, instruction, v);
         }
         let mut locals = copy_state(&flow.inputs[b], budget)?;
-        let mut descriptor_locals = if head_windows {
-            if let Some(input) = facts.inputs.get(b) {
-                state_cost(input, budget)?;
-                input.clone()
-            } else {
-                State::new()
-            }
+        let mut capture_locals = if let Some(capture) = capture {
+            captures::input_state(capture.facts, b, budget)?
         } else {
-            State::new()
+            captures::State::new()
         };
         for (i, instruction) in block.instructions.iter().enumerate() {
-            let active = active(&flow, &locals, &after[i], v, budget)?;
+            let mut active = active(&flow, &locals, &after[i], v, budget)?;
+            // Arguments and captured targets participate in the current call,
+            // even if neither value is live after its final invocation.
+            let empty = Loans::new();
+            let (held, arguments): (&Loans, &[ValueId]) = match &instruction.kind {
+                InstructionKind::CallClosure { callee, arguments }
+                | InstructionKind::CallClosureOnce { callee, arguments }
+                | InstructionKind::CallClosureBorrowed {
+                    callee, arguments, ..
+                } => (&flow.values[callee.0 as usize], arguments),
+                InstructionKind::CallClosureShared { callee, arguments }
+                | InstructionKind::CallClosureMut { callee, arguments } => {
+                    (locals.get(callee).unwrap_or(&empty), arguments)
+                }
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                } => {
+                    let held = module.functions[function.0 as usize]
+                        .callable_contract
+                        .as_ref()
+                        .map(|contract| {
+                            &flow.values[arguments[contract.parameter as usize].0 as usize]
+                        })
+                        .unwrap_or(&empty);
+                    (held, arguments)
+                }
+                InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
+                _ => (&empty, &[]),
+            };
+            join(&mut active, held, budget)?;
+            for argument in arguments {
+                join(&mut active, &flow.values[argument.0 as usize], budget)?;
+            }
             let ignore = instruction
                 .result
                 .map_or_else(Loans::new, |r| Loans::from([r.0 as usize]));
@@ -673,58 +745,20 @@ pub(super) fn check(
                 span,
                 apart: apart_ref,
             };
-            if let Some((buffer, write)) = buffer_effects::access(&instruction.kind, head_windows) {
+            if let Some((buffer, write)) =
+                buffer_effects::access(&instruction.kind, descriptor_origins)
+            {
                 access.check(&empty, &facts.values[buffer.0 as usize], write, budget)?;
             }
-            if head_windows
-                && let Some(callback) = buffer_effects::callback_roots(
-                    module,
-                    f,
-                    &instruction.kind,
-                    &facts.values,
-                    &descriptor_locals,
-                    budget,
-                )?
-            {
-                // No unproved closure body is silently read-only. This
-                // conservative access also exports unknown parameter
-                // separation through the existing independent contract.
-                let held = match &instruction.kind {
-                    InstructionKind::CallClosure { callee, .. }
-                    | InstructionKind::CallClosureOnce { callee, .. }
-                    | InstructionKind::CallClosureBorrowed { callee, .. } => {
-                        &flow.values[callee.0 as usize]
-                    }
-                    InstructionKind::CallClosureShared { callee, .. }
-                    | InstructionKind::CallClosureMut { callee, .. } => {
-                        locals.get(callee).unwrap_or(&empty)
-                    }
-                    _ => unreachable!(),
-                };
-                access.check_descriptor_callback(f, held, callback, true, budget)?;
-            }
-            if let InstructionKind::Call {
-                function: callee,
-                arguments,
-            } = &instruction.kind
-                && !effects.is_empty()
-            {
-                for (parameter, write) in &effects[callee.0 as usize] {
-                    budget.spend(1)?;
-                    let argument = arguments[*parameter as usize];
-                    if head_windows
-                        && captures_descriptors(module, &f.values[argument.0 as usize], budget)?
-                    {
-                        access.check_descriptor_callback(
-                            f,
-                            &flow.values[argument.0 as usize],
-                            &facts.values[argument.0 as usize],
-                            *write,
-                            budget,
-                        )?;
-                    } else {
-                        access.check(&empty, &facts.values[argument.0 as usize], *write, budget)?;
-                    }
+            if let Some(capture) = capture {
+                for (source, write) in capture.accesses(instruction, &capture_locals, budget)? {
+                    access.check_descriptor_callback(
+                        f,
+                        held,
+                        &[source.position()],
+                        write,
+                        budget,
+                    )?;
                 }
             }
             match &instruction.kind {
@@ -766,6 +800,21 @@ pub(super) fn check(
                 | InstructionKind::StorePackageField { local, index, .. } => {
                     let root = field_root(f, *local, *index, budget)?;
                     access.check(&empty, &[root], true, budget)?;
+                }
+                InstructionKind::ReborrowAddress { address, mutable }
+                    if matches!(
+                        &f.values[address.0 as usize],
+                        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))
+                    ) =>
+                {
+                    // Reborrowing a callback qualifies its environment position.
+                    // Desc targets and captured addresses keep their separate
+                    // permissions and are checked when the callback uses them.
+                    let positions =
+                        environment_loans(&flow, &flow.values[address.0 as usize], budget)?;
+                    for loan in &positions {
+                        access.check(&positions, &flow.roots[*loan], *mutable, budget)?;
+                    }
                 }
                 InstructionKind::ReadAddress { address }
                 | InstructionKind::SliceLength { address }
@@ -906,8 +955,13 @@ pub(super) fn check(
                 _ => {}
             }
             local_transfer(&mut locals, instruction, &flow.values, budget)?;
-            if head_windows {
-                super::local_transfer(&mut descriptor_locals, instruction, &facts.values, budget)?;
+            if let Some(capture) = capture {
+                captures::local_transfer(
+                    &mut capture_locals,
+                    instruction,
+                    &capture.facts.values,
+                    budget,
+                )?;
             }
         }
     }

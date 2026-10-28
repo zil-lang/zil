@@ -8,13 +8,14 @@ pub(super) enum Root {
     Field(LocalId, u32),
     Capture(u32),
     Parameter(u32),
+    ParameterCapture(u32, u32),
 }
 impl Root {
     pub(super) fn coarse(self) -> HoldRoot {
         match self {
             Self::Local(local) | Self::Field(local, _) => HoldRoot::Local(local),
             Self::Capture(index) => HoldRoot::Capture(index),
-            Self::Parameter(index) => HoldRoot::Parameter(index),
+            Self::Parameter(index) | Self::ParameterCapture(index, _) => HoldRoot::Parameter(index),
         }
     }
     fn field(self) -> Option<u32> {
@@ -24,6 +25,13 @@ impl Root {
         }
     }
     pub(super) fn intersects(self, other: Self) -> bool {
+        // An incoming environment position is distinct from its externally
+        // captured targets. Different capture slots are symbolic: the actual
+        // caller must instantiate them before proving any separation.
+        if matches!(self, Self::ParameterCapture(..)) || matches!(other, Self::ParameterCapture(..))
+        {
+            return self == other;
+        }
         self.coarse() == other.coarse()
             && (self.field().is_none() || other.field().is_none() || self == other)
     }
@@ -36,7 +44,12 @@ impl Root {
 }
 impl Ord for Root {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (self.coarse(), self.field()).cmp(&(other.coarse(), other.field()))
+        let projection = |root: &Self| match root {
+            Self::Field(_, index) => (1, *index),
+            Self::ParameterCapture(_, capture) => (2, *capture),
+            _ => (0, 0),
+        };
+        (self.coarse(), projection(self)).cmp(&(other.coarse(), projection(other)))
     }
 }
 impl PartialOrd for Root {
@@ -95,6 +108,7 @@ pub(super) fn contains_overlap(roots: &[Root], root: Root, budget: &mut Budget) 
     lookup(budget, roots.len())?;
     match roots.binary_search(&root) {
         Ok(_) => Ok(true),
+        Err(_) if matches!(root, Root::ParameterCapture(..)) => Ok(false),
         Err(next) if root.field().is_none() => {
             Ok(roots.get(next).is_some_and(|r| r.coarse() == root.coarse()))
         }
