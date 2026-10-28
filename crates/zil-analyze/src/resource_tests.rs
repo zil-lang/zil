@@ -173,6 +173,7 @@ fn fixture(kind: CallableKind, borrowed: bool, count: usize) -> TypedModule {
         target: TargetProfile::host_llvm(),
         functions: vec![main.finish(result), entry.finish(result_entry)],
         closures: vec![ClosureDefinition {
+            lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(1),
             kind,

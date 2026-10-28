@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 22;
+pub const WIRE_VERSION: u32 = 23;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -610,6 +610,10 @@ impl<'a> Writer<'a> {
                 CallableKind::FnMut => 2,
                 CallableKind::FnOnce => 3,
             })?;
+            self.count(closure.lending_captures.len(), self.limits.max_locals)?;
+            for index in &closure.lending_captures {
+                self.u32(*index)?;
+            }
         }
         self.count(module.resources.len(), self.limits.max_nodes)?;
         for resource in &module.resources {
@@ -654,7 +658,7 @@ impl<'a> Writer<'a> {
         if let Some(c) = &function.callable_return_contract {
             self.u32(c.closure.0)?;
             self.u8(callable_kind_tag(c.kind))?;
-            for indices in [&c.hold, &c.call, &c.writes, &c.cleanup] {
+            for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
                 self.count(indices.len(), self.limits.max_locals)?;
                 for index in indices {
                     self.u32(*index)?;
@@ -1839,7 +1843,7 @@ impl<'a> Reader<'a> {
         for _ in 0..count {
             functions.push(self.function()?);
         }
-        let count = self.count(self.limits.max_functions, 18)?;
+        let count = self.count(self.limits.max_functions, 22)?;
         let mut closures = Vec::with_capacity(count);
         for _ in 0..count {
             let id = ClosureId(self.u32()?);
@@ -1869,6 +1873,7 @@ impl<'a> Reader<'a> {
                 parameters,
                 result,
                 kind,
+                lending_captures: self.callable_indices()?,
             });
         }
         let count = self.count(self.limits.max_nodes, 6)?;
@@ -1959,6 +1964,7 @@ impl<'a> Reader<'a> {
                 call: self.callable_indices()?,
                 writes: self.callable_indices()?,
                 cleanup: self.callable_indices()?,
+                lending_captures: self.callable_indices()?,
             })
         } else {
             None

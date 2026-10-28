@@ -923,6 +923,7 @@ fn description_closure(move_before_call: bool) -> TypedModule {
     m.functions
         .push(entry.finish(Some(value_entry), CleanupExitKind::Return));
     m.closures.push(ClosureDefinition {
+        lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(1),
         kind: CallableKind::Fn,

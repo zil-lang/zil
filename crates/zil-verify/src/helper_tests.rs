@@ -306,6 +306,7 @@ fn fixture(
             target: TargetProfile::host_llvm(),
             functions: vec![],
             closures: vec![ClosureDefinition {
+                lending_captures: Vec::new(),
                 id: ClosureId(0),
                 function: FunctionId(1),
                 captures: vec![capture],
