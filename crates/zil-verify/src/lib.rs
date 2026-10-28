@@ -662,7 +662,7 @@ fn check_function_signature_type(
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
-        Type::Package { .. } => packages::check_type_for(module, ty, span, budget),
+        Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
         ty if resources::arrays::is_owned_type(ty) => {
             resources::arrays::check_type_for(module, ty, span, budget)
@@ -695,7 +695,7 @@ fn check_local_type(
             _ => slices::check_pointee(inner, span),
         },
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
-        Type::Package { .. } => packages::check_type_for(module, ty, span, budget),
+        Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
         ty if resources::arrays::is_owned_type(ty) => {
             resources::arrays::check_type_for(module, ty, span, budget)
