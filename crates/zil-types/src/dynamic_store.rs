@@ -15,14 +15,114 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
     element(ty).is_some()
 }
 
-/// Keep this first profile independent of future Package composition widening.
-pub(super) fn supported_element(ty: &Type) -> bool {
+/// The original path and its charging remain unchanged for non-callback Stores.
+fn legacy_element(ty: &Type) -> bool {
     matches!(ty, Type::Package { fields, .. }
         if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
         && fields.iter().all(|(_, t)| t.is_copy_value()
             || matches!(t, Type::Managed(payload) if **payload == Type::ByteBuffer
                 || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))))
         && has_storage(ty)
+}
+
+pub(super) fn supported_element(ty: &Type) -> bool {
+    legacy_element(ty) || callback_element(ty, |ty| matches!(ty, Type::Closure(_)))
+}
+
+/// This checks only the exact finite shell. Concrete capture definitions are
+/// checked after all functions have been materialized, including unused types.
+pub(super) fn callback_element(ty: &Type, accepts: impl Fn(&Type) -> bool) -> bool {
+    let Type::Package { fields, .. } = ty else {
+        return false;
+    };
+    let mut first = None;
+    let mut count = 0usize;
+    let mut owns = false;
+    for (_, field) in fields {
+        if accepts(field) {
+            if first.is_some_and(|prior| prior != field) {
+                return false;
+            }
+            first = Some(field);
+            count += 1;
+        } else if matches!(field, Type::Managed(payload) if **payload == Type::ByteBuffer
+            || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))
+        {
+            owns = true;
+        } else if !field.is_copy_value() {
+            return false;
+        }
+    }
+    owns && (1..=2).contains(&count) && has_storage(ty)
+}
+
+fn check_callback_captures(
+    element: &Type,
+    closures: &[ClosureDefinition],
+    work: &mut usize,
+    limits: &Limits,
+    span: Span,
+) -> R<()> {
+    let exhausted = || {
+        Diagnostic::limit(
+            Phase::Types,
+            "Store callback capture budget exceeded",
+            Some(span),
+        )
+    };
+    let Type::Package { fields, .. } = element else {
+        unreachable!("finite callback element")
+    };
+    *work = work.checked_sub(fields.len()).ok_or_else(exhausted)?;
+    let mut pending = fields
+        .iter()
+        .filter_map(|(_, ty)| {
+            if let Type::Closure(id) = ty {
+                Some((*id, 0usize))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    while let Some((id, depth)) = pending.pop() {
+        *work = work.checked_sub(1).ok_or_else(exhausted)?;
+        if depth > limits.max_call_depth {
+            return Err(exhausted());
+        }
+        let definition = closures
+            .get(id.0 as usize)
+            .filter(|d| d.id == id)
+            .ok_or_else(|| {
+                error(
+                    "E-CLOSURE-INFERENCE",
+                    span,
+                    "Store callback definition is absent",
+                )
+            })?;
+        *work = work
+            .checked_sub(definition.captures.len())
+            .ok_or_else(exhausted)?;
+        for capture in &definition.captures {
+            let cost = inference::type_snapshot_work(capture, span, limits)?;
+            *work = work.checked_sub(cost).ok_or_else(exhausted)?;
+            match capture {
+                Type::Closure(child) => pending.push((*child, depth + 1)),
+                Type::Managed(payload)
+                    if **payload == Type::ByteBuffer
+                        || (matches!(payload.as_ref(), Type::Record { .. })
+                            && payload.is_copy_value()) => {}
+                Type::Package { .. } if legacy_element(capture) => {}
+                ty if ty.is_copy_value() => {}
+                _ => {
+                    return Err(unsupported(
+                        span,
+                        "Store callbacks require self-contained finite captures without Store, addresses or nested callable Packages",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn has_storage(ty: &Type) -> bool {
@@ -96,6 +196,7 @@ pub(super) fn definition_name(element: &Type) -> String {
 pub(super) fn add_definitions(
     functions: &[TypedFunction],
     definitions: &mut Vec<ResourceDefinition>,
+    closures: &[ClosureDefinition],
     limits: &Limits,
 ) -> R<()> {
     let mut work = limits.max_analysis_steps;
@@ -128,11 +229,20 @@ pub(super) fn add_definitions(
                     work = work
                         .checked_sub(cost.saturating_add(2))
                         .ok_or_else(exhausted)?;
-                    if !supported_element(element) {
-                        return Err(unsupported(
+                    if !legacy_element(element) {
+                        if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
+                            return Err(unsupported(
+                                function.span,
+                                "Store elements require finite direct-Managed Packages with at most two same-type callbacks",
+                            ));
+                        }
+                        check_callback_captures(
+                            element,
+                            closures,
+                            &mut work,
+                            limits,
                             function.span,
-                            "Store elements require nonzero complete direct-Managed Packages",
-                        ));
+                        )?;
                     }
                     let name = definition_name(element);
                     if let Some(old) = found.get(&name) {

@@ -92,9 +92,16 @@ pub(super) fn validate_parametric<'l>(
         fresh_stores: BTreeSet::new(),
     };
     for (id, parameter) in function.params.iter().enumerate() {
-        check
-            .traits
-            .store_types(&parameter.ty, &check.bounds, &check.variables, check.budget)?;
+        check.traits.store_types(
+            &parameter.ty,
+            &check.bounds,
+            &check.variables,
+            check.budget,
+            check
+                .callable
+                .as_ref()
+                .and_then(callable::CallableTemplates::store_generic),
+        )?;
         if stores::element(&parameter.ty).is_some() {
             state.store_origins.insert(id, BTreeSet::from([id]));
             if parameter.give {
@@ -122,9 +129,16 @@ pub(super) fn validate_parametric<'l>(
                 .owned_resource = true;
         }
     }
-    check
-        .traits
-        .store_types(&check.result, &check.bounds, &check.variables, check.budget)?;
+    check.traits.store_types(
+        &check.result,
+        &check.bounds,
+        &check.variables,
+        check.budget,
+        check
+            .callable
+            .as_ref()
+            .and_then(callable::CallableTemplates::store_generic),
+    )?;
     if let Some((error, _)) = stores::success(&check.result) {
         stores::copy_error(error, check.nominals, check.budget)?;
     }
@@ -772,8 +786,15 @@ impl Check<'_, '_, '_> {
         // It does not grant ownership to a descriptor or a reference carrier.
         let (ty, _) = self.place(operand, state)?;
         if let Some(element) = stores::element(&ty) {
-            self.traits
-                .store_element(element, &self.bounds, &self.variables, self.budget)?;
+            self.traits.store_element(
+                element,
+                &self.bounds,
+                &self.variables,
+                self.budget,
+                self.callable
+                    .as_ref()
+                    .and_then(callable::CallableTemplates::store_generic),
+            )?;
         } else if !self
             .callable
             .as_ref()
@@ -1544,8 +1565,15 @@ impl Check<'_, '_, '_> {
                         args,
                     },
                 };
-                self.traits
-                    .store_types(&result, &self.bounds, &self.variables, self.budget)?;
+                self.traits.store_types(
+                    &result,
+                    &self.bounds,
+                    &self.variables,
+                    self.budget,
+                    self.callable
+                        .as_ref()
+                        .and_then(callable::CallableTemplates::store_generic),
+                )?;
                 Ok(result)
             }
             ExprKind::Array(values) => {
@@ -1781,6 +1809,9 @@ impl Check<'_, '_, '_> {
                         &self.bounds,
                         &self.variables,
                         self.budget,
+                        self.callable
+                            .as_ref()
+                            .and_then(callable::CallableTemplates::store_generic),
                     )?;
                     if arguments.len() == 2 {
                         let wanted = if name == "store_push" {
@@ -2123,7 +2154,13 @@ impl Check<'_, '_, '_> {
                 self.traits.check_arguments(
                     &function.generics,
                     &found,
-                    (&self.bounds, &self.variables),
+                    (
+                        &self.bounds,
+                        &self.variables,
+                        self.callable
+                            .as_ref()
+                            .and_then(callable::CallableTemplates::store_generic),
+                    ),
                     self.budget,
                     e.span,
                     callable.as_ref(),
@@ -2304,9 +2341,27 @@ impl Check<'_, '_, '_> {
         else {
             return Ok(None);
         };
-        let Some(owner) = self.package_local(object, state) else {
-            return Ok(None);
-        };
+        let owner = self.package_local(object, state);
+        if owner.is_none() {
+            let mut base = object.as_ref();
+            while let ExprKind::Group(inner) = &base.kind {
+                self.budget.node(base.span, 0)?;
+                base = inner;
+            }
+            let window = match &base.kind {
+                ExprKind::Name(name) => state.locals.get(name).is_some_and(|local| {
+                    matches!(&group(&local.ty).kind, TypeKind::Reference { inner, .. }
+                        if callable::state_type(inner, &bound.generic_name))
+                }),
+                ExprKind::Call { callee, .. } => {
+                    matches!(stores::call_name(callee), Some("store_at" | "store_at_mut"))
+                }
+                _ => false,
+            };
+            if !window {
+                return Ok(None);
+            }
+        }
         for parameter in &bound.parameters {
             self.budget.ty(parameter)?;
         }
@@ -2316,8 +2371,10 @@ impl Check<'_, '_, '_> {
         if callable::parameter_mode(&ty, &bound.generic_name) != Some(None) {
             return Ok(None);
         }
-        let slot = self.field_slot(owner, member, callee.span)?;
-        if state.moved.contains(&slot) {
+        let slot = owner
+            .map(|owner| self.field_slot(owner, member, callee.span))
+            .transpose()?;
+        if slot.is_some_and(|slot| state.moved.contains(&slot)) {
             return Err(error(
                 callee.span,
                 "callback field used after its environment was moved",
@@ -2326,8 +2383,14 @@ impl Check<'_, '_, '_> {
         match bound.kind {
             zil_ir::CallableKind::Fn => {}
             zil_ir::CallableKind::FnMut if mutable => {}
+            zil_ir::CallableKind::FnOnce if slot.is_some() => {
+                state.moved.insert(slot.expect("owning field"));
+            }
             zil_ir::CallableKind::FnOnce => {
-                state.moved.insert(slot);
+                return Err(error(
+                    callee.span,
+                    "FnOnce requires an owned Store element obtained by pop",
+                ));
             }
             _ => {
                 return Err(error(
@@ -2380,8 +2443,15 @@ impl Check<'_, '_, '_> {
                                 "generic owned Store union locals require a producer-inferred success mode",
                             ));
                         }
-                        self.traits
-                            .store_types(ty, &self.bounds, &self.variables, self.budget)?;
+                        self.traits.store_types(
+                            ty,
+                            &self.bounds,
+                            &self.variables,
+                            self.budget,
+                            self.callable
+                                .as_ref()
+                                .and_then(callable::CallableTemplates::store_generic),
+                        )?;
                     }
                     let owns_store = self.owning_store_expression(value, state);
                     let fresh_store = owns_store && self.fresh_store_expression(value, state)?;
@@ -2389,8 +2459,15 @@ impl Check<'_, '_, '_> {
                         && self.owned_resource_expression(value, state)?;
                     let origins = self.store_origins(value, state)?;
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
-                    self.traits
-                        .store_types(&actual, &self.bounds, &self.variables, self.budget)?;
+                    self.traits.store_types(
+                        &actual,
+                        &self.bounds,
+                        &self.variables,
+                        self.budget,
+                        self.callable
+                            .as_ref()
+                            .and_then(callable::CallableTemplates::store_generic),
+                    )?;
                     if let Some(ty) = ty {
                         same(&actual, ty, statement.span, self.budget)?;
                     }
