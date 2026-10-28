@@ -61,6 +61,9 @@ pub(super) struct Pending {
     pub body: CoreBlock,
     pub span: Span,
     pub captures: Vec<Capture>,
+    // Private source classification. It only restricts this resolved result;
+    // Analyze and Verify independently inspect actual captures and values.
+    pub owns_leaf_store: bool,
     pub inference: Inference,
     pub typed: Option<TypedFunction>,
 }
@@ -225,18 +228,39 @@ impl State {
             .work_left
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
+        let mut owns_leaf_store = false;
         for capture in &checker.captures {
             if dynamic_store::is_carrier(&capture.stored_type()) {
-                return Err(unsupported(
-                    capture.span,
-                    "Store capture requires a separate retained storage profile",
-                ));
+                if !capture.moved
+                    || !dynamic_store::owned_capture(
+                        &capture.ty,
+                        checker.work_left,
+                        &self.limits,
+                        capture.span,
+                    )?
+                {
+                    return Err(unsupported(
+                        capture.span,
+                        "Store capture requires an owned carrier with finite leaf Package elements",
+                    ));
+                }
+                owns_leaf_store = true;
             }
             if packages::has_store_fields(&capture.stored_type()) {
-                return Err(unsupported(
-                    capture.span,
-                    "Package capture with Store fields requires a retained storage protocol",
-                ));
+                if !capture.moved
+                    || !dynamic_store::owned_capture(
+                        &capture.ty,
+                        checker.work_left,
+                        &self.limits,
+                        capture.span,
+                    )?
+                {
+                    return Err(unsupported(
+                        capture.span,
+                        "Package capture with Store fields requires a complete owning leaf Store transfer",
+                    ));
+                }
+                owns_leaf_store = true;
             }
             if packages::has_array_fields(&capture.stored_type()) {
                 return Err(unsupported(
@@ -252,6 +276,12 @@ impl State {
             }
             if let Type::Closure(id) = capture.stored_type() {
                 retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
+                if self.pending[id.0 as usize].owns_leaf_store {
+                    *checker.work_left = checker.work_left.checked_sub(1).ok_or_else(|| {
+                        limit("owned Store child profile budget exceeded", capture.span)
+                    })?;
+                    owns_leaf_store = true;
+                }
             }
             // A local byte-storage Desc uses the same actual capture-source
             // and dynamic access checks as a direct synchronous operation.
@@ -274,6 +304,7 @@ impl State {
             body: input.body.clone(),
             span: input.span,
             captures: checker.captures,
+            owns_leaf_store,
             inference,
             typed: None,
         });
@@ -1569,7 +1600,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
             ty @ Type::Package { .. } if packages::supported(ty) => {
-                if !self.move_capture && !nested_owned {
+                if !self.move_capture
+                    && !nested_owned
+                    && !dynamic_store::owned_capture(ty, self.work_left, self.limits, span)?
+                {
                     return Err(unsupported(span, "Package capture requires explicit move"));
                 }
                 (ty, None)
