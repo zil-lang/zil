@@ -945,3 +945,77 @@ fn main()->i32{{let state=revise(pack(make(65),make(66),0),make(67));emit(77);re
         &candidate,
     );
 }
+
+#[test]
+fn nominal_and_phantom_data_identity_survives_same_f_replacement_specialization() {
+    for phantom in [false, true] {
+        let state = if phantom {
+            STATE.replace(";tag:T", "").replace("tag:tag,", "")
+        } else {
+            STATE.to_owned()
+        };
+        let source = format!(
+            r#"{RESOURCE}{state}
+struct Left{{value:i32}}
+struct Right{{value:i32}}
+fn revise<T:Copy,F:Fn()->i32>(state:State<T,F>,replacement:F)->State<T,F>{{var next=state;next.a=replacement;return next}}
+fn main()->i32{{
+    let left=revise(pack(make(65),make(66),Left{{value:1}}),make(67));
+    let right=revise(pack(make(68),make(69),Right{{value:1}}),make(70));
+    emit(77);return left.a()+left.b()+right.a()+right.b()-272
+}}
+"#
+        );
+        native(
+            &format!("nominal-phantom-{phantom}"),
+            &source,
+            "ADMZFEZCB",
+            0,
+        );
+        let (typed, candidate) = typed_control(&format!("nominal-family-{phantom}"), &source);
+        let instances = typed
+            .functions
+            .iter()
+            .filter(|f| {
+                f.parameters.len() == 2
+                    && f.parameters
+                        .iter()
+                        .filter(|id| matches!(f.locals[id.0 as usize].ty, Type::Package { .. }))
+                        .count()
+                        == 1
+                    && f.parameters
+                        .iter()
+                        .filter(|id| matches!(f.locals[id.0 as usize].ty, Type::Closure(_)))
+                        .count()
+                        == 1
+            })
+            .map(|f| f.id)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            instances.len(),
+            2,
+            "complete T must remain in each mixed instance identity"
+        );
+        let mut changed = typed.clone();
+        let mut redirected = 0;
+        for instruction in changed
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|b| &mut b.instructions)
+        {
+            if let InstructionKind::Call { function, .. } = &mut instruction.kind {
+                if *function == instances[1] {
+                    *function = instances[0];
+                    redirected += 1;
+                }
+            }
+        }
+        assert_eq!(redirected, 1);
+        typed_attack(
+            &format!("wrong-nominal-mixed-instance-{phantom}"),
+            &changed,
+            &candidate,
+        );
+    }
+}
