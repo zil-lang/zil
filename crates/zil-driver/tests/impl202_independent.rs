@@ -818,6 +818,91 @@ fn raw_template_headers_and_lexical_free_binders_are_checked_in_both_entries() {
 }
 
 #[test]
+fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
+    let mut core = expanded("unused-raw-template", ORIGINAL_PUSH);
+    let mut unused = core
+        .functions
+        .iter()
+        .find(|f| !f.type_parameters.is_empty())
+        .unwrap()
+        .clone();
+    unused.id = NodeId(core.functions.iter().map(|f| f.id.0).max().unwrap() + 1);
+    unused.name = "unused_ordinary_template".into();
+    let unused_index = core.functions.len();
+    core.functions.push(unused);
+    raw_types(
+        "unused-raw-template-valid",
+        &core,
+        &Limits::default(),
+        false,
+    );
+    let mut accepted = Vec::new();
+    for attack in [
+        "foreign-binder-in-unused-signature",
+        "wrong-target-in-unused-body",
+    ] {
+        let mut changed = core.clone();
+        let unused = &mut changed.functions[unused_index];
+        if attack == "foreign-binder-in-unused-signature" {
+            // Every occurrence of the original T now belongs to another
+            // definition; this otherwise unused template only declares U.
+            assert_ne!(unused.type_parameters[0].name, "UnusedU");
+            unused.type_parameters[0].name = "UnusedU".into();
+        } else {
+            let mut mutated = 0;
+            visit_block(&mut unused.body, &mut |expr| {
+                let CoreExprKind::Call { callee, .. } = &mut expr.kind else {
+                    return false;
+                };
+                if mutated == 0 {
+                    let target = CoreExpr {
+                        id: NodeId(920001),
+                        span: callee.span,
+                        kind: CoreExprKind::Name("make".into()),
+                    };
+                    callee.kind = CoreExprKind::TypeApply {
+                        callee: Box::new(target),
+                        type_arguments: vec![Type::Named(unused.type_parameters[0].name.clone())],
+                    };
+                    mutated += 1;
+                    true
+                } else {
+                    false
+                }
+            });
+            assert_eq!(mutated, 1);
+        }
+        let case = Case::new(attack);
+        case.write("core.txt", format!("{changed:#?}"));
+        let single = zil_types::check(&changed, &TargetProfile::host_llvm(), &Limits::default());
+        let multiple = zil_types::check_program(
+            &program(changed),
+            &TargetProfile::host_llvm(),
+            &Limits::default(),
+        );
+        case.write("single.txt", format!("{single:#?}"));
+        case.write("program.txt", format!("{multiple:#?}"));
+        for (entry, result) in [("single", single), ("program", multiple)] {
+            match result {
+                Ok(_) => accepted.push(format!("{attack}/{entry}")),
+                Err(ds) => assert!(
+                    ds.iter().any(|d| d.phase == Phase::Types
+                        && matches!(
+                            d.category,
+                            ResultCategory::SafeReject | ResultCategory::Unsupported
+                        )),
+                    "{attack}/{entry}: {ds:#?}"
+                ),
+            }
+        }
+    }
+    assert!(
+        accepted.is_empty(),
+        "unused raw metadata accepted: {accepted:?}"
+    );
+}
+
+#[test]
 fn raw_type_application_constraints_cannot_be_dropped_or_become_runtime_values() {
     let core = expanded("application-control", ORIGINAL_PUSH);
     raw_types("application-valid", &core, &Limits::default(), false);
