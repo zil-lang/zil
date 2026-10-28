@@ -1,0 +1,1 @@
+package P{manages b:ByteBuffer;manages c:ByteBuffer}fn make()->P{return P{b:bytes_new(),c:bytes_new()}}fn factory()->impl FnOnce()->i64{let p=make();return move()=>{let s=bytes_view(p.b);let old=give p.b;return s.len()+bytes_len(old)}}fn value()->i64{let f=factory();return f()}

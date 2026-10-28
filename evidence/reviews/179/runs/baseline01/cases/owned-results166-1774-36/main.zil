@@ -1,0 +1,1 @@
+enum E{Fail}package P{manages b:ByteBuffer}fn main()->i32{let p=P{b:bytes_new()};bytes_push(p.b,42u8);let old=bytes_view(p.b);let u:E!P=p;return i32(old[0])}

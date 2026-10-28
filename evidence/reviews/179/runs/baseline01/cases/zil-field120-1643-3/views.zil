@@ -1,0 +1,1 @@
+pub fn view(b:ByteBuffer)->&[u8]{return bytes_view(b)}pub fn read(b:ByteBuffer)->i32{return i32(bytes_view(b)[0])}

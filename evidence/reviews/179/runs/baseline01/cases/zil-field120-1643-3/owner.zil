@@ -1,0 +1,1 @@
+import buffer;import views;package P{manages b:ByteBuffer;manages c:ByteBuffer}pub fn make()->impl FnMut()->i32{var p=P{b:buffer.make(2u8),c:buffer.make(3u8)};return move()=>{let s=views.view(p.b);p.c=buffer.make(5u8);return i32(s[0])+views.read(p.c)}}
