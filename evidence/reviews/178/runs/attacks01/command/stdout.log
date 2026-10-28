@@ -1,0 +1,23 @@
+
+running 4 tests
+test raw_and_wire_reject_erasing_the_factory_result_mode ... ok
+test descriptor_rebinding_never_transfers_its_source_carrier ... ok
+test unused_create_result_cannot_claim_an_incoming_store_is_fresh ... FAILED
+test unused_fresh_local_may_be_returned_by_explicit_give ... ok
+
+failures:
+
+---- unused_create_result_cannot_claim_an_incoming_store_is_fresh stdout ----
+
+thread 'unused_create_result_cannot_claim_an_incoming_store_is_fresh' (117) panicked at crates/zil-driver/tests/review178_definitions.rs:40:9:
+assertion `left == right` failed: fn bad<T:StoreElement>(give incoming:Store<T>)->Store<T> contract{result(create)} { return give incoming }: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{},"input_fingerprint":"74be74bba9d8cc8f579552fd04dcc72d3fe8d7205d378b84984176fc7795c7ba","seconds":0.001469195,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"definition178.zil"},"scalar_interfaces":[]}
+  left: Success
+ right: SafeReject
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    unused_create_result_cannot_claim_an_incoming_store_is_fresh
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

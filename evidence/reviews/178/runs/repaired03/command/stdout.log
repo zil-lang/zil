@@ -1,0 +1,46 @@
+
+running 12 tests
+test borrowed_receivers_do_not_gain_mutation_or_move_permissions ... ok
+test actual_impl_signatures_and_independent_loan_checks_still_run ... ok
+test forwarding_requires_a_prior_bound_even_when_unused ... ok
+test bound_method_named_len_and_self_parameters_are_symbolic ... ok
+test missing_trait_wrong_arguments_and_ambiguous_bounds_reject_before_specialization ... ok
+test imported_public_bounds_keep_definition_and_nominal_module_identity ... ok
+test private_and_same_spelling_foreign_traits_cannot_satisfy_bound ... ok
+test same_named_inherent_method_does_not_satisfy_nominal_bound ... ok
+test shared_bounds_dispatch_for_multiple_nominal_types_and_forward_symbolically ... ok
+test mutable_multiple_bounds_and_value_receiver_keep_passing_modes ... ok
+test unused_definitions_cannot_gain_members_types_or_copy_from_instances ... ok
+test trait_bound_scans_obey_actual_work_budget ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+
+running 15 tests
+test actual_generic_calls_do_not_merge_distinct_nominal_elements ... ok
+test bounded_element_shape_work_has_an_exact_definition_time_boundary ... ok
+test descriptor_aliases_do_not_revive_after_give_or_replacement ... ok
+test element_bound_checks_real_shapes_and_never_grants_copy_or_members ... ok
+test cross_module_helpers_preserve_two_nominal_elements_and_failure_returns ... ok
+test generic_owning_package_and_concrete_callback_state_compose ... ok
+test fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation ... ok
+test generic_source_still_requires_independent_raw_and_wire_ownership ... ok
+test raw_and_wire_create_mode_cannot_forge_fresh_input_resources ... ok
+test generic_prefix_drain_repeats_with_real_item_cleanup ... ok
+test real_copy_shapes_including_static_foreign_values_remain_elements ... ok
+test unused_create_results_prove_freshness_across_real_transfers_and_joins ... ok
+test unused_package_fields_keep_mode_and_instance_identity ... ok
+test unused_templates_reject_unproven_store_element_or_owner ... ok
+test two_element_shapes_use_the_same_actual_generic_helpers ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s
+
+
+running 4 tests
+test descriptor_rebinding_never_transfers_its_source_carrier ... ok
+test raw_and_wire_reject_erasing_the_factory_result_mode ... ok
+test unused_create_result_cannot_claim_an_incoming_store_is_fresh ... ok
+test unused_fresh_local_may_be_returned_by_explicit_give ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
