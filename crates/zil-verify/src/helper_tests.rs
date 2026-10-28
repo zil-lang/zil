@@ -231,31 +231,39 @@ fn fixture(
         helper.operation(InstructionKind::DropClosure { local: parameter });
     }
     helper.f.callable_contract = Some(CallableParameterContract {
-        parameter: 0,
-        closure: ClosureId(0),
-        kind: requested,
-        hold: if matches!(capture, Type::Address { .. }) {
-            vec![0]
-        } else {
-            vec![]
-        },
-        call: if matches!(capture, Type::Address { .. } | Type::Desc(_)) {
-            vec![0]
-        } else {
-            vec![]
-        },
-        writes: if matches!(capture, Type::Address { mutable: true, .. } | Type::Desc(_)) {
-            vec![0]
-        } else {
-            vec![]
-        },
-        cleanup: if borrowed {
-            CallableCleanup::Borrowed
-        } else {
-            CallableCleanup::Owned
-        },
+        roles: vec![CallableRole {
+            parameter: 0,
+            closure: ClosureId(0),
+            kind: requested,
+            hold: if matches!(capture, Type::Address { .. }) {
+                vec![0]
+            } else {
+                vec![]
+            },
+            call: if matches!(capture, Type::Address { .. } | Type::Desc(_)) {
+                vec![0]
+            } else {
+                vec![]
+            },
+            writes: if matches!(capture, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                vec![0]
+            } else {
+                vec![]
+            },
+            cleanup: if borrowed {
+                CallableCleanup::Borrowed
+            } else {
+                CallableCleanup::Owned
+            },
+        }],
         traces: zil_ir::CallableTraces::Finite(vec![CallableTrace {
-            calls: vec![requested; count],
+            calls: vec![
+                CallEvent {
+                    parameter: 0,
+                    kind: requested
+                };
+                count
+            ],
             exit: CallableExit::Return,
         }]),
     });
@@ -969,7 +977,10 @@ fn conditional_owned(trap: bool) -> Raw {
             },
         },
         CallableTrace {
-            calls: vec![CallableKind::FnOnce],
+            calls: vec![CallEvent {
+                parameter: 0,
+                kind: CallableKind::FnOnce,
+            }],
             exit: CallableExit::Return,
         },
     ]);
@@ -1071,11 +1082,20 @@ fn first_error_stops_second_call() -> Raw {
     });
     f.callable_contract.as_mut().unwrap().traces = zil_ir::CallableTraces::Finite(vec![
         CallableTrace {
-            calls: vec![CallableKind::Fn],
+            calls: vec![CallEvent {
+                parameter: 0,
+                kind: CallableKind::Fn,
+            }],
             exit: CallableExit::Return,
         },
         CallableTrace {
-            calls: vec![CallableKind::Fn, CallableKind::Fn],
+            calls: vec![
+                CallEvent {
+                    parameter: 0,
+                    kind: CallableKind::Fn
+                };
+                2
+            ],
             exit: CallableExit::Return,
         },
     ]);
@@ -1194,7 +1214,15 @@ fn helper_contract_node_quotas_are_resource_limits_before_identity_checks() {
                         129
                     ])
             }
-            _ => claim.traces.as_finite_mut().unwrap()[0].calls = vec![CallableKind::Fn; 20_000],
+            _ => {
+                claim.traces.as_finite_mut().unwrap()[0].calls = vec![
+                    CallEvent {
+                        parameter: 0,
+                        kind: CallableKind::Fn
+                    };
+                    20_000
+                ]
+            }
         }
         let limits = Limits {
             max_nodes: 128,
