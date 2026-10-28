@@ -128,12 +128,51 @@ fn repaired_weak_capture_keeps_the_actual_field_instance_without_a_whole_package
     let p = dir();
     fs::write(p.join("stale-field.zil"), &bad).unwrap();
     let r = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "stale-field.zil", bad),
+        &SourceUnit::new(FileId(0), ModuleId(0), "stale-field.zil", bad.clone()),
         &CompileOptions::default(),
     );
     fs::write(p.join("report.json"), r.to_json()).unwrap();
     assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
-    assert_eq!(r.phase, Phase::Verify, "{}", r.to_json());
+    assert_eq!(r.phase, Phase::Analyze, "{}", r.to_json());
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains("description required later"))
+    );
+    // Bypass the producer rejection: the independently checked raw and wire
+    // inputs must also reject the old field instance, with the good candidate.
+    let target = zil_base::TargetProfile::host_llvm();
+    let limits = zil_base::Limits::default();
+    let typed = |text: &str| {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "stale-field.zil", text);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand(&source, &syntax).unwrap();
+        zil_types::check(&core, &target, &limits).unwrap()
+    };
+    let good = typed(&source);
+    let mut candidate = zil_analyze::analyze(&good, &limits).unwrap();
+    let forged = typed(&bad);
+    candidate.module_fingerprint = forged.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&forged, &candidate, &limits).unwrap();
+    for (label, result) in [
+        (
+            "raw",
+            zil_verify::verify_module(forged, candidate, &target, &limits),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&wire, &target, &limits),
+        ),
+    ] {
+        let errors = result.unwrap_err();
+        fs::write(p.join(format!("{label}.txt")), format!("{errors:#?}")).unwrap();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-VERIFY-RESOURCE"),
+            "{errors:#?}"
+        );
+    }
 }
 
 #[test]
