@@ -1,0 +1,580 @@
+{
+  "format": "zil205-types-author-v1",
+  "scope": "205 finite one State + replacement Types, source/native author validation; not full-workspace or overall language acceptance",
+  "tested_commit": "589c4d095f189f76844b96d87bc80cd23c7a73e6",
+  "tested_git_status": "clean",
+  "production_commits": [
+    "cf2f8d59e7ca80139505ce10e92c2b1b1ce03b3a",
+    "5893752690f94ce89daa8ed50ec3024db9731436"
+  ],
+  "spec_hash": "71d03d540f73b8f3835c8f2198c99a8074f9abdce0f58284c3c9df1f0d17c560",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "schema": 27,
+  "final_results": {
+    "author_source_tests": 14,
+    "author_raw_tests": 5,
+    "author_budget_tests": 1,
+    "author_total_pass": 20,
+    "author_total_fail": 0,
+    "native": 50,
+    "native_optimization": [
+      "O0",
+      "O2"
+    ],
+    "source_compile_report_counts": {
+      "link/Success/Verify1": 50,
+      "verify/Success/Verify1": 1,
+      "types/SafeReject/Verify0": 2
+    },
+    "legacy_migration_tests": 3,
+    "original_independent_legacy_raw_replay_tests": 1,
+    "clippy": "Pass, zil-types/zil-driver lib and four named integration targets -D warnings"
+  },
+  "exact_types_budgets": {
+    "legacy_197_state": {
+      "before": 2642,
+      "after": 5293,
+      "source_sha256": "7cedc0a7d37056c9a4dea902c0e5475768296b83cdb8e9c91c6f3492e0fcb251",
+      "core_sha256": "0c7177dc9349c9ff37aa6d5ef6f8c6a39a1c561e60cd960cf39df3e101430adf",
+      "before_after_core_bytes_equal": true
+    },
+    "ordinary_eager": {
+      "before": 88,
+      "after": 88
+    },
+    "replacement": {
+      "before": 4498,
+      "after": 4498
+    },
+    "checks": "N Success, N-1 ResourceLimit, fresh N full Typed equality; historical N2642 actual ResourceLimit in final01"
+  },
+  "original_138_bytes": {
+    "sha256": "5251f83be296a6273532690540cfde459938f39801afc614ba1cbb672df2b05a",
+    "baseline": "baseline02 clean11b: Expand Unsupported E-UNSUPPORTED Verify0",
+    "old_assertion_failure": "old200-before01 clean96bd: Verify Success Verify1; expected Unsupported fails",
+    "final": "final-old20001 clean589c: same bytes Verify Success Verify1; unused definition, not a native execution claim"
+  },
+  "original_legacy_raw_failure": {
+    "before": "legacy-raw-before01 cleanbc8726: bad unused body accepted by both Types APIs; test 0/1",
+    "after": "final-legacy01 clean589c: original positive remains accepted, original bad view after take/refill rejected by both APIs; 1/0",
+    "runtime_safety": "bad unused body was not emitted or executed"
+  },
+  "failure_history": [
+    "baseline01 missing cargo PATH; no test",
+    "source01 missing LLVM library search path; Verify passed, native NotRun",
+    "source02 two author oracles incorrectly assigned FnOnce semantics to nongeneric actual Fn uses; corrected by explicit FnOnce finish source",
+    "source04 unsupported return expression syntax; retained Parse failure, separate statement-return and concrete fallible-RHS source added",
+    "legacy-raw-before01 real public Types unused-body gap, fixed by 58937526",
+    "old200-before01 one approved acceptance migration",
+    "clippy-types01 missing cargo-clippy PATH; no Clippy run",
+    "clippy-tests01 one needless_as_bytes in new test; fixed"
+  ],
+  "coverage": [
+    "one/two fields; Fn/FnMut/FnOnce; actual stronger Fn still consumed under declared Once",
+    "same single-F nominal identity; Copy T; reversed nonadjacent actual parameter indices",
+    "three runtime positions; field take to fresh owner and refill; structural Copy temporary publication",
+    "different factory identities rejected in both argument orders",
+    "parameter evaluation once and partial argument preparation cleanup",
+    "statement early return before replacement; genuinely fallible concrete assignment RHS after receiving helper State",
+    "raw complete header/selector/kind/input checks; per-position move/alias lifetime; wide/deep metadata precharging",
+    "legacy same-F two Once values, repeated exclusive view and sibling, old lending"
+  ],
+  "limitations": [
+    "No E!State template, two-State input, F/G mixed replacement, or extra callable permission was opened",
+    "Author source tests do not replace independent raw/Wire/CT reviews, consumer allocation failures, or root full workspace",
+    "No new schema or Typed opcode, no implicit Box/RC/lock",
+    "Rust comparison: limited safety/cleanup and ordinary library expression improved; no matched Rust runtime/RSS/compile-speed or whole-program maintenance comparison; product-level net breakthrough and full1.4 remain unestablished"
+  ],
+  "packaging": "All original runs and failures retained; executable products will be excluded with hashes in separate compact evidence; no executables in source deliverable",
+  "commands": [
+    {
+      "run": "baseline01",
+      "source_commit": "11b3d825e8f0e9907b097c7e7227acffedfa16c2",
+      "git_status": "",
+      "status": "InfrastructureFailure",
+      "exit_code": null,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_state_source",
+        "uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "receipt_sha256": "f1a67d4ea00489be8bab96708140eb0425fae93c18c3b6eff960cfe50d227a09"
+    },
+    {
+      "run": "baseline02",
+      "source_commit": "11b3d825e8f0e9907b097c7e7227acffedfa16c2",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_state_source",
+        "uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "receipt_sha256": "0ae3aefafc1b0342eeed0b435e8373af8c39ad09358f9008cd1b6bc8629c7490"
+    },
+    {
+      "run": "budget-after01",
+      "source_commit": "bc8726b78346214f5359b73a415ddf36b3c77762",
+      "git_status": " M crates/zil-driver/tests/impl205_source.rs\n M crates/zil-types/src/state_origins.rs\n?? crates/zil-driver/tests/impl205_budget.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_budget",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "8cbf6e817a2f6a94072b3c6c666ed126d7254b3a907fee123cf5a883959c1b9c"
+    },
+    {
+      "run": "budget-before01",
+      "source_commit": "bc8726b78346214f5359b73a415ddf36b3c77762",
+      "git_status": "?? crates/zil-driver/tests/impl205_budget.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_budget",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "a4844d893891eb21f5ed8a6c1f70a31a6a63072f31164f21e868ffa1893134f5"
+    },
+    {
+      "run": "check01",
+      "source_commit": "11b3d825e8f0e9907b097c7e7227acffedfa16c2",
+      "git_status": " M crates/zil-types/src/helper_plan.rs\n M crates/zil-types/src/helpers.rs\n M crates/zil-types/src/inference.rs\n M crates/zil-types/src/state_origins.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "check",
+        "-p",
+        "zil-types"
+      ],
+      "receipt_sha256": "8a04e9e8520519ebcfacaf071618f36a47c4036879b859768627b91c0070df44"
+    },
+    {
+      "run": "clippy-tests01",
+      "source_commit": "96bd747dbd2ef50e915b42d495ca21e1faca3132",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "clippy",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_raw",
+        "--test",
+        "impl205_source",
+        "--test",
+        "impl205_budget",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "receipt_sha256": "3672c02a5b2578390c9d49d767f52075a5d3ade4b9797569fdebdd4fc8b2c668"
+    },
+    {
+      "run": "clippy-tests02",
+      "source_commit": "96bd747dbd2ef50e915b42d495ca21e1faca3132",
+      "git_status": " M crates/zil-driver/tests/impl200_state_source.rs\n M crates/zil-driver/tests/impl205_budget.rs\n M crates/zil-driver/tests/impl205_raw.rs\n M crates/zil-driver/tests/impl205_source.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "clippy",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_raw",
+        "--test",
+        "impl205_source",
+        "--test",
+        "impl205_budget",
+        "--test",
+        "impl200_state_source",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "receipt_sha256": "3660b812b42b654ec5db5fa869a32dcfe100af7493ec7cddf98fcec59daa2ab7"
+    },
+    {
+      "run": "clippy-types01",
+      "source_commit": "bc8726b78346214f5359b73a415ddf36b3c77762",
+      "git_status": " M crates/zil-driver/tests/impl205_source.rs\n M crates/zil-types/src/state_origins.rs\n?? crates/zil-driver/tests/impl205_budget.rs\n",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "clippy",
+        "-p",
+        "zil-types",
+        "--lib",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "receipt_sha256": "8d2c5e68704ffce11ed580bca80f018c0e4e839950299b7f448185f5f4354d2c"
+    },
+    {
+      "run": "clippy-types02",
+      "source_commit": "bc8726b78346214f5359b73a415ddf36b3c77762",
+      "git_status": " M crates/zil-driver/tests/impl205_source.rs\n M crates/zil-types/src/state_origins.rs\n?? crates/zil-driver/tests/impl205_budget.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "clippy",
+        "-p",
+        "zil-types",
+        "--lib",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "receipt_sha256": "9e39bf3b2a14a93e29ed7e1b76a9ad647a4116ce8e7d86784d22e8bf41e4c456"
+    },
+    {
+      "run": "final-clippy01",
+      "source_commit": "589c4d095f189f76844b96d87bc80cd23c7a73e6",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "clippy",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "--test",
+        "impl205_raw",
+        "--test",
+        "impl205_source",
+        "--test",
+        "impl205_budget",
+        "--test",
+        "impl200_state_source",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "receipt_sha256": "75b84bb477f09200cd483becab96ef15a98d38684e900ae9e8fcc4059f71c397"
+    },
+    {
+      "run": "final-legacy01",
+      "source_commit": "589c4d095f189f76844b96d87bc80cd23c7a73e6",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_independent",
+        "raw_legacy_single_state_alias_cannot_depend_on_expand_having_checked_the_body",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "receipt_sha256": "caba1c77f969864b93643d2d9833b899e5e6be3b63f01dcec89c335b6a8ecaf6"
+    },
+    {
+      "run": "final-old20001",
+      "source_commit": "589c4d095f189f76844b96d87bc80cd23c7a73e6",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_state_source",
+        "uncalled_",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "1bab6e34ce14fc022341c1db1ce772548ac67f4fea17c67d346f779082784f73"
+    },
+    {
+      "run": "final01",
+      "source_commit": "589c4d095f189f76844b96d87bc80cd23c7a73e6",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "--test",
+        "impl205_raw",
+        "--test",
+        "impl205_budget",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "a143fad73c7b80be8c7ad6f58361fafb2fe1da2362ad7deb67e893acc9213c4b"
+    },
+    {
+      "run": "legacy-raw-after01",
+      "source_commit": "bc8726b78346214f5359b73a415ddf36b3c77762",
+      "git_status": " M crates/zil-types/src/state_origins.rs\n?? crates/zil-driver/tests/impl205_budget.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_independent",
+        "raw_legacy_single_state_alias_cannot_depend_on_expand_having_checked_the_body",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "receipt_sha256": "4ead94967be3fe3a8c6f5af9a264f52c418e697d3b50767302a7fbd142871c91"
+    },
+    {
+      "run": "legacy-raw-before01",
+      "source_commit": "bc8726b78346214f5359b73a415ddf36b3c77762",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_independent",
+        "raw_legacy_single_state_alias_cannot_depend_on_expand_having_checked_the_body",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "receipt_sha256": "aa47472649157251c8503ce2eee3fe7188f8903978c2abbc7217f81acc76f6b1"
+    },
+    {
+      "run": "legacy-source01",
+      "source_commit": "bc8726b78346214f5359b73a415ddf36b3c77762",
+      "git_status": " M crates/zil-driver/tests/impl205_source.rs\n M crates/zil-types/src/state_origins.rs\n?? crates/zil-driver/tests/impl205_budget.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "legacy_",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "fe24512baddfbec7b4cfcd942d63a89d83cf966f1a867092100a0aa5b3ec8e9c"
+    },
+    {
+      "run": "old200-after01",
+      "source_commit": "96bd747dbd2ef50e915b42d495ca21e1faca3132",
+      "git_status": " M crates/zil-driver/tests/impl200_state_source.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_state_source",
+        "uncalled_",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "7949743d8cf44ade4d736d5eb4ad92dbe04fe426c7bf1cfa73553b0c22baf490"
+    },
+    {
+      "run": "old200-before01",
+      "source_commit": "96bd747dbd2ef50e915b42d495ca21e1faca3132",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl200_state_source",
+        "uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "receipt_sha256": "67857a4a6fc37ac21b337d0270b83ee0663051d86f9aabba38cc62df5ad00dc3"
+    },
+    {
+      "run": "raw01",
+      "source_commit": "946d8c8660193eead1cd399d25106ef620530889",
+      "git_status": "?? crates/zil-driver/tests/impl205_raw.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_raw",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "07fd93c0eb3971ba4b6a35291300fd0394d5ada130f37204d8369a1a8f599086"
+    },
+    {
+      "run": "raw02",
+      "source_commit": "96bd747dbd2ef50e915b42d495ca21e1faca3132",
+      "git_status": " M crates/zil-driver/tests/impl200_state_source.rs\n M crates/zil-driver/tests/impl205_raw.rs\n M crates/zil-driver/tests/impl205_source.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_raw",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "24fb9fafa63d75d2ad4bdca5e87590ba66802e340a401c2715e0bdeccf40cd73"
+    },
+    {
+      "run": "source01",
+      "source_commit": "ce3ed5cccbb8c0ba26dc7d427ea445c2a3afc638",
+      "git_status": "?? crates/zil-driver/tests/impl205_source.rs\n",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "674ecb7d513b5a58f0207854a6880d54c7b7e188805ce393e9cea4e81b1e1955"
+    },
+    {
+      "run": "source02",
+      "source_commit": "ce3ed5cccbb8c0ba26dc7d427ea445c2a3afc638",
+      "git_status": "?? crates/zil-driver/tests/impl205_source.rs\n",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "34ea0c44dc488bc32708e4e5e70bfa57c3da91425c701a7007432f2d0b3182df"
+    },
+    {
+      "run": "source03",
+      "source_commit": "ce3ed5cccbb8c0ba26dc7d427ea445c2a3afc638",
+      "git_status": "?? crates/zil-driver/tests/impl205_source.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "cc9f702af88fbb1139ab1584f29559e42f4e6d549f5719abaf68f47023da5a23"
+    },
+    {
+      "run": "source04",
+      "source_commit": "df567ee8d5c3672c61792799d0e1e9040e10544f",
+      "git_status": " M crates/zil-driver/tests/impl205_source.rs\n",
+      "status": "Fail",
+      "exit_code": 101,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "boundary_",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "07fd2baa9c21bacd080ed43b05b002c328318684504ee357f1d35774d44d2187"
+    },
+    {
+      "run": "source05",
+      "source_commit": "df567ee8d5c3672c61792799d0e1e9040e10544f",
+      "git_status": " M crates/zil-driver/tests/impl205_source.rs\n",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": [
+        "/workspace/scratch/39be3faa4442/toolchains178/rust-1.99.1/bin/cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_source",
+        "boundary_",
+        "--",
+        "--nocapture"
+      ],
+      "receipt_sha256": "3f584ea1371bc0d63a9059ecfef143b655cfc1cfbd5a824badfc9b5abc815fc8"
+    }
+  ]
+}

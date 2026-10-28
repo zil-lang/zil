@@ -83,17 +83,6 @@ fn compile(
     fs::write(case.0.join("compile.json"), report.to_json()).unwrap();
     report
 }
-fn accepted(label: &str, text: &str) {
-    let case = Case::new(label);
-    let report = compile(&case, &[("main", text)], None);
-    assert_eq!(
-        report.status,
-        ResultCategory::Success,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.verification_runs, 1, "{}", report.to_json());
-}
 fn rejected(label: &str, text: &str, phase: Phase, status: ResultCategory, message: &str) {
     let case = Case::new(label);
     let report = compile(&case, &[("main", text)], None);
@@ -240,15 +229,24 @@ fn original_corrected_preflight_inputs_reach_verify_unchanged() {
 
 #[test]
 fn original_uninstantiated_borrow_probe_is_only_a_definition_check() {
-    // The original preflight 12 never calls run. It cannot certify borrow
-    // rejection: the concrete attack below supplies an actual State instance.
+    // The original preflight 12 never calls run. In 197 its bad body was
+    // omitted before Core; 205 now rejects the same bytes during the source
+    // definition check. This is not an execution or independent Verify proof.
     let text = include_str!("impl197_cases/12-mixed-held-field-window-negative/main.zil");
     let source = SourceUnit::new(FileId(0), ModuleId(0), "uninstantiated197.zil", text);
     let ast = zil_syntax::parse(&source).into_result().unwrap();
-    let core = zil_expand::expand(&source, &ast).unwrap();
-    assert_eq!(core.functions.len(), 1);
-    assert_eq!(core.functions[0].name, "main");
-    accepted("original-unused-window", text);
+    let errors = zil_expand::expand(&source, &ast).unwrap_err();
+    assert!(errors.iter().any(|d| d.phase == Phase::Expand
+        && d.category == ResultCategory::SafeReject
+        && d.code == "E-GENERIC-ARGUMENT"
+        && d.message == "State alias outlives a moved or replaced field"));
+    rejected(
+        "original-unused-window",
+        text,
+        Phase::Expand,
+        ResultCategory::SafeReject,
+        "State alias outlives a moved or replaced field",
+    );
 }
 
 #[test]
@@ -340,12 +338,14 @@ fn factory()->impl FnMut(&mut i32)->i32{var count=0;return move(value:&mut i32)=
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
     assert!(
         report
             .diagnostics
             .iter()
-            .any(|d| d.code.starts_with("E-BORROW")),
+            .any(|d| d.code == "E-GENERIC-ARGUMENT"
+                && d.message == "State alias outlives a moved or replaced field"),
         "{}",
         report.to_json()
     );

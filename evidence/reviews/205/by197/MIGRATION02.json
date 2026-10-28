@@ -1,0 +1,32 @@
+{
+  "reviewer": "/root/impl197",
+  "reviewed_commit": "9b9e2c6bf84a26148de8ca868b5d7ebdc401d58e",
+  "scope": "Read-only original138 promotion only; other owning-shape negatives unchanged",
+  "file": "crates/zil-driver/tests/impl200_state_source.rs",
+  "migration_diff_sha256": "b8cba6ba58251378ca5058686cbacdfc337762490591e257cbed8218a1c1520d",
+  "original_source": {
+    "bytes": 138,
+    "sha256": "5251f83be296a6273532690540cfde459938f39801afc614ba1cbb672df2b05a",
+    "old_literal_equals_new_literal_equals_independent_fixture": true
+  },
+  "findings": [
+    "Same original unused State plus replacement source moved from negative loop into a named success test",
+    "New test asserts Success at Verify, exactly one verification run and no executable",
+    "Remaining two-states, borrowed-inputs, repeated field and existing definition controls unchanged",
+    "This test checks acceptance of an unused definition; its main does not execute replace"
+  ],
+  "own_original_source_execution": {
+    "command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/source04/command.json",
+      "sha256": "b28a6bf9f16df3ef14e62fde79ba3e6064b65f54d0f41a3b6d5f38e5cd738927",
+      "source_commit": "4511b0e72593277e13c2aca3d85c3ac3ac214d14",
+      "source_clean": true,
+      "source_status_after": "",
+      "exit_code": 0
+    },
+    "test": "original_138_bytes_become_a_checked_unused_definition",
+    "meaning": "Same 138 bytes independently Success/Verify1 without native; does not claim execution of this migrated old test target"
+  },
+  "author_old_and_new_execution": "Original old200-before01 failure and after01 three-group pass are separately retained in evidence/impl/205/types/SUMMARY.json; not credited as reviewer execution",
+  "verdict": "Pass for the precise migration; 205 overall acceptance remains pending"
+}

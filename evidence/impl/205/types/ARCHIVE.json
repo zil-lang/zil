@@ -1,0 +1,113 @@
+{
+  "integrity": "Pass",
+  "path": "/workspace/scratch/39be3faa4442/deliverables/205-types-evidence-compact.zip",
+  "bytes": 2331489,
+  "sha256": "b99d72a9957836f61d955153d645f871e17dde2f3fc002e99adc57e7da1209d0",
+  "statistics": {
+    "logical_files": 2914,
+    "logical_bytes": 173485255,
+    "unique_contents": 863,
+    "unique_bytes": 45620621,
+    "excluded_execution_products": 128
+  },
+  "test_execution": "NotRun by packager",
+  "source_summary_sha256": "3bf9f382125341db14196fd52aff3f7077dadc1a72f11d6613742add537c9ba7",
+  "final_validation_commit": "589c4d095f189f76844b96d87bc80cd23c7a73e6",
+  "pack_tool_source": "tools/language/204/compact_evidence.py at 589c4d095f189f76844b96d87bc80cd23c7a73e6 (unchanged accepted 204 tool)",
+  "first_attempt": {
+    "result": "Fail before creating archive: configuration omitted inputs_frozen",
+    "command": {
+      "command": [
+        "python3",
+        "tools/language/204/compact_evidence.py",
+        "pack",
+        "/workspace/scratch/39be3faa4442/run-logs/205-types-pack/INPUTS.json",
+        "/workspace/scratch/39be3faa4442/deliverables/205-types-evidence-compact.zip"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+      "start": 1793205471.0108247,
+      "source_commit": "589c4d095f189f76844b96d87bc80cd23c7a73e6",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": null,
+        "CARGO_INCREMENTAL": null,
+        "CARGO_PROFILE_DEV_DEBUG": null,
+        "CARGO_PROFILE_TEST_DEBUG": null,
+        "ZIL_TEST_REPORT_DIR": null,
+        "ZIL_CLANG": null
+      },
+      "status": "Fail",
+      "exit_code": 1,
+      "end": 1793205471.365507,
+      "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr.log_sha256": "fe0fe60c66140433278199cf9bf6903308bf0d59bec88d52774ee71ccac5aac9"
+    },
+    "inputs": {
+      "scope": "205 Types author text/source/IR/commands with exact failures; no product/full-workspace acceptance",
+      "notes": [
+        "Final actual clean589c4d09; historical dirty runs retain exact identities and relevant source snapshots.",
+        "Native programs and objects are hash-only; no test reruns by packaging."
+      ],
+      "sources": [
+        {
+          "id": "types-author",
+          "component": "types",
+          "kind": "directory",
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-types"
+        }
+      ]
+    },
+    "stderr": "Traceback (most recent call last):\n  File \"/workspace/scratch/39be3faa4442/language14/wt195/tools/language/204/compact_evidence.py\", line 411, in <module>\n    main()\n  File \"/workspace/scratch/39be3faa4442/language14/wt195/tools/language/204/compact_evidence.py\", line 402, in main\n    result = pack(args.inputs, args.output, args.max_bytes)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/workspace/scratch/39be3faa4442/language14/wt195/tools/language/204/compact_evidence.py\", line 237, in pack\n    raise ValueError(\"inputs are not yet frozen; no archive created\")\nValueError: inputs are not yet frozen; no archive created\n"
+  },
+  "publication_command": {
+    "command": [
+      "python3",
+      "tools/language/204/compact_evidence.py",
+      "pack",
+      "/workspace/scratch/39be3faa4442/run-logs/205-types-pack/INPUTS-frozen.json",
+      "/workspace/scratch/39be3faa4442/deliverables/205-types-evidence-compact.zip"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+    "start": 1793205492.4793558,
+    "source_commit": "589c4d095f189f76844b96d87bc80cd23c7a73e6",
+    "git_status": "",
+    "environment": {
+      "CARGO_TARGET_DIR": null,
+      "CARGO_INCREMENTAL": null,
+      "CARGO_PROFILE_DEV_DEBUG": null,
+      "CARGO_PROFILE_TEST_DEBUG": null,
+      "ZIL_TEST_REPORT_DIR": null,
+      "ZIL_CLANG": null
+    },
+    "status": "Pass",
+    "exit_code": 0,
+    "end": 1793205496.8777704,
+    "stdout.log_sha256": "967c2fd7bfe09d7a91abf8f701282ab57153986c7fd01fa913a5a613127f7a56",
+    "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "verify_command": {
+    "command": [
+      "python3",
+      "tools/language/204/compact_evidence.py",
+      "verify",
+      "/workspace/scratch/39be3faa4442/deliverables/205-types-evidence-compact.zip"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+    "start": 1793205663.6231787,
+    "source_commit": "589c4d095f189f76844b96d87bc80cd23c7a73e6",
+    "git_status": "",
+    "environment": {
+      "CARGO_TARGET_DIR": null,
+      "CARGO_INCREMENTAL": null,
+      "CARGO_PROFILE_DEV_DEBUG": null,
+      "CARGO_PROFILE_TEST_DEBUG": null,
+      "ZIL_TEST_REPORT_DIR": null,
+      "ZIL_CLANG": null
+    },
+    "status": "Pass",
+    "exit_code": 0,
+    "end": 1793205663.9157877,
+    "stdout.log_sha256": "6c4eb848828ee981a4cebb934d45caaadd9d57985d328a5ce9b60e74ad9b4c69",
+    "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

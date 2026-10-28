@@ -1,0 +1,353 @@
+{
+  "schema_version": 1,
+  "task": "205",
+  "reviewer": "/root/review205_finish",
+  "earlier_independent_reviewer": "/root/impl197",
+  "implementation_author": "/root",
+  "production_authorship": "None by either independent reviewer",
+  "implementation_commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+  "implementation_tree": "ab96a884565f4f7a0193f228ab4a7d4138b44381",
+  "verdict": "Pass",
+  "scope": "Finite design §8.2.3 State<T,F> plus one independently owned same-F replacement; not full ZIL1.4 or B0 completion",
+  "spec_hash": "71d03d540f73b8f3835c8f2198c99a8074f9abdce0f58284c3c9df1f0d17c560",
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "identity": {
+    "read_only_audit_command": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-final01/command/command.json",
+      "bytes": 772,
+      "sha256": "10704669d8a1e9a2808c84fd0a676b42cb0812be39db7a56d04c408d686bc9bc"
+    },
+    "read_only_audit_script": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-final01/audit.py",
+      "bytes": 7259,
+      "sha256": "ab022093b1335991796ef1a73cd92ad37a4ad7e1d075d7962f7e19acdcc3d8c9"
+    },
+    "proof": "evidence/reviews/205/by197/FINAL_IDENTITY.json",
+    "matching_compiler_inputs": 178,
+    "compiler_source_commit": "54452f8a50eb494c7c444bca3a9682802246284f",
+    "cli_sha256": "8cf2524495bc1fb1ac59fad705ead558c4c6f72fb200b5b21dc871ef22a5e323",
+    "final_test_sources_match_candidate": true,
+    "reviewer_checkout_before_record": "7ee4de7dd436399a97c06374d991617fef1586a2"
+  },
+  "findings": [
+    "Full nominal/phantom T and actual ClosureId equality survive the State plus replacement entry. One/two callback fields and the replacement remain distinct source-order values, positions and cleanup responsibilities.",
+    "Uninstantiated ordinary-T/non-T State bodies receive real move/alias checks. Source early rejection is not counted as Verify execution. Both public raw Core Types entries independently check unused definitions and malformed heads.",
+    "Fn/FnMut/FnOnce declaration modes survive forwarding even when a concrete closure is stronger. Wrong factory, wrong nominal type, repeated consumption, stale alias and prepared-window neighbors remain rejected.",
+    "The loop repairs keep current-local/generation facts, preserve stale aliases and body-local retirement boundaries, and have separate independent actual 0/1/3-iteration and raw counterexample evidence.",
+    "The single-F producer reaches ordinary complete-T helpers without granting Store qualification. Complete State relay forwarding substitutes only direct F field sources, not the whole Package. Independent multi-factory mutable controls close the final177 regression.",
+    "CT performs bounded runtime-template transport and does not execute owning templates or grant ownership proof. Plain/context/driver and wrapper boundaries retain their actual evidence levels.",
+    "Source-derived raw TypedIR/Wire attacks reject duplicate transfers, missing/wrong field discharge and prepared-window corruption.205 changes no Analyze/Verify production; raw memory-safety checks are not claimed to reconstruct weaker source bounds.",
+    "The original138 promotion and exact diagnostic/budget migrations preserve source bytes and old failures. N/N−1/fresh comparisons preserve complete outputs, default limits and product conditions."
+  ],
+  "independent_execution": {
+    "earlier_cli03_source_raw_wire_ct": {
+      "source_commit": "70f91cbff7319a71cb0fede9c1d1f93ca129d444",
+      "command": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/source05/command.json",
+        "bytes": 1664,
+        "sha256": "eb32c4d80026e8722c7d9c12cd2978d26bc4be3af0e77a111c83c5833d2b8c7d"
+      },
+      "source_raw_wire_tests": 25,
+      "ct_tests": 4,
+      "failed": 0,
+      "native_successes": 38,
+      "attribution": "Earlier exact candidate, not relabelled final"
+    },
+    "earlier_producer_cross": {
+      "source_commit": "fe3b3c8d386170a971124e251cf519db555f8904",
+      "tests": [
+        1,
+        0
+      ],
+      "native_successes": 4,
+      "record": "run-logs/205-review-by197/producer-cross01"
+    },
+    "final_repairs": {
+      "record": "evidence/reviews/205/by197/CLI04_PROGRESS.json",
+      "new_actual_forwarding": {
+        "tests": [
+          1,
+          0
+        ],
+        "native_successes": 2,
+        "stdout": "ADMZFEZCB",
+        "source_commit": "dc55eed2d685494f5aa84782f1d19cfcf9fb0dc6"
+      },
+      "original177": {
+        "tests": [
+          1,
+          0
+        ],
+        "native_successes": 4,
+        "original867_sha256": "dc68299194fcc8dcea73fad37540a270bf16fe497235a8c6858d1bff750e199e",
+        "original867_native_successes": 2,
+        "stdout": "ZA"
+      },
+      "raw_legacy_forwarding": {
+        "tests": [
+          1,
+          0
+        ],
+        "inputs": 10,
+        "public_types_entries_per_input": 2
+      },
+      "old_budget": {
+        "tests": [
+          1,
+          0
+        ],
+        "old_work": [
+          4241,
+          11851,
+          11792
+        ],
+        "new_work": [
+          6326,
+          29030,
+          29566
+        ],
+        "locals": [
+          16,
+          39,
+          40
+        ],
+        "functions": [
+          5,
+          7,
+          8
+        ]
+      },
+      "exact_phase_replay": {
+        "inputs": 6,
+        "matched": 6,
+        "unsafe_native": "NotRun"
+      },
+      "execution_source_except_new_forwarding": "2dec56f70cd4de5a2d45445e9b2b008aa7f947a2"
+    },
+    "final_linux_consumer": {
+      "source_commit": "2dec56f70cd4de5a2d45445e9b2b008aa7f947a2",
+      "compiler_source_commit": "54452f8a50eb494c7c444bca3a9682802246284f",
+      "cli_sha256": "8cf2524495bc1fb1ac59fad705ead558c4c6f72fb200b5b21dc871ef22a5e323",
+      "executions": 140,
+      "ordinary": 20,
+      "instrumented": 120,
+      "actual_allocation_failures": 88,
+      "observed_live": 0,
+      "peak_live": 4,
+      "peak_bytes": 264,
+      "same_five_sources_and_oracles_as_cli03": true,
+      "record": "run-logs/205-review-followup/linux02/summary.json"
+    },
+    "full_workspace": "NotRun by reviewer; root recorded execution audited separately",
+    "counting": "Separate runs and authors; overlapping cases are not added into a unique-test total"
+  },
+  "root_formal_validation": {
+    "source_commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+    "source_clean_before_and_after": true,
+    "workspace": {
+      "passed": 2552,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 259,
+      "command": {
+        "receipt": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/workspace02/command.json",
+          "bytes": 909,
+          "sha256": "8b557b7f006516a70ff30a8f9f00eff0eadff5865d9b136890de44759dfff6f6"
+        },
+        "stdout": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/workspace02/stdout.log",
+          "bytes": 228134,
+          "sha256": "e06671dcd2ee97175e490b5876d218b937110c03b823ae1903af14baad796ca5"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/workspace02/stderr.log",
+          "bytes": 29562,
+          "sha256": "6c3fd5c03a4fb45a1455983eada62040dbf9529ed79b600f6041ba0e94029ba3"
+        },
+        "source_commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+        "status": "Pass"
+      },
+      "counts": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/workspace02/COUNTS.json",
+        "bytes": 308,
+        "sha256": "831b053384584b02de70f55689a85fd901f18329e7957f46ae9960dacf4aa91d"
+      }
+    },
+    "clippy": {
+      "receipt": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/clippy-final02/command.json",
+        "bytes": 910,
+        "sha256": "7a99f54061d34a388b4f7569111d7c81908bb7f348265a4f55cb08fd0cc4f003"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/clippy-final02/stdout.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/clippy-final02/stderr.log",
+        "bytes": 1388,
+        "sha256": "e0d8f58b8873ff63f8705f22a81c566b10a5c84b805221f3c69bf3932ea51a51"
+      },
+      "source_commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+      "status": "Pass"
+    },
+    "profile_difference": {
+      "plan": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-root/workspace02-plan.json",
+        "bytes": 2955,
+        "sha256": "fdb7c38cef8ef85bfae4b82b80f24e07c08e81326f5fe68ef4c2410b1cf6091c"
+      },
+      "CARGO_PROFILE_TEST_STRIP": "symbols",
+      "host_test_binary": {
+        "observation": "NotAvailable"
+      },
+      "distinction": "Final host Rust test executables are not claimed byte-identical to first workspace or reviewer test executables. Final run is functional validation on its declared profile, not a timing or performance comparison. Compiler source, language oracle, limits and frozen CLI04 remain unchanged."
+    }
+  },
+  "author_consumers": {
+    "source_commit": "54452f8a50eb494c7c444bca3a9682802246284f",
+    "cli_sha256": "8cf2524495bc1fb1ac59fad705ead558c4c6f72fb200b5b21dc871ef22a5e323",
+    "linux": {
+      "executions": 140,
+      "actual_allocation_failures": 88,
+      "live": 0
+    },
+    "wine_compatibility": {
+      "executions": 140,
+      "actual_allocation_failures": 88,
+      "live": 0,
+      "bad_operations": 0
+    },
+    "attribution": "Author execution; Wine is not native Windows; independent execution remains separate",
+    "records": {
+      "same_five_modules_and_oracles_as_cli03": true,
+      "same_cli04_across_author_linux_wine_and_independent_linux": true,
+      "independent_linux_summary": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup/linux02/summary.json",
+        "bytes": 81089,
+        "sha256": "1e3463ca36c0532e44b2ec517cffb8a7b0655513930ac32e2608789cde845dfd"
+      },
+      "author_linux_summary": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-consumer-followup/linux01/summary.json",
+        "bytes": 81029,
+        "sha256": "f32c6b84b0137726b40683668ac105fbb7a17e5a97d64e973608cd5b5b62ed3b"
+      },
+      "author_wine_summary": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/205-consumer-followup/wine01/summary.json",
+        "bytes": 85127,
+        "sha256": "e6026018a9ab65981fbc32aa4ef054e969b603cabee4c57b671b3f4a7a8c1f3e"
+      },
+      "execution_counts_kept_separate": true
+    }
+  },
+  "retained_failures": {
+    "workspace01": {
+      "source_commit": "0317a093ade0118741d334c45438ade07e9d7228",
+      "passed": 2544,
+      "failed": 6,
+      "ignored": 0,
+      "status": "Fail"
+    },
+    "clippy_final01": {
+      "source_commit": "cb24b2e53e55ae18eb881205e4b5cd8a8e83fda4",
+      "status": "Fail",
+      "cause": "Unused accepted test helper; 2db3 removes11 lines without changing input, oracle or production"
+    },
+    "earlier_source_raw_loop_producer_infrastructure_oracle_failures": "Preserved at their original identities in prior receipts and archives; no retrospective Pass"
+  },
+  "archives": [
+    {
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-review-cli03-evidence-compact.zip",
+      "bytes": 3188592,
+      "sha256": "f96c3e24860276437853cef45b3b4706edb6dbe23809603aae1c6ca0c6881a19"
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/deliverables/205-review-cli04-evidence-compact.zip",
+      "bytes": 890675,
+      "sha256": "e8a0fbadea97f4a66754c40237b7b53c17b56aeee2f6d30eba4f1cf39d938932"
+    }
+  ],
+  "supporting_receipts": {
+    "BASELINE.json": {
+      "git_path": "evidence/reviews/205/by197/BASELINE.json",
+      "bytes": 3986,
+      "sha256": "45dd888556ce4d48c8aa50234da94f3cd8e27e1af6ad077dca6662a483223562"
+    },
+    "BASELINE_NON_T.json": {
+      "git_path": "evidence/reviews/205/by197/BASELINE_NON_T.json",
+      "bytes": 1201,
+      "sha256": "663baa0941e4c2e97a5bc97b26156280ac5cd7c778075a6635b1e2c14ffd9126"
+    },
+    "PROGRESS01.json": {
+      "git_path": "evidence/reviews/205/by197/PROGRESS01.json",
+      "bytes": 11129,
+      "sha256": "7805db9e2458d767e4dc6ef5aaf3e8e6556813a6c123594728dbaeaf4263bd3f"
+    },
+    "PROGRESS02.json": {
+      "git_path": "evidence/reviews/205/by197/PROGRESS02.json",
+      "bytes": 4747,
+      "sha256": "3cd728846dc914f9be9e3fce1ee6534e363906a2667c32138d7ee040fcf20f2a"
+    },
+    "MIGRATION01.json": {
+      "git_path": "evidence/reviews/205/by197/MIGRATION01.json",
+      "bytes": 2894,
+      "sha256": "144984d4684c5549e258e30f5ab55510a81de6ad203fc6f93f826756d3e756b1"
+    },
+    "MIGRATION02.json": {
+      "git_path": "evidence/reviews/205/by197/MIGRATION02.json",
+      "bytes": 1848,
+      "sha256": "b6c8391895186f7f9f0b8deb9870cbff60989056ab7030721f87616d078e4054"
+    },
+    "MIGRATION03.json": {
+      "git_path": "evidence/reviews/205/by197/MIGRATION03.json",
+      "bytes": 15616,
+      "sha256": "3468a1211fdc3735f941f709322f0dfdf756046f6566e649068769ae4b4059a1"
+    },
+    "STATIC_EXPAND.json": {
+      "git_path": "evidence/reviews/205/by197/STATIC_EXPAND.json",
+      "bytes": 3409,
+      "sha256": "c17a69ca530d7aa8874d2cfd492f52bf807e0466645abb2fc426bce3299bf6cb"
+    },
+    "STATIC_TYPES_LOOP.json": {
+      "git_path": "evidence/reviews/205/by197/STATIC_TYPES_LOOP.json",
+      "bytes": 4765,
+      "sha256": "104c2a486d8bad90769dd9c8b4540918ee8dfa2eea2acf73dd03c2448c19bf60"
+    },
+    "STATIC_LEGACY_FORWARD.json": {
+      "git_path": "evidence/reviews/205/by197/STATIC_LEGACY_FORWARD.json",
+      "bytes": 7719,
+      "sha256": "4d5958d1c2b44781ffab62fff3533262dfee77753c3eafa121da24085e684016"
+    },
+    "CLI04_PROGRESS.json": {
+      "git_path": "evidence/reviews/205/by197/CLI04_PROGRESS.json",
+      "bytes": 2304,
+      "sha256": "23d5b2ad7ffd10b001238fc7a9ebb6a577d00415ddbe7283b82bf7521e868261"
+    },
+    "CLI03_INTERIM_ARCHIVE.json": {
+      "git_path": "evidence/reviews/205/by197/CLI03_INTERIM_ARCHIVE.json",
+      "bytes": 16256,
+      "sha256": "753e9ca9df2e37a9b8e7014023529cb543503ff9c39ea26bcbd3447186d28719"
+    },
+    "CLI04_ARCHIVE.json": {
+      "git_path": "evidence/reviews/205/by197/CLI04_ARCHIVE.json",
+      "bytes": 1633,
+      "sha256": "91bb8c948566b6e4bbf6e691be187f67c9743c0fe5c9b3ede4fcb6152f0d8bf7"
+    },
+    "FINAL_IDENTITY.json": {
+      "git_path": "evidence/reviews/205/by197/FINAL_IDENTITY.json",
+      "bytes": 47699,
+      "sha256": "626a22e6d51a6311fcdaf431db2c073e613b05f1e9fa38e601c56fc55979de78"
+    }
+  },
+  "remaining_boundaries": [
+    "Two State inputs, borrowed State updates, multiple replacements, F/G mixed updates, nested callback fields, erased/dynamic callable paths and growing recursion are outside205.",
+    "General nested owning Product, retained/lending abstraction, hygiene/Syntax, suspension/concurrency and other1.4 obligations remain required.",
+    "Final archive/container verification, offline Git synchronization and compiler speed results are separate from this language verdict."
+  ],
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_windows": "NotRun"
+}

@@ -59,7 +59,7 @@ struct MoveWalk<'a, 's> {
     generation: u64,
     flow: MoveFlow,
     loops: Vec<(Option<MoveFlow>, Option<MoveFlow>)>,
-    loop_alias_uses: Vec<std::collections::BTreeSet<u64>>,
+    loop_alias_uses: Vec<std::collections::BTreeSet<(AliasKey, u64)>>,
     state: &'s mut closures::State,
     limits: &'a Limits,
 }
@@ -169,7 +169,7 @@ impl MoveWalk<'_, '_> {
                     )),
                     span,
                 )?;
-                uses.extend(values.iter().map(|alias| alias.borrowed_at));
+                uses.extend(values.iter().map(|alias| (key, alias.borrowed_at)));
             }
         }
         Ok(())
@@ -713,7 +713,7 @@ impl MoveWalk<'_, '_> {
         &mut self,
         value: &CoreExpr,
         depth: usize,
-    ) -> R<std::collections::BTreeSet<u64>> {
+    ) -> R<std::collections::BTreeSet<(AliasKey, u64)>> {
         self.state
             .snapshot(self.loop_alias_uses.len().saturating_add(1), value.span)?;
         self.loop_alias_uses.push(Default::default());
@@ -723,12 +723,42 @@ impl MoveWalk<'_, '_> {
             .pop()
             .expect("State condition alias uses"))
     }
+    fn retire_loop_locals(
+        &mut self,
+        mut flow: MoveFlow,
+        first_local: u32,
+        span: Span,
+    ) -> R<MoveFlow> {
+        // Break/continue snapshots precede the lexical block's pop_scope.
+        // Retire only locals born inside this loop body. References copied
+        // into an outer local keep their now-invalid original parent.
+        self.state.snapshot(flow.work(), span)?;
+        flow.moved.retain(|(root, _)| *root < first_local);
+        let generation = self.next_generation(span)?;
+        let mut removed = 0usize;
+        flow.aliases.retain(|key, values| {
+            if matches!(key, AliasKey::Local(root) if *root >= first_local) {
+                removed = values
+                    .iter()
+                    .fold(removed, |n, alias| n.saturating_add(alias.work()));
+                return false;
+            }
+            for alias in values {
+                if alias.parent.0 >= first_local {
+                    alias.invalidated_at.get_or_insert(generation);
+                }
+            }
+            true
+        });
+        flow.alias_entries -= removed;
+        Ok(flow)
+    }
     fn loop_body(
         &mut self,
         body: &CoreBlock,
         before: MoveFlow,
         exit: MoveFlow,
-        condition_uses: std::collections::BTreeSet<u64>,
+        condition_uses: std::collections::BTreeSet<(AliasKey, u64)>,
         depth: usize,
     ) -> R<()> {
         self.state.snapshot(
@@ -740,11 +770,13 @@ impl MoveWalk<'_, '_> {
         )?;
         self.loops.push((None, None));
         self.loop_alias_uses.push(condition_uses);
+        let first_local = self.next;
         self.block(body, depth + 1)?;
         let (breaks, continues) = self.loops.pop().expect("State move loop");
         let used = self.loop_alias_uses.pop().expect("State alias loop");
         let mut back = self.snapshot_flow(body.span)?;
         if let Some(continues) = continues {
+            let continues = self.retire_loop_locals(continues, first_local, body.span)?;
             back = self.join(back, continues, body.span)?;
         }
         self.state.snapshot(
@@ -759,46 +791,39 @@ impl MoveWalk<'_, '_> {
             ));
         }
         if back.live {
-            self.state.snapshot(
-                before
-                    .alias_entries
-                    .saturating_mul(helpers::plan::tree_work(used.len()))
-                    .saturating_add(before.aliases.len()),
-                body.span,
-            )?;
-            self.state.snapshot(
-                before
-                    .alias_entries
-                    .saturating_mul(helpers::plan::tree_work(before.alias_entries)),
-                body.span,
-            )?;
-            let previous = before
-                .aliases
-                .values()
-                .flatten()
-                .filter(|alias| used.contains(&alias.borrowed_at))
-                .map(|alias| alias.borrowed_at)
-                .collect::<std::collections::BTreeSet<_>>();
-            self.state.snapshot(
-                back.alias_entries
-                    .saturating_mul(helpers::plan::tree_work(previous.len()))
-                    .saturating_add(back.aliases.len()),
-                body.span,
-            )?;
-            if back.aliases.values().flatten().any(|alias| {
-                alias.invalidated_at.is_some() && previous.contains(&alias.borrowed_at)
-            }) {
-                return Err(error(
-                    "E-STATE-ALIAS",
+            self.state.snapshot(used.len(), body.span)?;
+            for (key, borrowed_at) in used {
+                self.state.snapshot(
+                    helpers::plan::tree_work(before.aliases.len())
+                        .saturating_add(helpers::plan::tree_work(back.aliases.len())),
                     body.span,
-                    "a repeated loop path would reuse an invalidated State field alias",
-                ));
+                )?;
+                let prior = before.aliases.get(&key).map_or(&[][..], Vec::as_slice);
+                self.state.snapshot(prior.len(), body.span)?;
+                if !prior.iter().any(|alias| alias.borrowed_at == borrowed_at) {
+                    continue;
+                }
+                // The next iteration reads this actual local's current
+                // source. An obsolete Expression snapshot is re-evaluated,
+                // while a stale copied local remains independently invalid.
+                // Check every current version, including one freshly bound
+                // and then invalidated during this iteration.
+                let current = back.aliases.get(&key).map_or(&[][..], Vec::as_slice);
+                self.state.snapshot(current.len(), body.span)?;
+                if current.iter().any(|alias| alias.invalidated_at.is_some()) {
+                    return Err(error(
+                        "E-STATE-ALIAS",
+                        body.span,
+                        "a repeated loop path would reuse an invalidated State field alias",
+                    ));
+                }
             }
         }
         // A loop can replace a field and therefore restore its owning
         // position while permanently invalidating an older borrowed alias.
         let exit = self.join(exit, back, body.span)?;
         self.flow = if let Some(breaks) = breaks {
+            let breaks = self.retire_loop_locals(breaks, first_local, body.span)?;
             self.join(exit, breaks, body.span)?
         } else {
             exit
@@ -1016,20 +1041,37 @@ pub(super) fn bounds(function: &CoreFunction) -> Cow<'_, [CoreCallableParameter]
     let Some(state) = function.state_parameters.first() else {
         return Cow::Borrowed(&function.callable_parameters);
     };
-    Cow::Owned(
-        state
-            .bindings
-            .iter()
-            .map(|binding| CoreCallableParameter {
-                index: state.index,
-                generic_index: binding.generic_index,
-                generic_name: binding.generic_name.clone(),
-                kind: binding.kind,
-                parameters: binding.parameters.clone(),
-                result: binding.result.clone(),
-            })
-            .collect(),
-    )
+    let mut bindings: Vec<_> = state
+        .bindings
+        .iter()
+        .map(|binding| CoreCallableParameter {
+            index: state.index,
+            generic_index: binding.generic_index,
+            generic_name: binding.generic_name.clone(),
+            kind: binding.kind,
+            parameters: binding.parameters.clone(),
+            result: binding.result.clone(),
+        })
+        .collect();
+    if replacement(function) {
+        bindings.extend(function.callable_parameters.iter().cloned());
+    }
+    Cow::Owned(bindings)
+}
+
+/// This classifies only the new finite table shape. validate_header/shape must
+/// still check the actual types, positions and complete declaration contract.
+pub(super) fn replacement(function: &CoreFunction) -> bool {
+    matches!(function.state_parameters.as_slice(), [state] if state.bindings.len() == 1)
+        && function.callable_parameters.len() == 1
+}
+
+pub(super) fn replacement_signature(signature: &Signature) -> bool {
+    signature
+        .state_parameter
+        .as_ref()
+        .is_some_and(|state| state.bindings.len() == 1)
+        && signature.callable.len() == 2
 }
 
 pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
@@ -1046,6 +1088,37 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
     let [state] = function.state_parameters.as_slice() else {
         return Err(reject());
     };
+    if replacement(function) {
+        let binding = &state.bindings[0];
+        let direct = &function.callable_parameters[0];
+        if !function.type_parameters.is_empty()
+            || function.callable_return.is_some()
+            || function.foreign.is_some()
+            || function.receiver.is_some()
+            || state.index as usize >= function.parameters.len()
+            || direct.index as usize >= function.parameters.len()
+            || state.index == direct.index
+            || function.parameters[state.index as usize].mode != PassingMode::Infer
+            || function.parameters[direct.index as usize].mode != PassingMode::Infer
+            || !matches!(&function.parameters[direct.index as usize].ty,
+                Type::Named(name) if name == &binding.generic_name)
+            || binding.generic_index != 0
+            || direct.generic_index != 0
+            || binding.generic_name.is_empty()
+            || binding.kind == CallableKind::FunctionPointer
+            || !(1..=2).contains(&binding.fields.len())
+            || binding.fields.windows(2).any(|pair| pair[0] >= pair[1])
+            || !binding.result.is_copy_value()
+            || !closures::supported_signature(&binding.parameters, &binding.result)
+            || direct.generic_name != binding.generic_name
+            || direct.kind != binding.kind
+            || direct.parameters != binding.parameters
+            || direct.result != binding.result
+        {
+            return Err(reject());
+        }
+        return Ok(());
+    }
     if !function.callable_parameters.is_empty()
         || !function.type_parameters.is_empty()
         || function.callable_return.is_some()
@@ -1092,6 +1165,41 @@ pub(super) fn validate_shape(function: &CoreFunction) -> R<()> {
     let Type::Package { fields, .. } = &function.parameters[state.index as usize].ty else {
         return Err(reject());
     };
+    if replacement(function) {
+        let binding = &state.bindings[0];
+        let direct = &function.callable_parameters[0];
+        if function.return_type != function.parameters[state.index as usize].ty
+            || function
+                .parameters
+                .iter()
+                .enumerate()
+                .any(|(index, parameter)| {
+                    index != state.index as usize
+                        && index != direct.index as usize
+                        && !parameter.ty.is_copy_value()
+                })
+        {
+            return Err(reject());
+        }
+        let mut covered = 0;
+        for (index, (_, ty)) in fields.iter().enumerate() {
+            if matches!(ty, Type::Named(name) if name == &binding.generic_name) {
+                if binding.fields.get(covered).copied() != Some(index as u32) {
+                    return Err(reject());
+                }
+                covered += 1;
+            } else if !(ty.is_copy_value()
+                || matches!(ty, Type::Managed(_) if resources::supported(ty)))
+            {
+                return Err(reject());
+            }
+        }
+        return if covered == binding.fields.len() {
+            Ok(())
+        } else {
+            Err(reject())
+        };
+    }
     let mut covered = 0;
     for (index, (_, ty)) in fields.iter().enumerate() {
         if let Some(binding) = state
@@ -1312,7 +1420,24 @@ pub(super) fn collect(
     state: &mut closures::State,
     limits: &Limits,
 ) -> R<Option<Uses>> {
+    // The older single-State encoding places its one bound in the direct
+    // table. A real owned Package input still needs declaration checking when
+    // unused; no synthetic public State table or concrete environment is made.
+    let span = function.span;
+    let legacy_candidate = function.state_parameters.is_empty()
+        && matches!(function.callable_parameters.as_slice(), [bound]
+            if function.parameters.get(bound.index as usize)
+                .is_some_and(|parameter| matches!(parameter.ty, Type::Package { .. })));
+    // Bound the complete legacy header/body before its classification scan and
+    // any snapshots. Profiles without this actual Package input stay on their
+    // original fast path and retain their existing charges.
+    if legacy_candidate {
+        let (work, _) = inference::helper_snapshot_work(function, limits)?;
+        state.snapshot(work, span)?;
+    }
+    let legacy_state = legacy_candidate && callable_fields::template(function);
     if function.state_parameters.is_empty()
+        && !legacy_state
         && !callable_fields::dual_constructor(
             &function.callable_parameters,
             &function.return_type,
@@ -1321,9 +1446,10 @@ pub(super) fn collect(
     {
         return Ok(None);
     }
-    let span = function.span;
-    let (work, _) = inference::helper_snapshot_work(function, limits)?;
-    state.snapshot(work, span)?;
+    if !legacy_candidate {
+        let (work, _) = inference::helper_snapshot_work(function, limits)?;
+        state.snapshot(work, span)?;
+    }
     let bounds = bounds(function).into_owned();
     let tables = state.helper_tables.clone();
     let mut walk = Walk {
@@ -1333,6 +1459,7 @@ pub(super) fn collect(
         scopes: vec![BTreeMap::new()],
         expressions: BTreeMap::new(),
         capture: false,
+        position_liveness: replacement(function) || legacy_state,
         live: 1,
         loops: Vec::new(),
         state,
@@ -1359,6 +1486,9 @@ struct Walk<'a, 's> {
     scopes: Vec<BTreeMap<String, Shape>>,
     expressions: BTreeMap<NodeId, Shape>,
     capture: bool,
+    // One F may name two fields plus a direct replacement. Its declaration
+    // kind is shared; MoveWalk owns each actual position and refill lifetime.
+    position_liveness: bool,
     // Four possible consumed-slot masks for this declaration's two distinct
     // sources. This is source capability checking, not a concrete loan proof.
     live: u8,
@@ -1556,6 +1686,111 @@ impl Walk<'_, '_> {
         }
         Ok(())
     }
+
+    fn replacement_substitutions(
+        &mut self,
+        signature: &Signature,
+        arguments: &[Shape],
+        span: Span,
+    ) -> R<Vec<(String, Shape)>> {
+        let state = signature
+            .state_parameter
+            .as_ref()
+            .expect("State replacement owner");
+        let binding = &state.bindings[0];
+        self.state.snapshot(
+            signature
+                .callable
+                .len()
+                .saturating_add(binding.fields.len())
+                .saturating_add(binding.generic_name.len())
+                .saturating_add(2),
+            span,
+        )?;
+        let direct = signature
+            .callable
+            .iter()
+            .find(|bound| bound.index != state.index)
+            .expect("State replacement direct source");
+        let owner = arguments
+            .get(state.index as usize)
+            .ok_or_else(|| error("E-CALL-ARITY", span, "State replacement owner is absent"))?;
+        let replacement = arguments
+            .get(direct.index as usize)
+            .ok_or_else(|| error("E-CALL-ARITY", span, "State replacement value is absent"))?;
+        let mut source = None;
+        for index in 0..=binding.fields.len() {
+            let actual = if let Some(field) = binding.fields.get(index) {
+                owner
+                    .field(*field)
+                    .ok_or_else(|| unsupported(span, "State replacement field origin was erased"))?
+            } else {
+                replacement
+            };
+            self.require(actual, binding.kind, span)?;
+            let actual = if let Shape::Address(inner) = actual {
+                inner.as_ref()
+            } else {
+                actual
+            };
+            if let Some(previous) = &source {
+                self.same_origin(previous, actual, span)?;
+            } else {
+                source = Some(self.copy(actual, span)?);
+            }
+        }
+        Ok(vec![(
+            binding.generic_name.clone(),
+            source.expect("one or two State fields"),
+        )])
+    }
+    fn legacy_state_source(
+        &mut self,
+        pattern: &Type,
+        argument: &Shape,
+        bound: &CoreCallableParameter,
+        span: Span,
+    ) -> R<Shape> {
+        // The older header puts its bound at the owning Package parameter.
+        // Only that Package's direct F fields substitute F in the result;
+        // substituting the whole argument would nest a Package inside each F.
+        let Type::Package { fields, .. } = pattern else {
+            unreachable!("legacy State parameter shape")
+        };
+        let Shape::Package(actual) = argument else {
+            return Err(unsupported(
+                span,
+                "legacy State argument has no complete source shape",
+            ));
+        };
+        self.state
+            .snapshot(fields.len().saturating_add(actual.len()), span)?;
+        if fields.len() != actual.len() {
+            return Err(unsupported(span, "legacy State source field count differs"));
+        }
+        let mut source = None;
+        for ((name, ty), (actual_name, field)) in fields.iter().zip(actual) {
+            self.state.snapshot(
+                name.len()
+                    .saturating_add(actual_name.len())
+                    .saturating_add(bound.generic_name.len())
+                    .saturating_add(1),
+                span,
+            )?;
+            if name != actual_name {
+                return Err(unsupported(span, "legacy State source field names differ"));
+            }
+            if matches!(ty, Type::Named(name) if name == &bound.generic_name) {
+                self.require(field, bound.kind, span)?;
+                if let Some(previous) = &source {
+                    self.same_origin(previous, field, span)?;
+                } else {
+                    source = Some(self.copy(field, span)?);
+                }
+            }
+        }
+        source.ok_or_else(|| unsupported(span, "legacy State has no callable source field"))
+    }
     fn infer_value_shape(
         &mut self,
         pattern: &Type,
@@ -1608,6 +1843,9 @@ impl Walk<'_, '_> {
         Ok(())
     }
     fn consume_once(&mut self, shape: &Shape, span: Span) -> R<()> {
+        if self.position_liveness {
+            return Ok(());
+        }
         let Some(slot) = shape.slot() else {
             return Ok(());
         };
@@ -1752,11 +1990,15 @@ impl Walk<'_, '_> {
                         self.state
                             .snapshot(bound.name.len().saturating_add(1), span)?;
                         substitutions.push((bound.name.clone(), source));
+                    } else if replacement_signature(&signature) {
+                        substitutions =
+                            self.replacement_substitutions(&signature, &shapes, span)?;
                     } else {
                         for bound in &signature.callable {
                             let argument = shapes.get(bound.index as usize).ok_or_else(|| {
                                 error("E-CALL-ARITY", span, "State source argument count differs")
                             })?;
+                            let legacy_source;
                             let source = if let Some(state) = &signature.state_parameter {
                                 let binding = state
                                     .bindings
@@ -1768,6 +2010,12 @@ impl Walk<'_, '_> {
                                 argument.field(binding.fields[0]).ok_or_else(|| {
                                     unsupported(span, "State field declaration source was erased")
                                 })?
+                            } else if let Some(pattern @ Type::Package { .. }) =
+                                signature.parameters.get(bound.index as usize)
+                            {
+                                legacy_source =
+                                    self.legacy_state_source(pattern, argument, bound, span)?;
+                                &legacy_source
                             } else {
                                 argument
                             };
