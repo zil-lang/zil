@@ -146,14 +146,18 @@ fn raw_and_wire_reject_omitted_added_or_changed_callback_events() {
                 .unwrap()
                 .calls
                 .clear(),
-            1 => graph.nodes[0].calls.push(CallableKind::Fn),
+            1 => graph.nodes[0].calls.push(zil_ir::CallEvent {
+                parameter: 0,
+                kind: CallableKind::Fn,
+            }),
             _ => {
                 graph
                     .nodes
                     .iter_mut()
                     .find(|n| !n.calls.is_empty())
                     .unwrap()
-                    .calls[0] = CallableKind::FnMut
+                    .calls[0]
+                    .kind = CallableKind::FnMut
             }
         }
         assert_ne!(module.fingerprint(), changed.fingerprint());
@@ -248,7 +252,10 @@ fn cyclic_cfg_cannot_claim_an_empty_or_truncated_finite_language() {
     for paths in [
         Vec::new(),
         vec![CallableTrace {
-            calls: vec![CallableKind::Fn],
+            calls: vec![zil_ir::CallEvent {
+                parameter: 0,
+                kind: CallableKind::Fn,
+            }],
             exit: CallableExit::Return,
         }],
     ] {

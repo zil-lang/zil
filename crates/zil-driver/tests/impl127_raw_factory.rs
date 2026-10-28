@@ -110,15 +110,23 @@ fn fixture(parameter_alias: bool) -> TypedModule {
     ];
     helper.blocks[0].terminator = Terminator::Return(Some(ValueId(6)));
     helper.callable_contract = Some(CallableParameterContract {
-        parameter: 0,
-        closure: ClosureId(0),
-        kind: CallableKind::Fn,
-        hold: vec![],
-        call: vec![],
-        writes: vec![],
-        cleanup: CallableCleanup::Owned,
+        roles: vec![CallableRole {
+            parameter: 0,
+            closure: ClosureId(0),
+            kind: CallableKind::Fn,
+            hold: vec![],
+            call: vec![],
+            writes: vec![],
+            cleanup: CallableCleanup::Owned,
+        }],
         traces: zil_ir::CallableTraces::Finite(vec![CallableTrace {
-            calls: vec![CallableKind::Fn; if parameter_alias { 2 } else { 1 }],
+            calls: vec![
+                zil_ir::CallEvent {
+                    parameter: 0,
+                    kind: CallableKind::Fn
+                };
+                if parameter_alias { 2 } else { 1 }
+            ],
             exit: CallableExit::Return,
         }]),
     });

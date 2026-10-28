@@ -190,7 +190,7 @@ fn same_closure_has_four_data_instances_with_alias_and_repeated_type_reuse() {
     assert_eq!(
         helpers
             .iter()
-            .map(|f| f.callable_contract.as_ref().unwrap().closure)
+            .map(|f| f.callable_contract.as_ref().unwrap().roles[0].closure)
             .collect::<BTreeSet<_>>()
             .len(),
         1
