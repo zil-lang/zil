@@ -359,28 +359,52 @@ impl Builder<'_, '_> {
                     );
                 self.closures
                     .snapshot(work.saturating_mul(2), argument.span)?;
-                environments =
+                let matched =
                     state_origins::match_type(ty, &actual, &signature.callable, argument.span)?;
-                for bound in &signature.callable {
+                if state_origins::replacement_signature(signature) {
                     let state = signature.state_parameter.as_ref().expect("State source");
-                    let field = state
-                        .bindings
-                        .iter()
-                        .find(|binding| binding.generic_index == bound.generic_index)
-                        .expect("validated binding")
-                        .fields[0];
-                    self.require_state_kind(
-                        argument,
-                        Some(field),
-                        environments.get(bound.generic_index, argument.span)?,
-                        bound.kind,
-                    )?;
-                    self.validate_bound(
-                        environments.get(bound.generic_index, argument.span)?,
-                        bound,
-                        true,
+                    let declaration = &state.bindings[0];
+                    self.closures.snapshot(
+                        signature
+                            .callable
+                            .len()
+                            .saturating_add(declaration.fields.len()),
                         argument.span,
                     )?;
+                    let bound = signature
+                        .callable
+                        .iter()
+                        .find(|bound| bound.index == state.index)
+                        .expect("validated State source");
+                    let closure = matched.get(bound.generic_index, argument.span)?;
+                    environments.bind(bound.generic_index, closure, argument.span)?;
+                    for field in &declaration.fields {
+                        self.require_state_kind(argument, Some(*field), closure, bound.kind)?;
+                    }
+                    self.validate_bound(closure, bound, true, argument.span)?;
+                } else {
+                    environments = matched;
+                    for bound in &signature.callable {
+                        let state = signature.state_parameter.as_ref().expect("State source");
+                        let field = state
+                            .bindings
+                            .iter()
+                            .find(|binding| binding.generic_index == bound.generic_index)
+                            .expect("validated binding")
+                            .fields[0];
+                        self.require_state_kind(
+                            argument,
+                            Some(field),
+                            environments.get(bound.generic_index, argument.span)?,
+                            bound.kind,
+                        )?;
+                        self.validate_bound(
+                            environments.get(bound.generic_index, argument.span)?,
+                            bound,
+                            true,
+                            argument.span,
+                        )?;
+                    }
                 }
                 (value, actual)
             } else if let Some(bound) = signature
@@ -621,10 +645,11 @@ impl Builder<'_, '_> {
         let bounds = bounds_view.as_ref();
         let owned_state = callable_fields::template(&function);
         if owned_state {
-            if template.function.state_parameters.is_empty()
+            if (template.function.state_parameters.is_empty()
                 && bounds
                     .iter()
-                    .all(|b| b.generic_index == bounds[0].generic_index)
+                    .all(|b| b.generic_index == bounds[0].generic_index))
+                || state_origins::replacement(&template.function)
             {
                 let bound = &bounds[0];
                 callable_fields::specialize(
