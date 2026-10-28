@@ -748,15 +748,23 @@ fn concrete_helper_contract_roundtrips_and_binds_each_claim() {
     let limits = Limits::default();
     let (mut module, _) = module_candidate();
     let contract = CallableParameterContract {
-        parameter: 0,
-        closure: ClosureId(3),
-        kind: CallableKind::Fn,
-        hold: vec![0],
-        call: vec![0, 2],
-        writes: vec![2],
-        cleanup: CallableCleanup::Borrowed,
+        roles: vec![CallableRole {
+            parameter: 0,
+            closure: ClosureId(3),
+            kind: CallableKind::Fn,
+            hold: vec![0],
+            call: vec![0, 2],
+            writes: vec![2],
+            cleanup: CallableCleanup::Borrowed,
+        }],
         traces: crate::CallableTraces::Finite(vec![CallableTrace {
-            calls: vec![CallableKind::Fn, CallableKind::Fn],
+            calls: vec![
+                CallEvent {
+                    parameter: 0,
+                    kind: CallableKind::Fn
+                };
+                2
+            ],
             exit: CallableExit::Return,
         }]),
     };
@@ -775,13 +783,13 @@ fn concrete_helper_contract_roundtrips_and_binds_each_claim() {
     }
     let fingerprint = module.fingerprint();
     let mutate: [fn(&mut CallableParameterContract); 9] = [
-        |c| c.parameter += 1,
-        |c| c.closure.0 += 1,
-        |c| c.kind = CallableKind::FnOnce,
-        |c| c.hold.clear(),
-        |c| c.call.pop().map(|_| ()).unwrap_or(()),
-        |c| c.writes.clear(),
-        |c| c.cleanup = CallableCleanup::Owned,
+        |c| c.roles[0].parameter += 1,
+        |c| c.roles[0].closure.0 += 1,
+        |c| c.roles[0].kind = CallableKind::FnOnce,
+        |c| c.roles[0].hold.clear(),
+        |c| c.roles[0].call.pop().map(|_| ()).unwrap_or(()),
+        |c| c.roles[0].writes.clear(),
+        |c| c.roles[0].cleanup = CallableCleanup::Owned,
         |c| {
             c.traces.as_finite_mut().unwrap()[0]
                 .calls

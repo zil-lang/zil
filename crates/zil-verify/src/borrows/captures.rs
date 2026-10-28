@@ -434,6 +434,62 @@ impl Context<'_> {
         Ok(row)
     }
 
+    /// Keep each actual callee input-capture role until the loan checker has
+    /// selected that role's own carrier windows. Ordinary argument effects
+    /// never inherit any environment-role exemption.
+    pub(super) fn call_role_accesses(
+        &self,
+        instruction: &Instruction,
+        budget: &mut Budget,
+    ) -> Check<Option<Vec<(Option<ValueId>, Effects)>>> {
+        let InstructionKind::Call {
+            function,
+            arguments,
+        } = &instruction.kind
+        else {
+            return Ok(None);
+        };
+        let effects = &self.effects[function.0 as usize];
+        budget.spend(effects.len())?;
+        let mut groups = Vec::with_capacity(effects.len());
+        for (source, write) in effects {
+            let mut row = Effects::new();
+            let role = match *source {
+                Source::Root(Root::Parameter(parameter)) => {
+                    let value = arguments[parameter as usize];
+                    add_roots(
+                        &mut row,
+                        &self.ordinary.values[value.0 as usize],
+                        *write,
+                        budget,
+                    )?;
+                    None
+                }
+                Source::InputCapture { parameter, capture } => {
+                    let value = arguments[parameter as usize];
+                    add_slot(
+                        &mut row,
+                        &self.facts.values[value.0 as usize],
+                        capture,
+                        *write,
+                        instruction.span,
+                        budget,
+                    )?;
+                    Some(value)
+                }
+                _ => {
+                    return Err(reject(
+                        "E-BORROW-ORIGIN",
+                        Some(instruction.span),
+                        "ordinary call has an unbound environment access",
+                    ));
+                }
+            };
+            groups.push((role, row));
+        }
+        Ok(Some(groups))
+    }
+
     pub(super) fn accesses(
         &self,
         instruction: &Instruction,
