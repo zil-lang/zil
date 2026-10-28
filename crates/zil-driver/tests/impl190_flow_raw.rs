@@ -588,10 +588,23 @@ fn a_nonreturning_cycle_keeps_its_reachable_call_prefix() {
         .iter_mut()
         .find(|b| matches!(b.terminator, Terminator::Branch { .. }))
         .unwrap();
-    let Terminator::Branch { then_block, .. } = header.terminator else {
+    let Terminator::Branch {
+        then_block,
+        else_block,
+        ..
+    } = header.terminator
+    else {
         unreachable!()
     };
     header.terminator = Terminator::Jump(then_block);
+    // Every declared SSA value still needs a typed definition, and the normal
+    // initialization checker also checks disconnected blocks. Its obsolete
+    // return load is replaced by a same-typed constant; no safety gate changes.
+    for instruction in &mut function.blocks[else_block.0 as usize].instructions {
+        if matches!(instruction.kind, InstructionKind::Load(_)) {
+            instruction.kind = InstructionKind::Constant(Constant::I32(0));
+        }
+    }
     let CallableTraces::Flow(graph) = &mut function.callable_contract.as_mut().unwrap().traces
     else {
         unreachable!()
