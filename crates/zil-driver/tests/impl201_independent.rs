@@ -502,6 +502,58 @@ fn raw_same_id_element_values_cannot_duplicate_a_pushed_responsibility() {
 }
 
 #[test]
+fn raw_store_capture_cycle_is_closed_before_environment_layout() {
+    let source = include_str!("impl200_fixtures/02_store_of_callback_state.zil");
+    let (module, original) = baseline("actual-store-capture-control", source);
+    let store = module
+        .resources
+        .iter()
+        .find_map(|r| matches!(r.payload, Type::OwnedStore { .. }).then_some(r.payload.clone()))
+        .unwrap();
+    let closure = module
+        .closures
+        .iter()
+        .position(|c| {
+            c.captures
+                .iter()
+                .any(|t| matches!(t, Type::Managed(inner) if **inner == Type::ByteBuffer))
+        })
+        .unwrap();
+    let capture = module.closures[closure]
+        .captures
+        .iter()
+        .position(|t| matches!(t, Type::Managed(inner) if **inner == Type::ByteBuffer))
+        .unwrap();
+    for (label, field) in [
+        (
+            "direct-store-capture-cycle",
+            Type::Managed(Box::new(store.clone())),
+        ),
+        (
+            "package-store-capture-cycle",
+            Type::Package {
+                name: "HiddenStore".into(),
+                fields: vec![("items".into(), Type::Managed(Box::new(store)))],
+            },
+        ),
+    ] {
+        let mut attacked = module.clone();
+        // The real element already contains this exact ClosureId. Following
+        // this forged capture through the real Store therefore closes a cycle;
+        // no producer self-contained bit or fabricated display name proves it.
+        attacked.closures[closure].captures[capture] = field;
+        raw_reject(
+            label,
+            attacked,
+            original.clone(),
+            false,
+            ResultCategory::Unsupported,
+            "finite owning environment profile",
+        );
+    }
+}
+
+#[test]
 fn raw_redirect_to_same_typed_parent_cannot_borrow_another_stores_authority() {
     let start = MULTIPLE.find("fn run<").unwrap();
     let end = MULTIPLE.find("fn main()").unwrap();
