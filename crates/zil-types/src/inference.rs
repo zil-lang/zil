@@ -2723,7 +2723,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 {
                     return Err(unsupported(
                         span,
-                        "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
+                        "closure parameters require a finite Copy type or one Copy/slice address layer; address parameters require a Copy result",
                     ));
                 }
                 let callable_hint = self.callable_hint.take();
