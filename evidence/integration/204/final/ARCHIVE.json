@@ -126,7 +126,17 @@
       "sha256": "f70ed33275517f84d703e5b1d00256728e8dfe46ef687e7f81d738530d55dbf3"
     }
   },
-  "independent_review": "Pending final actual aggregate container check; tools-only Pass and supplemental-container check do not stand in for it",
+  "independent_review": {
+    "verdict": "Pass",
+    "reviewer": "/root/impl197",
+    "review_commit": "981445abd92404c2f3aec800e3bb59303f80730c",
+    "evidence": "evidence/reviews/204/by197/DELIVERY_FINAL.json",
+    "actual_container_receipts": [
+      "evidence/reviews/204/by197/DELIVERY_LANGUAGE_ARCHIVE.json",
+      "evidence/reviews/204/by197/DELIVERY_TOOL_ARCHIVE.json"
+    ],
+    "language_review_unchanged": "evidence/reviews/204/by197/REVIEW.json"
+  },
   "format_and_recovery": [
     "Standard tar.xz; all outer members are ordinary files. Extract to a new directory with standard tar.",
     "Extracted main evidence directory contains compact_evidence.py, directory_evidence.py, solid_evidence.py, README, INDEX, INPUTS and MANIFEST. Run the shipped compact_evidence.py verify against that directory, then optional restore to another new directory.",
