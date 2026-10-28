@@ -1114,12 +1114,16 @@ fn raw_mixed_header_trees_are_bounded_before_signature_matching() {
             f.callable_parameters[0].generic_name = name.clone();
             f.state_parameters[0].bindings[0].generic_name = name.clone();
             f.parameters[1].ty = Type::Named(name.clone());
-            let Type::Package { fields, .. } = &mut f.parameters[0].ty else {
+            let Type::Named(state_name) = &f.parameters[0].ty else {
                 unreachable!()
             };
-            fields[1].1 = Type::Named(name.clone());
-            fields[2].1 = Type::Named(name);
-            f.return_type = f.parameters[0].ty.clone();
+            let aggregate = core
+                .aggregates
+                .iter_mut()
+                .find(|a| &a.name == state_name)
+                .unwrap();
+            aggregate.fields[1].ty = Type::Named(name.clone());
+            aggregate.fields[2].ty = Type::Named(name);
             Limits {
                 max_analysis_steps: 1024,
                 ..Limits::default()
@@ -1142,6 +1146,9 @@ fn raw_mixed_header_trees_are_bounded_before_signature_matching() {
                 ..Limits::default()
             }
         };
+        if label == "matching-long-names" {
+            types_pair("long-matching-headers-default-control", &core, None);
+        }
         let a = zil_types::check(&core, &target, &limits);
         let b =
             zil_types::check_program(&program(core.clone()), &target, &limits).map(|p| p.module);
