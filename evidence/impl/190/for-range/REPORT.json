@@ -1,0 +1,44 @@
+{
+  "task": "190",
+  "slice": "ForRange symbolic checking and endpoint width context",
+  "author": "/root/resume190",
+  "production_source": "d92c8edfc7920dfdc0635c0d8485d1965429ed33",
+  "status": "LimitedPass",
+  "runs": [
+    {
+      "run": "for-source03",
+      "source_commit": "d92c8edfc7920dfdc0635c0d8485d1965429ed33",
+      "status": "Pass",
+      "tests_passed": 10,
+      "tests_failed": 0,
+      "receipt": "for-source03/command.json"
+    },
+    {
+      "run": "for-neighbors01",
+      "source_commit": "b45d9d4fca8e7f7927b9b6fe9282e13d111c7997",
+      "status": "Pass",
+      "tests_passed": 55,
+      "tests_failed": 0,
+      "receipt": "for-neighbors01/command.json"
+    },
+    {
+      "run": "for-clippy01",
+      "source_commit": "b45d9d4fca8e7f7927b9b6fe9282e13d111c7997",
+      "status": "Pass",
+      "tests_passed": 0,
+      "tests_failed": 0,
+      "receipt": "for-clippy01/command.json"
+    }
+  ],
+  "claims": [
+    "10 unchanged range source/native groups pass, including original generic identity i64 endpoint",
+    "55 neighboring generic, projection, closure, slice, Store and give tests pass",
+    "zil-expand library Clippy -D warnings passes"
+  ],
+  "scope": "Only ForRange slice; runtime cyclic helper Flow remains in progress. These are author executions, not independent approval. Executables and generated phase files remain outside this receipt.",
+  "retained_prior_failures": [
+    "run-logs/190-author/for-source01",
+    "run-logs/190-author/for-source02",
+    "run-logs/190-author/range-context-check01.log"
+  ]
+}

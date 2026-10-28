@@ -1,0 +1,15 @@
+
+running 10 tests
+test original_runtime_helper_range_reaches_the_independent_contract_stage ... ok
+test backedges_cannot_repeat_a_noncopy_or_once_consumption ... ok
+test index_mutability_scope_widths_and_known_integer_requirements_are_checked ... ok
+test unsupported_loop_control_is_not_treated_as_an_ordinary_statement ... ok
+test an_endpoint_may_consume_a_symbolic_value_once_before_the_backedge ... ok
+test endpoint_calls_happen_once_in_order_and_the_iterator_does_not_escape ... ok
+test empty_and_reversed_ranges_still_check_the_body_and_leave_the_outer_binding ... ok
+test range_width_hints_cover_arithmetic_calls_and_copy_projections ... ok
+test an_unconditional_return_body_keeps_the_existing_finite_once_contract ... ok
+test every_integer_width_infers_unsuffixed_bounds_without_borrowing_authority ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s
+
