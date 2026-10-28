@@ -692,3 +692,81 @@ fn callable_binder_shadows_a_real_nominal_before_aggregate_instantiation() {
     );
     eprintln!("shadow_store_expand_n={}", boundary(&text));
 }
+
+const POPPED_HELPER_SOURCE: &str = r#"fn invoke<G:FnMut()->i32>(callback:&mut G)->i32{return callback()}
+
+fn empty<T:StoreElement>()->Store<T> contract{result(create)}{return store_new()}
+fn reserve<T:StoreElement>(items:Store<T>,count:i64)->bool{return store_reserve(items,count)}
+fn push<T:StoreElement>(items:Store<T>,value:T)->T!void{return store_push(items,value)}
+fn pop<T:StoreElement>(items:Store<T>)->void!T{return store_pop(items)}
+extern "C" fn putchar(n: i32) -> i32;
+resource Ticket { code: i32 }
+impl Drop for Ticket { fn drop(self: Self) { unsafe { putchar(.code) } } }
+package Pair<F> { manages root: Ticket; first: F; second: F }
+package Item<T,F> { manages root: Ticket; callback: F; value: T }
+
+fn make(label: i32, seed: i32) -> impl FnMut() -> i32 {
+    let ticket = Ticket { code: label }
+    var count = seed
+    return move () => { ticket.code; count += 1; return count }
+}
+fn pair<F: FnMut() -> i32>(first: F, second: F) -> Pair<F> {
+    return Pair::<F> { root: Ticket { code: 90 }, first: first, second: second }
+}
+
+struct Left{value:i32}struct Right{value:i32}
+fn run<F:FnMut()->i32>(pair:Pair<F>)->void!i32{
+let a:Store<Item<Left,F>>=empty()
+let b:Store<Item<Right,F>>=empty()
+if !reserve(a,1)||!reserve(b,1){return ()}
+push(a,Item::<Left,F>{root:Ticket{code:49},callback:pair.first,value:Left{value:10}})
+push(b,Item::<Right,F>{root:Ticket{code:50},callback:pair.second,value:Right{value:20}})
+var left=pop(a)?
+var right=pop(b)?
+return invoke(&mut left.callback)+invoke(&mut right.callback)-32
+}
+fn main()->void!i32{return run(pair(make(65,10),make(66,20)))}
+"#;
+
+#[test]
+fn popped_complete_element_keeps_its_callback_type_for_a_nested_helper() {
+    let text = POPPED_HELPER_SOURCE;
+    let core = expand(text);
+    assert_eq!(
+        function(&core, "run").callable_parameters[0].generic_name,
+        "F"
+    );
+    assert_eq!(
+        function(&core, "invoke").callable_parameters[0].generic_name,
+        "G"
+    );
+    eprintln!("popped_helper_expand_n={}", boundary(text));
+}
+
+#[test]
+fn payload_context_still_rejects_actual_result_and_error_side_mismatches() {
+    let direct_return = POPPED_HELPER_SOURCE.replace(
+        "return invoke(&mut left.callback)+invoke(&mut right.callback)-32",
+        "return invoke(&mut left.callback)",
+    );
+    let matching_union =
+        direct_return.replace("(callback:&mut G)->i32", "(callback:&mut G)->void!i32");
+    expand(&matching_union);
+    let bad_payload = POPPED_HELPER_SOURCE.replace(
+        "fn run<F:FnMut()->i32>(pair:Pair<F>)->void!i32",
+        "fn run<F:FnMut()->i32>(pair:Pair<F>)->void!bool",
+    );
+    let bad_error = direct_return.replace("(callback:&mut G)->i32", "(callback:&mut G)->bool!i32");
+    for (label, text) in [("payload", bad_payload), ("error-side", bad_error)] {
+        let unit = source(&text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let errors = zil_expand::expand(&unit, &syntax).unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Expand
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-GENERIC-ARGUMENT"),
+            "{label}: {errors:?}"
+        );
+        eprintln!("popped_helper_reject_{label}={errors:?}");
+    }
+}
