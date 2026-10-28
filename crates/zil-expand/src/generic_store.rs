@@ -19,6 +19,61 @@ pub(super) fn element(ty: &TypeRef) -> Option<&TypeRef> {
     }
 }
 
+/// Syntax classification only: an explicit mode must separately establish
+/// ownership of this success payload. The union itself remains a Value.
+pub(super) fn success(ty: &TypeRef) -> Option<(&TypeRef, &TypeRef)> {
+    match &grouped(ty).kind {
+        TypeKind::Error { error, result } if element(result).is_some() => Some((error, result)),
+        _ => None,
+    }
+}
+
+pub(super) fn carrier(ty: &TypeRef) -> Option<&TypeRef> {
+    if element(ty).is_some() {
+        Some(ty)
+    } else {
+        success(ty).map(|(_, result)| result)
+    }
+}
+
+/// A union context cannot constrain an arbitrary result variable. Only the
+/// written direct Store / Store-success shape determines which context fits.
+pub(super) fn call_context<'a>(result: &TypeRef, expected: &'a TypeRef) -> Option<&'a TypeRef> {
+    if let Some((_, payload)) = success(expected) {
+        if success(result).is_some() {
+            Some(expected)
+        } else if element(result).is_some() {
+            Some(payload)
+        } else {
+            None
+        }
+    } else {
+        Some(expected)
+    }
+}
+
+pub(super) fn call_name(callee: &Expr) -> Option<&str> {
+    match &callee.kind {
+        ExprKind::Group(inner) | ExprKind::TypeApply { callee: inner, .. } => call_name(inner),
+        _ => super::super::foreign::bare_name(callee),
+    }
+}
+
+pub(super) fn copy_error(
+    ty: &TypeRef,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    Shape {
+        nominals,
+        budget,
+        active: BTreeSet::new(),
+        depth: 0,
+    }
+    .copy(ty)
+    .map(|_| ())
+}
+
 pub(super) fn primitive(name: &str) -> bool {
     matches!(
         name,
@@ -100,10 +155,10 @@ pub(super) fn result_mode(function: &Function) -> R<zil_ir::PassingMode> {
                 "generic Store result modes are mutually exclusive",
             ));
         }
-        if function.return_type.as_ref().and_then(element).is_none() {
+        if function.return_type.as_ref().and_then(carrier).is_none() {
             return Err(unsupported(
                 clause.span,
-                "generic resource result mode requires a direct Store result",
+                "generic resource result mode requires a direct Store or explicit Store success result",
             ));
         }
         mode = selected;
