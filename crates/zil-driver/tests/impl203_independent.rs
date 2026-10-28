@@ -372,12 +372,23 @@ fn store_and_success_union_preserve_mode_for_same_and_different_actual_types() {
             "let first=view.first()",
             "view.second()\n    let first=view.first()",
         );
-        reject_source(
-            &format!("borrowed-once-distinct-{distinct}"),
-            &borrow_once,
-            &[Phase::Types],
-            Some("E-CLOSURE-MODE"),
+        let case = Case::new(&format!("borrowed-once-distinct-{distinct}"));
+        let report = compile(&case, &borrow_once, None);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
         );
+        assert!(
+            report.diagnostics.iter().any(|d| (d.phase == Phase::Expand
+                && d.code == "E-GENERIC-ARGUMENT"
+                && d.message == "FnOnce requires an owned Store element obtained by pop")
+                || (d.phase == Phase::Types && d.code == "E-CLOSURE-MODE")),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
         let twice = source.replace(
             "let second=next.second()",
             "let second=next.second()\n    next.second()",
@@ -1147,7 +1158,14 @@ fn unused_state_second_binder_metadata_has_a_real_early_budget() {
             let Type::Package { fields, .. } = &mut f.parameters[0].ty else {
                 unreachable!()
             };
-            fields[2].1 = Type::Named(long);
+            fields[2].1 = Type::Named(long.clone());
+            changed
+                .aggregates
+                .iter_mut()
+                .find(|a| a.kind == AggregateKind::Package)
+                .unwrap()
+                .fields[2]
+                .ty = Type::Named(long);
             Limits {
                 max_analysis_steps: 512,
                 ..Limits::default()
@@ -1258,4 +1276,309 @@ fn main()->i32{
         assert_eq!(output.stdout, b"MPBQZAMPDQZC");
         assert!(output.stderr.is_empty());
     }
+}
+
+fn visit_block(block: &mut CoreBlock, action: &mut impl FnMut(&mut CoreExpr) -> bool) {
+    use CoreStatementKind as S;
+    for statement in &mut block.statements {
+        match &mut statement.kind {
+            S::Binding {
+                initializer: Some(v),
+                ..
+            }
+            | S::Expression(v)
+            | S::Return(Some(v)) => visit_expr(v, action),
+            S::Assign { target, value } => {
+                visit_expr(target, action);
+                visit_expr(value, action);
+            }
+            S::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                visit_expr(condition, action);
+                visit_block(then_body, action);
+                if let Some(b) = else_body {
+                    visit_block(b, action);
+                }
+            }
+            S::IfLet {
+                value,
+                then_body,
+                else_body,
+                ..
+            } => {
+                visit_expr(value, action);
+                visit_block(then_body, action);
+                if let Some(b) = else_body {
+                    visit_block(b, action);
+                }
+            }
+            S::While { condition, body } => {
+                visit_expr(condition, action);
+                visit_block(body, action);
+            }
+            S::WhileLet { value, body, .. } => {
+                visit_expr(value, action);
+                visit_block(body, action);
+            }
+            S::ForRange {
+                start, end, body, ..
+            } => {
+                visit_expr(start, action);
+                visit_expr(end, action);
+                visit_block(body, action);
+            }
+            S::Match { value, arms } => {
+                visit_expr(value, action);
+                for arm in arms {
+                    visit_block(&mut arm.body, action);
+                }
+            }
+            S::Block(b) | S::Unsafe(b) => visit_block(b, action),
+            _ => {}
+        }
+    }
+}
+fn visit_expr(expr: &mut CoreExpr, action: &mut impl FnMut(&mut CoreExpr) -> bool) {
+    if action(expr) {
+        return;
+    }
+    use CoreExprKind as E;
+    match &mut expr.kind {
+        E::Ascribed { value, .. }
+        | E::IntegerConvert { value, .. }
+        | E::CompileTime(value)
+        | E::Try(value)
+        | E::Unary { operand: value, .. } => visit_expr(value, action),
+        E::Binary { left, right, .. } => {
+            visit_expr(left, action);
+            visit_expr(right, action);
+        }
+        E::Call { callee, arguments } => {
+            visit_expr(callee, action);
+            for a in arguments {
+                visit_expr(a, action);
+            }
+        }
+        E::TypeApply { callee, .. } => visit_expr(callee, action),
+        E::Tuple(xs) | E::Array(xs) => {
+            for x in xs {
+                visit_expr(x, action);
+            }
+        }
+        E::Index { object, index } => {
+            visit_expr(object, action);
+            visit_expr(index, action);
+        }
+        E::Slice { object, start, end } => {
+            visit_expr(object, action);
+            for x in [start, end].into_iter().flatten() {
+                visit_expr(x, action);
+            }
+        }
+        E::Member { object, .. } => visit_expr(object, action),
+        E::Record { fields, .. } => {
+            for (_, v) in fields {
+                visit_expr(v, action);
+            }
+        }
+        E::RecordUpdate { base, fields, .. } => {
+            visit_expr(base, action);
+            for (_, v) in fields {
+                visit_expr(v, action);
+            }
+        }
+        E::Sequence { bindings, value } => {
+            for (_, v) in bindings {
+                visit_expr(v, action);
+            }
+            visit_expr(value, action);
+        }
+        E::Closure { body, .. } => visit_block(body, action),
+        E::If {
+            condition,
+            then_value,
+            else_value,
+        } => {
+            visit_expr(condition, action);
+            visit_expr(then_value, action);
+            visit_expr(else_value, action);
+        }
+        _ => {}
+    }
+}
+
+fn inspect_origin_attack(label: &str, core: &CoreModule) -> bool {
+    let case = Case::new(label);
+    case.write("core.txt", format!("{core:#?}"));
+    let single = zil_types::check(core, &TargetProfile::host_llvm(), &Limits::default());
+    let many = zil_types::check_program(
+        &program(core.clone()),
+        &TargetProfile::host_llvm(),
+        &Limits::default(),
+    )
+    .map(|p| p.module);
+    case.write("single.txt", format!("{single:#?}"));
+    case.write("program.txt", format!("{many:#?}"));
+    let mut accepted = false;
+    for (entry, result) in [("single", single), ("program", many)] {
+        match result {
+            Ok(typed) => {
+                accepted = true;
+                let analysis = zil_analyze::analyze(&typed, &Limits::default());
+                case.write(&format!("{entry}-analyze.txt"), format!("{analysis:#?}"));
+                if let Ok(plan) = analysis {
+                    let verification = zil_verify::verify_module(
+                        typed.clone(),
+                        plan.clone(),
+                        &typed.target,
+                        &Limits::default(),
+                    );
+                    let bytes =
+                        zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default())
+                            .unwrap();
+                    let decoded =
+                        zil_verify::verify_module_bytes(&bytes, &typed.target, &Limits::default());
+                    case.write(&format!("{entry}.wire"), bytes);
+                    case.write(&format!("{entry}-verify.txt"),format!("raw={verification:#?}\nwire={decoded:#?}\nThese concrete-memory results cannot recover an erased source declaration.\n"));
+                }
+            }
+            Err(errors) => assert!(
+                errors.iter().any(|d| d.phase == Phase::Types
+                    && matches!(
+                        d.category,
+                        ResultCategory::SafeReject | ResultCategory::Unsupported
+                    )),
+                "{errors:#?}"
+            ),
+        }
+    }
+    accepted
+}
+
+#[test]
+fn raw_reused_node_identity_cannot_hide_conflicting_field_origins() {
+    let mut core = expanded("node-origin-control", ORIGINAL);
+    raw_types("node-origin-valid", &core, &Limits::default(), false);
+    let f = core
+        .functions
+        .iter_mut()
+        .find(|f| !f.state_parameters.is_empty())
+        .unwrap();
+    let mut first = None;
+    visit_block(&mut f.body, &mut |e| {
+        if matches!(&e.kind,CoreExprKind::Member{member,..} if member=="first") {
+            first = Some(e.id);
+        }
+        false
+    });
+    let first = first.unwrap();
+    let mut changed = 0;
+    visit_block(&mut f.body, &mut |e| {
+        if matches!(&e.kind,CoreExprKind::Member{member,..} if member=="second") {
+            e.id = first;
+            changed += 1;
+        }
+        false
+    });
+    assert_eq!(changed, 1);
+    assert!(
+        !inspect_origin_attack("conflicting-field-node-id", &core),
+        "a raw node cannot identify both F and G declaration origins"
+    );
+}
+
+#[test]
+fn raw_complete_type_application_cannot_relabel_equal_concrete_callback_slots() {
+    let moved = ORIGINAL_MARKERS
+        .replace(
+            "    let tag = state.tag",
+            "    let next = identity::<State<T,F,G>>(state)\n    let tag = next.tag",
+        )
+        .replace("state.first()", "next.first()")
+        .replace("state.second()", "next.second()");
+    let source = format!("{HELPERS}{moved}");
+    let core = expanded("typeapply-origin-control", &source);
+    raw_types("typeapply-origin-valid", &core, &Limits::default(), false);
+    let mut resolved =
+        zil_types::resolve_program_shapes(&program(core), &Limits::default()).unwrap();
+    let mut changed = resolved.modules.remove(0).core;
+    let function = changed
+        .functions
+        .iter_mut()
+        .find(|f| !f.state_parameters.is_empty())
+        .unwrap();
+    let mut application = 0;
+    visit_block(&mut function.body, &mut |e| {
+        if let CoreExprKind::TypeApply { type_arguments, .. } = &mut e.kind {
+            let [Type::Package { fields, .. }] = type_arguments.as_mut_slice() else {
+                panic!("complete symbolic State type application")
+            };
+            let first = fields[1].1.clone();
+            let second = fields[2].1.clone();
+            assert_ne!(first, second);
+            fields[1].1 = second;
+            fields[2].1 = first;
+            application += 1;
+        }
+        if let CoreExprKind::Member { object, member } = &mut e.kind
+            && matches!(&object.kind,CoreExprKind::Name(name) if name=="next")
+        {
+            match member.as_str() {
+                "first" => *member = "second".into(),
+                "second" => *member = "first".into(),
+                _ => {}
+            }
+        }
+        false
+    });
+    assert_eq!(application, 1);
+    assert!(
+        !inspect_origin_attack("typeapply-relabels-actual-C-C-weak-G", &changed),
+        "explicit full T metadata must not relabel a G:FnOnce value as F:Fn when actual ids coincide"
+    );
+}
+
+#[test]
+fn raw_record_values_cannot_relabel_equal_concrete_callback_slots() {
+    let source=ORIGINAL_MARKERS.replace("    let tag = state.tag","    let next = State::<T,F,G>{marker:Ticket{code:78},first:state.first,second:state.second,tag:state.tag}\n    let tag = next.tag")
+        .replace("state.first()","next.first()").replace("state.second()","next.second()");
+    native("record-origin-positive", &source, "MPBQNAZ", 0);
+    let mut core = expanded("record-origin-control", &source);
+    raw_types("record-origin-valid", &core, &Limits::default(), false);
+    let function = core
+        .functions
+        .iter_mut()
+        .find(|f| !f.state_parameters.is_empty())
+        .unwrap();
+    let mut swapped = 0;
+    visit_block(&mut function.body, &mut |e| {
+        if let CoreExprKind::Record { fields, .. } = &mut e.kind {
+            for (_, value) in fields {
+                if let CoreExprKind::Member { object, member } = &mut value.kind
+                    && matches!(&object.kind,CoreExprKind::Name(name) if name=="state")
+                {
+                    match member.as_str() {
+                        "first" => {
+                            *member = "second".into();
+                            swapped += 1;
+                        }
+                        "second" => {
+                            *member = "first".into();
+                            swapped += 1;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        false
+    });
+    assert_eq!(swapped, 2);
+    assert!(
+        !inspect_origin_attack("record-relabels-actual-C-C-weak-G", &core),
+        "a raw record type cannot erase the weaker declaration of its actual field value"
+    );
 }
