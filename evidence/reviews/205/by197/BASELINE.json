@@ -1,0 +1,117 @@
+{
+  "reviewer": "/root/impl197",
+  "scope": "Original prepared source observations under unchanged 204 compiler; no 205 production or native execution",
+  "working_tree_commit": "11b3d825e8f0e9907b097c7e7227acffedfa16c2",
+  "compiler_source_commit": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+  "baseline_commit": "4fa100e4b2f2cad5e480129263463a5914a36a5f",
+  "production_diff": "",
+  "production_diff_paths": [
+    "crates/*/src/**",
+    "crates/*/Cargo.toml",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    ".cargo"
+  ],
+  "cli": "/tmp/zil204-cli-baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d",
+  "cli_sha256": "baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d",
+  "baseline_spec_hash": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0",
+  "baseline_normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "new_profile_normative_hash_not_tested": "8d6fd152597c8446f455bc5a73807f5d056ec6a93f1b7c961a6a176a62b66534",
+  "completed_at": "2026-10-28T16:01:10.051872+00:00",
+  "evidence": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-by197/baseline01/RESULT.json",
+    "bytes": 10965,
+    "sha256": "e0662578db93be47252573ec04e280d4cd32466e758b9ff73b1167041a047dbd"
+  },
+  "results": [
+    {
+      "name": "00_original_state_and_replacement.zil",
+      "input": {
+        "bytes": 138,
+        "sha256": "5251f83be296a6273532690540cfde459938f39801afc614ba1cbb672df2b05a"
+      },
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "owning State operations require one State input; two direct F inputs require a complete State result",
+          "span": {
+            "file": 0,
+            "start": 89,
+            "end": 102
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "01_mixed_unused_copy_alias.zil",
+      "input": {
+        "bytes": 239,
+        "sha256": "ea27ef687fb8e03cbf5c3f8216fa2b904064575490155e7296da1c351ab31f8b"
+      },
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "owning State operations require one State input; two direct F inputs require a complete State result",
+          "span": {
+            "file": 0,
+            "start": 107,
+            "end": 120
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "02_single_state_unused_copy_alias.zil",
+      "input": {
+        "bytes": 252,
+        "sha256": "2601332cc0d78658ac96f105e83fea18ce8544bccafe45f2e1ccc8e0254b2d62"
+      },
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "03_mixed_unused_copy_alias_last_use.zil",
+      "input": {
+        "bytes": 239,
+        "sha256": "6c1b1cda1d54109b904bde79195d32e9cbb6eab0045c42254446b63381bc6982"
+      },
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "owning State operations require one State input; two direct F inputs require a complete State result",
+          "span": {
+            "file": 0,
+            "start": 107,
+            "end": 120
+          },
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "old_single_alias_interpretation": "Success verifies only the emitted main; the unused T:Copy body is absent from the executable instance set. No unsafe native execution or borrow-safety success is claimed."
+}
