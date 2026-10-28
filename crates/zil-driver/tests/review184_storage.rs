@@ -136,7 +136,7 @@ fn a_live_result_blocks_only_its_actual_mutable_environment() {
 #[test]
 fn a_lent_callback_payload_keeps_its_field_while_another_storage_field_grows() {
     let factory = "pub fn make(n:u8)->impl Fn()->&[u8]{let b=bytes_new();bytes_reserve(b,2);bytes_push(b,n);return move()=>bytes_view(b)}";
-    let state = "pub package State<F>{manages other:ByteBuffer;pub callback:F;pub count:i32}pub fn state<F:Fn()->&[u8]>(f:F)->State<F>{return State::<F>{other:bytes_new(),callback:f,count:0}}pub fn reserve<F:Fn()->&[u8]>(s:State<F>)->State<F>{bytes_reserve(s.other,4);return s}";
+    let state = "pub package State<F>{pub manages other:ByteBuffer;pub callback:F;pub count:i32}pub fn state<F:Fn()->&[u8]>(f:F)->State<F>{return State::<F>{other:bytes_new(),callback:f,count:0}}pub fn reserve<F:Fn()->&[u8]>(s:State<F>)->State<F>{bytes_reserve(s.other,4);return s}";
     let main = "import factory;import state;fn main()->i32{var s=state.state(factory.make(7u8));let cb=&s.callback;let view=cb();bytes_reserve(s.other,4);s.count+=1;return i32(view[0])+s.count-8}";
     native(&[("main", main), ("factory", factory), ("state", state)], 0);
     let bad = main.replace("bytes_reserve(s.other,4)", "s.callback=factory.make(9u8)");
