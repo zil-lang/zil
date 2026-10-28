@@ -1,0 +1,21 @@
+{
+  "reviewer": "/root/impl197",
+  "integrity": "Pass; packer verified every member CRC, SHA256, size, object reference and original-path mapping",
+  "format": "zil-evidence-sha256-v1",
+  "path": "/workspace/scratch/39be3faa4442/deliverables/204-review-by197-evidence.zip",
+  "bytes": 3063026,
+  "sha256": "37e81d0261b6a1d9078502c8e4d7afe97b7b3122b0ac7c11f60e99b7c310df50",
+  "statistics": {
+    "logical_files": 5307,
+    "logical_bytes": 308089973,
+    "unique_contents": 1183,
+    "unique_bytes": 51542227,
+    "excluded_execution_products": 206
+  },
+  "execution_products_included": false,
+  "wire_binary_test_inputs_included": true,
+  "packager_test_execution": "NotRun",
+  "input_config_commit": "2e41cce1",
+  "inputs": "tools/language/204/review_by197/evidence-inputs.json",
+  "scope": "Exact source/raw/Wire/commands and earlier failed rounds through source06 and independent Linux148/108; final review bindings and later read-only migration receipts remain separate Git metadata and do not rewrite this archive."
+}
