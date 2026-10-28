@@ -1,0 +1,1 @@
+fn main()->i32{let b=bytes_new();if !bytes_reserve(b,4){return 1;}if !bytes_push(b,7u8){return 2;}let p=bytes_view_mut(b);p[0]=9u8;return i32(bytes_len(b)+bytes_capacity(b))+i32(bytes_view(b)[0]);}

@@ -1,0 +1,1 @@
+fn main(){let b=bytes_new();let d=b;let f=move()=>bytes_len(d);}

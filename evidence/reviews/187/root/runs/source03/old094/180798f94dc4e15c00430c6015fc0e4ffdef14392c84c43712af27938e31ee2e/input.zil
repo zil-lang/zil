@@ -1,0 +1,1 @@
+fn bad()->&[u8]{let b=bytes_new();return bytes_view(b);}fn main(){}

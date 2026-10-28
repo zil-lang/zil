@@ -1,0 +1,1 @@
+fn fill(b:ByteBuffer,n:u8)->bool{return bytes_reserve(b,1)&&bytes_push(b,n)}fn take(give b:ByteBuffer){}fn main()->i32{let b=bytes_new();if !fill(b,65u8){return 8}let f=()=>bytes_len(b);let saved=f;let n=saved();take(give b);return i32(n)-1}

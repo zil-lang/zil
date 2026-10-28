@@ -1,0 +1,8 @@
+{
+  "status": "NotRun",
+  "reason": "Reviewer invoked command recorder from the workspace root instead of a Git checkout; git rev-parse HEAD failed before subprocess test execution.",
+  "exit_code": 1,
+  "executed_tests": 0,
+  "intended_source_commit": "450e7e938256a40339c786a3b00f18cadf431754",
+  "retry": "source02 from the frozen review checkout"
+}

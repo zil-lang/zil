@@ -1,0 +1,8 @@
+{
+  "status": "Pass",
+  "source_commit": "0d1e1cfeb69a2a37e725679b26530afc7568c89b",
+  "native_executions": 48,
+  "ordinary_executions": 12,
+  "instrumented_executions": 36,
+  "actual_allocation_failures": 20
+}

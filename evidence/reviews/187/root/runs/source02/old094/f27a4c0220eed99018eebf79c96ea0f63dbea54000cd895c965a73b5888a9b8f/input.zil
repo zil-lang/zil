@@ -1,0 +1,1 @@
+fn act(a:ByteBuffer,b:ByteBuffer)->i64{let s=bytes_view(a);let n=s.len();bytes_reserve(b,4);return n;}fn result()->i64{let b=bytes_new();return act(b,b);}

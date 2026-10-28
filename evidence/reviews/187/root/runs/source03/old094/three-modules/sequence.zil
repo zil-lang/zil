@@ -1,0 +1,1 @@
+pub fn tail_mut<T>(p:&mut[T])->&mut[T]{return &mut p[1..];}pub fn put<T>(p:&mut[T],v:T){p[0]=v;}pub fn count<T>(p:&[T])->i64{return p.len();}

@@ -1,0 +1,1 @@
+fn bad(give b:ByteBuffer)->&[u8]{return bytes_view(b);}fn main(){}

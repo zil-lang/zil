@@ -1,0 +1,1 @@
+import storage;import sequence;fn result()->i64{let b=storage.create();storage.fill(b);let p=storage.view_mut(b);sequence.put(sequence.tail_mut(p),9u8);let n=sequence.count(p);return n+sequence.count(storage.view(b));}

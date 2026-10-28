@@ -1,0 +1,1 @@
+struct P{data:ByteBuffer;}fn main(){}

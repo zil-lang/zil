@@ -1,0 +1,80 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root",
+  "implementation_author": "/root/restore177_inventory",
+  "implementation_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
+  "review_test_commit": "2978ef94600597ea58947452b4e65646d0409e7e",
+  "platform_test_commit": "0d1e1cfeb69a2a37e725679b26530afc7568c89b",
+  "production_identical_to_reviewed_source": true,
+  "executed": 39,
+  "assertions": 39,
+  "final_counts": {
+    "passed": 39,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 3
+  },
+  "runs": {
+    "source02": {
+      "status": "Fail",
+      "source_commit": "450e7e938256a40339c786a3b00f18cadf431754",
+      "passed": 38,
+      "failed": 1,
+      "groups": 3,
+      "clean": true
+    },
+    "source03": {
+      "status": "Pass",
+      "source_commit": "2978ef94600597ea58947452b4e65646d0409e7e",
+      "passed": 39,
+      "failed": 0,
+      "groups": 3,
+      "clean": true
+    }
+  },
+  "independent_groups": 4,
+  "independent_native_runs": 6,
+  "independent_raw_wire_pairs": 1,
+  "platforms": {
+    "linux02": {
+      "status": "Pass",
+      "source_commit": "0d1e1cfeb69a2a37e725679b26530afc7568c89b",
+      "execution": "native",
+      "executions": 48,
+      "fault_injections": 20,
+      "ordinary_executions": 12,
+      "independent_runner": "tools/language/187/review_platform.py"
+    },
+    "win64-02": {
+      "status": "Pass",
+      "source_commit": "0d1e1cfeb69a2a37e725679b26530afc7568c89b",
+      "execution": "Wine compatibility",
+      "executions": 48,
+      "fault_injections": 20,
+      "ordinary_executions": 12,
+      "independent_runner": "tools/language/187/review_platform.py"
+    }
+  },
+  "review_notes": [
+    "The actual target source is reconstructed separately from the environment position. Two aliases of the same managed field are not treated as distinct captures, while sibling owned byte fields execute independently.",
+    "Callee capture/argument separation reaches an ordinary function caller and then substitutes its actual arguments; a nonzero callable parameter index does not erase that relation.",
+    "A copied weak description environment can be discarded after its last call without keeping the old owner alive. Transferring the owner then calling the copied environment is already rejected by Analyze.",
+    "Raw and Wire retarget both capture slots to one source after producer analysis and still fail independent Verify, without a public Apart claim to trust.",
+    "Private Parameter, Capture, and ParameterCapture obligations are instantiated at actual ordinary and closure call edges under existing budgets; unknown origins cannot satisfy separation.",
+    "Helper effects preserve both actual ordinary parameter accesses and callback effects; zero-call paths do not fabricate callback execution."
+  ],
+  "initial_failures": [
+    "source01: wrong reviewer working directory; recorder failed before running any tests.",
+    "source02: one newly authored reviewer assertion expected a later diagnostic, but the unsafe source was already correctly rejected in Analyze. Original source unchanged; source03 asserts the exact early category/code/message.",
+    "linux01 and win64-01: reviewer script shadowed its command function; both failed before any compiler build or program execution. Corrected runner used new output paths; production code unchanged."
+  ],
+  "limitations": [
+    "Local synchronous borrowed ByteBuffer descriptions only; no borrowed escape or descriptor ownership.",
+    "Does not admit slice capture, arbitrary Store capture, explicit Address callback arguments, or general helper loops.",
+    "Win64 executions use Wine compatibility; native Windows remains NotRun.",
+    "Full workspace and 184/188/189 combined language acceptance are separate gates."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
