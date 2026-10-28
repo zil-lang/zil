@@ -213,7 +213,7 @@
       "source_status_after": ""
     }
   },
-  "budget_migration_commit": "c5134b12",
+  "budget_migration_commit": "c5134b12b713028f0babdda0120283f36bc3f9e2",
   "budget_diff_sha256": "9a8542b60f1f1596f4f5201aa7374d363067369691cb0b0c4d2c5add4be21cad",
   "budget_static_findings": [
     "The original source strings, include files and nested-helper construction are unchanged. The probe records all three measurements before the final aggregate assertion.",
@@ -363,5 +363,11 @@
       }
     ]
   },
-  "verdict": "Pass for these precise migrations; final 205 acceptance remains separate"
+  "verdict": "Pass for these precise migrations; final 205 acceptance remains separate",
+  "post_migration_lint_cleanup": {
+    "commit": "2db3c090088dc3882a7566efe60f6cf6d81cc666",
+    "static_review": "Deletes only the 11-line unused accepted helper after its sole caller became a precise rejection. No test body, source fixture, runtime oracle or compiler production change.",
+    "old_lint_failure": "run-logs/205-root/clippy-final01 remains Fail; not relabelled",
+    "independent_rerun": "NotRun for unused helper deletion; CLI04 production and exact test input bytes are unchanged"
+  }
 }
