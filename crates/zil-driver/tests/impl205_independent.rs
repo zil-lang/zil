@@ -18,6 +18,8 @@ const OLD_BAD_ALIAS: &str =
     include_str!("impl205_independent_fixtures/02_single_state_unused_copy_alias.zil");
 const MIXED_LAST_USE: &str =
     include_str!("impl205_independent_fixtures/03_mixed_unused_copy_alias_last_use.zil");
+const OLD_NON_T_BAD_ALIAS: &str =
+    include_str!("impl205_independent_fixtures/04_single_state_non_t_alias.zil");
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 struct Case(PathBuf, bool);
@@ -341,6 +343,13 @@ fn unused_copy_state_alias_originals_are_checked_before_any_instance_exists() {
     reject(
         "old-single-alias-original-bad",
         OLD_BAD_ALIAS,
+        &[Phase::Expand],
+        ResultCategory::SafeReject,
+        None,
+    );
+    reject(
+        "old-single-non-t-alias-original-bad",
+        OLD_NON_T_BAD_ALIAS,
         &[Phase::Expand],
         ResultCategory::SafeReject,
         None,
