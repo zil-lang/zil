@@ -54,7 +54,8 @@ pub(crate) fn lower_with_options(
     let wrapper = entry_wrapper(&functions, options.entry, &lir.resources)?;
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     let mut intrinsics = BTreeSet::new();
-    let mut body = m::Code::new();
+    // Finish each function before retaining it: no whole-project Event buffer.
+    let mut body = Vec::with_capacity(lir.functions.len());
     for function in &lir.functions {
         if function.foreign.is_some() {
             if matches!(options.entry, EntryPoint::ReturnValue(_))
@@ -69,10 +70,14 @@ pub(crate) fn lower_with_options(
                     Some(function.span),
                 );
             }
-            body.append(foreign::declaration(function, &lir.target)?);
+            body.extend(
+                foreign::declaration(function, &lir.target)?
+                    .into_items()
+                    .map_err(machine_error)?,
+            );
             continue;
         }
-        body.append(
+        body.extend(
             FunctionEmitter {
                 function,
                 target: &lir.target,
@@ -85,7 +90,9 @@ pub(crate) fn lower_with_options(
                 continuation: 0,
                 partial_packages: BTreeSet::new(),
             }
-            .emit()?,
+            .emit()?
+            .into_items()
+            .map_err(machine_error)?,
         );
     }
     let mut text = m::Code::new();
@@ -204,8 +211,10 @@ pub(crate) fn lower_with_options(
         }));
     }
 
-    text.append(body);
-    text.append(wrapper);
+    let mut items = text.into_items().map_err(machine_error)?;
+    items.extend(body);
+    items.extend(wrapper.into_items().map_err(machine_error)?);
+    let mut text = m::Code::new();
     if windows && options.entry != EntryPoint::None {
         if let Some(existing) = lir.functions.iter().find(|f| {
             f.foreign
@@ -278,19 +287,21 @@ pub(crate) fn lower_with_options(
             m::Event::End,
         ]));
     }
-    m::Module::from_code(
-        lir.target.triple.clone(),
-        verified.fingerprint().to_hex(),
-        text,
-    )
-    .map_err(|message| {
-        vec![Diagnostic::error(
-            Phase::Codegen,
-            "E-CODEGEN-CFG",
-            None,
-            message,
-        )]
+    items.extend(text.into_items().map_err(machine_error)?);
+    Ok(m::Module {
+        triple: lir.target.triple.clone(),
+        fingerprint: verified.fingerprint().to_hex(),
+        items,
     })
+}
+
+fn machine_error(message: String) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        Phase::Codegen,
+        "E-CODEGEN-CFG",
+        None,
+        message,
+    )]
 }
 
 fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
