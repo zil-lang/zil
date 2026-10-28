@@ -556,6 +556,69 @@ fn raw_store_capture_cycle_is_closed_before_environment_layout() {
 }
 
 #[test]
+fn raw_unused_store_definition_checks_the_real_callback_shape() {
+    let source = include_str!("impl200_fixtures/02_store_of_callback_state.zil");
+    let (mut module, _) = baseline("unused-store-source-control", source);
+    let mut payload = module
+        .resources
+        .iter()
+        .find_map(|r| matches!(r.payload, Type::OwnedStore { .. }).then_some(r.payload.clone()))
+        .unwrap();
+    let Type::OwnedStore { element } = &mut payload else {
+        unreachable!()
+    };
+    let Type::Package { name, fields } = element.as_mut() else {
+        unreachable!()
+    };
+    *name = format!("{name}:review-unused");
+    let callback = fields
+        .iter()
+        .find_map(|(_, ty)| matches!(ty, Type::Closure(_)).then_some(ty.clone()))
+        .unwrap();
+    let name = format!("@builtin:OwnedStore<{name}>");
+    module.resources.push(zil_ir::ResourceDefinition {
+        name,
+        payload,
+        teardown: None,
+    });
+    // The extra definition is never used by any function or instruction.
+    // Its valid, source-derived concrete callback metadata must first pass
+    // both independent routes, before only its field count is corrupted.
+    let case = Case::new("unused-store-valid-definition");
+    case.write("source.zil", source);
+    case.write("typed.txt", format!("{module:#?}"));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    case.write("baseline.wire", &bytes);
+    let raw = zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    );
+    let wire = zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default());
+    case.write("verify.txt", format!("raw={raw:#?}\nwire={wire:#?}"));
+    raw.unwrap();
+    wire.unwrap();
+    let Type::OwnedStore { element } = &mut module.resources.last_mut().unwrap().payload else {
+        unreachable!()
+    };
+    let Type::Package { fields, .. } = element.as_mut() else {
+        unreachable!()
+    };
+    fields.push(("extra_callback_1".into(), callback.clone()));
+    fields.push(("extra_callback_2".into(), callback));
+    raw_reject(
+        "unused-definition-has-three-callbacks",
+        module,
+        plan,
+        false,
+        ResultCategory::Unsupported,
+        "E-UNSUPPORTED",
+    );
+}
+
+#[test]
 fn raw_redirect_to_same_typed_parent_cannot_borrow_another_stores_authority() {
     let start = MULTIPLE.find("fn run<").unwrap();
     let end = MULTIPLE.find("fn main()").unwrap();
