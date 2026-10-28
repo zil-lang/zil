@@ -20,6 +20,7 @@ def scenarios():
         ("discard", b"4", b"BSCM", 0, 2,
          [(1, b"BSCM", 1, 0), (2, b"BSCM", 2, 0),
           (3, b"BSM", 1, 0), (4, b"BCSM", 2, 0)]),
+        ("user-resource-error", b"5", b"", 1, 0, []),
     ]
     return [dict(name=name, input=data, stdout=output, exit=exit_code,
                  allocated=allocated, failures=failures)
