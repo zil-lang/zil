@@ -1,0 +1,55 @@
+{
+  "verdict": "Pass",
+  "status": "Pass",
+  "reviewer": "/root",
+  "implementation_author": "/root/design14_acceptance",
+  "implementation_commit": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330",
+  "review_test_commit": "7fc03423ff2df72b97b849da90cc4b430c00cf60",
+  "production_identical_to_reviewed_source": true,
+  "scope": "Full186 Expand symbolic owned success composition and the independent original mutable-slot counterexample after actual resource-origin repair.",
+  "executed": 55,
+  "assertions": 55,
+  "final_counts": {
+    "passed": 55,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 7
+  },
+  "runs": {
+    "probes01": {
+      "status": "Fail",
+      "source_commit": "972bf63d767cc9c3df3d76f5941f98cfcfef8c8c",
+      "passed": 48,
+      "failed": 1,
+      "ignored": 0,
+      "groups": 7
+    },
+    "repaired02": {
+      "status": "Pass",
+      "source_commit": "7fc03423ff2df72b97b849da90cc4b430c00cf60",
+      "passed": 55,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 7
+    }
+  },
+  "original_failed_candidate": "fc96383d70ad6f8e91dff97b416b8237cfb26c73",
+  "finding": "An unused template passed but a valid mutable Store slot was lowered to a Package whose field creation origin was erased. An error-only old-resource branch exposed the issue; it was not a CFG returning-branch merge bug.",
+  "same_original_source_retested": true,
+  "repair": "Independent producer and verifier resource state now preserve actual per-field creation facts through construction, local whole transfers, field replacement and taking the actual field. Incoming and unknown-call sources remain nonfresh.",
+  "independent_groups": 4,
+  "independent_native_runs": 8,
+  "additional_independent_specialist_review": "evidence/reviews/186/by178/REVIEW.json binds same0fb and independently checks two private resource state implementations, raw/Wire attacks and budget boundaries.",
+  "review_notes": [
+    "Explicit success modes do not turn the whole union into Managed; ordinary affine moves and Copy error paths retain their roles.",
+    "Unused definitions cannot duplicate a union through aggregate or branch paths, or turn transitive give sources into create.",
+    "Ordinary nested context inference retains the direct Store success payload without constraining arbitrary generic T to the whole error union.",
+    "The same original surviving-fresh-branch source now runs atO0/O2; both consuming success branches clean exactly once."
+  ],
+  "boundaries": [
+    "No generic whole-union replacement, resource error payloads, arbitrary borrowed/owned sums or full trait solver.",
+    "Earlierfc Linux/Wine platform evidence is historical and is not relabeled as execution of0fb. Current repair modifies analysis/verification only; new native source tests are from0fb."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}
