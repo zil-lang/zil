@@ -22,6 +22,8 @@ mod copy;
 mod enums;
 #[path = "generic_helper_graph.rs"]
 mod helper_graph;
+#[path = "generic_state.rs"]
+mod states;
 #[path = "generic_store.rs"]
 mod stores;
 #[path = "generic_trait_bounds.rs"]
@@ -111,9 +113,11 @@ struct Engine<'a> {
     nominals: BTreeMap<String, &'a Item>,
     traits: trait_bounds::Index<'a>,
     return_type: Option<TypeRef>,
+    callable_name: Option<String>,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     instances: BTreeMap<(String, Vec<String>), String>,
     instance_types: BTreeMap<String, TypeRef>,
+    state_families: BTreeMap<(String, Vec<Option<String>>), usize>,
     pending: VecDeque<Item>,
     limits: &'a Limits,
     budget: Budget<'a>,
@@ -166,9 +170,11 @@ impl<'a> Engine<'a> {
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
             return_type: None,
+            callable_name: None,
             signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
             instance_types: BTreeMap::new(),
+            state_families: BTreeMap::new(),
             pending: VecDeque::new(),
             limits,
             budget,
@@ -377,13 +383,20 @@ impl<'a> Engine<'a> {
                 ),
             ));
         }
-        let key = (
+        let mut key = (
             template.to_owned(),
             arguments
                 .iter()
                 .map(|ty| type_key(ty, &mut self.budget))
                 .collect::<R<Vec<_>>>()?,
         );
+        let family = self.state_family(item, &arguments, &key.1, span)?;
+        if let Some(family) = family {
+            // A source type name shadowing a callable binder must not share a
+            // symbolic aggregate instance with an ordinary concrete argument.
+            self.budget.node(span, 0)?;
+            key.1.push(format!("$state-family{family}"));
+        }
         if let Some(existing) = self.instances.get(&key) {
             return Ok(existing.clone());
         }
@@ -394,7 +407,10 @@ impl<'a> Engine<'a> {
                 Some(span),
             ));
         }
-        let generated = format!("$generic_{}_{}", template, self.instances.len());
+        let generated = match family {
+            Some(family) => format!("$generic_{template}_$data{family}_{}", self.instances.len()),
+            None => format!("$generic_{}_{}", template, self.instances.len()),
+        };
         self.instances.insert(key, generated.clone());
         if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
             self.instance_types.insert(
@@ -501,6 +517,12 @@ impl<'a> Engine<'a> {
     fn item(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
+                let saved_callable = std::mem::replace(
+                    &mut self.callable_name,
+                    callable::template(f)?.and_then(|bound| {
+                        (bound.roles.len() == 1).then(|| bound.roles[0].generic_name.clone())
+                    }),
+                );
                 for parameter in &mut f.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
@@ -547,6 +569,7 @@ impl<'a> Engine<'a> {
                     FunctionBody::Declaration => {}
                 }
                 self.return_type = saved_result;
+                self.callable_name = saved_callable;
             }
             ItemKind::Aggregate(a) => {
                 for field in &mut a.fields {
@@ -1230,12 +1253,8 @@ impl<'a> Engine<'a> {
                                 .iter()
                                 .any(|p| !callable.contains_generic(&p.name))
                             {
-                                let variables: BTreeSet<_> = function
-                                    .generics
-                                    .iter()
-                                    .filter(|p| !callable.contains_generic(&p.name))
-                                    .map(|p| p.name.clone())
-                                    .collect();
+                                let variables: BTreeSet<_> =
+                                    function.generics.iter().map(|p| p.name.clone()).collect();
                                 let mut found = BTreeMap::new();
                                 if let (Some(result), Some(expected)) =
                                     (&function.return_type, expected)
@@ -1253,7 +1272,13 @@ impl<'a> Engine<'a> {
                                 for (index, (parameter, actual)) in
                                     function.params.iter().zip(actual).enumerate()
                                 {
-                                    if callable.roles.iter().any(|role| role.index == index) {
+                                    if callable.roles.iter().any(|role| {
+                                        role.index == index
+                                            && !callable::state_type(
+                                                &parameter.ty,
+                                                &role.generic_name,
+                                            )
+                                    }) {
                                         continue;
                                     }
                                     let actual = actual.ok_or_else(|| {
@@ -1279,6 +1304,18 @@ impl<'a> Engine<'a> {
                                     .collect::<R<Vec<_>>>()?;
                                 let instance = self.instantiate(&target, types, e.span)?;
                                 callee.kind = ExprKind::Name(instance.clone());
+                                if callable.owned_state
+                                    && let (Some(hints), Some(result)) =
+                                        (&hints, &function.return_type)
+                                    && let Some(mut result) = hints.symbolic_result(
+                                        result,
+                                        &callable.roles[0].generic_name,
+                                        &mut self.budget,
+                                    )?
+                                {
+                                    self.ty(&mut result, depth + 1)?;
+                                    return Ok(Some(result));
+                                }
                                 return self.signature_result(&instance);
                             }
                             if callable.owned_state
@@ -1557,6 +1594,15 @@ impl<'a> Engine<'a> {
         Ok(result)
     }
     fn signature_result(&mut self, name: &str) -> R<Option<TypeRef>> {
+        let callable_name = self
+            .signatures
+            .get(name)
+            .map(|f| callable::template(f))
+            .transpose()?
+            .flatten()
+            .and_then(|bound| {
+                (bound.roles.len() == 1).then(|| bound.roles[0].generic_name.clone())
+            });
         if let Some(ty) = self
             .signatures
             .get(name)
@@ -1564,7 +1610,9 @@ impl<'a> Engine<'a> {
         {
             self.budget.ty(ty)?;
             let mut result = ty.clone();
+            let saved_callable = std::mem::replace(&mut self.callable_name, callable_name);
             self.ty(&mut result, 0)?;
+            self.callable_name = saved_callable;
             Ok(Some(result))
         } else {
             Ok(None)
