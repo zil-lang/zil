@@ -1,0 +1,31 @@
+{
+  "task": "201",
+  "reviewer": "/root/impl197",
+  "kind": "independent read-only test migration review",
+  "reviewed_commit": "a3440b3122b678a98a3d5134e1c5d3b8bfbd08d9",
+  "parent_commit": "bae6ca1191eee2a13794f6fe3b7b2c7f69bc0fdc",
+  "verdict": "Pass for this exact diagnostic-only migration",
+  "production_diff": [],
+  "changed_paths": [
+    "changes/201-regression-migration.md",
+    "crates/zil-driver/tests/impl175_store_views.rs"
+  ],
+  "test": "element_shape_mutable_owned_field_return_and_capture_guards_are_explicit",
+  "before": "only project finite Copy fields",
+  "after": "only project finite Copy or concrete callback fields",
+  "whole_test_file_equals_one_exact_replacement": true,
+  "source_programs_unchanged": true,
+  "preserved_rejection": {
+    "expression": "view.r.code",
+    "category": "Unsupported",
+    "phase": "Types",
+    "code": "E-UNSUPPORTED"
+  },
+  "findings": [
+    "The existing Managed field access remains a rejected input; the migration does not convert it to a successful callback-field case.",
+    "All source strings, phase/category/code checks, later controls, default budgets and production bytes are unchanged by this commit.",
+    "The only test-file change reflects the new callback projection alternative in the message. The historical copy-only field limitation remains enforced for ordinary owning fields."
+  ],
+  "execution_boundary": "Read-only Git diff and byte equality inspection only. No compilation or test execution is attributed to this receipt. Root's old f1 failure and a344 targeted success are separate execution records.",
+  "executed_test_commands": []
+}
