@@ -456,6 +456,32 @@ impl Collector<'_> {
     fn header(&mut self, function: &CoreFunction) -> CompileResult<()> {
         self.charge(0)?;
         self.text(&function.name)?;
+        if !function.type_parameters.is_empty() {
+            if self.query {
+                return Err(vec![Diagnostic::error(
+                    Phase::Ct,
+                    "E-CT-FORBIDDEN",
+                    Some(function.span),
+                    "ordinary StoreElement templates cannot execute in compile-time queries",
+                )]);
+            }
+            if function.type_parameters.len() != 1
+                || function.type_parameters[0].index != 0
+                || function.type_parameters[0].name.is_empty()
+                || !function.callable_parameters.is_empty()
+                || function.callable_return.is_some()
+                || function.receiver.is_some()
+                || function.foreign.is_some()
+            {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "ordinary StoreElement template metadata requires one lexical binder",
+                    Some(function.span),
+                )]);
+            }
+            self.charge(0)?;
+            self.text(&function.type_parameters[0].name)?;
+        }
         if function.parameters.len() > self.limits.max_locals {
             return Err(vec![Diagnostic::limit(
                 Phase::Ct,
@@ -598,6 +624,31 @@ impl Collector<'_> {
     fn expression(&mut self, module: ModuleId, e: &CoreExpr, depth: usize) -> CompileResult<()> {
         self.charge(depth)?;
         match &e.kind {
+            CoreExprKind::TypeApply {
+                callee,
+                type_arguments,
+            } => {
+                if self.query {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-FORBIDDEN",
+                        Some(e.span),
+                        "type applications cannot execute in compile-time queries",
+                    )]);
+                }
+                let static_callee = matches!(&callee.kind, CoreExprKind::Name(_))
+                    || matches!(&callee.kind, CoreExprKind::Member { object, .. }
+                        if matches!(&object.kind, CoreExprKind::Name(_)));
+                if type_arguments.len() != 1 || !static_callee {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "type application requires one complete type and a static function callee",
+                        Some(e.span),
+                    )]);
+                }
+                self.ty(&type_arguments[0], depth + 1)?;
+                self.expression(module, callee, depth + 1)?;
+            }
             CoreExprKind::Literal(_) if self.query => {
                 return Err(vec![Diagnostic::error(
                     Phase::Ct,
@@ -857,6 +908,7 @@ fn strip_expr(e: &mut CoreExpr) {
         return;
     }
     match &mut e.kind {
+        CoreExprKind::TypeApply { callee, .. } => strip_expr(callee),
         CoreExprKind::Ascribed { value, .. } | CoreExprKind::IntegerConvert { value, .. } => {
             strip_expr(value)
         }
@@ -1219,5 +1271,126 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn ct202_collector_rejects_bare_template_and_indirect_wrapper_before_execution() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "template202-ct.zil",
+            "fn pure()->i64{return 42}fn wrapper()->i64{return pure()}",
+        );
+        let ast = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand(&source, &ast).unwrap();
+        let span = core.functions[0].span;
+        let mut program = CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core,
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let target = TargetProfile::default();
+        let query = |name: &str| CoreExpr {
+            id: NodeId(800),
+            span,
+            kind: CoreExprKind::Call {
+                callee: Box::new(CoreExpr {
+                    id: NodeId(801),
+                    span,
+                    kind: CoreExprKind::Name(name.into()),
+                }),
+                arguments: vec![],
+            },
+        };
+        let control = Compiler {
+            program: &program,
+            module: ModuleId(0),
+            target: &target,
+        }
+        .compile(&query("wrapper"), Some(&Type::I64), &Limits::default())
+        .unwrap();
+        let verified = zil_verify::verify_ct_program(control, &target, &Limits::default()).unwrap();
+        assert_eq!(
+            zil_ct::evaluate_program(&verified).unwrap().value,
+            zil_ct::CompileTimeValue::Scalar(Constant::I64(42))
+        );
+        program.modules[0]
+            .core
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "pure")
+            .unwrap()
+            .type_parameters = vec![CoreTypeParameter {
+            index: 0,
+            name: "T".into(),
+            bound: CoreTypeBound::StoreElement,
+        }];
+        for name in ["pure", "wrapper"] {
+            let errors = Compiler {
+                program: &program,
+                module: ModuleId(0),
+                target: &target,
+            }
+            .compile(&query(name), Some(&Type::I64), &Limits::default())
+            .unwrap_err();
+            assert_eq!(errors[0].phase, Phase::Ct);
+            assert_eq!(errors[0].code, "E-CT-FORBIDDEN");
+        }
+        let mut wrapped = query("pure");
+        let CoreExprKind::Call { callee, .. } = &mut wrapped.kind else {
+            panic!()
+        };
+        *callee = Box::new(CoreExpr {
+            id: NodeId(802),
+            span,
+            kind: CoreExprKind::TypeApply {
+                callee: callee.clone(),
+                type_arguments: vec![Type::Named("T".into())],
+            },
+        });
+        let errors = Compiler {
+            program: &program,
+            module: ModuleId(0),
+            target: &target,
+        }
+        .compile(&wrapped, Some(&Type::I64), &Limits::default())
+        .unwrap_err();
+        assert_eq!(errors[0].code, "E-CT-FORBIDDEN");
+    }
+
+    #[test]
+    fn ct202_collector_bounds_unused_template_names_before_whole_program_copy() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "template202-shape.zil",
+            "fn f()->i32{return 42}",
+        );
+        let ast = zil_syntax::parse(&source).into_result().unwrap();
+        let mut core = zil_expand::expand(&source, &ast).unwrap();
+        core.functions[0].type_parameters = vec![CoreTypeParameter {
+            index: 0,
+            name: "T".repeat(8192),
+            bound: CoreTypeBound::StoreElement,
+        }];
+        let errors = single(
+            &core,
+            &TargetProfile::default(),
+            &Limits {
+                max_analysis_steps: 256,
+                ..Limits::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+        assert_eq!(errors[0].phase, Phase::Ct);
+        core.functions[0].type_parameters[0].index = 1;
+        let errors = single(&core, &TargetProfile::default(), &Limits::default()).unwrap_err();
+        assert_eq!(errors[0].category, ResultCategory::Unsupported);
+        assert_eq!(errors[0].phase, Phase::Ct);
     }
 }
