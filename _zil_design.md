@@ -363,6 +363,18 @@ push成功把完整元素交给初始化前缀；容量不足通过真实错误�
 
 本片以现有OwnedStore/Package/Closure及真实地址/字段/调用指令作为复用候选，只有独立raw/Wire与源码机器路径证实所需事实均存在时才保持schema；缺事实必须先补公开表示。F/G异构元素、dyn、递归拥有、长期保留及异步不由此开放。201登记表示施工合同；实际准入须由原02原字节、多个独立元素、窗口近邻反例、失败清理与非作者冻结验收确认。
 
+#### 8.2.1 普通StoreElement模板的完整类型绑定（202）
+
+普通StoreElement函数的实际T若依赖调用者尚未绑定的callable类型，或依赖已保留普通模板的T，必须在擦除普通泛型之前保留完整类型约束。第一片仅允许一个普通`T:StoreElement`自由函数；不与其他Copy/callable/const泛型混合，不开放receiver、foreign、where或opaque callable返回。完全具体的原调用仍走原Expand特化路径，旧精确收费保持。未调用的源码定义继续依据其声明约束检查；封闭StoreElement不授予公开字段、Copy、任意捕获或回调调用能力。
+
+公开CoreFunction增加独立type_parameters表，首片非空形状只有index0、一个非空词法名字和StoreElement bound。它与callable_parameters/callable_return互斥，不是运行时参数角色。全部延后调用正规为静态Call的直接callee TypeApply，携带一个完整T约束；源显式实参与从值参数或明确结果唯一推得的实参同样保真。TypeApply不能成为独立值、函数指针、间接调用或嵌套应用；裸Call不命中普通模板。缺少唯一约束、错误类别或未解析实参明确拒绝。
+
+类型实参先按调用者词法作用域解释，再同时替换被调用模板的T。普通binder身份来自实际定义及其index，Core层包含ModuleId/NodeId，不能由字符串同名或生成函数名替代。普通T不得进入全模块白名单，不能捕获另一个函数的同名T/F。具体实例键包含模板身份与完整实际Type，包括模块/名义族、普通实参、字段顺序、资源头、数组长度、错误两侧及具体ClosureId；同布局或同一个ClosureId不代表相同T。最终TypedIR不含未绑定T/F，也不含TypeApply运行时操作。
+
+Types独立核完整类型实参与所有实际值参数/明确结果约束；类型应用和源码定义检查均不授予安全权限。普通模板未实例化时没有可调用的具体FunctionId，不得与真正函数编号混用。依赖计划须涵盖callable、普通T及子T实例，未完成占位不能打破递归或增长递归拒绝。描述符写效应按真实模板参数位置和调用传播，不因跳过模板而默认只读；实际窗口、参数模式、错误载荷和清理继续由Analyze/Verify从具体IR重建。
+
+新增表、节点、类型树、名字、实例复制/比较、替换展开、队列及效应传播均在分配或展开前计费；raw Core入口同样有界，不以正常前端输出代替检查。原默认限额和产品阈值保持。运行时源CT正规化保留表及全部实参，CT执行普通StoreElement模板或TypeApply本片明确E-CT-FORBIDDEN；包装不能隐藏运行时资源或foreign调用。公共Core合同发布采用schema/Wire26及新指纹域；没有为新Core节点伪造TypedIR opcode。登记本条不是实现验收，须原失败源、模块/作用域/名义身份、raw元数据、机器/故障清理和非作者证据闭合。
+
 ### 8.3 有限错误联合的直接拥有成功载荷
 
 在错误侧E为已支持有限Copy值、成功侧R为已支持直接资源的`E!R`返回中，显式`contract { result(create) }`或`result(give)`作用于成功载荷R，形成普通非Copy联合Value `Sum(E, Managed<R>)`；外层联合本身不是资源Desc或额外Managed。未声明拥有模式仍按R的默认类别解析，不从资源描述自动创造管理责任。create/give继续要求真实来源、实际转交和唯一清理。

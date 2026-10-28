@@ -2,13 +2,13 @@
   "schema_version": 1,
   "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
   "files": {
-    "_zil_design.md": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
+    "_zil_design.md": "6dcf6c58d126bc7922cee8102bb4b44ca91c9acd6e1ef476fb3bcfc80f2399a6",
     "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
     "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
     "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
-    "spec/interfaces.json": "da8209c31cd8e8466e4a4c17652ed88c37b3bcaa6d9d80900aa363516f5e606b",
+    "spec/interfaces.json": "40533a237c6392ec9fcb756ff1414e4b68b01fd16e6b7cf98b7f0a5d35f8408f",
     "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
     "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
   },
-  "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3"
+  "normative_hash": "9bb84f09971a522cb8ffc3808829d3aa05744dac1e8871c3914e7a2a0635aec6"
 }
