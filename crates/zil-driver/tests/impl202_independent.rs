@@ -830,6 +830,26 @@ fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
     unused.name = "unused_ordinary_template".into();
     let unused_index = core.functions.len();
     core.functions.push(unused);
+    let mut identity = core.functions[unused_index].clone();
+    identity.id = NodeId(identity.id.0 + 1);
+    identity.name = "unused_identity_template".into();
+    let binder = identity.type_parameters[0].name.clone();
+    identity.parameters = vec![CoreParameter {
+        name: "value".into(),
+        ty: Type::Named(binder.clone()),
+        mode: PassingMode::Infer,
+        span: identity.span,
+    }];
+    identity.return_type = Type::Named(binder);
+    identity.result_mode = PassingMode::Infer;
+    identity.body.statements.truncate(1);
+    identity.body.statements[0].kind = CoreStatementKind::Return(Some(CoreExpr {
+        id: NodeId(920003),
+        span: identity.span,
+        kind: CoreExprKind::Name("value".into()),
+    }));
+    let identity_index = core.functions.len();
+    core.functions.push(identity);
     raw_types(
         "unused-raw-template-valid",
         &core,
@@ -840,10 +860,17 @@ fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
     for attack in [
         "foreign-binder-in-unused-signature",
         "wrong-target-in-unused-body",
+        "foreign-binder-in-unused-identity",
+        "foreign-target-in-unused-body",
     ] {
         let mut changed = core.clone();
-        let unused = &mut changed.functions[unused_index];
-        if attack == "foreign-binder-in-unused-signature" {
+        let index = if attack == "foreign-binder-in-unused-identity" {
+            identity_index
+        } else {
+            unused_index
+        };
+        let unused = &mut changed.functions[index];
+        if attack.starts_with("foreign-binder-") {
             // Every occurrence of the original T now belongs to another
             // definition; this otherwise unused template only declares U.
             assert_ne!(unused.type_parameters[0].name, "UnusedU");
@@ -858,7 +885,14 @@ fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
                     let target = CoreExpr {
                         id: NodeId(920001),
                         span: callee.span,
-                        kind: CoreExprKind::Name("make".into()),
+                        kind: CoreExprKind::Name(
+                            if attack == "foreign-target-in-unused-body" {
+                                "putchar"
+                            } else {
+                                "make"
+                            }
+                            .into(),
+                        ),
                     };
                     callee.kind = CoreExprKind::TypeApply {
                         callee: Box::new(target),
