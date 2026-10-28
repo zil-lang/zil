@@ -290,11 +290,8 @@ fn helper065_helper_does_not_extend_resource_or_address_lifetimes() {
 
 #[test]
 fn helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces() {
-    rejected(
+    checked(
         "fn run<F:Fn()->i32>(f:&F,other:&i32)->i32{return f()} fn main()->i32{let n=7;let f=()=>n;return run(&f,&n)}",
-        ResultCategory::Unsupported,
-        Phase::Types,
-        "finite Copy",
     );
     rejected(
         "fn run<F:FnMut()->i32>(f:F)->i32{return 0} fn main()->i32{return 0}",
