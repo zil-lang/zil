@@ -365,6 +365,17 @@ fn ordinary_desc_parameter_cannot_use_any_callback_own_window_exemption() {
     native("ordinary-window-native", &source, "");
     source_borrow_reject("ordinary-window-source-alias", &ordinary_window(true));
     actual_desc_alias(&mut module);
+    // Retain the original stale-provenance attack, then let the producer state
+    // the new actual provenance. Neither candidate grants borrowing permission.
+    reject(
+        "ordinary-window-stale-hold",
+        module.clone(),
+        candidate,
+        ResultCategory::SafeReject,
+        "E-VERIFY-HOLD",
+        false,
+    );
+    let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
     reject(
         "ordinary-window-raw-alias",
         module,
