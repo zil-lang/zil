@@ -1,0 +1,19 @@
+{
+  "scope": "Two already archived closed temp paths replaced by regular marker files after rename; current code/evidence/full02 and build target untouched. Prevents reuse of their discarded temporary paths.",
+  "entries": [
+    {
+      "closed_path": "/workspace/scratch/39be3faa4442/run-logs/192-integration/formal-workspace01/tmp",
+      "now": "small regular marker file",
+      "archive": "/workspace/scratch/39be3faa4442/run-logs/archived-185/formal192-unique-tmp.zip",
+      "removed_entries": 24415
+    },
+    {
+      "closed_path": "/workspace/scratch/39be3faa4442/zil195-formal-tmp-sA1esH",
+      "now": "small regular marker file",
+      "archive": "/workspace/scratch/39be3faa4442/run-logs/archived-185/formal195-failed01-tmp.zip",
+      "removed_entries": 27588
+    }
+  ],
+  "free_bytes": 1753034752,
+  "free_inodes": 52895
+}

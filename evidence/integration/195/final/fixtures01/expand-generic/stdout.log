@@ -1,0 +1,6 @@
+
+running 1 test
+test unused_generic_bounds_require_builtin_copy_or_declared_nominal_traits ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+

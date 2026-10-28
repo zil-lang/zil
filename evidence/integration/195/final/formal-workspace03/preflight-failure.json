@@ -1,0 +1,11 @@
+{
+  "status": "PreflightStopped",
+  "source_commit": "1bf8cf548a4648c597a67bf54b09f6200520e4e2",
+  "observed_error": "AssertionError before run_command/cargo when the combined free-space and free-inode requirement was not met",
+  "required_free_inodes": 45000,
+  "required_free_bytes": 1500000000,
+  "cargo_commands_started": 0,
+  "accepted_test_counts": null,
+  "counts_as_pass": false,
+  "followup_observation": "After deleting archived temp trees they reappeared; normal/direct probes observed6013/892 free inodes. Cause not established. Closed paths now replaced with archive pointer files."
+}

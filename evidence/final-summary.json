@@ -1,0 +1,10 @@
+{
+  "source_commit": "1bf8cf548a4648c597a67bf54b09f6200520e4e2",
+  "result_path": "evidence/integration/195/final/RESULT.json",
+  "draft_gate": "NotRun",
+  "full_workspace_gate": "Pass",
+  "full_language_gate": "NotSatisfied",
+  "product_gate": "NotRun",
+  "schema_version": 24,
+  "note": "Current through195 integration; finite language work and actual whole-workspace regression, not complete1.4/product proof."
+}
