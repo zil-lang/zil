@@ -1004,6 +1004,26 @@
       "verification": "Ordinary no-helper-contract self-contained owning boundary is independently reconstructed by Analyze and Verify. No fabricated empty callback contract, field-as-parameter event or producer authority flag. Both actual inputs and all field obligations undergo ordinary independent checks.",
       "machine": "Existing Package/Closure operations and layouts are provisionally sufficient; no new opcode or schema change without an actual representation need. Actual implementation/native/raw receipts remain necessary.",
       "boundary": "No F/G State, State plus replacement-F generic entrance, two-State entrance, nested callback fields, callback Store elements, dynamic/escaping borrowed environments or async. Existing supported source operations are preserved. For the new two-closure constructor only, other actual parameters must be finite Copy or direct Managed values; the existing single-input boundary and its budgets remain unchanged."
+    },
+    "callback_store201": {
+      "extends": [
+        "owned_store20",
+        "store_package_fields21",
+        "store_element_windows21",
+        "exclusive_store_window22",
+        "store_generic22",
+        "same_environment_state200"
+      ],
+      "schema": "Existing Type25/Wire25 OwnedStore, Package, Closure, address, call and cleanup records retain their byte formats. This profile adds no producer permission bit, callback role or runtime element table.",
+      "element": "One complete nonzero-layout Package, one or two direct self-contained Closure fields of the same actual ClosureId, existing finite Copy/direct Managed user-resource or ByteBuffer fields, and at least one existing manages field. Full nominal ordinary T and concrete environment identities are preserved; same ClosureId does not merge runtime fields or Store elements.",
+      "entry": "The finite source entrance is an existing single-State/Pair callable function using Store of the concrete element in its body. Explicit Store<State<F>> callable generic parameters/results and ordinary T:StoreElement helper instantiation whose actual T still depends on F require the subsequent complete-type binding work; they are not silently certified by element admission.",
+      "layout": "Verify independently traverses bounded actual capture metadata and the finite inline closure DAG, including source-order capture data and appended live flags; Unit captures occupy a byte. It checks actual whole-element nonzero stride and bounded x64 size/alignment before codegen. A captured Package payload may be zero-sized while its shell/field flags make the environment nonzero. LLVM independently uses actual closure definitions for machine alignment and layout.",
+      "window": "Existing OwnedStoreBorrow/OwnedStoreBorrowMut -> AddressField(actual field index) -> ReborrowAddress -> CallClosureBorrowed denote the actual environment position. Shared Fn and exclusive FnMut only; borrowed FnOnce is rejected even if a concrete stronger environment could otherwise repeat. Legitimate pop returns a complete owned Package whose FnOnce field may be consumed by the existing owning path.",
+      "loans": "Verify reconstructs a Package-to-Closure field loan with actual parent ancestry and conservative Store roots; an environment-only reborrow must not drop its Store parent. Current callee/argument preparation and lending results keep the real element/environment window. Different dynamic indices, field names or equal ClosureIds do not grant apartness or bypass reserve/push/pop/give/drop/parent-move conflicts.",
+      "responsibility": "Push success transfers the complete element to the initialized prefix, full push returns the same obligation in its real error payload, and pop first shrinks the prefix then transfers the last element. Reserve failure retains the old prefix. Prefix drop visits increasing element index and each actual field in declaration order, invoking existing Managed and Closure cleanup exactly once; no implicit allocation, Box or reference count is introduced.",
+      "independence": "Types and Analyze independently qualify actual fields/captures, including resource-only/unused types and error payloads; Verify rechecks raw/Wire metadata, layout, operands, origins, modes and responsibility. Candidate Hold roots, frontend qualification and backend bytes are not safety certificates. Noncallback Store paths keep their prior logical budgets; new type/metadata/loan work is charged before growth.",
+      "boundary": "Direct Store capture, Package-with-Store capture, retained element addresses, unsupported nested callable Package capture, nested/recursive Store elements, heterogeneous F/G persistent storage, dyn and async remain outside this finite implementation profile. Whole-Package/Closure copying or replacement through a Store address is not authorized. Historical initial profiles retain their original scope; this entry states the precise added combination.",
+      "acceptance": "Registration is not execution. Completion requires original source inputs, real O0/O2 and failure cleanup, independent source/raw/Wire review, exact budget boundaries and final integration receipts. Native Windows and product/full-language gates remain separate."
     }
   }
 }
