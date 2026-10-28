@@ -1089,7 +1089,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         } else if let Type::Address { mutable, inner } = ty {
             if !inner.is_address_pointee()
                 && !ty.is_shared_resource_head_address()
-                && !ty.is_shared_package_address()
+                && !ty.is_package_address()
             {
                 return Err(unsupported(span, "nested reference signature"));
             }
@@ -1240,7 +1240,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     inner,
                 } if (inner.is_address_pointee()
                     || ty.is_shared_resource_head_address()
-                    || ty.is_shared_package_address())
+                    || ty.is_package_address())
                     && (*mutable || !wanted) =>
                 {
                     self.bind(*variable, inner, span)
@@ -2064,7 +2064,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     self.expression_index += 1;
                     let arity = match name {
                         "store_new" => 0,
-                        "store_reserve" | "store_push" | "store_at" => 2,
+                        "store_reserve" | "store_push" | "store_at" | "store_at_mut" => 2,
                         _ => 1,
                     };
                     if arguments.len() != arity {
@@ -2102,12 +2102,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         ));
                     };
                     validate_type(&element, 0, span, self.budget)?;
-                    if matches!(name, "store_reserve" | "store_push" | "store_at") {
-                        let wanted = if matches!(name, "store_reserve" | "store_at") {
-                            Type::I64
-                        } else {
-                            (*element).clone()
-                        };
+                    if matches!(
+                        name,
+                        "store_reserve" | "store_push" | "store_at" | "store_at_mut"
+                    ) {
+                        let wanted =
+                            if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
+                                Type::I64
+                            } else {
+                                (*element).clone()
+                            };
                         let term =
                             self.expr_expected(&arguments[1], Some(&wanted), depth + 1, false)?;
                         self.bind_term(&term, &wanted, arguments[1].span)?;
