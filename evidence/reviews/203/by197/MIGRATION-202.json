@@ -1,0 +1,38 @@
+{
+  "reviewer": "/root/impl197",
+  "kind": "ReadOnlyRegressionMigrationReviewWithSeparateExecution",
+  "reviewed_commit": "81afc8d5e2c1b829b30a8277b6cf57c3e7794f5e",
+  "original_implementation_commit": "9bb87448ed5ea745c52c21989497c676ca3c0a6e",
+  "spec_hash": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "verdict": "Pass",
+  "scope": "Only the exact old 202 bare-call and expected current Wire header migrations; not independent acceptance of all 203 production.",
+  "production_diff": [],
+  "read_only_review": true,
+  "reviewed_paths": [
+    "crates/zil-driver/tests/impl202_independent.rs",
+    "crates/zil-driver/tests/impl202_raw.rs"
+  ],
+  "findings": [
+    "The unused identity definition keeps the identical raw body self-call with its lexical opaque T value. This now satisfies the published static bare ordinary-call rule. Only that named shape becomes a definition-checking success; no runtime recursive instance is completed.",
+    "The application-attack-7 input still removes only the TypeApply wrapper from the actual push call. Its real value arguments uniquely determine complete T. Other explicit malformed tables/targets and a template used as a runtime value keep their rejection expectations.",
+    "The normal encoded header assertion moves from schema 26 to current schema 27. The stale attack still writes 25 into the same bytes, and the Verify version rejection remains unchanged.",
+    "The concrete recursive-instantiation test is unchanged. Its original success control and self-target attack were rerun; both public Types entries still reject the unfinished instance.",
+    "Source strings, malformed metadata mutations, target replacements, all non-migrated expected codes, and the distinction between unused definition and reachable instance remain intact."
+  ],
+  "separate_execution": {
+    "tested_source_commit": "4c6e519f5ea809387aa40e33b94643e8586ca7a8",
+    "git_status": "",
+    "command_receipt": "/dev/shm/zil203-review-by197/migration202/command.json",
+    "evidence_relative_path": "migration202/command.json",
+    "tests_passed": 4,
+    "tests_failed": 0,
+    "tests": [
+      "impl202_raw::ordinary_metadata_and_application_placement_are_checked_when_unused",
+      "impl202_independent::raw_type_application_constraints_cannot_be_dropped_or_become_runtime_values",
+      "impl202_independent::a_raw_recursive_template_cannot_reuse_an_unfinished_function_identity",
+      "impl202_independent::runtime_ct_normalization_retains_full_type_constraints_and_stale_wire_is_rejected"
+    ],
+    "not_a_new_execution_of_commit_81afc8d5": true
+  }
+}

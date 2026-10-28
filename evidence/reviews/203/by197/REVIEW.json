@@ -1,0 +1,258 @@
+{
+  "reviewer": "/root/impl197",
+  "review_kind": "IndependentImplementationReview",
+  "reviewed_task": "203",
+  "implementation_author": [
+    "/root",
+    "/root/roles196_frontend",
+    "/root/bundle_sync"
+  ],
+  "implementation_commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+  "tested_source_commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+  "consumer_source_commit": "c3b8964c9771baf5a90880cc2927f80afc3194c9",
+  "spec_hash": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+  "normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+  "schema_version": 27,
+  "wire_version": 27,
+  "verdict": "Pass",
+  "scope": "The finite two-binding owned State and at-most-two-concrete-callback Store/StoreElement profile in section 8.2.2, including value-inferred static ordinary T calls. This is not acceptance of the entire 1.4 language or B0.",
+  "blocking_findings": [],
+  "production_authored_by_this_reviewer": false,
+  "source_identity": {
+    "receipt": "SOURCE.json",
+    "production_and_independent_inputs_equal": true,
+    "production_fingerprint_sha256": "661829fb3c69521fe5df9d316ee97ea2c7f79cfd529ebcbe895914526076d3cd",
+    "note": "Implementation ee0, source tests 4eb8 and consumer checkout c3 have identical complete production input domains and identical independent fixtures, author condition regression, consumer sources and runner. Actual execution commits are not relabeled."
+  },
+  "executions": {
+    "final_independent": {
+      "receipt": "source09/command.json",
+      "source_commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+      "git_status": "",
+      "passed": 32,
+      "failed": 0,
+      "independent_source_raw_budget_groups": 28,
+      "independent_ct_groups": 4,
+      "included_adapter_old_tests_filtered": 4,
+      "native_executions": 54,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "source_compile_reports": {
+        "Success/link": 54,
+        "Success/verify": 2,
+        "SafeReject/expand": 14,
+        "SafeReject/types": 4,
+        "Unsupported/expand": 1,
+        "Unsupported/verify": 1
+      },
+      "raw_public_types": {
+        "inputs": 45,
+        "valid_controls": 13,
+        "rejected_inputs": 32,
+        "entries_per_input": [
+          "zil_types::check",
+          "zil_types::check_program"
+        ]
+      },
+      "evidence_level": "Real source through native LLVM, raw Core through both public Types entries, raw Typed/Candidate and encoded Wire controls/attacks, exact budget boundaries; each retains its actual earliest phase."
+    },
+    "final_condition_regression": {
+      "receipt": "condition-review01/command.json",
+      "source_commit": "4eb8e4fba59bf424b02a84fd16b95ba2f6dae798",
+      "git_status": "",
+      "passed": 1,
+      "failed": 0,
+      "authored_by": "/root/roles196_frontend",
+      "executed_by": "/root/impl197",
+      "raw_inputs": 9,
+      "valid_controls": 6,
+      "rejected_inputs": 3,
+      "entries_per_input": 2,
+      "scope": "Condition-only old alias on repeated edge, body old alias on repeated edge, old alias after refill; fresh-after-refill, distinct field, fresh per iteration, break-only, repeated same shared/exclusive view controls. This is unused Core declaration checking, not a new native unsafe-execution claim."
+    },
+    "final_linux_consumer": {
+      "receipt": "linux02-command/command.json",
+      "summary": "linux02/summary.json",
+      "source_commit": "c3b8964c9771baf5a90880cc2927f80afc3194c9",
+      "git_status": "",
+      "compiler_source_commit": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+      "compiler_sha256": "6044e4b5e5551302f3452b50759bda54cde8f65cab7c4d8237c4e4243481a187",
+      "compiler_build_receipt": "compiler-cli06/command.json",
+      "passed": 128,
+      "failed": 0,
+      "ordinary": 16,
+      "instrumented": 112,
+      "actual_allocation_failures": 88,
+      "all_live_zero": true,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "platform": "Linux x86_64 native",
+      "input_counts": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "7",
+        "6/full-capacity",
+        "9/invalid",
+        "eof"
+      ],
+      "scope": "Five actual modules, two runtime elements with shared factory identities but distinct per-value debts, two different concrete callback layouts, mutable borrowed F via existing synchronous helper, G actual Fn declared FnOnce consumed after pop, error-side cleanup, growth/push/pop, continue/break, every observed allocator failure prefix."
+    },
+    "old_202_migration_neighbors": {
+      "receipt": "migration202/command.json",
+      "source_commit": "4c6e519f5ea809387aa40e33b94643e8586ca7a8",
+      "passed": 4,
+      "failed": 0,
+      "migration_receipt": "MIGRATION-202.json",
+      "note": "Earlier production freeze, not relabeled with the final condition fix; exact legacy bare-call/schema changes and actual unfinished recursive instance rejection."
+    },
+    "old_200_constructor_neighbor": {
+      "receipt": "old20001/command.json",
+      "source_commit": "c08e71c506984e6cc3ab8bfc13b6ef25469ebfd9",
+      "passed": 1,
+      "failed": 0,
+      "note": "Earlier actual execution of original mismatched second actual parameter / still-single-root result and real capture graph controls; not a final all-old-profile budget claim."
+    }
+  },
+  "independent_budget_boundaries": [
+    {
+      "profile": "new bare complete-value inference",
+      "phase": "Expand",
+      "N": 4726
+    },
+    {
+      "profile": "new bare complete-value inference",
+      "phase": "Types",
+      "N": 19565
+    },
+    {
+      "profile": "ordinary identity with no Store operations but canonical qualification carrier",
+      "phase": "Types",
+      "N": 11033
+    },
+    {
+      "profile": "source-produced concrete closure definitions plus raw unused two-root Store qualification carrier",
+      "phase": "Analyze",
+      "N": 2922
+    },
+    {
+      "profile": "same raw unused two-root Store qualification carrier",
+      "phase": "Verify",
+      "N": 6285
+    }
+  ],
+  "budget_method": "Each final boundary has N success, N-1 ResourceLimit, and fresh N success with the same produced result. Default budgets were not raised. These exact new-path figures do not claim every legacy profile has been independently remeasured.",
+  "review_findings": [
+    "The public State binding table contains two separately validated declaration slots and real source field selectors. Same concrete ClosureId does not merge weak F/G modes or per-value resource responsibilities. Reversed source field order and repeated actual C remain covered.",
+    "Current-function origins survive full T calls, explicit TypeApply, bare value inference, Name, annotations, field take to local/helper, Store borrowing/pop, and both error-union sides. Source, nominal/phantom identities and four-module equal short names were exercised. Raw Record preparation/value and TypeApply slot swaps cannot strengthen G when actual types coincide.",
+    "Definition-time checks run for unused declarations. Fn/FnMut/FnOnce bounds supply no Copy promise: duplicate field takes and reuse after owned-helper transfer reject even when the actual closure happens to be Copy. Fresh local owners and legitimate disjoint fields remain usable.",
+    "The final alias ledger keys actual parents and distinct borrow generations, remembers shared/exclusive kind, preserves parent chains, and never clears old invalidation after take/refill. Preparing the callee before arguments stores a distinct prepared loan; arguments are prepared once and that saved callee is checked again. Repeated use through the same live view remains allowed.",
+    "The repeated-loop condition use set is collected before the body for While and WhileLet. It participates in the same back-edge check as body uses. ForRange boundaries remain once-evaluated. The original missed-condition Core counterexample rejects after the narrow fix.",
+    "Both concrete callback roots are checked independently for finite capture graphs, actual Copy results in the new distinct-root profile, real layout, live flags and nonzero full element stride. Empty-closure-only source fails the actual canonical qualification; its captured-value neighbor succeeds. No-Store identity still carries its actual complete canonical Store type.",
+    "Analyze/raw Verify/encoded Wire do not accept malformed actual second capture graphs, extra callback fields, non-Copy results or stale schema versions merely because a first root passed. A raw program with erased source declarations is not claimed to prove source-equivalent mode semantics; that contract is checked in Core/Types before erasure.",
+    "CT normalization preserves both State bindings and static type/value call identity, supplies the genuine i64 runtime scalar context across modules, and refuses to execute the templates or wrappers during CT. Shadowing and early oversized metadata remain checked with actual queries and recorded phases.",
+    "The final Linux oracle is independent of observed outcomes: declared source layouts predict the 72-byte State stride, allocator sequence and complete drop markers. O0/O2 actual executions match that oracle, including immediate Fn-to-FnOnce cleanup, partial push failure, preserved live Store on failed growth, and every real allocation-failure prefix."
+  ],
+  "corrected_gaps_and_original_evidence": [
+    {
+      "issue": "Unused declaration repeated Once use and wrong field admission",
+      "original": "source03",
+      "closed_by": "215d62dc1c742109ee9295fd30eab9b07d2bcae1",
+      "final": "source09"
+    },
+    {
+      "issue": "Valid distinct concrete constructor / error-union State routing / bare full-value calls initially closed",
+      "original": [
+        "source03",
+        "source04",
+        "bare01"
+      ],
+      "closed_by": [
+        "9a7da04b3b35a707853b5cfe4025cec61e7d5f84",
+        "9a786467",
+        "fe10218a",
+        "f3e802e14670ce7413e4d943fe8c06a6576bd608"
+      ],
+      "final": "source09"
+    },
+    {
+      "issue": "Unused declaration field moves incorrectly gained reuse",
+      "original": "moves01",
+      "closed_by": "6e102de14886ec952a5221f8eec43ed2a531ae5f",
+      "final": "source09"
+    },
+    {
+      "issue": "Unused alias after parent take / exclusive alias across direct FnMut",
+      "original": [
+        "alias01",
+        "exclusive01"
+      ],
+      "closed_by": "1846878e3d3e6e4083b102557ae6c98d0dec85f9",
+      "final": "source09",
+      "qualification": "Used original counterparts already rejected at Verify; these were declaration-contract gaps, not demonstrated unsafe native executions."
+    },
+    {
+      "issue": "Old alias used only in a repeated loop condition missed the back-edge use set",
+      "original": "author-condition-baseline",
+      "closed_by": "2d90245c07469549f08c7220c7191ad8ab1cf234",
+      "final": "condition-review01",
+      "qualification": "Discovered in independent code review, original executed by Types author, final independently replayed. All execution ownership is explicit."
+    }
+  ],
+  "preserved_history": {
+    "index": "RUNS.json",
+    "original_four_source_fixtures": "SOURCE.json",
+    "prior_linux_cli05": "linux01/summary.json",
+    "prior_source07": "source07/command.json",
+    "early_normative_hash": "1355ae0d2351199391d65ca4faa4a84ce768ece5c8aaaca465b8de5b20aad65a",
+    "later_normative_hash": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+    "source04_dirty_evidence_sync_state_preserved": true,
+    "fixture_errors_not_production_regressions": [
+      "scaffold02",
+      "ct01",
+      "origins01",
+      "ct03"
+    ],
+    "cache_failures_with_zero_test_execution": [
+      "source01",
+      "source02",
+      "source08"
+    ],
+    "note": "No failed receipt was overwritten, no separate run counts are combined into a fictitious full-workspace pass, and no later norm/source identity is applied to an older run."
+  },
+  "public_boundary": {
+    "new_callback_results": "Existing finite Copy values for dual-binder/new distinct concrete-root profile",
+    "old_single_root_lending": "Existing admission remains; this review does not open multi-type lending",
+    "Store_captures_or_recursive_capture_graphs": "Still closed in 203; 204 is a separate proposed task",
+    "bare_empty_or_conflicting_T_or_runtime_template_values": "Rejected",
+    "native_windows": "NotRun by this reviewer",
+    "full_workspace": "NotRun by this reviewer; root performs separate formal execution"
+  },
+  "rust_goals": {
+    "safety": "Concrete source/raw/Wire and cleanup failures exercised; declaration origins and actual loan safety are explicitly distinguished. This finite review is not a proof for all language programs.",
+    "runtime_and_memory": "Exact drop traces and allocation balance measured for the native consumer. No Rust performance or total-memory superiority measurement was performed.",
+    "expression_and_maintenance": "Complete State and Store helpers now carry separate callable declarations without accidental concrete-type permission. This increases the demonstrated composition range, not a measured maintenance/product outcome.",
+    "compile_cost": "New work is bounded and exact N boundaries recover in fresh calls. No claim of compile-speed superiority or all-old-profile timing parity."
+  },
+  "product_net_breakthrough": "NotEstablished",
+  "full_language": "NotSatisfied",
+  "B0": "Doing",
+  "B0_completion": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "created_utc": "2026-10-28T13:22:21.048090+00:00",
+  "external_evidence": {
+    "archive": "203-review-by197-evidence.zip",
+    "absolute_path": "/workspace/scratch/39be3faa4442/deliverables/203-review-by197-evidence.zip",
+    "bytes": 28868714,
+    "sha256": "9f3591d6e997c386714e0edc03b63a2e1eef76cf034c4e7ea184adea7fefc43f",
+    "manifest_receipt": "ARCHIVE.json",
+    "archive_member_manifest": "ARCHIVE-MANIFEST.json",
+    "snapshot_member": "review-summary/REVIEW-SNAPSHOT.json"
+  }
+}
