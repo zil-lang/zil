@@ -413,7 +413,7 @@ fn declaration_order_and_field_order_are_independent_even_when_ids_are_equal() {
 }
 
 fn unused_state_core() -> (CoreModule, usize) {
-    let mut core = expanded(
+    let core = expanded(
         "raw-state-header-source",
         r#"
 resource Ticket{code:i32}
@@ -422,6 +422,11 @@ fn inspect<F:Fn()->i32>(state:State<F>)->i32{return 0}
 fn main()->i32{return 0}
 "#,
     );
+    // Expand retains nominal aggregate references. Resolve the legacy control
+    // through its real public stage before introducing the new raw table.
+    let mut resolved =
+        zil_types::resolve_program_shapes(&program(core), &Limits::default()).unwrap();
+    let mut core = resolved.modules.remove(0).core;
     let index = core
         .functions
         .iter()
