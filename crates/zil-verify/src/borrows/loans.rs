@@ -995,6 +995,8 @@ pub(super) fn check(
                 InstructionKind::TakeCapture { index }
                     if instruction.result.is_some_and(|value| {
                         byte_buffers::is_owned(&f.values[value.0 as usize])
+                            || matches!(&f.values[value.0 as usize], Type::Managed(payload)
+                                if matches!(payload.as_ref(), Type::OwnedStore { .. }))
                             || matches!(f.values[value.0 as usize], Type::Closure(_))
                     }) =>
                 {
