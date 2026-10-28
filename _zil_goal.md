@@ -108,3 +108,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-28：203 独立State绑定接受
 
 203在schema/Wire27贯通两个独立声明F/G、真实字段/名义身份、有限双实际环境Store与裸普通T值推导。原未用定义的move/alias/exclusive/loop-condition漏检及CT上下文缺陷按原输入闭合；两次旧测试迁移与两次全量Fail均保留。最终clean2e58整仓2404/0/0、247组，同源Clippy通过；五模块Linux/Wine各128次、各88真实分配失败，live0，非作者另行Linux128通过。详见docs/LANGUAGE-203.md及精确集成收据。下一204优先有限叶子Store与完整Package拥有捕获，保留§9.1既有拥有推导、真实模式、独立资格与失败清理；其它终态义务不删除。完整1.4 NotSatisfied、产品/原生Windows NotRun、B0 Doing，编译支线独立。
+
+## 2026-10-28 204施工
+
+203已验收后继续有限叶Store拥有捕获，正式范围见设计§9.1.1及主树204工单；Types、Analyze、Verify/LLVM和非作者审核并行。登记不计通过，完整1.4/B0/产品/原生Windows状态保持，编译速度支线独立。
