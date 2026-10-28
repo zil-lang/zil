@@ -90,13 +90,14 @@ fn public_headers_are_bounded_before_any_type_clone() {
             0 => core.functions[0].parameters.push(parameter(callback(32))),
             1 => core.functions[0].return_type = callback(32),
             _ => {
-                core.functions[0].callable_parameter = Some(CoreCallableParameter {
+                core.functions[0].callable_parameters = vec![CoreCallableParameter {
                     index: 0,
+                    generic_index: 0,
                     generic_name: "F".into(),
                     kind: CallableKind::Fn,
                     parameters: vec![callback(32)],
                     result: Type::I32,
-                })
+                }]
             }
         }
         limited(&core, &limits);

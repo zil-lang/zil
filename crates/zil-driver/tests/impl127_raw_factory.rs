@@ -286,7 +286,13 @@ fn independent_same_id_instances_and_parameter_aliases_have_exact_counts() {
             .traces
             .as_finite_mut()
             .unwrap()[0]
-            .calls = vec![CallableKind::Fn; if alias { 1 } else { 2 }];
+            .calls = vec![
+            zil_ir::CallEvent {
+                parameter: 0,
+                kind: CallableKind::Fn
+            };
+            if alias { 1 } else { 2 }
+        ];
         observe(
             if alias {
                 "alias-hidden-call"

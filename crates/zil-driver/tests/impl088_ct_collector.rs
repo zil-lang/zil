@@ -174,13 +174,14 @@ fn collector_bounds_retained_and_returned_callable_contracts() {
         let mut p = program();
         let f = &mut p.modules[0].core.functions[0];
         if retained {
-            f.callable_parameter = Some(CoreCallableParameter {
+            f.callable_parameters = vec![CoreCallableParameter {
                 index: 0,
+                generic_index: 0,
                 generic_name: "F".into(),
                 kind: CallableKind::Fn,
                 parameters: vec![callback()],
                 result: Type::I32,
-            });
+            }];
         } else {
             f.callable_return = Some(CoreCallableReturn {
                 kind: CallableKind::Fn,
