@@ -71,6 +71,9 @@ pub(super) fn validate_parametric<'l>(
             .unwrap_or_else(|| unit(function.span)),
         budget,
     };
+    if let Some(profile) = check.callable.as_ref().and_then(|b| b.state_replacement) {
+        check.state_replacement_header(function, profile)?;
+    }
     if let Some(bounds) = check.callable.as_ref().filter(|b| b.dual_names().is_some()) {
         for binding in bounds.bindings() {
             copy::require(
@@ -391,6 +394,108 @@ struct Check<'s, 'b, 'l> {
     budget: &'b mut Budget<'l>,
 }
 impl Check<'_, '_, '_> {
+    /// Ordinary Copy parameters can leave this definition uninstantiated and
+    /// absent from Core. Check the complete mixed header here as well as at
+    /// the later selector-producing boundary; no concrete instance grants it.
+    fn state_replacement_header(
+        &mut self,
+        function: &Function,
+        profile: callable::StateReplacement,
+    ) -> R<()> {
+        let owner = &function.params[profile.owner].ty;
+        let result = function
+            .return_type
+            .as_ref()
+            .expect("mixed complete result");
+        same(owner, result, result.span, self.budget)?;
+        let TypeKind::Named { path, args } = &group(owner).kind else {
+            return Err(unsupported(
+                owner.span,
+                "State replacement requires a complete Package",
+            ));
+        };
+        self.budget.ty(owner)?;
+        let Some(Item {
+            kind: ItemKind::Aggregate(aggregate),
+            ..
+        }) = self.nominals.get(&path.join("."))
+        else {
+            return Err(unsupported(
+                owner.span,
+                "State replacement requires a declared Package",
+            ));
+        };
+        if aggregate.kind != AggregateKind::Package || aggregate.generics.len() != args.len() {
+            return Err(unsupported(
+                owner.span,
+                "State replacement requires the complete declared Package type",
+            ));
+        }
+        let mut substitutions = BTreeMap::new();
+        for (parameter, argument) in aggregate.generics.iter().zip(args) {
+            let GenericArg::Type(ty) = argument else {
+                return Err(unsupported(
+                    owner.span,
+                    "State replacement constant type argument",
+                ));
+            };
+            self.budget.node(ty.span, 0)?;
+            self.budget.text(&parameter.name, ty.span)?;
+            self.budget.ty(ty)?;
+            substitutions.insert(parameter.name.clone(), ty.clone());
+        }
+        let bounds = self.callable.as_ref().expect("mixed callable scope");
+        let bound = bounds
+            .bindings()
+            .next()
+            .expect("mixed callable declaration");
+        copy::require(
+            &bound.result,
+            self.nominals,
+            &self.bounds,
+            &self.variables,
+            self.budget,
+        )?;
+        let mut callbacks = 0usize;
+        for field in &aggregate.fields {
+            self.budget.text(&field.name, field.span)?;
+            let ty = substituted_type(&field.ty, &substitutions, self.budget)?;
+            if callable::parameter_mode(&ty, &bound.generic_name) == Some(None) && !field.manages {
+                callbacks += 1;
+            } else if callable::refers(&ty, &bound.generic_name) {
+                return Err(unsupported(
+                    field.span,
+                    "State replacement requires direct callback fields",
+                ));
+            } else if !field.manages {
+                copy::require(
+                    &ty,
+                    self.nominals,
+                    &self.bounds,
+                    &self.variables,
+                    self.budget,
+                )?;
+            }
+        }
+        if !(1..=2).contains(&callbacks) {
+            return Err(unsupported(
+                owner.span,
+                "State replacement requires one or two direct fields of its single callable type",
+            ));
+        }
+        for (index, parameter) in function.params.iter().enumerate() {
+            if index != profile.owner && index != profile.replacement {
+                copy::require(
+                    &parameter.ty,
+                    self.nominals,
+                    &self.bounds,
+                    &self.variables,
+                    self.budget,
+                )?;
+            }
+        }
+        Ok(())
+    }
     fn literal_context<'a>(&self, expected: Option<&'a TypeRef>) -> Option<&'a TypeRef> {
         if self
             .callable
@@ -444,9 +549,9 @@ impl Check<'_, '_, '_> {
         }
     }
     fn two_input_state_constructor(&self) -> bool {
-        self.callable
-            .as_ref()
-            .is_some_and(|bounds| bounds.owned_state && bounds.roles.len() == 2)
+        self.callable.as_ref().is_some_and(|bounds| {
+            bounds.owned_state && bounds.roles.len() == 2 && bounds.state_replacement.is_none()
+        })
     }
     fn owned_resource_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
         self.tick(expression.span)?;
