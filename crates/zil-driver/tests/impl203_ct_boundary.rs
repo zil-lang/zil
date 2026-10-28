@@ -86,7 +86,7 @@ fn ct203_preserves_two_declared_modes_and_reversed_selectors_during_runtime_fold
     let context = zil_ct::SourceProgramContext::new(&p, &limits).unwrap();
     let (output, usage) =
         zil_ct::evaluate_source_constants_with_usage(input, &target, &limits).unwrap();
-    let contextual =
+    let (contextual, _) =
         zil_ct::evaluate_source_constants_with_context(input, &target, &limits, &context).unwrap();
     let collected = adapter::single(input, &target, &limits).unwrap();
     for result in [&output, &contextual, &collected] {
