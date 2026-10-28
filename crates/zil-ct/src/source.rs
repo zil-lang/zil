@@ -2203,6 +2203,107 @@ mod tests {
         }
     }
 
+    fn assert_runtime_bare_hint203(state: bool, indexed: bool) {
+        // Raw runtime-call normalization only. A scalar argument hint must not
+        // authorize executing either kind of generic template during CT.
+        let mut core = runtime_template202();
+        let CoreStatementKind::Return(Some(call)) = &mut core.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::Call { callee, .. } = &mut call.kind else {
+            panic!()
+        };
+        *callee = Box::new(expr(CoreExprKind::Name("reserve".into())));
+        if state {
+            let function = &mut core.functions[1];
+            function.type_parameters.clear();
+            function.parameters[0].ty = Type::Package {
+                name: "State".into(),
+                fields: vec![
+                    ("first".into(), Type::Named("F".into())),
+                    ("second".into(), Type::Named("G".into())),
+                ],
+            };
+            function.parameters[0].mode = PassingMode::Infer;
+            function.state_parameters = vec![CoreStateParameter {
+                index: 0,
+                bindings: vec![
+                    CoreStateBinding {
+                        generic_index: 0,
+                        generic_name: "F".into(),
+                        kind: CallableKind::Fn,
+                        parameters: vec![],
+                        result: Type::I32,
+                        fields: vec![0],
+                    },
+                    CoreStateBinding {
+                        generic_index: 1,
+                        generic_name: "G".into(),
+                        kind: CallableKind::FnOnce,
+                        parameters: vec![],
+                        result: Type::I32,
+                        fields: vec![1],
+                    },
+                ],
+            }];
+        }
+        let program = CoreProgram {
+            root: core.module_id,
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core: core.clone(),
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let limits = Limits::default();
+        let context = SourceProgramContext::new(&program, &limits).unwrap();
+        let (normalized, usage) = evaluate_with_context(
+            &core,
+            &TargetProfile::default(),
+            &limits,
+            indexed.then_some(&context),
+            None,
+        )
+        .unwrap();
+        assert_eq!(normalized.functions[1], core.functions[1]);
+        let CoreStatementKind::Return(Some(call)) =
+            &normalized.functions[0].body.statements[0].kind
+        else {
+            panic!()
+        };
+        let CoreExprKind::Call { callee, arguments } = &call.kind else {
+            panic!()
+        };
+        assert_eq!(callee.kind, CoreExprKind::Name("reserve".into()));
+        assert_eq!(
+            arguments[1].kind,
+            CoreExprKind::Integer("4294967296i64".into())
+        );
+        assert!(usage.steps > 0);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_ordinary_scalar_hint_plain() {
+        assert_runtime_bare_hint203(false, false);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_ordinary_scalar_hint_indexed() {
+        assert_runtime_bare_hint203(false, true);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_state_scalar_hint_plain() {
+        assert_runtime_bare_hint203(true, false);
+    }
+
+    #[test]
+    fn ct203_runtime_bare_state_scalar_hint_indexed() {
+        assert_runtime_bare_hint203(true, true);
+    }
+
     #[test]
     fn ct202_template_metadata_and_type_arguments_are_bounded_before_copy() {
         let mut core = runtime_template202();
