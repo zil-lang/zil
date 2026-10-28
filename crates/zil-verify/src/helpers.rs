@@ -417,6 +417,86 @@ pub(super) fn check_claim_shape(
     Ok(())
 }
 
+// Independent admission of the new two-type owning boundary. It checks the
+// actual parameter locals, both result fields and both capture roots; it does
+// not consume a Types/Analyze classification or a claimed callback contract.
+fn two_type_state_constructor(
+    module: &TypedModule,
+    function: &TypedFunction,
+    parameters: &[(u32, ClosureId, bool, &Type)],
+    budget: &mut Budget,
+) -> Check<bool> {
+    let [
+        (first_position, first, false, _),
+        (second_position, second, false, _),
+    ] = parameters
+    else {
+        return Ok(false);
+    };
+    // No additional work is charged to the already implemented same-type path.
+    if first == second {
+        return Ok(false);
+    }
+    let Type::Package { fields, .. } = &function.return_type else {
+        return Ok(false);
+    };
+    resources::charge_payload(&function.return_type, budget)?;
+    budget.spend(
+        fields
+            .len()
+            .saturating_add(function.parameters.len())
+            .saturating_add(2),
+    )?;
+    let (mut counts, mut managed) = ([0usize; 2], false);
+    for (_, ty) in fields {
+        match ty {
+            Type::Closure(id) if id == first => counts[0] += 1,
+            Type::Closure(id) if id == second => counts[1] += 1,
+            Type::Managed(payload)
+                if **payload == Type::ByteBuffer
+                    || (matches!(payload.as_ref(), Type::Record { .. })
+                        && payload.is_copy_value()) =>
+            {
+                managed = true
+            }
+            ty if ty.is_copy_value() => {}
+            _ => return Ok(false),
+        }
+    }
+    if counts != [1, 1] || !managed {
+        return Ok(false);
+    }
+    for (position, local) in function.parameters.iter().enumerate() {
+        if position == *first_position as usize || position == *second_position as usize {
+            continue;
+        }
+        let ty = &function.locals[local.0 as usize].ty;
+        let work = closures::type_layout_work(ty, budget)?;
+        budget.spend(work)?;
+        if !ty.is_copy_value() && !matches!(ty, Type::Managed(_)) {
+            return Err(unsupported(
+                "two-type owning State constructors require finite Copy or direct Managed ordinary parameters",
+                Some(function.span),
+            ));
+        }
+    }
+    for id in [*first, *second] {
+        budget.spend(1)?;
+        let definition = closures::definition(module, id, Some(function.span))?;
+        resources::charge_payload(&definition.result, budget)?;
+        if !definition.result.is_copy_value() {
+            return Err(unsupported(
+                "two-type owning State constructors require Copy callback results",
+                Some(function.span),
+            ));
+        }
+        budget.spend(1)?;
+        closures::self_contained(module, id, budget)?;
+    }
+    packages::check_type_for(module, &function.return_type, Some(function.span), budget)?;
+    Ok(true)
+}
+
 pub(super) fn check_module(
     module: &TypedModule,
     graphs: &[FunctionGraph],
@@ -482,8 +562,10 @@ pub(super) fn check_module(
         // callback contract can stand in for it. Ordinary parameter, move,
         // Package construction and cleanup checks still cover both values.
         if f.callable_contract.is_none()
-            && let [(first_position, first, false, _), (second_position, second, false, _)] =
-                parameters.as_slice()
+            && let [
+                (first_position, first, false, _),
+                (second_position, second, false, _),
+            ] = parameters.as_slice()
             && first == second
             && let Type::Package { fields, .. } = &f.return_type
         {
@@ -522,6 +604,11 @@ pub(super) fn check_module(
                 packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
                 continue;
             }
+        }
+        if f.callable_contract.is_none()
+            && two_type_state_constructor(module, f, &parameters, budget)?
+        {
+            continue;
         }
         let claim = f.callable_contract.as_ref().ok_or_else(|| {
             bad(
