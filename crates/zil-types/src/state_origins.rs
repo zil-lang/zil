@@ -5,6 +5,536 @@ use std::borrow::Cow;
 use std::rc::Rc;
 use zil_base::NodeId;
 
+type Position = (u32, Option<u32>);
+#[derive(Clone)]
+struct MoveFlow {
+    live: bool,
+    moved: std::collections::BTreeSet<Position>,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Access {
+    Read,
+    Move,
+    Write,
+}
+
+/// This is the symbolic declaration's position ledger. A field take transfers
+/// its value to a fresh local; its source position stays unavailable. No kind
+/// (including Fn) supplies a Copy promise for the declaration's parameter.
+struct MoveWalk<'a, 's> {
+    uses: &'a BTreeMap<NodeId, Shape>,
+    bounds: &'a [CoreCallableParameter],
+    scopes: Vec<BTreeMap<String, u32>>,
+    next: u32,
+    flow: MoveFlow,
+    loops: Vec<(Option<MoveFlow>, Option<MoveFlow>)>,
+    state: &'s mut closures::State,
+    limits: &'a Limits,
+}
+impl MoveWalk<'_, '_> {
+    fn node(&mut self, depth: usize, span: Span) -> R<()> {
+        if depth > self.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "State source position depth exceeded",
+                Some(span),
+            ));
+        }
+        self.state.snapshot(1, span)
+    }
+    fn clone_flow(&mut self, flow: &MoveFlow, span: Span) -> R<MoveFlow> {
+        self.state
+            .snapshot(flow.moved.len().saturating_add(1), span)?;
+        Ok(flow.clone())
+    }
+    fn snapshot_flow(&mut self, span: Span) -> R<MoveFlow> {
+        self.state
+            .snapshot(self.flow.moved.len().saturating_add(1), span)?;
+        Ok(self.flow.clone())
+    }
+    fn join(&mut self, mut a: MoveFlow, b: MoveFlow, span: Span) -> R<MoveFlow> {
+        self.state.snapshot(
+            a.moved
+                .len()
+                .saturating_add(b.moved.len())
+                .saturating_add(1),
+            span,
+        )?;
+        if !a.live {
+            return Ok(b);
+        }
+        if b.live {
+            a.moved.extend(b.moved);
+        }
+        Ok(a)
+    }
+    fn bind(&mut self, name: &str, span: Span) -> R<()> {
+        if self.next as usize >= self.limits.max_locals {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "State source position count exceeded",
+                Some(span),
+            ));
+        }
+        let scope = self.scopes.last_mut().expect("State move scope");
+        self.state.snapshot(
+            name.len()
+                .saturating_mul(helpers::plan::tree_work(scope.len()))
+                .saturating_add(name.len())
+                .saturating_add(1),
+            span,
+        )?;
+        scope.insert(name.to_owned(), self.next);
+        self.next += 1;
+        Ok(())
+    }
+    fn shape(&mut self, expression: &CoreExpr) -> R<Shape> {
+        self.state
+            .snapshot(helpers::plan::tree_work(self.uses.len()), expression.span)?;
+        let shape = self.uses.get(&expression.id).unwrap_or(&Shape::None);
+        self.state.snapshot(shape.work(), expression.span)?;
+        Ok(shape.clone())
+    }
+    fn position(&mut self, expression: &CoreExpr, depth: usize) -> R<Option<Position>> {
+        self.node(depth, expression.span)?;
+        Ok(match &expression.kind {
+            CoreExprKind::Name(name) => {
+                let mut found = None;
+                for scope in self.scopes.iter().rev() {
+                    self.state.snapshot(
+                        name.len()
+                            .saturating_add(1)
+                            .saturating_mul(helpers::plan::tree_work(scope.len())),
+                        expression.span,
+                    )?;
+                    if let Some(id) = scope.get(name) {
+                        found = Some((*id, None));
+                        break;
+                    }
+                }
+                found
+            }
+            CoreExprKind::Member { object, member } => {
+                let base = self.position(object, depth + 1)?;
+                let shape = self.shape(object)?;
+                let shape = if let Shape::Address(inner) = &shape {
+                    inner.as_ref()
+                } else {
+                    &shape
+                };
+                if let (Some((root, None)), Shape::Package(fields)) = (base, shape) {
+                    self.state.snapshot(
+                        fields.len().saturating_mul(member.len().saturating_add(1)),
+                        expression.span,
+                    )?;
+                    fields
+                        .iter()
+                        .position(|(name, _)| name == member)
+                        .map(|field| (root, Some(field as u32)))
+                } else {
+                    None
+                }
+            }
+            CoreExprKind::Ascribed { value, .. }
+            | CoreExprKind::Unary {
+                operand: value,
+                op: UnaryOp::Give | UnaryOp::Dereference,
+            } => self.position(value, depth + 1)?,
+            _ => None,
+        })
+    }
+    fn access(
+        &mut self,
+        expression: &CoreExpr,
+        shape: &Shape,
+        access: Access,
+        force_store: bool,
+        depth: usize,
+    ) -> R<()> {
+        if !self.flow.live || !shape.has_origin() {
+            return Ok(());
+        }
+        let affine = matches!(
+            shape,
+            Shape::Callable(_) | Shape::Package(_) | Shape::Union { .. }
+        ) || force_store;
+        if access == Access::Move
+            && affine
+            && let CoreExprKind::Member { object, .. } = &expression.kind
+            && matches!(self.shape(object)?, Shape::Address(_))
+        {
+            return Err(error(
+                "E-STATE-MOVE",
+                expression.span,
+                "a borrowed State position cannot transfer an owned callback",
+            ));
+        }
+        let Some(position @ (root, field)) = self.position(expression, depth + 1)? else {
+            return Ok(());
+        };
+        self.state
+            .snapshot(self.flow.moved.len().saturating_add(2), expression.span)?;
+        if access != Access::Write
+            && (self.flow.moved.contains(&(root, None))
+                || self.flow.moved.contains(&position)
+                || (access == Access::Move
+                    && field.is_none()
+                    && self.flow.moved.iter().any(|(owner, _)| *owner == root)))
+        {
+            return Err(error(
+                "E-STATE-MOVE",
+                expression.span,
+                "State source position was already transferred on a reachable path",
+            ));
+        }
+        if access == Access::Move && affine {
+            self.flow.moved.insert(position);
+        }
+        Ok(())
+    }
+    fn expr(&mut self, expression: &CoreExpr, access: Access, depth: usize) -> R<()> {
+        self.node(depth, expression.span)?;
+        let shape = self.shape(expression)?;
+        match &expression.kind {
+            CoreExprKind::Name(_) => self.access(expression, &shape, access, false, depth)?,
+            CoreExprKind::Member { object, .. } => {
+                self.expr(object, Access::Read, depth + 1)?;
+                self.access(expression, &shape, access, false, depth)?;
+            }
+            CoreExprKind::Call { callee, arguments } => {
+                let target = if let CoreExprKind::TypeApply { callee, .. } = &callee.kind {
+                    callee.as_ref()
+                } else {
+                    callee.as_ref()
+                };
+                let target_shape = self.shape(target)?;
+                self.state.snapshot(self.bounds.len(), target.span)?;
+                let consume = target_shape
+                    .slot()
+                    .and_then(|slot| self.bounds.iter().find(|bound| bound.generic_index == slot))
+                    .is_some_and(|bound| bound.kind == CallableKind::FnOnce);
+                self.expr(
+                    target,
+                    if consume { Access::Move } else { Access::Read },
+                    depth + 1,
+                )?;
+                for argument in arguments {
+                    self.expr(argument, Access::Move, depth + 1)?;
+                }
+            }
+            CoreExprKind::Unary {
+                op: UnaryOp::Borrow | UnaryOp::BorrowMut,
+                operand,
+            } => self.expr(operand, Access::Read, depth + 1)?,
+            CoreExprKind::Unary {
+                op: UnaryOp::Give,
+                operand,
+            } => {
+                self.expr(operand, Access::Read, depth + 1)?;
+                let shape = self.shape(operand)?;
+                self.access(operand, &shape, Access::Move, true, depth + 1)?;
+            }
+            CoreExprKind::Ascribed { value, .. } | CoreExprKind::CompileTime(value) => {
+                self.expr(value, access, depth + 1)?
+            }
+            CoreExprKind::Unary { operand, .. }
+            | CoreExprKind::Try(operand)
+            | CoreExprKind::IntegerConvert { value: operand, .. } => {
+                self.expr(operand, Access::Move, depth + 1)?
+            }
+            CoreExprKind::Binary { left, right, .. }
+            | CoreExprKind::Index {
+                object: left,
+                index: right,
+            } => {
+                self.expr(left, Access::Move, depth + 1)?;
+                self.expr(right, Access::Move, depth + 1)?;
+            }
+            CoreExprKind::Slice { object, start, end } => {
+                self.expr(object, Access::Read, depth + 1)?;
+                for value in [start, end].into_iter().flatten() {
+                    self.expr(value, Access::Move, depth + 1)?;
+                }
+            }
+            CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
+                for value in values {
+                    self.expr(value, Access::Move, depth + 1)?;
+                }
+            }
+            CoreExprKind::Record { fields, .. } => {
+                for (_, value) in fields {
+                    self.expr(value, Access::Move, depth + 1)?;
+                }
+            }
+            CoreExprKind::RecordUpdate { base, fields, .. } => {
+                self.expr(base, Access::Move, depth + 1)?;
+                for (_, value) in fields {
+                    self.expr(value, Access::Move, depth + 1)?;
+                }
+            }
+            CoreExprKind::Sequence { bindings, value } => {
+                self.state.snapshot(1, expression.span)?;
+                self.scopes.push(BTreeMap::new());
+                for (name, value) in bindings {
+                    self.expr(value, Access::Move, depth + 1)?;
+                    self.bind(name, value.span)?;
+                }
+                self.expr(value, access, depth + 1)?;
+                self.scopes.pop();
+            }
+            CoreExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                self.expr(condition, Access::Move, depth + 1)?;
+                let before = self.snapshot_flow(expression.span)?;
+                self.expr(then_value, access, depth + 1)?;
+                let after = self.snapshot_flow(expression.span)?;
+                self.flow = before;
+                self.expr(else_value, access, depth + 1)?;
+                let other = self.snapshot_flow(expression.span)?;
+                self.flow = self.join(after, other, expression.span)?;
+            }
+            // The declaration-origin pass already rejects captures of these
+            // sources; an independent closure has no source position to move.
+            CoreExprKind::Closure { .. } => {}
+            _ => {}
+        }
+        Ok(())
+    }
+    fn pattern(&mut self, pattern: &CorePattern, depth: usize) -> R<()> {
+        self.node(depth, pattern.span)?;
+        match &pattern.kind {
+            CorePatternKind::Name(name) => self.bind(name, pattern.span)?,
+            CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
+                for field in fields {
+                    self.pattern(field, depth + 1)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn loop_body(
+        &mut self,
+        body: &CoreBlock,
+        before: MoveFlow,
+        exit: MoveFlow,
+        depth: usize,
+    ) -> R<()> {
+        self.state.snapshot(2, body.span)?;
+        self.loops.push((None, None));
+        self.block(body, depth + 1)?;
+        let (breaks, continues) = self.loops.pop().expect("State move loop");
+        let mut back = self.snapshot_flow(body.span)?;
+        if let Some(continues) = continues {
+            back = self.join(back, continues, body.span)?;
+        }
+        self.state.snapshot(
+            before.moved.len().saturating_add(back.moved.len()),
+            body.span,
+        )?;
+        if back.live && !back.moved.is_subset(&before.moved) {
+            return Err(error(
+                "E-STATE-MOVE",
+                body.span,
+                "a repeated loop path cannot transfer a declared State position",
+            ));
+        }
+        self.flow = if let Some(breaks) = breaks {
+            self.join(exit, breaks, body.span)?
+        } else {
+            exit
+        };
+        Ok(())
+    }
+    fn block(&mut self, block: &CoreBlock, depth: usize) -> R<()> {
+        self.node(depth, block.span)?;
+        self.state.snapshot(1, block.span)?;
+        self.scopes.push(BTreeMap::new());
+        for statement in &block.statements {
+            self.node(depth + 1, statement.span)?;
+            match &statement.kind {
+                CoreStatementKind::Binding {
+                    name, initializer, ..
+                } => {
+                    if let Some(value) = initializer {
+                        self.expr(value, Access::Move, depth + 1)?;
+                    }
+                    self.bind(name, statement.span)?;
+                }
+                CoreStatementKind::Assign { target, value } => {
+                    self.expr(target, Access::Write, depth + 1)?;
+                    self.expr(value, Access::Move, depth + 1)?;
+                    if let Some((owner, field)) = self.position(target, depth + 1)? {
+                        self.state.snapshot(self.flow.moved.len(), statement.span)?;
+                        self.flow.moved.retain(|(root, actual)| {
+                            *root != owner || (field.is_some() && *actual != field)
+                        });
+                    }
+                }
+                CoreStatementKind::Expression(value) => {
+                    self.expr(value, Access::Move, depth + 1)?
+                }
+                CoreStatementKind::Return(value) => {
+                    if let Some(value) = value {
+                        self.expr(value, Access::Move, depth + 1)?;
+                    }
+                    self.flow.live = false;
+                }
+                CoreStatementKind::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
+                    self.expr(condition, Access::Move, depth + 1)?;
+                    let before = self.snapshot_flow(statement.span)?;
+                    self.block(then_body, depth + 1)?;
+                    let after = self.snapshot_flow(statement.span)?;
+                    self.flow = before;
+                    if let Some(body) = else_body {
+                        self.block(body, depth + 1)?;
+                    }
+                    let other = self.snapshot_flow(statement.span)?;
+                    self.flow = self.join(after, other, statement.span)?;
+                }
+                CoreStatementKind::IfLet {
+                    pattern,
+                    value,
+                    then_body,
+                    else_body,
+                } => {
+                    self.expr(value, Access::Move, depth + 1)?;
+                    let before = self.snapshot_flow(statement.span)?;
+                    self.state.snapshot(1, statement.span)?;
+                    self.scopes.push(BTreeMap::new());
+                    self.pattern(pattern, depth + 1)?;
+                    self.block(then_body, depth + 1)?;
+                    self.scopes.pop();
+                    let after = self.snapshot_flow(statement.span)?;
+                    self.flow = before;
+                    if let Some(body) = else_body {
+                        self.block(body, depth + 1)?;
+                    }
+                    let other = self.snapshot_flow(statement.span)?;
+                    self.flow = self.join(after, other, statement.span)?;
+                }
+                CoreStatementKind::While { condition, body } => {
+                    let before = self.snapshot_flow(statement.span)?;
+                    self.expr(condition, Access::Move, depth + 1)?;
+                    let exit = self.snapshot_flow(statement.span)?;
+                    self.loop_body(body, before, exit, depth + 1)?;
+                }
+                CoreStatementKind::WhileLet {
+                    pattern,
+                    value,
+                    body,
+                } => {
+                    let before = self.snapshot_flow(statement.span)?;
+                    self.expr(value, Access::Move, depth + 1)?;
+                    let exit = self.snapshot_flow(statement.span)?;
+                    self.state.snapshot(1, statement.span)?;
+                    self.scopes.push(BTreeMap::new());
+                    self.pattern(pattern, depth + 1)?;
+                    self.loop_body(body, before, exit, depth + 1)?;
+                    self.scopes.pop();
+                }
+                CoreStatementKind::ForRange {
+                    name,
+                    start,
+                    end,
+                    body,
+                } => {
+                    self.expr(start, Access::Move, depth + 1)?;
+                    self.expr(end, Access::Move, depth + 1)?;
+                    let before = self.snapshot_flow(statement.span)?;
+                    let exit = self.clone_flow(&before, statement.span)?;
+                    self.state.snapshot(1, statement.span)?;
+                    self.scopes.push(BTreeMap::new());
+                    self.bind(name, statement.span)?;
+                    self.loop_body(body, before, exit, depth + 1)?;
+                    self.scopes.pop();
+                }
+                CoreStatementKind::Match { value, arms } => {
+                    self.expr(value, Access::Move, depth + 1)?;
+                    let before = self.snapshot_flow(statement.span)?;
+                    let mut joined = MoveFlow {
+                        live: false,
+                        moved: Default::default(),
+                    };
+                    for arm in arms {
+                        self.flow = self.clone_flow(&before, statement.span)?;
+                        self.state.snapshot(1, statement.span)?;
+                        self.scopes.push(BTreeMap::new());
+                        self.pattern(&arm.pattern, depth + 1)?;
+                        self.block(&arm.body, depth + 1)?;
+                        self.scopes.pop();
+                        let after = self.snapshot_flow(statement.span)?;
+                        joined = self.join(joined, after, statement.span)?;
+                    }
+                    self.flow = joined;
+                }
+                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+                    self.block(body, depth + 1)?
+                }
+                CoreStatementKind::Break | CoreStatementKind::Continue => {
+                    let flow = self.snapshot_flow(statement.span)?;
+                    let Some(mut frame) = self.loops.pop() else {
+                        return Err(error(
+                            "E-CONTROL",
+                            statement.span,
+                            "State position loop exit is outside a loop",
+                        ));
+                    };
+                    let target = if matches!(statement.kind, CoreStatementKind::Break) {
+                        &mut frame.0
+                    } else {
+                        &mut frame.1
+                    };
+                    *target = Some(if let Some(previous) = target.take() {
+                        self.join(previous, flow, statement.span)?
+                    } else {
+                        flow
+                    });
+                    self.loops.push(frame);
+                    self.flow.live = false;
+                }
+                _ => {}
+            }
+        }
+        self.scopes.pop();
+        Ok(())
+    }
+}
+
+fn check_moves(
+    function: &CoreFunction,
+    uses: &BTreeMap<NodeId, Shape>,
+    bounds: &[CoreCallableParameter],
+    state: &mut closures::State,
+    limits: &Limits,
+) -> R<()> {
+    state.snapshot(1, function.span)?;
+    let mut walk = MoveWalk {
+        uses,
+        bounds,
+        scopes: vec![BTreeMap::new()],
+        next: 0,
+        flow: MoveFlow {
+            live: true,
+            moved: Default::default(),
+        },
+        loops: Vec::new(),
+        state,
+        limits,
+    };
+    for parameter in &function.parameters {
+        walk.bind(&parameter.name, parameter.span)?;
+    }
+    walk.block(&function.body, 0)
+}
+
 pub(super) fn bounds(function: &CoreFunction) -> Cow<'_, [CoreCallableParameter]> {
     let Some(state) = function.state_parameters.first() else {
         return Cow::Borrowed(&function.callable_parameters);
@@ -336,6 +866,7 @@ pub(super) fn collect(
         walk.bind(&parameter.name, shape, parameter.span)?;
     }
     walk.block(&function.body, 0)?;
+    check_moves(function, &walk.expressions, &bounds, walk.state, limits)?;
     let expressions = walk.expressions;
     Ok(Some(Uses {
         bindings,
