@@ -11,3 +11,7 @@
 独审只读发现旧`element_shape_mutable_owned_field_return_and_capture_guards_are_explicit`仍要求旧Copy-only投影文案。root在clean`f1fcd5fe59c0511746ef3e3a3c4d47b5abaf4dd0`限定执行确认0/1（19 filtered）：原`view.r.code`仍Types/Unsupported/E-UNSUPPORTED，Verify0，实际消息为`Store element windows only project finite Copy or concrete callback fields`。原命令、JSON诊断和失败输出保留于外置201-root/legacy-17501。
 
 本次只替换该旧测试的一处消息子串为实际新文字，源程序、类别、阶段、诊断码及后续正反例保持。此项与前述原02的能力晋升不同，不把仍拒绝的Managed字段读取改成成功，也不动生产。独立只读审核和限定复跑另记。
+
+## 旧180诊断片段
+
+正式全工作区clean `e5737621a4513ff6e7d9a978f16be209cbf65bc6`完成2249通过、1失败、0忽略（235组）。唯一失败是`impl180_store_mut::managed_fields_whole_packages_and_escaping_windows_remain_closed`对旧消息片段`Copy fields`的断言。原源仍Types Unsupported/E-UNSUPPORTED，报告verification_runs=0；完整首轮stdout/stderr/command及原源/阶段输出留存workspace01。只将这一处片段改为`Copy or concrete callback fields`，不修改三份原body、类别/阶段断言、capture分支或后续逃逸/整包反例；该测试原本未单独断言code/Verify0，以上两项来自实际首轮报告。无生产差异；非作者只读迁移收据、限定复跑和全仓复跑分别登记。
