@@ -4,7 +4,7 @@
 
 ## 原 09 输入的实际 Copy 身份
 
-预检 `09_same_f_duplicate_owned.zil` 的工厂只捕获 `i32`。同一个闭包值传给两个 `FnOnce` 角色时，原有结构 Copy 规则允许复制出两个独立值；`FnOnce` bound 不会把 Copy 捕获改为 affine，也不会给非 Copy 捕获增加 Copy 资格。实际返回值为 `2`。
+预检 `09_same_f_once_same_actual.zil` 的工厂只捕获 `i32`。同一个闭包值传给两个 `FnOnce` 角色时，原有结构 Copy 规则允许复制出两个独立值；`FnOnce` bound 不会把 Copy 捕获改为 affine，也不会给非 Copy 捕获增加 Copy 资格。实际返回值为 `2`。
 
 原始 09 的字节保存在 `crates/zil-driver/tests/impl196_fixtures`，没有改成另一份输入。开门前的 Expand Unsupported 只证明旧角色数限制，不是重复 Move 的安全证据。root 已批准将原 09 更正为 Success 控制，并增加真正捕获 Managed 资源的非 Copy `FnOnce` 重复实参负例；新负例必须实际 SafeReject。
 
