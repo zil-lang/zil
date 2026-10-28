@@ -105,7 +105,7 @@
       ],
       "peak_live": 4,
       "peak_bytes": 80,
-      "bad_operations": 0
+      "bad_operations": "NotReportedByLinuxProbe"
     },
     {
       "role": "author-wine",
@@ -137,7 +137,7 @@
       ],
       "peak_live": 4,
       "peak_bytes": 80,
-      "bad_operations": 0
+      "bad_operations": "NotReportedByLinuxProbe"
     }
   ],
   "consumer_oracle_sha256": "956e2142fc79cd4ea0431c5cfecdaa8d54d47072873795e88a3c8d1df929ec6d",
@@ -239,5 +239,11 @@
   "native_windows": "NotRun",
   "formal_draft_product_pipeline": "NotRun",
   "compiler_speed_claim": "None; separate user workstream",
-  "remaining_priority": "207 complete Product owned captures and persistent concrete environments, including genuine default whole/give inference; broader1.4 obligations retained."
+  "remaining_priority": "207 complete Product owned captures and persistent concrete environments, including genuine default whole/give inference; broader1.4 obligations retained.",
+  "metadata_correction": {
+    "original": "/workspace/scratch/39be3faa4442/run-logs/206-final-integration/consumer-summary-check.json",
+    "original_sha256": "25e9f34db1e7c38ba173f1580893e145cf644188381509fc7af43645631a92d1",
+    "reason": "Root summary used default0 for an absent Linux bad_operations field. Corrected to NotReportedByLinuxProbe. Wine reports actual0. Test/native results, original summaries and source bytes unchanged.",
+    "original_retained": true
+  }
 }
