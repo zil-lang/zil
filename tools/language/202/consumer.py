@@ -173,6 +173,13 @@ def main():
         (out / "compiler-source-difference.txt").write_text(different)
         raise RuntimeError("compiler production inputs differ from this source checkout")
     sources = repo / "examples/mainline/store_template202"
+    frozen_sources = out / "sources"
+    frozen_sources.mkdir()
+    source_hashes = {}
+    for path in sorted(sources.glob("*.zil")):
+        data = path.read_bytes()
+        (frozen_sources / path.name).write_bytes(data)
+        source_hashes[path.name] = hashlib.sha256(data).hexdigest()
     report = {"status": "Running", "source_commit": commit, "cli_sha256": digest(cli),
               "compiler_source_commit": compiler_commit,
               "compiler_build_receipt": str(args.compiler_build_receipt.resolve()),
@@ -180,7 +187,7 @@ def main():
               "compiler_production_matches_checkout": True,
               "design_sha256": digest(repo / "_zil_design.md"),
               "normative_inputs": json.loads((repo / "data/normative-inputs.json").read_text()),
-              "sources": {p.name: digest(p) for p in sorted(sources.glob("*.zil"))},
+              "sources": source_hashes,
               "allocator_sources": {str(p.relative_to(repo)): digest(p) for p in
                                     [repo / "tools/language/173/allocator_probe.c",
                                      repo / "tools/language/181/heap_probe.c"]},
