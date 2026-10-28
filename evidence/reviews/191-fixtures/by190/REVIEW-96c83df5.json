@@ -1,0 +1,121 @@
+{
+  "task": "191-fixtures",
+  "reviewer": "/root/resume190",
+  "review_kind": "ReadOnlySourceAndReceiptReview",
+  "source_commit": "96c83df5b4133ebfbd93402394b6633c6989be07",
+  "comparison_base": "ae3ac2445605c19914760fcd47c9f130700f8aac",
+  "executed_tests": 0,
+  "new_machine_tests": 0,
+  "verdict": "Pass",
+  "scope": "Final exact fixture repair only; author runs are explicitly separate from this read-only review.",
+  "findings": [
+    {
+      "area": "scope and budgets",
+      "result": "Only six test files and one changes document differ. All original inputs and default limits remain. Analyze +6/function matches existing188 dependency work; N-1 limits remain."
+    },
+    {
+      "area": "raw signature and borrowing negatives",
+      "result": "042 uses fully qualified Verify phase and precise E-VERIFY-CLOSURE-ENTRY against the unchanged inconsistent i32 entry. 091/099 retain empty lending sources and exact E-VERIFY-LENDING rejection."
+    },
+    {
+      "area": "explicit reference callback positive",
+      "result": "Only the original unused (p:&i32)=>*p becomes positive by189. It independently builds O0/O2, asserts one verification, and executes exact0; existing native() GEP checks remain unchanged."
+    },
+    {
+      "area": "external Address capture lending remains closed",
+      "result": "Original ()=>&x is restored byte-for-byte to Unsupported. Types lending checks reject any external Address/Desc capture; it is not the self-contained inline Copy lending profile. No production gate was loosened."
+    },
+    {
+      "area": "borrowed ByteBuffer capture",
+      "result": "Original Package-hidden-Desc remains negative; original no-operation explicit Desc capture uses the preexisting raw/Wire equality-checked pass helper."
+    },
+    {
+      "area": "retained test mistakes",
+      "result": "68 missing Phase qualification and73 reuse of the native helper GEP oracle are test defects.137 then exposed an incorrect second-lambda admission assumption (8/1). Final96 restores that original negative, and actual root legacy04 is9/0. These failures are retained and not attributed to a compiler safety defect."
+    }
+  ],
+  "reviewed_author_runs": [
+    {
+      "run": "legacy-fixtures01",
+      "source_commit": "68abfb67de1ebea5bbaf64810476f3737dcd0954",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "test_groups": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "role": "Original root execution logs inspected and SHA-verified; not executed by reviewer."
+    },
+    {
+      "run": "legacy-fixtures02",
+      "source_commit": "73e0b5ddb0cc691dd9cf1425043762edaca97611",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "test_groups": 7,
+      "passed": 109,
+      "failed": 1,
+      "ignored": 0,
+      "role": "Original root execution logs inspected and SHA-verified; not executed by reviewer."
+    },
+    {
+      "run": "legacy-fixtures03",
+      "source_commit": "13797c53af3cfa3154e9ab4d270bd014151e52d0",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "test_groups": 1,
+      "passed": 8,
+      "failed": 1,
+      "ignored": 0,
+      "role": "Original root execution logs inspected and SHA-verified; not executed by reviewer."
+    },
+    {
+      "run": "legacy-fixtures04",
+      "source_commit": "96c83df5b4133ebfbd93402394b6633c6989be07",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "test_groups": 1,
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "role": "Original root execution logs inspected and SHA-verified; not executed by reviewer."
+    }
+  ],
+  "files": [
+    {
+      "path": "changes/191-full-workspace-fixtures.md",
+      "sha256": "99b3d6e8395e2e0a570f6d6efc8531404f43a1cf6bc3b56d1075f772d59037ce"
+    },
+    {
+      "path": "crates/zil-analyze/tests/budgets.rs",
+      "sha256": "5db446912d5043e2ad3141319ebcaa34b5232d9343b2857e72ec076520e130c5"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl042.rs",
+      "sha256": "ddfac1b010e5de890b3dee5cfcaf4e465438a27bfd377289ed00ce9e3b7bdd60"
+    },
+    {
+      "path": "crates/zil-driver/tests/shared_addresses.rs",
+      "sha256": "b8c022fafd7c35a031c48e5498b7267ef60d43dd5a8548d500628ca6b6cbc592"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl091_slices.rs",
+      "sha256": "3460d90f6a1c102558093f7945b41c7fe3de82dafc08d2e7962e19aa64ebfcc3"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl095_byte_buffers.rs",
+      "sha256": "489bfa783340c14e423be3cd6decf4105661945162ba177f32cf1b5e70587ec6"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl099_owned_bytes.rs",
+      "sha256": "1a49f833013cab6e9b525e3daa79ec5eaaf175149e8d3524e1878d29a1e31510"
+    }
+  ],
+  "limitations": [
+    "No tests were executed by this reviewer. Whole-workspace final acceptance remains root-owned.",
+    "Historical REVIEW.json is explicitly superseded; its initial two-lambda admission conclusion is corrected here."
+  ]
+}
