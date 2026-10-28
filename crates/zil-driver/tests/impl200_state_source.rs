@@ -479,11 +479,20 @@ fn uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions() {
         &[Phase::Expand],
         "Copy",
     );
+    // The legacy single-F path can describe an unused input shape without
+    // constructing it. Preserve its old admission and exact work budget;
+    // this is not evidence for publishing a three-field State value.
+    let legacy = "package State<F>{manages bytes:ByteBuffer;a:F;b:F;c:F}fn ignore<F:Fn()->i32>(state:State<F>)->i32{return 0}fn main(){}";
+    let case = Case::new("unused-legacy-shape");
+    let report = compile(&case, legacy, Stage::Types, Optimization::O0);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
     for (label, source) in [
-        (
-            "three-fields",
-            "package State<F>{manages bytes:ByteBuffer;a:F;b:F;c:F}fn ignore<F:Fn()->i32>(state:State<F>)->i32{return 0}fn main(){}",
-        ),
         (
             "state-and-replacement",
             "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn replace<F:Fn()->i32>(state:State<F>,replacement:F)->State<F>{return state}fn main(){}",
