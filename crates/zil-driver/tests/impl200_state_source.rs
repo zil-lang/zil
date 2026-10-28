@@ -115,50 +115,29 @@ fn make(label:i32,seed:i32)->impl FnMut(i32)->i32{let ticket=Ticket{code:label};
 "#;
 
 #[test]
-fn original_three_inputs_reach_the_expected_frontend_boundaries() {
+fn original_three_inputs_reach_types_unchanged() {
     // This intentionally stops at Types, and is not safety acceptance.
     for (i, source) in ORIGINALS.iter().enumerate() {
         let case = Case::new(&format!("original-types-{i}"));
         let report = compile(&case, source, Stage::Types, Optimization::O0);
-        if i < 2 {
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
-            assert_eq!(report.phase, Phase::Types);
-        } else {
-            assert_eq!(
-                report.status,
-                ResultCategory::SafeReject,
-                "{}",
-                report.to_json()
-            );
-            assert_eq!(report.phase, Phase::Expand);
-            assert!(
-                report
-                    .diagnostics
-                    .iter()
-                    .any(|d| d.code == "E-GENERIC-ARGUMENT")
-            );
-        }
+        // 201 now implements the third original source as well. Keep its
+        // input bytes and require the real Types result, not a skipped gate.
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types);
         assert_eq!(report.verification_runs, 0);
     }
 }
 
 #[test]
-fn original_two_positive_inputs_verify_and_execute_unchanged() {
-    for (i, source) in ORIGINALS[..2].iter().enumerate() {
+fn original_three_inputs_verify_and_execute_unchanged() {
+    for (i, source) in ORIGINALS.iter().enumerate() {
         native(&format!("original-native-{i}"), source, "", 0);
     }
-    reject(
-        "original-store",
-        ORIGINALS[2],
-        ResultCategory::SafeReject,
-        &[Phase::Expand],
-        "StoreElement",
-    );
 }
 
 #[test]
