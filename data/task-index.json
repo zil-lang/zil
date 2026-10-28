@@ -8,7 +8,7 @@
       "status": "Doing",
       "task_revision": 4,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": "c9ee2e81de661bb0789ac6a0c6a130d864c4d5a9",
       "blocked_by": [],
       "requirements": [
@@ -105,7 +105,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -182,7 +182,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -286,7 +286,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "T01",
@@ -350,7 +350,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -424,7 +424,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -490,7 +490,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "T02",
@@ -560,7 +560,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "T05"
@@ -625,7 +625,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "W1"
@@ -749,7 +749,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "W1",
@@ -820,7 +820,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "T01",
@@ -892,7 +892,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "W1",
@@ -963,7 +963,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "T09",
@@ -1022,7 +1022,7 @@
       "status": "Planned",
       "task_revision": 3,
       "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
-      "normative_hash": "93055a7cf5c5692a9e3fbf55b73c82743c51e48d582537504b9dfaeaf29cf09c",
+      "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
       "base_revision": null,
       "blocked_by": [
         "W2",
