@@ -5,3 +5,5 @@
 本提交只迁移两类已经明确的旧断言。schema23是当前有效版本；原公共Wire负例继续拒绝全部0..22及未知未来24/最大版本，不再把有效23当负例。原175相交View/Store参数仍须Verify SafeReject/E-BORROW-CONFLICT，只因新的当前调用贷款检查更早发现同一冲突而更新消息。原182显式Address callback参数仍Unsupported；合流后的Expand通过该符号调用，Types在具体有限Copy签名准入处拒绝，因此精确阶段改为Types，消息按实测迁移。首轮仅改消息却保留Expand的错误预期也保留日志。所有源输入保持。
 
 Analyze三条精确预算夹具暂不改；等182私有来源/公开Hold分离最终冻结后按实际计费重算，不能为消除失败提高默认预算。
+
+182返修ebaddd7恢复弱Desc与实际地址窗分离后，175原始stale-field-description raw变异不再被错误的强Hold先拦截，真实资源实例核查仍在Verify拒绝为E-VERIFY-RESOURCE/invalidate a live description。本次仅把同一raw/Wire输入绑定到这个具体诊断，不改变期待的拒绝结果；此前source02失败保存。三个Analyze原精确预算已原样恢复，无额度迁移。
