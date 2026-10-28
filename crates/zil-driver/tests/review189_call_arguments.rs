@@ -157,7 +157,8 @@ fn raw_and_wire_reject_two_current_exclusive_parameters_pointing_at_one_value() 
                 .iter()
                 .any(|d| d.category == ResultCategory::SafeReject
                     && d.phase == Phase::Verify
-                    && d.code == "E-BORROW-CONFLICT"),
+                    && d.code == "E-VERIFY-MOVE"
+                    && d.message.contains("already transferred")),
             "{errors:?}"
         );
     }
