@@ -53,7 +53,11 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                         && !package_array_fields(ty)
                         && !package_store_fields(ty))
             })
-            || !closure.parameters.iter().all(Type::is_copy_value)
+            || !closure.parameters.iter().all(|ty| {
+                ty.is_copy_value()
+                    || (closure.result.is_copy_value()
+                        && matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()))
+            })
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,

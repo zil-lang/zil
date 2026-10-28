@@ -1,0 +1,1 @@
+struct Pair{x:i32;y:i32}fn pass(p:&mut Pair)->&mut Pair{return p}fn main()->i32{var a=Pair{x:2,y:3};var b=Pair{x:5,y:7};let pa=pass(&mut a);let pb=pass(&mut b);let exchange=(p:&mut Pair,q:&mut Pair)=>{let n=p.x;p.x=q.y;q.y=n};exchange(pa,pb);exchange(pa,pb);return a.x+a.y+b.x+b.y-17}
