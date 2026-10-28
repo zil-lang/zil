@@ -1,0 +1,141 @@
+{
+  "status": "Pass",
+  "scope": "196 frontend/Types author candidate only; independent review and formal integration are separate",
+  "implementation_author": "/root/roles196_frontend",
+  "implementation_commit": "f360417bf3de9c5a87164f2ffd87a5f414be5710",
+  "schema": 25,
+  "final_combined_tests": {
+    "passed": 45,
+    "failed": 0,
+    "ignored": 0,
+    "source_commit": "f360417bf3de9c5a87164f2ffd87a5f414be5710",
+    "command": "commands/combined-final02/command.json"
+  },
+  "suite_counts": {
+    "impl196_roles_source": 15,
+    "impl196_roles_raw": 10,
+    "impl197_mixed_state": 14,
+    "impl197_mixed_state_raw": 6
+  },
+  "final_196_source_native_executions": 30,
+  "consumers": [
+    {
+      "status": "Pass",
+      "source_commit": "f360417bf3de9c5a87164f2ffd87a5f414be5710",
+      "cli_sha256": "e83a70deeaa60a3616b3889af70fe80faab4f6f6984be7a84edeac0623cfdbd1",
+      "platform": "linux",
+      "execution": "native",
+      "native_windows": "NotRun",
+      "executions": 90,
+      "native_executions": 90,
+      "wine_executions": 0,
+      "ordinary_executions": 14,
+      "instrumented_executions": 76,
+      "actual_allocation_failures": 56,
+      "receipt": "runs/consumer-linux02/summary.json"
+    },
+    {
+      "status": "Pass",
+      "source_commit": "f360417bf3de9c5a87164f2ffd87a5f414be5710",
+      "cli_sha256": "e83a70deeaa60a3616b3889af70fe80faab4f6f6984be7a84edeac0623cfdbd1",
+      "platform": "win64",
+      "execution": "Wine compatibility",
+      "native_windows": "NotRun",
+      "executions": 90,
+      "native_executions": 0,
+      "wine_executions": 90,
+      "ordinary_executions": 14,
+      "instrumented_executions": 76,
+      "actual_allocation_failures": 56,
+      "receipt": "runs/consumer-win6401/summary.json"
+    }
+  ],
+  "clippy": {
+    "status": "Pass",
+    "receipt": "commands/clippy02/command.json"
+  },
+  "budgets": [
+    {
+      "receipt": "runs/combined-final02/raw196-budgets-428523-22/boundaries.json",
+      "values": {
+        "types": 1181,
+        "analyze": 2555,
+        "verify": 3834,
+        "checks": "N, N-1 ResourceLimit, fresh N"
+      }
+    },
+    {
+      "receipt": "runs/combined-final02/raw196-nested-capture-budget-428523-20/boundaries.json",
+      "values": {
+        "types": 652,
+        "checks": "N, N-1 ResourceLimit, fresh N"
+      }
+    }
+  ],
+  "earlier_test_rounds": {
+    "crate-tests01": {
+      "passed": 48,
+      "failed": 0,
+      "ignored": 0,
+      "source_commit": "e406e046d39e14f8146db960151232ec0cdd244c",
+      "command": "commands/crate-tests01/command.json"
+    },
+    "vertical01": {
+      "passed": 17,
+      "failed": 4,
+      "ignored": 0,
+      "source_commit": "5e49997cc7f54cf0abaf8944146821c17a44ed87",
+      "command": "commands/vertical01/command.json"
+    },
+    "vertical02": {
+      "passed": 22,
+      "failed": 0,
+      "ignored": 0,
+      "source_commit": "f544fb08857109be31ff0d6736893c434bf976b1",
+      "command": "commands/vertical02/command.json"
+    },
+    "combined197-01": {
+      "passed": 42,
+      "failed": 0,
+      "ignored": 0,
+      "source_commit": "ae8be01d89aa849438d9cda96d3072fe73cbedc0",
+      "command": "commands/combined197-01/command.json"
+    },
+    "nested-before01": {
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "source_commit": "c32826c5b3bb9ecfa19e955c362bbc4e0413941f",
+      "command": "commands/nested-before01/command.json"
+    },
+    "nested-after01": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "source_commit": "f4a00bc70676d87c1c98b88e76da90325a56dc65",
+      "command": "commands/nested-after01/command.json"
+    },
+    "combined-final01": {
+      "passed": 44,
+      "failed": 0,
+      "ignored": 0,
+      "source_commit": "de8250f4e90792bff2b72dda79af72995d44e72f",
+      "command": "commands/combined-final01/command.json"
+    }
+  },
+  "original09": "Exact preserved source captures Copy i32; proper Success exit 2. Separate real Managed-capture duplicate FnOnce source is SafeReject.",
+  "archive": {
+    "name": "runs.tar.gz",
+    "bytes": 3268441,
+    "sha256": "90ce0585853f612f799477da9e27be1453a99409ad7538eeca278c3ee3eb2207",
+    "included_files": 2681,
+    "included_raw_bytes": 75235602,
+    "excluded_files": 84,
+    "verified_every_member_hash": true
+  },
+  "native_windows": "NotRun",
+  "formal_handoff": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "rust_comparison": "No performance, memory, maintenance or compilation comparison; no product-level net-breakthrough claim."
+}
