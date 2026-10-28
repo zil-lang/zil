@@ -245,8 +245,11 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                 ty.is_copy_value()
                     || matches!(ty, Type::Closure(_))
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    // The exact VerifiedModule binding above carries the
+                    // independently checked owning Store capture contract.
+                    // Borrowed descriptions do not gain an owning ABI here.
                     || (resources::supported_type(ty, &lir.resources)
-                        && !matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
+                        && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
                     || packages::supported_type(ty, &lir.resources)
             })
             || !closure.parameters.iter().all(|ty| {
