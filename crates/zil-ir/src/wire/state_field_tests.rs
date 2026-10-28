@@ -86,6 +86,10 @@ fn new_window_instructions_match_manual_bytes_and_all_truncations_fail() {
 #[test]
 fn window_fingerprints_bind_each_index_operand_and_mutability() {
     let originals = [
+        InstructionKind::OwnedStoreBorrowMut {
+            store: ValueId(11),
+            index: ValueId(13),
+        },
         InstructionKind::OwnedStoreBorrow {
             store: ValueId(11),
             index: ValueId(13),
@@ -98,6 +102,17 @@ fn window_fingerprints_bind_each_index_operand_and_mutability() {
     ];
     for original in originals {
         let mutations = match original {
+            InstructionKind::OwnedStoreBorrowMut { store, index } => vec![
+                InstructionKind::OwnedStoreBorrowMut {
+                    store: ValueId(store.0 + 1),
+                    index,
+                },
+                InstructionKind::OwnedStoreBorrowMut {
+                    store,
+                    index: ValueId(index.0 + 1),
+                },
+                InstructionKind::OwnedStoreBorrow { store, index },
+            ],
             InstructionKind::OwnedStoreBorrow { store, index } => vec![
                 InstructionKind::OwnedStoreBorrow {
                     store: ValueId(store.0 + 1),
@@ -156,13 +171,15 @@ fn shared_package_shape_does_not_grant_copy_or_general_pointee_support() {
     assert!(shared.is_shared_package_address());
     assert!(shared.is_scalar_or_shared_address());
     assert!(shared.is_scalar_or_address());
-    assert!(
-        !Type::Address {
-            mutable: true,
-            inner: Box::new(item)
-        }
-        .is_shared_package_address()
-    );
+    let exclusive = Type::Address {
+        mutable: true,
+        inner: Box::new(item),
+    };
+    assert!(exclusive.is_package_address());
+    assert!(exclusive.is_scalar_or_address());
+    assert!(!exclusive.is_shared_package_address());
+    assert!(!exclusive.is_scalar_or_shared_address());
+    assert!(!exclusive.is_copy_value());
     for inner in [
         Type::ByteBuffer,
         Type::OwnedStore {
