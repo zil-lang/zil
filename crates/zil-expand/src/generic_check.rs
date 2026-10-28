@@ -79,6 +79,7 @@ pub(super) fn validate_parametric<'l>(
                         id,
                         ty: p.ty.clone(),
                         mutable: false,
+                        owned_resource: false,
                     },
                 )
             })
@@ -113,6 +114,12 @@ pub(super) fn validate_parametric<'l>(
                 parameter.span,
                 "generic give parameter requires a direct Store carrier or a concrete resource in a callable helper",
             ));
+        } else if parameter.give && check.two_input_state_constructor() {
+            state
+                .locals
+                .get_mut(&parameter.name)
+                .expect("parameter bound")
+                .owned_resource = true;
         }
     }
     check
@@ -313,6 +320,10 @@ struct Local {
     id: usize,
     ty: TypeRef,
     mutable: bool,
+    // Only the new two-input State constructor records concrete resources
+    // received by give or produced as real owned locals. A description of a
+    // resource never inherits this capability from its nominal type.
+    owned_resource: bool,
 }
 #[derive(Clone)]
 struct State {
@@ -384,6 +395,63 @@ impl Check<'_, '_, '_> {
             _ => false,
         }
     }
+    fn two_input_state_constructor(&self) -> bool {
+        self.callable
+            .as_ref()
+            .is_some_and(|bounds| bounds.owned_state && bounds.roles.len() == 2)
+    }
+    fn owned_resource_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
+        self.tick(expression.span)?;
+        Ok(match &expression.kind {
+            ExprKind::Group(inner) => self.owned_resource_expression(inner, state)?,
+            // The expression's actual concrete resource type is checked after
+            // evaluation; ordinary records and Package values cannot set it.
+            ExprKind::Record {
+                ty: Some(_),
+                base: None,
+                ..
+            } => true,
+            ExprKind::Unary {
+                op: UnaryOp::Give,
+                operand,
+            } => {
+                let mut operand = operand.as_ref();
+                while let ExprKind::Group(inner) = &operand.kind {
+                    self.tick(operand.span)?;
+                    operand = inner;
+                }
+                match &operand.kind {
+                    ExprKind::Name(name) => state
+                        .locals
+                        .get(name)
+                        .is_some_and(|local| local.owned_resource),
+                    // managed_field_transfer checks the declared real field.
+                    ExprKind::Member { .. } => true,
+                    _ => false,
+                }
+            }
+            ExprKind::Call { callee, .. } => stores::call_name(callee).is_some_and(|name| {
+                name == "bytes_new"
+                    || self.signatures.get(name).is_some_and(|function| {
+                        stores::result_mode(function).is_ok_and(|mode| {
+                            matches!(
+                                mode,
+                                zil_ir::PassingMode::Create | zil_ir::PassingMode::Give
+                            )
+                        })
+                    })
+            }),
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => {
+                self.owned_resource_expression(then_value, state)?
+                    && self.owned_resource_expression(else_value, state)?
+            }
+            _ => false,
+        })
+    }
     fn tick(&mut self, span: Span) -> R<()> {
         // The borrowed preflight checked full AST depth before any cloning.
         self.budget.node(span, 0)
@@ -400,6 +468,7 @@ impl Check<'_, '_, '_> {
                 id,
                 ty,
                 mutable: false,
+                owned_resource: false,
             },
         );
         Ok(())
@@ -611,6 +680,24 @@ impl Check<'_, '_, '_> {
         let mut direct = operand;
         while let ExprKind::Group(inner) = &direct.kind {
             direct = inner;
+        }
+        if self.two_input_state_constructor()
+            && let ExprKind::Name(name) = &direct.kind
+            && let Some(local) = state.locals.get(name)
+            && self.concrete_helper_resource(&local.ty)
+        {
+            if !local.owned_resource {
+                return Err(error(
+                    operand.span,
+                    "give requires an actual owned resource; descriptions do not own",
+                ));
+            }
+            self.budget.ty(&local.ty)?;
+            let (id, ty) = (local.id, local.ty.clone());
+            if !state.moved.insert(id) {
+                return Err(error(operand.span, "owned resource used after give"));
+            }
+            return Ok(ty);
         }
         if let ExprKind::Name(name) = &direct.kind
             && let Some(local) = state.locals.get(name)
@@ -2298,6 +2385,8 @@ impl Check<'_, '_, '_> {
                     }
                     let owns_store = self.owning_store_expression(value, state);
                     let fresh_store = owns_store && self.fresh_store_expression(value, state)?;
+                    let owns_resource = self.two_input_state_constructor()
+                        && self.owned_resource_expression(value, state)?;
                     let origins = self.store_origins(value, state)?;
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
                     self.traits
@@ -2308,6 +2397,8 @@ impl Check<'_, '_, '_> {
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
                     let local = state.locals.get_mut(n).expect("just bound");
                     local.mutable = *mutable;
+                    local.owned_resource =
+                        owns_resource && self.concrete_helper_resource(&local.ty);
                     if stores::element(&local.ty).is_some() {
                         if owns_store {
                             state.store_owners.insert(local.id);

@@ -50,10 +50,10 @@ impl Engine<'_> {
                 ));
             }
         }
-        if fields != 1 {
+        if !(1..=2).contains(&fields) {
             return Err(unsupported(
                 span,
-                "mixed owning State requires exactly one callable field",
+                "owning State requires one or two direct fields of its single callable type",
             ));
         }
         // Charge the second key copy before allocating it. The original key
