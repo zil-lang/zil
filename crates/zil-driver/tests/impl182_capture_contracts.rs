@@ -242,7 +242,7 @@ fn original_probes_keep_inputs_and_remove_the_unrelated_head_switch() {
         ),
         ResultCategory::Unsupported,
         Phase::Types,
-        "one or two finite nonescaping callable roles with Copy results",
+        "one or two finite nonescaping callable roles, a single lending role, or a bounded same-F owning State constructor are implemented",
     );
 }
 
