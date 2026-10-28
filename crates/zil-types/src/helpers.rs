@@ -44,7 +44,7 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
     let reject = || {
         unsupported(
             function.span,
-            "one finite Copy callable signature and one nonescaping environment parameter are implemented",
+            "one finite Copy callable signature, optionally with Copy-address parameters and a Copy result, and one nonescaping environment parameter are implemented",
         )
     };
     let owned_state = callable_fields::template(function);

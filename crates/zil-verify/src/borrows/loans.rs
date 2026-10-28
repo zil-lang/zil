@@ -338,6 +338,35 @@ struct Access<'a> {
     apart: Option<&'a RefCell<Apart>>,
 }
 impl Access<'_> {
+    fn callback_arguments(
+        &self,
+        arguments: &[ValueId],
+        facts: &Facts,
+        budget: &mut Budget,
+    ) -> Check<()> {
+        check_pairs(
+            arguments,
+            self.module,
+            self.function,
+            self.flow,
+            self.span,
+            self.apart,
+            budget,
+        )?;
+        for value in arguments {
+            budget.spend(1)?;
+            if let Type::Address { mutable, .. } = self.function.values[value.0 as usize] {
+                self.check(
+                    &self.flow.values[value.0 as usize],
+                    &facts.values[value.0 as usize],
+                    mutable,
+                    budget,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     fn check_descriptor_callback(
         &self,
         _function: &TypedFunction,
@@ -781,6 +810,19 @@ pub(super) fn check(
                 span,
                 apart: apart_ref,
             };
+            if matches!(
+                instruction.kind,
+                InstructionKind::CallClosure { .. }
+                    | InstructionKind::CallClosureOnce { .. }
+                    | InstructionKind::CallClosureShared { .. }
+                    | InstructionKind::CallClosureMut { .. }
+                    | InstructionKind::CallClosureBorrowed { .. }
+            ) {
+                // Qualifications apply during this invocation, even when an
+                // argument or its captured alias has no later use. Reborrows
+                // delegate only their own roots, never another capture's loan.
+                access.callback_arguments(arguments, facts, budget)?;
+            }
             if let Some((buffer, write)) =
                 buffer_effects::access(&instruction.kind, descriptor_origins)
             {
@@ -967,9 +1009,8 @@ pub(super) fn check(
                         }
                     }
                 }
-                InstructionKind::CallClosureMut { callee, arguments }
-                | InstructionKind::CallClosureShared { callee, arguments } => {
-                    check_pairs(arguments, module, f, &flow, span, apart_ref, budget)?;
+                InstructionKind::CallClosureMut { callee, .. }
+                | InstructionKind::CallClosureShared { callee, .. } => {
                     access.check(
                         &empty,
                         &[Root::Local(*callee)],

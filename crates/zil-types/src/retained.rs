@@ -468,7 +468,7 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
     {
         return Err(unsupported(
             function.span,
-            "opaque callable factories require ordinary Copy/owned Managed/Package inputs, finite Copy parameters, a Copy or shared environment result and a matching opaque identity",
+            "opaque callable factories require ordinary Copy/owned Managed/Package inputs, finite Copy or Copy-address parameters, a Copy or shared environment result and a matching opaque identity",
         ));
     }
     Ok(())

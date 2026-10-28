@@ -1245,6 +1245,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 {
                     self.bind(*variable, inner, span)
                 }
+                Type::Address { mutable: true, .. } if !mutable => Err(error(
+                    "E-ADDRESS-PERMISSION",
+                    span,
+                    "a shared address cannot grant exclusive access",
+                )),
                 Type::Address { .. } => Err(unsupported(
                     span,
                     "only shared finite Copy addresses are implemented",
@@ -2674,7 +2679,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 {
                     return Err(unsupported(
                         span,
-                        "closure signatures require finite Copy arguments and a Copy or shared environment result",
+                        "closure parameters require a finite Copy type or one Copy address layer; address parameters require a Copy result",
                     ));
                 }
                 let callable_hint = self.callable_hint.take();

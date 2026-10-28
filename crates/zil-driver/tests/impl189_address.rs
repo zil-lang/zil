@@ -260,6 +260,85 @@ fn current_call_includes_captured_address_qualification() {
 }
 
 #[test]
+fn byte_description_writes_are_checked_against_explicit_element_windows() {
+    for (helper, call) in [
+        ("", "f(p)"),
+        (
+            "fn apply<F:Fn(&u8)->i32>(f:&F,p:&u8)->i32{return f(p)}",
+            "apply(&f,p)",
+        ),
+    ] {
+        let same = format!(
+            "{helper}fn main()->i32{{let b=bytes_new();bytes_reserve(b,1);bytes_push(b,u8(7));let view=bytes_view(b);let p=&view[0];let f=(q:&u8)->i32=>{{bytes_reserve(b,8);return i32(*q)}};return {call}-7}}"
+        );
+        conflict(&same);
+        let other = same.replace(
+            "let view=bytes_view(b);let p=&view[0]",
+            "let other=u8(7);let p=&other",
+        );
+        native(&[("main", &other)], b"", 0);
+        let readonly = same.replace("bytes_reserve(b,8)", "bytes_len(b)");
+        native(&[("main", &readonly)], b"", 0);
+    }
+    let original187 = check("fn main(){let b=bytes_new();let f=(n:&i32)=>i32(bytes_len(b))+*n}");
+    assert_eq!(
+        original187.status,
+        ResultCategory::Success,
+        "{}",
+        original187.to_json()
+    );
+    assert_eq!(original187.verification_runs, 1);
+}
+
+#[test]
+fn helper_extra_address_arguments_and_zero_call_paths_keep_actual_effects() {
+    let source = "resource R{n:i32}fn after<F:Fn()->i32>(f:&F,p:&i32)->i32{return f()+*p}fn main()->i32{let r=R{n:21};let d=r;let h=&r;let p=&h.n;let f=()=>{d.n=22;return 0};return after(&f,p)-21}";
+    conflict(source);
+    let other = source.replace("let h=&r;let p=&h.n", "let other=21;let p=&other");
+    native(&[("main", &other)], b"", 0);
+    let idle = source.replace("return f()+*p", "return *p");
+    native(&[("main", &idle)], b"", 0);
+    native(
+        &[(
+            "main",
+            "fn id(p:&i32)->&i32{return p}fn main()->i32{let n=42;let f=(p:&i32)=>*id(p);return f(&n)-42}",
+        )],
+        b"",
+        0,
+    );
+}
+
+#[test]
+fn every_environment_call_form_checks_the_current_argument_window() {
+    for (setup, invocation) in [
+        ("let f=(p:&i32)=>{d.n=43;return *p}", "f(q)"),
+        (
+            "let token=R{n:1};let f=move(p:&i32)=>{token.n;d.n=43;return *p}",
+            "f(q)",
+        ),
+        (
+            "var step=0;var f=move(p:&i32)=>{step+=1;d.n=43;return *p}",
+            "f(q)",
+        ),
+        (
+            "let token=R{n:1};let f=move(p:&i32)=>{eat(give token);d.n=43;return *p}",
+            "f(q)",
+        ),
+        (
+            "let f=(p:&i32)=>{d.n=43;return *p};let borrowed=&f",
+            "borrowed(q)",
+        ),
+    ] {
+        let same = format!(
+            "resource R{{n:i32}}fn eat(give r:R){{}}fn main()->i32{{let r=R{{n:42}};let d=r;let h=&r;let q=&h.n;{setup};return {invocation}-42}}"
+        );
+        conflict(&same);
+        let other = same.replace("let h=&r;let q=&h.n", "let other=42;let q=&other");
+        native(&[("main", &other)], b"", 0);
+    }
+}
+
+#[test]
 fn unused_generic_helpers_are_checked_and_shared_inputs_cannot_grant_mutability() {
     let valid = check("fn apply<F:Fn(&i32)->i32>(f:&F,p:&i32)->i32{return f(p)}fn main(){}");
     assert_eq!(valid.status, ResultCategory::Success, "{}", valid.to_json());
@@ -285,8 +364,9 @@ fn address_parameter_results_and_unsupported_shapes_remain_closed() {
         "fn make()->impl Fn(&i32)->&i32{let n=3;return move(p:&i32)=>&n}fn main(){}",
         "fn main(){let f=(p:&[i32])=>p.len();}",
         "resource R{n:i32}fn main(){let f=(p:&R)=>p.n;}",
-        "package P{n:i32}fn main(){let f=(p:&P)=>p.n;}",
-        "fn main(){let f=(p:&&i32)=>**p;}",
+        "resource R{n:i32}package P{manages r:R;n:i32}fn main(){let f=(p:&P)=>p.n;}",
+        "fn main(){let f=(p:&(&i32))=>**p;}",
+        "fn main(){let f:fn(&i32)->i32=(p:&i32)=>*p;}",
     ] {
         let report = check(source);
         assert_ne!(
@@ -295,6 +375,7 @@ fn address_parameter_results_and_unsupported_shapes_remain_closed() {
             "{source}: {}",
             report.to_json()
         );
+        assert_eq!(report.phase, Phase::Types, "{source}: {}", report.to_json());
     }
     // Existing184 environment lending remains a separate, fully executable lane.
     native(

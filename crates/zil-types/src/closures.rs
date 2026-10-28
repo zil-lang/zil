@@ -1218,6 +1218,11 @@ impl LocalType {
             {
                 graph.bind(variable, inner, span)
             }
+            (Self::Address(_, false), Type::Address { mutable: true, .. }) => Err(error(
+                "E-ADDRESS-PERMISSION",
+                span,
+                "a shared address cannot grant exclusive access",
+            )),
             (Self::Address(..), Type::Address { .. }) => Err(unsupported(
                 span,
                 "only shared finite Copy addresses are implemented",
@@ -1338,7 +1343,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 if !signature_parameter(ty) {
                     return Err(unsupported(
                         parameter.span,
-                        "closure parameters require finite Copy values or one Copy address layer",
+                        "closure parameters require a finite Copy type or one Copy address layer",
                     ));
                 }
                 this.graph.bind(variable, ty, parameter.span)?;
