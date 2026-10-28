@@ -285,7 +285,7 @@ fn reviewer_raw_wire_valid_copy_index_cannot_masquerade_as_callback() {
         "review-copy-index-is-not-callback",
         module,
         plan,
-        Some("E-VERIFY-PACKAGE"),
+        Some("E-VERIFY-TYPE"),
     );
 }
 
