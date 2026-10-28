@@ -869,7 +869,12 @@ impl Transfer<'_> {
                     | InstructionKind::StorePackageField { local, .. }
                     | InstructionKind::TakeLocal { local }
                     | InstructionKind::DropPackage { local }
-                    | InstructionKind::Store { local, .. } => slots.view(local).is_some(),
+                    | InstructionKind::Store { local, .. }
+                    | InstructionKind::BorrowPackageField {
+                        local,
+                        mutable: true,
+                        ..
+                    } => slots.view(local).is_some(),
                     _ => false,
                 };
                 if written_view {
@@ -964,8 +969,21 @@ impl Transfer<'_> {
                     }
                     fresh_result = Some(INPUT);
                 }
-                InstructionKind::BorrowOwnedArrayElement { local, index, .. }
-                | InstructionKind::BorrowPackageField { local, index, .. } => {
+                InstructionKind::BorrowPackageField { local, index, .. } => {
+                    self.package_shell(state, *local, span, validate)?;
+                    // A checked Copy field is initialized with its shell and
+                    // has no independent cleanup responsibility to demand.
+                    if let Some(field) = slots.package_fields[local.0 as usize][*index as usize]
+                        && validate
+                        && state.debt[field] != LIVE
+                    {
+                        return Err(bad(
+                            span,
+                            "callback field borrow requires a live field on every path",
+                        ));
+                    }
+                }
+                InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
                     self.package_shell(state, *local, span, validate)?;
                     let element = slots.package_fields[local.0 as usize][*index as usize]
                         .expect("independently checked callback array element");

@@ -268,12 +268,20 @@ impl Builder<'_, '_> {
                 Ok(result)
             }
             CoreExprKind::Member { object, member } => {
-                if let Some((local, index, field @ Type::Closure(_))) = self.package_place(e)? {
+                if let Some((local, index, field)) = self.package_place(e)? {
+                    let work = inference::type_snapshot_work(&field, e.span, self.limits)?;
+                    self.closures.snapshot(work.saturating_mul(2), e.span)?;
+                    if !field.is_copy_value() && !matches!(field, Type::Closure(_)) {
+                        return Err(unsupported(
+                            e.span,
+                            "package field addresses require a finite Copy field or concrete callback",
+                        ));
+                    }
                     if mutable && !self.function.locals[local.0 as usize].mutable {
                         return Err(error(
                             "E-IMMUTABLE-ASSIGNMENT",
                             e.span,
-                            "exclusive callback field borrow requires a mutable State",
+                            "exclusive field borrow requires a mutable Package position",
                         ));
                     }
                     self.check_owned_array_closure(&field, 1, e.span)?;

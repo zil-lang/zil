@@ -163,10 +163,10 @@ impl FunctionEmitter<'_> {
         index: u32,
     ) -> CompileResult<()> {
         let (package, field) = self.package_field(local, index)?;
-        if !matches!(field, Type::Closure(_)) {
+        if !field.is_copy_value() && !matches!(field, Type::Closure(_)) {
             return invalid(
                 "E-CODEGEN-CFG",
-                "callback field address requires its concrete environment",
+                "field address requires a finite Copy field or concrete environment",
                 Some(instruction.span),
             );
         }
