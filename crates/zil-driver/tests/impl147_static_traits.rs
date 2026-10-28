@@ -171,8 +171,21 @@ fn empty_impl_cannot_manufacture_builtin_capabilities() {
             "trait {name}{{}}struct C{{x:i32}}impl {name} for C{{}}fn main(){{}}"
         ));
         assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
+        assert_eq!(r.verification_runs, 0);
+        let expected_code = if name == "Copy" {
+            // 194 reserves structural Copy before nominal trait processing.
+            assert_eq!(r.phase, zil_base::Phase::Expand, "{}", r.to_json());
+            assert!(
+                r.diagnostics
+                    .iter()
+                    .any(|d| d.message == "Copy is a reserved structural capability name")
+            );
+            "E-GENERIC-ARGUMENT"
+        } else {
+            "E-TRAIT-RESERVED"
+        };
         assert!(
-            r.diagnostics.iter().any(|d| d.code == "E-TRAIT-RESERVED"),
+            r.diagnostics.iter().any(|d| d.code == expected_code),
             "{}",
             r.to_json()
         );
