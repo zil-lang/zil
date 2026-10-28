@@ -476,6 +476,53 @@ pub(super) fn check_module(
             packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
             continue;
         }
+        // A second owned input is a second value, even when both use the same
+        // concrete environment type. Reconstruct this finite owning boundary
+        // from the actual signature; no producer classification or empty
+        // callback contract can stand in for it. Ordinary parameter, move,
+        // Package construction and cleanup checks still cover both values.
+        if f.callable_contract.is_none()
+            && let [(first_position, first, false, _), (second_position, second, false, _)] =
+                parameters.as_slice()
+            && first == second
+            && let Type::Package { fields, .. } = &f.return_type
+        {
+            budget.spend(
+                fields
+                    .len()
+                    .saturating_add(f.parameters.len())
+                    .saturating_add(2),
+            )?;
+            for (position, local) in f.parameters.iter().enumerate() {
+                if position == *first_position as usize || position == *second_position as usize {
+                    continue;
+                }
+                let ty = &f.locals[local.0 as usize].ty;
+                // The Copy predicate walks a structural type. Pay for that
+                // walk before using it to classify an ordinary input.
+                let work = closures::type_layout_work(ty, budget)?;
+                budget.spend(work)?;
+                if !ty.is_copy_value() && !matches!(ty, Type::Managed(_)) {
+                    return Err(unsupported(
+                        "two-input owning State constructors require finite Copy or direct Managed ordinary parameters",
+                        Some(f.span),
+                    ));
+                }
+            }
+            let mut callable_fields = 0usize;
+            let mut same_environment = true;
+            for (_, ty) in fields {
+                if let Type::Closure(id) = ty {
+                    callable_fields += 1;
+                    same_environment &= id == first;
+                }
+            }
+            if same_environment && (1..=2).contains(&callable_fields) {
+                closures::self_contained(module, *first, budget)?;
+                packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
+                continue;
+            }
+        }
         let claim = f.callable_contract.as_ref().ok_or_else(|| {
             bad(
                 f,
