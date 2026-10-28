@@ -41,8 +41,8 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<String> {
     {
         return Ok(String::new());
     }
-    if lir.target.triple != "x86_64-unknown-linux-gnu" {
-        return unsupported("owned Store currently requires Linux x64 LLVM", None);
+    if !lir.target.is_supported_x64_llvm() {
+        return unsupported("owned Store requires checked Linux x64 or Win64 LLVM", None);
     }
     if let Some(f) = lir.functions.iter().find(|f| {
         f.foreign
@@ -211,7 +211,8 @@ impl FunctionEmitter<'_> {
             | InstructionKind::OwnedStorePop { store }
             | InstructionKind::OwnedStoreLen { store }
             | InstructionKind::OwnedStoreCapacity { store }
-            | InstructionKind::OwnedStoreBorrow { store, .. } => store,
+            | InstructionKind::OwnedStoreBorrow { store, .. }
+            | InstructionKind::OwnedStoreBorrowMut { store, .. } => store,
             _ => unreachable!("Store instruction dispatch"),
         };
         let Type::Desc(payload) = self.value_type(store)? else {
@@ -231,7 +232,8 @@ impl FunctionEmitter<'_> {
                     value(capacity)
                 ));
             }
-            InstructionKind::OwnedStoreBorrow { index, .. } => {
+            InstructionKind::OwnedStoreBorrow { index, .. }
+            | InstructionKind::OwnedStoreBorrowMut { index, .. } => {
                 let Type::OwnedStore { element } = payload.as_ref() else {
                     unreachable!("verified Store payload");
                 };

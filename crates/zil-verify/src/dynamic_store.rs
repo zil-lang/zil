@@ -18,9 +18,9 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
 }
 
 fn target(target: &TargetProfile, span: Option<Span>) -> Check<()> {
-    if !target.is_supported_x64_llvm() || target.triple != "x86_64-unknown-linux-gnu" {
+    if !target.is_supported_x64_llvm() {
         return Err(unsupported(
-            "owned Store currently requires checked Linux x64 LLVM",
+            "owned Store requires checked Linux x64 or Win64 LLVM",
             span,
         ));
     }
@@ -224,7 +224,8 @@ pub(super) fn check_instruction(
     }
     let (store, extra) = match instruction.kind {
         InstructionKind::OwnedStoreReserve { store, capacity } => (store, Some(capacity)),
-        InstructionKind::OwnedStoreBorrow { store, index } => (store, Some(index)),
+        InstructionKind::OwnedStoreBorrow { store, index }
+        | InstructionKind::OwnedStoreBorrowMut { store, index } => (store, Some(index)),
         InstructionKind::OwnedStorePush { store, value } => (store, Some(value)),
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
@@ -244,12 +245,15 @@ pub(super) fn check_instruction(
             }
             Type::Bool
         }
-        InstructionKind::OwnedStoreBorrow { .. } => {
+        InstructionKind::OwnedStoreBorrow { .. } | InstructionKind::OwnedStoreBorrowMut { .. } => {
             if value_type(function, extra.expect("element index"), span)? != &Type::I64 {
                 return Err(bad("Store element index must be i64"));
             }
             Type::Address {
-                mutable: false,
+                mutable: matches!(
+                    instruction.kind,
+                    InstructionKind::OwnedStoreBorrowMut { .. }
+                ),
                 inner: Box::new(element.clone()),
             }
         }
@@ -280,7 +284,8 @@ pub(super) fn access(kind: &InstructionKind) -> Option<(ValueId, bool)> {
     match *kind {
         InstructionKind::OwnedStoreReserve { store, .. }
         | InstructionKind::OwnedStorePush { store, .. }
-        | InstructionKind::OwnedStorePop { store } => Some((store, true)),
+        | InstructionKind::OwnedStorePop { store }
+        | InstructionKind::OwnedStoreBorrowMut { store, .. } => Some((store, true)),
         InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store }
         | InstructionKind::OwnedStoreBorrow { store, .. } => Some((store, false)),
