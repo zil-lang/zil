@@ -1344,14 +1344,14 @@ mod tests {
         let CoreExprKind::Call { callee, .. } = &mut wrapped.kind else {
             panic!()
         };
-        *callee = Box::new(CoreExpr {
+        **callee = CoreExpr {
             id: NodeId(802),
             span,
             kind: CoreExprKind::TypeApply {
                 callee: callee.clone(),
                 type_arguments: vec![Type::Named("T".into())],
             },
-        });
+        };
         let errors = Compiler {
             program: &program,
             module: ModuleId(0),
