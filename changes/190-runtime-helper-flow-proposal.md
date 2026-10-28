@@ -188,3 +188,7 @@ SCC/可达性/BFS 使用显式队列或栈；不对 graph cycle 递归，不按 
 图复制前分别检查节点、调用事件、边的checked累计值，按公共191语义使用原max_nodes/max_instructions/max_analysis_steps；扫描、拥有复制/重定位、BFS/判环/结果比较分别计费。静态helper依赖路径在Analyze和Verify独立核max_call_depth，Types仍由188计划核验；runtime回边不累计该depth。默认Limits没有变化。新增实际工作可能改变精确工作量夹具的边界，必须保留原失败并由root逐例批准迁移；不增加预算掩盖失败。
 
 资源Call消费者对Finite逐路径、Flow逐可达节点核是否含callback事件，覆盖不返回前缀；仅有Flow字样不豁免真实Live/Drop/Hold或当前实参义务。FnOnce有环仍明确Unsupported，有限0/1次仍按真实图构建Finite。ForRange与全部Flow初版check通过仅是编译事实，不是安全/运行验收。
+
+### 原边界夹具的精确迁移
+
+clean715093c9的flow-finite01实际59/3：126原loop与188原nested-loop都已Verify Success；191同一实际有限twice模块上的伪造Flow仍被Analyze及Verify(raw/Wire)拒绝，诊断变为真实CFG不符的SafeReject。root已在ae3ac2445605c19914760fcd47c9f130700f8aac授权三个对应文件。126/188原输入字节不改，补O0/O2真实exit3验证；consume/recursion/mixed-kind等负例保留。191不改伪图及真实有限正文，只将断言迁为Analyze E-ANALYZE-IR与Verify E-VERIFY-CALLABLE-CONTRACT的SafeReject。原失败记录不删除。此迁移不提高任何限额，不把旧Unsupported计作新成功。
