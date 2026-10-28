@@ -332,7 +332,7 @@ struct State {
 }
 struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
-    callable: Option<callable::CallableTemplate>,
+    callable: Option<callable::CallableTemplates>,
     definition: &'s str,
     dependencies: &'b mut helper_graph::Dependencies,
     bounds: trait_bounds::Bounds,
@@ -1014,9 +1014,11 @@ impl Check<'_, '_, '_> {
                 }
                 if let Some(local) = state.locals.get(target) {
                     self.budget.ty(&local.ty)?;
-                    let result = if let Some(bound) = &self.callable
-                        && callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
-                    {
+                    let result = if let Some(bound) = self.callable.as_ref().and_then(|bounds| {
+                        bounds.roles.iter().find(|bound| {
+                            callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
+                        })
+                    }) {
                         Some(&bound.result)
                     } else {
                         callable::opaque_signature(&local.ty).map(|(_, _, result)| result)
@@ -1826,16 +1828,29 @@ impl Check<'_, '_, '_> {
                     // its full type before cloning the symbolic local.
                     self.budget.ty(&local.ty)?;
                     let local = local.clone();
-                    let Some(bound) = self.callable.clone() else {
+                    let Some(bounds) = self.callable.as_ref() else {
                         return Err(unsupported(
                             e.span,
                             "generic callable parameter requires a Fn bound",
                         ));
                     };
-                    let (kind, mode, parameters, result, factory_local) = if let Some(mode) =
-                        callable::parameter_mode(&local.ty, &bound.generic_name)
+                    let owned_state = bounds.owned_state;
+                    let bound = bounds.roles.iter().find(|bound| {
+                        callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
+                    });
+                    let (kind, mode, parameters, result, factory_local) = if let Some(bound) = bound
                     {
-                        (bound.kind, mode, bound.parameters, bound.result, false)
+                        for parameter in &bound.parameters {
+                            self.budget.ty(parameter)?;
+                        }
+                        self.budget.ty(&bound.result)?;
+                        (
+                            bound.kind,
+                            callable::parameter_mode(&local.ty, &bound.generic_name).unwrap(),
+                            bound.parameters.clone(),
+                            bound.result.clone(),
+                            false,
+                        )
                     } else if let Some((kind, parameters, result)) =
                         callable::opaque_signature(&local.ty)
                     {
@@ -1863,7 +1878,7 @@ impl Check<'_, '_, '_> {
                         zil_ir::CallableKind::Fn => {}
                         zil_ir::CallableKind::FnMut if mode == Some(true) => {}
                         zil_ir::CallableKind::FnMut
-                            if local.mutable && (factory_local || bound.owned_state) => {}
+                            if local.mutable && (factory_local || owned_state) => {}
                         zil_ir::CallableKind::FnMut if factory_local => {
                             return Err(error(
                                 e.span,
@@ -1894,21 +1909,13 @@ impl Check<'_, '_, '_> {
                     .signatures
                     .get(target)
                     .ok_or_else(|| error(e.span, "unknown function in parametric body"))?;
-                if let (Some(caller), Some(callee)) =
-                    (&self.callable, callable::template(function)?)
-                {
+                if self.callable.is_some() && callable::template(function)?.is_some() {
                     self.dependencies.edge(
                         self.definition,
                         &function.name,
                         function.span,
                         self.budget,
                     )?;
-                    if !(caller.owned_state && callee.owned_state) && caller.kind != callee.kind {
-                        return Err(unsupported(
-                            e.span,
-                            "nested synchronous helpers require the same declared callable kind",
-                        ));
-                    }
                 }
                 if arguments.len() != function.params.len() {
                     return Err(error(e.span, "parametric call arity mismatch"));
@@ -1972,41 +1979,56 @@ impl Check<'_, '_, '_> {
                     return Err(error(e.span, "unconstrained nested generic argument"));
                 }
                 let callable = callable::template(function)?;
-                if let Some(callee) = &callable {
-                    let actual = &found[&callee.generic_name];
-                    let (kind, parameters, result) = if let Some(caller) = &self.callable
-                        && callable::parameter_mode(actual, &caller.generic_name) == Some(None)
-                    {
-                        (caller.kind, caller.parameters.as_slice(), &caller.result)
-                    } else if let Some(signature) = callable::opaque_signature(actual) {
-                        signature
-                    } else {
-                        return Err(error(
-                            e.span,
-                            "nested callable State helper requires an established callable bound",
-                        ));
-                    };
-                    if !matches!(
-                        (kind, callee.kind),
-                        (zil_ir::CallableKind::Fn, _)
-                            | (
-                                zil_ir::CallableKind::FnMut,
-                                zil_ir::CallableKind::FnMut | zil_ir::CallableKind::FnOnce
-                            )
-                            | (zil_ir::CallableKind::FnOnce, zil_ir::CallableKind::FnOnce)
-                    ) || parameters.len() != callee.parameters.len()
-                    {
-                        return Err(error(
-                            e.span,
-                            "nested callable State helper requires a compatible callable capability",
-                        ));
+                if let Some(callees) = &callable {
+                    for callee in &callees.roles {
+                        self.budget.node(e.span, 0)?;
+                        let actual = &found[&callee.generic_name];
+                        let caller = self.callable.as_ref().and_then(|bounds| {
+                            bounds.roles.iter().find(|caller| {
+                                callable::parameter_mode(actual, &caller.generic_name) == Some(None)
+                            })
+                        });
+                        let (kind, parameters, result) = if let Some(caller) = caller {
+                            if !callees.owned_state
+                                && !self.callable.as_ref().unwrap().owned_state
+                                && caller.kind != callee.kind
+                            {
+                                return Err(unsupported(
+                                    e.span,
+                                    "nested synchronous helpers require the same declared callable kind for each forwarded role",
+                                ));
+                            }
+                            (caller.kind, caller.parameters.as_slice(), &caller.result)
+                        } else if let Some(signature) = callable::opaque_signature(actual) {
+                            signature
+                        } else {
+                            return Err(error(
+                                e.span,
+                                "nested callable State helper requires an established callable bound",
+                            ));
+                        };
+                        if !matches!(
+                            (kind, callee.kind),
+                            (zil_ir::CallableKind::Fn, _)
+                                | (
+                                    zil_ir::CallableKind::FnMut,
+                                    zil_ir::CallableKind::FnMut | zil_ir::CallableKind::FnOnce
+                                )
+                                | (zil_ir::CallableKind::FnOnce, zil_ir::CallableKind::FnOnce)
+                        ) || parameters.len() != callee.parameters.len()
+                        {
+                            return Err(error(
+                                e.span,
+                                "nested callable State helper requires a compatible callable capability",
+                            ));
+                        }
+                        for (actual, expected) in parameters.iter().zip(&callee.parameters) {
+                            let expected = substituted_type(expected, &found, self.budget)?;
+                            same(actual, &expected, e.span, self.budget)?;
+                        }
+                        let expected = substituted_type(&callee.result, &found, self.budget)?;
+                        same(result, &expected, e.span, self.budget)?;
                     }
-                    for (actual, expected) in parameters.iter().zip(&callee.parameters) {
-                        let expected = substituted_type(expected, &found, self.budget)?;
-                        same(actual, &expected, e.span, self.budget)?;
-                    }
-                    let expected = substituted_type(&callee.result, &found, self.budget)?;
-                    same(result, &expected, e.span, self.budget)?;
                 }
                 self.traits.check_arguments(
                     &function.generics,
@@ -2014,7 +2036,7 @@ impl Check<'_, '_, '_> {
                     (&self.bounds, &self.variables),
                     self.budget,
                     e.span,
-                    callable.as_ref().map(|bound| bound.generic_name.as_str()),
+                    callable.as_ref(),
                 )?;
                 match &function.return_type {
                     Some(result) => substituted_type(result, &found, self.budget),
@@ -2146,8 +2168,10 @@ impl Check<'_, '_, '_> {
                     return Err(error(e.span, "managed Package field used after give"));
                 }
                 if let Some(local) = package
-                    && self.callable.as_ref().is_some_and(|bound| {
-                        callable::parameter_mode(&ty, &bound.generic_name) == Some(None)
+                    && self.callable.as_ref().is_some_and(|bounds| {
+                        bounds.roles.iter().any(|bound| {
+                            callable::parameter_mode(&ty, &bound.generic_name) == Some(None)
+                        })
                     })
                 {
                     let slot = self.field_slot(local, member, e.span)?;
