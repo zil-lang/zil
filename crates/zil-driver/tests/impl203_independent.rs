@@ -1766,3 +1766,98 @@ fn declared_callee_mode_is_prepared_before_fallible_argument_cleanup() {
         }
     }
 }
+
+fn value_inferred_identity_source(distinct: bool) -> String {
+    let mut prefix = ORIGINAL_MARKERS[..ORIGINAL_MARKERS.find("fn main()").unwrap()].replace(
+        "    let ticket = Ticket { code: label }",
+        "    unsafe { putchar(label + 32) }\n    let ticket = Ticket { code: label }",
+    );
+    let second = if distinct {
+        let start = prefix.find("fn make(").unwrap();
+        let end = prefix.find("fn pack<").unwrap();
+        let other = prefix[start..end]
+            .replace("fn make(", "fn other(")
+            .replace(
+                "    let ticket = Ticket",
+                "    let padding:i64=1\n    let ticket = Ticket",
+            )
+            .replace("ticket.code; return", "ticket.code; padding; return");
+        prefix.push_str(&other);
+        "other"
+    } else {
+        "make"
+    };
+    format!(
+        "{prefix}\nfn identity<T:StoreElement>(value:T)->T{{return value}}\nfn main()->i32{{\n    let prepared=identity(pack(make(65,10),{second}(66,20),17))\n    let first=prepared.second()\n    let again=prepared.second()\n    if first+again!=40{{return 2}}\n    let result=run(prepared)\n    if result.1!=17{{return 1}}\n    return result.0\n}}\n"
+    )
+}
+
+#[test]
+fn value_inferred_ordinary_identity_prepares_once_without_global_bound_taint() {
+    for distinct in [false, true] {
+        // Main has no F/G declaration: its actual Fn values remain callable.
+        // Entering run restores that function's distinct Fn/FnOnce sources.
+        // Lowercase bytes also catch duplicate argument preparation at inference.
+        native(
+            &format!("value-inferred-identity-distinct-{distinct}"),
+            &value_inferred_identity_source(distinct),
+            "abMPBQZA",
+            0,
+        );
+    }
+}
+
+fn value_inferred_choice_source(phantom: bool, second_type: &str) -> String {
+    let nominal = nominal_source(phantom);
+    let prefix = &nominal[..nominal.find("fn main()").unwrap()];
+    format!(
+        "{prefix}\nfn choose<T:StoreElement>(first:T,second:T)->T{{return first}}\nfn main()->i32{{\n    let chosen=choose(pack(make(65,10),make(66,20),Left{{value:1}}),pack(make(67,10),make(68,20),{second_type}{{value:1}}))\n    return run(chosen)\n}}\n"
+    )
+}
+
+#[test]
+fn value_inferred_ordinary_calls_unify_every_argument_and_keep_nominal_identity() {
+    for phantom in [false, true] {
+        let source = value_inferred_choice_source(phantom, "Left");
+        // The unselected owning argument is cleaned before the returned value.
+        native(
+            &format!("value-inferred-choice-phantom-{phantom}"),
+            &source,
+            "ZCDMPBQZA",
+            0,
+        );
+        reject_source(
+            &format!("value-inferred-conflicting-nominal-phantom-{phantom}"),
+            &value_inferred_choice_source(phantom, "Right"),
+            &[Phase::Expand, Phase::Types],
+            None,
+        );
+    }
+    let control = value_inferred_identity_source(false);
+    for (label, source) in [
+        (
+            "value-inferred-explicit-constraint-conflicts",
+            control.replace("identity(pack(", "identity::<i32>(pack("),
+        ),
+        (
+            "value-inferred-template-cannot-be-value",
+            control.replace(
+                "    let prepared=identity(pack(",
+                "    let function=identity\n    let prepared=function(pack(",
+            ),
+        ),
+        (
+            "value-inferred-no-argument-no-type-constraint",
+            format!(
+                "fn empty<T:StoreElement>()->Store<T> contract{{result(create)}}{{return store_new()}}\n{}",
+                control.replace(
+                    "    let prepared=",
+                    "    let unconstrained=empty()\n    let prepared="
+                )
+            ),
+        ),
+    ] {
+        assert_ne!(source, control);
+        reject_source(&label, &source, &[Phase::Expand, Phase::Types], None);
+    }
+}
