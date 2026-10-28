@@ -5,7 +5,7 @@ use std::{
     process::Command,
     sync::atomic::{AtomicUsize, Ordering},
 };
-use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
+use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{
     CompileOptions, CompileReport, Optimization, ProjectSources, Stage, compile_project,
 };
@@ -300,6 +300,65 @@ fn leaf_callback_exclusion_does_not_reclose_plain_stores_or_copy_companions() {
         }}{MAIN_ONCE}"
     );
     through_types("copy-companion-code", &source);
+}
+
+#[test]
+fn uncalled_factory_without_store_operations_keeps_exact_canonical_metadata() {
+    use zil_ir::{InstructionKind as I, Type};
+    let source = format!(
+        "{LEAF} fn make(give items: Store<Item>) -> impl Fn() -> i32 {{
+            return move () => {{ items; return 0 }}
+        }} fn main() {{}}"
+    );
+    let (directory, report) = compile("unused-canonical", &source, Stage::Types);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
+    fs::write(
+        directory.join("single-module-types.txt"),
+        format!("{module:#?}"),
+    )
+    .unwrap();
+    let Type::Managed(payload) = &module.closures[0].captures[0] else {
+        panic!("the actual captured parameter remains an owned Store");
+    };
+    let Type::OwnedStore { element } = payload.as_ref() else {
+        panic!("actual Store payload");
+    };
+    let Type::Package { name, .. } = element.as_ref() else {
+        panic!("complete nominal element");
+    };
+    let definitions = module
+        .resources
+        .iter()
+        .filter(|resource| resource.name == format!("@builtin:OwnedStore<{name}>"))
+        .collect::<Vec<_>>();
+    assert_eq!(definitions.len(), 1);
+    assert_eq!(&definitions[0].payload, payload.as_ref());
+    assert_eq!(definitions[0].teardown, None);
+    assert!(
+        !module
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.instructions)
+            .any(|instruction| matches!(
+                instruction.kind,
+                I::OwnedStoreNew { .. }
+                    | I::OwnedStoreLen { .. }
+                    | I::OwnedStoreCapacity { .. }
+                    | I::OwnedStoreReserve { .. }
+                    | I::OwnedStorePush { .. }
+                    | I::OwnedStorePop { .. }
+            ))
+    );
 }
 
 #[test]
