@@ -1,0 +1,86 @@
+[
+  {
+    "path": "records/formal-workspace01/command/command.json",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/formal-workspace01/command/command.json",
+    "bytes": 900,
+    "sha256": "58dbd3a2108f21ff08ddd02c725001bf1e897775facf9c3d6edf49303a788c95"
+  },
+  {
+    "path": "records/formal-workspace01/command/stdout.log",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/formal-workspace01/command/stdout.log",
+    "bytes": 175411,
+    "sha256": "874e08511c96de4c804fc7006905f85519132ce8c7b9590c57677963767a9a55"
+  },
+  {
+    "path": "records/formal-workspace01/command/stderr.log",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/formal-workspace01/command/stderr.log",
+    "bytes": 28289,
+    "sha256": "6ce720d3894a7443362620ca3bf41ffe8a6c2cb47703abd914bf717d1d6e5d2a"
+  },
+  {
+    "path": "records/legacy-fixtures01/command/command.json",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/command/command.json",
+    "bytes": 1089,
+    "sha256": "6f67c74ffe6742c8be39f9439745c521cfbdb7ed376a75693d419f79f4011703"
+  },
+  {
+    "path": "records/legacy-fixtures01/command/stdout.log",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/command/stdout.log",
+    "bytes": 1841,
+    "sha256": "2299924bcf6ee74e75a845566047f72378eebe3258495fc9b3d13997cb9066ab"
+  },
+  {
+    "path": "records/legacy-fixtures01/command/stderr.log",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/command/stderr.log",
+    "bytes": 587,
+    "sha256": "6f778bcdd00db5075dce12ab50da2231da2034041d6ffd2f65d066647ba6353b"
+  },
+  {
+    "path": "records/legacy-fixtures01/cases/review176-field-is-copy-data-103-6/raw.txt",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/cases/review176-field-is-copy-data-103-6/raw.txt",
+    "bytes": 390,
+    "sha256": "c358a4ef80d04738ad466eee29fc19a98d5c13bdd9fc8578ec20f26f869001f8"
+  },
+  {
+    "path": "records/legacy-fixtures01/cases/review176-field-is-copy-data-103-6/wire.txt",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/cases/review176-field-is-copy-data-103-6/wire.txt",
+    "bytes": 390,
+    "sha256": "c358a4ef80d04738ad466eee29fc19a98d5c13bdd9fc8578ec20f26f869001f8"
+  },
+  {
+    "path": "records/legacy-fixtures01/cases/review176-field-is-copy-data-103-6/candidate.bin",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/cases/review176-field-is-copy-data-103-6/candidate.bin",
+    "bytes": 7783,
+    "sha256": "3b8ff8dfaaf270e0aa78f1df8bf34fed784d53cd81bfdadc83cfa2679f5abf24"
+  },
+  {
+    "path": "records/legacy-fixtures01/cases/source-94-17/source.zil",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/cases/source-94-17/source.zil",
+    "bytes": 296,
+    "sha256": "d3f52d7b350cd69c62d1a911d5be169dda91880a99adbd6bf71ef06f759ce59b"
+  },
+  {
+    "path": "records/legacy-fixtures01/cases/source-94-17/report.json",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/cases/source-94-17/report.json",
+    "bytes": 1624,
+    "sha256": "31689994bd90d052039ac75d31e58a21fd00c224ff84c3dbc73aab8a1524a0c3"
+  },
+  {
+    "path": "records/legacy-fixtures01/cases/field179-review-copy-index-is-not-callback-143-3/raw.txt",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/cases/field179-review-copy-index-is-not-callback-143-3/raw.txt",
+    "bytes": 391,
+    "sha256": "2d2687d52f698664e6541ea650ec51d22d3ab06f2140009c9a07a859063c131c"
+  },
+  {
+    "path": "records/legacy-fixtures01/cases/field179-review-copy-index-is-not-callback-143-3/wire.txt",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/cases/field179-review-copy-index-is-not-callback-143-3/wire.txt",
+    "bytes": 391,
+    "sha256": "2d2687d52f698664e6541ea650ec51d22d3ab06f2140009c9a07a859063c131c"
+  },
+  {
+    "path": "records/legacy-fixtures01/cases/field179-review-copy-index-is-not-callback-143-3/candidate.bin",
+    "original": "/workspace/scratch/39be3faa4442/run-logs/192-integration/legacy-fixtures01/cases/field179-review-copy-index-is-not-callback-143-3/candidate.bin",
+    "bytes": 12242,
+    "sha256": "bfca799e7824dd3eaa9a29430cb079fabbe3563dcb9c830c4a7bbfd2f5004efd"
+  }
+]
