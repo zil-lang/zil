@@ -1,0 +1,1 @@
+resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn choose(give old:R,flag:bool)->R contract{result(create)}{let p=if flag{P{pad:7,old:give old,wide:[11,13],fresh:R{n:29}}}else{P{pad:9,old:give old,wide:[17,19],fresh:R{n:29}}};let q=p;return give q.fresh}fn main()->i32{let v=choose(R{n:17},true);return v.n-29}

@@ -1,0 +1,1 @@
+resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn regenerate(p:P)->R contract{result(create)}{var current=p;current.fresh=R{n:31};let moved=current;return give moved.fresh}fn main()->i32{let p=P{pad:7,old:R{n:17},wide:[11,13],fresh:R{n:19}};let v=regenerate(p);return v.n-31}
