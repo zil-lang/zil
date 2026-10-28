@@ -297,13 +297,12 @@ fn index_mutability_scope_widths_and_known_integer_requirements_are_checked() {
 }
 
 #[test]
-fn unsupported_loop_control_is_not_treated_as_an_ordinary_statement() {
+fn loop_control_templates_keep_their_original_inputs_after_symbolic_admission() {
     for control in ["break", "continue"] {
-        rejected(
+        accepted(
             control,
             &format!("fn bad<T>(value:T){{for index in 0..2{{{control}}}}}fn main(){{}}"),
-            ResultCategory::Unsupported,
-            "this parametric statement requires additional symbolic checking",
+            Stage::Verify,
         );
     }
 }
