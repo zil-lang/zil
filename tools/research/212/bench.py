@@ -51,12 +51,12 @@ def prepare(args: argparse.Namespace) -> None:
     cpu_list = sorted(os.sched_getaffinity(0))
     if len(cpu_list) < 4:
         raise SystemExit("Four allowed CPUs required for this frozen comparison")
-    blocks = args.blocks or {"primary": 5, "default": 3, "rust": 3, "bridge": 1}[args.mode]
+    blocks = args.blocks or {"primary": 5, "default": 3, "rust": 3, "bridge": 1, "upgrade": 3}[args.mode]
     units = 1 if args.mode in {"default", "bridge"} else 8
     jobs = 1 if units == 1 else 4
     if args.mode == "rust" and args.profile != "O0":
         raise SystemExit("This Rust reference contract is O0 only")
-    a = args.rustc if args.mode == "rust" else args.baseline if args.mode == "bridge" else args.candidate
+    a = args.rustc if args.mode == "rust" else args.baseline if args.mode in {"bridge", "upgrade"} else args.candidate
     if a is None:
         raise SystemExit("Selected mode requires --baseline or --rustc")
     binaries = {"A": a.resolve(), "B": args.candidate.resolve(), "clang": args.clang.resolve()}
@@ -70,7 +70,8 @@ def prepare(args: argparse.Namespace) -> None:
                 order.append({"block": block, "case": case, "position": position, "arm": arm})
     request_weights = {"cold_session": 1.0} if args.mode == "bridge" else REQUESTS
     plan = {
-        "schema": "zil-object-cache212/1", "mode": args.mode, "profile": args.profile,
+        "schema": "zil-object-cache212/2", "mode": args.mode, "profile": args.profile,
+        "rust_profile": args.rust_profile,
         "created_unix": time.time(), "source_commit": git("rev-parse", "HEAD"),
         "crates_tree": git("rev-parse", "HEAD:crates"), "blocks": blocks,
         "units": units, "jobs": jobs, "cpus": cpu_list[:4],
@@ -160,7 +161,11 @@ def one_build(plan: dict, root: Path, case: dict, arm: str, request: str, work: 
         argv = [plan["binaries"][arm]["path"], str(work / "src/main.rs"), "--edition=2024", "--crate-name", "zil_ref212",
                 "-Awarnings", "--target", "x86_64-unknown-linux-gnu", "-C", "target-cpu=x86-64",
                 "-C", "opt-level=0", "-C", "debuginfo=0", "-C", "overflow-checks=on", "-C", "panic=abort",
-                "-C", f"codegen-units={plan['units']}", "-C", "incremental=" + str(work / "rust-incremental"), "-o", str(out)]
+                "-C", "incremental=" + str(work / "rust-incremental"), "-o", str(out)]
+        if plan.get("rust_profile", "matched") == "native":
+            argv += ["-C", "embed-bitcode=no"]  # Toolchain default incremental CGUs, not forced to ZIL partition count.
+        else:
+            argv += ["-C", f"codegen-units={plan['units']}"]
     else:
         argv = [plan["binaries"][arm]["path"], "build", str(work / "src/main.zil"), "-o", str(out), "--json",
                 "--cache-dir", str(work / "source-candidates"), "--clang", plan["binaries"]["clang"]["path"],
@@ -263,7 +268,7 @@ def summarize(args: argparse.Namespace) -> None:
     observed = [(r["block"], r["case"], r["position"], r["arm"], r["request"]) for r in rows]
     failures = [r["index"] for r in rows if not r["pass"]]
     result = {"plan_sha256": sha(args.plan), "source_commit": plan["source_commit"], "mode": plan["mode"], "profile": plan["profile"],
-              "units": plan["units"], "jobs": plan["jobs"], "rows": len(rows), "coverage_complete": observed == expected,
+              "units": plan["units"], "jobs": plan["jobs"], "rust_profile": plan.get("rust_profile", "matched"), "rows": len(rows), "coverage_complete": observed == expected,
               "failures": failures, "native_checks": sum(len(r["checks"]) for r in rows), "blocks": plan["blocks"]}
     if failures or observed != expected:
         result["verdict"] = "IncompleteOrFailed_NoScore"; write(args.out, result); raise SystemExit("Do not score missing/failed cells")
@@ -290,9 +295,9 @@ def summarize(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__); sub = parser.add_subparsers(dest="action", required=True)
-    p = sub.add_parser("prepare"); p.add_argument("--out", type=Path, required=True); p.add_argument("--mode", choices=["primary","default","rust","bridge"], required=True)
+    p = sub.add_parser("prepare"); p.add_argument("--out", type=Path, required=True); p.add_argument("--mode", choices=["primary","default","rust","bridge","upgrade"], required=True)
     p.add_argument("--candidate",type=Path,required=True); p.add_argument("--baseline",type=Path); p.add_argument("--rustc",type=Path); p.add_argument("--clang",type=Path,required=True)
-    p.add_argument("--profile",choices=["O0","O2"],default="O0");p.add_argument("--blocks",type=int);p.set_defaults(run=prepare)
+    p.add_argument("--rust-profile",choices=["matched","native"],default="matched");p.add_argument("--profile",choices=["O0","O2"],default="O0");p.add_argument("--blocks",type=int);p.set_defaults(run=prepare)
     p=sub.add_parser("preflight");p.add_argument("--plan",type=Path,required=True);p.add_argument("--out",type=Path,required=True);p.set_defaults(run=preflight)
     p=sub.add_parser("measure");p.add_argument("--plan",type=Path,required=True);p.add_argument("--out",type=Path,required=True);p.add_argument("--preflight",type=Path,required=True);p.add_argument("--quiet-window",action="store_true");p.set_defaults(run=measure)
     p=sub.add_parser("summarize");p.add_argument("--plan",type=Path,required=True);p.add_argument("--records",type=Path,required=True);p.add_argument("--out",type=Path,required=True);p.set_defaults(run=summarize)
