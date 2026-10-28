@@ -38,7 +38,11 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !closure.result.is_copy_value()
+        ) || !(closure.result.is_copy_value()
+            || (!closure.lending_captures.is_empty()
+                && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                && matches!(&closure.result, Type::Address { inner, mutable: false }
+                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
@@ -54,7 +58,7 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,
-                "lowering requires a finite closure environment and Copy signature",
+                "lowering requires a finite closure environment, Copy parameters and a verified result contract",
                 None,
             )]);
         }

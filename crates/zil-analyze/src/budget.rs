@@ -350,6 +350,13 @@ pub(super) fn preflight(
         count(0, closure.captures.len(), limits.max_locals, "capture")?;
         count(
             0,
+            closure.lending_captures.len(),
+            limits.max_locals,
+            "closure lending capture",
+        )?;
+        budget.input(closure.lending_captures.len(), "closure lending metadata")?;
+        count(
+            0,
             closure.parameters.len(),
             limits.max_locals,
             "closure parameter",
@@ -372,12 +379,20 @@ pub(super) fn preflight(
             }
             local_value(ty, Span::default(), module)?;
         }
-        for ty in closure
-            .parameters
-            .iter()
-            .chain(std::iter::once(&closure.result))
-        {
+        for ty in &closure.parameters {
             scalar(ty, Span::default())?;
+        }
+        if matches!(&closure.result, Type::Address { inner, mutable: false }
+            if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
+            && matches!(
+                closure.kind,
+                zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
+            )
+            && !closure.lending_captures.is_empty()
+        {
+            local_value(&closure.result, Span::default(), module)?;
+        } else {
+            scalar(&closure.result, Span::default())?;
         }
         if closure.function.0 as usize >= module.functions.len() {
             return Err(bad("closure entry references an absent function"));
@@ -395,6 +410,12 @@ pub(super) fn preflight(
         budget.input(1, "function preflight")?;
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {
+            count(
+                0,
+                contract.lending_captures.len(),
+                limits.max_locals,
+                "callable return lending capture",
+            )?;
             budget.input(
                 contract
                     .hold
@@ -402,6 +423,7 @@ pub(super) fn preflight(
                     .saturating_add(contract.call.len())
                     .saturating_add(contract.writes.len())
                     .saturating_add(contract.cleanup.len())
+                    .saturating_add(contract.lending_captures.len())
                     .saturating_add(2),
                 "callable return contract metadata",
             )?;

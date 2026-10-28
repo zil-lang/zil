@@ -22,6 +22,18 @@ pub(super) fn check_function(
         .closures
         .get(contract.closure.0 as usize)
         .ok_or_else(|| bad("callable result refers to an absent closure"))?;
+    budget.spend(
+        definition
+            .lending_captures
+            .len()
+            .saturating_add(contract.lending_captures.len()),
+        "factory lending comparison",
+    )?;
+    if contract.lending_captures != definition.lending_captures {
+        return Err(bad(
+            "callable return lending differs from its concrete environment",
+        ));
+    }
     budget.spend(function.parameters.len(), "factory parameter envelope")?;
     if function.environment.is_some()
         || function.foreign.is_some()
