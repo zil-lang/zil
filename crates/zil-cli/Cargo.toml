@@ -15,3 +15,7 @@ zil-driver.workspace = true
 [[bin]]
 name = "zil"
 path = "src/main.rs"
+
+[features]
+default = []
+llvm-api = ["zil-driver/llvm-api"]

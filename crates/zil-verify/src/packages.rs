@@ -114,11 +114,96 @@ pub(super) fn capture_views(
     Ok(views)
 }
 
+pub(super) fn owned_field(ty: &Type) -> bool {
+    matches!(ty, Type::Managed(_) | Type::Closure(_))
+        || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+}
+
+pub(super) fn has_callable_fields(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| matches!(ty, Type::Closure(_))))
+}
+
+pub(super) fn has_array_fields(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+        if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
+}
+
+pub(super) fn has_store_fields(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+        if fields.iter().any(|(_, ty)| dynamic_store::is_carrier(ty)))
+}
+
+/// Count concrete cleanup/layout occurrences, including each nested owning
+/// array repetition. Copy arrays need no generated per-element cleanup.
+pub(super) fn layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
+    let mut pending = vec![(ty, 1usize)];
+    let mut total = 0usize;
+    while let Some((ty, count)) = pending.pop() {
+        budget.spend(1)?;
+        total = total
+            .checked_add(count)
+            .ok_or_else(|| limit("package layout work overflow"))?;
+        match ty {
+            Type::Array { element, length } => {
+                let count = if matches!(element.as_ref(), Type::Package { .. }) {
+                    count
+                        .checked_mul(*length as usize)
+                        .ok_or_else(|| limit("package array expansion overflow"))?
+                } else {
+                    count
+                };
+                pending.push((element, count));
+            }
+            Type::Managed(inner)
+            | Type::Desc(inner)
+            | Type::Address { inner, .. }
+            | Type::Opaque { hidden: inner, .. } => pending.push((inner, count)),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| (ty, count)));
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|ty| (ty, count)));
+            }
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len())?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|ty| (ty, count)));
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.extend([(error.as_ref(), count), (result.as_ref(), count)])
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                budget.spend(parameters.len())?;
+                pending.extend(parameters.iter().map(|ty| (ty, count)));
+                pending.push((result, count));
+            }
+            Type::Slice { element } => pending.push((element, count)),
+            _ => {}
+        }
+    }
+    Ok(total)
+}
+
 pub(super) fn check_type_for(
     module: &TypedModule,
     ty: &Type,
     span: Option<Span>,
     budget: &mut Budget,
+) -> Check<()> {
+    check_package_type(module, ty, span, budget, true)
+}
+
+fn check_package_type(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+    array_fields: bool,
 ) -> Check<()> {
     let Type::Package { name, fields } = ty else {
         return Err(reject(
@@ -131,6 +216,16 @@ pub(super) fn check_type_for(
     if name.is_empty() {
         return Err(reject("E-VERIFY-PACKAGE", span, "empty package identity"));
     }
+    if has_array_fields(ty) {
+        if !array_fields {
+            return Err(unsupported(
+                "owning array fields require direct-Managed and Copy Package elements",
+                span,
+            ));
+        }
+        let work = layout_work(ty, budget)?;
+        budget.spend(work)?;
+    }
     let mut names = BTreeSet::new();
     let mut owns = false;
     for (name, field) in fields {
@@ -139,6 +234,13 @@ pub(super) fn check_type_for(
                 "E-VERIFY-PACKAGE",
                 span,
                 "package fields must have unique nonempty names",
+            ));
+        }
+        if dynamic_store::is_carrier(field) && (!matches!(field, Type::Managed(_)) || !array_fields)
+        {
+            return Err(unsupported(
+                "Store fields require direct manages ownership outside owning array fields",
+                span,
             ));
         }
         if byte_buffers::is_desc(field) {
@@ -150,6 +252,25 @@ pub(super) fn check_type_for(
         if matches!(field, Type::Managed(_)) {
             resources::check_type_for(module, field, span, budget)?;
             owns = true;
+        } else if let Type::Closure(id) = field {
+            if !array_fields {
+                return Err(unsupported(
+                    "callback State cannot nest inside an owning array field",
+                    span,
+                ));
+            }
+            closures::definition(module, *id, span)?;
+            closures::self_contained(module, *id, budget)?;
+        } else if let Type::Array { element, length } = field
+            && matches!(element.as_ref(), Type::Package { .. })
+        {
+            if *length == 0 {
+                return Err(unsupported(
+                    "owning Package array fields require a nonzero fixed length",
+                    span,
+                ));
+            }
+            check_package_type(module, element, span, budget, false)?;
         } else {
             // This independent finite-Copy admission also rejects nested
             // packages, descriptions, addresses and owning environments.
@@ -227,7 +348,8 @@ pub(super) fn check_instruction(
         | InstructionKind::DescribePackageField { local, index }
         | InstructionKind::TakePackageField { local, index }
         | InstructionKind::DropPackageField { local, index }
-        | InstructionKind::StorePackageField { local, index, .. } => {
+        | InstructionKind::StorePackageField { local, index, .. }
+        | InstructionKind::BorrowPackageField { local, index, .. } => {
             let Type::Package { fields, .. } = local_type(function, *local, span)? else {
                 return Err(bad("package projection requires a package local"));
             };
@@ -236,6 +358,25 @@ pub(super) fn check_instruction(
                 .ok_or_else(|| bad("package field index is outside its declaration"))?;
             resources::charge_payload(ty, budget)?;
             match &instruction.kind {
+                InstructionKind::BorrowPackageField { mutable, .. } => {
+                    let Type::Closure(id) = ty else {
+                        return Err(bad(
+                            "callback field borrow requires an exact concrete Closure field",
+                        ));
+                    };
+                    closures::self_contained(module, *id, budget)?;
+                    if *mutable && !function.locals[local.0 as usize].mutable {
+                        return Err(reject(
+                            "E-VERIFY-MUTABILITY",
+                            span,
+                            "exclusive callback field borrow requires mutable State storage",
+                        ));
+                    }
+                    Ok(Some(Type::Address {
+                        mutable: *mutable,
+                        inner: Box::new(ty.clone()),
+                    }))
+                }
                 InstructionKind::DescribePackageField { .. } => {
                     let Type::Managed(inner) = ty else {
                         return Err(bad("package description requires a manages field"));
@@ -244,9 +385,9 @@ pub(super) fn check_instruction(
                 }
                 InstructionKind::TakePackageField { .. }
                 | InstructionKind::DropPackageField { .. } => {
-                    if !matches!(ty, Type::Managed(_)) {
+                    if !owned_field(ty) {
                         return Err(bad(
-                            "package field transfer or cleanup requires a manages field",
+                            "package field transfer or cleanup requires an owning field",
                         ));
                     }
                     Ok(
@@ -270,8 +411,8 @@ pub(super) fn check_instruction(
                     Ok(None)
                 }
                 InstructionKind::ReadPackageField { .. } => {
-                    if matches!(ty, Type::Managed(_)) {
-                        return Err(bad("package Copy projection cannot copy a manages field"));
+                    if owned_field(ty) {
+                        return Err(bad("package Copy projection cannot copy an owning field"));
                     }
                     check_type(ty, span)?;
                     Ok(Some(ty.clone()))

@@ -8,6 +8,7 @@ pub(super) fn validate_parametric<'l>(
     enums: &BTreeMap<String, &'l EnumDecl>,
     signatures: &BTreeMap<String, Cow<'l, Function>>,
     pattern_types: &BTreeMap<String, TypeRef>,
+    traits: &trait_bounds::Index<'l>,
     budget: &mut Budget<'l>,
 ) -> R<()> {
     // Validate every written signature even if the template remains unused.
@@ -31,7 +32,10 @@ pub(super) fn validate_parametric<'l>(
     let mut check = Check {
         variables,
         callable: callable::template(function)?,
+        bounds: traits.bounds(function, budget)?,
+        traits,
         next_local: function.params.len(),
+        package_slots: BTreeMap::new(),
         nominals,
         enums,
         signatures,
@@ -217,7 +221,7 @@ fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
         _ => false,
     }
 }
-fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
+fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>, nominals: &BTreeMap<String, &Item>) -> bool {
     match &group(ty).kind {
         TypeKind::Reference { mutable: false, .. }
         | TypeKind::Function { .. }
@@ -226,7 +230,11 @@ fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
         // Opaque callable bounds expose an invocation interface, not Copy.
         // In particular an unused template must not duplicate a FnOnce owner.
         TypeKind::Impl(_) => false,
-        TypeKind::Tuple(ts) => ts.iter().all(|t| known_copy(t, vars)),
+        TypeKind::Tuple(ts) => ts.iter().all(|t| known_copy(t, vars, nominals)),
+        TypeKind::Array { element, .. } => known_copy(element, vars, nominals),
+        TypeKind::Named { path, .. } if matches!(nominals.get(&path.join(".")), Some(Item { kind: ItemKind::Aggregate(a), .. }) if a.kind == AggregateKind::Package) => {
+            false
+        }
         _ => !dependent(ty, vars),
     }
 }
@@ -244,7 +252,10 @@ struct State {
 struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
     callable: Option<callable::CallableTemplate>,
+    bounds: trait_bounds::Bounds,
+    traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
+    package_slots: BTreeMap<(usize, String), usize>,
     nominals: &'s BTreeMap<String, &'l Item>,
     enums: &'s BTreeMap<String, &'l EnumDecl>,
     signatures: &'s BTreeMap<String, Cow<'l, Function>>,
@@ -272,6 +283,136 @@ impl Check<'_, '_, '_> {
             },
         );
         Ok(())
+    }
+    fn package_local(&self, expression: &Expr, state: &State) -> Option<usize> {
+        if let ExprKind::Group(inner) = &expression.kind {
+            return self.package_local(inner, state);
+        }
+        let ExprKind::Name(name) = &expression.kind else {
+            return None;
+        };
+        let local = state.locals.get(name)?;
+        let TypeKind::Named { path, .. } = &group(&local.ty).kind else {
+            return None;
+        };
+        matches!(self.nominals.get(&path.join(".")), Some(Item { kind: ItemKind::Aggregate(a), .. })
+            if a.kind == AggregateKind::Package)
+        .then_some(local.id)
+    }
+    fn field_slot(&mut self, local: usize, member: &str, span: Span) -> R<usize> {
+        self.budget.text(member, span)?;
+        let key = (local, member.to_owned());
+        if let Some(id) = self.package_slots.get(&key) {
+            return Ok(*id);
+        }
+        let id = self.next_local;
+        self.next_local += 1;
+        self.package_slots.insert(key, id);
+        Ok(id)
+    }
+    fn existing_field_slot(&mut self, expression: &Expr, state: &State) -> R<Option<usize>> {
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(member),
+        } = &expression.kind
+        else {
+            return Ok(None);
+        };
+        let Some(local) = self.package_local(object, state) else {
+            return Ok(None);
+        };
+        self.budget.text(member, expression.span)?;
+        Ok(self.package_slots.get(&(local, member.clone())).copied())
+    }
+    fn managed_field_transfer(&mut self, operand: &Expr, state: &mut State) -> R<TypeRef> {
+        if !self
+            .callable
+            .as_ref()
+            .is_some_and(|bound| bound.owned_state)
+        {
+            return Err(unsupported(
+                operand.span,
+                "generic managed give requires an owning State profile",
+            ));
+        }
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(member),
+        } = &operand.kind
+        else {
+            return Err(unsupported(
+                operand.span,
+                "generic managed give requires a direct Package manages field",
+            ));
+        };
+        let Some(owner) = self.package_local(object, state) else {
+            return Err(unsupported(
+                operand.span,
+                "generic managed give requires a local owning Package",
+            ));
+        };
+        let mut object = object.as_ref();
+        while let ExprKind::Group(inner) = &object.kind {
+            self.budget.node(object.span, 0)?;
+            object = inner;
+        }
+        let ExprKind::Name(name) = &object.kind else {
+            unreachable!()
+        };
+        let TypeKind::Named { path, .. } = &group(&state.locals[name].ty).kind else {
+            unreachable!()
+        };
+        let Some(Item {
+            kind: ItemKind::Aggregate(aggregate),
+            ..
+        }) = self.nominals.get(&path.join("."))
+        else {
+            unreachable!()
+        };
+        for field in &aggregate.fields {
+            self.budget.node(field.span, 0)?;
+        }
+        let declared = aggregate
+            .fields
+            .iter()
+            .find(|field| &field.name == member)
+            .ok_or_else(|| error(operand.span, "unknown generic Package field"))?;
+        if !declared.manages {
+            return Err(error(
+                operand.span,
+                "generic give requires a declared manages field",
+            ));
+        }
+        // Place resolution checks the real nominal declaration and privacy.
+        // It does not grant ownership to a descriptor or a reference carrier.
+        let (ty, _) = self.place(operand, state)?;
+        if dependent(&ty, &self.variables) {
+            return Err(unsupported(
+                operand.span,
+                "generic manages field give requires a concrete resource type",
+            ));
+        }
+        let concrete = match &group(&ty).kind {
+            TypeKind::Named { path, args } if path.as_slice() == ["Store"] => {
+                matches!(args.as_slice(), [GenericArg::Type(_)])
+            }
+            TypeKind::Named { path, args } if path.as_slice() == ["ByteBuffer"] => args.is_empty(),
+            TypeKind::Named { path, args } => matches!(self.nominals.get(&path.join(".")),
+                Some(Item { kind: ItemKind::Aggregate(resource), .. })
+                if resource.kind == AggregateKind::Resource && resource.generics.len() == args.len()),
+            _ => false,
+        };
+        if !concrete {
+            return Err(unsupported(
+                operand.span,
+                "generic manages field give requires a concrete resource type",
+            ));
+        }
+        let slot = self.field_slot(owner, member, operand.span)?;
+        if !state.moved.insert(slot) {
+            return Err(error(operand.span, "managed Package field used after give"));
+        }
+        Ok(ty)
     }
     fn clone_state(&mut self, state: &State) -> R<State> {
         for local in state.locals.values() {
@@ -318,6 +459,94 @@ impl Check<'_, '_, '_> {
         *mode = *mutable;
         Ok(actual)
     }
+
+    fn bound_method(
+        &mut self,
+        object: &Expr,
+        actual: &TypeRef,
+        name: &str,
+        arguments: &[Argument],
+        state: &mut State,
+    ) -> R<TypeRef> {
+        let host = match &group(actual).kind {
+            TypeKind::Reference { inner, .. } => inner.as_ref(),
+            _ => actual,
+        };
+        let variable = trait_bounds::plain(host)
+            .filter(|name| self.variables.contains(*name))
+            .ok_or_else(|| {
+                unsupported(
+                    object.span,
+                    "parametric method receiver requires a declared type-parameter bound",
+                )
+            })?;
+        let method = self
+            .traits
+            .method(&self.bounds, variable, name, self.budget, object.span)?;
+        let Some(receiver) = method.params.first().filter(|p| p.name == "self") else {
+            return Err(error(
+                object.span,
+                "static trait method requires a type-qualified call",
+            ));
+        };
+        if receiver.give || method.params.iter().any(|p| p.give) {
+            return Err(unsupported(
+                object.span,
+                "trait-bound resource passing modes require their category solver",
+            ));
+        }
+        if arguments.len() + 1 != method.params.len() {
+            return Err(error(
+                object.span,
+                "trait-bound method argument count differs",
+            ));
+        }
+        let substitutions = BTreeMap::from([("Self".to_owned(), host.clone())]);
+        let expected = substituted_type(&receiver.ty, &substitutions, self.budget)?;
+        match &group(&expected).kind {
+            TypeKind::Reference { mutable, .. } => {
+                if matches!(group(actual).kind, TypeKind::Reference { .. }) {
+                    let actual = self.argument(object, state, &expected, Some(&expected))?;
+                    same(&actual, &expected, object.span, self.budget)?;
+                } else {
+                    let (place, writable) = self.place(object, state)?;
+                    if *mutable && !writable {
+                        return Err(error(
+                            object.span,
+                            "mutable trait receiver requires a writable place",
+                        ));
+                    }
+                    same(&place, host, object.span, self.budget)?;
+                }
+            }
+            _ => {
+                if matches!(group(actual).kind, TypeKind::Reference { .. }) {
+                    return Err(error(
+                        object.span,
+                        "cannot move an unknown non-Copy trait receiver through a reference",
+                    ));
+                }
+                let consumed = self.expr(object, state, Some(&expected), false)?;
+                same(&consumed, &expected, object.span, self.budget)?;
+            }
+        }
+        for (argument, parameter) in arguments.iter().zip(&method.params[1..]) {
+            if argument.spread {
+                return Err(unsupported(
+                    argument.span,
+                    "trait-bound method tuple spread",
+                ));
+            }
+            let expected = substituted_type(&parameter.ty, &substitutions, self.budget)?;
+            let actual = self.argument(&argument.value, state, &expected, Some(&expected))?;
+            same(&actual, &expected, argument.span, self.budget)?;
+        }
+        match &method.return_type {
+            Some(result) => substituted_type(result, &substitutions, self.budget),
+            None => Ok(unit(object.span)),
+        }
+    }
+
     fn expr(
         &mut self,
         e: &Expr,
@@ -349,7 +578,23 @@ impl Check<'_, '_, '_> {
                         "generic value used after move; Copy cannot be inferred from a concrete instance",
                     ));
                 }
-                if !borrowing && !known_copy(&ty, &self.variables) {
+                let owning_package = self
+                    .callable
+                    .as_ref()
+                    .is_some_and(|bound| bound.owned_state)
+                    && self.package_local(e, state).is_some();
+                if !borrowing
+                    && (!known_copy(&ty, &self.variables, self.nominals) || owning_package)
+                {
+                    for ((owner, _), field) in &self.package_slots {
+                        self.budget.node(e.span, 0)?;
+                        if *owner == id && state.moved.contains(field) {
+                            return Err(error(
+                                e.span,
+                                "a partial callable State must be refilled before whole transfer",
+                            ));
+                        }
+                    }
                     state.moved.insert(id);
                 }
                 Ok(ty)
@@ -378,6 +623,88 @@ impl Check<'_, '_, '_> {
                     kind: TypeKind::Tuple(fields),
                 })
             }
+            ExprKind::Record {
+                ty: Some(constructor),
+                base: None,
+                fields,
+            } => {
+                let (name, args) = match &constructor.kind {
+                    ExprKind::Name(name) => (name.clone(), vec![]),
+                    ExprKind::TypeApply { callee, arguments } => {
+                        let ExprKind::Name(name) = &callee.kind else {
+                            return Err(unsupported(
+                                e.span,
+                                "generic record constructor needs a nominal type",
+                            ));
+                        };
+                        (name.clone(), arguments.clone())
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            e.span,
+                            "generic record constructor needs a nominal type",
+                        ));
+                    }
+                };
+                let Some(Item {
+                    kind: ItemKind::Aggregate(declaration),
+                    ..
+                }) = self.nominals.get(&name)
+                else {
+                    return Err(error(e.span, "unknown nominal record constructor"));
+                };
+                if declaration.generics.len() != args.len() {
+                    return Err(error(e.span, "generic record constructor arity mismatch"));
+                }
+                let mut substitutions = BTreeMap::new();
+                for (parameter, argument) in declaration.generics.iter().zip(&args) {
+                    let GenericArg::Type(ty) = argument else {
+                        return Err(unsupported(e.span, "constant generic record constructor"));
+                    };
+                    self.budget.ty(ty)?;
+                    substitutions.insert(parameter.name.clone(), ty.clone());
+                }
+                let mut seen = BTreeSet::new();
+                for field in fields {
+                    if !seen.insert(&field.name) {
+                        return Err(error(field.span, "duplicate generic record field"));
+                    }
+                    let declared = declaration
+                        .fields
+                        .iter()
+                        .find(|f| f.name == field.name)
+                        .ok_or_else(|| error(field.span, "unknown generic record field"))?;
+                    if !declared.public && declared.span.file != field.span.file {
+                        return Err(Diagnostic::error(
+                            Phase::Expand,
+                            "E-FIELD-PRIVATE",
+                            Some(field.span),
+                            "record field is private to its declaring module",
+                        ));
+                    }
+                    let want = substituted_type(&declared.ty, &substitutions, self.budget)?;
+                    let actual = if let Some(value) = &field.value {
+                        self.expr(value, state, Some(&want), false)?
+                    } else {
+                        let local = Expr {
+                            span: field.span,
+                            kind: ExprKind::Name(field.name.clone()),
+                        };
+                        self.expr(&local, state, Some(&want), false)?
+                    };
+                    same(&actual, &want, field.span, self.budget)?;
+                }
+                if seen.len() != declaration.fields.len() {
+                    return Err(error(e.span, "missing generic record field"));
+                }
+                Ok(TypeRef {
+                    span: e.span,
+                    kind: TypeKind::Named {
+                        path: vec![name],
+                        args,
+                    },
+                })
+            }
             ExprKind::Array(values) => {
                 let mut element = expected
                     .and_then(|ty| match &group(ty).kind {
@@ -401,10 +728,34 @@ impl Check<'_, '_, '_> {
                     e.span,
                 )
             }
-            ExprKind::Index { .. } => {
+            ExprKind::Index { object, .. } => {
                 let (ty, _) = self.place(e, state)?;
-                if !borrowing && !known_copy(&ty, &self.variables) {
-                    return Err(needs_bound());
+                if !borrowing && !known_copy(&ty, &self.variables, self.nominals) {
+                    // Existing concrete owning arrays transfer complete Package
+                    // elements, and Copy-member reads project without a move.
+                    // A reference to such an array grants neither operation by
+                    // copying its Package value into a local carrier.
+                    let (base, _) = self.place(object, state)?;
+                    let concrete_package = !dependent(&ty, &self.variables)
+                        && matches!(&group(&ty).kind, TypeKind::Named { path, .. }
+                            if matches!(self.nominals.get(&path.join(".")),
+                                Some(Item { kind: ItemKind::Aggregate(a), .. })
+                                if a.kind == AggregateKind::Package));
+                    if self
+                        .callable
+                        .as_ref()
+                        .is_some_and(|bound| bound.owned_state)
+                        || !concrete_package
+                        || !matches!(
+                            &group(&base).kind,
+                            TypeKind::Array {
+                                length: Some(_),
+                                ..
+                            }
+                        )
+                    {
+                        return Err(needs_bound());
+                    }
                 }
                 Ok(ty)
             }
@@ -429,6 +780,11 @@ impl Check<'_, '_, '_> {
                     }
                 );
                 let (inner, writable) = self.place(operand, state)?;
+                if let Some(slot) = self.existing_field_slot(operand, state)?
+                    && state.moved.contains(&slot)
+                {
+                    return Err(error(e.span, "cannot borrow a moved callback field"));
+                }
                 if mutable && !writable {
                     return Err(error(e.span, "exclusive borrow requires a writable place"));
                 }
@@ -449,7 +805,7 @@ impl Check<'_, '_, '_> {
                 let TypeKind::Reference { inner, .. } = &group(&ty).kind else {
                     return Err(error(e.span, "dereference requires an address"));
                 };
-                if !borrowing && !known_copy(inner, &self.variables) {
+                if !borrowing && !known_copy(inner, &self.variables, self.nominals) {
                     return Err(needs_bound());
                 }
                 Ok(*inner.clone())
@@ -466,6 +822,10 @@ impl Check<'_, '_, '_> {
                 };
                 Ok(checked_integer(text, expected, true, e.span)?.0)
             }
+            ExprKind::Unary {
+                op: UnaryOp::Give,
+                operand,
+            } => self.managed_field_transfer(operand, state),
             ExprKind::Unary { op, operand } => {
                 let ty = self.expr(operand, state, expected, false)?;
                 if dependent(&ty, &self.variables) {
@@ -491,7 +851,22 @@ impl Check<'_, '_, '_> {
                 Ok(ty)
             }
             ExprKind::Binary { op, left, right } => {
-                let lhs = self.expr(left, state, expected, false)?;
+                // A comparison produces bool; that result hint is not the
+                // operand type of an ordinary helper call on its left.
+                let operand_hint = if matches!(
+                    op,
+                    BinaryOp::Equal
+                        | BinaryOp::NotEqual
+                        | BinaryOp::Less
+                        | BinaryOp::LessEqual
+                        | BinaryOp::Greater
+                        | BinaryOp::GreaterEqual
+                ) {
+                    None
+                } else {
+                    expected
+                };
+                let lhs = self.expr(left, state, operand_hint, false)?;
                 let rhs = self.expr(right, state, Some(&lhs), false)?;
                 if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
                     return Err(needs_bound());
@@ -556,17 +931,17 @@ impl Check<'_, '_, '_> {
                     object,
                     member: MemberName::Name(name),
                 } = &callee.kind
-                    && name == "len"
                 {
                     let ty = self.expr(object, state, None, true)?;
-                    if matches!(&group(&ty).kind, TypeKind::Reference { inner, .. } if matches!(group(inner).kind, TypeKind::Array { length: None, .. }))
+                    if name == "len"
+                        && matches!(&group(&ty).kind, TypeKind::Reference { inner, .. } if matches!(group(inner).kind, TypeKind::Array { length: None, .. }))
                     {
                         if !arguments.is_empty() {
                             return Err(error(e.span, "slice len requires no arguments"));
                         }
                         return Ok(named("i64", e.span));
                     }
-                    return Err(unsupported(e.span, "generic len requires a borrowed slice"));
+                    return self.bound_method(object, &ty, name, arguments, state);
                 }
 
                 if let Some(value) =
@@ -688,7 +1063,8 @@ impl Check<'_, '_, '_> {
                     match kind {
                         zil_ir::CallableKind::Fn => {}
                         zil_ir::CallableKind::FnMut if mode == Some(true) => {}
-                        zil_ir::CallableKind::FnMut if factory_local && local.mutable => {}
+                        zil_ir::CallableKind::FnMut
+                            if local.mutable && (factory_local || bound.owned_state) => {}
                         zil_ir::CallableKind::FnMut if factory_local => {
                             return Err(error(
                                 e.span,
@@ -719,10 +1095,13 @@ impl Check<'_, '_, '_> {
                     .signatures
                     .get(target)
                     .ok_or_else(|| error(e.span, "unknown function in parametric body"))?;
-                if self.callable.is_some() && callable::template(function)?.is_some() {
+                if let (Some(caller), Some(callee)) =
+                    (&self.callable, callable::template(function)?)
+                    && !(caller.owned_state && callee.owned_state)
+                {
                     return Err(unsupported(
                         e.span,
-                        "recursive or nested callable helper contracts are not implemented",
+                        "recursive or nested synchronous callable helper contracts are not implemented",
                     ));
                 }
                 if arguments.len() != function.params.len() {
@@ -774,6 +1153,49 @@ impl Check<'_, '_, '_> {
                 }
                 if variables.iter().any(|name| !found.contains_key(name)) {
                     return Err(error(e.span, "unconstrained nested generic argument"));
+                }
+                if let Some(callee) = callable::template(function)? {
+                    let actual = &found[&callee.generic_name];
+                    let (kind, parameters, result) = if let Some(caller) = &self.callable
+                        && callable::parameter_mode(actual, &caller.generic_name) == Some(None)
+                    {
+                        (caller.kind, caller.parameters.as_slice(), &caller.result)
+                    } else if let Some(signature) = callable::opaque_signature(actual) {
+                        signature
+                    } else {
+                        return Err(error(
+                            e.span,
+                            "nested callable State helper requires an established callable bound",
+                        ));
+                    };
+                    if !matches!(
+                        (kind, callee.kind),
+                        (zil_ir::CallableKind::Fn, _)
+                            | (
+                                zil_ir::CallableKind::FnMut,
+                                zil_ir::CallableKind::FnMut | zil_ir::CallableKind::FnOnce
+                            )
+                            | (zil_ir::CallableKind::FnOnce, zil_ir::CallableKind::FnOnce)
+                    ) || parameters.len() != callee.parameters.len()
+                    {
+                        return Err(error(
+                            e.span,
+                            "nested callable State helper requires a compatible callable capability",
+                        ));
+                    }
+                    for (actual, expected) in parameters.iter().zip(&callee.parameters) {
+                        same(actual, expected, e.span, self.budget)?;
+                    }
+                    same(result, &callee.result, e.span, self.budget)?;
+                } else {
+                    self.traits.check_arguments(
+                        &function.generics,
+                        &found,
+                        &self.bounds,
+                        &self.variables,
+                        self.budget,
+                        e.span,
+                    )?;
                 }
                 match &function.return_type {
                     Some(result) => substituted_type(result, &found, self.budget),
@@ -836,7 +1258,8 @@ impl Check<'_, '_, '_> {
                 object,
                 member: MemberName::Name(member),
             } => {
-                let value = self.expr(object, state, None, borrowing)?;
+                let package = self.package_local(object, state);
+                let value = self.expr(object, state, None, borrowing || package.is_some())?;
                 let TypeKind::Named { path, args } = &group(&value).kind else {
                     return Err(needs_bound());
                 };
@@ -870,7 +1293,31 @@ impl Check<'_, '_, '_> {
                     };
                     substitutions.insert(p.name.clone(), ty.clone());
                 }
-                substituted_type(&field.ty, &substitutions, self.budget)
+                let ty = substituted_type(&field.ty, &substitutions, self.budget)?;
+                if field.manages
+                    && self
+                        .existing_field_slot(e, state)?
+                        .is_some_and(|slot| state.moved.contains(&slot))
+                {
+                    return Err(error(e.span, "managed Package field used after give"));
+                }
+                if let Some(local) = package
+                    && self.callable.as_ref().is_some_and(|bound| {
+                        callable::parameter_mode(&ty, &bound.generic_name) == Some(None)
+                    })
+                {
+                    let slot = self.field_slot(local, member, e.span)?;
+                    if state.moved.contains(&slot) {
+                        return Err(error(
+                            e.span,
+                            "callback field used after its environment was moved",
+                        ));
+                    }
+                    if !borrowing {
+                        state.moved.insert(slot);
+                    }
+                }
+                Ok(ty)
             }
             _ => Err(unsupported(
                 e.span,
@@ -923,6 +1370,26 @@ impl Check<'_, '_, '_> {
                     }
                     let actual = self.expr(value, state, Some(&ty), false)?;
                     same(&actual, &ty, value.span, self.budget)?;
+                    let mut whole = target;
+                    while let ExprKind::Group(inner) = &whole.kind {
+                        self.budget.node(whole.span, 0)?;
+                        whole = inner;
+                    }
+                    if let ExprKind::Name(name) = &whole.kind {
+                        let local = state.locals[name].id;
+                        // Restore only after the complete RHS succeeded. A
+                        // move from this very target during RHS evaluation is
+                        // still checked, including repeated argument uses.
+                        state.moved.remove(&local);
+                        for ((owner, _), slot) in &self.package_slots {
+                            self.budget.node(target.span, 0)?;
+                            if *owner == local {
+                                state.moved.remove(slot);
+                            }
+                        }
+                    } else if let Some(slot) = self.existing_field_slot(target, state)? {
+                        state.moved.remove(&slot);
+                    }
                 }
                 StmtKind::Return(value) => {
                     let expected = self.result.clone();

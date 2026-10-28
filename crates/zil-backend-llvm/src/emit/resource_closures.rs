@@ -3,10 +3,12 @@
 use super::*;
 
 pub(super) fn owns(definition: &ClosureDefinition) -> bool {
-    definition
-        .captures
-        .iter()
-        .any(|ty| matches!(ty, Type::Managed(_) | Type::Package { .. }))
+    definition.captures.iter().any(|ty| {
+        matches!(
+            ty,
+            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+        )
+    })
 }
 
 pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
@@ -17,7 +19,7 @@ pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
 /// Package groups are shell followed by direct Managed fields in field order.
 pub(super) fn flag_count(ty: &Type) -> usize {
     match ty {
-        Type::Managed(_) => 1,
+        Type::Managed(_) | Type::Closure(_) => 1,
         Type::Package { fields, .. } => {
             1 + fields
                 .iter()
@@ -43,7 +45,10 @@ pub(super) fn drop_functions(
     resources: &[ResourceDefinition],
 ) -> CompileResult<String> {
     let mut text = String::new();
-    for definition in closures.iter().filter(|definition| owns(definition)) {
+    // Every concrete environment has an addressable field cleanup entry.
+    // Resource-free callbacks simply return; this preserves unique field slots
+    // without inventing a capture cleanup obligation.
+    for definition in closures {
         let env = environment_type(definition.id);
         text.push_str(&format!(
             "define internal void @zil.closure.drop.{}(ptr %env) {{\nentry:\n",
@@ -59,6 +64,12 @@ pub(super) fn drop_functions(
             ));
             match ty {
                 Type::Managed(payload) => {
+                    if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                        return unsupported(
+                            "Store capture requires a separate retained storage profile",
+                            None,
+                        );
+                    }
                     let resource = resources
                         .iter()
                         .find(|resource| &resource.payload == payload.as_ref())
@@ -74,10 +85,23 @@ pub(super) fn drop_functions(
                         ));
                     }
                 }
+                Type::Closure(child) => {
+                    if owns(&closures[child.0 as usize]) {
+                        text.push_str(&format!(
+                            "  %child.{index} = getelementptr {env}, ptr %env, i32 0, i32 {index}\n  call void @zil.closure.drop.{}(ptr %child.{index})\n", child.0
+                        ));
+                    }
+                }
                 Type::Package { fields, .. } => {
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
                         let Type::Managed(payload) = ty else { continue };
+                        if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                            return unsupported(
+                                "Store fields require a separate owning composition profile",
+                                None,
+                            );
+                        }
                         let resource = resources
                             .iter()
                             .find(|resource| &resource.payload == payload.as_ref())
@@ -112,6 +136,21 @@ pub(super) fn drop_functions(
 }
 
 impl FunctionEmitter<'_> {
+    pub(super) fn borrow_capture(
+        &mut self,
+        instruction: &Instruction,
+        index: u32,
+    ) -> CompileResult<()> {
+        let environment = self.function.environment.expect("verified environment");
+        let env = environment_type(environment);
+        let result = instruction.result.expect("verified capture borrow");
+        self.line(format!(
+            "  {} = getelementptr {env}, ptr %env, i32 0, i32 {index}",
+            value(result)
+        ));
+        Ok(())
+    }
+
     /// Establish pointer names once in the machine entry block. Lexical
     /// Bind/End do not copy the package or initialize/clear its physical flags.
     pub(super) fn package_capture_storage(
@@ -159,6 +198,7 @@ impl FunctionEmitter<'_> {
     pub(super) fn owns_resource(&self, ty: &Type) -> bool {
         match ty {
             Type::Managed(_) | Type::Package { .. } => true,
+            Type::ErrorUnion { .. } => errors::owned(ty),
             Type::Closure(id) => self.closures.get(id).is_some_and(|definition| {
                 owns(definition) || definition.kind == CallableKind::FnOnce
             }),

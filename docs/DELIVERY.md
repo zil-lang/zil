@@ -1,5 +1,30 @@
 # 源码、审计与历史交付
 
+## 语言169起：源码、证据与恢复附件分离
+
+2026-10-27用户的新要求适用于后续工作，上一份161–165交付不重打。新主源码ZIP从干净main的Git跟踪文件逐字导出；保留源码、测试与输入夹具、规范、配置、锁、工具、文档和任务记录，排除整个evidence目录、构建输出、缓存和Git数据库。跟踪的脚本按原执行位保留；生成的原生程序、对象和LLVM执行产物不进入主包。文档内的历史证据链接在源码包中可能不存在，必须按对应历史交付查阅，不能当成本轮重跑。
+
+当前174–177交付延续同一格式，精确能力与验收见 [LANGUAGE-177](LANGUAGE-177.md)。源ZIP保持零证据/零执行产物，独立审计恢复ZIP与旁置报告分别提供。实际ZIP大小、SHA256、独立逐字节检查、全refs恢复及空target构建结果只读本轮旁置报告；上一轮已保存交付不重打。
+
+此外，工具明确排除额外13项已跟踪的历史生成文件（收据、测量图及handoff快照），精确名单在 `tools/language/169/package.py` 的 `EXCLUDED_FILES`。测试输入、JSON合同、规范登记、源码与普通文档保留；不会按扩展名粗略删除所有JSON。生成快照缺失时，精简源码目录不具备历史handoff所需的完整身份，需按下述恢复方式取得Git checkout。
+
+```sh
+python3 tools/language/169/package.py --output ../delivery/zil-language-source.zip --audit-output ../delivery/zil-language-audit.zip --receipt evidence/impl/177/acceptance.json --receipt evidence/reviews/177/composition/REVIEW.json
+```
+
+审计恢复ZIP只添加明确选择的紧凑文本证据与当前全部可见refs/分树HEAD的Git历史bundle；默认总上限50 MB，超过即报错，不静默丢弃。没有选择的旧运行不声称重新交付。Git历史原有字节不改写，历史对象可能含旧轮已提交产物；当前新执行产物不单独收录。主包的PACKAGE.json记录来源提交、crates树、当前规范摘要、逐项外置路径和审计ZIP哈希；SHA256SUMS与原有package_check.py兼容。
+
+主源码可直接构建，不依赖证据。需要延续Git历史时，先解压审计恢复ZIP，再执行：
+
+```sh
+python3 history/restore.py --manifest history/manifest.json --destination ../zil-restored
+cd ../zil-restored/main
+node tools/handoff.mjs --check
+```
+
+恢复检查核对全部refs与提交身份；它不把继承的历史交接问题变成Pass。无Git源码包仍不能通过历史handoff。实际语言测试、原生行为、恢复结果及各文件最终大小，只以本轮最终报告和各自精确提交的收据为准。下文各draft说明属于历史交付格式。
+
+
 ## 2026-10-26 draft24检查点
 
 本轮前缀为`zil-draft24-20261026`，包含完整非evidence源码与紧凑收据、相对原draft22完整历史的累计history-delta、累计evidence-delta、恢复脚本、验证和报告。仍使用`RECOVERY-PACKAGE.json`表明开发检查点；当前完整正式门NotRun，不把历史35项正式门继承到本轮。

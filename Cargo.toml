@@ -10,6 +10,7 @@ members = [
   "crates/zil-verify",
   "crates/zil-lower",
   "crates/zil-backend-llvm",
+  "crates/zil-llvm-api",
   "crates/zil-db",
   "crates/zil-ct",
   "crates/zil-driver",
@@ -34,6 +35,7 @@ zil-analyze = { path = "crates/zil-analyze" }
 zil-verify = { path = "crates/zil-verify" }
 zil-lower = { path = "crates/zil-lower" }
 zil-backend-llvm = { path = "crates/zil-backend-llvm" }
+zil-llvm-api = { path = "crates/zil-llvm-api" }
 zil-db = { path = "crates/zil-db" }
 zil-ct = { path = "crates/zil-ct" }
 zil-driver = { path = "crates/zil-driver" }

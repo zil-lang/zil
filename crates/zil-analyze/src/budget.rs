@@ -97,6 +97,7 @@ impl Budget {
             }
             Type::Array { element, .. }
             | Type::Slice { element }
+            | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
             | Type::Desc(element)
@@ -157,8 +158,36 @@ fn scalar(ty: &Type, span: Span) -> CompileResult<()> {
     }
 }
 
+fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+    if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
+    && fields.iter().all(|(_, t)| {
+        t.is_copy_value()
+            || (arrays && matches!(t, Type::Closure(_)))
+            || matches!(t, Type::Managed(p) if **p == Type::ByteBuffer
+                || (arrays && matches!(p.as_ref(), Type::OwnedStore { .. }))
+                || (matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value()))
+            || (arrays && matches!(t, Type::Array { element, length }
+                if *length > 0 && package_fields_supported(element, false)))
+    }))
+}
+
 fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
-    if let Type::Closure(id) = ty {
+    if let Type::ErrorUnion { error, result } = ty {
+        for payload in [error.as_ref(), result.as_ref()] {
+            if matches!(payload, Type::Package { .. }) {
+                local_value(payload, span, module)?;
+            } else {
+                scalar(payload, span)?;
+            }
+        }
+        Ok(())
+    } else if let Type::Array { element, length } = ty
+        && *length > 0
+        && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
+    {
+        local_value(element, span, module)
+    } else if let Type::Closure(id) = ty {
         if id.0 as usize >= module.closures.len() {
             return Err(bad("closure type references an absent environment"));
         }
@@ -170,23 +199,20 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
             return Err(bad("borrowed environment references an absent closure"));
         }
         Ok(())
-    } else if let Type::Package { fields, .. } = ty {
-        if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
-            && fields.iter().all(|(_, t)| {
-                t.is_copy_value()
-                    || matches!(t, Type::Managed(p) if **p == Type::ByteBuffer
-                    || (matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value()))
-            })
-        {
+    } else if matches!(ty, Type::Package { .. }) {
+        if package_fields_supported(ty, true) {
             Ok(())
         } else {
             Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "package requires finite Copy fields and at least one explicit Managed resource",
+                "package requires finite Copy/complete array fields and at least one explicit Managed resource",
                 Some(span),
             )])
         }
-    } else if matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+    } else if crate::dynamic_store::is_carrier(ty)
+        || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+        || ty.is_shared_resource_head_address()
+        || ty.is_shared_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
             if **inner == Type::ByteBuffer
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
@@ -240,12 +266,10 @@ pub(super) fn preflight(
                     f.blocks
                         .iter()
                         .flat_map(|b| b.instructions.iter())
-                        .filter_map(|i| {
-                            if let InstructionKind::ConvertInteger { target, .. } = &i.kind {
-                                Some(target)
-                            } else {
-                                None
-                            }
+                        .filter_map(|i| match &i.kind {
+                            InstructionKind::ConvertInteger { target, .. } => Some(target),
+                            InstructionKind::OwnedStoreNew { element } => Some(element),
+                            _ => None,
                         }),
                 )
         })
@@ -268,7 +292,9 @@ pub(super) fn preflight(
                     budget.input(*length as usize, "array type size")?;
                     pending.push((element, depth + 1));
                 }
-                Type::Slice { element } => pending.push((element, depth + 1)),
+                Type::Slice { element } | Type::OwnedStore { element } => {
+                    pending.push((element, depth + 1));
+                }
                 Type::Tuple(fields) => {
                     budget.input(fields.len(), "aggregate type shape")?;
                     for t in fields {
@@ -332,10 +358,11 @@ pub(super) fn preflight(
         for ty in &closure.captures {
             if ty.is_slice_address()
                 || matches!(ty, Type::Desc(inner) if **inner == Type::ByteBuffer)
+                || super::resources::owned_error(ty)
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
-                    "slice and borrowed byte storage captures are not implemented",
+                    "slice, borrowed byte storage and owned error-union captures are not implemented",
                     None,
                 )]);
             }
@@ -406,7 +433,12 @@ pub(super) fn preflight(
         }
         budget.input(1, "return type preflight")?;
         local_value(&function.return_type, function.span, module)?;
-        let mut package = matches!(function.return_type, Type::Package { .. });
+        let scoped_aggregate = |ty: &Type| {
+            matches!(ty, Type::Package { .. })
+                || super::resources::owned_error(ty)
+                || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_)))
+        };
+        let mut package = scoped_aggregate(&function.return_type);
         budget.input(function.parameters.len(), "parameter preflight")?;
         for parameter in &function.parameters {
             if parameter.0 as usize >= function.locals.len() {
@@ -428,12 +460,12 @@ pub(super) fn preflight(
             budget.input(1, "local type preflight")?;
             budget.input(local.name.len(), "local metadata")?;
             local_value(&local.ty, local.span, module)?;
-            package |= matches!(local.ty, Type::Package { .. });
+            package |= scoped_aggregate(&local.ty);
         }
         for ty in &function.values {
             budget.input(1, "value type preflight")?;
             local_value(ty, function.span, module)?;
-            package |= matches!(ty, Type::Package { .. });
+            package |= scoped_aggregate(ty);
         }
         for block in &function.blocks {
             instructions = count(
@@ -463,10 +495,18 @@ pub(super) fn preflight(
                     | InstructionKind::TakePackageField { local, .. }
                     | InstructionKind::DropPackageField { local, .. }
                     | InstructionKind::StorePackageField { local, .. }
+                    | InstructionKind::ProjectOwnedArrayField { local, .. }
+                    | InstructionKind::TakeOwnedArrayElement { local, .. }
+                    | InstructionKind::DropOwnedArrayElement { local, .. }
+                    | InstructionKind::StoreOwnedArrayElement { local, .. }
+                    | InstructionKind::BorrowOwnedArrayElement { local, .. }
+                    | InstructionKind::BorrowPackageField { local, .. }
                     | InstructionKind::BindPackageCapture { local, .. }
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::DropManaged { local }
+                    | InstructionKind::DropErrorUnion { local }
                     | InstructionKind::DropPackage { local }
+                    | InstructionKind::DropOwnedArray { local }
                     | InstructionKind::DropClosure { local }
                     | InstructionKind::CallClosureMut { callee: local, .. }
                     | InstructionKind::CallClosureShared { callee: local, .. }
@@ -494,6 +534,7 @@ pub(super) fn preflight(
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakeManaged { fields }
                     | InstructionKind::MakePackage { fields }
+                    | InstructionKind::MakeOwnedArray { elements: fields }
                     | InstructionKind::MakeVariant { fields, .. } => {
                         budget.input(fields.len(), "aggregate operands")?;
                     }

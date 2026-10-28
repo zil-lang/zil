@@ -118,7 +118,7 @@ fn r005_02_non_root_modules_keep_lexical_errors_and_original_spans() {
 }
 
 #[test]
-fn r005_03_programs_and_shared_receivers_work_while_trait_impls_stay_unsupported() {
+fn r005_03_programs_shared_receivers_and_finite_local_trait_impls_work() {
     let directory = Directory::new();
     let input = directory.put(
         "main.zil",
@@ -184,21 +184,25 @@ fn r005_03_programs_and_shared_receivers_work_while_trait_impls_stay_unsupported
         assert!(observed.stderr.is_empty());
     }
 
-    let unsupported = "struct Point { x: i32 }\ntrait Zero { fn zero() -> i32; }\nimpl Zero for Point { fn zero() -> i32 => 0 }\n";
-    directory.put("main.zil", unsupported);
-    let source = SourceUnit::new(FileId(0), ModuleId(0), input.to_string_lossy(), unsupported);
+    let finite_trait = "struct Point { x: i32 }\ntrait Zero { fn zero() -> i32; }\nimpl Zero for Point { fn zero() -> i32 => 0 }\n";
+    directory.put("main.zil", finite_trait);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        input.to_string_lossy(),
+        finite_trait,
+    );
     let single = compile_source(&source, &options());
     let project = compile_path(&input, &options());
     for report in [&single, &project] {
         assert_eq!(
             report.status,
-            ResultCategory::Unsupported,
+            ResultCategory::Success,
             "{}",
             report.to_json()
         );
         assert_eq!(report.phase, Phase::Types);
-        assert!(!report.diagnostics.is_empty());
-        assert!(report.diagnostics.iter().all(|d| d.code == "E-UNSUPPORTED"));
+        assert!(report.diagnostics.is_empty());
     }
     assert_eq!(project.diagnostics, single.diagnostics);
 }

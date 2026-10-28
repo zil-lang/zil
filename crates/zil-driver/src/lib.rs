@@ -15,7 +15,9 @@ use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-pub use zil_backend_llvm::{Optimization, WindowsLinkOptions};
+pub use zil_backend_llvm::{
+    CodegenOptions, CodegenSummary, NativeBackend, Optimization, WindowsLinkOptions,
+};
 use zil_base::{
     CompileResult, Diagnostic, FileId, Fingerprint, Limits, ModuleId, Phase, ResultCategory,
     SourceUnit, TargetProfile, json_string,
@@ -53,6 +55,7 @@ pub enum ExecutionProfile {
 }
 #[derive(Clone, Debug)]
 pub struct CompileOptions {
+    pub backend: NativeBackend,
     pub stop_after: Stage,
     pub emit_dir: Option<PathBuf>,
     pub output: Option<PathBuf>,
@@ -60,6 +63,7 @@ pub struct CompileOptions {
     pub cache_dir: Option<PathBuf>,
     pub clang: Option<PathBuf>,
     pub optimization: zil_backend_llvm::Optimization,
+    pub codegen: CodegenOptions,
     pub windows: Option<zil_backend_llvm::WindowsLinkOptions>,
     pub target: TargetProfile,
     pub limits: Limits,
@@ -72,6 +76,7 @@ pub struct CompileOptions {
 impl Default for CompileOptions {
     fn default() -> Self {
         Self {
+            backend: NativeBackend::default(),
             stop_after: Stage::Verify,
             emit_dir: None,
             output: None,
@@ -79,6 +84,7 @@ impl Default for CompileOptions {
             cache_dir: None,
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
+            codegen: CodegenOptions::default(),
             windows: None,
             target: TargetProfile::host_llvm(),
             limits: Limits::default(),
@@ -136,6 +142,7 @@ pub struct CompileReport {
     /// what was reused. This flag never indicates a cached Verified object.
     pub cache_hit: bool,
     pub commands: Vec<Vec<String>>,
+    pub native_codegen: Option<CodegenSummary>,
     pub disk_cache: DiskCacheStatus,
     pub query_events: Vec<QueryEvent>,
     pub verification_runs: usize,
@@ -153,6 +160,7 @@ impl CompileReport {
             seconds: 0.0,
             cache_hit: false,
             commands: vec![],
+            native_codegen: None,
             disk_cache: DiskCacheStatus::Disabled,
             query_events: vec![],
             verification_runs: 0,
@@ -162,7 +170,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -194,6 +202,7 @@ impl CompileReport {
                 ))
                 .collect::<Vec<_>>()
                 .join(","),
+            self.native_codegen.as_ref().map_or_else(|| "null".into(), CodegenSummary::to_json),
             json_string(self.disk_cache.as_str()),
             self.query_events
                 .iter()

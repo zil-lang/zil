@@ -7,14 +7,17 @@ use zil_ir::*;
 mod addresses;
 mod aggregates;
 mod byte_buffer;
+mod callable_fields;
 mod closures;
 mod conditions;
+mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
 mod functions;
 mod helpers;
 mod inference;
+mod managed_slots;
 mod names;
 mod packages;
 mod program;
@@ -130,10 +133,31 @@ fn signatures(
                 format!("function {} is declared twice", f.name),
             ))
         }
+        if f.return_type.is_shared_package_address() {
+            errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
+        }
+        if f.return_type.is_shared_resource_head_address()
+            || (matches!(f.return_type, Type::Address { .. })
+                && (f
+                    .parameters
+                    .iter()
+                    .any(|p| p.ty.is_shared_resource_head_address())
+                    || f.receiver
+                        .as_ref()
+                        .is_some_and(|r| r.ty.is_shared_resource_head_address())))
+        {
+            errors.push(unsupported(
+                f.span,
+                "resource-head windows are synchronous inputs; returning a head or a window derived from a head input is not implemented",
+            ));
+        }
         if !(f.callable_return.is_some()
+            || callable_fields::template(f)
             || f.return_type.is_copy_value()
             || f.return_type.is_scalar_or_address()
             || packages::supported(&f.return_type)
+            || errors::supported(&f.return_type)
+            || packages::owned_array_supported(&f.return_type)
             || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
         {
             errors.push(unsupported(
@@ -154,7 +178,8 @@ fn signatures(
             !(r.ty.is_copy_value()
                 || r.ty.is_scalar_or_address()
                 || resources::supported(&r.ty)
-                || packages::supported(&r.ty))
+                || packages::supported(&r.ty)
+                || errors::supported(&r.ty))
         }) {
             errors.push(unsupported(f.span, "receiver capability typing"))
         }
@@ -168,7 +193,9 @@ fn signatures(
             if !(p.ty.is_copy_value()
                 || p.ty.is_scalar_or_address()
                 || resources::supported(&p.ty)
-                || packages::supported(&p.ty))
+                || packages::supported(&p.ty)
+                || errors::supported(&p.ty)
+                || packages::owned_array_supported(&p.ty))
             {
                 errors.push(unsupported(
                     p.span,
@@ -183,7 +210,9 @@ fn signatures(
                     | PassingMode::Borrow
                     | PassingMode::BorrowMut
             ) && !(p.mode == PassingMode::Borrow
-                && matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee()))
+                && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+                    || p.ty.is_shared_resource_head_address()
+                    || p.ty.is_shared_package_address()))
                 && !(p.mode == PassingMode::BorrowMut
                     && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee()))
                 && !(p.mode == PassingMode::Give && matches!(p.ty, Type::Managed(_)))
@@ -224,64 +253,73 @@ pub fn check(
         resource_effects::single(core, &signatures, limits).map_err(|e| vec![e])?;
     helpers::install_single(core, &signatures, &enum_types, &mut closure_state, limits)
         .map_err(|e| vec![e])?;
-    // Resolve all opaque factory identities before checking their ordinary
-    // callers. Declaration order never changes caller-visible signatures.
-    for factories in [true, false] {
-        if !factories && !closure_state.helper_tables.is_empty() {
-            for f in core
-                .functions
-                .iter()
-                .filter(|f| f.callable_return.is_some())
-            {
-                helpers::resolve_factory_result(
-                    &mut closure_state,
-                    core.module_id,
-                    &f.name,
-                    &signatures[&f.name].result,
-                    f.span,
-                )
+    // Ground each opaque result before its dependents, independent of source
+    // declaration order. Concrete environments still use ordinary direct calls.
+    let mut work = limits.max_analysis_steps;
+    let mut graph = BTreeMap::new();
+    let mut factory_functions = BTreeMap::new();
+    for f in core
+        .functions
+        .iter()
+        .filter(|f| f.callable_return.is_some())
+    {
+        let id = signatures[&f.name].id;
+        let dependencies =
+            retained::factory_dependencies(f, &signatures, None, &closure_state, &mut work, limits)
                 .map_err(|e| vec![e])?;
-            }
-        }
-        for f in core
-            .functions
-            .iter()
-            .filter(|f| f.callable_parameter.is_none() && f.callable_return.is_some() == factories)
-        {
-            match Builder::new(
-                f,
-                signatures[&f.name].id,
-                &signatures,
-                limits,
-                &mut closure_state,
-            )
-            .and_then(|mut b| {
-                b.enums = Some(&enum_types);
-                b.finish(&f.body)
-            }) {
-                Ok(typed) => {
-                    if factories {
-                        signatures
-                            .get_mut(&f.name)
-                            .expect("declared factory")
-                            .result = typed.return_type.clone();
-                    }
-                    functions.push(typed);
+        graph.insert(id, (f.span, dependencies));
+        factory_functions.insert(id, f);
+    }
+    let factory_order = retained::order(graph, &mut work).map_err(|e| vec![e])?;
+    let ordered = factory_order
+        .into_iter()
+        .map(|id| factory_functions[&id])
+        .chain(
+            core.functions
+                .iter()
+                .filter(|f| f.callable_parameter.is_none() && f.callable_return.is_none()),
+        );
+    for f in ordered {
+        match Builder::new(
+            f,
+            signatures[&f.name].id,
+            &signatures,
+            limits,
+            &mut closure_state,
+        )
+        .and_then(|mut b| {
+            b.enums = Some(&enum_types);
+            b.finish(&f.body)
+        }) {
+            Ok(typed) => {
+                if f.callable_return.is_some() {
+                    signatures
+                        .get_mut(&f.name)
+                        .expect("declared factory")
+                        .result = typed.return_type.clone();
+                    helpers::resolve_factory_result(
+                        &mut closure_state,
+                        core.module_id,
+                        &f.name,
+                        &typed.return_type,
+                        f.span,
+                    )
+                    .map_err(|e| vec![e])?;
                 }
-                Err(e) => errors.push(e),
+                functions.push(typed);
             }
+            Err(e) => errors.push(e),
         }
         if !errors.is_empty() {
             return Err(errors);
         }
     }
-    if !errors.is_empty() {
-        return Err(errors);
-    }
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
+        .map_err(|e| vec![e])?;
+    dynamic_store::add_definitions(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
     Ok(TypedModule {
         resources: resource_definitions,
@@ -316,12 +354,17 @@ struct Builder<'a, 'c> {
     written_captures: BTreeMap<LocalId, u32>,
     address_written_captures: BTreeMap<LocalId, u32>,
     managed_captures: BTreeMap<LocalId, (u32, Type)>,
+    closure_captures: BTreeMap<LocalId, (u32, Type)>,
+    closure_slots: BTreeMap<LocalId, ClosureId>,
     package_captures: BTreeMap<LocalId, u32>,
     temporary_locals: std::collections::BTreeSet<LocalId>,
     unsafe_regions: Vec<u32>,
     next_unsafe_region: u32,
     resource_temps: Vec<LocalId>,
     sequenced_values: std::collections::BTreeSet<LocalId>,
+    managed_slots: std::collections::BTreeSet<LocalId>,
+    managed_slot_work: usize,
+    managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
 }
 struct LoopContext {
     continue_target: BlockId,
@@ -382,12 +425,17 @@ impl<'a, 'c> Builder<'a, 'c> {
             written_captures: BTreeMap::new(),
             address_written_captures: BTreeMap::new(),
             managed_captures: BTreeMap::new(),
+            closure_captures: BTreeMap::new(),
+            closure_slots: BTreeMap::new(),
             package_captures: BTreeMap::new(),
             temporary_locals: std::collections::BTreeSet::new(),
             unsafe_regions: Vec::new(),
             next_unsafe_region: 0,
             resource_temps: Vec::new(),
             sequenced_values: std::collections::BTreeSet::new(),
+            managed_slots: std::collections::BTreeSet::new(),
+            managed_slot_work: limits.max_analysis_steps,
+            managed_rebindings: managed_slots::reassigned_bindings(&f.body, limits)?,
         };
         if f.foreign.is_none() {
             b.emit(
@@ -484,6 +532,28 @@ impl<'a, 'c> Builder<'a, 'c> {
                 body.span,
                 "opaque callable factory must establish one returned hidden closure type",
             ));
+        }
+        if matches!(self.function.return_type, Type::Address { .. }) {
+            self.closures.snapshot(
+                self.function
+                    .locals
+                    .len()
+                    .saturating_add(self.function.values.len()),
+                body.span,
+            )?;
+            if self
+                .function
+                .locals
+                .iter()
+                .map(|local| &local.ty)
+                .chain(&self.function.values)
+                .any(Type::is_shared_package_address)
+            {
+                return Err(unsupported(
+                    body.span,
+                    "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
+                ));
+            }
         }
         for i in self.first_closure..self.closures.pending.len() {
             self.materialize_closure(ClosureId(i as u32))?;
@@ -742,7 +812,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         Ok(())
     }
     fn stmt(&mut self, s: &CoreStatement) -> R<()> {
-        self.stmt_inner(s)?;
+        let rewritten = self.rewrite_managed_statement(s)?;
+        self.stmt_inner(rewritten.as_ref().unwrap_or(s))?;
         if self.current.is_some() {
             self.finish_resource_temps(s.span)?;
         }
@@ -761,7 +832,10 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 // A resource annotation names the nominal type; create/give
                 // determines whether this binding holds the carrier or a description.
-                let wanted = ty.as_ref().filter(|t| !matches!(t, Type::Desc(_)));
+                let store_constructor = matches!(&e.kind, CoreExprKind::Call { callee, .. } if dynamic_store::primitive(callee) == Some("store_new"));
+                let wanted = ty
+                    .as_ref()
+                    .filter(|t| !matches!(t, Type::Desc(_)) || store_constructor);
                 let (v, t) = self.transfer_expr(e, wanted)?;
                 if let Some(wanted) = ty
                     && !matches!((&t, wanted), (Type::Managed(a), Type::Desc(b)) if a == b)
@@ -773,6 +847,23 @@ impl<'a, 'c> Builder<'a, 'c> {
                     // its temporary scope before committing a newer lexical
                     // owner; the binding is not visible during initialization.
                     self.finish_resource_temps(s.span)?;
+                }
+                if *mutable
+                    && matches!(t, Type::Managed(_))
+                    && self
+                        .managed_rebindings
+                        .contains(&(s.id, s.span, name.clone()))
+                {
+                    return self.managed_slot(name, t, v, s.span);
+                }
+                if *mutable
+                    && self.owned_closure(&t)
+                    && self
+                        .managed_rebindings
+                        .contains(&(s.id, s.span, name.clone()))
+                    && let Type::Closure(id) = t
+                {
+                    return self.closure_slot(name, id, v, s.span);
                 }
                 let local = self.local(name, t, *mutable, s.span)?;
                 self.store(local, v, s.span)?;
@@ -798,6 +889,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )
                 })?;
                 let d = self.function.locals[l.0 as usize].clone();
+                if self.closure_slots.contains_key(&l) {
+                    return self.assign_closure_slot(l, value, s.span);
+                }
                 if matches!(d.ty, Type::Managed(_)) {
                     return Err(unsupported(
                         s.span,
@@ -809,6 +903,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                         "E-IMMUTABLE-ASSIGNMENT",
                         target.span,
                         format!("{name} is not mutable"),
+                    ));
+                }
+                if errors::owned(&d.ty) {
+                    return Err(unsupported(
+                        s.span,
+                        "owned error-union whole-local reassignment requires a retained slot",
                     ));
                 }
                 let (v, t) = self.transfer_expr(value, Some(&d.ty))?;
@@ -1175,6 +1275,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             CoreExprKind::Unit => self.constant(Constant::Unit, e.span)?,
             CoreExprKind::Name(name) => {
                 if let Some(local) = self.lookup(name) {
+                    if self.closure_slots.contains_key(&local) {
+                        return self.take_closure_slot(local, e.span);
+                    }
                     let ty = self.function.locals[local.0 as usize].ty.clone();
                     if let Type::Managed(payload) = ty {
                         let desc = Type::Desc(payload);
@@ -1187,7 +1290,10 @@ impl<'a, 'c> Builder<'a, 'c> {
                             desc,
                         ));
                     }
-                    let kind = if matches!(ty, Type::Package { .. }) {
+                    let kind = if matches!(ty, Type::Package { .. })
+                        || packages::owned_array_supported(&ty)
+                        || errors::owned(&ty)
+                    {
                         InstructionKind::TakeLocal { local }
                     } else {
                         InstructionKind::Load(local)
@@ -1342,6 +1448,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 )
             }
             CoreExprKind::Call { callee, arguments } => {
+                if let Some(name) = dynamic_store::primitive(callee) {
+                    return self.dynamic_store_call(name, arguments, expected, e.span);
+                }
                 if let Some(name) = byte_buffer::primitive(callee) {
                     return self.byte_buffer_call(name, arguments, expected, e.span);
                 }
@@ -1396,15 +1505,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                     return self.call_closure(callee, arguments, expected, e.span);
                 }
                 let signature = self.resolve_callee(callee)?.clone();
-                // A checked nonescaping helper is an ordinary call in a factory.
-                // Its prepass snapshot cannot resolve an indirect opaque dependency.
                 if signature.callable_return.is_some()
-                    && (self.factory_bound.is_some()
-                        || matches!(signature.result, Type::Opaque { .. }))
+                    && matches!(signature.result, Type::Opaque { .. })
                 {
                     return Err(unsupported(
                         e.span,
-                        "recursive or forwarded callable factories are not implemented",
+                        "callable factory result identity has not been resolved",
                     ));
                 }
                 if signature.callable.is_some() {
@@ -1488,7 +1594,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                     if hints.is_empty() {
                         hints = self.sequence_hints(value);
                     }
-                    let (id, ty) = self.expr(v, hints.get(name))?;
+                    let (id, ty) = if hints
+                        .get(name)
+                        .is_some_and(|ty| matches!(ty, Type::Closure(_)))
+                    {
+                        self.owned_array_input(v, hints.get(name))?
+                    } else {
+                        self.expr(v, hints.get(name))?
+                    };
                     let l = self.local(name, ty, false, v.span)?;
                     self.sequenced_values.insert(l);
                     self.store(l, id, v.span)?
@@ -1542,6 +1655,14 @@ impl<'a, 'c> Builder<'a, 'c> {
     /// A known operand constrains an unsuffixed integer literal; this does not
     /// insert numeric conversions or change the type of a bound runtime value.
     fn known_type(&self, e: &CoreExpr) -> Option<Type> {
+        if let CoreExprKind::Call { callee, arguments } = &e.kind
+            && let Some(name) = dynamic_store::primitive(callee)
+            && let Some(first) = arguments.first()
+            && let Some(ty) = self.known_type(first)
+            && let Some(element) = dynamic_store::element(&ty)
+        {
+            return Some(dynamic_store::result_type(name, element));
+        }
         if let CoreExprKind::Call { callee, .. } = &e.kind
             && let Some(name) = byte_buffer::primitive(callee)
         {
@@ -1569,6 +1690,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     self.borrowed_captures
                         .get(&id)
                         .cloned()
+                        .or_else(|| self.closure_slots.get(&id).copied().map(Type::Closure))
                         .unwrap_or_else(|| self.function.locals[id.0 as usize].ty.clone())
                 })
                 .or_else(|| self.signatures.get(name).and_then(Signature::pointer_type)),
@@ -1641,7 +1763,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 operand,
             } => self
                 .known_type(operand)
-                .filter(Type::is_address_pointee)
+                .filter(|ty| ty.is_address_pointee()
+                    || (*op == UnaryOp::Borrow && matches!(ty, Type::Managed(payload)
+                        if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())))
                 .map(|inner| Type::Address {
                     mutable: *op == UnaryOp::BorrowMut,
                     inner: Box::new(inner),
@@ -1677,10 +1801,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 {
                     return Some(signature.result.clone());
                 }
-                if let CoreExprKind::Name(name) = &callee.kind
-                    && let Some(local) = self.lookup(name)
-                    && let Type::Closure(id) = self.function.locals[local.0 as usize].ty
-                {
+                if let Some(Type::Closure(id)) = self.known_type(callee) {
                     return self.closures.pending[id.0 as usize]
                         .inference
                         .result()
@@ -1725,6 +1846,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                         self.borrowed_captures
                             .get(local)
                             .cloned()
+                            .or_else(|| self.managed_captures.get(local).map(|(_, ty)| ty.clone()))
+                            .or_else(|| self.closure_captures.get(local).map(|(_, ty)| ty.clone()))
+                            .or_else(|| self.closure_slots.get(local).copied().map(Type::Closure))
                             .unwrap_or_else(|| self.function.locals[local.0 as usize].ty.clone()),
                     ),
                 );
@@ -1800,8 +1924,31 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut values = Vec::new();
         for capture in captures {
             let stored = capture.stored_type();
-            let value = if matches!(capture.ty, Type::Managed(_)) {
-                let kind = if matches!(stored, Type::Managed(_)) {
+            let value = if self.closure_slots.contains_key(&capture.source) {
+                if capture.moved {
+                    self.take_closure_slot(capture.source, capture.span)?.0
+                } else {
+                    self.borrow_closure_slot(capture.source, capture.written, capture.span)?
+                        .0
+                }
+            } else if let Some((index, _)) = self.closure_captures.get(&capture.source).cloned() {
+                let instruction = if capture.moved {
+                    InstructionKind::TakeCapture { index }
+                } else {
+                    InstructionKind::BorrowCapture {
+                        index,
+                        mutable: capture.written,
+                    }
+                };
+                self.value(instruction, stored.clone(), capture.span)?
+            } else if matches!(capture.ty, Type::Managed(_)) {
+                let kind = if let Some((index, _)) = self.managed_captures.get(&capture.source) {
+                    if matches!(stored, Type::Managed(_)) {
+                        InstructionKind::TakeCapture { index: *index }
+                    } else {
+                        InstructionKind::DescribeCapture { index: *index }
+                    }
+                } else if matches!(stored, Type::Managed(_)) {
                     InstructionKind::TakeLocal {
                         local: capture.source,
                     }
@@ -1811,6 +1958,13 @@ impl<'a, 'c> Builder<'a, 'c> {
                     }
                 };
                 self.value(kind, stored, capture.span)?
+            } else if capture.moved && self.borrowed_captures.contains_key(&capture.source) {
+                let expression = CoreExpr {
+                    id: zil_base::NodeId(0),
+                    kind: CoreExprKind::Name(capture.name.clone()),
+                    span: capture.span,
+                };
+                self.expr(&expression, Some(&stored))?.0
             } else if capture.borrowed {
                 let expression = CoreExpr {
                     id: zil_base::NodeId(0),
@@ -1925,6 +2079,29 @@ impl<'a, 'c> Builder<'a, 'c> {
             if matches!(stored, Type::Package { .. }) {
                 continue;
             }
+            if let Type::Closure(child) = &stored {
+                let mutable = capture.written
+                    && builder.closures.pending[child.0 as usize].callable_kind()
+                        != CallableKind::FnOnce;
+                let address = Type::Address {
+                    mutable,
+                    inner: Box::new(stored.clone()),
+                };
+                let local = builder.local(&capture.name, address.clone(), false, capture.span)?;
+                let value = builder.value(
+                    InstructionKind::BorrowCapture {
+                        index: index as u32,
+                        mutable,
+                    },
+                    address,
+                    capture.span,
+                )?;
+                builder.store(local, value, capture.span)?;
+                builder
+                    .closure_captures
+                    .insert(local, (index as u32, stored));
+                continue;
+            }
             if let Type::Managed(payload) = &stored {
                 // The hidden environment keeps the carrier. Each activation
                 // receives a descriptor into that live field, never a copy or
@@ -1977,13 +2154,37 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<(ValueId, Type)> {
         // Evaluate the callee once, before any argument, even for a conditional
         // or hygienic Sequence expression that produces a closure value.
-        let existing_place = match &callee.kind {
+        let mut existing_place = match &callee.kind {
             CoreExprKind::Name(name) => self.lookup(name),
             _ => None,
         };
+        let mut borrowed_callee = None;
         // An owning environment is not a Copy callee value. Shared and
         // Exclusive invocation borrow the actual local; Consume transfers it.
-        let (mut callee_value, ty) = if let Some(local) = existing_place
+        let captured_once = existing_place.and_then(|local| self.closure_captures.get(&local).cloned())
+            .filter(|(_, ty)| matches!(ty, Type::Closure(id) if self.closures.pending[id.0 as usize].callable_kind() == CallableKind::FnOnce));
+        let (mut callee_value, ty) = if let Some((index, ty)) = captured_once {
+            existing_place = None;
+            (
+                Some(self.value(InstructionKind::TakeCapture { index }, ty.clone(), span)?),
+                ty,
+            )
+        } else if let Some(local) = existing_place
+            && let Some(id) = self.closure_slots.get(&local).copied()
+        {
+            existing_place = None;
+            let kind = self.closures.pending[id.0 as usize].callable_kind();
+            if kind == CallableKind::FnOnce {
+                let (value, ty) = self.take_closure_slot(local, span)?;
+                (Some(value), ty)
+            } else {
+                borrowed_callee = Some(
+                    self.borrow_closure_slot(local, kind == CallableKind::FnMut, span)?
+                        .0,
+                );
+                (None, Type::Closure(id))
+            }
+        } else if let Some(local) = existing_place
             && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {
@@ -2033,8 +2234,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 span,
             )?);
         }
-        let call_place = if kind == CallableKind::FnMut
-            || (kind == CallableKind::Fn && owns_resources)
+        let call_place = if borrowed_callee.is_none()
+            && (kind == CallableKind::FnMut || (kind == CallableKind::Fn && owns_resources))
         {
             let local = if let Some(local) = existing_place {
                 if kind == CallableKind::FnMut && !self.function.locals[local.0 as usize].mutable {
@@ -2116,23 +2317,31 @@ impl<'a, 'c> Builder<'a, 'c> {
             .inference
             .result()?
             .expect("resolved closure");
-        let instruction = match kind {
-            CallableKind::FnOnce => InstructionKind::CallClosureOnce {
-                callee: callee_value.expect("consumed environment"),
+        let instruction = if let Some(callee) = borrowed_callee {
+            InstructionKind::CallClosureBorrowed {
+                callee,
+                kind,
                 arguments: values,
-            },
-            CallableKind::FnMut => InstructionKind::CallClosureMut {
-                callee: call_place.expect("exclusive environment"),
-                arguments: values,
-            },
-            CallableKind::Fn if owns_resources => InstructionKind::CallClosureShared {
-                callee: call_place.expect("shared environment"),
-                arguments: values,
-            },
-            _ => InstructionKind::CallClosure {
-                callee: callee_value.expect("Copy environment"),
-                arguments: values,
-            },
+            }
+        } else {
+            match kind {
+                CallableKind::FnOnce => InstructionKind::CallClosureOnce {
+                    callee: callee_value.expect("consumed environment"),
+                    arguments: values,
+                },
+                CallableKind::FnMut => InstructionKind::CallClosureMut {
+                    callee: call_place.expect("exclusive environment"),
+                    arguments: values,
+                },
+                CallableKind::Fn if owns_resources => InstructionKind::CallClosureShared {
+                    callee: call_place.expect("shared environment"),
+                    arguments: values,
+                },
+                _ => InstructionKind::CallClosure {
+                    callee: callee_value.expect("Copy environment"),
+                    arguments: values,
+                },
+            }
         };
         if result == Type::Unit {
             self.emit(instruction, None, span)?;

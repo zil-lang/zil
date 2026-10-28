@@ -1,0 +1,83 @@
+{
+  "lang147-regressions": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl147_static_traits",
+      "--test",
+      "receiver_regression",
+      "--test",
+      "impl121_callable_nominals",
+      "--test",
+      "impl137_truncate",
+      "--test",
+      "impl139_owned_text",
+      "--test",
+      "impl142_record_vector",
+      "--",
+      "--test-threads=1"
+    ],
+    "cwd": "/mnt/data/zil-next/lang147",
+    "target": "target-lang147",
+    "exit_code": 0,
+    "seconds": 12.455647468566895,
+    "test_summaries": [
+      "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s",
+      "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s",
+      "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.40s",
+      "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.08s",
+      "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s",
+      "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s"
+    ]
+  },
+  "lang147-clippy-v2": {
+    "command": [
+      "cargo",
+      "clippy",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-expand",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl147_static_traits",
+      "--test",
+      "receiver_regression",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "cwd": "/mnt/data/zil-next/lang147",
+    "target": "target-lang147",
+    "exit_code": 0,
+    "seconds": 1.774796485900879,
+    "test_summaries": []
+  },
+  "lang147-verified-api": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-verify",
+      "-p",
+      "zil-lower",
+      "--doc"
+    ],
+    "cwd": "/mnt/data/zil-next/lang147",
+    "target": "target-lang147",
+    "exit_code": 0,
+    "seconds": 0.2719757556915283,
+    "test_summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s",
+      "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s"
+    ]
+  }
+}

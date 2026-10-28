@@ -539,6 +539,7 @@ mod tests {
             llvm_ir: publication.members[0].staged.clone(),
             command: Vec::new(),
             commands: Vec::new(),
+            codegen: Default::default(),
         };
         let error = publication
             .commit(artifact, &CancellationToken::default())

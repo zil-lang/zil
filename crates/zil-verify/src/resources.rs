@@ -5,6 +5,7 @@
 //! candidate's responsibility fields are not trusted or consulted.
 use super::*;
 use std::collections::VecDeque;
+pub(crate) mod arrays;
 
 const EMPTY: u8 = 1;
 const LIVE: u8 = 2;
@@ -42,6 +43,7 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
         budget.spend(2)?;
         match ty {
             Type::Array { element, .. }
+            | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
             | Type::Desc(element) => pending.push(element),
@@ -92,6 +94,9 @@ pub(super) fn check_type_for(
             span,
         ));
     };
+    if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
+        return dynamic_store::check_carrier(module, ty, span, budget);
+    }
     if inner.as_ref() == &Type::ByteBuffer {
         return byte_buffers::check_carrier(module, ty, span, budget);
     }
@@ -141,6 +146,16 @@ pub(super) fn check_definitions(
     for resource in &module.resources {
         budget.spend(resource.name.len().saturating_add(1))?;
         check_type_shape(&resource.payload, &module.target, limits, budget)?;
+        if dynamic_store::check_definition(module, resource, budget)? {
+            if !names.insert(&resource.name) {
+                return Err(reject(
+                    "E-VERIFY-OWNED-STORE",
+                    None,
+                    "Store definition must be unique",
+                ));
+            }
+            continue;
+        }
         if resource.payload == Type::ByteBuffer || resource.name == byte_buffers::NAME {
             byte_buffers::target(&module.target, None)?;
             if resource.name != byte_buffers::NAME
@@ -225,6 +240,7 @@ enum Root {
     // populated. A later instance at the same physical slot cannot revive an
     // earlier live description across a Take/Drop/Store transition.
     PackageField { local: LocalId, index: u32 },
+    ArrayElement { local: LocalId, index: u32 },
     Parameter(u32),
     OwnedCapture(u32),
     BorrowedCapture(u32),
@@ -280,10 +296,12 @@ impl Slots {
             budget.spend(closure.captures.len().saturating_mul(2))?;
             owned_closures.push(
                 closure.kind == CallableKind::FnOnce
-                    || closure
-                        .captures
-                        .iter()
-                        .any(|ty| matches!(ty, Type::Managed(_) | Type::Package { .. })),
+                    || closure.captures.iter().any(|ty| {
+                        matches!(
+                            ty,
+                            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                        )
+                    }),
             );
             borrowed_closures.push(
                 closure
@@ -303,7 +321,11 @@ impl Slots {
             if matches!(
                 (ty, managed),
                 (Type::Managed(_) | Type::Package { .. }, true) | (Type::Desc(_), false)
-            ) || matches!(ty, Type::Closure(id) if if managed {
+            ) || (managed && errors::owned(ty))
+                || (managed
+                    && matches!(ty, Type::Array { element, length }
+                    if *length > 0 && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))))
+                || matches!(ty, Type::Closure(id) if if managed {
                     owned_closures[id.0 as usize]
                 } else { borrowed_closures[id.0 as usize] })
                 || (!managed
@@ -322,6 +344,7 @@ impl Slots {
         // slot pass. A function without a Package keeps the former traversal
         // and allocation cost; it does not build or scan an empty field table.
         let mut package_declarations = Vec::new();
+        let mut array_declarations = Vec::new();
         let mut managed_local = Vec::with_capacity(f.locals.len());
         for (local, declaration) in f.locals.iter().enumerate() {
             managed_local.push(slot(&declaration.ty, true));
@@ -329,12 +352,23 @@ impl Slots {
                 budget.spend(2)?;
                 package_declarations.push((local, fields));
             }
+            if let Type::Array { element, length } = &declaration.ty
+                && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
+            {
+                let width = match element.as_ref() {
+                    Type::Package { fields, .. } => fields.len().saturating_add(1),
+                    _ => 1,
+                };
+                budget.spend((*length as usize).saturating_mul(width))?;
+                array_declarations.push((local, *length));
+            }
         }
         let local_count = managed_local.iter().flatten().count();
         let managed_value = f.values.iter().map(|t| slot(t, true)).collect();
         let desc_local = f.locals.iter().map(|l| slot(&l.ty, false)).collect();
         let desc_value = f.values.iter().map(|t| slot(t, false)).collect();
-        let mut package_fields = if package_declarations.is_empty() {
+        let mut package_fields = if package_declarations.is_empty() && array_declarations.is_empty()
+        {
             Vec::new()
         } else {
             budget.spend(f.locals.len())?;
@@ -345,13 +379,22 @@ impl Slots {
             package_fields[local] = fields
                 .iter()
                 .map(|(_, ty)| {
-                    if matches!(ty, Type::Managed(_)) {
+                    if packages::owned_field(ty) {
                         let next = debt_count;
                         debt_count += 1;
                         Some(next)
                     } else {
                         None
                     }
+                })
+                .collect();
+        }
+        for (local, length) in array_declarations {
+            package_fields[local] = (0..length)
+                .map(|_| {
+                    let next = debt_count;
+                    debt_count += 1;
+                    Some(next)
                 })
                 .collect();
         }
@@ -364,7 +407,7 @@ impl Slots {
             .iter()
             .enumerate()
             .map(|(index, ty)| {
-                if matches!(ty, Type::Managed(_)) {
+                if matches!(ty, Type::Managed(_) | Type::Closure(_)) {
                     let next = debt_count;
                     debt_count += 1;
                     Some(next)
@@ -612,7 +655,7 @@ fn description_live(
     for root in &state.desc[row] {
         let slot = match root {
             Root::Local(local) => slots.managed_local[local.0 as usize],
-            Root::PackageField { local, index } => {
+            Root::PackageField { local, index } | Root::ArrayElement { local, index } => {
                 slots.package_fields[local.0 as usize][*index as usize]
             }
             Root::OwnedCapture(index) => slots.capture_debt[*index as usize],
@@ -645,7 +688,7 @@ fn no_live_description(
                 *candidate == root
                     || matches!(
                         (*candidate, root),
-                        (Root::PackageField { local: a, .. }, Root::Local(b)) if a == b
+                        (Root::PackageField { local: a, .. } | Root::ArrayElement { local: a, .. }, Root::Local(b)) if a == b
                     )
             }) {
                 return Err(bad(
@@ -725,7 +768,12 @@ impl Transfer<'_> {
         written.extend(
             roots
                 .iter()
-                .filter(|root| !matches!(root, Root::Local(_) | Root::PackageField { .. }))
+                .filter(|root| {
+                    !matches!(
+                        root,
+                        Root::Local(_) | Root::PackageField { .. } | Root::ArrayElement { .. }
+                    )
+                })
                 .copied(),
         );
         Ok(())
@@ -786,7 +834,36 @@ impl Transfer<'_> {
                     ));
                 }
             }
+            if let Some((store, true)) = dynamic_store::access(&instruction.kind) {
+                let row = slots.desc_value[store.0 as usize].expect("checked Store description");
+                self.write_roots(&state.desc[row], written, span, validate, budget)?;
+            }
             match &instruction.kind {
+                InstructionKind::OwnedStorePush { value, .. } => {
+                    self.consume(state, *value, span, validate)?;
+                    fresh_result = Some(INPUT);
+                }
+                InstructionKind::OwnedStorePop { .. } => {
+                    fresh_result = Some(INPUT);
+                }
+                InstructionKind::MakeErrorUnion { value, .. } if result.is_some() => {
+                    self.consume(state, *value, span, validate)?;
+                    fresh_result = Some(INPUT);
+                }
+                InstructionKind::TakeErrorUnion { value, .. } => {
+                    self.consume(state, *value, span, validate)?;
+                    if result.is_some() {
+                        fresh_result = Some(INPUT);
+                    }
+                }
+                InstructionKind::ErrorTag { value }
+                    if errors::owned(&f.values[value.0 as usize]) =>
+                {
+                    let debt = slots.managed_value[value.0 as usize].expect("typed owned union");
+                    if validate && state.debt[debt] != LIVE {
+                        return Err(bad(span, "error tag requires a live owned union"));
+                    }
+                }
                 InstructionKind::BindPackageCapture { .. } => {}
                 InstructionKind::EndPackageCapture { local, .. } => {
                     if validate {
@@ -799,14 +876,111 @@ impl Transfer<'_> {
                         )?;
                     }
                 }
-                InstructionKind::MakeManaged { .. } | InstructionKind::ByteBufferNew => {
-                    fresh_result = Some(FRESH)
-                }
-                InstructionKind::MakePackage { fields } => {
+                InstructionKind::OwnedStoreNew { .. }
+                | InstructionKind::MakeManaged { .. }
+                | InstructionKind::ByteBufferNew => fresh_result = Some(FRESH),
+                InstructionKind::MakePackage { fields }
+                | InstructionKind::MakeOwnedArray { elements: fields } => {
                     for &value in fields {
                         self.consume(state, value, span, validate)?;
                     }
                     fresh_result = Some(INPUT);
+                }
+                InstructionKind::BorrowOwnedArrayElement { local, index, .. }
+                | InstructionKind::BorrowPackageField { local, index, .. } => {
+                    self.package_shell(state, *local, span, validate)?;
+                    let element = slots.package_fields[local.0 as usize][*index as usize]
+                        .expect("independently checked callback array element");
+                    if validate && state.debt[element] != LIVE {
+                        return Err(bad(
+                            span,
+                            "callback array borrow requires a live element on every path",
+                        ));
+                    }
+                }
+                InstructionKind::ProjectOwnedArrayField { local, index, .. } => {
+                    self.package_shell(state, *local, span, validate)?;
+                    let element = slots.package_fields[local.0 as usize][*index as usize]
+                        .expect("independently checked owning array element");
+                    if validate && state.debt[element] != LIVE {
+                        return Err(bad(
+                            span,
+                            "owning array field projection requires a live element on every path",
+                        ));
+                    }
+                    if let Some(row) = instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                    {
+                        state.desc[row] = BTreeSet::from([Root::ArrayElement {
+                            local: *local,
+                            index: *index,
+                        }]);
+                    }
+                }
+                InstructionKind::TakeOwnedArrayElement { local, index }
+                | InstructionKind::DropOwnedArrayElement { local, index } => {
+                    self.package_shell(state, *local, span, validate)?;
+                    let element = slots.package_fields[local.0 as usize][*index as usize]
+                        .expect("independently checked owning array element");
+                    let take = matches!(
+                        instruction.kind,
+                        InstructionKind::TakeOwnedArrayElement { .. }
+                    );
+                    if validate {
+                        if take && state.debt[element] != LIVE {
+                            return Err(bad(
+                                span,
+                                "owning array take requires a complete live element on every path",
+                            ));
+                        }
+                        no_live_description(
+                            state,
+                            &self.after[b][i],
+                            Root::ArrayElement {
+                                local: *local,
+                                index: *index,
+                            },
+                            span,
+                            budget,
+                        )?;
+                    }
+                    if take {
+                        state.debt[element] = MOVED;
+                        fresh_result = Some(INPUT);
+                    } else {
+                        state.debt[element] = discharged(state.debt[element]);
+                    }
+                }
+                InstructionKind::StoreOwnedArrayElement {
+                    local,
+                    index,
+                    value,
+                } => {
+                    self.package_shell(state, *local, span, validate)?;
+                    let element = slots.package_fields[local.0 as usize][*index as usize]
+                        .expect("independently checked owning array element");
+                    if validate {
+                        if state.debt[element] & LIVE != 0 {
+                            return Err(bad(
+                                span,
+                                "owning array refill would overwrite an outstanding element responsibility",
+                            ));
+                        }
+                        no_live_description(
+                            state,
+                            &self.after[b][i],
+                            Root::ArrayElement {
+                                local: *local,
+                                index: *index,
+                            },
+                            span,
+                            budget,
+                        )?;
+                    }
+                    self.consume(state, *value, span, validate)?;
+                    state.debt[element] = LIVE;
+                    state.fresh[element] = INPUT;
                 }
                 InstructionKind::ReadPackageField { local, .. }
                 | InstructionKind::DescribePackageField { local, .. } => {
@@ -890,6 +1064,14 @@ impl Transfer<'_> {
                         state.fresh[field] = INPUT;
                     }
                 }
+                InstructionKind::BorrowLocal { local }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
+                {
+                    let debt = slots.managed_local[local.0 as usize].expect("typed managed head");
+                    if validate && state.debt[debt] != LIVE {
+                        return Err(bad(span, "head address requires a live managed position"));
+                    }
+                }
                 InstructionKind::DescribeLocal { local } => {
                     let index =
                         slots.managed_local[local.0 as usize].expect("typed managed description");
@@ -903,6 +1085,13 @@ impl Transfer<'_> {
                         [instruction.result.expect("description result").0 as usize]
                         .expect("description row");
                     state.desc[row] = BTreeSet::from([Root::Local(*local)]);
+                }
+                InstructionKind::BorrowCapture { index, .. } => {
+                    let debt =
+                        slots.capture_debt[*index as usize].expect("typed owned closure capture");
+                    if validate && state.debt[debt] != LIVE {
+                        return Err(bad(span, "borrow reads a transferred captured closure"));
+                    }
                 }
                 InstructionKind::DescribeCapture { index } => {
                     let debt = slots.capture_debt[*index as usize].expect("typed owned capture");
@@ -1085,6 +1274,8 @@ impl Transfer<'_> {
                 }
                 InstructionKind::DropManaged { local }
                 | InstructionKind::DropClosure { local }
+                | InstructionKind::DropErrorUnion { local }
+                | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::DropPackage { local } => {
                     let index = slots.managed_local[local.0 as usize].expect("typed cleanup local");
                     if validate {
@@ -1648,13 +1839,30 @@ pub(super) fn check_module(
     budget: &mut Budget,
 ) -> Check<()> {
     budget.spend(module.closures.len())?;
-    if module.resources.is_empty()
-        && !module
-            .closures
-            .iter()
-            .any(|c| c.kind == CallableKind::FnOnce)
-    {
-        return Ok(());
+    if module.resources.is_empty() {
+        let mut owning_entry = false;
+        for closure in &module.closures {
+            budget.spend(closure.captures.len())?;
+            owning_entry |= closure.kind == CallableKind::FnOnce
+                || closure.captures.iter().any(|ty| {
+                    matches!(
+                        ty,
+                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                    )
+                });
+        }
+        for function in &module.functions {
+            budget.spend(function.locals.len().saturating_add(function.values.len()))?;
+            owning_entry |= function
+                .locals
+                .iter()
+                .map(|l| &l.ty)
+                .chain(&function.values)
+                .any(arrays::is_owned_type);
+        }
+        if !owning_entry {
+            return Ok(());
+        }
     }
     // Effects are inferred from executable writes and actual description origins,
     // including forwarding and closures. An empty candidate is never authority.

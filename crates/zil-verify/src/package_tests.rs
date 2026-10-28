@@ -338,7 +338,6 @@ fn package_fields_reject_noncopy_and_nested_owners() {
             mutable: false,
             inner: Box::new(Type::I32),
         },
-        Type::Closure(ClosureId(0)),
         Type::Tuple(vec![owned()]),
         Type::ErrorUnion {
             error: Box::new(Type::I32),
@@ -358,10 +357,6 @@ fn package_fields_reject_noncopy_and_nested_owners() {
 fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
     for ty in [
         Type::Tuple(vec![package()]),
-        Type::Array {
-            element: Box::new(package()),
-            length: 1,
-        },
         Type::Record {
             name: "Hidden".into(),
             fields: vec![("p".into(), package())],
@@ -369,18 +364,6 @@ fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
         Type::Enum {
             name: "Hidden".into(),
             variants: vec![("P".into(), vec![package()])],
-        },
-        Type::ErrorUnion {
-            error: Box::new(Type::I32),
-            result: Box::new(package()),
-        },
-        Type::ErrorUnion {
-            error: Box::new(package()),
-            result: Box::new(Type::I32),
-        },
-        Type::Address {
-            mutable: false,
-            inner: Box::new(package()),
         },
         Type::FunctionPointer {
             parameters: vec![package()],
@@ -394,6 +377,96 @@ fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
         let mut m = plain();
         m.functions[0].locals[0].ty = ty;
         rejected(m, "non-Copy type");
+    }
+}
+
+#[test]
+fn callable_package_field_relabel_requires_a_real_closure_definition() {
+    let mut m = plain();
+    let Type::Package { fields, .. } = &mut m.functions[0].locals[0].ty else {
+        unreachable!()
+    };
+    fields[2].1 = Type::Closure(ClosureId(0));
+    // Schema21 admits a concrete callable field shape, never an absent ID.
+    let (raw, wire) = check_both(m);
+    for result in [raw, wire] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == zil_base::ResultCategory::SafeReject
+                && d.code == "E-VERIFY-CLOSURE"
+                && d.message == "closure identity is outside the definition table"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn shared_package_window_relabel_cannot_turn_a_stored_owner_into_an_address() {
+    let mut m = plain();
+    m.functions[0].locals[0].ty = Type::Address {
+        mutable: false,
+        inner: Box::new(package()),
+    };
+    // Schema21 admits a shared window shape; this unchanged forged Store
+    // still attempts to publish an owning Package into address-typed storage.
+    let (raw, wire) = check_both(m);
+    for result in [raw, wire] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == zil_base::ResultCategory::SafeReject
+                && d.code == "E-VERIFY-TYPE"
+                && d.message == "stored value does not match local type"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn owning_error_union_local_relabeling_still_requires_actual_injection() {
+    for ty in [
+        Type::ErrorUnion {
+            error: Box::new(Type::I32),
+            result: Box::new(package()),
+        },
+        Type::ErrorUnion {
+            error: Box::new(package()),
+            result: Box::new(Type::I32),
+        },
+    ] {
+        let mut m = plain();
+        // Both finite types are admitted by 166. Merely relabeling storage
+        // cannot stand in for MakeErrorUnion or its consuming payload transfer.
+        m.functions[0].locals[0].ty = ty;
+        let (raw, wire) = check_both(m);
+        for result in [raw, wire] {
+            let errors = result.unwrap_err();
+            assert!(
+                errors.iter().any(|d| d.phase == Phase::Verify
+                    && d.category == zil_base::ResultCategory::SafeReject
+                    && d.code == "E-VERIFY-TYPE"
+                    && d.message == "stored value does not match local type"),
+                "{errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn package_array_relabel_cannot_replace_required_owned_array_operations() {
+    let mut module = plain();
+    module.functions[0].locals[0].ty = Type::Array {
+        element: Box::new(package()),
+        length: 1,
+    };
+    let (raw, wire) = check_both(module);
+    for result in [raw, wire] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.code == "E-VERIFY-TYPE"),
+            "{errors:?}"
+        );
     }
 }
 
@@ -454,7 +527,7 @@ fn projections_reject_owning_copy_wrong_kind_index_and_local() {
                 index: 0,
             },
             owned(),
-            "cannot copy a manages field",
+            "cannot copy an owning field",
         ),
         (
             InstructionKind::DescribePackageField {

@@ -9,6 +9,11 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+zil-llvm-api = { workspace = true, optional = true, features = ["native"] }
 zil-base.workspace = true
 zil-ir.workspace = true
 zil-verify.workspace = true
+
+[features]
+default = []
+llvm-api = ["dep:zil-llvm-api"]

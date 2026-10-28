@@ -18,6 +18,8 @@ mod bytes;
 pub(super) mod callable;
 #[path = "generic_enum.rs"]
 mod enums;
+#[path = "generic_trait_bounds.rs"]
+mod trait_bounds;
 
 pub(super) fn specialize<'a>(
     module: &'a Module,
@@ -33,12 +35,14 @@ pub(super) fn specialize<'a>(
             ItemKind::Trait(t) => Some(t.name.as_str()),
             _ => None,
         };
-        if let Some(name) = declared.filter(|n| super::byte_buffer_name(n)) {
+        if let Some(name) =
+            declared.filter(|n| super::byte_buffer_name(n) || super::owned_store_name(n))
+        {
             return Err(vec![super::primitive_name_error(name, item.span)]);
         }
         for param in params(item) {
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
-            if super::byte_buffer_name(&param.name) {
+            if super::byte_buffer_name(&param.name) || super::owned_store_name(&param.name) {
                 return Err(vec![super::primitive_name_error(&param.name, param.span)]);
             }
         }
@@ -71,6 +75,7 @@ struct Engine<'a> {
     templates: BTreeMap<String, &'a Item>,
     enums: BTreeMap<String, &'a EnumDecl>,
     nominals: BTreeMap<String, &'a Item>,
+    traits: trait_bounds::Index<'a>,
     return_type: Option<TypeRef>,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     instances: BTreeMap<(String, Vec<String>), String>,
@@ -118,8 +123,11 @@ impl<'a> Engine<'a> {
         limits: &'a Limits,
         pattern_types: &'a BTreeMap<String, TypeRef>,
     ) -> R<Self> {
+        let mut budget = Budget::new(limits);
+        let traits = trait_bounds::Index::new(module, &mut budget)?;
         let mut engine = Self {
             pattern_types,
+            traits,
             templates: BTreeMap::new(),
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
@@ -129,7 +137,7 @@ impl<'a> Engine<'a> {
             instance_types: BTreeMap::new(),
             pending: VecDeque::new(),
             limits,
-            budget: Budget::new(limits),
+            budget,
         };
         let mut source_names = BTreeSet::new();
         for item in &module.items {
@@ -184,7 +192,10 @@ impl<'a> Engine<'a> {
                     return Err(error(parameter.span, "duplicate type parameter"));
                 }
                 match &parameter.kind {
-                    GenericParamKind::Type(bounds) if bounds.is_empty() || callable.is_some() => {}
+                    GenericParamKind::Type(bounds)
+                        if bounds.is_empty()
+                            || callable.is_some()
+                            || matches!(item.kind, ItemKind::Function(_)) => {}
                     _ => {
                         return Err(unsupported(
                             parameter.span,
@@ -209,6 +220,7 @@ impl<'a> Engine<'a> {
                     &engine.enums,
                     &engine.signatures,
                     engine.pattern_types,
+                    &engine.traits,
                     &mut engine.budget,
                 )?;
             }
@@ -234,7 +246,9 @@ impl<'a> Engine<'a> {
                 if a.fields.iter().any(|field| !field.attributes.is_empty()) {
                     return Err(unsupported(item.span, "unexecuted generic field attribute"));
                 }
-                if a.kind != AggregateKind::Struct || !a.methods.is_empty() {
+                if !matches!(a.kind, AggregateKind::Struct | AggregateKind::Package)
+                    || !a.methods.is_empty()
+                {
                     return Err(unsupported(
                         item.span,
                         "generic resource or methods require capability resolution",
@@ -326,6 +340,14 @@ impl<'a> Engine<'a> {
             .zip(arguments)
             .map(|(p, ty)| (p.name.clone(), ty))
             .collect();
+        self.traits.check_arguments(
+            parameters,
+            &substitution,
+            &trait_bounds::Bounds::new(),
+            &BTreeSet::new(),
+            &mut self.budget,
+            span,
+        )?;
         self.budget.substituted_item(item, &substitution)?;
         let mut instance = item.clone();
         substitute_item(&mut instance, &substitution)?;
@@ -806,7 +828,7 @@ impl<'a> Engine<'a> {
                         let ItemKind::Function(function) = &template.kind else {
                             return Err(error(e.span, "aggregate template is not a callable"));
                         };
-                        if callable::template(function)?.is_some() {
+                        if let Some(callable) = callable::template(function)? {
                             if explicit.is_some() {
                                 return Err(unsupported(
                                     e.span,
@@ -815,6 +837,17 @@ impl<'a> Engine<'a> {
                             }
                             if function.params.len() != actual.len() {
                                 return Err(error(e.span, "callable helper arity mismatch"));
+                            }
+                            if callable.owned_state
+                                && let (Some(hints), Some(result)) = (&hints, &function.return_type)
+                                && let Some(mut result) = hints.symbolic_result(
+                                    result,
+                                    &callable.generic_name,
+                                    &mut self.budget,
+                                )?
+                            {
+                                self.ty(&mut result, depth + 1)?;
+                                return Ok(Some(result));
                             }
                             return self.signature_result(&target);
                         }

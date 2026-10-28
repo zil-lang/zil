@@ -1,0 +1,33 @@
+# 177：完整泛型 State 中具体 manages 字段的整取接线
+
+## 为什么
+
+consumer01在泛型体Store原语处正确拒绝；转普通具体helper后的consumer02又在give ticket拒绝。只有读和整壳转交不足以组成State已有字段更新合同。该问题位于Expand符号入口，174既有Types/Analyze/独立Verify/机器字段转交已经存在。
+
+## 改什么
+
+仅在176的owned State callable模板内，接入对本地Package直接声明、非依赖类型的manages字段的give。先查实际Package声明、私有权限及替换后的字段类型；给实际字段建立独立已移动slot，重复整取与整壳缺字段转交拒绝，字段赋值补回才恢复。任意T、非manages字段、引用父壳和Desc局部give仍保持关闭。所有生成体仍经过普通Types、Analyze和独立Verify；Expand符号检查不能授予机器权限。
+
+不顺带登记Store内建的泛型签名。具体state模块prepare helper返回Batch（通过collection的普通Store helper填充）{manages items:Store<Item>;ready;sum}，泛型State在成功准备后give Batch.items，从而保留替换失败时的旧State。State自身children字段取出仍直接发生在泛型函数体内。
+
+## 怎么验
+
+新增原生Store+Closure组合、重复give/缺字段整传/非manages/普通Desc/未调用模板负例，并由非作者核查。六文件每入口五模块消费者逐分配点失败注入；作者三片与现有泛型套件进入最终workspace回归。旧consumer01/02保持失败身份，不将改写或新接线反标到旧输入。
+
+独审预读指出具体Batch在旧known_copy中可能经解引用伪造本地所有者；新分类按实际Package声明拒绝Copy，并递归检查tuple/array，给出未实例化模板反例。此分类不授权资源头转交，Desc local give仍关闭。
+
+consumer03又揭示普通helper调用作为比较左值时，泛型检查器错误把比较结果的bool提示传给i32返回值。仅隔离比较结果与操作数的类型提示；双方操作数仍严格同型。增加i32 helper比较正例与bool右值不匹配负例，保留原失败。
+
+## 兼容与精确预算复核
+
+非作者在f711找到3份曾在174真实通过的普通泛型源码：带括号的Package Copy字段读取、固定数组Package Copy字段连续读取、完整数组元素转交。新非Copy分类应保护借入值，不能误拒已有按位置投影和转交。接线显式保留Group身份和实际拥有固定数组的完整Package路径；引用数组不能借此复制出本地所有者。原3误拒与老编译器通过对照均保留，并加入O0/O2回归及借入数组反例。
+
+workspace01先在Analyze的3项旧精确预算样本失败。176新增callback-field入场检查实际逐个访问local/value/return根，三份旧样本分别增加101、4、1次；测试按此可数访问增量保留N/N−1门。默认Limits、产品预算和生产付费逻辑不变，没有把阈值调到通过。
+
+数组兼容路径仅保留已有普通非owned-State泛型合同；新owned-State模板的非Copy数组元素转交需要另立indexed moved/refill符号协议，现仍明确Unsupported。引用数组也保持关闭，新增未实例化模板正反边界分别测试，不能把旧普通路径宣传成新的完整State数组证明。
+
+后续非作者原样对照发现完整赋值 `p=relay(p)` 在RHS消费p之后缺少重新标live。修复在RHS求值与same检查成功后才恢复完整目标，同时清除该owner旧field slot；字段赋值仍只补一个slot。原普通函数与State<F>往返、部分旧State整值替换、RHS重复消费反例共同验证，原失败保留。
+
+workspace02完整执行1607项，其中1605通过、2项Verify旧形状拒绝理由过时：具体Closure字段现须先查真实ClosureId，shared Package地址形状现须先拒绝owner/address不匹配。保留原始畸形候选逐字操作，移出旧非Copy集合、改用精确Verify类别/code/message的raw与Wire拒绝；不放宽Verify或改生产语义。
+
+whole-assignment附加探索最初错误期待partial旧State被自动清理：先因两个环境输入超出现有单环境合同而拒绝；收窄输入后独立Analyze仍以unpaid resource拒绝。保留focused08/09两个真实失败，原始partial覆盖源码转为精确负例；本轮只恢复RHS已经消费旧完整值的p=relay(p)，不宣称整壳覆盖会自动结清剩余字段责任。

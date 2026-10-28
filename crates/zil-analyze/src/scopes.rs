@@ -70,6 +70,14 @@ pub(super) fn check(
                     | InstructionKind::DropPackageField { .. }
                     | InstructionKind::StorePackageField { .. }
                     | InstructionKind::DropPackage { .. }
+                    | InstructionKind::MakeOwnedArray { .. }
+                    | InstructionKind::ProjectOwnedArrayField { .. }
+                    | InstructionKind::TakeOwnedArrayElement { .. }
+                    | InstructionKind::DropOwnedArrayElement { .. }
+                    | InstructionKind::StoreOwnedArrayElement { .. }
+                    | InstructionKind::DropOwnedArray { .. }
+                    | InstructionKind::BorrowOwnedArrayElement { .. }
+                    | InstructionKind::BorrowPackageField { .. }
                     | InstructionKind::BindPackageCapture { .. }
                     | InstructionKind::EndPackageCapture { .. }
             );
@@ -244,8 +252,15 @@ pub(super) fn check(
                 | InstructionKind::TakePackageField { local, .. }
                 | InstructionKind::DropPackageField { local, .. }
                 | InstructionKind::StorePackageField { local, .. }
+                | InstructionKind::ProjectOwnedArrayField { local, .. }
+                | InstructionKind::TakeOwnedArrayElement { local, .. }
+                | InstructionKind::DropOwnedArrayElement { local, .. }
+                | InstructionKind::StoreOwnedArrayElement { local, .. }
+                | InstructionKind::BorrowOwnedArrayElement { local, .. }
                 | InstructionKind::DropManaged { local }
+                | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropPackage { local }
+                | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::CallClosureMut { callee: local, .. }
                 | InstructionKind::CallClosureShared { callee: local, .. } => {

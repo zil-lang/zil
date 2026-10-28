@@ -10,6 +10,7 @@ mod modules;
 mod receivers;
 mod records;
 mod resources;
+mod static_traits;
 
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{
@@ -40,11 +41,34 @@ fn byte_buffer_name(name: &str) -> bool {
             | "bytes_view_mut"
     )
 }
+fn owned_store_name(name: &str) -> bool {
+    matches!(
+        name,
+        "Store"
+            | "store_new"
+            | "store_reserve"
+            | "store_push"
+            | "store_pop"
+            | "store_len"
+            | "store_capacity"
+            | "store_at"
+    )
+}
 fn primitive_name(name: &str) -> bool {
-    integer_name(name) || foreign_constructor_name(name) || byte_buffer_name(name)
+    integer_name(name)
+        || foreign_constructor_name(name)
+        || byte_buffer_name(name)
+        || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if byte_buffer_name(name) {
+    if owned_store_name(name) {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-OWNED-STORE-NAME",
+            Some(span),
+            "Store and bare owned storage primitives cannot be rebound",
+        )
+    } else if byte_buffer_name(name) {
         Diagnostic::error(
             Phase::Expand,
             "E-BYTE-BUFFER-NAME",
@@ -126,24 +150,7 @@ pub fn expand_program_module_with_limits(
     let specialized = generics::specialize(module, limits)?;
     let module = &specialized;
     let expanded = expand_inner(source, module, true)?;
-    let exports = module
-        .items
-        .iter()
-        .filter_map(|item| {
-            if !item.public {
-                return None;
-            }
-            let s::ItemKind::Function(function) = &item.kind else {
-                return None;
-            };
-            expanded
-                .core
-                .functions
-                .iter()
-                .find(|f| f.name == function.name && f.span == function.span)
-                .map(|f| f.id)
-        })
-        .collect();
+    let exports = source_exports(module, &expanded.core);
     Ok((
         ProgramModule {
             core: expanded.core,
@@ -152,6 +159,90 @@ pub fn expand_program_module_with_limits(
         },
         expanded.source_map,
     ))
+}
+
+/// Export ordinary functions and declared public methods. A method's
+/// visibility comes from its declaration and public nominal owner, never from
+/// seeing a same-spelled method in a downstream module. Trait signatures in a
+/// public local trait are public through their public concrete implementation.
+fn source_exports(module: &s::Module, core: &CoreModule) -> Vec<NodeId> {
+    let public_nominals: std::collections::BTreeSet<_> = module
+        .items
+        .iter()
+        .filter_map(|item| {
+            if !item.public {
+                return None;
+            }
+            match &item.kind {
+                s::ItemKind::Aggregate(a) => Some(a.name.as_str()),
+                _ => None,
+            }
+        })
+        .collect();
+    let public_traits: std::collections::BTreeSet<_> = module
+        .items
+        .iter()
+        .filter_map(|item| {
+            if let s::ItemKind::Trait(t) = &item.kind
+                && item.public
+            {
+                Some(t.name.as_str())
+            } else {
+                None
+            }
+        })
+        .collect();
+    let functions: std::collections::BTreeMap<_, _> = core
+        .functions
+        .iter()
+        .map(|f| ((f.name.clone(), f.span), f.id))
+        .collect();
+    let mut result = Vec::new();
+    let mut add = |f: &s::Function, prefix: Option<&str>| {
+        let name = prefix.map_or_else(|| f.name.clone(), |owner| format!("{owner}.{}", f.name));
+        if let Some(id) = functions.get(&(name, f.span)) {
+            result.push(*id);
+        }
+    };
+    for item in &module.items {
+        match &item.kind {
+            s::ItemKind::Function(f) if item.public => add(f, None),
+            s::ItemKind::Aggregate(a) if public_nominals.contains(a.name.as_str()) => {
+                for member in &a.methods {
+                    if member.public
+                        && let s::ItemKind::Function(f) = &member.kind
+                    {
+                        add(f, Some(&a.name));
+                    }
+                }
+            }
+            s::ItemKind::Impl(i) => {
+                let Some(owner) = type_path(&i.target) else {
+                    continue;
+                };
+                if !public_nominals.contains(owner.as_str()) {
+                    continue;
+                }
+                let public_trait = i
+                    .trait_type
+                    .as_ref()
+                    .and_then(type_path)
+                    .is_some_and(|name| public_traits.contains(name.as_str()));
+                for member in &i.members {
+                    if (if i.trait_type.is_some() {
+                        public_trait
+                    } else {
+                        member.public
+                    }) && let s::ItemKind::Function(f) = &member.kind
+                    {
+                        add(f, Some(&owner));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    result
 }
 
 /// Specialize a resolved project as one bounded syntax input, then expand each
@@ -240,24 +331,7 @@ pub fn expand_program_with_limits(
                     Some(module.span),
                 )]
             })?;
-        let mut exports: Vec<NodeId> = module
-            .items
-            .iter()
-            .filter_map(|item| {
-                let s::ItemKind::Function(function) = &item.kind else {
-                    return None;
-                };
-                if !item.public {
-                    return None;
-                }
-                expanded
-                    .core
-                    .functions
-                    .iter()
-                    .find(|f| f.name == function.name && f.span == function.span)
-                    .map(|f| f.id)
-            })
-            .collect();
+        let mut exports = source_exports(module, &expanded.core);
         exports.extend(expanded.generated_exports);
         let mut resolved_imports = imports.clone();
         resolved_imports.extend(expanded.generated_imports);
@@ -301,6 +375,7 @@ fn expand_inner_project(
     let mut e = Expander {
         imports_resolved,
         module_id: module.id,
+        callable_work: limits.max_analysis_steps,
         project_defaults,
         generated_imports: BTreeMap::new(),
         generated_exports: Vec::new(),
@@ -315,6 +390,8 @@ fn expand_inner_project(
         declarations: BTreeMap::new(),
         default_helpers: BTreeMap::new(),
         traits: BTreeMap::new(),
+        static_traits: BTreeSet::new(),
+        static_trait_impls: BTreeSet::new(),
         source_map: SourceMap::new(module.id),
         node_maps: BTreeMap::new(),
         markers: BTreeMap::new(),
@@ -331,13 +408,17 @@ fn expand_inner_project(
             s::ItemKind::Aggregate(a) => {
                 e.declarations.entry(a.name.clone()).or_insert(a);
             }
-            s::ItemKind::Trait(t) => {
-                e.traits.entry(t.name.clone()).or_insert(t);
-            }
+            s::ItemKind::Trait(_) => {}
             _ => {}
         }
     }
+    for item in &module.items {
+        if let s::ItemKind::Trait(t) = &item.kind {
+            e.traits.entry(t.name.clone()).or_insert(t);
+        }
+    }
     e.collect_resource_drops(module);
+    e.collect_static_traits(module, limits);
     // A public default is a declaration: check its body even when a particular
     // consumer explicitly supplies that field. Private/local defaults retain
     // their existing lazy lowering.
@@ -376,6 +457,7 @@ fn expand_inner_project(
     })
 }
 struct Expander<'a> {
+    callable_work: usize,
     module_id: zil_base::ModuleId,
     project_defaults: Option<&'a ProjectDefaults>,
     generated_imports: BTreeMap<zil_base::ModuleId, CoreImport>,
@@ -392,6 +474,8 @@ struct Expander<'a> {
     declarations: BTreeMap<String, &'a s::Aggregate>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
+    static_traits: BTreeSet<String>,
+    static_trait_impls: BTreeSet<Span>,
     source_map: SourceMap,
     node_maps: BTreeMap<NodeId, SourceMapId>,
     markers: BTreeMap<Span, SourceMapId>,
@@ -491,7 +575,7 @@ impl Expander<'_> {
                 if self.resource_drop(i) {
                     return;
                 }
-                if i.trait_type.is_some() {
+                if i.trait_type.is_some() && !self.static_trait_impls.contains(&item.span) {
                     self.unsupported("trait implementation resolution", item.span)
                 }
                 let name = type_path(&i.target).unwrap_or_else(|| "$unsupported".into());
@@ -512,7 +596,14 @@ impl Expander<'_> {
             s::ItemKind::Const(_) => self.unsupported("module constant evaluation", item.span),
             s::ItemKind::TypeAlias(_) => self.unsupported("type aliases", item.span),
             s::ItemKind::Enum(declaration) => self.enum_declaration(declaration, item.span),
-            s::ItemKind::Trait(_) => self.unsupported("trait declarations", item.span),
+            s::ItemKind::Trait(t) => {
+                if !self.static_traits.contains(&t.name) {
+                    self.unsupported(
+                        "trait declarations outside the finite local subset",
+                        item.span,
+                    );
+                }
+            }
             s::ItemKind::Extern { abi, function } => {
                 self.foreign(abi, function, item.public, prefix, host)
             }
@@ -955,6 +1046,15 @@ impl Expander<'_> {
 }
 pub fn type_ref(t: &s::TypeRef) -> Type {
     match &t.kind {
+        s::TypeKind::Named { path, args } if path.as_slice() == ["Store"] => {
+            if let [s::GenericArg::Type(element)] = args.as_slice() {
+                Type::Desc(Box::new(Type::OwnedStore {
+                    element: Box::new(type_ref(element)),
+                }))
+            } else {
+                Type::Unsupported("Store requires exactly one element type".into())
+            }
+        }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Ref"] && args.len() == 1 => {
             match &args[0] {
                 s::GenericArg::Type(inner) => Type::Desc(Box::new(type_ref(inner))),

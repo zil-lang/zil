@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 18;
+pub const WIRE_VERSION: u32 = 21;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -370,122 +370,138 @@ impl<'a> Writer<'a> {
         self.boolean(target.checked_arithmetic)
     }
     fn ty(&mut self, ty: &Type, depth: usize) -> WireResult<()> {
-        if depth >= self.limits.max_call_depth {
-            return Err(quota("candidate wire type nesting quota exceeded"));
+        // Keep the wire's preorder and accounting without consuming one Rust
+        // stack frame per untrusted type level. Collection continuations visit
+        // one item at a time, after the original collection charge.
+        enum Task<'t> {
+            Type(&'t Type, usize),
+            Types(&'t [Type], usize),
+            Fields(&'t [(String, Type)], usize),
+            Variants(&'t [(String, Vec<Type>)], usize),
+            Length(u32),
         }
-        self.charge(1)?;
-        match ty {
-            Type::Unit => self.u8(0),
-            Type::Bool => self.u8(1),
-            Type::I32 => self.u8(2),
-            Type::I64 => self.u8(3),
-            Type::U8 => self.u8(18),
-            Type::U16 => self.u8(19),
-            Type::ByteBuffer => self.u8(24),
-            Type::ForeignHandle => self.u8(20),
-            Type::CWideString => self.u8(21),
-            Type::ForeignCallback { parameters, result } => {
-                self.u8(22)?;
-                self.count(parameters.len(), self.limits.max_locals)?;
-                for ty in parameters {
-                    self.ty(ty, depth + 1)?;
+        let mut pending = vec![Task::Type(ty, depth)];
+        while let Some(task) = pending.pop() {
+            let (ty, depth) = match task {
+                Task::Type(ty, depth) => (ty, depth),
+                Task::Length(length) => {
+                    self.u32(length)?;
+                    continue;
                 }
-                self.ty(result, depth + 1)
-            }
-            Type::Tuple(types) => {
-                self.u8(4)?;
-                self.count(types.len(), self.limits.max_nodes)?;
-                for ty in types {
-                    self.ty(ty, depth + 1)?;
+                Task::Types(types, depth) => {
+                    if let Some((first, rest)) = types.split_first() {
+                        pending.push(Task::Types(rest, depth));
+                        pending.push(Task::Type(first, depth));
+                    }
+                    continue;
                 }
-                Ok(())
-            }
-            Type::Array { element, length } => {
-                self.u8(14)?;
-                self.ty(element, depth + 1)?;
-                self.u32(*length)
-            }
-            Type::Slice { element } => {
-                self.u8(23)?;
-                self.ty(element, depth + 1)
-            }
-            Type::Record { name, fields } => {
-                self.u8(13)?;
-                self.text(name)?;
-                self.count(fields.len(), self.limits.max_nodes)?;
-                for (name, ty) in fields {
-                    self.text(name)?;
-                    self.ty(ty, depth + 1)?;
+                Task::Fields(fields, depth) => {
+                    if let Some(((name, ty), rest)) = fields.split_first() {
+                        self.text(name)?;
+                        pending.push(Task::Fields(rest, depth));
+                        pending.push(Task::Type(ty, depth));
+                    }
+                    continue;
                 }
-                Ok(())
-            }
-            Type::Package { name, fields } => {
-                self.u8(17)?;
-                self.text(name)?;
-                self.count(fields.len(), self.limits.max_nodes)?;
-                for (name, ty) in fields {
-                    self.text(name)?;
-                    self.ty(ty, depth + 1)?;
+                Task::Variants(variants, depth) => {
+                    if let Some(((name, fields), rest)) = variants.split_first() {
+                        self.text(name)?;
+                        self.count(fields.len(), self.limits.max_nodes)?;
+                        pending.push(Task::Variants(rest, depth));
+                        pending.push(Task::Types(fields, depth));
+                    }
+                    continue;
                 }
-                Ok(())
+            };
+            if depth >= self.limits.max_call_depth {
+                return Err(quota("candidate wire type nesting quota exceeded"));
             }
-            Type::Enum { name, variants } => {
-                self.u8(15)?;
-                self.text(name)?;
-                self.count(variants.len(), self.limits.max_nodes)?;
-                for (name, fields) in variants {
+            self.charge(1)?;
+            match ty {
+                Type::Unit => self.u8(0)?,
+                Type::Bool => self.u8(1)?,
+                Type::I32 => self.u8(2)?,
+                Type::I64 => self.u8(3)?,
+                Type::U8 => self.u8(18)?,
+                Type::U16 => self.u8(19)?,
+                Type::ByteBuffer => self.u8(24)?,
+                Type::ForeignHandle => self.u8(20)?,
+                Type::CWideString => self.u8(21)?,
+                Type::Tuple(types) => {
+                    self.u8(4)?;
+                    self.count(types.len(), self.limits.max_nodes)?;
+                    pending.push(Task::Types(types, depth + 1));
+                }
+                Type::Array { element, length } => {
+                    self.u8(14)?;
+                    pending.push(Task::Length(*length));
+                    pending.push(Task::Type(element, depth + 1));
+                }
+                Type::Slice { element } | Type::OwnedStore { element } => {
+                    self.u8(if matches!(ty, Type::Slice { .. }) {
+                        23
+                    } else {
+                        25
+                    })?;
+                    pending.push(Task::Type(element, depth + 1));
+                }
+                Type::Record { name, fields } | Type::Package { name, fields } => {
+                    self.u8(if matches!(ty, Type::Record { .. }) {
+                        13
+                    } else {
+                        17
+                    })?;
                     self.text(name)?;
                     self.count(fields.len(), self.limits.max_nodes)?;
-                    for ty in fields {
-                        self.ty(ty, depth + 1)?;
-                    }
+                    pending.push(Task::Fields(fields, depth + 1));
                 }
-                Ok(())
-            }
-            Type::ErrorUnion { error, result } => {
-                self.u8(16)?;
-                self.ty(error, depth + 1)?;
-                self.ty(result, depth + 1)
-            }
-            Type::Named(name) => {
-                self.u8(5)?;
-                self.text(name)
-            }
-            Type::Address { mutable, inner } => {
-                self.u8(6)?;
-                self.boolean(*mutable)?;
-                self.ty(inner, depth + 1)
-            }
-            Type::Managed(inner) => {
-                self.u8(7)?;
-                self.ty(inner, depth + 1)
-            }
-            Type::Desc(inner) => {
-                self.u8(8)?;
-                self.ty(inner, depth + 1)
-            }
-            Type::FunctionPointer { parameters, result } => {
-                self.u8(9)?;
-                self.count(parameters.len(), self.limits.max_locals)?;
-                for ty in parameters {
-                    self.ty(ty, depth + 1)?;
+                Type::Enum { name, variants } => {
+                    self.u8(15)?;
+                    self.text(name)?;
+                    self.count(variants.len(), self.limits.max_nodes)?;
+                    pending.push(Task::Variants(variants, depth + 1));
                 }
-                self.ty(result, depth + 1)
-            }
-            Type::Closure(id) => {
-                self.u8(10)?;
-                self.u32(id.0)
-            }
-            Type::Opaque { identity, hidden } => {
-                self.u8(11)?;
-                self.u32(identity.0)?;
-                self.ty(hidden, depth + 1)
-            }
-            Type::Unsupported(name) => {
-                self.u8(12)?;
-                self.text(name)
+                Type::ErrorUnion { error, result } => {
+                    self.u8(16)?;
+                    pending.push(Task::Type(result, depth + 1));
+                    pending.push(Task::Type(error, depth + 1));
+                }
+                Type::Named(name) | Type::Unsupported(name) => {
+                    self.u8(if matches!(ty, Type::Named(_)) { 5 } else { 12 })?;
+                    self.text(name)?;
+                }
+                Type::Address { mutable, inner } => {
+                    self.u8(6)?;
+                    self.boolean(*mutable)?;
+                    pending.push(Task::Type(inner, depth + 1));
+                }
+                Type::Managed(inner) | Type::Desc(inner) => {
+                    self.u8(if matches!(ty, Type::Managed(_)) { 7 } else { 8 })?;
+                    pending.push(Task::Type(inner, depth + 1));
+                }
+                Type::FunctionPointer { parameters, result }
+                | Type::ForeignCallback { parameters, result } => {
+                    self.u8(if matches!(ty, Type::FunctionPointer { .. }) {
+                        9
+                    } else {
+                        22
+                    })?;
+                    self.count(parameters.len(), self.limits.max_locals)?;
+                    pending.push(Task::Type(result, depth + 1));
+                    pending.push(Task::Types(parameters, depth + 1));
+                }
+                Type::Closure(id) => {
+                    self.u8(10)?;
+                    self.u32(id.0)?;
+                }
+                Type::Opaque { identity, hidden } => {
+                    self.u8(11)?;
+                    self.u32(identity.0)?;
+                    pending.push(Task::Type(hidden, depth + 1));
+                }
             }
         }
+        Ok(())
     }
     fn constant(&mut self, constant: &Constant) -> WireResult<()> {
         match constant {
@@ -719,6 +735,47 @@ impl<'a> Writer<'a> {
     fn instruction(&mut self, instruction: &Instruction) -> WireResult<()> {
         self.optional_value(instruction.result)?;
         match &instruction.kind {
+            InstructionKind::OwnedStoreNew { element } => {
+                self.u8(80)?;
+                self.ty(element, 0)?;
+            }
+            InstructionKind::OwnedStoreReserve { store, capacity } => {
+                self.u8(81)?;
+                self.u32(store.0)?;
+                self.u32(capacity.0)?;
+            }
+            InstructionKind::OwnedStorePush { store, value } => {
+                self.u8(82)?;
+                self.u32(store.0)?;
+                self.u32(value.0)?;
+            }
+            InstructionKind::OwnedStorePop { store } => {
+                self.u8(83)?;
+                self.u32(store.0)?;
+            }
+            InstructionKind::OwnedStoreLen { store } => {
+                self.u8(84)?;
+                self.u32(store.0)?;
+            }
+            InstructionKind::OwnedStoreCapacity { store } => {
+                self.u8(85)?;
+                self.u32(store.0)?;
+            }
+            InstructionKind::OwnedStoreBorrow { store, index } => {
+                self.u8(86)?;
+                self.u32(store.0)?;
+                self.u32(index.0)?;
+            }
+            InstructionKind::BorrowPackageField {
+                local,
+                index,
+                mutable,
+            } => {
+                self.u8(87)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+                self.boolean(*mutable)?;
+            }
             InstructionKind::MakePackage { fields } => {
                 self.u8(49)?;
                 self.count(fields.len(), self.limits.max_values)?;
@@ -803,6 +860,11 @@ impl<'a> Writer<'a> {
             InstructionKind::TakeCapture { index } => {
                 self.u8(40)?;
                 self.u32(*index)?;
+            }
+            InstructionKind::BorrowCapture { index, mutable } => {
+                self.u8(78)?;
+                self.u32(*index)?;
+                self.boolean(*mutable)?;
             }
             InstructionKind::CallClosureBorrowed {
                 callee,
@@ -1107,6 +1169,57 @@ impl<'a> Writer<'a> {
                 self.boolean(*is_error)?;
                 self.u32(value.0)?;
             }
+            InstructionKind::MakeOwnedArray { elements } => {
+                self.u8(72)?;
+                self.count(elements.len(), self.limits.max_values)?;
+                for element in elements {
+                    self.u32(element.0)?;
+                }
+            }
+            InstructionKind::ProjectOwnedArrayField {
+                local,
+                index,
+                field,
+            } => {
+                self.u8(73)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+                self.u32(*field)?;
+            }
+            InstructionKind::TakeOwnedArrayElement { local, index } => {
+                self.u8(74)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+            }
+            InstructionKind::DropOwnedArrayElement { local, index } => {
+                self.u8(75)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+            }
+            InstructionKind::StoreOwnedArrayElement {
+                local,
+                index,
+                value,
+            } => {
+                self.u8(76)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+                self.u32(value.0)?;
+            }
+            InstructionKind::DropOwnedArray { local } => {
+                self.u8(77)?;
+                self.u32(local.0)?;
+            }
+            InstructionKind::BorrowOwnedArrayElement {
+                local,
+                index,
+                mutable,
+            } => {
+                self.u8(79)?;
+                self.u32(local.0)?;
+                self.u32(*index)?;
+                self.boolean(*mutable)?;
+            }
             InstructionKind::ErrorTag { value } => {
                 self.u8(47)?;
                 self.u32(value.0)?;
@@ -1115,6 +1228,15 @@ impl<'a> Writer<'a> {
                 self.u8(48)?;
                 self.u32(value.0)?;
                 self.boolean(*is_error)?;
+            }
+            InstructionKind::TakeErrorUnion { value, is_error } => {
+                self.u8(70)?;
+                self.u32(value.0)?;
+                self.boolean(*is_error)?;
+            }
+            InstructionKind::DropErrorUnion { local } => {
+                self.u8(71)?;
+                self.u32(local.0)?;
             }
             InstructionKind::Unsupported(feature) => {
                 self.u8(255)?;
@@ -1360,109 +1482,273 @@ impl<'a> Reader<'a> {
         })
     }
     fn ty(&mut self, depth: usize) -> WireResult<Type> {
-        if depth >= self.limits.max_call_depth {
-            return Err(quota("candidate wire type nesting quota exceeded"));
+        // Finish tasks assemble already charged children. Names and variants
+        // have their own stacks so nested records/enums cannot consume a
+        // parent's unfinished fields. All lengths retain count() admission.
+        enum Task {
+            Type(usize),
+            Types {
+                left: usize,
+                depth: usize,
+            },
+            Fields {
+                left: usize,
+                depth: usize,
+            },
+            Variants {
+                left: usize,
+                depth: usize,
+            },
+            Tuple(usize),
+            Function {
+                start: usize,
+                foreign: bool,
+            },
+            Record {
+                start: usize,
+                names: usize,
+                name: String,
+                package: bool,
+            },
+            Enum {
+                start: usize,
+                name: String,
+            },
+            Variant {
+                start: usize,
+                name: String,
+            },
+            Array,
+            Unary(u8),
+            Address(bool),
+            Opaque(NodeId),
+            ErrorUnion,
         }
-        self.charge(1)?;
-        Ok(match self.u8()? {
-            0 => Type::Unit,
-            1 => Type::Bool,
-            2 => Type::I32,
-            3 => Type::I64,
-            18 => Type::U8,
-            19 => Type::U16,
-            20 => Type::ForeignHandle,
-            21 => Type::CWideString,
-            22 => {
-                let count = self.count(self.limits.max_locals, 1)?;
-                let mut parameters = Vec::with_capacity(count);
-                for _ in 0..count {
-                    parameters.push(self.ty(depth + 1)?);
-                }
-                Type::ForeignCallback {
-                    parameters,
-                    result: Box::new(self.ty(depth + 1)?),
-                }
-            }
-            4 => {
-                let count = self.count(self.limits.max_nodes, 1)?;
-                let mut types = Vec::with_capacity(count);
-                for _ in 0..count {
-                    types.push(self.ty(depth + 1)?);
-                }
-                Type::Tuple(types)
-            }
-            14 => Type::Array {
-                element: Box::new(self.ty(depth + 1)?),
-                length: self.u32()?,
-            },
-            24 => Type::ByteBuffer,
-            23 => Type::Slice {
-                element: Box::new(self.ty(depth + 1)?),
-            },
-            13 => {
-                let name = self.text()?;
-                let count = self.count(self.limits.max_nodes, 2)?;
-                let mut fields = Vec::with_capacity(count);
-                for _ in 0..count {
-                    fields.push((self.text()?, self.ty(depth + 1)?));
-                }
-                Type::Record { name, fields }
-            }
-            17 => {
-                let name = self.text()?;
-                let count = self.count(self.limits.max_nodes, 2)?;
-                let mut fields = Vec::with_capacity(count);
-                for _ in 0..count {
-                    fields.push((self.text()?, self.ty(depth + 1)?));
-                }
-                Type::Package { name, fields }
-            }
-            15 => {
-                let name = self.text()?;
-                let count = self.count(self.limits.max_nodes, 2)?;
-                let mut variants = Vec::with_capacity(count);
-                for _ in 0..count {
-                    let name = self.text()?;
-                    let count = self.count(self.limits.max_nodes, 1)?;
-                    let mut fields = Vec::with_capacity(count);
-                    for _ in 0..count {
-                        fields.push(self.ty(depth + 1)?);
+        let mut pending = vec![Task::Type(depth)];
+        let mut values: Vec<Type> = Vec::new();
+        let mut names: Vec<String> = Vec::new();
+        let mut variants: Vec<(String, Vec<Type>)> = Vec::new();
+        while let Some(task) = pending.pop() {
+            let depth = match task {
+                Task::Type(depth) => depth,
+                Task::Types { left, depth } => {
+                    if left > 0 {
+                        pending.push(Task::Types {
+                            left: left - 1,
+                            depth,
+                        });
+                        pending.push(Task::Type(depth));
                     }
-                    variants.push((name, fields));
+                    continue;
                 }
-                Type::Enum { name, variants }
+                Task::Fields { left, depth } => {
+                    if left > 0 {
+                        names.push(self.text()?);
+                        pending.push(Task::Fields {
+                            left: left - 1,
+                            depth,
+                        });
+                        pending.push(Task::Type(depth));
+                    }
+                    continue;
+                }
+                Task::Variants { left, depth } => {
+                    if left > 0 {
+                        let name = self.text()?;
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Task::Variants {
+                            left: left - 1,
+                            depth,
+                        });
+                        pending.push(Task::Variant {
+                            start: values.len(),
+                            name,
+                        });
+                        pending.push(Task::Types { left: count, depth });
+                    }
+                    continue;
+                }
+                Task::Tuple(start) => {
+                    let types = values.split_off(start);
+                    values.push(Type::Tuple(types));
+                    continue;
+                }
+                Task::Function { start, foreign } => {
+                    let result = Box::new(values.pop().expect("read function result"));
+                    let parameters = values.split_off(start);
+                    values.push(if foreign {
+                        Type::ForeignCallback { parameters, result }
+                    } else {
+                        Type::FunctionPointer { parameters, result }
+                    });
+                    continue;
+                }
+                Task::Record {
+                    start,
+                    names: names_start,
+                    name,
+                    package,
+                } => {
+                    let types = values.split_off(start);
+                    let fields = names
+                        .split_off(names_start)
+                        .into_iter()
+                        .zip(types)
+                        .collect();
+                    values.push(if package {
+                        Type::Package { name, fields }
+                    } else {
+                        Type::Record { name, fields }
+                    });
+                    continue;
+                }
+                Task::Enum { start, name } => {
+                    let members = variants.split_off(start);
+                    values.push(Type::Enum {
+                        name,
+                        variants: members,
+                    });
+                    continue;
+                }
+                Task::Variant { start, name } => {
+                    variants.push((name, values.split_off(start)));
+                    continue;
+                }
+                Task::Array => {
+                    let element = Box::new(values.pop().expect("read array element"));
+                    values.push(Type::Array {
+                        element,
+                        length: self.u32()?,
+                    });
+                    continue;
+                }
+                Task::Unary(tag) => {
+                    let inner = Box::new(values.pop().expect("read unary type child"));
+                    values.push(match tag {
+                        7 => Type::Managed(inner),
+                        8 => Type::Desc(inner),
+                        23 => Type::Slice { element: inner },
+                        25 => Type::OwnedStore { element: inner },
+                        _ => unreachable!("scheduled unary type tag"),
+                    });
+                    continue;
+                }
+                Task::Address(mutable) => {
+                    let inner = Box::new(values.pop().expect("read address child"));
+                    values.push(Type::Address { mutable, inner });
+                    continue;
+                }
+                Task::Opaque(identity) => {
+                    let hidden = Box::new(values.pop().expect("read opaque child"));
+                    values.push(Type::Opaque { identity, hidden });
+                    continue;
+                }
+                Task::ErrorUnion => {
+                    let result = Box::new(values.pop().expect("read error-union result"));
+                    let error = Box::new(values.pop().expect("read error-union error"));
+                    values.push(Type::ErrorUnion { error, result });
+                    continue;
+                }
+            };
+            if depth >= self.limits.max_call_depth {
+                return Err(quota("candidate wire type nesting quota exceeded"));
             }
-            16 => Type::ErrorUnion {
-                error: Box::new(self.ty(depth + 1)?),
-                result: Box::new(self.ty(depth + 1)?),
-            },
-            5 => Type::Named(self.text()?),
-            6 => Type::Address {
-                mutable: self.boolean()?,
-                inner: Box::new(self.ty(depth + 1)?),
-            },
-            7 => Type::Managed(Box::new(self.ty(depth + 1)?)),
-            8 => Type::Desc(Box::new(self.ty(depth + 1)?)),
-            9 => {
-                let count = self.count(self.limits.max_locals, 1)?;
-                let mut parameters = Vec::with_capacity(count);
-                for _ in 0..count {
-                    parameters.push(self.ty(depth + 1)?);
+            self.charge(1)?;
+            let tag = self.u8()?;
+            let ty = match tag {
+                0 => Type::Unit,
+                1 => Type::Bool,
+                2 => Type::I32,
+                3 => Type::I64,
+                18 => Type::U8,
+                19 => Type::U16,
+                20 => Type::ForeignHandle,
+                21 => Type::CWideString,
+                24 => Type::ByteBuffer,
+                4 => {
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    pending.push(Task::Tuple(values.len()));
+                    pending.push(Task::Types {
+                        left: count,
+                        depth: depth + 1,
+                    });
+                    continue;
                 }
-                Type::FunctionPointer {
-                    parameters,
-                    result: Box::new(self.ty(depth + 1)?),
+                9 | 22 => {
+                    let count = self.count(self.limits.max_locals, 1)?;
+                    pending.push(Task::Function {
+                        start: values.len(),
+                        foreign: tag == 22,
+                    });
+                    pending.push(Task::Type(depth + 1));
+                    pending.push(Task::Types {
+                        left: count,
+                        depth: depth + 1,
+                    });
+                    continue;
                 }
-            }
-            10 => Type::Closure(ClosureId(self.u32()?)),
-            11 => Type::Opaque {
-                identity: NodeId(self.u32()?),
-                hidden: Box::new(self.ty(depth + 1)?),
-            },
-            12 => Type::Unsupported(self.text()?),
-            _ => return Err(malformed("E-WIRE-TYPE", "unknown wire type tag")),
-        })
+                13 | 17 => {
+                    let name = self.text()?;
+                    let count = self.count(self.limits.max_nodes, 2)?;
+                    pending.push(Task::Record {
+                        start: values.len(),
+                        names: names.len(),
+                        name,
+                        package: tag == 17,
+                    });
+                    pending.push(Task::Fields {
+                        left: count,
+                        depth: depth + 1,
+                    });
+                    continue;
+                }
+                15 => {
+                    let name = self.text()?;
+                    let count = self.count(self.limits.max_nodes, 2)?;
+                    pending.push(Task::Enum {
+                        start: variants.len(),
+                        name,
+                    });
+                    pending.push(Task::Variants {
+                        left: count,
+                        depth: depth + 1,
+                    });
+                    continue;
+                }
+                14 => {
+                    pending.push(Task::Array);
+                    pending.push(Task::Type(depth + 1));
+                    continue;
+                }
+                7 | 8 | 23 | 25 => {
+                    pending.push(Task::Unary(tag));
+                    pending.push(Task::Type(depth + 1));
+                    continue;
+                }
+                6 => {
+                    pending.push(Task::Address(self.boolean()?));
+                    pending.push(Task::Type(depth + 1));
+                    continue;
+                }
+                11 => {
+                    pending.push(Task::Opaque(NodeId(self.u32()?)));
+                    pending.push(Task::Type(depth + 1));
+                    continue;
+                }
+                16 => {
+                    pending.push(Task::ErrorUnion);
+                    pending.push(Task::Type(depth + 1));
+                    pending.push(Task::Type(depth + 1));
+                    continue;
+                }
+                5 => Type::Named(self.text()?),
+                10 => Type::Closure(ClosureId(self.u32()?)),
+                12 => Type::Unsupported(self.text()?),
+                _ => return Err(malformed("E-WIRE-TYPE", "unknown wire type tag")),
+            };
+            values.push(ty);
+        }
+        Ok(values.pop().expect("read exactly one root type"))
     }
     fn constant(&mut self) -> WireResult<Constant> {
         Ok(match self.u8()? {
@@ -1774,6 +2060,35 @@ impl<'a> Reader<'a> {
     fn instruction(&mut self) -> WireResult<Instruction> {
         let result = self.optional_value()?;
         let kind = match self.u8()? {
+            80 => InstructionKind::OwnedStoreNew {
+                element: self.ty(0)?,
+            },
+            81 => InstructionKind::OwnedStoreReserve {
+                store: ValueId(self.u32()?),
+                capacity: ValueId(self.u32()?),
+            },
+            82 => InstructionKind::OwnedStorePush {
+                store: ValueId(self.u32()?),
+                value: ValueId(self.u32()?),
+            },
+            83 => InstructionKind::OwnedStorePop {
+                store: ValueId(self.u32()?),
+            },
+            84 => InstructionKind::OwnedStoreLen {
+                store: ValueId(self.u32()?),
+            },
+            85 => InstructionKind::OwnedStoreCapacity {
+                store: ValueId(self.u32()?),
+            },
+            86 => InstructionKind::OwnedStoreBorrow {
+                store: ValueId(self.u32()?),
+                index: ValueId(self.u32()?),
+            },
+            87 => InstructionKind::BorrowPackageField {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+                mutable: self.boolean()?,
+            },
             0 => InstructionKind::Constant(self.constant()?),
             1 => InstructionKind::Load(LocalId(self.u32()?)),
             2 => InstructionKind::Store {
@@ -2001,6 +2316,10 @@ impl<'a> Reader<'a> {
             },
             39 => InstructionKind::DescribeCapture { index: self.u32()? },
             40 => InstructionKind::TakeCapture { index: self.u32()? },
+            78 => InstructionKind::BorrowCapture {
+                index: self.u32()?,
+                mutable: self.boolean()?,
+            },
             41 => {
                 let callee = LocalId(self.u32()?);
                 let count = self.count(self.limits.max_values, 4)?;
@@ -2046,6 +2365,47 @@ impl<'a> Reader<'a> {
             48 => InstructionKind::ReadErrorUnion {
                 value: ValueId(self.u32()?),
                 is_error: self.boolean()?,
+            },
+            70 => InstructionKind::TakeErrorUnion {
+                value: ValueId(self.u32()?),
+                is_error: self.boolean()?,
+            },
+            71 => InstructionKind::DropErrorUnion {
+                local: LocalId(self.u32()?),
+            },
+            72 => {
+                let count = self.count(self.limits.max_values, 4)?;
+                let mut elements = Vec::with_capacity(count);
+                for _ in 0..count {
+                    elements.push(ValueId(self.u32()?));
+                }
+                InstructionKind::MakeOwnedArray { elements }
+            }
+            73 => InstructionKind::ProjectOwnedArrayField {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+                field: self.u32()?,
+            },
+            74 => InstructionKind::TakeOwnedArrayElement {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+            },
+            75 => InstructionKind::DropOwnedArrayElement {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+            },
+            76 => InstructionKind::StoreOwnedArrayElement {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+                value: ValueId(self.u32()?),
+            },
+            77 => InstructionKind::DropOwnedArray {
+                local: LocalId(self.u32()?),
+            },
+            79 => InstructionKind::BorrowOwnedArrayElement {
+                local: LocalId(self.u32()?),
+                index: self.u32()?,
+                mutable: self.boolean()?,
             },
             49 => {
                 let count = self.count(self.limits.max_values, 4)?;
@@ -2207,3 +2567,15 @@ impl<'a> Reader<'a> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod owned_carrier_tests;
+
+#[cfg(test)]
+mod store_tests;
+
+#[cfg(test)]
+mod type_stack_tests;
+
+#[cfg(test)]
+mod state_field_tests;

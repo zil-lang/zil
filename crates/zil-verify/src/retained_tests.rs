@@ -183,14 +183,20 @@ fn raw_return_contract_cannot_forge_identity_kind_dependencies_or_cleanup() {
 }
 
 #[test]
-fn raw_factory_body_is_checked_and_identity_is_not_shared_between_factories() {
+fn raw_factory_bodies_keep_exact_contracts_when_hidden_identity_is_shared() {
     let base = fixture(CallableKind::Fn, 1);
     let mut m = base.clone();
     let mut other = m.functions[2].clone();
     other.id = FunctionId(3);
     other.name = "other".into();
     m.functions.push(other);
-    reject_both(&m, "E-VERIFY-CALLABLE-CONTRACT");
+    for result in both(&m) {
+        let verified = result.unwrap();
+        assert_eq!(
+            verified.callable_return_contract(FunctionId(2)),
+            verified.callable_return_contract(FunctionId(3))
+        );
+    }
     let mut m = base.clone();
     let f = &mut m.functions[2];
     let create = f.blocks[0]
@@ -202,7 +208,7 @@ fn raw_factory_body_is_checked_and_identity_is_not_shared_between_factories() {
         function: FunctionId(2),
         arguments: vec![],
     };
-    reject_both(&m, "E-UNSUPPORTED");
+    reject_both(&m, "E-VERIFY-CALLABLE-CONTRACT");
     let mut m = base;
     m.functions[2].environment = Some(ClosureId(0));
     reject_both(&m, "E-VERIFY-CLOSURE-ENTRY");
@@ -325,8 +331,8 @@ fn current_wire_accepts_current_version_and_rejects_other_versions_and_every_tru
     let bytes =
         zil_ir::wire::encode_module_candidate(&m, &resource_tests::plan(&m), &Limits::default())
             .unwrap();
-    // spec/interfaces.json independently fixes the current raw wire protocol at 18.
-    assert_eq!(&bytes[8..12], &18u32.to_le_bytes());
+    // The encoder emits the shared protocol constant; stale versions remain rejected below.
+    assert_eq!(&bytes[8..12], &zil_ir::wire::WIRE_VERSION.to_le_bytes());
     verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
     let current = zil_ir::wire::WIRE_VERSION;
     for version in (0..current).chain([current + 1, u32::MAX]) {

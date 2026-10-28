@@ -45,7 +45,8 @@
     "zil-backend-llvm": [
       "zil-base",
       "zil-ir",
-      "zil-verify"
+      "zil-verify",
+      "zil-llvm-api"
     ],
     "zil-backend-cranelift": [
       "zil-base",
@@ -91,7 +92,16 @@
     "zil-test": [
       "zil-base",
       "zil-model"
-    ]
+    ],
+    "zil-llvm-api": []
   },
-  "external_path_allowlist": []
+  "external_path_allowlist": [],
+  "unsafe_boundaries": {
+    "zil-llvm-api": {
+      "module": "src/native.rs",
+      "feature": "native",
+      "upstream": "LLVM 17.0.6 C API",
+      "scope": "owned context/module/target machine/pass options/object buffer; no frontend/verify dependency"
+    }
+  }
 }

@@ -2,7 +2,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use zil_base::{CompileResult, Diagnostic, Phase, ResultCategory};
 use zil_ir::LirModule;
@@ -32,11 +32,67 @@ impl Default for WindowsLinkOptions {
     }
 }
 
+/// Machine-code strategy is independent from the checked LIR and language rules.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NativeBackend {
+    #[default]
+    Clang,
+    LlvmApi,
+}
+impl NativeBackend {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Clang => "clang",
+            Self::LlvmApi => "llvm-api",
+        }
+    }
+}
+
+/// Opt-in bounded native code generation. One unit preserves the original path.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CodegenOptions {
+    pub units: usize,
+    pub jobs: usize,
+}
+impl Default for CodegenOptions {
+    fn default() -> Self {
+        Self { units: 1, jobs: 1 }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CodegenSummary {
+    pub backend: NativeBackend,
+    /// Actual in-process calls, not invented subprocess commands.
+    pub object_reports: Vec<String>,
+    pub requested_units: usize,
+    pub actual_units: usize,
+    pub jobs: usize,
+    pub fallback: Option<String>,
+}
+impl CodegenSummary {
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"backend\":{},\"object_reports\":[{}],\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{}}}",
+            zil_base::json_string(self.backend.name()),
+            self.object_reports.join(","),
+            self.requested_units,
+            self.actual_units,
+            self.jobs,
+            self.fallback
+                .as_ref()
+                .map_or_else(|| "null".into(), |s| zil_base::json_string(s))
+        )
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BuildOptions {
+    pub backend: NativeBackend,
     pub clang: PathBuf,
     pub output: PathBuf,
     pub optimization: Optimization,
+    pub codegen: CodegenOptions,
     pub emit: EmitOptions,
     pub windows: Option<WindowsLinkOptions>,
 }
@@ -44,9 +100,11 @@ pub struct BuildOptions {
 impl BuildOptions {
     pub fn new(output: impl Into<PathBuf>) -> Self {
         Self {
+            backend: NativeBackend::default(),
             clang: PathBuf::from("clang"),
             output: output.into(),
             optimization: Optimization::O0,
+            codegen: CodegenOptions::default(),
             windows: None,
             emit: EmitOptions {
                 entry: EntryPoint::Main,
@@ -63,6 +121,7 @@ pub struct BuildArtifact {
     pub command: Vec<String>,
     /// Every actual subprocess, including the separate Win64 linker.
     pub commands: Vec<Vec<String>>,
+    pub codegen: CodegenSummary,
 }
 
 /// Compile LLVM IR directly with the configured clang. Construction of any
@@ -74,6 +133,18 @@ pub fn build(
     lir: &LirModule,
     options: &BuildOptions,
 ) -> CompileResult<BuildArtifact> {
+    build_with_cancellation(verified, lir, options, &|| false)
+}
+
+/// Cooperative cancellation does not unwind inside an LLVM pass or linker.
+/// It is checked before/after each unit phase and before publishing any result.
+pub fn build_with_cancellation(
+    verified: &VerifiedModule,
+    lir: &LirModule,
+    options: &BuildOptions,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> CompileResult<BuildArtifact> {
+    check_cancelled(cancelled)?;
     if options.emit.entry == EntryPoint::None {
         return Err(vec![Diagnostic::error(
             Phase::Link,
@@ -82,7 +153,39 @@ pub fn build(
             "native build requires an explicit executable entry wrapper",
         )]);
     }
+    if !(1..=64).contains(&options.codegen.units) || !(1..=64).contains(&options.codegen.jobs) {
+        return Err(infra(
+            "E-CODEGEN-OPTIONS",
+            "codegen units and jobs must be in 1..=64",
+        ));
+    }
     let llvm = emit_with_options(verified, lir, &options.emit)?;
+    let plan = if options.codegen.units > 1 {
+        crate::cgu::partition(&llvm, lir, options.emit.entry, options.codegen.units)
+    } else {
+        crate::cgu::Plan {
+            units: Vec::new(),
+            fallback: None,
+        }
+    };
+    if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+        return Err(vec![Diagnostic::new(
+            Phase::Codegen,
+            ResultCategory::Unsupported,
+            "E-LLVM-API-UNAVAILABLE",
+            "this compiler was built without the llvm-api feature",
+            None,
+        )]);
+    }
+    let actual_units = plan.units.len().max(1);
+    let mut codegen = CodegenSummary {
+        backend: options.backend,
+        object_reports: Vec::new(),
+        requested_units: options.codegen.units,
+        actual_units,
+        jobs: options.codegen.jobs.min(actual_units),
+        fallback: plan.fallback.map(str::to_owned),
+    };
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     if windows != options.windows.is_some() {
         return Err(infra(
@@ -133,22 +236,67 @@ pub fn build(
         Optimization::O0 => "-O0",
         Optimization::O2 => "-O2",
     };
-    let mut command = Command::new(&options.clang);
-    command
-        .arg(format!("--target={}", lir.target.triple))
-        .arg("-x")
-        .arg("ir")
-        .arg(optimization);
-    if windows {
-        command.arg("-c");
-    }
-    command.arg(&ir_path).arg("-o").arg(if windows {
-        &object_path
+    let mut commands = Vec::new();
+    let split = !plan.units.is_empty();
+    let objects = if !split && options.backend == NativeBackend::Clang {
+        // Keep the legacy one-process Unix path exactly, including its flags.
+        let mut command = Command::new(&options.clang);
+        command
+            .arg(format!("--target={}", lir.target.triple))
+            .arg("-x")
+            .arg("ir")
+            .arg(optimization);
+        if windows {
+            command.arg("-c");
+        }
+        command.arg(&ir_path).arg("-o").arg(if windows {
+            &object_path
+        } else {
+            &executable_path
+        });
+        commands.push(run_command(&mut command, "E-LLVM-COMPILE")?);
+        vec![object_path]
     } else {
-        &executable_path
-    });
-    let recorded_command = run_command(&mut command, "E-LLVM-COMPILE")?;
-    let mut commands = vec![recorded_command.clone()];
+        let units = if split { plan.units } else { vec![llvm] };
+        let inputs = units
+            .into_iter()
+            .enumerate()
+            .map(|(id, text)| {
+                let input = staging.0.join(format!("unit-{id}.ll"));
+                let object = staging.0.join(format!("unit-{id}.o"));
+                // LLVM API consumes the in-memory text, not a subprocess or disk read.
+                if options.backend == NativeBackend::Clang {
+                    fs::write(&input, &text)
+                        .map_err(|e| io_error("write codegen unit", &input, e))?;
+                }
+                Ok(UnitInput {
+                    input,
+                    object,
+                    text,
+                })
+            })
+            .collect::<CompileResult<Vec<_>>>()?;
+        let compiled = compile_units(
+            &inputs,
+            &lir.target.triple,
+            optimization,
+            options,
+            cancelled,
+        )?;
+        for (command, receipt) in compiled {
+            if let Some(command) = command {
+                commands.push(command);
+            }
+            if let Some(receipt) = receipt {
+                codegen.object_reports.push(receipt);
+            }
+        }
+        inputs
+            .into_iter()
+            .map(|unit| unit.object)
+            .collect::<Vec<_>>()
+    };
+    check_cancelled(cancelled)?;
     if let Some(config) = &options.windows {
         let mut link = Command::new(&config.linker);
         link.args([
@@ -159,16 +307,27 @@ pub fn build(
             "/timestamp:0",
         ])
         .arg(format!("/out:{}", executable_path.display()))
-        .arg(&object_path)
+        .args(&objects)
         .args(imports);
         commands.push(run_command(&mut link, "E-WIN64-LINK")?);
+    } else if split || options.backend == NativeBackend::LlvmApi {
+        let mut link = Command::new(&options.clang);
+        link.arg(format!("--target={}", lir.target.triple))
+            .arg(optimization)
+            .args(&objects)
+            .arg("-o")
+            .arg(&executable_path);
+        commands.push(run_command(&mut link, "E-LLVM-COMPILE")?);
     }
+    check_cancelled(cancelled)?;
+    let recorded_command = commands[0].clone();
     if !executable_path.is_file() {
         return Err(infra(
             "E-LINK-MISSING-OUTPUT",
             "LLVM clang reported success without producing an executable",
         ));
     }
+    check_cancelled(cancelled)?;
     let mut ir_name = name.to_os_string();
     ir_name.push(".ll");
     let final_ir = parent.join(ir_name);
@@ -181,7 +340,176 @@ pub fn build(
         llvm_ir: final_ir,
         command: recorded_command,
         commands,
+        codegen,
     })
+}
+
+/// Largest input first reduces tail latency. Workers return results by unit id,
+/// so errors/command records are deterministic rather than completion-ordered.
+/// All started processes finish before staging is removed or output published.
+struct UnitInput {
+    input: PathBuf,
+    object: PathBuf,
+    text: String,
+}
+type UnitResult = (Option<Vec<String>>, Option<String>);
+
+fn compile_units(
+    inputs: &[UnitInput],
+    target: &str,
+    optimization: &str,
+    options: &BuildOptions,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> CompileResult<Vec<UnitResult>> {
+    let mut schedule = (0..inputs.len()).collect::<Vec<_>>();
+    schedule.sort_by_key(|id| (std::cmp::Reverse(inputs[*id].text.len()), *id));
+    let next = AtomicUsize::new(0);
+    let results = std::thread::scope(|scope| {
+        let workers = (0..options.codegen.jobs.min(inputs.len()))
+            .map(|_| {
+                let schedule = &schedule;
+                let next = &next;
+                scope.spawn(move || {
+                    let mut results = Vec::new();
+                    loop {
+                        let slot = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(&id) = schedule.get(slot) else {
+                            break;
+                        };
+                        let result = check_cancelled(cancelled).and_then(|()| {
+                            let unit = &inputs[id];
+                            match options.backend {
+                                NativeBackend::Clang => {
+                                    let mut command = Command::new(&options.clang);
+                                    command
+                                        .arg(format!("--target={target}"))
+                                        .args(["-x", "ir", optimization, "-c"])
+                                        .arg(&unit.input)
+                                        .arg("-o")
+                                        .arg(&unit.object);
+                                    let command = run_command(&mut command, "E-LLVM-COMPILE")?;
+                                    if !unit.object.is_file() {
+                                        return Err(infra(
+                                            "E-LINK-MISSING-OUTPUT",
+                                            "LLVM did not produce a codegen object",
+                                        ));
+                                    }
+                                    Ok((Some(command), None))
+                                }
+                                NativeBackend::LlvmApi => {
+                                    compile_api_unit(unit, target, options.optimization, cancelled)
+                                }
+                            }
+                        });
+                        results.push((id, result));
+                    }
+                    results
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut results = Vec::new();
+        let mut panicked = false;
+        for worker in workers {
+            match worker.join() {
+                Ok(rows) => results.extend(rows),
+                Err(_) => panicked = true,
+            }
+        }
+        if panicked {
+            Err(infra("E-CODEGEN-WORKER", "native codegen worker panicked"))
+        } else {
+            Ok(results)
+        }
+    })?;
+    let mut results = results;
+    results.sort_by_key(|(id, _)| *id);
+    results.into_iter().map(|(_, result)| result).collect()
+}
+
+fn check_cancelled(cancelled: &(dyn Fn() -> bool + Sync)) -> CompileResult<()> {
+    if cancelled() {
+        Err(vec![Diagnostic::new(
+            Phase::Link,
+            ResultCategory::Cancelled,
+            "E-LLVM-API-CANCELLED",
+            "native build cancelled before publication",
+            None,
+        )])
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(feature = "llvm-api")]
+fn compile_api_unit(
+    unit: &UnitInput,
+    target: &str,
+    opt: Optimization,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> CompileResult<UnitResult> {
+    use zil_llvm_api::{Config, ErrorKind, Optimization as ApiOpt};
+    let config = Config {
+        triple: target,
+        optimization: match opt {
+            Optimization::O0 => ApiOpt::O0,
+            Optimization::O2 => ApiOpt::O2,
+        },
+    };
+    let object = zil_llvm_api::compile(&unit.text, &config, cancelled).map_err(|error| {
+        let (code, category) = match error.kind {
+            ErrorKind::Cancelled => ("E-LLVM-API-CANCELLED", ResultCategory::Cancelled),
+            ErrorKind::Unavailable => ("E-LLVM-API-UNAVAILABLE", ResultCategory::Unsupported),
+            ErrorKind::Version => ("E-LLVM-API-VERSION", ResultCategory::InfraError),
+            ErrorKind::Target => ("E-LLVM-API-TARGET", ResultCategory::InfraError),
+            ErrorKind::Parse => ("E-LLVM-API-PARSE", ResultCategory::InfraError),
+            ErrorKind::Verify => ("E-LLVM-API-VERIFY", ResultCategory::InfraError),
+            ErrorKind::Optimize => ("E-LLVM-API-OPTIMIZE", ResultCategory::InfraError),
+            ErrorKind::Emit => ("E-LLVM-API-EMIT", ResultCategory::InfraError),
+        };
+        vec![Diagnostic::new(
+            Phase::Link,
+            category,
+            code,
+            error.to_string(),
+            None,
+        )]
+    })?;
+    check_cancelled(cancelled)?;
+    fs::write(&unit.object, &object.bytes)
+        .map_err(|e| io_error("write LLVM API object", &unit.object, e))?;
+    let r = &object.receipt;
+    let q = zil_base::json_string;
+    let receipt = format!(
+        "{{\"backend\":\"llvm-api\",\"llvm_version\":{},\"triple\":{},\"cpu\":{},\"features\":{},\"data_layout\":{},\"pipeline\":{},\"relocation\":{},\"code_model\":{},\"verify_before_after\":{},\"object_bytes\":{},\"parse_ns\":{},\"optimize_ns\":{},\"emit_ns\":{},\"total_ns\":{}}}",
+        q(&r.llvm_version),
+        q(&r.triple),
+        q(&r.cpu),
+        q(&r.features),
+        q(&r.data_layout),
+        q(&r.pipeline),
+        q(&r.relocation),
+        q(&r.code_model),
+        r.verify_before_after,
+        object.bytes.len(),
+        r.parse_ns,
+        r.optimize_ns,
+        r.emit_ns,
+        r.total_ns
+    );
+    Ok((None, Some(receipt)))
+}
+
+#[cfg(not(feature = "llvm-api"))]
+fn compile_api_unit(
+    _unit: &UnitInput,
+    _target: &str,
+    _opt: Optimization,
+    _cancelled: &(dyn Fn() -> bool + Sync),
+) -> CompileResult<UnitResult> {
+    Err(infra(
+        "E-LLVM-API-UNAVAILABLE",
+        "LLVM API support was not compiled in",
+    ))
 }
 
 fn run_command(command: &mut Command, code: &str) -> CompileResult<Vec<String>> {

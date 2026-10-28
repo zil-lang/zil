@@ -1,6 +1,6 @@
 # ZIL 实施入口
 
-1. 冷启动先运行 `node tools/handoff.mjs --check`，从输出的 `authority.main_tree_now` 定位主树，再读主树 `_zil_goal.md` 和派定工单。精简源码ZIP可以直接构建；缺Git时按`docs/DELIVERY.md`使用`PACKAGE.json`命名的旁置历史bundle恢复checkout，不能把无Git的检查当Pass。历史绝对路径只作来源记录，不作为当前主树地址。
+1. 冷启动先运行 `node tools/handoff.mjs --check`，从输出的 `authority.main_tree_now` 定位主树，再读主树 `_zil_goal.md` 和派定工单。精简源码ZIP可以直接构建；缺Git时按`docs/DELIVERY.md`使用`PACKAGE.json`命名的旁置恢复附件内历史bundle恢复checkout，不能把无Git的检查当Pass。历史绝对路径只作来源记录，不作为当前主树地址。
 2. 语言与架构只读 `_zil_design.md` 及其具名附件；历史文件、对话和changes不能覆盖当前规范。正式工单为主树 `.task/<ID>.md`，编号实施切片为主树 `.task/impl/<号>.md`；分树副本不读不改，必要往来只追加主树工单。
 3. 每单一个分支和worktree，核对规范摘要、基线、依赖与写集。正式任务须为Ready/Doing；实施切片须有明确父任务、基线与派工，处于施工或退回。切片合入不替代父任务Done；缺前置只报告具体阻塞，不猜测。
 4. 施工方不合入、不改正式性能门、不自行跑正式全量；限定测试允许。独立审核绑定精确交付提交，审核者不兼任施工者。正式验收、主树工单状态、Cargo.lock和公共schema由集成方管理。

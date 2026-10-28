@@ -32,6 +32,7 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
         budget.spend(1)?;
         match ty {
             Type::ErrorUnion { .. } | Type::Package { .. } => return Ok(true),
+            ty if resources::arrays::is_owned_type(ty) => return Ok(true),
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
                 pending.extend(fields);
@@ -73,9 +74,17 @@ fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
         | InstructionKind::TakePackageField { local, .. }
         | InstructionKind::DropPackageField { local, .. }
         | InstructionKind::StorePackageField { local, .. }
+        | InstructionKind::ProjectOwnedArrayField { local, .. }
+        | InstructionKind::TakeOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArrayElement { local, .. }
+        | InstructionKind::StoreOwnedArrayElement { local, .. }
+        | InstructionKind::BorrowOwnedArrayElement { local, .. }
+        | InstructionKind::BorrowPackageField { local, .. }
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropClosure { local }
+        | InstructionKind::DropErrorUnion { local }
         | InstructionKind::DropPackage { local }
+        | InstructionKind::DropOwnedArray { local }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local }
         | InstructionKind::TakeLocal { local }
@@ -124,6 +133,14 @@ pub(super) fn check_function(
                 | InstructionKind::DropPackageField { .. }
                 | InstructionKind::StorePackageField { .. }
                 | InstructionKind::DropPackage { .. }
+                | InstructionKind::MakeOwnedArray { .. }
+                | InstructionKind::ProjectOwnedArrayField { .. }
+                | InstructionKind::TakeOwnedArrayElement { .. }
+                | InstructionKind::DropOwnedArrayElement { .. }
+                | InstructionKind::StoreOwnedArrayElement { .. }
+                | InstructionKind::DropOwnedArray { .. }
+                | InstructionKind::BorrowOwnedArrayElement { .. }
+                | InstructionKind::BorrowPackageField { .. }
                 | InstructionKind::MakeErrorUnion { .. }
                 | InstructionKind::ErrorTag { .. }
                 | InstructionKind::ReadErrorUnion { .. } => required = true,
