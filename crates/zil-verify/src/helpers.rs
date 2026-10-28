@@ -156,13 +156,16 @@ fn dependency_order(
 ) -> Check<Vec<usize>> {
     let count = module.functions.len();
     budget.spend(count.saturating_mul(4))?;
-    budget.spend(count)?;
-    let mut depth = vec![1usize; count];
+    let mut depths: Option<Vec<usize>> = None;
     let mut predecessors = vec![0usize; count];
     let mut consumers = vec![Vec::new(); count];
     for (caller, f) in module.functions.iter().enumerate() {
         if f.callable_contract.is_none() {
             continue;
+        }
+        if depths.is_none() {
+            budget.spend(count)?;
+            depths = Some(vec![1usize; count]);
         }
         budget.spend(f.blocks.len())?;
         for (b, block) in f.blocks.iter().enumerate() {
@@ -195,6 +198,7 @@ fn dependency_order(
         budget.spend(consumers[callee].len().saturating_add(1))?;
         order.push(callee);
         for &caller in &consumers[callee] {
+            let depth = depths.as_mut().expect("helper edges have a depth table");
             let next_depth = depth[callee]
                 .checked_add(1)
                 .filter(|n| *n <= limits.max_call_depth)
@@ -212,12 +216,7 @@ fn dependency_order(
             None,
         ));
     }
-    if module
-        .functions
-        .iter()
-        .any(|f| f.callable_contract.is_some())
-        && limits.max_call_depth == 0
-    {
+    if depths.is_some() && limits.max_call_depth == 0 {
         return Err(limit("helper dependency call depth exhausted"));
     }
     Ok(order)
