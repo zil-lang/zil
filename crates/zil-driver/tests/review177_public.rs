@@ -168,7 +168,7 @@ fn literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruption
                     "E-WIRE-TRUNCATED",
                 );
             }
-            for version in [0u32, 20, 21, 23, u32::MAX] {
+            for version in (0u32..wire::WIRE_VERSION).chain([wire::WIRE_VERSION + 1, u32::MAX]) {
                 let mut bad = bytes.clone();
                 bad[8..12].copy_from_slice(&version.to_le_bytes());
                 error(
