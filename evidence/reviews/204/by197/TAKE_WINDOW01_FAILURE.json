@@ -1,0 +1,50 @@
+{
+  "reviewer": "/root/impl197",
+  "verdict": "Fail; genuine acceptance defect; final 204 acceptance blocked pending production repair",
+  "implementation_commit": "ea65faed5a9cc38779755f36147d403a07319509",
+  "command": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/take-window01/command.json",
+    "sha256": "e2dc75ff93afcb355aad65bbe93e1b83cdd6917092d96d603b58b068aff24f6f",
+    "source_commit": "ea65faed5a9cc38779755f36147d403a07319509",
+    "git_status": "",
+    "status": "Fail",
+    "exit_code": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl204_review",
+      "take_capture",
+      "--",
+      "--nocapture",
+      "--test-threads=2"
+    ],
+    "stdout.log_sha256": "414154340977687846c8f55da1bc1d4678008c4270f519157bc016317d43c1e2",
+    "stderr.log_sha256": "e63439daa14b9f319bffbcecce158edcc2e3b1e4f48c328b50fd2eadf9bf78b8"
+  },
+  "counts": {
+    "tests_passed": 0,
+    "tests_failed": 2,
+    "valid_control_native_runs": 2,
+    "invalid_native_runs": 0
+  },
+  "source_case": {
+    "path": "/tmp/zil204-review-records/take-window01-cases/review204-take-capture-window-after-local-reserve-53-4",
+    "source_sha256": "3cf93ef16916c73a68d2737596c5b373c135c10f59aaa742e758be69e147d0ef",
+    "actual": "Success/Verify with verification_runs=1",
+    "required": "SafeReject/E-BORROW-CONFLICT; old element view used after TakeCapture and actual reserve on the new local"
+  },
+  "raw_case": {
+    "path": "/tmp/zil204-review-records/take-window01-cases/review204-take-capture-then-local-reserve-before-element-read-53-2",
+    "wire_sha256": "c120e7a7fecf3c93df13a8580529f2a6aa1a059cda8e7131b926190b771f371d",
+    "actual": "Fresh Analyze plan, raw Verify Ok, Wire Verify Ok",
+    "mutation": "From independently successful source control, delay original ReadAddress and its Store(answer) until after original TakeCapture plus new-local OwnedStoreReserve; retain every original ValueId and instruction.",
+    "candidate_origin": "fresh Analyze result"
+  },
+  "native_boundary": "Only the source with the final element read before TakeCapture was built/run at O0/O2. Invalid source and invalid raw/Wire were never lowered or executed.",
+  "relation_to_source04": "SOURCE04.json remains its genuine earlier 19/0 record, not a final verdict and not relabeled with this new failure."
+}

@@ -20,6 +20,190 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
     element(ty).is_some()
 }
 
+fn check_capture_leaf_tree(element: &Type, budget: &mut Budget) -> Check<()> {
+    budget.spend(1)?;
+    let mut pending = vec![element];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1)?;
+        match ty {
+            Type::Closure(_)
+            | Type::FunctionPointer { .. }
+            | Type::ForeignCallback { .. }
+            | Type::OwnedStore { .. }
+            | Type::Address { .. }
+            | Type::Desc(_) => {
+                return Err(unsupported(
+                    "Store callback captures retain the finite owning environment profile: inner leaf types cannot hide callable, Store or borrowed fields",
+                    None,
+                ));
+            }
+            Type::Managed(inner)
+            | Type::Array { element: inner, .. }
+            | Type::Slice { element: inner }
+            | Type::Opaque { hidden: inner, .. } => {
+                budget.spend(1)?;
+                pending.push(inner);
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len())?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                budget.spend(2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// The inner Store of an owning capture deliberately uses the old leaf
+/// element profile, not the broader callback Store predicate. This check is
+/// also used while qualifying resource-only outer Store metadata, before the
+/// ordinary module closure pass has run.
+fn check_captured_store(
+    module: &TypedModule,
+    ty: &Type,
+    limits: Option<&Limits>,
+    budget: &mut Budget,
+) -> Check<()> {
+    let Type::Managed(payload) = ty else {
+        return Err(unsupported(
+            "Store capture requires the actual owning carrier, not a description",
+            None,
+        ));
+    };
+    let Type::OwnedStore { element } = payload.as_ref() else {
+        return Err(unsupported("expected an owning Store capture", None));
+    };
+    // The root queue and the complete tree are charged before the recursive
+    // Copy predicates or canonical identity allocation below.
+    budget.spend(1)?;
+    resources::charge_payload(element, budget)?;
+    check_capture_leaf_tree(element, budget)?;
+    let Type::Package { name, fields } = element.as_ref() else {
+        return Err(unsupported(
+            "Store capture requires a finite leaf Package element",
+            None,
+        ));
+    };
+    if !fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
+        || !fields.iter().all(|(_, ty)| {
+            ty.is_copy_value()
+                || matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer
+                    || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
+        })
+    {
+        return Err(unsupported(
+            "Store callback captures retain the finite owning environment profile: inner Store elements must be leaf Copy/direct-Managed Packages",
+            None,
+        ));
+    }
+    target(&module.target, None)?;
+    check_element_with_limits(module, element, None, limits, budget)?;
+    budget.spend(PREFIX.len().saturating_add(name.len()).saturating_add(1))?;
+    let canonical = definition_name(element);
+    budget.spend(
+        module
+            .resources
+            .len()
+            .saturating_mul(canonical.len().saturating_add(1)),
+    )?;
+    let resource = module
+        .resources
+        .iter()
+        .find(|r| r.name == canonical)
+        .ok_or_else(|| {
+            reject(
+                "E-VERIFY-OWNED-STORE",
+                None,
+                "captured Store lacks its canonical sealed definition",
+            )
+        })?;
+    // A matching resource may occur later in the resource table. Bound it
+    // independently before equality when called by that early admission path.
+    if let Some(limits) = limits {
+        check_type_shape(&resource.payload, &module.target, limits, budget)?;
+    }
+    budget.spend(1)?;
+    resources::charge_payload(&resource.payload, budget)?;
+    if resource.teardown.is_some() || resource.payload != **payload {
+        return Err(reject(
+            "E-VERIFY-OWNED-STORE",
+            None,
+            "captured Store requires its complete exact payload and no user teardown",
+        ));
+    }
+    Ok(())
+}
+
+/// Only the new owning capture shapes enter here. Neither this private
+/// qualification nor a fixed-size Store header grants executable authority.
+pub(super) fn check_owned_capture(
+    module: &TypedModule,
+    ty: &Type,
+    limits: Option<&Limits>,
+    budget: &mut Budget,
+) -> Check<()> {
+    if is_carrier(ty) {
+        return check_captured_store(module, ty, limits, budget);
+    }
+    let Type::Package { fields, .. } = ty else {
+        return Err(unsupported(
+            "expected a complete Store-owning Package capture",
+            None,
+        ));
+    };
+    budget.spend(1)?;
+    resources::charge_payload(ty, budget)?;
+    for (_, field) in fields {
+        if is_carrier(field) {
+            check_captured_store(module, field, limits, budget)?;
+        } else if !(field.is_copy_value()
+            || matches!(field, Type::Managed(inner) if **inner == Type::ByteBuffer
+                || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value())))
+        {
+            return Err(unsupported(
+                "Store-owning Package capture requires direct qualified Store, Managed and finite Copy fields",
+                None,
+            ));
+        }
+    }
+    packages::check_type_for(module, ty, None, budget)
+}
+
+pub(super) fn check_capture_result(
+    module: &TypedModule,
+    result: &Type,
+    limits: Option<&Limits>,
+    budget: &mut Budget,
+) -> Check<()> {
+    if let Some(limits) = limits {
+        check_type_shape(result, &module.target, limits, budget)?;
+    }
+    budget.spend(1)?;
+    resources::charge_payload(result, budget)?;
+    if !result.is_copy_value() {
+        return Err(unsupported(
+            "an environment owning a captured Store requires a finite Copy or Unit result",
+            None,
+        ));
+    }
+    Ok(())
+}
+
 fn target(target: &TargetProfile, span: Option<Span>) -> Check<()> {
     if !target.is_supported_x64_llvm() {
         return Err(unsupported(
@@ -168,6 +352,8 @@ fn closure_layouts_pair(
     let mut state = vec![0u8; module.closures.len()];
     let mut heights = vec![0usize; module.closures.len()];
     let mut layouts = vec![None; module.closures.len()];
+    // No extra table or traversal on the historical no-Store-capture path.
+    let mut store_profiles: Option<Vec<bool>> = None;
     let mut pending = vec![(root, false)];
     if let Some(other) = second {
         pending.insert(0, (other, false));
@@ -186,6 +372,7 @@ fn closure_layouts_pair(
         if exit {
             budget.spend(definition.captures.len())?;
             let (mut bytes, mut maximum, mut flags, mut height) = (0u64, 1u64, 0u64, 0usize);
+            let mut owns_store = false;
             for capture in &definition.captures {
                 let (size, align) = if *capture == Type::Unit {
                     budget.spend(1)?;
@@ -196,13 +383,20 @@ fn closure_layouts_pair(
                 bytes = bounded(align_to(bytes, align)?.checked_add(size))?;
                 maximum = maximum.max(align);
                 let added = match capture {
-                    Type::Managed(_) | Type::Closure(_) => 1,
+                    Type::Managed(payload) => {
+                        owns_store |= matches!(payload.as_ref(), Type::OwnedStore { .. });
+                        1
+                    }
+                    Type::Closure(child) => {
+                        owns_store |= store_profiles.as_ref().is_some_and(|p| p[child.0 as usize]);
+                        1
+                    }
                     Type::Package { fields, .. } => {
                         budget.spend(fields.len())?;
-                        1 + fields
-                            .iter()
-                            .filter(|(_, ty)| matches!(ty, Type::Managed(_)))
-                            .count() as u64
+                        1 + fields.iter().fold(0u64, |count, (_, field)| {
+                            owns_store |= is_carrier(field);
+                            count + u64::from(matches!(field, Type::Managed(_)))
+                        })
                     }
                     _ => 0,
                 };
@@ -213,6 +407,14 @@ fn closure_layouts_pair(
             }
             if limits.is_some_and(|limits| height > limits.max_call_depth) {
                 return Err(limit("Store callback layout depth exceeds selected bound"));
+            }
+            if owns_store {
+                check_capture_result(module, &definition.result, limits, budget)?;
+                if store_profiles.is_none() {
+                    budget.spend(module.closures.len())?;
+                    store_profiles = Some(vec![false; module.closures.len()]);
+                }
+                store_profiles.as_mut().expect("allocated Store profiles")[index] = true;
             }
             bytes = bounded(bytes.checked_add(flags))?;
             layouts[index] = Some((align_to(bytes, maximum)?, maximum));
@@ -241,11 +443,10 @@ fn closure_layouts_pair(
             if let Some(limits) = limits {
                 check_type_shape(capture, &module.target, limits, budget)?;
             }
-            if is_carrier(capture)
-                || packages::has_store_fields(capture)
-                || packages::has_array_fields(capture)
-                || packages::has_callable_fields(capture)
-            {
+            if is_carrier(capture) || packages::has_store_fields(capture) {
+                check_owned_capture(module, capture, limits, budget)?;
+            }
+            if packages::has_array_fields(capture) || packages::has_callable_fields(capture) {
                 return Err(unsupported(
                     "Store callback captures retain the existing finite owning environment profile",
                     None,
@@ -309,7 +510,9 @@ fn layout(
         | Type::CWideString
         | Type::FunctionPointer { .. }
         | Type::ForeignCallback { .. } => (8, 8),
-        Type::ByteBuffer => (24, 8),
+        // All capture Store elements and canonical definitions are checked
+        // before layout; a fixed header alone is never qualification.
+        Type::ByteBuffer | Type::OwnedStore { .. } => (24, 8),
         Type::Managed(payload) => layout(payload, environments, budget)?,
         Type::Closure(id) => environments
             .and_then(|layouts| layouts.get(id.0 as usize))

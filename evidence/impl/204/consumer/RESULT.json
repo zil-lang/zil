@@ -1,0 +1,160 @@
+{
+  "status": "Pass",
+  "source_commit": "7bf69fe193d0e6f6bcfc62e9d1fa955afb26c61c",
+  "compiler_source_commit": "7abbbac1f6479c52f4967653acfab74fc56c945d",
+  "cli_sha256": "baa0b5757871b5f7bc31713f61c0a91042d1396087d9bddc65d6872c82a4312d",
+  "compiler_build_receipt": "/workspace/scratch/39be3faa4442/run-logs/204-root/cli05/command.json",
+  "compiler_build_receipt_sha256": "2375959adc460ad3f4d6acd47629c4dc0d30e020848697caaf9ae4fd2bb52a32",
+  "sources": {
+    "factory.zil": "3e6326aca9ca00eea08c45edc08240bb54273870f7128e77621c9f6e50ed2e8d",
+    "main.zil": "aa47e54a06846fda761ac5e29c38fa475d57664b74a71378a1e8efed311ceb26",
+    "portable.zil": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c",
+    "state.zil": "99618a828044f68b02935508c981f0e511b632f85e06879bc44ff6f6346108cd",
+    "store_helpers.zil": "53148c2f87961fe62b09b800dd6fb9f559187b3ad0f2be0cbf8a526cec7e9b1a"
+  },
+  "design_sha256": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0",
+  "normative_inputs": {
+    "schema_version": 1,
+    "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
+    "files": {
+      "_zil_design.md": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0",
+      "spec/grammar.ebnf": "dc2ac84eb4c71f7c7ca2f5ea646db68cf341d79b1c4b0dbd4b1653330b9a150b",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "spec/diagnostics.json": "7b79f9d7a796eeadc39c58de7189b5fe6efdc4ac317d9496fbd1717692be5c9e",
+      "spec/interfaces.json": "5f682c3292d4253091ff2bd3250560adfc69f29d4db2332b0d29b78a84626725",
+      "policy/dependencies.json": "f79ad0f2dedb0af36169e8065c9f93fc64b124c757b166540fc3ab6d56d06752",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+    },
+    "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7"
+  },
+  "source_and_oracle_unchanged_after_execution": true,
+  "platforms": {
+    "linux": {
+      "executions": 148,
+      "ordinary_executions": 16,
+      "instrumented_executions": 132,
+      "actual_allocation_failures": 108,
+      "native_executions": 148,
+      "wine_executions": 0,
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-consumer/linux01",
+      "summary_sha256": "095ed989dac9f4325605bf33ee70ae241648bd81001bfe777ff2fb54f11dd0b9",
+      "all_final_live_zero": true,
+      "all_bad_operations_zero": null,
+      "peak_requested_live_payload_bytes": 528,
+      "peak_live_allocations": 4,
+      "builds": [
+        {
+          "optimization": "O0",
+          "verification_runs": 1,
+          "llvm_sha256": "451d409751af3aab0a0a6b900c6bb9f14f8f51291d5f81b34f3d7a45be212474",
+          "executable_sha256": "7e2d56693dd951da711158d2cc5cf09d64df5895f7d99872532656d46f628fcc",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/store_helpers.zil"
+          },
+          "module_count": 5,
+          "allocation_probe_sha256": "e4f5b0aa2f63348305f5df47c80f5c84749b6f3ddbfa2f29b937672c003bb3e7"
+        },
+        {
+          "optimization": "O2",
+          "verification_runs": 1,
+          "llvm_sha256": "451d409751af3aab0a0a6b900c6bb9f14f8f51291d5f81b34f3d7a45be212474",
+          "executable_sha256": "65473aa24cd347e1182a97a349cee45876cbd49b24052fb523aac1ae08de40d6",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/store_helpers.zil"
+          },
+          "module_count": 5,
+          "allocation_probe_sha256": "172a39798e9bb893401e8e3719259520865f41aac47a3594ec67a4b1c924ef53"
+        }
+      ]
+    },
+    "win64_wine": {
+      "executions": 148,
+      "ordinary_executions": 16,
+      "instrumented_executions": 132,
+      "actual_allocation_failures": 108,
+      "native_executions": 0,
+      "wine_executions": 148,
+      "path": "/workspace/scratch/39be3faa4442/run-logs/204-consumer/wine02",
+      "summary_sha256": "065e251536bb998f73807d224e90f96a2b206c95fd38761167a329397c115920",
+      "all_final_live_zero": true,
+      "all_bad_operations_zero": true,
+      "peak_requested_live_payload_bytes": 528,
+      "peak_live_allocations": 4,
+      "builds": [
+        {
+          "optimization": "O0",
+          "verification_runs": 1,
+          "llvm_sha256": "5ae113285bdf0ae22ac56eb68e2bf0c167fe0396a81be2ca06e9647fc15908af",
+          "executable_sha256": "34e6e7dbf89eca854e1cc3de4b84bb284f7c30f0cde45937e1a283397549bb56",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/store_helpers.zil"
+          },
+          "module_count": 5,
+          "probe_llvm_sha256": "d983c8847f7edca932977798182369ea9fa81749769b9776baef6207a4aac918",
+          "redirected_symbols": {
+            "HeapAlloc": 2,
+            "HeapReAlloc": 2,
+            "HeapFree": 2,
+            "ExitProcess": 2
+          },
+          "instrumentation": "separate exact external-symbol redirection",
+          "allocation_probe_sha256": "b6cf23c5cec546e6e534c630a434a46d5de97aa96b8d78e26c5445bf8ce9ee1c"
+        },
+        {
+          "optimization": "O2",
+          "verification_runs": 1,
+          "llvm_sha256": "5ae113285bdf0ae22ac56eb68e2bf0c167fe0396a81be2ca06e9647fc15908af",
+          "executable_sha256": "18dfcea819b376ec3587c6dd4178393201b3b99f79b2028cc2d32ae7a58ca504",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/store_captures204/store_helpers.zil"
+          },
+          "module_count": 5,
+          "probe_llvm_sha256": "d983c8847f7edca932977798182369ea9fa81749769b9776baef6207a4aac918",
+          "redirected_symbols": {
+            "HeapAlloc": 2,
+            "HeapReAlloc": 2,
+            "HeapFree": 2,
+            "ExitProcess": 2
+          },
+          "instrumentation": "separate exact external-symbol redirection",
+          "allocation_probe_sha256": "092cedb40374d546cb3cebaf7f8c55e3ca5f235d28ffe69e874e6d73d16b7d5b"
+        }
+      ]
+    }
+  },
+  "prior_failure": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/204-consumer/wine01",
+    "status": "Fail",
+    "summary_sha256": "f853c76ad2c625a5f43d651626dc65be8e99d3bf29287d6cb64bac497f9d1b63",
+    "cause": "Wine sandbox-local IPC startup rejected: wineserver bind Operation not permitted; successful matching observations = 0. The same source/CLI/oracle/prefix subsequently ran in permitted host process context.",
+    "successful_observations": 0
+  },
+  "wine_environment": {
+    "WINEPREFIX": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix-review181",
+    "WINESERVER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wineserver",
+    "WINELOADER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "WINEDEBUG": "-all",
+    "TMPDIR": null,
+    "library_path": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu"
+  },
+  "native_windows": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "archive": null
+}
