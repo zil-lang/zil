@@ -1,0 +1,606 @@
+{
+  "schema_version": 1,
+  "task": "199",
+  "implementation_author": "/root/bundle_sync",
+  "author_result": "Pass for bounded candidate checks; ready for independent review",
+  "baseline": "f360417bf3de9c5a87164f2ffd87a5f414be5710",
+  "production_commit": "22f74e02bb3cb0c4c840a04ba9951f91c38374fa",
+  "tested_candidate": "05f8e31cb1647385b2d96d6114b04630396a84e9",
+  "spec_hash": "09ef7fcdf2e71c2de38456d45d911aadc02dec3f355c4edaf8b51f2feb689c51",
+  "normative_hash": "92ede13ac8b9042f08a7b0d737abe6502f79eb6a62ffed8d92d77416585ed1a5",
+  "public_schema_version": 25,
+  "candidate_boundary": {
+    "contains_final_196_verify_051ecb81": false,
+    "final_196_combination": "7fef1779",
+    "claim": "These author runs are not relabeled as execution of the later complete production tree. Independent review merges the final 196 production and runs fresh checks."
+  },
+  "original_197_source": {
+    "bytes": 573,
+    "sha256": "f44c031e574bfeb1da67ad6cb2a26eb5c84faf78c8a1acbbf520c246c9769b4e",
+    "byte_equal_to_f360_and_current_197_and_199_fixtures": true
+  },
+  "final_targeted_tests": {
+    "command_record": "author/commands/source04/command.json",
+    "test_groups": 15,
+    "passed": 15,
+    "failed": 0,
+    "source_groups": 9,
+    "raw_wire_groups": 6,
+    "source_compilations": 77,
+    "compilation_outcomes": [
+      {
+        "status": "SafeReject",
+        "phase": "analyze",
+        "count": 1
+      },
+      {
+        "status": "SafeReject",
+        "phase": "expand",
+        "count": 4
+      },
+      {
+        "status": "SafeReject",
+        "phase": "types",
+        "count": 1
+      },
+      {
+        "status": "SafeReject",
+        "phase": "verify",
+        "count": 7
+      },
+      {
+        "status": "Success",
+        "phase": "link",
+        "count": 64
+      }
+    ],
+    "native_expected_outcomes_matched": 64,
+    "native_exit_codes": {
+      "0": 54,
+      "1": 10
+    },
+    "raw_inputs": 16,
+    "raw_controls_passed": 7,
+    "raw_attacks_safely_rejected": 9,
+    "wire_inputs": 16,
+    "wire_controls_passed": 7,
+    "wire_attacks_safely_rejected": 9
+  },
+  "legacy_197_migration": {
+    "command_record": "author/commands/legacy197/command.json",
+    "test_groups": 1,
+    "passed": 1,
+    "native_executions": 4,
+    "note": "Same original source and explicit-borrow control; not counted as additional unique capability."
+  },
+  "budget_frontiers": {
+    "source_receipt": "author/source04/callback199-raw-budgets-465778-4/boundaries.json",
+    "rows": [
+      {
+        "phase": "Types",
+        "N": 3244,
+        "below": "[Diagnostic { phase: Types, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"closure lookup snapshot budget exceeded\", span: Some(Span { file: FileId(0), start: 455, end: 474 }), notes: [] }]",
+        "fresh_retry": "Pass"
+      },
+      {
+        "phase": "Analyze",
+        "N": 14450,
+        "below": "[Diagnostic { phase: Analyze, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"analysis budget exceeded during public Hold projection\", span: None, notes: [] }]",
+        "fresh_retry": "Pass"
+      },
+      {
+        "phase": "Verify",
+        "N": 22203,
+        "below": "[Diagnostic { phase: Verify, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"independent verification work budget exhausted\", span: None, notes: [] }]",
+        "fresh_retry": "Pass"
+      }
+    ],
+    "default_limits_changed": false
+  },
+  "consumers": [
+    {
+      "profile": "linux",
+      "command_record": "author/commands/consumer-linux01/command.json",
+      "status": "Pass",
+      "source_commit": "21043cf6bee067f2927fb219de61a1160b4db8b5",
+      "cli_sha256": "84e44baefcfd4df675dc011a26664b552b1d35c19ca0de0d6bf9bfaabc40e3fe",
+      "executions": 86,
+      "native_executions": 86,
+      "wine_executions": 0,
+      "ordinary_executions": 14,
+      "instrumented_executions": 72,
+      "actual_allocation_failures": 52,
+      "source_files": {
+        "factory.zil": "f8c1b5ad42d026f5a56c210197fb12888ce1f9f182e146263e1c88f989bc62fc",
+        "main.zil": "37548ee6c3d3cd24b9457860ade2258674f62ef5165658d8abd0cb93a454e56e",
+        "model.zil": "0120e2729fe7327f9c9a22eee48506837fdb5739cac610448950ad6bb39a1fb0",
+        "state.zil": "a8ff2b7abf68812e4f93faf8c92d001e4a322e5f1879fc452f9b5713d1560f0f"
+      },
+      "oracle": "Every expected stdout, exit and allocation record matched; live=0; Win64 bad_operations=0."
+    },
+    {
+      "profile": "win64-wine",
+      "command_record": "author/commands/consumer-win6403/command.json",
+      "status": "Pass",
+      "source_commit": "e7c8fe3a49670b0359284bdcbf784abbe6937479",
+      "cli_sha256": "84e44baefcfd4df675dc011a26664b552b1d35c19ca0de0d6bf9bfaabc40e3fe",
+      "executions": 86,
+      "native_executions": 0,
+      "wine_executions": 86,
+      "ordinary_executions": 14,
+      "instrumented_executions": 72,
+      "actual_allocation_failures": 52,
+      "source_files": {
+        "factory.zil": "f8c1b5ad42d026f5a56c210197fb12888ce1f9f182e146263e1c88f989bc62fc",
+        "main.zil": "37548ee6c3d3cd24b9457860ade2258674f62ef5165658d8abd0cb93a454e56e",
+        "model.zil": "0120e2729fe7327f9c9a22eee48506837fdb5739cac610448950ad6bb39a1fb0",
+        "state.zil": "a8ff2b7abf68812e4f93faf8c92d001e4a322e5f1879fc452f9b5713d1560f0f"
+      },
+      "oracle": "Every expected stdout, exit and allocation record matched; live=0; Win64 bad_operations=0."
+    }
+  ],
+  "wine_environment": {
+    "TMPDIR": null,
+    "WINEPREFIX": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix-review181",
+    "WINESERVER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wineserver",
+    "WINELOADER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "WINEDEBUG": "-all"
+  },
+  "toolchain": {
+    "tools": [
+      {
+        "command": [
+          "rustc",
+          "-vV"
+        ],
+        "exit_code": 0,
+        "stdout": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "cargo",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "clang",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "Ubuntu clang version 17.0.6 (++20231209124227+6009708b4367-1~exp1~20231209124336.77)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "lld-link",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "Ubuntu LLD 17.0.6\n",
+        "stderr": ""
+      }
+    ],
+    "cli": "/workspace/scratch/39be3faa4442/targets199/author/debug/zil",
+    "cli_sha256": "84e44baefcfd4df675dc011a26664b552b1d35c19ca0de0d6bf9bfaabc40e3fe"
+  },
+  "first_failures_preserved": [
+    {
+      "run": "source01",
+      "receipt": "author/first-tool-result.json",
+      "result": "4/7 source groups; incorrect phase expectations and unsupported unsafe statement inside generic fixture; original bytes retained"
+    },
+    {
+      "run": "source02",
+      "receipt": "author/commands/source02/command.json",
+      "result": "6/7 source groups; parent transfer actual rejection was Verify/E-BORROW-CONFLICT, not Analyze"
+    },
+    {
+      "run": "source03",
+      "receipt": "author/commands/source03/command.json",
+      "result": "11/12 groups; dead parent rejected as E-VERIFY-INITIALIZATION earlier than expected E-VERIFY-RESOURCE"
+    },
+    {
+      "run": "consumer-win6401",
+      "receipt": "author/commands/consumer-win6401/command.json",
+      "result": "Infrastructure failure: absent explicit restored Wine prefix; first program exit53; no successful program behavior"
+    },
+    {
+      "run": "consumer-win6402",
+      "receipt": "author/ARCHIVE-MANIFEST-01.json",
+      "result": "Infrastructure failure before consumer invocation: host SHM full while writing environment/command metadata; files remained empty"
+    }
+  ],
+  "unsupported_probes_not_credited_as_safety": [
+    {
+      "path": "author/probes01/fresh-same-factory",
+      "result": "Expand Unsupported: direct fresh State field use in generic body"
+    },
+    {
+      "path": "author/probes01/nested-once",
+      "result": "Expand Unsupported: nested move closure in generic State body"
+    },
+    {
+      "path": "author/probes02",
+      "result": "Types Unsupported: explicit borrowed parameter with lending result"
+    },
+    {
+      "path": "author/probes03/last-call-owned-conflict",
+      "result": "Analyze SafeReject at owner-head transition; not credited as a final-call alias proof"
+    }
+  ],
+  "production_and_consumer_files": {
+    "crates/zil-types/src/lib.rs": "bf1bea02d20460dfe523c46750e8d69425a2a6256e7da2b4287471989ec6bf27",
+    "crates/zil-types/src/addresses.rs": "503621354fde73dee0d1b587d0d8feb6917fecafd57e638507edc4c1910b389e",
+    "crates/zil-types/src/packages.rs": "b5cd1a19832c888a4d7b1b998da431ba8600803b3a9a8510defc258321dffc31",
+    "crates/zil-types/src/helpers.rs": "73d6dac81964b3ae848007cd49d5be96710774f953d216bb6c4f3811f22ec35c",
+    "tools/language/199/consumer.py": "7b29c0c3bce49b804f1b3d64a738a91eb9a3add7070b4619be52b5ed847d5078",
+    "examples/mainline/callback_place199/factory.zil": "f8c1b5ad42d026f5a56c210197fb12888ce1f9f182e146263e1c88f989bc62fc",
+    "examples/mainline/callback_place199/main.zil": "37548ee6c3d3cd24b9457860ade2258674f62ef5165658d8abd0cb93a454e56e",
+    "examples/mainline/callback_place199/model.zil": "0120e2729fe7327f9c9a22eee48506837fdb5739cac610448950ad6bb39a1fb0",
+    "examples/mainline/callback_place199/state.zil": "a8ff2b7abf68812e4f93faf8c92d001e4a322e5f1879fc452f9b5713d1560f0f"
+  },
+  "reuse_byte_checks": [
+    {
+      "command": [
+        "git",
+        "diff",
+        "--exit-code",
+        "21043cf6",
+        "05f8e31cb1647385b2d96d6114b04630396a84e9",
+        "--",
+        "crates/zil-types/src/lib.rs",
+        "crates/zil-types/src/addresses.rs",
+        "crates/zil-types/src/packages.rs",
+        "crates/zil-types/src/helpers.rs",
+        "tools/language/199/consumer.py",
+        "examples/mainline/callback_place199/factory.zil",
+        "examples/mainline/callback_place199/main.zil",
+        "examples/mainline/callback_place199/model.zil",
+        "examples/mainline/callback_place199/state.zil"
+      ],
+      "exit_code": 0,
+      "production_and_consumer_byte_difference": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--exit-code",
+        "c308b887a8d4f1de59b2522cc4fdf2dea0deaff6",
+        "05f8e31cb1647385b2d96d6114b04630396a84e9",
+        "--",
+        ":(glob)crates/*/src/**",
+        "Cargo.toml",
+        "Cargo.lock"
+      ],
+      "exit_code": 0,
+      "production_and_consumer_byte_difference": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--exit-code",
+        "05f8e31cb1647385b2d96d6114b04630396a84e9",
+        "e7c8fe3a49670b0359284bdcbf784abbe6937479",
+        "--",
+        "crates/zil-types/src/lib.rs",
+        "crates/zil-types/src/addresses.rs",
+        "crates/zil-types/src/packages.rs",
+        "crates/zil-types/src/helpers.rs",
+        "tools/language/199/consumer.py",
+        "examples/mainline/callback_place199/factory.zil",
+        "examples/mainline/callback_place199/main.zil",
+        "examples/mainline/callback_place199/model.zil",
+        "examples/mainline/callback_place199/state.zil"
+      ],
+      "exit_code": 0,
+      "production_and_consumer_byte_difference": ""
+    }
+  ],
+  "command_records": {
+    "cli01": {
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-cli"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review195",
+      "start": 1793174575.814548,
+      "status": "Pass",
+      "source_commit": "c308b887a8d4f1de59b2522cc4fdf2dea0deaff6",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets199/author",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": null,
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "TMPDIR": "/dev/shm/zil199-author/tmp"
+      },
+      "exit_code": 0,
+      "end": 1793174576.5493455,
+      "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr.log_sha256": "70bc4555223ab146b709afa196a9346e4ba20d08fb5f4581ef606f2fddb5b048"
+    },
+    "source02": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl199_callback_place",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review195",
+      "start": 1793174495.879246,
+      "status": "Fail",
+      "source_commit": "34edaae506c00f0753214fe397f44b91e73e57cd",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets199/author",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/dev/shm/zil199-author/source02",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "TMPDIR": "/dev/shm/zil199-author/tmp"
+      },
+      "exit_code": 101,
+      "end": 1793174497.4381564,
+      "stdout.log_sha256": "f1a8c448edb4664cb46fbf76aeeb1decb5972afd73ab42fe57422a071e69f764",
+      "stderr.log_sha256": "4ad2c83256a8b924ed5e9ab25b74298dd4aeec364b90c469d7fe0f99337975f6"
+    },
+    "source03": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl199_callback_place",
+        "--test",
+        "impl199_callback_place_raw",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review195",
+      "start": 1793174773.3526988,
+      "status": "Fail",
+      "source_commit": "21043cf6bee067f2927fb219de61a1160b4db8b5",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets199/author",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/dev/shm/zil199-author/source03",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "TMPDIR": "/dev/shm/zil199-author/tmp"
+      },
+      "exit_code": 101,
+      "end": 1793174775.7852008,
+      "stdout.log_sha256": "eb47613611effb24b9af4bc78a24ea66e4bf3fcb8b2b0792dc8ff1187fd4fbfb",
+      "stderr.log_sha256": "b1afbcfd43cc2f84b0468ebecec823e1c15d2293da8919b51b7ee75ff4b9d98b"
+    },
+    "source04": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl199_callback_place",
+        "--test",
+        "impl199_callback_place_raw",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review195",
+      "start": 1793174987.203498,
+      "status": "Pass",
+      "source_commit": "05f8e31cb1647385b2d96d6114b04630396a84e9",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets199/author",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/dev/shm/zil199-author/source04",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "TMPDIR": "/dev/shm/zil199-author/tmp"
+      },
+      "exit_code": 0,
+      "end": 1793174989.7827098,
+      "stdout.log_sha256": "458161be4779e6dd066c2cfd952518251b744d4005c061f03554697fd89367d0",
+      "stderr.log_sha256": "270ca87d644ee4a107f4dc396f4b6e0397d945002bdcf5fe0db8e5fb6b41d9a3"
+    },
+    "legacy197": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl197_mixed_state",
+        "mixed_state_explicit_fnmut_field_borrows_compose_with_continue_and_break",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review195",
+      "start": 1793175117.8778982,
+      "status": "Pass",
+      "source_commit": "05f8e31cb1647385b2d96d6114b04630396a84e9",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets199/author",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": "/dev/shm/zil199-author/legacy197",
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "TMPDIR": "/dev/shm/zil199-author/tmp"
+      },
+      "exit_code": 0,
+      "end": 1793175119.089736,
+      "stdout.log_sha256": "38f5103050d4a94d51c8c58f74b8158743e73f838c4e597031b6d3fb6dc08632",
+      "stderr.log_sha256": "ac3e0f42b92bf2b8348169448fb28e3eb7d523dd3aa6949e449fbf6a80359a12"
+    },
+    "consumer-linux01": {
+      "command": [
+        "python3",
+        "tools/language/199/consumer.py",
+        "--repo",
+        ".",
+        "--cli",
+        "/workspace/scratch/39be3faa4442/targets199/author/debug/zil",
+        "--out",
+        "/dev/shm/zil199-author/consumer-linux01",
+        "--platform",
+        "linux"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review195",
+      "start": 1793174774.3253803,
+      "status": "Pass",
+      "source_commit": "21043cf6bee067f2927fb219de61a1160b4db8b5",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": null,
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": null,
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "TMPDIR": "/dev/shm/zil199-author/tmp"
+      },
+      "exit_code": 0,
+      "end": 1793174775.4099026,
+      "stdout.log_sha256": "5d4abd32dac9c534743011e9987b1e1b16d28148882437519b505ed8de59ba73",
+      "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "consumer-win6401": {
+      "command": [
+        "python3",
+        "tools/language/199/consumer.py",
+        "--repo",
+        ".",
+        "--cli",
+        "/workspace/scratch/39be3faa4442/targets199/author/debug/zil",
+        "--out",
+        "/dev/shm/zil199-author/consumer-win6401",
+        "--platform",
+        "win64",
+        "--wine",
+        "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+        "--wine-library-path",
+        "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu",
+        "--linker",
+        "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/lld-link",
+        "--windows-lib",
+        "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernel32.lib",
+        "--windows-lib",
+        "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/msvcrt.lib",
+        "--windows-lib",
+        "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernelbase.lib"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review195",
+      "start": 1793175110.9061003,
+      "status": "Fail",
+      "source_commit": "05f8e31cb1647385b2d96d6114b04630396a84e9",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": null,
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": null,
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "TMPDIR": null
+      },
+      "exit_code": 1,
+      "end": 1793175112.1295698,
+      "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr.log_sha256": "f74764688b2484028cb821c9b9212a90888f2c30ba3bd918ecc57818e3d475cd"
+    },
+    "consumer-win6403": {
+      "command": [
+        "python3",
+        "tools/language/199/consumer.py",
+        "--repo",
+        ".",
+        "--cli",
+        "/workspace/scratch/39be3faa4442/targets199/author/debug/zil",
+        "--out",
+        "/dev/shm/zil199-author/consumer-win6403",
+        "--platform",
+        "win64",
+        "--wine",
+        "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+        "--wine-library-path",
+        "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu",
+        "--linker",
+        "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/lld-link",
+        "--windows-lib",
+        "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernel32.lib",
+        "--windows-lib",
+        "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/msvcrt.lib",
+        "--windows-lib",
+        "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernelbase.lib"
+      ],
+      "cwd": "/workspace/scratch/39be3faa4442/language14/review195",
+      "start": 1793175434.7512982,
+      "status": "Pass",
+      "source_commit": "e7c8fe3a49670b0359284bdcbf784abbe6937479",
+      "git_status": "",
+      "environment": {
+        "CARGO_TARGET_DIR": null,
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "ZIL_TEST_REPORT_DIR": null,
+        "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+        "TMPDIR": null,
+        "WINEPREFIX": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix-review181",
+        "WINESERVER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wineserver",
+        "WINELOADER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+        "WINEDEBUG": "-all"
+      },
+      "exit_code": 0,
+      "end": 1793175522.9419065,
+      "stdout.log_sha256": "c3b453856107ebc153fced6cfe6d725e842f13488e8e6e7fbe5f0ec7c01fcdcc",
+      "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "external_evidence": {
+    "file": "199-author-evidence.zip",
+    "bytes": 9897749,
+    "sha256": "eaa387fc3d2f57763b3fc03b8941f15eb753f4de9cae09ade3f7aaf2fe1cf54a",
+    "payload_files": 4557,
+    "omitted_execution_artifacts": 214,
+    "contents": "Original source, phase IR, raw/Wire candidates, commands, stdout/stderr, manifests. Executable artifacts omitted. Archive is a separate deliverable and not committed into the main source tree."
+  },
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "rust_comparison": "No same-contract runtime/RSS, maintenance cost or compile-performance comparison in this task."
+}

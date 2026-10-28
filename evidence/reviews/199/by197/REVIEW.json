@@ -1,0 +1,345 @@
+{
+  "schema_version": 1,
+  "task": "199",
+  "reviewer": "/root/impl197",
+  "verdict": "Pass",
+  "scope": "Finite actual-local owning State direct Fn/FnMut callback-field calls; declared FnOnce consumption and preparation cleanup; current schema25 profile only.",
+  "independence": {
+    "production_author": "/root/bundle_sync",
+    "reviewer_wrote_199_production": false,
+    "reviewer_changes": "Seven new independent review tests plus evidence only; no production edits.",
+    "slice197": "Reviewer authored 197. This review does not independently approve that prerequisite; its old input is exercised solely as a 199 behavior regression."
+  },
+  "implementation_commit": "22f74e02bb3cb0c4c840a04ba9951f91c38374fa",
+  "tested_source_commit": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
+  "reviewed_metadata_merge": "e82c92bda8c52bc258cb1c318fe4ec6865516f07",
+  "196_final_base": "7fef177924227fb7be7d694b39d171afa1e13418",
+  "author_final_receipt": "f81743be7e208aea9c0ce95d60496f795062e6ca",
+  "spec_hash": "09ef7fcdf2e71c2de38456d45d911aadc02dec3f355c4edaf8b51f2feb689c51",
+  "normative_hash": "92ede13ac8b9042f08a7b0d737abe6502f79eb6a62ffed8d92d77416585ed1a5",
+  "public_schema_version": 25,
+  "source_equivalence": "SOURCE.json: 195 scoped compiled/test/consumer/normative inputs match the tested source after the metadata-only author-receipt merge.",
+  "author_base_boundary": "Author 05f8e31c excludes 196 Verify051. This review executed the actual merged source fff8ed85; author runs and budgets are not relabeled as runs of the merged tree.",
+  "final_tests": {
+    "status": "Pass",
+    "passed": 22,
+    "failed": 0,
+    "independent_new_groups": 7,
+    "author_source_groups_replayed": 9,
+    "author_raw_wire_groups_replayed": 6,
+    "source_compilations": 90,
+    "source_outcomes": [
+      {
+        "status": "SafeReject",
+        "phase": "analyze",
+        "count": 1
+      },
+      {
+        "status": "SafeReject",
+        "phase": "expand",
+        "count": 4
+      },
+      {
+        "status": "SafeReject",
+        "phase": "types",
+        "count": 1
+      },
+      {
+        "status": "SafeReject",
+        "phase": "verify",
+        "count": 10
+      },
+      {
+        "status": "Success",
+        "phase": "link",
+        "count": 74
+      }
+    ],
+    "new_native_executions": 10,
+    "author_native_executions_replayed": 64,
+    "native_optimization_levels": [
+      "O0",
+      "O2"
+    ],
+    "command_record": "commands/final01/command.json",
+    "git_status": ""
+  },
+  "original_197_control": {
+    "status": "Pass",
+    "groups": 1,
+    "native_executions": 4,
+    "command_record": "commands/original197-control/command.json",
+    "original_source_byte_equal_to_f360197_current197_and_current199": true,
+    "original_source_bytes": 573,
+    "original_source_sha256": "f44c031e574bfeb1da67ad6cb2a26eb5c84faf78c8a1acbbf520c246c9769b4e",
+    "prior_rejection_evidence": "Preserved in the 197 author evidence; not rewritten. New success is attributed to 199 only."
+  },
+  "independent_cases": [
+    {
+      "case": "Same concrete closure type on two actual State locals, callback at field index 2, nested calls and a real sibling-field borrow",
+      "actual": "O0/O2 exit 0, stdout PBAABbBaA; four exclusive borrowed calls and no callback field take in main. Source reentry on the same State rejected by Verify/E-BORROW-CONFLICT."
+    },
+    {
+      "case": "Inner callee field retargeted to the outer borrowed State",
+      "actual": "Raw and Wire SafeReject/Verify/E-BORROW-CONFLICT; rebuilt untrusted candidate matches the forged origins, so rejection is not merely a fingerprint mismatch."
+    },
+    {
+      "case": "One actual Fn ClosureId used through two separate declared FnOnce and Fn State helpers",
+      "actual": "O0/O2 exit 0, stdout ASXTB; exactly one consuming call/take and two borrowed shared calls. No declared-mode bleed across these instantiated helpers."
+    },
+    {
+      "case": "Fn adapted to declared FnOnce before fallible argument preparation",
+      "actual": "TakePackageField precedes argument call in actual IR. Success O0/O2 stdout PCAXT exit 0; failure O0/O2 stdout PAT exit 1. Prepared environment cleaned once; callback body not called on failed argument."
+    },
+    {
+      "case": "Live lending results from distinct State instances with identical concrete closure type",
+      "actual": "O0/O2 exit 0 and real sibling writes succeed. Same-State source reuse and raw/Wire actual-local retarget each reject E-BORROW-CONFLICT."
+    },
+    {
+      "case": "Conditional argument tries to move its already-borrowed parent",
+      "actual": "Verify/E-BORROW-CONFLICT, including the syntactically present branch with false runtime condition."
+    },
+    {
+      "case": "Actual field lookup and nested windows exact phase budgets",
+      "actual": {
+        "types": 3165,
+        "analyze": 15819,
+        "verify": 30700,
+        "checks": "N, N-1 ResourceLimit, fresh N",
+        "defaults_unchanged": true
+      }
+    }
+  ],
+  "raw_wire": {
+    "new_source_derived_control_pairs_executed": 6,
+    "new_attack_pairs": 2,
+    "new_attack_routes": 4,
+    "author_pairs_replayed": 16,
+    "author_control_pairs_replayed": 7,
+    "author_attack_pairs_replayed": 9,
+    "note": "A pair means separate raw-module and encoded-Wire Verify calls. Some source-derived controls reuse a fixture; counts are executions, not unique capabilities. Budget retries are separate."
+  },
+  "budgets": {
+    "defaults_changed": false,
+    "independent_nested_windows": {
+      "types": 3165,
+      "analyze": 15819,
+      "verify": 30700,
+      "checks": "N, N-1 ResourceLimit, fresh N",
+      "defaults_unchanged": true
+    },
+    "author_fixture_on_merged_196_base": [
+      {
+        "phase": "Types",
+        "N": 3244,
+        "below": "[Diagnostic { phase: Types, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"closure lookup snapshot budget exceeded\", span: Some(Span { file: FileId(0), start: 455, end: 474 }), notes: [] }]",
+        "fresh_retry": "Pass"
+      },
+      {
+        "phase": "Analyze",
+        "N": 14450,
+        "below": "[Diagnostic { phase: Analyze, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"analysis budget exceeded during public Hold projection\", span: None, notes: [] }]",
+        "fresh_retry": "Pass"
+      },
+      {
+        "phase": "Verify",
+        "N": 22199,
+        "below": "[Diagnostic { phase: Verify, category: ResourceLimit, code: \"E-RESOURCE-LIMIT\", message: \"independent verification work budget exhausted\", span: None, notes: [] }]",
+        "fresh_retry": "Pass"
+      }
+    ],
+    "old_author_verify_boundary": {
+      "N": 22203,
+      "basis": "author05f8 without Verify051; preserved in author receipt, not reused here"
+    }
+  },
+  "consumer": {
+    "status": "Pass",
+    "source_commit": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
+    "cli_sha256": "94c568fc9d450e1e0c3e695720b722bba393da9b77d74704d72405af552ded00",
+    "cli_build_command": "commands/build-cli01/command.json",
+    "command_record": "commands/consumer-linux01/command.json",
+    "result": "consumer-linux01/summary.json",
+    "platform": "Linux native",
+    "modules": 4,
+    "optimization_levels": [
+      "O0",
+      "O2"
+    ],
+    "executions": 86,
+    "ordinary_executions": 14,
+    "instrumented_executions": 72,
+    "actual_allocation_failures": 52,
+    "every_observed_live_count_after_cleanup": 0,
+    "oracle": "0/1/2/3/7 calls, EOF and invalid input; State reserve then callback reserve; A plus completed counter characters plus Z cleanup; exact allocation/free/count/peak-byte records; all real failure points and one after-last control.",
+    "instrumentation_boundary": "Allocator C probe is separately linked observation instrumentation. The ordinary consumer and its control flow, storage, callback, counter and cleanup are ZIL.",
+    "win64_wine_by_reviewer": "NotRun; parent requested no duplicate author replay. Author f817 separately records its 86 Wine executions on its own earlier production base."
+  },
+  "code_review_findings": [
+    "Callee location is resolved before arguments. Only a direct Member whose object is an actual local Name and whose concrete package field is a closure enters the new path.",
+    "Fn/FnMut reuse existing actual BorrowPackageField and CallClosureBorrowed semantics; FnOnce takes the actual field. General field reads and unsupported temporaries retain prior behavior.",
+    "The declared-mode hint is Builder-local and initialized from the bound State helper. Current admitted cases isolate actual State positions and helper modes. No claim is made for currently rejected fresh/nested generic-State shapes.",
+    "Field lookup/type snapshots are charged before work. Public schema, Analyze, Verify and default limits were not modified by 199.",
+    "Package-field privacy remains checked by the existing aggregate visibility pass for both BorrowPackageField and TakePackageField."
+  ],
+  "boundary_observations": [
+    {
+      "case": "fresh same-factory State inside a generic State helper, and nested move closure calling State callback",
+      "ownership": "Author probes preserved in 199-author-evidence.zip",
+      "actual": "Expand Unsupported",
+      "decision": "Closed composition, not counted as a source-borrow safety proof. The independent accepted same-ClosureId mode-isolation case is separate."
+    },
+    {
+      "case": "explicit borrowed callback parameter with lending result",
+      "ownership": "Author probe preserved in 199-author-evidence.zip",
+      "actual": "Types Unsupported",
+      "decision": "No admission widening in this review."
+    },
+    {
+      "case": "IR mutation changing original source declared mode where the actual closure capability permits it",
+      "decision": "Source-to-IR semantic preservation is checked by actual source/IR mode assertions and runtime cleanup. Arbitrary raw rewrites are judged by represented IR permissions; they do not by themselves prove equivalence to erased source bounds."
+    }
+  ],
+  "retained_attempts": [
+    {
+      "command_record": "commands/build-cli01/command.json",
+      "argv": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-cli",
+        "--bin",
+        "zil"
+      ],
+      "source_commit": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
+      "status": "Pass",
+      "exit_code": 0,
+      "git_status": "",
+      "test_summaries": []
+    },
+    {
+      "command_record": "commands/consumer-linux01/command.json",
+      "argv": [
+        "python3",
+        "tools/language/199/consumer.py",
+        "--repo",
+        "/workspace/scratch/39be3faa4442/language14/review196-by197",
+        "--cli",
+        "/workspace/scratch/39be3faa4442/targets199/review/debug/zil",
+        "--out",
+        "/dev/shm/zil199-review-by197/consumer-linux01",
+        "--platform",
+        "linux"
+      ],
+      "source_commit": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
+      "status": "Pass",
+      "exit_code": 0,
+      "git_status": "",
+      "test_summaries": []
+    },
+    {
+      "command_record": "commands/final01/command.json",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review199_by197",
+        "--test",
+        "impl199_callback_place",
+        "--test",
+        "impl199_callback_place_raw",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_commit": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
+      "status": "Pass",
+      "exit_code": 0,
+      "git_status": "",
+      "test_summaries": [
+        "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.89s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.45s"
+      ]
+    },
+    {
+      "command_record": "commands/original197-control/command.json",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl197_mixed_state",
+        "mixed_state_explicit_fnmut_field_borrows_compose_with_continue_and_break",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_commit": "fff8ed85a10bb977cd7d71fa5d3a134b96107f0c",
+      "status": "Pass",
+      "exit_code": 0,
+      "git_status": "",
+      "test_summaries": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.38s"
+      ]
+    },
+    {
+      "command_record": "commands/tests01/command.json",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "review199_by197",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "source_commit": "70ba1d559ff84317eb5b3ba1c82fddeb608fd2a4",
+      "status": "Pass",
+      "exit_code": 0,
+      "git_status": "",
+      "test_summaries": [
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.63s"
+      ]
+    }
+  ],
+  "failed_independent_test_or_consumer_attempts": 0,
+  "archive": {
+    "scope": "evidence packaging only",
+    "status": "ArchivedAndVerified",
+    "archive": "199-review-by197-evidence.zip",
+    "bytes": 5563055,
+    "sha256": "1070a38e99ed5831ef47d578a484929b70e72a445d9fb8cddda6f57eeba5be7b",
+    "included_files": 2101,
+    "included_bytes": 108214116,
+    "omitted_execution_artifacts": 92,
+    "omitted_execution_bytes": 1499704,
+    "full_manifest": "ARCHIVE-MANIFEST.json inside archive",
+    "storage": "Separate evidence deliverable; archive is not committed into the source repository."
+  },
+  "formal_workspace": "NotRun by reviewer; parent owns final integration validation.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing",
+  "native_windows": "NotRun by reviewer",
+  "rust_goal_reflection": {
+    "same_class_safety": "Actual local permission, mode, cleanup and forged-origin evidence supports this finite profile. Full-language safety is not established.",
+    "runtime_and_memory": "Exact observed allocation/free balance and cleanup at all tested failures; no same-contract Rust runtime/RSS comparison.",
+    "expression_and_maintenance": "Direct callback fields now compose with existing loop/sibling-field forms in actual programs; no framework maintenance-cost benchmark.",
+    "compilation_cost": "No compilation performance comparison in this language review.",
+    "repeatable_net_breakthrough": "This concrete usability defect is closed, but no product-level four-goal conjunction or repeatable net breakthrough is claimed."
+  }
+}

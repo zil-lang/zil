@@ -1,0 +1,15 @@
+{
+  "summary": {
+    "path": "evidence/impl/199/SUMMARY.json",
+    "bytes": 23543,
+    "sha256": "00e32d8b9c5e0f7174d457a50479e7c783cc96a6abb0c5be686aa33d76a2182a"
+  },
+  "external_evidence": {
+    "file": "199-author-evidence.zip",
+    "bytes": 9897749,
+    "sha256": "eaa387fc3d2f57763b3fc03b8941f15eb753f4de9cae09ade3f7aaf2fe1cf54a",
+    "payload_files": 4557,
+    "omitted_execution_artifacts": 214,
+    "contents": "Original source, phase IR, raw/Wire candidates, commands, stdout/stderr, manifests. Executable artifacts omitted. Archive is a separate deliverable and not committed into the main source tree."
+  }
+}
