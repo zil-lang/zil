@@ -10,8 +10,9 @@ use zil_base::{
     Diagnostic, FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile,
 };
 use zil_ir::{
-    CallableExit, CallableFlow, CallableFlowNext, CallableFlowNode, CallableKind, CallableTrace,
-    CallableTraces, CandidatePlan, TypedModule,
+    CallableCleanup, CallableExit, CallableFlow, CallableFlowNext, CallableFlowNode, CallableKind,
+    CallableTrace, CallableTraces, CandidatePlan, Constant, InstructionKind, Terminator,
+    TypedModule,
 };
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -388,4 +389,374 @@ fn exact_verification_work_frontier_rejects_without_poisoning_a_fresh_request() 
         attempt(Limits::default().max_analysis_steps).unwrap();
         fs::write(directory("work-frontier").join("boundary.json"), format!("{{\"wire\":{wire},\"minimum_steps\":{high},\"n_minus_1_rejected\":true,\"fresh_retry\":true}}\n")).unwrap();
     }
+}
+
+#[test]
+fn actual_instructions_and_cfg_are_checked_against_the_graph_independently() {
+    let (module, candidate) = baseline(SOURCE);
+    for mutation in 0..2 {
+        let mut changed = module.clone();
+        let function = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.callable_contract.is_some())
+            .unwrap();
+        if mutation == 0 {
+            let instruction = function
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::CallClosureBorrowed { .. }))
+                .unwrap();
+            instruction.kind = InstructionKind::Constant(Constant::I32(0));
+        } else {
+            let header = function
+                .blocks
+                .iter()
+                .find(|b| matches!(b.terminator, Terminator::Branch { .. }))
+                .unwrap()
+                .id;
+            let body = function
+                .blocks
+                .iter_mut()
+                .find(|b| {
+                    matches!(b.terminator, Terminator::Jump(target) if target == header)
+                        && b.instructions
+                            .iter()
+                            .any(|i| matches!(i.kind, InstructionKind::CallClosureBorrowed { .. }))
+                })
+                .unwrap();
+            body.terminator = Terminator::Trap;
+        }
+        reject(
+            &format!("actual-body-{mutation}"),
+            changed,
+            candidate.clone(),
+            ResultCategory::SafeReject,
+            "E-VERIFY-CALLABLE-CONTRACT",
+        );
+    }
+}
+
+#[test]
+fn nested_flow_copies_do_not_share_continuations_or_trust_coordinated_claims() {
+    let source = r#"
+fn leaf<F:Fn()->i32>(f:&F,n:i32)->i32{var i=0;var sum=0;while i<n{sum+=f();i+=1}return sum}
+fn outer<F:Fn()->i32>(f:&F,n:i32)->i32{let first=leaf(f,n);let middle=f();let second=leaf(f,n+1);return first+middle+second}
+fn main()->i32{let f=move()=>1;return outer(&f,3)-8}
+"#;
+    let (module, candidate) = baseline(source);
+    assert_eq!(
+        module
+            .functions
+            .iter()
+            .filter(|f| matches!(
+                f.callable_contract.as_ref().map(|c| &c.traces),
+                Some(CallableTraces::Flow(_))
+            ))
+            .count(),
+        2
+    );
+    let mut changed = module.clone();
+    for function in &mut changed.functions {
+        if let Some(contract) = &mut function.callable_contract {
+            let CallableTraces::Flow(flow) = &mut contract.traces else {
+                panic!("both helpers are cyclic");
+            };
+            for node in &mut flow.nodes {
+                node.calls.clear();
+            }
+        }
+    }
+    reject(
+        "coordinated-empty-flow",
+        changed,
+        candidate.clone(),
+        ResultCategory::SafeReject,
+        "E-VERIFY-CALLABLE-CONTRACT",
+    );
+    let mut changed = module;
+    let graph = changed
+        .functions
+        .iter_mut()
+        .filter_map(|f| f.callable_contract.as_mut())
+        .filter_map(|c| match &mut c.traces {
+            CallableTraces::Flow(flow) => Some(flow),
+            _ => None,
+        })
+        .max_by_key(|f| f.nodes.len())
+        .unwrap();
+    let last = graph
+        .nodes
+        .iter()
+        .position(|n| n.next == CallableFlowNext::Exit(CallableExit::Return))
+        .unwrap() as u32;
+    let next = graph.nodes.iter_mut().enumerate().find(|(index, n)| matches!(&n.next, CallableFlowNext::Edges(edges) if edges.len() == 1 && edges[0] as usize > *index && edges[0] != last)).unwrap().1;
+    next.next = CallableFlowNext::Edges(vec![last]);
+    reject(
+        "stolen-child-continuation",
+        changed,
+        candidate,
+        ResultCategory::SafeReject,
+        "E-VERIFY-CALLABLE-CONTRACT",
+    );
+}
+
+#[test]
+fn a_same_typed_factory_instance_cannot_replace_the_parameter_on_a_backedge() {
+    let source = r#"
+fn make(n:i32)->impl Fn()->i32{return move()=>n}
+fn leaf<F:Fn()->i32>(f:&F)->i32=>f()
+fn run<F:Fn()->i32>(f:&F,n:i32)->i32{let unrelated=make(99);let ignored=&unrelated;ignored;var i=0;var sum=0;while i<n{sum+=leaf(f);i+=1}return sum}
+fn main()->i32{let f=make(4);return run(&f,3)-12}
+"#;
+    let (mut module, candidate) = baseline(source);
+    let leaf = module
+        .functions
+        .iter()
+        .find(|f| {
+            matches!(
+                f.callable_contract.as_ref().map(|c| &c.traces),
+                Some(CallableTraces::Finite(_))
+            )
+        })
+        .unwrap()
+        .id;
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| {
+            matches!(
+                f.callable_contract.as_ref().map(|c| &c.traces),
+                Some(CallableTraces::Flow(_))
+            )
+        })
+        .unwrap();
+    let local = function
+        .locals
+        .iter()
+        .find(|l| l.name == "unrelated")
+        .unwrap()
+        .id;
+    let other = function
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            matches!(i.kind, InstructionKind::BorrowLocal { local: actual } if local == actual)
+                .then_some(i.result)
+                .flatten()
+        })
+        .unwrap();
+    let call = function
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(
+            |i| matches!(i.kind, InstructionKind::Call { function: callee, .. } if callee == leaf),
+        )
+        .unwrap();
+    let InstructionKind::Call { arguments, .. } = &mut call.kind else {
+        unreachable!()
+    };
+    assert_eq!(
+        function.values[arguments[0].0 as usize],
+        function.values[other.0 as usize]
+    );
+    arguments[0] = other;
+    reject(
+        "same-closure-id-on-loop",
+        module,
+        candidate,
+        ResultCategory::SafeReject,
+        "E-VERIFY-CALLABLE-CONTRACT",
+    );
+}
+
+#[test]
+fn a_nonreturning_cycle_keeps_its_reachable_call_prefix() {
+    let (mut module, _) = baseline(SOURCE);
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap();
+    // Form a legitimate raw CFG with an unconditional runtime backedge. The
+    // original return block becomes unreachable; no infinite machine is run.
+    let header = function
+        .blocks
+        .iter_mut()
+        .find(|b| matches!(b.terminator, Terminator::Branch { .. }))
+        .unwrap();
+    let Terminator::Branch { then_block, .. } = header.terminator else {
+        unreachable!()
+    };
+    header.terminator = Terminator::Jump(then_block);
+    let CallableTraces::Flow(graph) = &mut function.callable_contract.as_mut().unwrap().traces
+    else {
+        unreachable!()
+    };
+    let exit = graph
+        .nodes
+        .iter()
+        .position(|n| n.next == CallableFlowNext::Exit(CallableExit::Return))
+        .unwrap();
+    graph.nodes.remove(exit);
+    for node in &mut graph.nodes {
+        if let CallableFlowNext::Edges(edges) = &mut node.next {
+            edges.retain(|target| *target as usize != exit);
+            for target in edges {
+                if *target as usize > exit {
+                    *target -= 1;
+                }
+            }
+        }
+    }
+    assert!(graph.nodes.iter().any(|n| !n.calls.is_empty()));
+    assert!(
+        graph
+            .nodes
+            .iter()
+            .all(|n| !matches!(n.next, CallableFlowNext::Exit(_)))
+    );
+    let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        candidate.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes =
+        zil_ir::wire::encode_module_candidate(&module, &candidate, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+    fs::write(
+        directory("nonreturning-positive").join("candidate.wire"),
+        bytes,
+    )
+    .unwrap();
+    let graph = flow(&mut module);
+    for node in &mut graph.nodes {
+        node.calls.clear();
+    }
+    reject(
+        "nonreturning-prefix-omission",
+        module,
+        candidate,
+        ResultCategory::SafeReject,
+        "E-VERIFY-CALLABLE-CONTRACT",
+    );
+}
+
+#[test]
+fn child_copy_size_is_checked_before_allocating_a_forged_short_parent_claim() {
+    let mut source = "fn leaf0<F:Fn()->i32>(f:&F,n:i32)->i32{var i=0;var sum=0;while i<n{sum+=f();i+=1}return sum}".to_owned();
+    for i in 1..=5 {
+        source.push_str(&format!(
+            "fn leaf{i}<F:Fn()->i32>(f:&F,n:i32)->i32=>leaf{}(f,n)+leaf{}(f,n)\n",
+            i - 1,
+            i - 1
+        ));
+    }
+    source.push_str("fn main()->i32{let f=move()=>1;return leaf5(&f,1)-32}");
+    let (module, candidate) = baseline(&source);
+    let (parent, count) = module
+        .functions
+        .iter()
+        .enumerate()
+        .filter_map(
+            |(i, f)| match f.callable_contract.as_ref().map(|c| &c.traces) {
+                Some(CallableTraces::Flow(flow)) => Some((i, flow.nodes.len())),
+                _ => None,
+            },
+        )
+        .max_by_key(|(_, count)| *count)
+        .unwrap();
+    let exact = Limits {
+        max_nodes: count,
+        ..Limits::default()
+    };
+    zil_analyze::analyze(&module, &exact).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &exact).unwrap();
+    let mut changed = module;
+    changed.functions[parent]
+        .callable_contract
+        .as_mut()
+        .unwrap()
+        .traces = CallableTraces::Flow(CallableFlow {
+        entry: 0,
+        nodes: vec![CallableFlowNode {
+            calls: Vec::new(),
+            next: CallableFlowNext::Edges(vec![0]),
+        }],
+    });
+    let mut candidate = candidate;
+    candidate.module_fingerprint = changed.fingerprint();
+    let limits = Limits {
+        max_nodes: count - 1,
+        ..Limits::default()
+    };
+    for errors in [
+        zil_analyze::analyze(&changed, &limits).unwrap_err(),
+        zil_verify::verify_module(changed.clone(), candidate, &changed.target, &limits)
+            .unwrap_err(),
+    ] {
+        assert!(has_limit(&errors), "{errors:?}");
+        assert!(
+            errors.iter().any(|d| d.message.contains("helper flow")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn a_flow_does_not_waive_hold_call_write_or_cleanup_obligations() {
+    let (module, candidate) = baseline(SOURCE);
+    for mutation in 0..4 {
+        let mut changed = module.clone();
+        let claim = changed
+            .functions
+            .iter_mut()
+            .find_map(|f| f.callable_contract.as_mut())
+            .unwrap();
+        match mutation {
+            0 => claim.hold.push(0),
+            1 => claim.call.push(0),
+            2 => claim.writes.push(0),
+            _ => claim.cleanup = CallableCleanup::Owned,
+        }
+        reject(
+            &format!("envelope-{mutation}"),
+            changed,
+            candidate.clone(),
+            ResultCategory::SafeReject,
+            "E-VERIFY-CALLABLE-CONTRACT",
+        );
+    }
+}
+
+#[test]
+fn a_repeatable_label_does_not_authorize_consuming_an_owned_capture() {
+    let (mut module, candidate) = baseline(
+        "resource R{n:i32}fn run<F:Fn()->i32>(f:&F,n:i32)->i32{var i=0;var sum=0;while i<n{sum+=f();i+=1}return sum}fn main()->i32{let owned=R{n:4};let f=move()=>{let scratch=R{n:99};return owned.n};return run(&f,3)-12}",
+    );
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.environment.is_some())
+        .unwrap();
+    let make = function
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, InstructionKind::MakeManaged { .. }))
+        .unwrap();
+    make.kind = InstructionKind::TakeCapture { index: 0 };
+    reject(
+        "repeatable-capture-consumption",
+        module,
+        candidate,
+        ResultCategory::SafeReject,
+        "E-VERIFY-CLOSURE-CALL",
+    );
 }
