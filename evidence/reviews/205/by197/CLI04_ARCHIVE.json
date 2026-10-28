@@ -1,0 +1,36 @@
+{
+  "reviewer": "/root/review205_finish",
+  "scope": "Byte-preserving compact evidence for completed CLI04 finite independent runs; archive verification is not compiler acceptance",
+  "archive": {
+    "integrity": "Pass",
+    "path": "/workspace/scratch/39be3faa4442/deliverables/205-review-cli04-evidence-compact.zip",
+    "bytes": 890675,
+    "sha256": "e8a0fbadea97f4a66754c40237b7b53c17b56aeee2f6d30eba4f1cf39d938932",
+    "statistics": {
+      "logical_files": 677,
+      "logical_bytes": 33303553,
+      "unique_contents": 383,
+      "unique_bytes": 18622813,
+      "excluded_execution_products": 10
+    },
+    "test_execution": "NotRun by packager"
+  },
+  "pack_receipt": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup-pack01/command/command.json",
+    "bytes": 966,
+    "sha256": "e721fc35335c73b821acf5974328f4f61c3f5fbc3f6350065a9cb4a1fd0f5bbb"
+  },
+  "verify_receipt": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/205-review-followup-pack01/verify/command.json",
+    "bytes": 843,
+    "sha256": "1b270e5c531eb8c0492dbadfc1f06444889ab07be0062c90000d0e4d289bda6b"
+  },
+  "source_metadata_commit": "7e531bbdac6a239de8342ab2c7ead6a53d9cdaa9",
+  "language_test_execution_by_packager": "NotRun",
+  "prior_archive": {
+    "path": "/workspace/scratch/39be3faa4442/deliverables/205-review-cli03-evidence-compact.zip",
+    "bytes": 3188592,
+    "sha256": "f96c3e24860276437853cef45b3b4706edb6dbe23809603aae1c6ca0c6881a19"
+  },
+  "original_failures_and_cli03_results": "Retained under their original identities in the prior archive; not overwritten by the new final-production observations"
+}
