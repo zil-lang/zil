@@ -708,7 +708,7 @@ impl Resolver<'_> {
                 if !errors::supported(&union) {
                     return Err(unsupported(
                         span,
-                        "error union payloads require finite Copy/complete Packages, or a Copy error and explicit owned resource success",
+                        "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
                     ));
                 }
                 union
