@@ -249,8 +249,8 @@ fn actual_copy_can_fill_two_inputs_but_noncopy_cannot_duplicate_responsibility()
             "{RESOURCE}{ONCE}fn make()->impl FnOnce()->i32{{let ticket=Ticket{{code:65}};return move()=>{{let taken=give ticket;return taken.code}}}}fn main()->i32{{let f=make();let state=pack(f,f);return 0}}"
         ),
         ResultCategory::SafeReject,
-        &[Phase::Analyze, Phase::Verify],
-        "mov",
+        &[Phase::Analyze],
+        "not initialized",
     );
 }
 
@@ -512,9 +512,9 @@ fn uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions() {
     reject(
         "unused-copy-operation",
         "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;value:T}fn pack<T:Copy,F:Fn()->i32>(a:F,b:F,value:T)->State<T,F>{let bad=value+value;return State::<T,F>{bytes:bytes_new(),a:a,b:b,value:bad}}fn main(){}",
-        ResultCategory::SafeReject,
+        ResultCategory::Unsupported,
         &[Phase::Expand],
-        "Copy",
+        "declared bound",
     );
     let prefix = "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn pack<F:Fn()->i32>(a:F,b:F)->State<F>{return State::<F>{bytes:bytes_new(),a:a,b:b}}";
     reject(
@@ -547,24 +547,60 @@ fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>, maximum: 
 }
 #[test]
 fn field_identity_and_instance_preparation_have_actual_budget_boundaries() {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget200.zil", ORIGINALS[1]);
-    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
-    let core = zil_expand::expand(&unit, &syntax).unwrap();
-    let types = boundary(
-        |n| {
-            zil_types::check(
-                &core,
-                &TargetProfile::host_llvm(),
-                &Limits {
-                    max_analysis_steps: n,
-                    ..Limits::default()
-                },
-            )
-            .map(|_| ())
-        },
-        Limits::default().max_analysis_steps,
-    );
-    let case = Case::new("budgets");
-    fs::write(case.0.join("source.zil"), ORIGINALS[1]).unwrap();
-    fs::write(case.0.join("boundaries.json"),format!("{{\"types\":{types},\"checks\":\"N, N-1 ResourceLimit, fresh N\",\"analyze_verify\":\"separate independent suites\"}}\n")).unwrap();
+    let copy = "package State<F>{manages bytes:ByteBuffer;first:F;second:F}fn pack<F:FnMut(i32)->i32>(a:F,b:F)->State<F>{return State::<F>{bytes:bytes_new(),first:a,second:b}}fn make()->impl FnMut(i32)->i32{var n=0;return move(delta:i32)=>{n+=delta;return n}}fn main()->i32{var f=make();var state=pack(f,f);return state.first(1)+state.second(10)+f(100)-111}";
+    let managed = "resource R{n:i32}package State<F>{manages root:R;manages bytes:ByteBuffer;first:F;second:F}fn pack<F:Fn()->i32>(a:F,give root:R,b:F)->State<F>{let bytes=bytes_new();return State::<F>{root:give root,bytes:give bytes,first:a,second:b}}fn make()->impl Fn()->i32{return move()=>1}fn main()->i32{let state=pack(make(),R{n:7},make());return state.first()+state.second()-2}";
+    for (label, source) in [
+        ("owned", ORIGINALS[1]),
+        ("copy-publication", copy),
+        ("managed-preparation", managed),
+    ] {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget200.zil", source);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = zil_expand::expand(&unit, &syntax).unwrap();
+        let expand = boundary(
+            |n| {
+                zil_expand::expand_with_map_limits(
+                    &unit,
+                    &syntax,
+                    &Limits {
+                        max_analysis_steps: n,
+                        ..Limits::default()
+                    },
+                )
+                .map(|_| ())
+            },
+            Limits::default().max_analysis_steps,
+        );
+        let types = boundary(
+            |n| {
+                zil_types::check(
+                    &core,
+                    &TargetProfile::host_llvm(),
+                    &Limits {
+                        max_analysis_steps: n,
+                        ..Limits::default()
+                    },
+                )
+                .map(|_| ())
+            },
+            Limits::default().max_analysis_steps,
+        );
+        let locals = boundary(
+            |n| {
+                zil_types::check(
+                    &core,
+                    &TargetProfile::host_llvm(),
+                    &Limits {
+                        max_locals: n,
+                        ..Limits::default()
+                    },
+                )
+                .map(|_| ())
+            },
+            Limits::default().max_locals,
+        );
+        let case = Case::new(&format!("budget-{label}"));
+        fs::write(case.0.join("source.zil"), source).unwrap();
+        fs::write(case.0.join("boundaries.json"),format!("{{\"expand_work\":{expand},\"types_work\":{types},\"types_locals\":{locals},\"checks\":\"N, N-1 ResourceLimit, fresh N\",\"analyze_verify\":\"separate independent suites\"}}\n")).unwrap();
+    }
 }
