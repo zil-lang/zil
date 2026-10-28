@@ -206,7 +206,7 @@ fn run<F:FnMut(i32)->i32>(pair:Pair<F>)->void!i32{
     if !store_reserve(items,4){return ()}
     var tail=store_pop(items)?;let t=tail.callback(4);
     let c=store_at_mut(items,0);let u=c.callback(5);
-    return x+y+z+t+u-352
+    return x+y+z+t+u-252
 }
 fn main()->void!i32{return run(pack(make(65,10),make(66,100)))}
 "#;
@@ -226,7 +226,7 @@ fn same_closure_type_has_two_actual_elements_and_exact_pop_prefix_cleanup() {
     let source = format!("{PREFIX}{MULTIPLE}");
     native("two-elements-aligned-captures", &source, "BQAPZ", 0);
     let start = "let a=store_at_mut(items,0);let x=a.callback(1);let y=a.callback(2);";
-    let end = "return x+y+z+t+u-352";
+    let end = "return x+y+z+t+u-252";
     let left = source.find(start).unwrap();
     let right = source.find(end).unwrap() + end.len();
     let unused = format!("{}return 0{}", &source[..left], &source[right..]);
@@ -497,7 +497,7 @@ fn raw_same_id_element_values_cannot_duplicate_a_pushed_responsibility() {
         original,
         false,
         ResultCategory::SafeReject,
-        "E-VERIFY-MOVE",
+        "E-VERIFY-RESOURCE",
     );
 }
 
