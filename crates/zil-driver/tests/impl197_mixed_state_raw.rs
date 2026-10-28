@@ -92,7 +92,13 @@ fn runs(module: &TypedModule) -> Vec<&zil_ir::TypedFunction> {
     module
         .functions
         .iter()
-        .filter(|f| f.name.contains("$generic_run_"))
+        .filter(|f| {
+            f.parameters.len() == 1
+                && matches!(
+                    f.locals[f.parameters[0].0 as usize].ty,
+                    Type::Package { .. }
+                )
+        })
         .collect()
 }
 fn state_type(function: &zil_ir::TypedFunction) -> &Type {
@@ -279,7 +285,7 @@ fn raw_and_wire_reject_actual_factory_returning_a_different_data_state() {
     let factories = module
         .functions
         .iter()
-        .filter(|f| f.name.contains("$generic_make_"))
+        .filter(|f| matches!(f.return_type, Type::Package { .. }))
         .collect::<Vec<_>>();
     let first=factories.iter().find(|f|matches!(&f.return_type,Type::Package{fields,..}if fields.iter().any(|(n,t)|n=="value"&&*t==Type::I32))).unwrap().id;
     let second=factories.iter().find(|f|matches!(&f.return_type,Type::Package{fields,..}if fields.iter().any(|(n,t)|n=="value"&&*t==Type::I64))).unwrap().id;
