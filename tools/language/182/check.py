@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--target", type=Path, required=True)
     parser.add_argument("--adjacent", action="store_true")
+    parser.add_argument("--integration-regressions", action="store_true")
     args = parser.parse_args()
     repo, out, target = args.repo.resolve(), args.out.resolve(), args.target.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -41,6 +42,8 @@ def main():
     selected = ["impl182_capture_contracts"]
     if args.adjacent:
         selected += ["impl171_resource_heads", "impl180_store_mut", "impl179_field_precision", "shared_addresses", "impl065_helpers", "borrowed_closures", "impl161_nested_closures"]
+    if args.integration_regressions:
+        selected += ["impl072_packages", "impl074_packages", "impl079_package_captures", "impl168_retained_composition", "review182_capture_boundaries"]
     command = ["cargo", "test", "--offline", "--locked", "--no-fail-fast", "-j2", "-p", "zil-driver"]
     for test in selected:
         command += ["--test", test]
