@@ -1,0 +1,36 @@
+
+running 5 tests
+test nine_distinct_exits_keep_complete_public_sequences ... ok
+test new_sequences_still_pay_three_independent_budgets ... ok
+test consuming_reuse_rejects_and_the_original_cyclic_neighbor_runs ... ok
+test four_module_event_batch_preserves_success_error_and_cleanup ... ok
+test three_four_sixteen_calls_update_actual_mutable_state ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.34s
+
+
+running 14 tests
+test an_unused_recursive_definition_is_rejected_without_instantiating_it ... ok
+test mutable_reborrows_keep_call_order_and_release_after_the_outer_call ... ok
+test nested_helpers_keep_current_call_and_lending_result_loans ... ok
+test independent_24_layer_reproducer_uses_the_default_test_stack ... ok
+test nested_exhaustive_matches_keep_their_defensive_trap_prefix ... ok
+test planning_a_known_factory_type_does_not_establish_parameter_origin ... ok
+test cross_module_state_uses_nested_lending_helpers_and_a_disjoint_counter ... ok
+test consumed_environments_are_settled_once_even_when_the_leaf_never_calls ... ok
+test an_error_return_cuts_off_later_nested_calls_and_cleans_owned_locals ... ok
+test nesting_keeps_recursion_and_mixed_kind_boundaries_while_loops_run ... ok
+test branches_keep_zero_one_and_multiple_actual_calls ... ok
+test long_alias_chain_respects_a_callback_that_shadows_a_helper_name ... ok
+test owning_state_can_schedule_helpers_for_a_different_checked_factory_type ... ok
+test the_original_minimal_helper_composes_through_multiple_levels ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+
+
+running 2 tests
+test raw_graph_bounds_precede_stale_identity_and_fresh_retry_is_unchanged ... ok
+test flow_transport_roundtrip_does_not_grant_analysis_or_verification ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,215 @@
+{
+  "task": "190",
+  "author": "/root/resume190",
+  "source_and_consumer_test_author": "/root/resume192",
+  "source_commit": "7491c212d392b12bb90f735b90f535066fa00a47",
+  "production_freeze": "edd858b631c6020053ae107bdec59331925a419d",
+  "status": "AuthorLimitedPassAwaitingIndependentReview",
+  "design_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "schema": 24,
+  "scope": [
+    "ForRange genuine symbolic checks and endpoint width inference, left-to-right one evaluation per bound",
+    "Runtime cyclic single-environment Fn/FnMut helpers with exact Finite/Flow distinction, ordered-edge BFS and actual source provenance",
+    "Nested helper DAG composition with per-site copies, Return continuation and Trap cutoff",
+    "Independent Analyze/Verify shape reconstruction, original depth/work limits and resource presence over nonreturning prefixes"
+  ],
+  "final_joint": {
+    "source": "7491c212d392b12bb90f735b90f535066fa00a47",
+    "raw_tests": 14,
+    "source_tests": 17,
+    "total": 31,
+    "failed": 0,
+    "ignored": 0,
+    "clippy": "Pass on three semantic crates and driver library/new source/raw tests with -D warnings"
+  },
+  "finite_neighbors": {
+    "total_distinct_tests": 62,
+    "accepted": 62,
+    "explanation": "flow-finite01 had59/3; the only three old boundary expectations were root-approved migrations. flow-finite02 reran their complete three suites21/0. The remaining41 already passed with unchanged production semantics; counts are not added as83 distinct tests."
+  },
+  "for_range": "Separate original10/0 + bounded neighbors55/0 + ExpandClippy receipts are in ../for-range; not counted as additional distinct Flow source tests.",
+  "retained_failures": [
+    {
+      "run": "flow-finite01",
+      "finding": "Original126/188 loop sources now succeed; original191 fake graph still rejects via exact SafeReject. Input-preserving changes separately authorized by root ae3ac244."
+    },
+    {
+      "run": "flow-raw02",
+      "finding": "New nonreturning raw positive initially retained an isolated return-block Load and correctly failed E-VERIFY-INITIALIZATION. Test fixture corrected; no production gate changed."
+    },
+    {
+      "run": "flow-raw03",
+      "finding": "Same constructed disconnected block then correctly failed E-VERIFY-CLEANUP because obsolete scope markers remained. Fixture kept SSA definitions but removed unreachable cleanup markers; production unchanged."
+    }
+  ],
+  "runs": [
+    {
+      "name": "flow-raw01",
+      "source_commit": "715093c90651575ed79aab373e29ef3872f138be",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "groups": 1,
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/flow-raw01/command.json"
+    },
+    {
+      "name": "flow-raw02",
+      "source_commit": "a8b6b392a61919f99113aa8bbadd6058cc2355ac",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "groups": 1,
+      "passed": 13,
+      "failed": 1,
+      "ignored": 0,
+      "record": "records/flow-raw02/command.json"
+    },
+    {
+      "name": "flow-raw03",
+      "source_commit": "0e2a97bbd44f10004c671b4b034928e8aeb5791c",
+      "git_status": "?? crates/zil-driver/tests/impl190_flow_source.rs\n?? examples/mainline/loop_helpers190/\n",
+      "status": "Fail",
+      "exit_code": 101,
+      "groups": 1,
+      "passed": 13,
+      "failed": 1,
+      "ignored": 0,
+      "record": "records/flow-raw03/command.json"
+    },
+    {
+      "name": "flow-raw04",
+      "source_commit": "7491c212d392b12bb90f735b90f535066fa00a47",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "groups": 1,
+      "passed": 14,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/flow-raw04/command.json"
+    },
+    {
+      "name": "flow-finite01",
+      "source_commit": "715093c90651575ed79aab373e29ef3872f138be",
+      "git_status": "",
+      "status": "Fail",
+      "exit_code": 101,
+      "groups": 7,
+      "passed": 59,
+      "failed": 3,
+      "ignored": 0,
+      "record": "records/flow-finite01/command.json"
+    },
+    {
+      "name": "flow-finite02",
+      "source_commit": "f1817d7a648cd7e6463c8bb7274dd52df5506d1b",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "groups": 3,
+      "passed": 21,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/flow-finite02/command.json"
+    },
+    {
+      "name": "flow-joint01",
+      "source_commit": "7491c212d392b12bb90f735b90f535066fa00a47",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "groups": 2,
+      "passed": 31,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/flow-joint01/command.json"
+    },
+    {
+      "name": "flow-clippy01",
+      "source_commit": "f1817d7a648cd7e6463c8bb7274dd52df5506d1b",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "groups": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/flow-clippy01/command.json"
+    },
+    {
+      "name": "flow-clippy02",
+      "source_commit": "7491c212d392b12bb90f735b90f535066fa00a47",
+      "git_status": "",
+      "status": "Pass",
+      "exit_code": 0,
+      "groups": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/flow-clippy02/command.json"
+    }
+  ],
+  "production_files": [
+    {
+      "path": "crates/zil-expand/src/generic_check.rs",
+      "sha256": "0bf8dcf6084226449c858d255be3a8e04e8418244d735f72c925d4a204c7d7f4"
+    },
+    {
+      "path": "crates/zil-expand/src/generics.rs",
+      "sha256": "35a5e4477351fc4b42863543357c937474b5f81b0f1bb677a0f9b6d396e51fc0"
+    },
+    {
+      "path": "crates/zil-types/src/helpers.rs",
+      "sha256": "2ab6ddd45c4441443c2693aaca8e737d21caa0243ff981048ffd0da25da951d9"
+    },
+    {
+      "path": "crates/zil-types/src/helper_flow.rs",
+      "sha256": "80e1b872630d131dfcaa3cf99848de2c753f246f013e94d130c837a0aa9fd668"
+    },
+    {
+      "path": "crates/zil-analyze/src/helpers.rs",
+      "sha256": "f4f215da440db91503c406e777ec766f4754253338e17a79fd3ed4ad214f6a45"
+    },
+    {
+      "path": "crates/zil-analyze/src/helper_flow.rs",
+      "sha256": "abd52846a5bea3ca5d3e58725baa16fa1f4248ba4d57fe1fefe2f785b45c74d5"
+    },
+    {
+      "path": "crates/zil-analyze/src/budget.rs",
+      "sha256": "6a817bdfe78c7fdbeb0fe861c2fb5f409c962fbd60fbb6966c7c8a269db8364a"
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "sha256": "cbbdd0fe374b6305952c382d7b1353a6be731de446a441f601f365057c233fcf"
+    },
+    {
+      "path": "crates/zil-verify/src/helpers.rs",
+      "sha256": "4980f24e17f6096eb937db4a7c7bf844f8b3dce2729a44295d2cd09b2540d03a"
+    },
+    {
+      "path": "crates/zil-verify/src/helper_flow.rs",
+      "sha256": "edc73a7c4b93a72a127c444c4033a19a18a57473a455934998e246825c887774"
+    },
+    {
+      "path": "crates/zil-verify/src/resources.rs",
+      "sha256": "4c2229314a4710f85713b56321a8a15e756c02eff4496296ee7201b1b8161e7f"
+    },
+    {
+      "path": "crates/zil-verify/src/lib.rs",
+      "sha256": "a5aa33b326e096b48fee11f89e8799f2ab68e4c8841aad662607d75bbb2dc4d6"
+    }
+  ],
+  "raw_input_manifest": "raw-inputs.json",
+  "limits": [
+    "FnOnce reachable cycles remain explicit Unsupported, including zero-event cycles; finite0/1 calls remain admitted.",
+    "Recursion, multiple environments, generic break/continue, escaping callbacks and193 new slice arguments remain outside this freeze.",
+    "No new public schema, default budget, backend instruction or runtime allocation mechanism is introduced.",
+    "Author tests are not independent approval. Full workspace, main integration and target-profile acceptance remain root-owned.",
+    "Linux x64 source/native and allocator-failure observations are recorded separately under source-and-consumer; no Win64 claim here."
+  ],
+  "packaging": "This directory contains source inputs, raw candidate bytes, textual diagnostics and command receipts only. No executables, targets, LLVM object binaries or full repeated phase dumps are copied. Full original failures remain in external run-logs. Source delivery should exclude evidence as agreed.",
+  "source_and_consumer_receipt": "../source-and-consumer/SUMMARY.json"
+}

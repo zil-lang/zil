@@ -1,0 +1,38 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: Unsupported,
+            code: "E-UNSUPPORTED",
+            message: "cyclic FnOnce helper requires an additional consumption contract",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 0,
+                    end: 69,
+                },
+            ),
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: Unsupported,
+            code: "E-UNSUPPORTED",
+            message: "cyclic FnOnce helper requires an additional consumption contract",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 0,
+                    end: 69,
+                },
+            ),
+            notes: [],
+        },
+    ],
+]
