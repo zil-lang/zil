@@ -22,6 +22,14 @@ impl CallableTemplates {
     pub(crate) fn contains_generic(&self, name: &str) -> bool {
         self.roles.iter().any(|role| role.generic_name == name)
     }
+
+    pub(crate) fn single_generic(&self) -> Option<&str> {
+        let first = self.roles.first()?;
+        self.roles
+            .iter()
+            .all(|role| role.generic_index == first.generic_index)
+            .then_some(first.generic_name.as_str())
+    }
 }
 
 pub(crate) fn refers(ty: &TypeRef, name: &str) -> bool {
@@ -251,14 +259,19 @@ fn template_with_state(
                 "recursive callable signature is not implemented",
             ));
         }
-        let owning = function
+        let returns_state = function
             .return_type
             .as_ref()
-            .is_some_and(|t| is_state(t, &parameter.name))
-            || function
-                .params
-                .iter()
-                .any(|p| is_state(&p.ty, &parameter.name));
+            .is_some_and(|t| is_state(t, &parameter.name));
+        let takes_state = function
+            .params
+            .iter()
+            .any(|p| is_state(&p.ty, &parameter.name));
+        let owning = returns_state || takes_state;
+        // Two occurrences of one F are admitted only at the complete owning
+        // constructor boundary. A State plus another F, or two State inputs,
+        // still requires a distinct profile and cannot use this exception.
+        let constructor = returns_state && !takes_state;
         owned_state |= owning;
         if owning && callables.len() != 1 {
             return Err(unsupported(
@@ -279,10 +292,16 @@ fn template_with_state(
                     "callable parameter must be F, &F, &mut F or a single owning State",
                 ));
             }
-            if owning && count != 0 {
+            if owning && count != 0 && !constructor {
                 return Err(unsupported(
                     input.span,
-                    "owning State helpers require one environment role",
+                    "owning State operations require one State input; two direct F inputs require a complete State result",
+                ));
+            }
+            if constructor && mode != Some(None) {
+                return Err(unsupported(
+                    input.span,
+                    "owning State constructors require direct by-value F inputs",
                 ));
             }
             let mode = mode.unwrap_or(None);
@@ -340,12 +359,6 @@ fn template_with_state(
                 "callable bound requires a concrete environment parameter",
             ));
         }
-    }
-    if owned_state && roles.len() != 1 {
-        return Err(unsupported(
-            function.span,
-            "owning State helpers require one environment role",
-        ));
     }
     roles.sort_by_key(|role| role.index);
     Ok(Some(CallableTemplates { roles, owned_state }))
