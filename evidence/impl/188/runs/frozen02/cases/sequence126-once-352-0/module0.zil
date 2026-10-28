@@ -1,0 +1,1 @@
+fn batch<F:FnOnce()->i32>(f:F)->i32{return f()+f()+f()} fn main()->i32{return 0}

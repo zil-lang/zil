@@ -416,10 +416,10 @@ fn public_helper_contract_cuts_the_private_effect_dependency() {
         call: vec![],
         writes: vec![],
         cleanup: CallableCleanup::Borrowed,
-        traces: vec![CallableTrace {
+        traces: zil_ir::CallableTraces::Finite(vec![CallableTrace {
             calls: vec![],
             exit: CallableExit::Return,
-        }],
+        }]),
     });
     let rows = effect_consumers(
         &module,

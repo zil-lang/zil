@@ -1,0 +1,11 @@
+
+running 1 test
+test package_tests::fields::no_package_scalar_controls_charge_resource_frontier_setup_exactly ... FAILED
+
+failures:
+
+failures:
+    package_tests::fields::no_package_scalar_controls_charge_resource_frontier_setup_exactly
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 239 filtered out; finished in 0.00s
+

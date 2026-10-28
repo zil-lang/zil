@@ -1,0 +1,1 @@
+fn a()->impl Fn()->i32{return b()}fn b()->impl Fn()->i32{return a()}fn main()->i32{return 0}

@@ -1,0 +1,1 @@
+resource R{n:i32}fn apply<F:Fn(&i32)->i32>(f:&F,p:&i32)->i32{return f(p)}fn main()->i32{let r=R{n:42};let d=r;let h=&r;let q=&h.n;let f=(p:&i32)->i32=>{d.n=43;return *p};return apply(&f,q)-42}

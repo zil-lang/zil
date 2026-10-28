@@ -1,0 +1,1 @@
+pub fn leaf<F:FnMut()->i32>(f:&mut F)->i32{return f()}

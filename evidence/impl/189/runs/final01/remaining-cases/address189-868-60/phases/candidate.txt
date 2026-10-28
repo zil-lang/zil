@@ -1,0 +1,254 @@
+CandidatePlan {
+    schema_version: 23,
+    module_fingerprint: Fingerprint(
+        [
+            49,
+            36,
+            192,
+            12,
+            12,
+            8,
+            94,
+            8,
+            129,
+            226,
+            215,
+            48,
+            177,
+            127,
+            165,
+            164,
+            39,
+            231,
+            251,
+            234,
+            12,
+            100,
+            227,
+            186,
+            239,
+            216,
+            56,
+            16,
+            119,
+            94,
+            229,
+            127,
+        ],
+    ),
+    target_fingerprint: Fingerprint(
+        [
+            205,
+            49,
+            11,
+            211,
+            61,
+            158,
+            160,
+            206,
+            0,
+            177,
+            155,
+            124,
+            142,
+            36,
+            127,
+            255,
+            149,
+            121,
+            131,
+            121,
+            165,
+            196,
+            116,
+            61,
+            206,
+            130,
+            190,
+            234,
+            40,
+            5,
+            28,
+            15,
+        ],
+    ),
+    functions: [
+        FunctionPlan {
+            function: FunctionId(
+                0,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [
+                        Parameter(
+                            0,
+                        ),
+                    ],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                1,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        1,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        2,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        3,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                0,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        4,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                0,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        5,
+                    ),
+                    roots: [
+                        Local(
+                            LocalId(
+                                0,
+                            ),
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        6,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        7,
+                    ),
+                    roots: [],
+                },
+                ValueHold {
+                    value: ValueId(
+                        8,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                2,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [
+                        Parameter(
+                            0,
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        1,
+                    ),
+                    roots: [
+                        Parameter(
+                            0,
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        2,
+                    ),
+                    roots: [
+                        Parameter(
+                            0,
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        3,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+    ],
+    origins: [],
+    responsibilities: [],
+    unsupported: [],
+}

@@ -1,0 +1,1 @@
+pub package State<F>{manages storage:ByteBuffer;pub callback:F;pub count:i32}pub fn make<F:Fn()->&[u8]>(callback:F)->State<F>{return State::<F>{storage:bytes_new(),callback:callback,count:0}}

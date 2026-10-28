@@ -133,11 +133,14 @@ fn binaries(temp: &Path, stem: &str, source_files: usize) -> Vec<PathBuf> {
         !contracts.is_empty(),
         "no checked public helper instance was exported"
     );
-    assert!(
-        contracts
+    assert!(contracts.iter().any(|c| {
+        c.contract
+            .traces
+            .as_finite()
+            .unwrap()
             .iter()
-            .any(|c| c.contract.traces.iter().any(|t| !t.calls.is_empty()))
-    );
+            .any(|t| !t.calls.is_empty())
+    }));
     assert!(llvm.contains("ptr %v."));
     assert!(!llvm.contains("@malloc("));
     assert!(!llvm.contains(" noalias "));

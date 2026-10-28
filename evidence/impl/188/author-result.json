@@ -1,0 +1,381 @@
+{
+  "task": "188",
+  "implementation_author": "/root/design14_acceptance",
+  "implementation_commit": "49c60f0cb663c67310f722b2e2d8d563693c2c84",
+  "status": "Pass",
+  "scope": "Finite nonrecursive synchronous helper composition and bounded concrete instance scheduling; author result only, independent review is separate.",
+  "checks": {
+    "baseline01": {
+      "status": "Pass",
+      "source_commit": "91feaa919bf3f02a36b50bf5e13cbddec4ede87b",
+      "dirty": false,
+      "record": "runs/baseline01/command/command.json",
+      "suites": 5,
+      "passed": 63,
+      "failed": 0,
+      "ignored": 0
+    },
+    "cli-build01": {
+      "status": "Pass",
+      "source_commit": "187a79a55fe7970168b89b9dec165ec1f2e930cd",
+      "dirty": false,
+      "record": "runs/cli-build01/command/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    "cli-build02": {
+      "status": "Pass",
+      "source_commit": "49c60f0cb663c67310f722b2e2d8d563693c2c84",
+      "dirty": false,
+      "record": "runs/cli-build02/command/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    "clippy-frozen": {
+      "status": "Pass",
+      "source_commit": "187a79a55fe7970168b89b9dec165ec1f2e930cd",
+      "dirty": false,
+      "record": "runs/clippy-frozen/command/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    "clippy-frozen02": {
+      "status": "Pass",
+      "source_commit": "49c60f0cb663c67310f722b2e2d8d563693c2c84",
+      "dirty": false,
+      "record": "runs/clippy-frozen02/command/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    "clippy01": {
+      "status": "Pass",
+      "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+      "dirty": true,
+      "record": "runs/clippy01/command/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    "depth01": {
+      "status": "Pass",
+      "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+      "dirty": true,
+      "record": "runs/depth01/command/command.json",
+      "suites": 1,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    "develop01": {
+      "status": "Fail",
+      "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+      "dirty": true,
+      "record": "runs/develop01/command/command.json",
+      "suites": 1,
+      "passed": 5,
+      "failed": 1,
+      "ignored": 0
+    },
+    "develop02": {
+      "status": "Fail",
+      "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+      "dirty": true,
+      "record": "runs/develop02/command/command.json",
+      "suites": 1,
+      "passed": 7,
+      "failed": 2,
+      "ignored": 0
+    },
+    "develop03": {
+      "status": "Pass",
+      "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+      "dirty": true,
+      "record": "runs/develop03/command/command.json",
+      "suites": 2,
+      "passed": 19,
+      "failed": 0,
+      "ignored": 0
+    },
+    "fmt-frozen": {
+      "status": "Pass",
+      "source_commit": "187a79a55fe7970168b89b9dec165ec1f2e930cd",
+      "dirty": false,
+      "record": "runs/fmt-frozen/command/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    "fmt-frozen02": {
+      "status": "Pass",
+      "source_commit": "49c60f0cb663c67310f722b2e2d8d563693c2c84",
+      "dirty": false,
+      "record": "runs/fmt-frozen02/command/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    "frozen01": {
+      "status": "Pass",
+      "source_commit": "187a79a55fe7970168b89b9dec165ec1f2e930cd",
+      "dirty": false,
+      "record": "runs/frozen01/command/command.json",
+      "suites": 14,
+      "passed": 136,
+      "failed": 0,
+      "ignored": 0
+    },
+    "frozen02": {
+      "status": "Pass",
+      "source_commit": "49c60f0cb663c67310f722b2e2d8d563693c2c84",
+      "dirty": false,
+      "record": "runs/frozen02/command/command.json",
+      "suites": 11,
+      "passed": 106,
+      "failed": 0,
+      "ignored": 0
+    },
+    "neighbors01": {
+      "status": "Pass",
+      "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+      "dirty": true,
+      "record": "runs/neighbors01/command/command.json",
+      "suites": 8,
+      "passed": 78,
+      "failed": 0,
+      "ignored": 0
+    },
+    "plan-boundary01": {
+      "status": "Pass",
+      "source_commit": "e8b40747612c030c2e37a53777c6aa9e22332d13",
+      "dirty": true,
+      "record": "runs/plan-boundary01/command/command.json",
+      "suites": 1,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    "plan-check01": {
+      "status": "Pass",
+      "source_commit": "e8b40747612c030c2e37a53777c6aa9e22332d13",
+      "dirty": true,
+      "record": "runs/plan-check01/command/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    "plan-clippy01": {
+      "status": "Pass",
+      "source_commit": "e8b40747612c030c2e37a53777c6aa9e22332d13",
+      "dirty": true,
+      "record": "runs/plan-clippy01/command/command.json",
+      "suites": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    "plan-depth01": {
+      "status": "Pass",
+      "source_commit": "e8b40747612c030c2e37a53777c6aa9e22332d13",
+      "dirty": true,
+      "record": "runs/plan-depth01/command/command.json",
+      "suites": 1,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    "plan-develop02": {
+      "status": "Fail",
+      "source_commit": "e8b40747612c030c2e37a53777c6aa9e22332d13",
+      "dirty": true,
+      "record": "runs/plan-develop02/command/command.json",
+      "suites": 1,
+      "passed": 12,
+      "failed": 1,
+      "ignored": 0
+    },
+    "plan-develop03": {
+      "status": "Pass",
+      "source_commit": "e8b40747612c030c2e37a53777c6aa9e22332d13",
+      "dirty": true,
+      "record": "runs/plan-develop03/command/command.json",
+      "suites": 2,
+      "passed": 26,
+      "failed": 0,
+      "ignored": 0
+    },
+    "plan-neighbors01": {
+      "status": "Pass",
+      "source_commit": "e8b40747612c030c2e37a53777c6aa9e22332d13",
+      "dirty": true,
+      "record": "runs/plan-neighbors01/command/command.json",
+      "suites": 8,
+      "passed": 77,
+      "failed": 0,
+      "ignored": 0
+    },
+    "plan-state02": {
+      "status": "Fail",
+      "source_commit": "e8b40747612c030c2e37a53777c6aa9e22332d13",
+      "dirty": true,
+      "record": "runs/plan-state02/command/command.json",
+      "suites": 1,
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0
+    },
+    "plan-state03": {
+      "status": "Pass",
+      "source_commit": "e8b40747612c030c2e37a53777c6aa9e22332d13",
+      "dirty": true,
+      "record": "runs/plan-state03/command/command.json",
+      "suites": 1,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    "raw01": {
+      "status": "Fail",
+      "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+      "dirty": true,
+      "record": "runs/raw01/command/command.json",
+      "suites": 1,
+      "passed": 8,
+      "failed": 1,
+      "ignored": 0
+    },
+    "raw02": {
+      "status": "Pass",
+      "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+      "dirty": true,
+      "record": "runs/raw02/command/command.json",
+      "suites": 1,
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    "recursive02": {
+      "status": "Pass",
+      "source_commit": "9816164a66a4118945be9b2f55c607436a9a5d04",
+      "dirty": true,
+      "record": "runs/recursive02/command/command.json",
+      "suites": 1,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "own_observations": {
+    "source_groups": 14,
+    "raw_and_budget_groups": 12,
+    "source_statuses": {
+      "Unsupported": 7,
+      "Success": 29,
+      "SafeReject": 3
+    },
+    "source_native_executions": 28,
+    "source_rejections": 10,
+    "typed_ir_mutations": 14,
+    "typed_ir_raw_wire_routes": 28,
+    "independent_analyze_rejections": 3,
+    "raw_core_cycle_rejections": 1,
+    "budget_boundaries": [
+      {
+        "phase": "Expand",
+        "N": 1270,
+        "at_N": "Pass",
+        "at_N_minus_1": "ResourceLimit",
+        "retry": "Pass"
+      },
+      {
+        "phase": "Types",
+        "N": 1330,
+        "at_N": "Pass",
+        "at_N_minus_1": "ResourceLimit",
+        "retry": "Pass"
+      },
+      {
+        "phase": "Analyze",
+        "N": 2763,
+        "at_N": "Pass",
+        "at_N_minus_1": "ResourceLimit",
+        "retry": "Pass"
+      },
+      {
+        "phase": "Verify",
+        "N": 4301,
+        "at_N": "Pass",
+        "at_N_minus_1": "ResourceLimit",
+        "retry": "Pass"
+      }
+    ],
+    "depth_control": {
+      "custom_limit": 8,
+      "custom_depth": 12,
+      "custom_result": "ResourceLimit",
+      "default_limit": 256,
+      "at_default": "Types/Analyze/Verify Success",
+      "one_over_default": "Types ResourceLimit",
+      "native_depths": [
+        24,
+        64
+      ]
+    }
+  },
+  "consumer": {
+    "record": "runs/consumer02/summary.json",
+    "status": "Pass",
+    "native_executions": 38,
+    "allocation_failure_executions": 20,
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "modules": 4
+  },
+  "superseded_source": {
+    "implementation_commit": "187a79a55fe7970168b89b9dec165ec1f2e930cd",
+    "author_limited_result": "136/0/0 and 38 consumer executions, original identities retained",
+    "status": "RejectedByIndependentReview",
+    "cause": "24 nested helpers overflowed the default Rust test-thread stack in Types recursive Builder instantiation.",
+    "original_review_test_commit": "db7995a9340dcb76e10676a1f7777e5bcaf3a987",
+    "stage_test_commit": "01df9124016e3d3202183165169151db9aeac66d",
+    "record": "independent-original/source01/command/command.json",
+    "stage_record": "independent-original/stages01/command/command.json"
+  },
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "1068cda3fe79b906f49eeee4bd3f62863f9db4ae85e8a0dbaa3c439d310777b8",
+  "schema_version": 23,
+  "rule_version": "ZIL-LANG-1.4",
+  "production_paths": [
+    "crates/zil-expand/src/generic_check.rs",
+    "crates/zil-expand/src/generic_helper_graph.rs",
+    "crates/zil-expand/src/generics.rs",
+    "crates/zil-types/src/helpers.rs",
+    "crates/zil-types/src/helper_plan.rs",
+    "crates/zil-analyze/src/helpers.rs",
+    "crates/zil-verify/src/helpers.rs"
+  ],
+  "remaining_boundaries": [
+    "One actual environment parameter, same declared callback kind; unsupported unknown or mixed runtime environment origins.",
+    "Callable helper CFG loops, recursive dependencies, mixed kinds, general lifetimes, retained borrowed escape and multiple callback parameters remain outside this slice.",
+    "Source instantiation planning recognizes direct environments, direct State callback fields and already checked concrete factory results; unknown types are not guessed.",
+    "187 local ByteBuffer capture and 189 explicit Address callback parameters have not been combined into this author baseline.",
+    "Linux executed here; no new Win64 claim or Rust cost/product performance comparison."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "default_budgets_changed": false,
+  "executables_included": false
+}

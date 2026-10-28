@@ -1,0 +1,1 @@
+fn main()->i32{var n=41;let read=(p)=>*p;let bump=(p)=>{*p+=1;return *p};let old=read(&n);let fresh=bump(&mut n);return old+fresh+n-125}

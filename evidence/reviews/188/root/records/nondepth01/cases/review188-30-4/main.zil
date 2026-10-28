@@ -1,0 +1,1 @@
+import helper;import factory;fn main()->i32{let a=factory.make(65u8);let b=factory.make(66u8);let view=helper.forward(&a);let other=a;return i32(view[0])+i32(other()[0])-131}

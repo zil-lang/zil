@@ -1,0 +1,1 @@
+pub fn make(n:i32)->impl Fn()->&i32{return move()=>&n}fn bad()->&i32{let f=make(3);return f()}fn main(){}

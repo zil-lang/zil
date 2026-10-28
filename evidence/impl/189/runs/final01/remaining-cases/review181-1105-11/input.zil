@@ -1,0 +1,1 @@
+struct Holder<T>{value:T}fn bad<T>(holder:Holder<T>)->T{let first=holder.value;return holder.value}fn main(){}

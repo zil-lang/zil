@@ -1,0 +1,1 @@
+struct Pair{x:i32}fn main(){let pair=Pair{x:1};let f=(p)=>{p.x+=1};f(&pair);}

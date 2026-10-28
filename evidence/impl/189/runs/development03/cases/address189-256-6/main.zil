@@ -1,0 +1,1 @@
+package P{n:i32}fn main(){let f=(p:&P)=>p.n;}

@@ -1,0 +1,1 @@
+fn apply<F:Fn(&mut i32)->i32>(f:&F,p:&mut i32)->i32{return f(p)}fn main()->i32{var n=3;let saved=&n;let f=move(p:&mut i32)->i32=>{*p+=1;return *saved};return apply(&f,&mut n)}

@@ -1,0 +1,26 @@
+
+running 9 tests
+test an_unused_recursive_definition_is_rejected_without_instantiating_it ... ok
+test branches_keep_zero_one_and_multiple_actual_calls ... ok
+test an_error_return_cuts_off_later_nested_calls_and_cleans_owned_locals ... ok
+test cross_module_state_uses_nested_lending_helpers_and_a_disjoint_counter ... ok
+test finite_nesting_does_not_admit_recursion_loops_or_mixed_kinds ... ok
+test consumed_environments_are_settled_once_even_when_the_leaf_never_calls ... ok
+test nested_helpers_keep_current_call_and_lending_result_loans ... FAILED
+test mutable_reborrows_keep_call_order_and_release_after_the_outer_call ... ok
+test the_original_minimal_helper_composes_through_multiple_levels ... ok
+
+failures:
+
+---- nested_helpers_keep_current_call_and_lending_result_loans stdout ----
+
+thread 'nested_helpers_keep_current_call_and_lending_result_loans' (142) panicked at crates/zil-driver/tests/impl188_nested_helpers.rs:77:5:
+returned-view-overlaps-next-nested-call: {"status":"SafeReject","phase":"verify","diagnostics":[{"phase":"verify","category":"SafeReject","code":"E-BORROW-CONFLICT","message":"access overlaps an active address window without its delegated authority","span":{"file":0,"start":252,"end":253},"notes":[]}],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/run-logs/188-author/raw01/cases/impl188-returned-view-overlaps-next-nested-call-77-22/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/run-logs/188-author/raw01/cases/impl188-returned-view-overlaps-next-nested-call-77-22/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/run-logs/188-author/raw01/cases/impl188-returned-view-overlaps-next-nested-call-77-22/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/run-logs/188-author/raw01/cases/impl188-returned-view-overlaps-next-nested-call-77-22/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/run-logs/188-author/raw01/cases/impl188-returned-view-overlaps-next-nested-call-77-22/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/run-logs/188-author/raw01/cases/impl188-returned-view-overlaps-next-nested-call-77-22/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/run-logs/188-author/raw01/cases/impl188-returned-view-overlaps-next-nested-call-77-22/phases/typed.txt"},"input_fingerprint":"3ff296d527636abcdaf28d14f243c5914140236d526801f372d56d5a8d7159d9","seconds":0.012007857,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19","implementation_fingerprint":"79b0c61d972e353b96d3d7249b7dd8ebfe6ba9d07b08874792ecb2c0921c39ea","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    nested_helpers_keep_current_call_and_lending_result_loans
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.01s
+

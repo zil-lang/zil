@@ -1,0 +1,38 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-BORROW-CONFLICT",
+            message: "write or storage change overlaps a shared address still required by a later use",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 162,
+                    end: 183,
+                },
+            ),
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-BORROW-CONFLICT",
+            message: "write or storage change overlaps a shared address still required by a later use",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 162,
+                    end: 183,
+                },
+            ),
+            notes: [],
+        },
+    ],
+]

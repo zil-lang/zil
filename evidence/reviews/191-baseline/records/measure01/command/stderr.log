@@ -1,0 +1,12 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/review191-baseline/crates/zil-verify)
+    Finished `test` profile [unoptimized] target(s) in 3.35s
+     Running unittests src/lib.rs (/workspace/scratch/39be3faa4442/targets178/review191-baseline/debug/deps/zil_verify-c59aee014cb4882b)
+scalar responsibility count=1, old=22, measured=24
+scalar responsibility count=32, old=394, measured=458
+
+thread 'package_tests::fields::no_package_scalar_controls_charge_resource_frontier_setup_exactly' (131) panicked at crates/zil-verify/src/package_tests/fields.rs:883:5:
+assertion `left == right` failed
+  left: [(1, 24), (32, 458)]
+ right: [(1, 22), (32, 394)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p zil-verify --lib`

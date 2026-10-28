@@ -1,0 +1,38 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-CALLABLE-CONTRACT",
+            message: "callback helper is missing its independently checkable contract",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 1,
+                    end: 38,
+                },
+            ),
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-CALLABLE-CONTRACT",
+            message: "callback helper is missing its independently checkable contract",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 1,
+                    end: 38,
+                },
+            ),
+            notes: [],
+        },
+    ],
+]

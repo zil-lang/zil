@@ -1,0 +1,1 @@
+resource R{n:i32}fn after<F:Fn()->i32>(f:&F,p:&i32)->i32{return f()+*p}fn main()->i32{let r=R{n:21};let d=r;let h=&r;let p=&h.n;let f=()=>{d.n=22;return 0};return after(&f,p)-21}
