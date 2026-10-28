@@ -162,12 +162,9 @@ pub(super) fn check_definitions(
             if let Type::Closure(id) = ty {
                 self_contained(module, *id, budget)?;
             }
-            if byte_buffers::is_desc(ty) {
-                return Err(unsupported(
-                    "borrowed byte storage captures are outside the finite profile",
-                    None,
-                ));
-            }
+            // Borrowed byte descriptions carry no ownership or address loan.
+            // Actual capture origins, storage effects and future uses are
+            // reconstructed by the independent resource and borrow checks.
             if slices::is_window(ty) {
                 return Err(unsupported(
                     "borrowed slice captures are outside the finite slice profile",
