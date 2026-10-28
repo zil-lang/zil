@@ -1,0 +1,14 @@
+{
+  "SUMMARY.json": {
+    "bytes": 1685,
+    "sha256": "20b9b94de2d01495fd5088c64209eec3fc00416eafe192c3d5d7a948af7c5322"
+  },
+  "attempt01.json": {
+    "bytes": 102877,
+    "sha256": "8b4f72a9a461bfc5947471624a39a1d9205afce02fc3539cc6f337a8263c67ed"
+  },
+  "attempt02.json": {
+    "bytes": 102878,
+    "sha256": "fd050a0315e41d0eafaf0fedbafd7815e4568ca4a96ff3c8282a2f12365bd7dd"
+  }
+}

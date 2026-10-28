@@ -1,0 +1,3035 @@
+{
+  "status": "Pass",
+  "tests": 10,
+  "failures": 0,
+  "errors": 0,
+  "elapsed_seconds": 2.292149782180786,
+  "source_commit": "475a486908dc25c399e96822fc580ace1a634713",
+  "tool_sha256": "cf915a1f15bf9c4bce604e8ea0093b7fd198a4daf1c8a30d5803d8e396c170d5",
+  "test_sha256": "d4b446ad9caf26d7dd26d7e3d03fe7b3ce3c8d45257780b08e9ac6cbc314d963",
+  "failures_detail": [],
+  "errors_detail": [],
+  "platform": "linux",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "events": [
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/source",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "main"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-ded_akod/source/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/source",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/source",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/source",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "write": "/dev/shm/zil198-git/case198-ded_akod/source/shared.txt",
+      "content": "base\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "write": "/dev/shm/zil198-git/case198-ded_akod/source/language.txt",
+      "content": "v0\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/source",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/source",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "base"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main (root-commit) f59c099] base\n 2 files changed, 2 insertions(+)\n create mode 100644 language.txt\n create mode 100644 shared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "f59c0995458acd15c557e4f7121d73703bb970df\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "write": "/dev/shm/zil198-git/case198-ded_akod/source/language.txt",
+      "content": "v1\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "write": "/dev/shm/zil198-git/case198-ded_akod/source/shared.txt",
+      "content": "language\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/source",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main 9c81f6a] language\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "9c81f6a461b582c042b0425682b996c7330bb0c4\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-ded_akod/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-ded_akod/language.bundle",
+        "--expect-commit",
+        "9c81f6a461b582c042b0425682b996c7330bb0c4"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Exported\",\n  \"bundle_path\": \"/dev/shm/zil198-git/case198-ded_akod/language.bundle\",\n  \"manifest\": \"/dev/shm/zil198-git/case198-ded_akod/language.bundle.json\",\n  \"format\": \"zil-offline-bundle-v1\",\n  \"kind\": \"full\",\n  \"source_ref\": \"refs/heads/main\",\n  \"source_commit\": \"9c81f6a461b582c042b0425682b996c7330bb0c4\",\n  \"source_tree\": \"f2cc9a4c3ca2802e9f7fabbd29af7160a127bd3c\",\n  \"excluded_base\": null,\n  \"advertised_refs\": {\n    \"refs/heads/main\": \"9c81f6a461b582c042b0425682b996c7330bb0c4\"\n  },\n  \"prerequisites\": [],\n  \"capabilities\": [],\n  \"bundle\": {\n    \"file\": \"language.bundle\",\n    \"bytes\": 558,\n    \"sha256\": \"16237d7de67729e6aeeddf99eb566c7a2eff80f8bd56e0b253a91c220175e3bc\"\n  },\n  \"scope\": \"Only the named branch and its reachable, unchanged Git history; no uncommitted files or unrelated refs.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod",
+      "command": [
+        "git",
+        "clone",
+        "--no-local",
+        "/dev/shm/zil198-git/case198-ded_akod/source",
+        "/dev/shm/zil198-git/case198-ded_akod/receiver"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Cloning into '/dev/shm/zil198-git/case198-ded_akod/receiver'...\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "switch",
+        "-c",
+        "compile",
+        "f59c0995458acd15c557e4f7121d73703bb970df"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Switched to a new branch 'compile'\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "write": "/dev/shm/zil198-git/case198-ded_akod/receiver/shared.txt",
+      "content": "compile\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "overlapping compile work"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[compile 22cfe36] overlapping compile work\n 1 file changed, 1 insertion(+), 1 deletion(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "22cfe360ddae6777f759205bcbe219221a40a058\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-ded_akod/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-ded_akod/language.bundle"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Imported\",\n  \"source_commit\": \"9c81f6a461b582c042b0425682b996c7330bb0c4\",\n  \"destination_ref\": \"refs/remotes/zil-language/9c81f6a461b582c042b0425682b996c7330bb0c4\",\n  \"note\": \"Working branch, index, files and remotes were not changed. Merge separately after review.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "switch",
+        "-c",
+        "integration/conflict"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Switched to a new branch 'integration/conflict'\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "merge",
+        "--no-ff",
+        "refs/remotes/zil-language/9c81f6a461b582c042b0425682b996c7330bb0c4",
+        "-m",
+        "conflict"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "Auto-merging shared.txt\nCONFLICT (content): Merge conflict in shared.txt\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "ls-files",
+        "-u"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "100644 df967b96a579e45a18b8251732d16804b2e56a55 1\tshared.txt\n100644 582d9721c9a4bf3144b74d2aa3fa3532ee1bd35d 2\tshared.txt\n100644 93d6e70ce1b2d4154adc1b58f97c65c54cd4b6ba 3\tshared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "compile"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "22cfe360ddae6777f759205bcbe219221a40a058\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "merge",
+        "--abort"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "22cfe360ddae6777f759205bcbe219221a40a058\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_conflict_preserves_compile_branch_and_can_abort",
+      "cwd": "/dev/shm/zil198-git/case198-ded_akod/receiver",
+      "command": [
+        "git",
+        "status",
+        "--porcelain=v1"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/source",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "main"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-wfvrepan/source/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/source",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/source",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/source",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "write": "/dev/shm/zil198-git/case198-wfvrepan/source/shared.txt",
+      "content": "base\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "write": "/dev/shm/zil198-git/case198-wfvrepan/source/language.txt",
+      "content": "v0\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/source",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/source",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "base"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main (root-commit) f59c099] base\n 2 files changed, 2 insertions(+)\n create mode 100644 language.txt\n create mode 100644 shared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "f59c0995458acd15c557e4f7121d73703bb970df\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "write": "/dev/shm/zil198-git/case198-wfvrepan/source/language.txt",
+      "content": "v1\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "write": "/dev/shm/zil198-git/case198-wfvrepan/source/shared.txt",
+      "content": "language\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/source",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main 9c81f6a] language\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "9c81f6a461b582c042b0425682b996c7330bb0c4\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-wfvrepan/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-wfvrepan/language.bundle",
+        "--expect-commit",
+        "9c81f6a461b582c042b0425682b996c7330bb0c4"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Exported\",\n  \"bundle_path\": \"/dev/shm/zil198-git/case198-wfvrepan/language.bundle\",\n  \"manifest\": \"/dev/shm/zil198-git/case198-wfvrepan/language.bundle.json\",\n  \"format\": \"zil-offline-bundle-v1\",\n  \"kind\": \"full\",\n  \"source_ref\": \"refs/heads/main\",\n  \"source_commit\": \"9c81f6a461b582c042b0425682b996c7330bb0c4\",\n  \"source_tree\": \"f2cc9a4c3ca2802e9f7fabbd29af7160a127bd3c\",\n  \"excluded_base\": null,\n  \"advertised_refs\": {\n    \"refs/heads/main\": \"9c81f6a461b582c042b0425682b996c7330bb0c4\"\n  },\n  \"prerequisites\": [],\n  \"capabilities\": [],\n  \"bundle\": {\n    \"file\": \"language.bundle\",\n    \"bytes\": 558,\n    \"sha256\": \"16237d7de67729e6aeeddf99eb566c7a2eff80f8bd56e0b253a91c220175e3bc\"\n  },\n  \"scope\": \"Only the named branch and its reachable, unchanged Git history; no uncommitted files or unrelated refs.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/receiver",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "compile"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-wfvrepan/receiver/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/receiver",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-wfvrepan/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-wfvrepan/language.bundle"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "{\"status\": \"Failed\", \"error\": \"bundle size or SHA256 differs from the manifest\"}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-wfvrepan/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-wfvrepan/language.bundle"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "{\"status\": \"Failed\", \"error\": \"bundle header differs from the manifest\"}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_corrupt_bundle_and_header_mismatch_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-wfvrepan/receiver",
+      "command": [
+        "git",
+        "for-each-ref",
+        "--format=%(refname)"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/source",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "main"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-oyabpean/source/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/source",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/source",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/source",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "write": "/dev/shm/zil198-git/case198-oyabpean/source/shared.txt",
+      "content": "base\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "write": "/dev/shm/zil198-git/case198-oyabpean/source/language.txt",
+      "content": "v0\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/source",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/source",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "base"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main (root-commit) 1a57121] base\n 2 files changed, 2 insertions(+)\n create mode 100644 language.txt\n create mode 100644 shared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1a5712149eb12e014c5097aa804aa76a3b7468ee\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "write": "/dev/shm/zil198-git/case198-oyabpean/source/language.txt",
+      "content": "v1\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "write": "/dev/shm/zil198-git/case198-oyabpean/source/shared.txt",
+      "content": "language\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/source",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main 7fce463] language\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-oyabpean/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-oyabpean/language.bundle",
+        "--expect-commit",
+        "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Exported\",\n  \"bundle_path\": \"/dev/shm/zil198-git/case198-oyabpean/language.bundle\",\n  \"manifest\": \"/dev/shm/zil198-git/case198-oyabpean/language.bundle.json\",\n  \"format\": \"zil-offline-bundle-v1\",\n  \"kind\": \"full\",\n  \"source_ref\": \"refs/heads/main\",\n  \"source_commit\": \"7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\",\n  \"source_tree\": \"f2cc9a4c3ca2802e9f7fabbd29af7160a127bd3c\",\n  \"excluded_base\": null,\n  \"advertised_refs\": {\n    \"refs/heads/main\": \"7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\"\n  },\n  \"prerequisites\": [],\n  \"capabilities\": [],\n  \"bundle\": {\n    \"file\": \"language.bundle\",\n    \"bytes\": 557,\n    \"sha256\": \"87d59064fbe4967f5cfac818cf219d3fad05b8954ccc74bde38777e0469a4c9e\"\n  },\n  \"scope\": \"Only the named branch and its reachable, unchanged Git history; no uncommitted files or unrelated refs.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean",
+      "command": [
+        "git",
+        "clone",
+        "--no-local",
+        "/dev/shm/zil198-git/case198-oyabpean/source",
+        "/dev/shm/zil198-git/case198-oyabpean/receiver"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Cloning into '/dev/shm/zil198-git/case198-oyabpean/receiver'...\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/receiver",
+      "command": [
+        "git",
+        "switch",
+        "-c",
+        "compile",
+        "1a5712149eb12e014c5097aa804aa76a3b7468ee"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Switched to a new branch 'compile'\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/receiver",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "write": "/dev/shm/zil198-git/case198-oyabpean/receiver/language.txt",
+      "content": "staged local work\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/receiver",
+      "command": [
+        "git",
+        "add",
+        "language.txt"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "write": "/dev/shm/zil198-git/case198-oyabpean/receiver/language.txt",
+      "content": "unstaged local work\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "write": "/dev/shm/zil198-git/case198-oyabpean/receiver/untracked.txt",
+      "content": "keep me\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "write": "/dev/shm/zil198-git/case198-oyabpean/receiver/.git/FETCH_HEAD",
+      "content": "fixture existing FETCH_HEAD\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/receiver",
+      "command": [
+        "git",
+        "status",
+        "--porcelain=v1"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "MM language.txt\n?? untracked.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-oyabpean/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-oyabpean/language.bundle"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Imported\",\n  \"source_commit\": \"7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\",\n  \"destination_ref\": \"refs/remotes/zil-language/7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\",\n  \"note\": \"Working branch, index, files and remotes were not changed. Merge separately after review.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/receiver",
+      "command": [
+        "git",
+        "status",
+        "--porcelain=v1"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "MM language.txt\n?? untracked.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_dirty_worktree_index_fetch_head_and_remotes_unchanged",
+      "cwd": "/dev/shm/zil198-git/case198-oyabpean/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1a5712149eb12e014c5097aa804aa76a3b7468ee\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/source",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "main"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-14tx5mni/source/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/source",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/source",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/source",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "write": "/dev/shm/zil198-git/case198-14tx5mni/source/shared.txt",
+      "content": "base\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "write": "/dev/shm/zil198-git/case198-14tx5mni/source/language.txt",
+      "content": "v0\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/source",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/source",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "base"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main (root-commit) 1a57121] base\n 2 files changed, 2 insertions(+)\n create mode 100644 language.txt\n create mode 100644 shared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1a5712149eb12e014c5097aa804aa76a3b7468ee\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "write": "/dev/shm/zil198-git/case198-14tx5mni/source/language.txt",
+      "content": "v1\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "write": "/dev/shm/zil198-git/case198-14tx5mni/source/shared.txt",
+      "content": "language\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/source",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main 7fce463] language\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-14tx5mni/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-14tx5mni/language.bundle",
+        "--expect-commit",
+        "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Exported\",\n  \"bundle_path\": \"/dev/shm/zil198-git/case198-14tx5mni/language.bundle\",\n  \"manifest\": \"/dev/shm/zil198-git/case198-14tx5mni/language.bundle.json\",\n  \"format\": \"zil-offline-bundle-v1\",\n  \"kind\": \"full\",\n  \"source_ref\": \"refs/heads/main\",\n  \"source_commit\": \"7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\",\n  \"source_tree\": \"f2cc9a4c3ca2802e9f7fabbd29af7160a127bd3c\",\n  \"excluded_base\": null,\n  \"advertised_refs\": {\n    \"refs/heads/main\": \"7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\"\n  },\n  \"prerequisites\": [],\n  \"capabilities\": [],\n  \"bundle\": {\n    \"file\": \"language.bundle\",\n    \"bytes\": 557,\n    \"sha256\": \"87d59064fbe4967f5cfac818cf219d3fad05b8954ccc74bde38777e0469a4c9e\"\n  },\n  \"scope\": \"Only the named branch and its reachable, unchanged Git history; no uncommitted files or unrelated refs.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni",
+      "command": [
+        "git",
+        "clone",
+        "--no-local",
+        "/dev/shm/zil198-git/case198-14tx5mni/source",
+        "/dev/shm/zil198-git/case198-14tx5mni/receiver"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Cloning into '/dev/shm/zil198-git/case198-14tx5mni/receiver'...\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "switch",
+        "-c",
+        "compile",
+        "1a5712149eb12e014c5097aa804aa76a3b7468ee"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Switched to a new branch 'compile'\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "write": "/dev/shm/zil198-git/case198-14tx5mni/receiver/compile.txt",
+      "content": "speed work\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "add",
+        "compile.txt"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "compile side"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[compile 04a2dab] compile side\n 1 file changed, 1 insertion(+)\n create mode 100644 compile.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "04a2dab95c25cfaaf923dfea0100e145b08f3374\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-14tx5mni/language.bundle"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Imported\",\n  \"source_commit\": \"7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\",\n  \"destination_ref\": \"refs/remotes/zil-language/7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\",\n  \"note\": \"Working branch, index, files and remotes were not changed. Merge separately after review.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "switch",
+        "-c",
+        "integration/language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Switched to a new branch 'integration/language'\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "merge",
+        "--no-ff",
+        "refs/remotes/zil-language/7fce463420ec30f5b6498ed5bef1e8b062a9ce4d",
+        "-m",
+        "integrate language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Merge made by the 'ort' strategy.\n language.txt | 2 +-\n shared.txt   | 2 +-\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "compile"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "04a2dab95c25cfaaf923dfea0100e145b08f3374\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_divergence_merges_on_new_branch",
+      "cwd": "/dev/shm/zil198-git/case198-14tx5mni/receiver",
+      "command": [
+        "git",
+        "show",
+        "-s",
+        "--format=%P",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "04a2dab95c25cfaaf923dfea0100e145b08f3374 7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/source",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "main"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-l9kvxh92/source/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/source",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/source",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/source",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "write": "/dev/shm/zil198-git/case198-l9kvxh92/source/shared.txt",
+      "content": "base\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "write": "/dev/shm/zil198-git/case198-l9kvxh92/source/language.txt",
+      "content": "v0\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/source",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/source",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "base"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main (root-commit) 1a57121] base\n 2 files changed, 2 insertions(+)\n create mode 100644 language.txt\n create mode 100644 shared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1a5712149eb12e014c5097aa804aa76a3b7468ee\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "write": "/dev/shm/zil198-git/case198-l9kvxh92/source/language.txt",
+      "content": "v1\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "write": "/dev/shm/zil198-git/case198-l9kvxh92/source/shared.txt",
+      "content": "language\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/source",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main 7fce463] language\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-l9kvxh92/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-l9kvxh92/language.bundle",
+        "--expect-commit",
+        "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Exported\",\n  \"bundle_path\": \"/dev/shm/zil198-git/case198-l9kvxh92/language.bundle\",\n  \"manifest\": \"/dev/shm/zil198-git/case198-l9kvxh92/language.bundle.json\",\n  \"format\": \"zil-offline-bundle-v1\",\n  \"kind\": \"full\",\n  \"source_ref\": \"refs/heads/main\",\n  \"source_commit\": \"7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\",\n  \"source_tree\": \"f2cc9a4c3ca2802e9f7fabbd29af7160a127bd3c\",\n  \"excluded_base\": null,\n  \"advertised_refs\": {\n    \"refs/heads/main\": \"7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\"\n  },\n  \"prerequisites\": [],\n  \"capabilities\": [],\n  \"bundle\": {\n    \"file\": \"language.bundle\",\n    \"bytes\": 557,\n    \"sha256\": \"87d59064fbe4967f5cfac818cf219d3fad05b8954ccc74bde38777e0469a4c9e\"\n  },\n  \"scope\": \"Only the named branch and its reachable, unchanged Git history; no uncommitted files or unrelated refs.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92",
+      "command": [
+        "git",
+        "clone",
+        "--no-local",
+        "/dev/shm/zil198-git/case198-l9kvxh92/source",
+        "/dev/shm/zil198-git/case198-l9kvxh92/receiver"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Cloning into '/dev/shm/zil198-git/case198-l9kvxh92/receiver'...\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/receiver",
+      "command": [
+        "git",
+        "switch",
+        "-c",
+        "compile",
+        "1a5712149eb12e014c5097aa804aa76a3b7468ee"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Switched to a new branch 'compile'\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/receiver",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/receiver",
+      "command": [
+        "git",
+        "update-ref",
+        "refs/remotes/zil-language/7fce463420ec30f5b6498ed5bef1e8b062a9ce4d",
+        "1a5712149eb12e014c5097aa804aa76a3b7468ee"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-l9kvxh92/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-l9kvxh92/language.bundle"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "{\"status\": \"Failed\", \"error\": \"immutable destination ref already names another object\"}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_existing_destination_is_not_overwritten",
+      "cwd": "/dev/shm/zil198-git/case198-l9kvxh92/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "refs/remotes/zil-language/7fce463420ec30f5b6498ed5bef1e8b062a9ce4d"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1a5712149eb12e014c5097aa804aa76a3b7468ee\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m/source",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "main"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-jso0q83m/source/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m/source",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m/source",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m/source",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "write": "/dev/shm/zil198-git/case198-jso0q83m/source/shared.txt",
+      "content": "base\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "write": "/dev/shm/zil198-git/case198-jso0q83m/source/language.txt",
+      "content": "v0\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m/source",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m/source",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "base"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main (root-commit) 1a57121] base\n 2 files changed, 2 insertions(+)\n create mode 100644 language.txt\n create mode 100644 shared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1a5712149eb12e014c5097aa804aa76a3b7468ee\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "write": "/dev/shm/zil198-git/case198-jso0q83m/source/language.txt",
+      "content": "v1\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "write": "/dev/shm/zil198-git/case198-jso0q83m/source/shared.txt",
+      "content": "language\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m/source",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main 7fce463] language\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "write": "/dev/shm/zil198-git/case198-jso0q83m/language.bundle",
+      "content": "do not replace"
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-jso0q83m/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-jso0q83m/language.bundle",
+        "--expect-commit",
+        "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "{\"status\": \"Failed\", \"error\": \"refusing to replace an existing bundle or manifest\"}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "write": "/dev/shm/zil198-git/case198-jso0q83m/source/local.txt",
+      "content": "uncommitted"
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-jso0q83m/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-jso0q83m/language.bundle",
+        "--expect-commit",
+        "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "{\"status\": \"Failed\", \"error\": \"export requires a clean source worktree\"}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-jso0q83m/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-jso0q83m/language.bundle",
+        "--expect-commit",
+        "1a5712149eb12e014c5097aa804aa76a3b7468ee"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "{\"status\": \"Failed\", \"error\": \"source ref differs from --expect-commit\"}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-jso0q83m/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-jso0q83m/language.bundle",
+        "--expect-commit",
+        "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d",
+        "--base",
+        "7fce463420ec30f5b6498ed5bef1e8b062a9ce4d"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "{\"status\": \"Failed\", \"error\": \"incremental bundle would contain no new commits\"}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_export_refuses_collision_dirty_wrong_head_empty_and_oversize",
+      "cwd": "/dev/shm/zil198-git/case198-jso0q83m",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-jso0q83m/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-jso0q83m/language.bundle",
+        "--max-bytes",
+        "1"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "{\"status\": \"Failed\", \"error\": \"bundle exceeds 1 bytes; no delivery was published\"}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/source",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "main"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-00z6drqj/source/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/source",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/source",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/source",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "write": "/dev/shm/zil198-git/case198-00z6drqj/source/shared.txt",
+      "content": "base\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "write": "/dev/shm/zil198-git/case198-00z6drqj/source/language.txt",
+      "content": "v0\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/source",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/source",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "base"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main (root-commit) 1d62312] base\n 2 files changed, 2 insertions(+)\n create mode 100644 language.txt\n create mode 100644 shared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1d62312a6647ccbc92d131f329662860531d44f0\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "write": "/dev/shm/zil198-git/case198-00z6drqj/source/language.txt",
+      "content": "v1\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "write": "/dev/shm/zil198-git/case198-00z6drqj/source/shared.txt",
+      "content": "language\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/source",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main a886937] language\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "a8869370c161470e74ec2266cbae53e1d3fb57e1\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-00z6drqj/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-00z6drqj/language.bundle",
+        "--expect-commit",
+        "a8869370c161470e74ec2266cbae53e1d3fb57e1"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Exported\",\n  \"bundle_path\": \"/dev/shm/zil198-git/case198-00z6drqj/language.bundle\",\n  \"manifest\": \"/dev/shm/zil198-git/case198-00z6drqj/language.bundle.json\",\n  \"format\": \"zil-offline-bundle-v1\",\n  \"kind\": \"full\",\n  \"source_ref\": \"refs/heads/main\",\n  \"source_commit\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"source_tree\": \"f2cc9a4c3ca2802e9f7fabbd29af7160a127bd3c\",\n  \"excluded_base\": null,\n  \"advertised_refs\": {\n    \"refs/heads/main\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\"\n  },\n  \"prerequisites\": [],\n  \"capabilities\": [],\n  \"bundle\": {\n    \"file\": \"language.bundle\",\n    \"bytes\": 558,\n    \"sha256\": \"be2cab94e3a54c8114fb8c79f692f13ad425fb2798d5589e56be85693a3e3a2f\"\n  },\n  \"scope\": \"Only the named branch and its reachable, unchanged Git history; no uncommitted files or unrelated refs.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/receiver",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "compile"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-00z6drqj/receiver/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/receiver",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-00z6drqj/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-00z6drqj/language.bundle"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Imported\",\n  \"source_commit\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"destination_ref\": \"refs/remotes/zil-language/a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"note\": \"Working branch, index, files and remotes were not changed. Merge separately after review.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "refs/remotes/zil-language/a8869370c161470e74ec2266cbae53e1d3fb57e1"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "a8869370c161470e74ec2266cbae53e1d3fb57e1\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/receiver",
+      "command": [
+        "git",
+        "for-each-ref",
+        "--format=%(refname)"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "refs/remotes/zil-language/a8869370c161470e74ec2266cbae53e1d3fb57e1\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-00z6drqj/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-00z6drqj/language.bundle"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"AlreadyImported\",\n  \"source_commit\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"destination_ref\": \"refs/remotes/zil-language/a8869370c161470e74ec2266cbae53e1d3fb57e1\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_full_bundle_import_and_repeat",
+      "cwd": "/dev/shm/zil198-git/case198-00z6drqj/receiver",
+      "command": [
+        "git",
+        "symbolic-ref",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "refs/heads/compile\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/source",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "main"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-bm5ldybo/source/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/source",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/source",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/source",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "write": "/dev/shm/zil198-git/case198-bm5ldybo/source/shared.txt",
+      "content": "base\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "write": "/dev/shm/zil198-git/case198-bm5ldybo/source/language.txt",
+      "content": "v0\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/source",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/source",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "base"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main (root-commit) 1d62312] base\n 2 files changed, 2 insertions(+)\n create mode 100644 language.txt\n create mode 100644 shared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1d62312a6647ccbc92d131f329662860531d44f0\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "write": "/dev/shm/zil198-git/case198-bm5ldybo/source/language.txt",
+      "content": "v1\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "write": "/dev/shm/zil198-git/case198-bm5ldybo/source/shared.txt",
+      "content": "language\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/source",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main a886937] language\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "a8869370c161470e74ec2266cbae53e1d3fb57e1\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-bm5ldybo/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-bm5ldybo/language.bundle",
+        "--expect-commit",
+        "a8869370c161470e74ec2266cbae53e1d3fb57e1",
+        "--base",
+        "1d62312a6647ccbc92d131f329662860531d44f0"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Exported\",\n  \"bundle_path\": \"/dev/shm/zil198-git/case198-bm5ldybo/language.bundle\",\n  \"manifest\": \"/dev/shm/zil198-git/case198-bm5ldybo/language.bundle.json\",\n  \"format\": \"zil-offline-bundle-v1\",\n  \"kind\": \"incremental\",\n  \"source_ref\": \"refs/heads/main\",\n  \"source_commit\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"source_tree\": \"f2cc9a4c3ca2802e9f7fabbd29af7160a127bd3c\",\n  \"excluded_base\": \"1d62312a6647ccbc92d131f329662860531d44f0\",\n  \"advertised_refs\": {\n    \"refs/heads/main\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\"\n  },\n  \"prerequisites\": [\n    \"1d62312a6647ccbc92d131f329662860531d44f0\"\n  ],\n  \"capabilities\": [],\n  \"bundle\": {\n    \"file\": \"language.bundle\",\n    \"bytes\": 425,\n    \"sha256\": \"5a330eb0fef9f954712f729ab492291cdd28d8d20002b4f7f4dffd8ad6f324b8\"\n  },\n  \"scope\": \"Only the named branch and its reachable, unchanged Git history; no uncommitted files or unrelated refs.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo",
+      "command": [
+        "git",
+        "clone",
+        "--no-local",
+        "/dev/shm/zil198-git/case198-bm5ldybo/source",
+        "/dev/shm/zil198-git/case198-bm5ldybo/receiver"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Cloning into '/dev/shm/zil198-git/case198-bm5ldybo/receiver'...\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/receiver",
+      "command": [
+        "git",
+        "switch",
+        "-c",
+        "compile",
+        "1d62312a6647ccbc92d131f329662860531d44f0"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": "Switched to a new branch 'compile'\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/receiver",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-bm5ldybo/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-bm5ldybo/language.bundle"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Imported\",\n  \"source_commit\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"destination_ref\": \"refs/remotes/zil-language/a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"note\": \"Working branch, index, files and remotes were not changed. Merge separately after review.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1d62312a6647ccbc92d131f329662860531d44f0\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/receiver",
+      "command": [
+        "git",
+        "merge",
+        "--ff-only",
+        "refs/remotes/zil-language/a8869370c161470e74ec2266cbae53e1d3fb57e1"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Updating 1d62312..a886937\nFast-forward\n language.txt | 2 +-\n shared.txt   | 2 +-\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_incremental_and_explicit_fast_forward",
+      "cwd": "/dev/shm/zil198-git/case198-bm5ldybo/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "a8869370c161470e74ec2266cbae53e1d3fb57e1\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/source",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "main"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-hv91eewo/source/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/source",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/source",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/source",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "write": "/dev/shm/zil198-git/case198-hv91eewo/source/shared.txt",
+      "content": "base\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "write": "/dev/shm/zil198-git/case198-hv91eewo/source/language.txt",
+      "content": "v0\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/source",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/source",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "base"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main (root-commit) 1d62312] base\n 2 files changed, 2 insertions(+)\n create mode 100644 language.txt\n create mode 100644 shared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1d62312a6647ccbc92d131f329662860531d44f0\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "write": "/dev/shm/zil198-git/case198-hv91eewo/source/language.txt",
+      "content": "v1\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "write": "/dev/shm/zil198-git/case198-hv91eewo/source/shared.txt",
+      "content": "language\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/source",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main a886937] language\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "a8869370c161470e74ec2266cbae53e1d3fb57e1\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-hv91eewo/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-hv91eewo/language.bundle",
+        "--expect-commit",
+        "a8869370c161470e74ec2266cbae53e1d3fb57e1",
+        "--base",
+        "1d62312a6647ccbc92d131f329662860531d44f0"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Exported\",\n  \"bundle_path\": \"/dev/shm/zil198-git/case198-hv91eewo/language.bundle\",\n  \"manifest\": \"/dev/shm/zil198-git/case198-hv91eewo/language.bundle.json\",\n  \"format\": \"zil-offline-bundle-v1\",\n  \"kind\": \"incremental\",\n  \"source_ref\": \"refs/heads/main\",\n  \"source_commit\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"source_tree\": \"f2cc9a4c3ca2802e9f7fabbd29af7160a127bd3c\",\n  \"excluded_base\": \"1d62312a6647ccbc92d131f329662860531d44f0\",\n  \"advertised_refs\": {\n    \"refs/heads/main\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\"\n  },\n  \"prerequisites\": [\n    \"1d62312a6647ccbc92d131f329662860531d44f0\"\n  ],\n  \"capabilities\": [],\n  \"bundle\": {\n    \"file\": \"language.bundle\",\n    \"bytes\": 425,\n    \"sha256\": \"5a330eb0fef9f954712f729ab492291cdd28d8d20002b4f7f4dffd8ad6f324b8\"\n  },\n  \"scope\": \"Only the named branch and its reachable, unchanged Git history; no uncommitted files or unrelated refs.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/receiver",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "compile"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-hv91eewo/receiver/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/receiver",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-hv91eewo/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-hv91eewo/language.bundle"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "{\"status\": \"Failed\", \"error\": \"git bundle verify /dev/shm/zil198-git/case198-hv91eewo/language.bundle: error: Repository lacks these prerequisite commits:\\nerror: 1d62312a6647ccbc92d131f329662860531d44f0\"}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_missing_incremental_prerequisite_rejected",
+      "cwd": "/dev/shm/zil198-git/case198-hv91eewo/receiver",
+      "command": [
+        "git",
+        "for-each-ref",
+        "--format=%(refname)"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/source",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "main"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-iou8auyb/source/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/source",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/source",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/source",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "write": "/dev/shm/zil198-git/case198-iou8auyb/source/shared.txt",
+      "content": "base\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "write": "/dev/shm/zil198-git/case198-iou8auyb/source/language.txt",
+      "content": "v0\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/source",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/source",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "base"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main (root-commit) 1d62312] base\n 2 files changed, 2 insertions(+)\n create mode 100644 language.txt\n create mode 100644 shared.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "1d62312a6647ccbc92d131f329662860531d44f0\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "write": "/dev/shm/zil198-git/case198-iou8auyb/source/language.txt",
+      "content": "v1\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "write": "/dev/shm/zil198-git/case198-iou8auyb/source/shared.txt",
+      "content": "language\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/source",
+      "command": [
+        "git",
+        "commit",
+        "-am",
+        "language"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[main a886937] language\n 2 files changed, 2 insertions(+), 2 deletions(-)\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/source",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "a8869370c161470e74ec2266cbae53e1d3fb57e1\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-iou8auyb/source",
+        "export",
+        "--output",
+        "/dev/shm/zil198-git/case198-iou8auyb/language.bundle",
+        "--expect-commit",
+        "a8869370c161470e74ec2266cbae53e1d3fb57e1"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Exported\",\n  \"bundle_path\": \"/dev/shm/zil198-git/case198-iou8auyb/language.bundle\",\n  \"manifest\": \"/dev/shm/zil198-git/case198-iou8auyb/language.bundle.json\",\n  \"format\": \"zil-offline-bundle-v1\",\n  \"kind\": \"full\",\n  \"source_ref\": \"refs/heads/main\",\n  \"source_commit\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"source_tree\": \"f2cc9a4c3ca2802e9f7fabbd29af7160a127bd3c\",\n  \"excluded_base\": null,\n  \"advertised_refs\": {\n    \"refs/heads/main\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\"\n  },\n  \"prerequisites\": [],\n  \"capabilities\": [],\n  \"bundle\": {\n    \"file\": \"language.bundle\",\n    \"bytes\": 558,\n    \"sha256\": \"be2cab94e3a54c8114fb8c79f692f13ad425fb2798d5589e56be85693a3e3a2f\"\n  },\n  \"scope\": \"Only the named branch and its reachable, unchanged Git history; no uncommitted files or unrelated refs.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "init",
+        "-b",
+        "compile"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "Initialized empty Git repository in /dev/shm/zil198-git/case198-iou8auyb/receiver/.git/\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.name",
+        "198 isolated fixture"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "config",
+        "user.email",
+        "fixture@example.invalid"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "config",
+        "commit.gpgsign",
+        "false"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "write": "/dev/shm/zil198-git/case198-iou8auyb/receiver/unrelated.txt",
+      "content": "independent repository\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "add",
+        "."
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "commit",
+        "-m",
+        "unrelated root"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "[compile (root-commit) d5d6015] unrelated root\n 1 file changed, 1 insertion(+)\n create mode 100644 unrelated.txt\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "d5d6015b34b40e476c619e6e818327b18f6d4511\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/scratch/39be3faa4442/language14/review193/tools/language/198/bundle.py",
+        "--repo",
+        "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+        "import",
+        "--bundle",
+        "/dev/shm/zil198-git/case198-iou8auyb/language.bundle"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "{\n  \"status\": \"Imported\",\n  \"source_commit\": \"a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"destination_ref\": \"refs/remotes/zil-language/a8869370c161470e74ec2266cbae53e1d3fb57e1\",\n  \"note\": \"Working branch, index, files and remotes were not changed. Merge separately after review.\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "merge-base",
+        "HEAD",
+        "refs/remotes/zil-language/a8869370c161470e74ec2266cbae53e1d3fb57e1"
+      ],
+      "expected_exit": 1,
+      "exit": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "merge",
+        "--no-ff",
+        "refs/remotes/zil-language/a8869370c161470e74ec2266cbae53e1d3fb57e1",
+        "-m",
+        "must reject"
+      ],
+      "expected_exit": 128,
+      "exit": 128,
+      "stdout": "",
+      "stderr": "fatal: refusing to merge unrelated histories\n"
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "d5d6015b34b40e476c619e6e818327b18f6d4511\n",
+      "stderr": ""
+    },
+    {
+      "test": "__main__.BundleTests.test_unrelated_history_is_imported_but_not_merged",
+      "cwd": "/dev/shm/zil198-git/case198-iou8auyb/receiver",
+      "command": [
+        "git",
+        "status",
+        "--porcelain=v1"
+      ],
+      "expected_exit": 0,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual isolated local Git operations; no compiler build, language acceptance or native Windows claim."
+}
