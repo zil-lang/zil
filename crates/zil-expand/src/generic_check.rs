@@ -922,7 +922,8 @@ impl Check<'_, '_, '_> {
         borrowing: bool,
     ) -> R<TypeRef> {
         self.tick(e.span)?;
-        if let Some(ty) = self.enum_expression(e, state, expected)? {
+        let enum_context = expected.map(|ty| stores::success(ty).map_or(ty, |(error, _)| error));
+        if let Some(ty) = self.enum_expression(e, state, enum_context)? {
             return Ok(ty);
         }
         let needs_bound = || {
