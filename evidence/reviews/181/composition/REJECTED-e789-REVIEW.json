@@ -1,0 +1,42 @@
+{
+  "reviewer": "/root/history178_audit",
+  "implementation_author": "/root",
+  "implementation_commit": "e7896c54e26351f1b7bfbe9de133945f62850263",
+  "production_change_under_review": "647ba5c29891b63ac100de27b0a8e9e20148adea",
+  "review_test_commit": "b6827ad6f05b45c25aaf037894c3550a0047e1c1",
+  "verdict": "Reject",
+  "findings": [
+    {
+      "severity": "blocking",
+      "title": "Ordinary generic struct field projection duplicates an unconstrained T at definition time",
+      "source": "struct Holder<T>{value:T}fn bad<T>(holder:Holder<T>)->(T,T){return (holder.value,holder.value)}fn main(){}",
+      "observed": "Success / Verify / verification_runs=1",
+      "required": "Definition-time rejection; unknown T cannot be copied by repeating a projection",
+      "cause": "Member base now always expr(..., true), suppressing by-value consumption even for non-Address/non-Package ordinary structs; following field move accounting only handles callable Package slots.",
+      "receipt": "runs/attacks01/command.json",
+      "production_modified_by_reviewer": false
+    }
+  ],
+  "author_replay": {
+    "command": "runs/baseline01/command.json",
+    "passed": 30,
+    "failed": 0,
+    "filtered": 0,
+    "groups": [
+      "impl177_state_composition (11)",
+      "impl178_generic_store (15)",
+      "impl181_composition (4)"
+    ]
+  },
+  "independent": {
+    "command": "runs/attacks01/command.json",
+    "passed": 2,
+    "failed": 1,
+    "positive": "Exclusive address read/write/read and subsequent caller use does not consume &mut",
+    "negative_count_in_passing_group": 7,
+    "failed_test": "reviewer_generic_value_projection_must_not_duplicate_unconstrained_t"
+  },
+  "full_workspace": "NotRun",
+  "product": "NotRun",
+  "full_language": "NotSatisfied"
+}

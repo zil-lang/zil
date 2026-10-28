@@ -1,0 +1,4 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review181-composition/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.50s
+     Running tests/impl126_helper_sequences.rs (/workspace/scratch/39be3faa4442/targets178/review181-composition/debug/deps/impl126_helper_sequences-c93b6696f0921ae4)
+     Running tests/review177_composition.rs (/workspace/scratch/39be3faa4442/targets178/review181-composition/debug/deps/review177_composition-61b04e19546b98d2)

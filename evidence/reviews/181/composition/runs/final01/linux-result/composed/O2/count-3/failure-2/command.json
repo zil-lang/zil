@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/runs178/review181-composition/final01/linux-result/composed/O2/probe"
+  ],
+  "status": "Completed",
+  "start": 1793152591.5758739,
+  "stdin_hex": "33",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "2"
+  },
+  "exit_code": 1,
+  "stdout_sha256": "44bd7ae60f478fae1061e11a7739f4b94d1daf917982d33b6fc8a01a63f89c21",
+  "stderr_sha256": "bb88c2f1e370592e35a46d3386a12e35d9bbf577e6abfce6ee5f35161e69fddd",
+  "end": 1793152591.5774436
+}

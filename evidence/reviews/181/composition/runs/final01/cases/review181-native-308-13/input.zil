@@ -1,0 +1,1 @@
+struct Point{x:i32}fn touch(p:&mut Point,n:&mut i32)->&mut Point{*n+=1;return p}fn read<T>(p:&mut Point,n:&mut i32)->i32{return touch(p,n).x+touch(p,n).x}fn main()->i32{var point=Point{x:7};var count=0;let value=read::<i32>(&mut point,&mut count);return value+count-16}

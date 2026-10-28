@@ -1,0 +1,59 @@
+{
+  "production_source": "83174688e249c8e5723ebaffd11cde3024b601b6",
+  "migrated_source": "8fffa2e56befa9fb3d22db3d7dd1e5ee4d7e80da",
+  "native_and_targeted_review_source": "7f318403bd6a8b054a361dd64ea020279cff8f1b",
+  "legacy_review_source": "719311c8f9a23af401ea2fb0f9e442a6b878b9e2",
+  "diffs": {
+    "migrated": {
+      "non_evidence_paths": [
+        "crates/zil-driver/tests/impl126_helper_sequences.rs",
+        "crates/zil-driver/tests/review177_composition.rs"
+      ],
+      "production_changes": []
+    },
+    "native": {
+      "non_evidence_paths": [
+        "crates/zil-driver/tests/review181_projection.rs"
+      ],
+      "production_changes": []
+    },
+    "legacy": {
+      "non_evidence_paths": [
+        "crates/zil-driver/tests/impl126_helper_sequences.rs",
+        "crates/zil-driver/tests/review177_composition.rs",
+        "crates/zil-driver/tests/review181_projection.rs"
+      ],
+      "production_changes": []
+    }
+  },
+  "source_trees": {
+    "crates/zil-analyze/src": "94d06c3efadccb7f06f2bfed84594f786cc7e558",
+    "crates/zil-backend-llvm/src": "c0e34832be221291fd2c18eac6795666785420e5",
+    "crates/zil-base/src": "c2ed213f85b505b82865f5b492b5a6a487864573",
+    "crates/zil-cli/src": "2d63d4e811893b18cd8e0807d7ac7e783cee84f7",
+    "crates/zil-ct/src": "a12aab86fa3caad229e98bf65a0a51dc4941c53c",
+    "crates/zil-db/src": "dfdb4be094e8583ade23b57aa7a90174385f0f80",
+    "crates/zil-driver/src": "da8ca17616eb1fe3a956f5c9ecaeb45fc62e0b9a",
+    "crates/zil-expand/src": "b101cb2ee0930b1877ef7a26deaf4a9461ccbca6",
+    "crates/zil-ide/src": "a10c51492cd8153d169227c64488118f3a83ac40",
+    "crates/zil-ir/src": "8f9326fd07e70e93f22903dadf9786d78c8da7d1",
+    "crates/zil-lower/src": "f978eab4767b2b0c023f24022cc3866904fe115d",
+    "crates/zil-syntax/src": "71cb2c71d07466193c64af6a92157ff5b6779e76",
+    "crates/zil-types/src": "df6728f9a32839fb804aa8c7a459d09fff4aeead",
+    "crates/zil-verify/src": "a0016bfb4221b4b9f509902a318478ff893d223b"
+  },
+  "reviewer_changed_production": false,
+  "final_author_binding": {
+    "source_commit": "2f42c86cbe75d5d542bb46dee28fc92e354a257f",
+    "production_difference_from_831": [
+      "crates/zil-expand/src/generic_check.rs"
+    ],
+    "difference_exact_added_deleted_lines_equal_helper_commit": "6b2a700a017679d7ded5550d313501578d082972",
+    "difference_sha256": "ba57799240ca3953011af77ff3b9b47b1a49e6ec3bbc4f4fceecff21ed70914e",
+    "projection_production_unchanged": true,
+    "all_other_crate_source_trees_unchanged": true,
+    "helper_independent_review_owner": "/root",
+    "helper_independent_review_source_reported": "47949d71",
+    "reviewer_is_helper_author_so_does_not_self_certify_helper": "This extension binds only the unchanged projection/composition implementation. The helper delta was independently replayed and accepted by root; combined final consumer runs are separately owned by the 181 author."
+  }
+}

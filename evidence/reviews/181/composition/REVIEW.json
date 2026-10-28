@@ -1,0 +1,167 @@
+{
+  "reviewer": "/root/history178_audit",
+  "implementation_author": "/root",
+  "implementation_commit": "83174688e249c8e5723ebaffd11cde3024b601b6",
+  "also_binds_test_migration_commit": "8fffa2e56befa9fb3d22db3d7dd1e5ee4d7e80da",
+  "review_test_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b",
+  "legacy_review_commit": "719311c8f9a23af401ea2fb0f9e442a6b878b9e2",
+  "verdict": "Pass",
+  "scope": "181 composition consumer and root generic known-Address Copy projection correction; unchanged earlier implementation slices are replayed as scoped neighbors, not re-certified as full language.",
+  "production_identity": "PRODUCTION-IDENTITY.json",
+  "commands": {
+    "targeted": {
+      "receipt": "runs/final01/targeted/command.json",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b"
+    },
+    "legacy": {
+      "receipt": "runs/final01/legacy/command.json",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "719311c8f9a23af401ea2fb0f9e442a6b878b9e2"
+    },
+    "fmt": {
+      "receipt": "runs/final01/fmt/command.json",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b"
+    },
+    "clippy": {
+      "receipt": "runs/final01/clippy/command.json",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b"
+    },
+    "build": {
+      "receipt": "runs/final01/build/command.json",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b"
+    },
+    "linux-command": {
+      "receipt": "runs/final01/linux-command/command.json",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b"
+    },
+    "win64-command": {
+      "receipt": "runs/final01/win64-command/command.json",
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b"
+    },
+    "wine-init": {
+      "receipt": "runs/final01/wine-init/command.json",
+      "status": "Fail",
+      "exit_code": 1,
+      "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b"
+    },
+    "wine-init02": {
+      "receipt": "runs/final01/wine-init02/command.json",
+      "status": "Fail",
+      "exit_code": 53,
+      "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b"
+    }
+  },
+  "test_counts": {
+    "targeted": {
+      "passed": 53,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "suites": 5
+    },
+    "legacy": {
+      "passed": 14,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "suites": 2
+    }
+  },
+  "total_test_passed": 67,
+  "independent_cases": {
+    "groups": 4,
+    "unknown_T_ordinary_projection_negatives": 4,
+    "address_managed_copy_boundary_negatives": 7,
+    "exclusive_address_positive": true,
+    "side_effectful_address_base_single_evaluation_native_runs": 2,
+    "native_optimizations": [
+      "O0",
+      "O2"
+    ],
+    "test_file": "crates/zil-driver/tests/review181_projection.rs"
+  },
+  "fixed_finding": {
+    "initial_candidate": "e7896c54e26351f1b7bfbe9de133945f62850263",
+    "rejected_production_change": "647ba5c29891b63ac100de27b0a8e9e20148adea",
+    "rejected_receipt": "REJECTED-e789-REVIEW.json",
+    "initial_observed": "Unused Holder<T> value projection twice wrongly Success / Verify / 1 verification run.",
+    "correction": "Borrow the Member base only for known direct/grouped Address locals; retain prior by-value consumption for ordinary Value/Package. Dereferenced projected fields still require actual finite Copy; managed and unknown T stay closed.",
+    "resolution": "Original unused source and three nearest variants reject after 831; exclusive reference reborrow and side-effectful address bases remain valid."
+  },
+  "consumers": {
+    "linux": {
+      "status": "Pass",
+      "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b",
+      "platform": "linux",
+      "execution": "native",
+      "executions": 48,
+      "ordinary_executions": 10,
+      "instrumented_executions": 38,
+      "failure_executions": 30,
+      "cli_sha256": "2a6558f7bce22f51c0d2b9b226641896819bb5fa6292af02a33ef3d2e734890f",
+      "summary": "runs/final01/linux-result/summary.json",
+      "all_instrumented_allocations_balanced": true,
+      "module_count": 4
+    },
+    "win64": {
+      "status": "Pass",
+      "source_commit": "7f318403bd6a8b054a361dd64ea020279cff8f1b",
+      "platform": "win64",
+      "execution": "Wine compatibility",
+      "executions": 48,
+      "ordinary_executions": 10,
+      "instrumented_executions": 38,
+      "failure_executions": 30,
+      "cli_sha256": "2a6558f7bce22f51c0d2b9b226641896819bb5fa6292af02a33ef3d2e734890f",
+      "summary": "runs/final01/win64-result/summary.json",
+      "all_instrumented_allocations_balanced": true,
+      "module_count": 4
+    }
+  },
+  "legacy_migrations": {
+    "changed_files": [
+      "crates/zil-driver/tests/impl126_helper_sequences.rs",
+      "crates/zil-driver/tests/review177_composition.rs"
+    ],
+    "original_inputs_preserved": true,
+    "reason": "Existing loop Unsupported moves from Expand to Types after the generic checker accepts a loop, while its cyclic callback trace remains unsupported. Generic Store descriptor give is now a precise safe rejection. Distinct callback/Store/Copy sibling fields are valid under 179; whole-parent early cleanup and ownership negatives remain rejecting, including raw/Wire."
+  },
+  "environment_failures_preserved": {
+    "sandbox_wine_init": "Unix socket denied; exit 1 before consumer execution.",
+    "official_new_prefix_init": "Exit 53, stub DLL dialog/kernel32 initialization; no consumer claim.",
+    "resolution": "Independent copy of restored official prefix with explicit WINEDLLPATH; actual Win64 binaries then ran under Wine compatibility. Exact paths/configuration in runs/final01/wine-environment.json."
+  },
+  "boundaries": [
+    "No native Windows host run: Win64 execution is Wine compatibility.",
+    "No full workspace run, performance comparison, new product gate, or full-language acceptance by this reviewer.",
+    "178 helper concrete-resource regression repair is independently reviewed elsewhere; it is not silently included in this 831 production identity.",
+    "The initial handoff integrity failure remains preserved; it is not represented as a passing gate.",
+    "Final author 2f42c86c adds only the already independently root-reviewed 178 helper delta relative to 831. Projection/composition code is unchanged. This reviewer authored that helper and does not self-certify it; the 181 final combined consumer runs belong to its author."
+  ],
+  "rust_goals": {
+    "safety": "Narrow projection Copy/ownership and composition checks passed; independent review found and corrected a real unused-template safety regression. This is finite-slice evidence, not full-language safety.",
+    "runtime_and_memory": "96 composed native/compatibility observations, including 60 allocation faults, preserve actual output and balanced ownership. No matched Rust timing or peak-memory comparison.",
+    "expression_and_maintenance": "Four reusable source modules compose generic Store, exclusive windows and State callbacks. Maintenance-cost superiority is unmeasured.",
+    "compile_cost": "Not measured; compiler-speed work stays separate.",
+    "breakthrough": "A repeatable compositional language improvement is demonstrated; no product-level Rust advantage or novel general safety theorem is claimed."
+  },
+  "full_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "thresholds_modified": false,
+  "also_binds_final_author_projection_commit": "2f42c86cbe75d5d542bb46dee28fc92e354a257f",
+  "final_author_binding": "PRODUCTION-IDENTITY.json#final_author_binding"
+}

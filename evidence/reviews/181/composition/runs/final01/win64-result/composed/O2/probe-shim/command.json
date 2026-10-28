@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "--target=x86_64-pc-windows-msvc",
+    "-O2",
+    "-ffreestanding",
+    "-fno-builtin",
+    "-fno-stack-protector",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-c",
+    "/workspace/scratch/39be3faa4442/language14/review181-composition/tools/language/181/heap_probe.c",
+    "-o",
+    "/workspace/scratch/39be3faa4442/runs178/review181-composition/final01/win64-result/composed/O2/heap_probe.obj"
+  ],
+  "status": "Completed",
+  "start": 1793152853.0559494,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793152853.1733878
+}
