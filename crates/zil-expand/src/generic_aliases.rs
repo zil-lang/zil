@@ -21,6 +21,7 @@ struct Loan {
     mutable: bool,
     parents: Vec<usize>,
     invalid: bool,
+    born: usize,
 }
 
 #[derive(Clone, Default)]
@@ -31,7 +32,7 @@ pub(super) struct AliasState {
 
 #[derive(Clone, Copy)]
 struct Use {
-    loan: usize,
+    born: usize,
     local: Option<usize>,
 }
 
@@ -47,6 +48,7 @@ pub(super) struct Tracker {
     pub(super) result: Vec<usize>,
     active: Vec<Held>,
     uses: Vec<Use>,
+    joins: Vec<BTreeMap<usize, usize>>,
 }
 
 #[derive(Clone, Copy)]
@@ -101,40 +103,109 @@ impl Check<'_, '_, '_> {
         if self.aliases.next == 0 {
             return Ok(());
         }
+        self.aliases.joins.clear();
+        if let [branch] = branches {
+            self.alias_clone_fee(branch, span)?;
+            state.aliases = branch.aliases.clone();
+            return Ok(());
+        }
+        self.alias_fee(branches.len().saturating_add(1), span)?;
         if branches.iter().all(|branch| branch.aliases.is_none()) {
             state.aliases = None;
             return Ok(());
         }
         self.alias_fee(1, span)?;
         let mut joined = AliasState::default();
+        let mut pinned = BTreeSet::new();
+        let first = branches
+            .iter()
+            .find_map(|branch| branch.aliases.as_ref())
+            .expect("nonempty alias join");
+        for index in 0..self.aliases.active.len() {
+            let id = self.aliases.active[index].loan;
+            self.alias_fee(
+                tree_work(first.loans.len()).saturating_add(tree_work(pinned.len())),
+                span,
+            )?;
+            let loan = &first.loans[&id];
+            pinned.insert(id);
+            for parent in &loan.parents {
+                self.alias_fee(tree_work(pinned.len()), span)?;
+                pinned.insert(*parent);
+            }
+        }
+        self.alias_fee(branches.len(), span)?;
+        self.aliases.joins.reserve(branches.len());
         for branch in branches {
             let Some(aliases) = &branch.aliases else {
+                self.aliases.joins.push(BTreeMap::new());
                 continue;
             };
+            // A loan can be dead on one path because that path installed a
+            // fresh address, yet still be the valid zero-iteration value on
+            // another path. Keep those versions separate instead of OR-ing
+            // an obsolete invalid bit into every surviving reference.
+            let mut mapping = BTreeMap::new();
+            for id in aliases.loans.keys() {
+                self.alias_fee(
+                    tree_work(pinned.len())
+                        .saturating_add(tree_work(mapping.len()))
+                        .saturating_add(1),
+                    span,
+                )?;
+                let mapped = if pinned.contains(id) {
+                    *id
+                } else {
+                    self.alias_id(span)?
+                };
+                mapping.insert(*id, mapped);
+            }
             for (id, loan) in &aliases.loans {
                 self.alias_fee(
                     loan.parents
                         .len()
+                        .saturating_mul(tree_work(mapping.len()).saturating_add(1))
+                        .saturating_add(tree_work(mapping.len()))
                         .saturating_add(tree_work(joined.loans.len()))
                         .saturating_add(2),
                     span,
                 )?;
+                let mut parents = Vec::with_capacity(loan.parents.len());
+                for parent in &loan.parents {
+                    parents.push(mapping[parent]);
+                }
+                let value = Loan {
+                    position: loan.position,
+                    mutable: loan.mutable,
+                    parents,
+                    invalid: loan.invalid,
+                    born: loan.born,
+                };
                 joined
                     .loans
-                    .entry(*id)
+                    .entry(mapping[id])
                     .and_modify(|old| old.invalid |= loan.invalid)
-                    .or_insert_with(|| loan.clone());
+                    .or_insert(value);
             }
             for (id, loans) in &aliases.locals {
                 self.alias_fee(tree_work(joined.locals.len()).saturating_add(1), span)?;
                 let target = joined.locals.entry(*id).or_default();
                 for loan in loans {
-                    self.alias_fee(target.len().saturating_mul(2).saturating_add(1), span)?;
-                    if !target.contains(loan) {
-                        target.push(*loan);
+                    self.alias_fee(
+                        target
+                            .len()
+                            .saturating_mul(2)
+                            .saturating_add(tree_work(mapping.len()))
+                            .saturating_add(1),
+                        span,
+                    )?;
+                    let mapped = mapping[loan];
+                    if !target.contains(&mapped) {
+                        target.push(mapped);
                     }
                 }
             }
+            self.aliases.joins.push(mapping);
         }
         state.aliases = Some(joined);
         Ok(())
@@ -163,7 +234,7 @@ impl Check<'_, '_, '_> {
             // A borrow freshly established by this iteration is not an old
             // address reused by the backedge. Outer alias locals still carry
             // the particular loan(s) that the next condition/body can use.
-            if used.loan >= mark.first_new_loan {
+            if used.born >= mark.first_new_loan {
                 continue;
             }
             let Some(local) = used.local else { continue };
@@ -327,10 +398,7 @@ impl Check<'_, '_, '_> {
     ) -> R<usize> {
         let size = state.aliases.as_ref().map_or(0, |s| s.loans.len());
         self.alias_fee(tree_work(size).saturating_add(3), span)?;
-        let id = self.aliases.next;
-        self.aliases.next = id.checked_add(1).ok_or_else(|| {
-            Diagnostic::limit(Phase::Expand, "State alias identity overflow", Some(span))
-        })?;
+        let id = self.alias_id(span)?;
         state
             .aliases
             .get_or_insert_with(AliasState::default)
@@ -342,8 +410,17 @@ impl Check<'_, '_, '_> {
                     mutable,
                     parents: origin.parents,
                     invalid: false,
+                    born: id,
                 },
             );
+        Ok(id)
+    }
+
+    fn alias_id(&mut self, span: Span) -> R<usize> {
+        let id = self.aliases.next;
+        self.aliases.next = id.checked_add(1).ok_or_else(|| {
+            Diagnostic::limit(Phase::Expand, "State alias identity overflow", Some(span))
+        })?;
         Ok(id)
     }
 
@@ -424,7 +501,7 @@ impl Check<'_, '_, '_> {
                 ));
             }
             self.aliases.uses.push(Use {
-                loan: *id,
+                born: aliases.loans[id].born,
                 local: Some(local),
             });
         }
@@ -621,27 +698,26 @@ impl Check<'_, '_, '_> {
         Ok(self.aliases.result.clone())
     }
 
-    pub(super) fn alias_result_union(&mut self, other: Vec<usize>, span: Span) -> R<()> {
-        if other.is_empty() {
+    pub(super) fn alias_result_join(
+        &mut self,
+        left: Vec<usize>,
+        right: Vec<usize>,
+        span: Span,
+    ) -> R<()> {
+        self.aliases.result.clear();
+        if left.is_empty() && right.is_empty() {
             return Ok(());
         }
-        let growth = if other.len()
-            > self
-                .aliases
-                .result
-                .capacity()
-                .saturating_sub(self.aliases.result.len())
-        {
-            self.aliases.result.len()
-        } else {
-            0
-        };
-        self.alias_fee(other.len().saturating_add(growth), span)?;
-        self.aliases.result.reserve(other.len());
-        for id in other {
-            self.alias_fee(self.aliases.result.len().saturating_add(1), span)?;
-            if !self.aliases.result.contains(&id) {
-                self.aliases.result.push(id);
+        let count = left.len().saturating_add(right.len());
+        self.alias_fee(count, span)?;
+        self.aliases.result.reserve(count);
+        for (branch, values) in [left, right].into_iter().enumerate() {
+            for id in values {
+                self.alias_fee(
+                    tree_work(self.aliases.joins[branch].len()).saturating_add(1),
+                    span,
+                )?;
+                self.aliases.result.push(self.aliases.joins[branch][&id]);
             }
         }
         Ok(())
