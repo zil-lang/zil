@@ -52,10 +52,16 @@ fn directory() -> PathBuf {
 }
 
 fn check(source: &str) -> CompileReport {
+    check_files(&[("main", source)])
+}
+
+fn check_files(files: &[(&str, &str)]) -> CompileReport {
     let dir = directory();
-    fs::write(dir.join("main.zil"), source).unwrap();
+    for (name, text) in files {
+        fs::write(dir.join(format!("{name}.zil")), text).unwrap();
+    }
     let report = compile_project(
-        &project(&[("main", source)]),
+        &project(files),
         &CompileOptions {
             emit_dir: Some(dir.join("phases")),
             ..CompileOptions::default()
@@ -340,10 +346,7 @@ fn two_layers_of_desc_helpers_export_internal_callback_accesses() {
         0,
     );
     let writer = helper.replace("let f=()=>d.n", "let f=()=>{d.n=22;return d.n}");
-    let report = compile_project(
-        &project(&[("main", consumer), ("model", model), ("helper", &writer)]),
-        &CompileOptions::default(),
-    );
+    let report = check_files(&[("main", consumer), ("model", model), ("helper", &writer)]);
     assert_eq!(
         report.status,
         ResultCategory::SafeReject,
