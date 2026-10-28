@@ -1,0 +1,25 @@
+{
+  "implementation_commit": "74254d8da12004519ca342b1c0602a5a90831c44",
+  "review_test_commit": "4de4575809425e7cbb5a720e1f15e1a50df86451",
+  "reviewer": "/root/design14_acceptance",
+  "dirty": "",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "review180_by179",
+    "-j2",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/review180-by179",
+  "target": "/workspace/scratch/39be3faa4442/targets178/review180-by179",
+  "test_sha256": "278c319c4f2ea0112834e31ae26d414a548221600223623dadec335cfb832800",
+  "exit_code": 101,
+  "status": "Fail",
+  "elapsed_seconds": 0.30284833908081055
+}

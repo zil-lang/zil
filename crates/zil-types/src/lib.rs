@@ -133,7 +133,7 @@ fn signatures(
                 format!("function {} is declared twice", f.name),
             ))
         }
-        if f.return_type.is_shared_package_address() {
+        if f.return_type.is_package_address() {
             errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
         }
         if f.return_type.is_shared_resource_head_address()
@@ -215,7 +215,7 @@ fn signatures(
                     || p.ty.is_shared_resource_head_address()
                     || p.ty.is_shared_package_address()))
                 && !(p.mode == PassingMode::BorrowMut
-                    && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee()))
+                    && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address()))
                 && !(p.mode == PassingMode::Give
                     && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
                 && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
@@ -549,7 +549,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 .iter()
                 .map(|local| &local.ty)
                 .chain(&self.function.values)
-                .any(Type::is_shared_package_address)
+                .any(Type::is_package_address)
             {
                 return Err(unsupported(
                     body.span,

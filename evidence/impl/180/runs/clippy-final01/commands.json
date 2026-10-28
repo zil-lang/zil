@@ -1,0 +1,51 @@
+[
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "--offline",
+      "--locked",
+      "-j2",
+      "--lib",
+      "-p",
+      "zil-types",
+      "-p",
+      "zil-analyze",
+      "-p",
+      "zil-verify",
+      "-p",
+      "zil-lower",
+      "-p",
+      "zil-backend-llvm",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/language14/wt180",
+    "source_commit": "74254d8da12004519ca342b1c0602a5a90831c44",
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 3.4997975826263428
+  },
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "--offline",
+      "--locked",
+      "-j2",
+      "-p",
+      "zil-driver",
+      "--test",
+      "impl180_store_mut",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "cwd": "/workspace/scratch/39be3faa4442/language14/wt180",
+    "source_commit": "74254d8da12004519ca342b1c0602a5a90831c44",
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 1.5578808784484863
+  }
+]

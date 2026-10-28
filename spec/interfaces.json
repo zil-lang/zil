@@ -972,7 +972,8 @@
       "source": "Explicit result(create/give) on E!R applies to its successful direct resource payload; absent mode keeps default Desc.",
       "responsibility": "Only the actual active tag owns its payload; Make transfers once, Take consumes once, Drop pays only the active obligation. Failure injection creates no success obligation.",
       "authority": "Types/Analyze and independent Verify reconstruct real source, mode, tag and cleanup. Schema registration is not implementation completion.",
-      "boundary": "ByteBuffer and finite user resources first; Store only with whole-path receipts. No automatic resource error side or arbitrary nested owning Sum."
+      "boundary": "ByteBuffer and finite user resources first; Store only with whole-path receipts. No automatic resource error side or arbitrary nested owning Sum.",
+      "parameter": "Explicit give x:E!R forms ErrorUnion(E,Managed<R>), an ordinary non-Copy parameter value. Move the formed union normally, never give the union itself. A default E!R parameter keeps default Desc category."
     }
   }
 }
