@@ -30,6 +30,17 @@ pub(super) fn specialize<'a>(
     let mut names_budget = Budget::new(limits);
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
+        if let ItemKind::Impl(implementation) = &item.kind
+            && implementation
+                .trait_type
+                .as_ref()
+                .is_some_and(stores::is_bound)
+        {
+            return Err(vec![error(
+                item.span,
+                "StoreElement is a compiler shape bound and cannot be implemented",
+            )]);
+        }
         let declared = match &item.kind {
             ItemKind::Aggregate(a) => Some(a.name.as_str()),
             ItemKind::Enum(e) => Some(e.name.as_str()),

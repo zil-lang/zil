@@ -204,7 +204,7 @@ fn element_bound_checks_real_shapes_and_never_grants_copy_or_members() {
         "fn bad<T:StoreElement>(a:T)->i32=>a.n",
         "package Bad<T>{manages s:Store<T>}",
         "package Bad<T:StoreElement>{manages item:T}",
-        "package Batch<T:StoreElement>{manages s:Store<T>}fn bad<T>(b:Batch<T>)->Batch<T>=>b",
+        "package Batch<T:StoreElement>{manages s:Store<T>}fn bad<T>(b:Batch<T>)->Batch<T> =>b",
         "trait StoreElement{}",
         "impl StoreElement for Item{}",
         "fn bad<T:StoreElement>(s:Store<T>,v:T)->void!void{store_push(s,v)?;return ()}",
@@ -219,6 +219,14 @@ fn element_bound_checks_real_shapes_and_never_grants_copy_or_members() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.phase == zil_base::Phase::Expand),
+            "{bad}: {}",
+            report.to_json()
+        );
     }
 }
 
@@ -504,4 +512,17 @@ fn bounded_element_shape_work_has_an_exact_definition_time_boundary() {
         format!("{{\"pass_steps\":{high},\"reject_steps\":{}}}\n", high - 1),
     )
     .unwrap();
+}
+
+#[test]
+fn real_copy_shapes_including_static_foreign_values_remain_elements() {
+    let source = format!(
+        r#"{MODEL}{HELPERS}
+ enum Kind{{Empty,Value(i32)}}struct Payload{{pair:(i32,bool);bytes:[u8;2]}}
+ package ForeignItem{{manages r:R;payload:Payload;kind:Kind;handle:c_handle;text:c_wstr;callback:extern "C" fn(i32)->i32}}
+ fn callback(n:i32)->i32=>n
+ fn main()->i32{{let s:Store<ForeignItem>=empty();reserve(s,1);push(s,ForeignItem{{r:R{{code:65}},payload:Payload{{pair:(7,true),bytes:[1u8,2]}},kind:Kind.Value(3),handle:c_null(),text:c_wstr("ZIL"),callback:c_callback(callback)}});return i32(len(s))-1}}
+ "#
+    );
+    native(&[("main", &source)], b"A", 0);
 }
