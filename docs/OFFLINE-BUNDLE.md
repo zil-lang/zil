@@ -27,7 +27,7 @@ py -3 C:\tools\bundle.py --repo C:\src\zil import --bundle C:\downloads\zil-lang
 ```sh
 git bundle verify /path/to/zil-language-main.bundle
 git bundle list-heads /path/to/zil-language-main.bundle refs/heads/main
-git fetch --no-tags --no-write-fetch-head /path/to/zil-language-main.bundle refs/heads/main:refs/remotes/zil-language/<完整提交>
+git fetch --no-tags --no-write-fetch-head --recurse-submodules=no /path/to/zil-language-main.bundle refs/heads/main:refs/remotes/zil-language/<完整提交>
 git rev-parse refs/remotes/zil-language/<完整提交>
 ```
 
