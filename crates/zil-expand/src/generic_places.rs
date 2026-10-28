@@ -3,6 +3,23 @@ use super::*;
 
 impl Check<'_, '_, '_> {
     pub(super) fn place(&mut self, expression: &Expr, state: &mut State) -> R<(TypeRef, bool)> {
+        self.place_with_use(expression, state, true)
+    }
+
+    pub(super) fn assignment_place(
+        &mut self,
+        expression: &Expr,
+        state: &mut State,
+    ) -> R<(TypeRef, bool)> {
+        self.place_with_use(expression, state, false)
+    }
+
+    fn place_with_use(
+        &mut self,
+        expression: &Expr,
+        state: &mut State,
+        use_alias: bool,
+    ) -> R<(TypeRef, bool)> {
         self.tick(expression.span)?;
         let span = expression.span;
         match &expression.kind {
@@ -15,9 +32,13 @@ impl Check<'_, '_, '_> {
                     return Err(error(span, "generic place used after move"));
                 }
                 self.budget.ty(&local.ty)?;
-                Ok((local.ty.clone(), local.mutable))
+                let (id, ty, mutable) = (local.id, local.ty.clone(), local.mutable);
+                if use_alias {
+                    self.alias_use_local(state, id, span)?;
+                }
+                Ok((ty, mutable))
             }
-            ExprKind::Group(inner) => self.place(inner, state),
+            ExprKind::Group(inner) => self.place_with_use(inner, state, use_alias),
             ExprKind::Unary {
                 op: UnaryOp::Dereference,
                 operand,
