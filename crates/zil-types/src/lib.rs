@@ -319,7 +319,7 @@ pub fn check(
     functions.sort_by_key(|f| f.id);
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
-    dynamic_store::add_definitions(&functions, &mut resource_definitions, limits)
+    dynamic_store::add_definitions(&functions, &mut resource_definitions, &closures, limits)
         .map_err(|e| vec![e])?;
     let mut module = TypedModule {
         resources: resource_definitions,
