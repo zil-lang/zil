@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/runs178/author189/development08/inference-probes/record_read/main.zil",
+    "--json",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/runs178/author189/development08/inference-probes/record_read/phases"
+  ],
+  "source_commit": "083417d9d9befe046036cf1c50c8d3b3b01ba771",
+  "exit_code": 1
+}

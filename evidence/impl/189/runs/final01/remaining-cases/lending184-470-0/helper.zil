@@ -1,0 +1,1 @@
+pub fn peek<F:Fn()->&i32>(f:&F)->&i32{return f()}

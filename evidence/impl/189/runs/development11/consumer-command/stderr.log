@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/39be3faa4442/language14/wt189/tools/language/189/consumer.py", line 98, in <module>
+    main()
+  File "/workspace/scratch/39be3faa4442/language14/wt189/tools/language/189/consumer.py", line 84, in main
+    observe(probe, case / f"failure-{fail_at}", count, failure, 1,
+  File "/workspace/scratch/39be3faa4442/language14/wt189/tools/language/189/consumer.py", line 37, in observe
+    raise RuntimeError(f"execution differs from oracle: {record}, stderr={result.stderr!r}")
+RuntimeError: execution differs from oracle: {'input': 0, 'stdout': 'H', 'exit_code': 8, 'expected_stdout': 'H', 'expected_exit': 1, 'fail_at': 1, 'command': 'O0/count-0/failure-1/command.json'}, stderr=b'{"alloc_calls":1,"allocated":0,"frees":0,"failures":1,"live":0,"peak_live":0,"peak_bytes":0}\n'

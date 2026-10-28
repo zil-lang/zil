@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl189_address",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt189",
+  "start": 1793157550.6867259,
+  "source_commit": "7355a04e26a5706fb1de0e1ae371007eef776add",
+  "git_status": " M crates/zil-verify/src/borrows/loans.rs\n?? examples/mainline/address189/\n?? tools/language/189/\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author189fresh01",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/runs178/author189/development05/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793157552.239035,
+  "stdout.log_sha256": "5955736c9a030f20ba36b3deccbb487a5d44d42d1ae2fc1febad3eea276f81d5",
+  "stderr.log_sha256": "f1a6f080121a5212ca19026e9971ba6562da1bb9b5100615059f8cecdfdf0567"
+}

@@ -1,0 +1,36 @@
+
+running 17 tests
+test helper065_analyze_reconstructs_hold_and_call_paths ... ok
+test helper065_copy_error_callbacks_are_instantiated_and_verified ... ok
+test helper065_error_callback_stops_trace_and_late_argument_is_guarded ... ok
+test helper065_cross_module_interfaces_include_actual_environment_layout ... ok
+test helper065_generic_body_reads_known_resource_field ... ok
+test helper065_helper_does_not_extend_resource_or_address_lifetimes ... ok
+test helper065_instances_are_cached_and_new_identities_are_bounded ... ok
+test helper065_mutable_borrow_updates_actual_environment ... ok
+test helper065_nearest_callable_admission_rejections ... ok
+test helper065_owned_environment_shared_borrow_and_reuse ... ok
+test helper065_owned_fn_can_adapt_to_borrowed_fnmut_then_be_reused ... ok
+test helper065_raw_callable_metadata_is_bounded_before_instantiation ... ok
+test helper065_mutable_target_loan_ends_after_owned_zero_or_one_call ... ok
+test helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces ... FAILED
+test helper065_same_name_in_distinct_modules_keeps_definition_identity ... ok
+test helper065_shared_and_copy_arguments ... ok
+test helper065_value_condition_and_consume_adaptation ... ok
+
+failures:
+
+---- helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces stdout ----
+
+thread 'helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces' (194) panicked at crates/zil-driver/tests/impl065_helpers.rs:224:5:
+assertion `left == right` failed: {"status":"Success","phase":"verify","diagnostics":[],"artifacts":{},"input_fingerprint":"b881dd7ddda58ce4bddf3c6a4a1cd21e56b312767ff40cfad9748b99dc5ddfe2","seconds":0.00178668,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"negative065.zil"},"scalar_interfaces":[]}
+  left: Success
+ right: Unsupported
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    helper065_scope_is_explicit_for_extra_borrows_and_unbounded_traces
+
+test result: FAILED. 16 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

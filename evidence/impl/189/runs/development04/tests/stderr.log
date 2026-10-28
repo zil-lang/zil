@@ -1,0 +1,12 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-lower)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-backend-llvm)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt189/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 7.22s
+     Running tests/impl184_lending.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl184_lending-7eb3fbdc20edd05c)
+     Running tests/impl184_lending_raw.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl184_lending_raw-3cf1ecefcf76f44a)
+     Running tests/impl187_borrowed_bytes.rs (/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/deps/impl187_borrowed_bytes-ecf8a0924fe5afd3)
+error: test failed, to rerun pass `-p zil-driver --test impl187_borrowed_bytes`

@@ -1,0 +1,1 @@
+struct Wide{small:i32;wide:i64}fn make(value:Wide)->impl Fn()->&i64{return move()=>&value.wide}fn main()->i32{let f=make(Wide{small:3,wide:41});let p=f();return i32(*p)-41}
