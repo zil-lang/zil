@@ -1,0 +1,206 @@
+[
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/iso-codes_4.16.0-1_all.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "cafca0a3a1f07b44fbba53ab7a1f1d9755e6b80cc041173afe2b52e53bed97a7",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libcapi20-3t64_1%3a3.27-3.1build1_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "64ccf24d0db21787b4b958d17cec730474069b1bac80d5e8fdf6067411da6482",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libdw1t64_0.190-1.1ubuntu0.1_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "edaa9ce4221d95f4bd72a9805100902e313092a2f31a7a51e7186be97734714d",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libexif12_0.6.24-1ubuntu0.24.04.1_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "fd58a7c7e8841a51e6fc8c90bbf0dc9ec8159929e52f276a2176f14090ccf55a",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libgd3_2.3.3-9ubuntu5_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "dbef5ad99eec399fd6afeb6d0cc92d81a8b3295a7ac80ac71311ea09c49704ae",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libgphoto2-6t64_2.5.31-2.1ubuntu1.1_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "f60dc6e328494902a9d4ae6f156d0e7a5074271e9467d32e8887ed363e6f6f09",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libgphoto2-port12t64_2.5.31-2.1ubuntu1.1_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "0a32510314ecd537f52dabd3e407882dd33535064b8b3d6fe1f2f106032c805c",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libgstreamer-plugins-base1.0-0_1.24.2-1ubuntu0.4_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "508f0a23fab878be69390cd3f5d94024541875dc7034b64becb1c72241508afc",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libgstreamer1.0-0_1.24.2-1ubuntu0.1_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "306a6a5cff08630b79b8a68e5f888da7d8e209a452e9b5e24449cca95d8e71f5",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libibverbs1_50.0-2ubuntu0.2_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "8489558105ee1d1c65ae6e0f1bac0e9b15f314a68f106ee9a63c89821242bd8e",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libnl-route-3-200_3.7.0-0.3build1.1_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "c9dbd29cb7fdcf1a0587726cbc5432a7d3e81242108dfcfa2dd6716c44c74d4d",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/liborc-0.4-0t64_1%3a0.4.38-1ubuntu0.1_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "a546ca6e237748693596ba469e84a2e0581bc39113abc62b718931df00a4c682",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libpcap0.8t64_1.10.4-4.1ubuntu3_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "62e3379edd4b8cf748f2a1260c96f54dd2074ae4f956bd2b444440d62c0b5d2a",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libwine_9.0~repack-4build3_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "eb421a3660bfdc090d70ce16b06aadfde1c2bce2593292023e520988f45d009e",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libxkbregistry0_1.6.0-1build1_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "6911037a581872628eadcffdd3c0771db35fdce7bae7fc23b637623bf8a8f136",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/libz-mingw-w64_1.3.1+dfsg-1_all.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "eb4ffd7e941578c58a323331b6b6953cef8a0bd61d6e0ba82f1b9b6e66650d16",
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "dpkg-deb",
+      "-x",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine-download/archives/wine64_9.0~repack-4build3_amd64.deb",
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9"
+    ],
+    "exit_code": 0,
+    "package_sha256": "7f4f912b21917f28c281c99e3244ee801be2e20f0a23cd9f6d37acc97f5041ff",
+    "stdout": "",
+    "stderr": ""
+  }
+]

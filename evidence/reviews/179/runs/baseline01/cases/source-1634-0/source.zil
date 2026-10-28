@@ -1,0 +1,1 @@
+package P{manages b:ByteBuffer;manages c:ByteBuffer}fn make()->P{return P{b:bytes_new(),c:bytes_new()}}fn work(flag:bool)->i64{var p=make();let s=if flag{bytes_view(p.b)}else{bytes_view(p.c)};p.c=bytes_new();return s.len()}fn value()->i64{return work(true)}

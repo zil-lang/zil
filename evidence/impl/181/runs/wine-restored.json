@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "/workspace/scratch/39be3faa4442/run-logs/181-platform/first177.exe"
+  ],
+  "exit_code": 0,
+  "stdout": "DEFHZMNOPK",
+  "stderr_bytes": 0,
+  "status": "Pass"
+}

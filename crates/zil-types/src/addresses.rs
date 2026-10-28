@@ -236,7 +236,7 @@ impl Builder<'_, '_> {
                 let result = self.expr(operand, None)?;
                 if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee())
                     && !result.1.is_shared_resource_head_address()
-                    && !result.1.is_shared_package_address()
+                    && !result.1.is_package_address()
                 {
                     return Err(error(
                         "E-OPERATOR-TYPE",

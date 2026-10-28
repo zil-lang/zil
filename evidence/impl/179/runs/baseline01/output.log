@@ -1,0 +1,35 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-analyze)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-expand)
+   Compiling zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt179/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 7.45s
+     Running tests/impl179_field_precision.rs (/workspace/scratch/39be3faa4442/targets178/author179/debug/deps/impl179_field_precision-b8aa0a896a16c234)
+
+running 1 test
+test callback_loan_allows_actual_sibling_store_and_copy_fields ... FAILED
+
+failures:
+
+---- callback_loan_allows_actual_sibling_store_and_copy_fields stdout ----
+
+thread 'callback_loan_allows_actual_sibling_store_and_copy_fields' (257) panicked at crates/zil-driver/tests/impl179_field_precision.rs:31:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"verify","diagnostics":[{"phase":"verify","category":"SafeReject","code":"E-BORROW-CONFLICT","message":"write or storage change overlaps a shared address still required by a later use","span":{"file":0,"start":907,"end":917},"notes":[]}],"artifacts":{"candidate":"/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/baseline01/cases/field179-native-256-0/phases/candidate.txt","core":"/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/baseline01/cases/field179-native-256-0/phases/core.txt","ct-core":"/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/baseline01/cases/field179-native-256-0/phases/ct-core.txt","interfaces":"/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/baseline01/cases/field179-native-256-0/phases/interfaces.txt","source-map":"/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/baseline01/cases/field179-native-256-0/phases/source-map.txt","syntax":"/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/baseline01/cases/field179-native-256-0/phases/syntax.txt","typed":"/workspace/scratch/39be3faa4442/language14/wt179/out/runs/179/baseline01/cases/field179-native-256-0/phases/typed.txt"},"input_fingerprint":"ee4d6d087de66e0ee57f68373e55d82f5759d0d706e0541d9715fef4104e68e1","seconds":0.040305036,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"main.zil"},"scalar_interfaces":[{"module":0,"signature_fingerprint":"b315d18a1ae1c9cf976fc71548d022b0e803f3db280815136ef7742a43387942","implementation_fingerprint":"ad20363ed586d2729c671901dcda6c5ee6d0b9ab61928edc9e3f35f4a0246bb7","contract_fingerprint":null,"result_origins":null,"callable_contracts":null,"callable_returns":null,"exports":[]}]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    callback_loan_allows_actual_sibling_store_and_copy_fields
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p zil-driver --test impl179_field_precision`

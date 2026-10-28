@@ -1,0 +1,27 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review179-by178/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.28s
+     Running tests/review179_borrows.rs (/workspace/scratch/39be3faa4442/targets178/review179-by178/debug/deps/review179_borrows-4847ed81e9d963fe)
+
+running 4 tests
+test reviewer_copy_aggregate_replacement_preserves_callback_and_store_windows ... ok
+test reviewer_raw_wire_valid_copy_index_cannot_masquerade_as_callback ... ok
+test reviewer_raw_wire_whole_parent_cleanup_cannot_cross_live_callback_loan ... FAILED
+test reviewer_raw_wire_current_argument_cannot_alias_a_transitive_helper_write ... ok
+
+failures:
+
+---- reviewer_raw_wire_whole_parent_cleanup_cannot_cross_live_callback_loan stdout ----
+
+thread 'reviewer_raw_wire_whole_parent_cleanup_cannot_cross_live_callback_loan' (74) panicked at crates/zil-driver/tests/review179_borrows.rs:318:14:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    reviewer_raw_wire_whole_parent_cleanup_cannot_cross_live_callback_loan
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+error: test failed, to rerun pass `-p zil-driver --test review179_borrows`
+error: 1 target failed:
+    `-p zil-driver --test review179_borrows`

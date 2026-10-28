@@ -35,7 +35,7 @@ fn head_windows(module: &TypedModule, budget: &mut Budget) -> CompileResult<bool
             "resource head window discovery",
         )?;
         if function.locals.iter().map(|l| &l.ty).chain(&function.values)
-            .any(|ty| ty.is_shared_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
+            .any(|ty| ty.is_package_address() || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)))) {
             return Ok(true);
         }
     }
@@ -178,15 +178,31 @@ fn infer(
                         found.insert(Root::Capture(*index));
                     }
                     InstructionKind::ByteBufferBorrow { buffer, .. }
-                    | InstructionKind::OwnedStoreBorrow { store: buffer, .. } => {
+                    | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
+                    | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
                         let source = values
                             .get(buffer.0 as usize)
                             .ok_or_else(|| bad("ByteBuffer source outside table"))?;
                         extend(&mut found, source, budget)?;
                     }
-                    InstructionKind::BorrowOwnedArrayElement { local, .. }
-                    | InstructionKind::BorrowPackageField { local, .. } => {
+                    InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                         found.insert(Root::Local(*local));
+                    }
+                    InstructionKind::BorrowPackageField { local, index, .. } => {
+                        // This is a borrow of the actual inline callback field,
+                        // not a borrow of every field in its owning shell.
+                        // The LocalId still exports the parent lifetime Hold.
+                        let root = match &f.locals[local.0 as usize].ty {
+                            Type::Package { fields, .. }
+                                if fields
+                                    .get(*index as usize)
+                                    .is_some_and(|(_, ty)| matches!(ty, Type::Closure(_))) =>
+                            {
+                                Root::Field(*local, *index)
+                            }
+                            _ => Root::Local(*local),
+                        };
+                        found.insert(root);
                     }
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {

@@ -668,15 +668,11 @@ impl Resolver<'_> {
                     {
                         Type::Managed(payload)
                     }
-                    Type::Package { .. }
-                        if !*mutable && dynamic_store::supported_element(&inner) =>
-                    {
-                        inner
-                    }
+                    Type::Package { .. } if dynamic_store::supported_element(&inner) => inner,
                     Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
                         return Err(unsupported(
                             span,
-                            "head addresses require a shared finite user-resource head; mutable, byte-storage and Package heads are not implemented",
+                            "head addresses require a shared finite user-resource head or a supported Store element; byte-storage and other Package heads are not implemented",
                         ));
                     }
                     other => other,

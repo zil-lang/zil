@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Codegen,
+        category: SafeReject,
+        code: "E-CODEGEN-UNBOUND-LIR",
+        message: "LIR does not exactly match the supplied verified module, environments and scalar layout",
+        span: None,
+        notes: [],
+    },
+]

@@ -1,0 +1,105 @@
+{
+  "task": "178",
+  "status": "RejectedByIndependentReview",
+  "source_commit": "fc2cdb9aef61a543faf94e61aa10750c09180996",
+  "production_source_commit": "a6ecd5ab106966ce5c1ec4c706bfad94b463aab1",
+  "source_difference_from_production_commit": [
+    "crates/zil-driver/tests/impl178_generic_store.rs (three extra nominal mismatch counterexamples only)"
+  ],
+  "baseline": "8c4ed992138fc103c0fbaf6318e2e34d261bda81",
+  "rule_version": "ZIL-LANG-1.4",
+  "schema_version": 22,
+  "spec_sha256": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "normative_hash": "1cf7aadb8800c31436f158ee3cdf78bcea330ed2bfafc29112b8d11211655a6e",
+  "final_commands": [
+    "runs/final02/targeted/command.json",
+    "runs/final02/fmt/command.json",
+    "runs/final02/clippy/command.json",
+    "runs/final02/build-cli/command.json",
+    "runs/final02/consumer-command/command.json"
+  ],
+  "driver_tests": {
+    "groups": 5,
+    "passed": 59,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 1
+  },
+  "filtered_test": {
+    "name": "direct_store_builtin_in_parametric_body_remains_a_separate_closed_protocol",
+    "reason": "Original 177 expectation disallows the capability explicitly added by 178. Parent owns migrating this unchanged source to Success/Verify/verification_runs=1; not counted as passing here.",
+    "unfiltered_run": "runs/candidate08/targeted/command.json"
+  },
+  "expand_regression": {
+    "source_commit": "a6ecd5ab106966ce5c1ec4c706bfad94b463aab1",
+    "same_production_as_final": true,
+    "command": "runs/final01/expand/command.json",
+    "groups": 5,
+    "passed": 14,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "new_test_groups": 12,
+  "new_test_native_executions": 10,
+  "raw_wire": {
+    "mutation_classes": 3,
+    "routes_per_mutation": 2,
+    "all_rejected": true,
+    "mutations": [
+      "wrong nominal Store element identity",
+      "Store Desc supplied as owned item",
+      "prefix responsibility cleanup removed"
+    ],
+    "fingerprint_recomputed": true
+  },
+  "generic_shape_budget_boundary": {
+    "pass_steps": 2868,
+    "reject_steps": 2867,
+    "checked_at_definition_without_instantiation": true,
+    "limits_changed": false
+  },
+  "consumer": {
+    "summary": "runs/final02/consumer-result/summary.json",
+    "cli_sha256": "2e148a565125d572ab287ddb0a687f4c5b3b017ec582def3595b3df512fd1f77",
+    "module_count": 4,
+    "native_executions": 40,
+    "ordinary_executions": 10,
+    "instrumented_executions": 30,
+    "allocation_failure_executions": 22,
+    "all_measured_live_zero": true,
+    "all_measured_allocations_freed": true
+  },
+  "scope": [
+    "Finite compiler-reserved StoreElement bound",
+    "Unused template body and element shape checks",
+    "Same generic Store helpers over two nominal element shapes and four modules",
+    "Ordinary Store values retain descriptor mode; explicit give/create establish carrier",
+    "Generic owning Package and concrete callback State composition",
+    "Finite invariant-preserving prefix drain loop"
+  ],
+  "preserved_failures": {
+    "early_rust": "Initial iterator/lifetime compiler errors and one missing BTreeSet type annotation retained in development logs.",
+    "lexer_fixture": "A negative fixture accidentally formed >= from >=>; corrected fixture spacing, no parser change.",
+    "consumer_fixture": "Initial model.other pushed into ByteBuffer before reserve; correctly returned failure H/1. Added explicit reserve to fixture. No acceptance workaround.",
+    "candidate08": "One old closed-protocol assertion fails because generic Store construction is now intentionally implemented; all other selected tests passed.",
+    "handoff": "Inherited handoff integrity Fail is retained; not a global acceptance Pass."
+  },
+  "historical_log_precision": "Early shell wrappers appended cat after cargo, so their shell return code was 0 even when cargo failed. Original logs are retained; no cargo exit code is invented. Final run_command receipts record the actual process return code on a clean tree.",
+  "remaining_boundaries": [
+    "General mixed T and F callable shape remains outside current one-callable-parameter profile.",
+    "Unknown bounds do not imply Copy, Managed or element eligibility.",
+    "General where/contracts, nested managed element payloads and looping transfer of an outer responsibility remain unsupported.",
+    "store_at_mut production semantics require slice 180; syntax recognition alone is not counted."
+  ],
+  "full_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "parent_B0": "Doing",
+  "independent_review": {
+    "commit": "4131416",
+    "finding": "Unused result(create) generic could return give incoming and incorrectly pass definition-time checking. Final author commands passed, but this exact source is not acceptable for integration.",
+    "revision_pending": true
+  },
+  "artifact_policy": "No native executable, cargo target/cache, allocator binary, or repetitive phase dump is promoted. Small raw/Wire candidates are verifier input fixtures. One final O0 IR/interface/LLVM chain is retained separately from source delivery."
+}

@@ -1,0 +1,18 @@
+{
+  "task": "180",
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root/design14_acceptance",
+  "implementation_author": "/root/restore177_inventory",
+  "implementation_commit": "74254d8da12004519ca342b1c0602a5a90831c44",
+  "review_test_commit": "d732974b3cbe2b83f97ae99fb12b889305e5942e",
+  "scope": "Author slice: restricted exclusive Store element windows; not formal workspace or full-language acceptance.",
+  "original_review": "evidence/reviews/180/review.json",
+  "original_review_sha256": "9af99389b7ade563aae184d4c08af85c271565c589c03f0d3a88d4f3d2407584",
+  "compatibility_only": "Existing handoff checker interprets top-level executed as numeric, while original review stores grouped results as an object. Original review, verdict, implementation binding, test counts and all observations are preserved unchanged. This wrapper exposes existing passing metadata without claiming a new run.",
+  "new_test_run": false,
+  "original_delivery_commit": "49a9203fe9e593e1d3d40d1c2f004fa25164f459",
+  "formal_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

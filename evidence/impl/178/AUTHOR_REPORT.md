@@ -1,14 +1,18 @@
-# 178：有限泛型 Store 协议（作者限定验收）
-
-## 独立审核退回
-
-父任务独审提交 `4131416` 发现：未实例化的 `result(create)` 泛型可以返回 give 入参并错误通过定义期检查。fc2 因此**退回，不可合入**；下面为原作者限定运行事实，不代表独立审核通过。原始收据保持，正在修补来源新鲜性传播。
+# 178：有限泛型 Store 协议（独审返修后作者限定验收）
 
 ## 精确身份与结果
 
-最终源码为 `fc2cdb9aef61a543faf94e61aa10750c09180996`，采用 ZIL-LANG-1.4 / schema 22。该提交相对 `a6ecd5ab106966ce5c1ec4c706bfad94b463aab1` 只增加同布局不同名义元素的三个最近反例；生产代码和消费者相同。`SUMMARY.json`、各实际命令收据及 `FILES.json` 是本片证据入口，独立审核由非作者另行进行。
+最终返修源码为 `24402e17e1e248fb88a9a69fc5ec961388005e72`，采用 ZIL-LANG-1.4 / schema 22。此前 `fc2cdb9aef61a543faf94e61aa10750c09180996` 被独立审核 `4131416` 的真实定义期 create 来源反例退回；原作者结果、输入和失败完整保存在 `REJECTED-fc2-*` 及 runs 中。当前精确提交待非作者复审，旧作者通过不能代替独审。
 
-最终干净源码的五组 driver 限定回归为 **59 通过、0 失败、1 筛除**；新增 178 本片 12 组全部通过。筛除的是 177 原来要求泛型正文 `store_new()` Unsupported 的旧断言，未改它的源码，也未将筛除计为通过。未筛除首次运行的失败完整保留；集成者负责把同一输入更新为 Success / Verify / verification_runs=1。其余邻接 162、174、176、177 测试均通过。另有相同生产源码上的五组 Expand 回归 **14 通过**。最终 fmt、zil-expand/zil-driver all-target Clippy `-D warnings`、CLI 构建均通过。
+返修后的干净源码运行五组 driver 回归 **62 通过、0 失败、1 筛除**，本片 **15 组通过**；五组 Expand 回归 **14 通过**。筛除的唯一 177 原断言要求已实现的泛型 store_new Unsupported，原输入实际为 Success / Verify / verification_runs=1，由集成者迁移，未计入通过。fmt、zil-expand/zil-driver all-target Clippy `-D warnings`、CLI 构建以及消费者均在本提交重新运行且通过；具体命令、环境和日志见 `SUMMARY.json`。
+
+## 独审返修：新位置不等于新资源
+
+原实现验证了拥有载体，却没有验证 `result(create)` 的新来源，导致未实例化的模板可以返回 give 入参。现在定义期另行跟踪新鲜性：store_new 与 result(create) 调用产生新来源，直接局部 give 保留它；give 入参、result(give) 调用、Package 字段取出不提供新来源。普通 Desc 别名不能因此升级。赋值读取实际 RHS，新鲜性在所有存活分支汇合时取交集，循环也必须保持这项外部不变量。位置替换的符号 ID 与此事实分开。未改 Types、Analyze、Verify 或默认额度。
+
+新增原攻击及 **11 个来源/分支/字段/别名负例**，均在 Expand 拒绝且 verification_runs=0；**7 种真实新来源正例**分别在未实例化和实际实例化状态下通过。双元素 O0/O2 程序验证 fresh 工厂、局部多次 give 和两个返回分支。raw/Wire 另把 result(give) 改为 create，均被独立核以缺少 fresh 来源拒绝；本片现有 **4 类攻击 × 2 入口**，不是仅靠指纹不同拒绝。
+
+一个更一般的正例仍暴露既有实现边界：`var fresh:Store<T>=store_new(); if flag { fresh=empty(); } return give fresh` 的实际实例会被 Types 降为内部 `$managed155` Package 字段，之后 Analyze 按字段 INPUT 边界拒绝 create。revision02 保留源、TypedIR 和诊断；没有把此路径算成通过。直接 fresh 局部 give、条件表达式选择 fresh、分支提前返回与 create helper 转发均实际通过。该内部替换来源保持需后续 Types/独立核协同处理。
 
 ## 实际实现
 
@@ -20,9 +24,9 @@
 
 ## 实际消费者、失败与机器证据
 
-四个真实源码模块把同一泛型 collection 库分别用于 Item（Ticket+i32）和 Other（Ticket+ByteBuffer+i64），并组合一个拥有具体 Store<Item> 与自包含 FnMut 回调的 State。O0/O2 共 **40 次原生执行**：10 次普通程序、30 次分配探针，其中 **22 次逐分配点失败注入**。所有受测分配数等于释放数且最终 live=0；每个 Build 只调用一次独立 Verify。输入 0–3 的退出码、回调计数、Drop 顺序、错误提前返回及无效输入均由执行前 oracle 规定。另有本片测试中的 10 次 O0/O2 原生执行，二者不混计。
+四个真实源码模块把同一泛型 collection 库分别用于 Item（Ticket+i32）和 Other（Ticket+ByteBuffer+i64），并组合一个拥有具体 Store<Item> 与自包含 FnMut 回调的 State。O0/O2 共 **40 次原生执行**：10 次普通程序、30 次分配探针，其中 **22 次逐分配点失败注入**。所有受测分配数等于释放数且最终 live=0；每个 Build 只调用一次独立 Verify。输入 0–3 的退出码、回调计数、Drop 顺序、错误提前返回及无效输入均由执行前 oracle 规定。另有本片测试中的 12 次 O0/O2 原生执行，二者不混计。
 
-三类 raw/Wire 攻击分别篡改 Store 元素名义身份、把 Desc 当拥有元素、删去前缀责任清理；每类两条入口均拒绝，并重算指纹避免只测试哈希不符。未实例化元素形状的精确工作边界为 2868 步通过、2867 步 ResourceLimit，默认额度未改。一个最终 O0 的 Core / 接口 / Typed / candidate / Verified / LLVM 片段保留为阶段和机器表示证据。
+四类 raw/Wire 攻击涵盖 Store 元素名义身份、Desc 冒充拥有元素、缺失前缀清理和伪 create 来源；每类两条入口均拒绝，并重算指纹避免只测试哈希不符。未实例化元素形状的精确工作边界为 2869 步通过、2868 步 ResourceLimit，默认额度未改。原 fc2 和最终返修 O0 的 Core / 接口 / Typed / candidate / Verified / LLVM 片段分别保留为阶段和机器表示证据。
 
 开发期间的 Rust 编译错误、夹具 `>=>` 词法错误、消费者缺 bytes_reserve 的真实失败、旧断言和继承的 handoff Fail 都保留。旧 shell 包装器的 cargo 返回码未被可靠转交，因此仅按原日志判定，未填造返回码；最终命令收据记录真实退出码和干净源码身份。
 
