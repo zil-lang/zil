@@ -272,7 +272,20 @@ fn two_declared_callback_results_cannot_gain_lending_from_concrete_arguments() {
 
 #[test]
 fn dual_state_metadata_and_marker_work_have_fresh_exact_budget_boundaries() {
-    for (label, text) in [("dual", SAME), ("markers", MARKERS)] {
+    let value = SAME
+        .replace(
+            "fn main()",
+            "fn identity<T: StoreElement>(value:T)->T { return value }\nfn main()",
+        )
+        .replace(
+            "run(pack(make(65, 10), make(66, 20), 17))",
+            "run(identity(pack(make(65, 10), make(66, 20), 17)))",
+        );
+    for (label, text) in [
+        ("dual", SAME),
+        ("markers", MARKERS),
+        ("value", value.as_str()),
+    ] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "state203-budget.zil", text);
         let syntax = zil_syntax::parse(&source).into_result().unwrap();
         let check = |n| {
