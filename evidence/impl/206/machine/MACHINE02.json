@@ -1,0 +1,96 @@
+{
+  "status": "Pass",
+  "scope": "actual206 single-source inline child layout and local Drop flags; separate from five-module consumer",
+  "source_commit": "822999d5605d4d5a68c4b7ef890d0bd024d71dd5",
+  "git_status": "",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl206_machine",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--",
+    "--nocapture"
+  ],
+  "command_sha256": "da56ddf87a4abf4a313112fba8141a6a19f3c54d863245b19697591156ee4915",
+  "tests": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0
+  },
+  "native_executions": 4,
+  "cases": [
+    {
+      "case": "machine206-child-flags-992036-0",
+      "source_sha256": "00f57aa3df49e1e2b9412bf3ea0444bfb73fcf1a3dd6180b5f44781e2b914fce",
+      "compile_report_sha256": "b5b2ea8b670e0b6a91815a9f47c31c2c4cc0ab8466c06387ab874c3f1ae698ed",
+      "llvm_sha256": "85decb67defc62634937da0435f743f17aae659ec733271e238ad82480edab59",
+      "program_sha256": "d143af2e0053d623e0e6b3276aded1194fd007172d4528865ddbeb67c4a2b02e",
+      "runs": [
+        {
+          "command": [
+            "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/machine02/cases/machine206-child-flags-992036-0/program"
+          ],
+          "optimization": "O0",
+          "stdin_hex": "30",
+          "exit": 0,
+          "expected_exit": 0,
+          "stdout": "YABCD",
+          "expected_stdout": "YABCD"
+        },
+        {
+          "command": [
+            "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/machine02/cases/machine206-child-flags-992036-0/program"
+          ],
+          "optimization": "O0",
+          "stdin_hex": "31",
+          "exit": 0,
+          "expected_exit": 0,
+          "stdout": "XBCAD",
+          "expected_stdout": "XBCAD"
+        }
+      ]
+    },
+    {
+      "case": "machine206-child-flags-992036-1",
+      "source_sha256": "00f57aa3df49e1e2b9412bf3ea0444bfb73fcf1a3dd6180b5f44781e2b914fce",
+      "compile_report_sha256": "e9c0ab88492ab0591a10e12fd4f1016089ff3c7b50b1be96caf367e1f7d1d310",
+      "llvm_sha256": "85decb67defc62634937da0435f743f17aae659ec733271e238ad82480edab59",
+      "program_sha256": "3f400e39058d4c0fd51de51d21bcca489ca47484daaf919670d3e48a7aea569f",
+      "runs": [
+        {
+          "command": [
+            "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/machine02/cases/machine206-child-flags-992036-1/program"
+          ],
+          "optimization": "O2",
+          "stdin_hex": "30",
+          "exit": 0,
+          "expected_exit": 0,
+          "stdout": "YABCD",
+          "expected_stdout": "YABCD"
+        },
+        {
+          "command": [
+            "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/machine02/cases/machine206-child-flags-992036-1/program"
+          ],
+          "optimization": "O2",
+          "stdin_hex": "31",
+          "exit": 0,
+          "expected_exit": 0,
+          "stdout": "XBCAD",
+          "expected_stdout": "XBCAD"
+        }
+      ]
+    }
+  ],
+  "later_identity_note": "CLI02/03 include later Types/Analyze corrections; this originalmachine02 is not relabelled",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_windows": "NotRun",
+  "evidence_directory": "/workspace/scratch/39be3faa4442/run-logs/206-machine-consumer/machine02"
+}
