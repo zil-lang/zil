@@ -1906,7 +1906,7 @@ fn imported_runtime_templates_keep_scalar_ct_arguments_in_i64_context() {
         .replace("state: State<T,F,G>)", "state: State<T,F,G>, count:i64)")
         .replace(
             "    let tag = state.tag",
-            "    if count != i64(4294967296) { return (9,state.tag) }\n    let tag = state.tag",
+            "    let expected:i64=4294967296\n    if count != expected { return (9,state.tag) }\n    let tag = state.tag",
         );
     let files = [
         (
