@@ -136,3 +136,25 @@ fn oversized_lending_claims_are_bounded_before_verifier_fingerprinting() {
         assert!(zil_ir::wire::encode_module_candidate(&m, &p, &limits).is_err());
     }
 }
+
+#[test]
+fn opaque_public_json_retains_the_lending_relation() {
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "export185.zil",
+        "pub fn make(n:i32)->impl Fn()->i32{return move()=>n}fn main(){}",
+    );
+    let report = zil_driver::compile_source(&source, &zil_driver::CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.to_json().contains("\"lending_captures\":[]"),
+        "{}",
+        report.to_json()
+    );
+}
