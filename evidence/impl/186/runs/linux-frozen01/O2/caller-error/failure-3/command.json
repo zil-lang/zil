@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/186-author/linux-frozen01/O2/probe"
+  ],
+  "status": "Completed",
+  "start": 1793154347.9159257,
+  "stdin_hex": "33",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "3"
+  },
+  "exit_code": 1,
+  "stdout_sha256": "973d79186a902f64c6baa78a217fdaa977672691cd93f2c6fe98a397b3903ae3",
+  "stderr_sha256": "4e6ae5fc283184cf0486d7002cd444aa00f96f33a4be8ff4bdc96f64a42b0876",
+  "end": 1793154347.9172206
+}

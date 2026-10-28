@@ -47,6 +47,10 @@ struct Fact {
 struct State {
     cells: BTreeMap<Place, Fact>,
     later: BTreeSet<(LocalId, LocalId)>,
+    // Complete SSA Packages carry the actual birth of each direct Managed
+    // field. Local Packages already have separate lifecycle cells. Unknown
+    // producers keep Incoming; packaging itself never creates a resource.
+    package_values: BTreeMap<(ValueId, u32), BTreeSet<Birth>>,
 }
 #[derive(Clone, Copy)]
 struct Shape {
@@ -106,11 +110,18 @@ fn replace(state: &mut State, place: Place, fact: Fact, budget: &mut Budget) -> 
 }
 fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
     budget.spend(
-        state.cells.len().saturating_add(state.later.len()),
+        state
+            .cells
+            .len()
+            .saturating_add(state.later.len())
+            .saturating_add(state.package_values.len()),
         "resource state clone",
     )?;
     for fact in state.cells.values() {
         fact_cost(fact, budget)?;
+    }
+    for birth in state.package_values.values() {
+        budget.spend(birth.len(), "Package SSA birth clone")?;
     }
     Ok(state.clone())
 }
@@ -137,7 +148,77 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
     let before = to.later.len();
     to.later.extend(&from.later);
     changed |= before != to.later.len();
+    for (key, source) in &from.package_values {
+        budget.lookup(to.package_values.len(), "Package SSA birth join lookup")?;
+        let target = to
+            .package_values
+            .get_mut(key)
+            .ok_or_else(|| error("incompatible Package SSA birth shapes"))?;
+        budget.spend(
+            target.len().saturating_add(source.len()),
+            "Package SSA birth join",
+        )?;
+        let before = target.len();
+        target.extend(source);
+        changed |= before != target.len();
+    }
     Ok(changed)
+}
+
+fn package_value_shapes(
+    f: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<BTreeMap<(ValueId, u32), BTreeSet<Birth>>> {
+    budget.spend(f.values.len(), "Package SSA birth shape scan")?;
+    let mut fields = BTreeMap::new();
+    for (value, ty) in f.values.iter().enumerate() {
+        if let Type::Package { fields: types, .. } = ty {
+            budget.spend(types.len(), "Package SSA birth field scan")?;
+            for (index, (_, ty)) in types.iter().enumerate() {
+                if matches!(ty, Type::Managed(_)) {
+                    budget.lookup(fields.len(), "Package SSA birth shape insertion")?;
+                    budget.spend(2, "Package SSA birth allocation")?;
+                    fields.insert(
+                        (ValueId(value as u32), index as u32),
+                        BTreeSet::from([Birth::Incoming]),
+                    );
+                }
+            }
+        }
+    }
+    Ok(fields)
+}
+
+fn package_birth(
+    state: &State,
+    value: ValueId,
+    index: u32,
+    budget: &mut Budget,
+) -> CompileResult<BTreeSet<Birth>> {
+    budget.lookup(state.package_values.len(), "Package SSA birth lookup")?;
+    let birth = state
+        .package_values
+        .get(&(value, index))
+        .ok_or_else(|| error("missing Package SSA birth field"))?;
+    budget.spend(birth.len(), "Package SSA birth copy")?;
+    Ok(birth.clone())
+}
+
+fn set_package_birth(
+    state: &mut State,
+    value: ValueId,
+    index: u32,
+    birth: BTreeSet<Birth>,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.lookup(state.package_values.len(), "Package SSA birth update")?;
+    let target = state
+        .package_values
+        .get_mut(&(value, index))
+        .ok_or_else(|| error("missing Package SSA birth field"))?;
+    budget.spend(target.len(), "Package SSA birth replacement")?;
+    *target = birth;
+    Ok(())
 }
 fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<Shape> {
     Ok(match ty {
@@ -1023,10 +1104,20 @@ impl Flow<'_> {
                     if fields.len() != expected.len() {
                         return Err(error("package field arity mismatch"));
                     }
-                    for (value, (_, ty)) in fields.iter().zip(expected) {
+                    for (index, (value, (_, ty))) in fields.iter().zip(expected).enumerate() {
                         budget.type_work(ty, false, "package assembly type comparison")?;
                         if f.values.get(value.0 as usize) != Some(ty) {
                             return Err(error("package field type mismatch"));
+                        }
+                        if matches!(ty, Type::Managed(_)) {
+                            let birth = copied(state, Place::Value(*value), budget)?.birth;
+                            set_package_birth(
+                                state,
+                                i.result.expect("checked Package result"),
+                                index as u32,
+                                birth,
+                                budget,
+                            )?;
                         }
                         self.consume(state, *value, check, budget)?;
                     }
@@ -1326,13 +1417,18 @@ impl Flow<'_> {
                                     budget,
                                 )?;
                             }
+                            let birth = if matches!(ty, Type::Managed(_)) {
+                                copied(state, Place::Value(value), budget)?.birth
+                            } else {
+                                BTreeSet::from([Birth::Incoming])
+                            };
                             self.consume(state, value, check, budget)?;
                             replace(
                                 state,
                                 place,
                                 Fact {
                                     life: BTreeSet::from([Life::Available]),
-                                    birth: BTreeSet::from([Birth::Incoming]),
+                                    birth,
                                     sources: BTreeSet::new(),
                                 },
                                 budget,
@@ -1397,9 +1493,10 @@ impl Flow<'_> {
                                         "package field take requires that field live on every path",
                                     ));
                                 }
+                                budget.spend(fact.birth.len(), "package field birth transfer")?;
                                 produced = Some(Fact {
                                     life: BTreeSet::from([Life::Available]),
-                                    birth: BTreeSet::from([Birth::Incoming]),
+                                    birth: fact.birth.clone(),
                                     sources: BTreeSet::new(),
                                 });
                                 fact.life = BTreeSet::from([Life::Transferred]);
@@ -1566,6 +1663,29 @@ impl Flow<'_> {
                                     budget,
                                 )?;
                             }
+                            if let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty {
+                                budget.spend(fields.len(), "whole Package birth transfer")?;
+                                for (index, (_, ty)) in fields.iter().enumerate() {
+                                    if matches!(ty, Type::Managed(_)) {
+                                        let birth = copied(
+                                            state,
+                                            Place::PackageField {
+                                                local: *local,
+                                                index: index as u32,
+                                            },
+                                            budget,
+                                        )?
+                                        .birth;
+                                        set_package_birth(
+                                            state,
+                                            i.result.ok_or_else(|| error("move has no result"))?,
+                                            index as u32,
+                                            birth,
+                                            budget,
+                                        )?;
+                                    }
+                                }
+                            }
                             package_transition(f, state, *local, Life::Transferred, check, budget)?;
                             produced = Some(fact.clone());
                             fact.life = BTreeSet::from([Life::Transferred]);
@@ -1625,6 +1745,21 @@ impl Flow<'_> {
                             }
                             source.life = BTreeSet::from([Life::Available]);
                             package_transition(f, state, *local, Life::Available, check, budget)?;
+                            if let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty {
+                                budget.spend(fields.len(), "whole Package birth store")?;
+                                for (index, (_, ty)) in fields.iter().enumerate() {
+                                    if matches!(ty, Type::Managed(_)) {
+                                        let place = Place::PackageField {
+                                            local: *local,
+                                            index: index as u32,
+                                        };
+                                        let mut field = copied(state, place, budget)?;
+                                        field.birth =
+                                            package_birth(state, *value, index as u32, budget)?;
+                                        replace(state, place, field, budget)?;
+                                    }
+                                }
+                            }
                         }
                         replace(state, Place::Local(*local), source, budget)?;
                     }
@@ -2019,7 +2154,10 @@ fn analyze_function_with_dependencies(
     } else {
         Vec::new()
     };
-    let mut initial = State::default();
+    let mut initial = State {
+        package_values: package_value_shapes(f, budget)?,
+        ..State::default()
+    };
     for (place, s) in &shapes {
         budget.lookup(initial.cells.len(), "initial resource state")?;
         let mut fact = Fact::default();
@@ -2353,7 +2491,10 @@ fn analyze_function_eager_reference(
         return Ok(Effect::default());
     }
     let after = afters(f, reachable, &shapes, budget)?;
-    let mut initial = State::default();
+    let mut initial = State {
+        package_values: package_value_shapes(f, budget)?,
+        ..State::default()
+    };
     for (place, s) in &shapes {
         budget.lookup(initial.cells.len(), "initial resource state")?;
         let mut fact = Fact::default();

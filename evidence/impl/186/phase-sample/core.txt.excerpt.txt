@@ -1,0 +1,53 @@
+EXCERPT ONLY; full original SHA256 is indexed in SOURCE.json. Line numbers refer to original.
+1: CoreProgram {
+2:     root: ModuleId(
+3:         0,
+4:     ),
+5:     source_fingerprint: Fingerprint(
+6:         [
+7:             158,
+8:             98,
+9:             233,
+10:             53,
+11:             52,
+12:             8,
+13:             41,
+14:             140,
+15:             63,
+16:             11,
+115:                         result_mode: Infer,
+160:                         result_mode: Infer,
+314:                         result_mode: Infer,
+539:                         result_mode: Infer,
+799:                         return_type: ErrorUnion {
+805:                         result_mode: Infer,
+827:                                                             "$generic_$module0_forward_1",
+848:                                                                         "$generic_$module0_make_0",
+1056:                                                                     "$generic_$module0_forward_3",
+1077:                                                                                 "$generic_$module0_make_2",
+1746:                         name: "$generic_$module0_make_0",
+1777:                         return_type: ErrorUnion {
+1782:                                 OwnedStore {
+1789:                         result_mode: Create,
+1801:                                                 OwnedStore {
+2228:                         name: "$generic_$module0_forward_1",
+2234:                                 ty: ErrorUnion {
+2239:                                         OwnedStore {
+2256:                         return_type: ErrorUnion {
+2261:                                 OwnedStore {
+2268:                         result_mode: Give,
+2325:                         name: "$generic_$module0_make_2",
+2356:                         return_type: ErrorUnion {
+2361:                                 OwnedStore {
+2368:                         result_mode: Create,
+2380:                                                 OwnedStore {
+2807:                         name: "$generic_$module0_forward_3",
+2813:                                 ty: ErrorUnion {
+2818:                                         OwnedStore {
+2835:                         return_type: ErrorUnion {
+2840:                                 OwnedStore {
+2847:                         result_mode: Give,
+2909:                             OwnedStore {
+2915:                         result_mode: Create,
+2992:                             OwnedStore {
+2998:                         result_mode: Create,

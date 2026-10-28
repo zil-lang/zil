@@ -1,0 +1,45 @@
+
+running 10 tests
+test error_only_create_consumes_old_success_without_claiming_a_new_resource ... FAILED
+test direct_store_and_existing_copy_error_inference_keep_their_meaning ... ok
+test fresh_payload_survives_local_union_moves_and_question_rewrapping ... ok
+test loop_local_and_discarded_unions_clean_exactly_once ... ok
+test two_nominal_shapes_transfer_through_ordinary_union_values ... FAILED
+test unused_definitions_cannot_launder_old_success_into_create ... ok
+test unused_signatures_require_the_written_mode_and_actual_copy_error_shape ... ok
+test unused_union_moves_and_descriptor_aliases_do_not_create_permissions ... ok
+test written_modes_are_checked_with_and_without_instantiation ... FAILED
+test propagated_failure_drops_incoming_element_and_earlier_store ... ok
+
+failures:
+
+---- error_only_create_consumes_old_success_without_claiming_a_new_resource stdout ----
+
+thread 'error_only_create_consumes_old_success_without_claiming_a_new_resource' (165) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:104:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"generic parameter does not match argument type","span":{"file":0,"start":897,"end":898},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/186-author/develop02/cases/impl186-zero-success-163-1/phases/syntax.txt"},"input_fingerprint":"ecbfd87ae52a6c23affc8c4dd5156e9dda6eaa39c77f2f00983e30141492aa83","seconds":0.007497287,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- two_nominal_shapes_transfer_through_ordinary_union_values stdout ----
+
+thread 'two_nominal_shapes_transfer_through_ordinary_union_values' (201) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:104:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"generic parameter does not match argument type","span":{"file":0,"start":797,"end":798},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/186-author/develop02/cases/impl186-two-shapes-163-10/phases/syntax.txt"},"input_fingerprint":"9e62e9353408298c3f0b4220d62f1ce487a5181f4f8b3cec0c76841b93b97b6c","seconds":0.009475206,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+---- written_modes_are_checked_with_and_without_instantiation stdout ----
+
+thread 'written_modes_are_checked_with_and_without_instantiation' (211) panicked at crates/zil-driver/tests/impl186_generic_owned_success.rs:64:5:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"generic parameter does not match argument type","span":{"file":0,"start":893,"end":894},"notes":[]}],"artifacts":{"syntax":"/workspace/scratch/39be3faa4442/run-logs/186-author/develop02/cases/impl186-written-modes-163-51/phases/syntax.txt"},"input_fingerprint":"0167885c30066708654cfb46e53f6042586806a913638bce8bcbf91d0962f9ee","seconds":0.006629355,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+
+
+failures:
+    error_only_create_consumes_old_success_without_claiming_a_new_resource
+    two_nominal_shapes_transfer_through_ordinary_union_values
+    written_modes_are_checked_with_and_without_instantiation
+
+test result: FAILED. 7 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+

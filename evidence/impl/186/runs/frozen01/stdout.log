@@ -1,0 +1,140 @@
+
+running 9 tests
+test duplicate_generic_and_ordinary_function_must_reject ... ok
+test generic_record_default_cannot_gain_numeric_constraint_from_instance ... ok
+test concrete_unary_and_binary_errors_remain_errors_when_unused ... ok
+test selected_analysis_work_and_unused_signature_lifetimes_are_checked ... ok
+test unused_generic_body_respects_selected_depth ... ok
+test unused_generic_body_respects_selected_work ... ok
+test substituted_type_depth_is_reserved_before_instance_cloning ... ok
+test unused_generic_concrete_bad_operation_is_not_discarded ... ok
+test unused_generic_control_flow_is_checked_before_template_removal ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 6 tests
+test bool_and_distinct_integer_instantiations ... ok
+test concrete_instantiations_inference_recursive_reuse_and_hygiene ... ok
+test generic_arity_constraints_and_bounds_fail_closed ... ok
+test generic_instance_growth_is_bounded_before_type_building ... ok
+test generic_body_cannot_gain_operations_or_copy_from_an_instance ... ok
+test symbolic_result_and_nested_calls_do_not_collapse_distinct_parameters ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+
+running 13 tests
+test continue_and_break_discharge_each_actual_loop_union ... ok
+test failed_binding_cleans_partial_preparation_then_existing_union_in_order ... ok
+test both_owned_arms_propagate_and_native_boundary_cleans_only_returned_error ... ok
+test named_success_payload_crosses_two_ordinary_functions_then_cleans_once ... ok
+test native_entry_keeps_void_or_i32_success_boundary ... ok
+test failing_later_argument_cleans_staged_union_before_earlier_local ... ok
+test raw_and_wire_do_not_extend_ordinary_union_admission_to_closure_capture ... ok
+test public_owned_result_crosses_module_boundaries ... ok
+test raw_and_wire_reconstruct_union_debt_and_exact_active_tag ... ok
+test source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode ... ok
+test stored_and_discarded_unions_drop_active_payloads_in_lexical_order ... ok
+test whole_local_reassignment_is_explicitly_outside_first_owned_union_profile ... ok
+test success_and_returned_error_buffers_are_really_freed_before_later_fields ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.54s
+
+
+running 15 tests
+test actual_generic_calls_do_not_merge_distinct_nominal_elements ... ok
+test bounded_element_shape_work_has_an_exact_definition_time_boundary ... ok
+test descriptor_aliases_do_not_revive_after_give_or_replacement ... ok
+test element_bound_checks_real_shapes_and_never_grants_copy_or_members ... ok
+test cross_module_helpers_preserve_two_nominal_elements_and_failure_returns ... ok
+test fresh_store_locals_and_create_calls_remain_valid_before_and_after_instantiation ... ok
+test generic_owning_package_and_concrete_callback_state_compose ... ok
+test generic_source_still_requires_independent_raw_and_wire_ownership ... ok
+test raw_and_wire_create_mode_cannot_forge_fresh_input_resources ... ok
+test generic_prefix_drain_repeats_with_real_item_cleanup ... ok
+test real_copy_shapes_including_static_foreign_values_remain_elements ... ok
+test unused_create_results_prove_freshness_across_real_transfers_and_joins ... ok
+test unused_package_fields_keep_mode_and_instance_identity ... ok
+test unused_templates_reject_unproven_store_element_or_owner ... ok
+test two_element_shapes_use_the_same_actual_generic_helpers ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
+
+
+running 2 tests
+test give_does_not_turn_unknown_or_copy_values_into_resources ... ok
+test concrete_byte_buffer_uses_existing_helper_owned_parameter_contract ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 4 tests
+test a_shared_window_does_not_gain_write_permission_from_generic_state ... ok
+test concrete_address_projection_is_repeatable_but_never_grants_unknown_fields_or_ownership ... ok
+test the_same_state_still_rejects_structural_store_mutation_during_the_window ... ok
+test exact_generic_state_simultaneously_uses_callback_store_window_and_copy_sibling ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+
+running 3 tests
+test candidate_cannot_swap_linux_and_windows_after_verification ... ok
+test linux_and_win64_accept_the_same_padded_store_and_owned_error_shapes ... ok
+test forged_store_target_profiles_cannot_use_the_host_layout ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 13 tests
+test bytebuffer_and_store_success_payloads_reach_real_native_operations ... ok
+test create_and_give_success_transfer_once_and_copy_error_has_no_resource ... ok
+test discarded_and_stored_unions_drop_only_the_active_resource ... ok
+test failure_only_create_result_does_not_relabel_or_leak_an_incoming_owner ... ok
+test failed_later_argument_disposes_staged_union_before_older_local ... ok
+test native_entry_does_not_implicitly_discard_a_managed_success_return ... ok
+test original159_direct_bytebuffer_success_probe_is_accepted_without_rewriting ... ok
+test loop_and_prepare_failure_clean_actual_owned_success_once ... ok
+test public_owned_success_crosses_four_modules_and_explicit_union_parameters ... ok
+test padded_resource_and_copy_error_layouts_and_zero_sized_resource_are_real ... ok
+test source_ownership_modes_and_existing_rejection_boundaries_stay_explicit ... ok
+test question_propagation_preserves_created_payload_and_each_cleanup_exit ... ok
+test unwrapped_payload_has_actual_description_and_nonlexical_lifetime ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.40s
+
+
+running 5 tests
+test active_tag_and_source_category_are_checked_without_candidate_permission ... ok
+test independent_verify_rejects_copying_and_double_transfer_of_managed_success_union ... ok
+test omitted_union_cleanup_and_post_transfer_tag_are_rejected ... ok
+test independent_verify_rejects_missing_result_mode_and_laundered_freshness ... ok
+test raw_shape_claims_cannot_extend_resource_error_nesting_or_capture_profiles ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+
+running 12 tests
+test a_later_failing_argument_cleans_the_staged_generic_union ... ok
+test concrete_wide_copy_errors_keep_zero_success_responsibility ... ok
+test direct_store_and_existing_copy_error_inference_keep_their_meaning ... ok
+test error_only_create_consumes_old_success_without_claiming_a_new_resource ... ok
+test fresh_payload_survives_local_union_moves_and_question_rewrapping ... ok
+test loop_local_and_discarded_unions_clean_exactly_once ... ok
+test two_nominal_shapes_transfer_through_ordinary_union_values ... ok
+test unused_definitions_cannot_launder_old_success_into_create ... ok
+test unused_signatures_require_the_written_mode_and_actual_copy_error_shape ... ok
+test unused_union_moves_and_descriptor_aliases_do_not_create_permissions ... ok
+test propagated_failure_drops_incoming_element_and_earlier_store ... ok
+test written_modes_are_checked_with_and_without_instantiation ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.75s
+
+
+running 3 tests
+test generic_origin_does_not_replace_actual_tag_descriptor_or_cleanup_checks ... ok
+test instantiated_modes_do_not_authorize_false_creation_sources ... ok
+test instantiated_union_still_requires_one_consumption ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

@@ -1,0 +1,17 @@
+{
+  "status": "Fail",
+  "scope": "Live handoff record integrity; not language correctness, review quality or full task acceptance.",
+  "authority": {
+    "method": "git-main-worktree",
+    "task_root": ".task",
+    "current_is_main": false,
+    "main_tree_now": "/workspace/scratch/39be3faa4442/language14/main"
+  },
+  "current_head": "ac704f7cae247367b63ac3b323d55262a32e6d8d",
+  "main_head": "84b248424b96b8461bb44380249f0ba8c25a7029",
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "642f7de6249bdc52b42fd3c2ad16059cc801ae68c9c94cce83f205c51a55e063",
+  "original_bytes": 408405,
+  "original_sha256": "40a51e0e776d56bdc95e7d8fb8786fe33fd9564e4f8187288839732e701c14df",
+  "record": "The full historical restoration metadata log remains in run-logs/186-author/handoff-start.log. This metadata check is Fail, not a language acceptance claim."
+}

@@ -1,0 +1,76 @@
+{
+  "source_commit": "fc96383d70ad6f8e91dff97b416b8237cfb26c73",
+  "status": "Pass",
+  "suites": {
+    "generic_regressions": {
+      "result": "ok",
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0
+    },
+    "generics": {
+      "result": "ok",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl166_owned_results": {
+      "result": "ok",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl178_generic_store": {
+      "result": "ok",
+      "passed": 15,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl178_helper_give": {
+      "result": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl181_composition": {
+      "result": "ok",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl181_win64_store": {
+      "result": "ok",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl183_owned_resource_results": {
+      "result": "ok",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl183_raw_owned_success": {
+      "result": "ok",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl186_generic_owned_success": {
+      "result": "ok",
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0
+    },
+    "impl186_raw_owned_success": {
+      "result": "ok",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "passed": 85,
+  "failed": 0,
+  "ignored": 0,
+  "source": "Original cargo stdout/stderr and command.json; author and development reruns are not added to final counts."
+}
