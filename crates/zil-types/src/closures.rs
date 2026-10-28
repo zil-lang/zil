@@ -2543,6 +2543,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 for (index, (argument, parameter)) in
                     arguments.iter().zip(&signature.parameters).enumerate()
                 {
+                    self.graph.spend_count(signature.callable.len(), span)?;
                     if let Some(bound) = signature
                         .callable
                         .iter()
@@ -2811,6 +2812,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             .chain(std::iter::once(&signature.result))
         {
             self.graph.reserve_type(ty, 0, span)?;
+        }
+        self.graph.spend_count(signature.callable.len(), span)?;
+        for bound in &signature.callable {
+            self.graph.spend_count(bound.generic_name.len(), span)?;
+            for ty in bound
+                .parameters
+                .iter()
+                .chain(std::iter::once(&bound.result))
+            {
+                self.graph.reserve_type(ty, 0, span)?;
+            }
         }
         Ok(())
     }
