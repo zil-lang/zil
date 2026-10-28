@@ -273,7 +273,7 @@ fn callee_window_precedes_arguments_and_blocks_reentry_or_parent_move() {
         (
             "parent-argument",
             "return state.callback(consume(state))",
-            Phase::Analyze,
+            Phase::Verify,
         ),
     ] {
         rejected(
@@ -282,7 +282,7 @@ fn callee_window_precedes_arguments_and_blocks_reentry_or_parent_move() {
                 "{RESOURCE}{MUTABLE}fn consume<G:FnMut(i32)->i32>(state:State<G>)->i32{{return 1}}fn main()->i32{{var state=pack(make());{body}}}"
             ),
             phase,
-            "",
+            "address",
         );
     }
     rejected(
@@ -335,7 +335,7 @@ fn lending_from_direct_callback_keeps_actual_field_and_parent_alive() {
             label,
             &format!("{prefix}fn main()->i32{{var state=pack(bytes());{body}}}"),
             phase,
-            "",
+            "address",
         );
     }
 }
