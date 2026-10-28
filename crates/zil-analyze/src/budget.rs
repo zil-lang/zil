@@ -181,15 +181,15 @@ fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
     }))
 }
 
-fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
+fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
     if let Type::ErrorUnion { error, result } = ty {
         if matches!(result.as_ref(), Type::Managed(_)) {
             scalar(error, span)?;
-            return local_value(result, span, module);
+            return legacy_value(result, span, module);
         }
         for payload in [error.as_ref(), result.as_ref()] {
             if matches!(payload, Type::Package { .. }) {
-                local_value(payload, span, module)?;
+                legacy_value(payload, span, module)?;
             } else {
                 scalar(payload, span)?;
             }
@@ -199,7 +199,7 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
         && *length > 0
         && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
     {
-        local_value(element, span, module)
+        legacy_value(element, span, module)
     } else if let Type::Closure(id) = ty {
         if id.0 as usize >= module.closures.len() {
             return Err(bad("closure type references an absent environment"));
@@ -233,6 +233,20 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
         Ok(())
     } else {
         scalar(ty, span)
+    }
+}
+
+// Ordinary Products never widen the old array, union or capture profile.
+fn local_value(
+    ty: &Type,
+    span: Span,
+    module: &TypedModule,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    if super::resources::product::nested(ty) {
+        super::resources::product::admit(ty, budget)
+    } else {
+        legacy_value(ty, span, module)
     }
 }
 
@@ -419,7 +433,7 @@ pub(super) fn preflight(
                     None,
                 )]);
             }
-            local_value(ty, Span::default(), module)?;
+            legacy_value(ty, Span::default(), module)?;
         }
         for ty in &closure.parameters {
             if let Type::Address { inner, .. } = ty
@@ -444,7 +458,7 @@ pub(super) fn preflight(
             )
             && !closure.lending_captures.is_empty()
         {
-            local_value(&closure.result, Span::default(), module)?;
+            legacy_value(&closure.result, Span::default(), module)?;
         } else {
             scalar(&closure.result, Span::default())?;
         }
@@ -561,7 +575,7 @@ pub(super) fn preflight(
             )?;
         }
         budget.input(1, "return type preflight")?;
-        local_value(&function.return_type, function.span, module)?;
+        local_value(&function.return_type, function.span, module, budget)?;
         let scoped_aggregate = |ty: &Type| {
             matches!(ty, Type::Package { .. })
                 || super::resources::owned_error(ty)
@@ -577,6 +591,7 @@ pub(super) fn preflight(
                 &function.locals[parameter.0 as usize].ty,
                 function.span,
                 module,
+                budget,
             )?;
         }
         if function
@@ -588,12 +603,12 @@ pub(super) fn preflight(
         for local in &function.locals {
             budget.input(1, "local type preflight")?;
             budget.input(local.name.len(), "local metadata")?;
-            local_value(&local.ty, local.span, module)?;
+            local_value(&local.ty, local.span, module, budget)?;
             package |= scoped_aggregate(&local.ty);
         }
         for ty in &function.values {
             budget.input(1, "value type preflight")?;
-            local_value(ty, function.span, module)?;
+            local_value(ty, function.span, module, budget)?;
             package |= scoped_aggregate(ty);
         }
         for block in &function.blocks {
