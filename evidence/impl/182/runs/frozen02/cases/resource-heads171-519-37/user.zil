@@ -1,0 +1,1 @@
+import model;pub fn inspect(r:&model.R)->i32=>r.read()

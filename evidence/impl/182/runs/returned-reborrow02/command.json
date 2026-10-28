@@ -1,0 +1,1 @@
+["cargo", "test", "--offline", "--locked", "-j2", "-p", "zil-driver", "--test", "impl182_capture_contracts", "mutable_environment_reborrow_does_not_write_its_readonly_desc_capture", "--", "--exact", "--test-threads=2"]

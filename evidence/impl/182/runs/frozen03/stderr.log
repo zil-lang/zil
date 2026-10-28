@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt182/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.42s
+     Running tests/borrowed_closures.rs (/workspace/scratch/39be3faa4442/targets178/author182/debug/deps/borrowed_closures-fa5eabda2403ecd5)
+     Running tests/impl065_helpers.rs (/workspace/scratch/39be3faa4442/targets178/author182/debug/deps/impl065_helpers-086b76848dc0a398)
+     Running tests/impl161_nested_closures.rs (/workspace/scratch/39be3faa4442/targets178/author182/debug/deps/impl161_nested_closures-1e334af781621e52)
+     Running tests/impl171_resource_heads.rs (/workspace/scratch/39be3faa4442/targets178/author182/debug/deps/impl171_resource_heads-eb5aeb3f3386f885)
+     Running tests/impl179_field_precision.rs (/workspace/scratch/39be3faa4442/targets178/author182/debug/deps/impl179_field_precision-b8aa0a896a16c234)
+     Running tests/impl180_store_mut.rs (/workspace/scratch/39be3faa4442/targets178/author182/debug/deps/impl180_store_mut-756b4c4683bfaceb)
+     Running tests/impl182_capture_contracts.rs (/workspace/scratch/39be3faa4442/targets178/author182/debug/deps/impl182_capture_contracts-e0324ece1d1073c5)
+     Running tests/shared_addresses.rs (/workspace/scratch/39be3faa4442/targets178/author182/debug/deps/shared_addresses-d13aab5638b5a57a)

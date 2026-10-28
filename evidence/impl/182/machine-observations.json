@@ -1,0 +1,20 @@
+{
+  "source_commit": "22a91edab6f0cf2017d6258874db3b19ae940c85",
+  "case": "mixed-capture182-692-74",
+  "llvm_sha256": "7ba4174545ee189f32dfc091d38e8ef8f4949c7f2875155bc450fe62bdae69c6",
+  "llvm_bytes": 14038,
+  "actual_llvm_extract": [
+    "target triple = \"x86_64-unknown-linux-gnu\"",
+    "%zil_env_0 = type { ptr, ptr, ptr }",
+    "%zil_env_1 = type { ptr }",
+    "%zil_env_2 = type { ptr }",
+    "declare void @llvm.trap()",
+    "declare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32)",
+    "declare { i32, i1 } @llvm.smul.with.overflow.i32(i32, i32)",
+    "declare { i32, i1 } @llvm.ssub.with.overflow.i32(i32, i32)",
+    "declare i32 @getchar() nonlazybind",
+    "declare i32 @putchar(i32) nonlazybind"
+  ],
+  "noalias_present": false,
+  "scope": "Actual generated LLVM layout plus native O0/O2 execution; no performance claim; executable omitted"
+}

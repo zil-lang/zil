@@ -1,0 +1,1 @@
+fn make()->impl FnMut()->i32{var x=40;return move()=>{var g=()=>{x+=1;return x};return g()}}fn main()->i32{var f=make();if f()!=41||f()!=42{return 1};return 0}

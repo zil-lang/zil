@@ -1,0 +1,745 @@
+{
+  "source_commit": "22a91edab6f0cf2017d6258874db3b19ae940c85",
+  "counts": {
+    "source_SafeReject": 16,
+    "rejection_phase_verify": 15,
+    "native_executions": 54,
+    "O0": 27,
+    "source_Success": 54,
+    "O2": 27,
+    "raw_rejections": 6,
+    "wire_rejections": 6,
+    "source_Unsupported": 2,
+    "rejection_phase_types": 1,
+    "rejection_phase_expand": 1,
+    "rejection_phase_analyze": 1
+  },
+  "native": [
+    {
+      "case": "mixed-capture182-692-1",
+      "optimization": "O0",
+      "exit_code": 1,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-11",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-13",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-14",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-15",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-19",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-2",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-21",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-22",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-23",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-25",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-27",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-28",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-29",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-3",
+      "optimization": "O2",
+      "exit_code": 1,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-32",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-33",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-34",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-35",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-36",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-37",
+      "optimization": "O0",
+      "exit_code": 1,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-38",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-39",
+      "optimization": "O2",
+      "exit_code": 1,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-4",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-40",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-42",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-43",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-5",
+      "optimization": "O0",
+      "exit_code": 1,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-50",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-51",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-52",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-56",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-58",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-59",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-60",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-61",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-62",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "1BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-63",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-64",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "1BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-65",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-66",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "123BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-67",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "A",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-69",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "123BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-7",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-70",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-71",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-72",
+      "optimization": "O0",
+      "exit_code": 9,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-73",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "AB",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-74",
+      "optimization": "O2",
+      "exit_code": 9,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-75",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "AB",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-77",
+      "optimization": "O0",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-78",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-8",
+      "optimization": "O2",
+      "exit_code": 1,
+      "stdout": "BA",
+      "stderr": ""
+    },
+    {
+      "case": "mixed-capture182-692-9",
+      "optimization": "O2",
+      "exit_code": 0,
+      "stdout": "BA",
+      "stderr": ""
+    }
+  ],
+  "source_rejections": [
+    {
+      "case": "mixed-capture182-692-0",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 445,
+            "end": 460
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-10",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 399,
+            "end": 411
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-12",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 411,
+            "end": 423
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-16",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 464,
+            "end": 467
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-17",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 418,
+            "end": 421
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-18",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 418,
+            "end": 427
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-20",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 418,
+            "end": 425
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-24",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 464,
+            "end": 473
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-26",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 463,
+            "end": 474
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-30",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use",
+          "span": {
+            "file": 0,
+            "start": 413,
+            "end": 417
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-31",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 422,
+            "end": 439
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-53",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 98,
+            "end": 101
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-54",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure value requires a finite Copy type",
+          "span": {
+            "file": 0,
+            "start": 61,
+            "end": 65
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-55",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 66,
+            "end": 69
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-57",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 468,
+            "end": 481
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-6",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 406,
+            "end": 417
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-68",
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 82,
+            "end": 97
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mixed-capture182-692-76",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: head transition invalidates a description required later",
+          "span": null,
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "raw_wire_pairs": [
+    "mixed-capture182-692-44",
+    "mixed-capture182-692-45",
+    "mixed-capture182-692-46",
+    "mixed-capture182-692-47",
+    "mixed-capture182-692-48",
+    "mixed-capture182-692-49"
+  ]
+}
