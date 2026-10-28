@@ -1555,23 +1555,22 @@ fn raw_record_values_cannot_relabel_equal_concrete_callback_slots() {
         .unwrap();
     let mut swapped = 0;
     visit_block(&mut function.body, &mut |e| {
-        if let CoreExprKind::Record { fields, .. } = &mut e.kind {
-            for (_, value) in fields {
-                if let CoreExprKind::Member { object, member } = &mut value.kind
-                    && matches!(&object.kind,CoreExprKind::Name(name) if name=="state")
-                {
-                    match member.as_str() {
-                        "first" => {
-                            *member = "second".into();
-                            swapped += 1;
-                        }
-                        "second" => {
-                            *member = "first".into();
-                            swapped += 1;
-                        }
-                        _ => {}
-                    }
+        // Expand stages record fields in a Sequence before the final Record.
+        // Mutate the actual reads while retaining all NodeIds and evaluation
+        // order; these are run's only reads of state.first/state.second.
+        if let CoreExprKind::Member { object, member } = &mut e.kind
+            && matches!(&object.kind,CoreExprKind::Name(name) if name=="state")
+        {
+            match member.as_str() {
+                "first" => {
+                    *member = "second".into();
+                    swapped += 1;
                 }
+                "second" => {
+                    *member = "first".into();
+                    swapped += 1;
+                }
+                _ => {}
             }
         }
         false
@@ -1581,4 +1580,29 @@ fn raw_record_values_cannot_relabel_equal_concrete_callback_slots() {
         !inspect_origin_attack("record-relabels-actual-C-C-weak-G", &core),
         "a raw record type cannot erase the weaker declaration of its actual field value"
     );
+}
+
+#[test]
+fn declared_callee_mode_is_prepared_before_fallible_argument_cleanup() {
+    let prefix = ORIGINAL[..ORIGINAL.find("fn run<").unwrap()]
+        .replace("Fn() -> i32", "Fn(i32) -> i32")
+        .replace("FnOnce() -> i32", "FnOnce(i32) -> i32")
+        .replace("move () =>", "move (delta:i32) =>")
+        .replace("return value }", "return value+delta }");
+    for once in [false, true] {
+        for fail in [false, true] {
+            let field = if once { "second" } else { "first" };
+            let expected = if once { "PBZA" } else { "PZAB" };
+            let answer = if once { 21 } else { 11 };
+            let source = format!(
+                "{prefix}\nfn argument(fail:bool)->void!i32{{unsafe{{putchar(80)}}if fail{{return ()}}return 1}}\nfn run<T:Copy,F:Fn(i32)->i32,G:FnOnce(i32)->i32>(state:State<T,F,G>)->void!i32{{return state.{field}(argument({fail})?)-{answer}}}\nfn main()->void!i32{{return run(pack(make(65,10),make(66,20),17))}}\n"
+            );
+            native(
+                &format!("callee-once-{once}-argument-fail-{fail}"),
+                &source,
+                expected,
+                i32::from(fail),
+            );
+        }
+    }
 }
