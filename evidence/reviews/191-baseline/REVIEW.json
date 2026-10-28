@@ -1,0 +1,126 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "scope": "Tests-only migration of three failures independently reproduced before191. Not a new compiler capability or a complete191 review.",
+  "author": "/root/resume188_acceptance",
+  "baseline_commit": "7fcb4a03fdb06a60d2b39f35c752e09a63a83998",
+  "test_source_commit": "2ab9ecb2d3730f977dd2cf4653b3f3b1f6b3c76c",
+  "production_changes": false,
+  "default_limits_changed": false,
+  "schema_version": 23,
+  "checks": {
+    "baseline01": {
+      "status": "Fail",
+      "source_commit": "7fcb4a03fdb06a60d2b39f35c752e09a63a83998",
+      "clean": true,
+      "test_counts": {
+        "passed": 237,
+        "failed": 3,
+        "ignored": 0
+      },
+      "command": "records/baseline01/command/command.json"
+    },
+    "measure01": {
+      "status": "Fail",
+      "source_commit": "88991cd8642facaf510b3db9cc8b7af4347abf91",
+      "clean": true,
+      "test_counts": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0
+      },
+      "command": "records/measure01/command/command.json"
+    },
+    "final01": {
+      "status": "Pass",
+      "source_commit": "2ab9ecb2d3730f977dd2cf4653b3f3b1f6b3c76c",
+      "clean": true,
+      "test_counts": {
+        "passed": 240,
+        "failed": 0,
+        "ignored": 0
+      },
+      "command": "records/final01/command/command.json"
+    },
+    "quality01": {
+      "status": "Pass",
+      "source_commit": "2ab9ecb2d3730f977dd2cf4653b3f3b1f6b3c76c",
+      "clean": true,
+      "test_counts": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0
+      },
+      "command": "records/quality01/command/command.json"
+    },
+    "fmt01": {
+      "status": "Pass",
+      "source_commit": "2ab9ecb2d3730f977dd2cf4653b3f3b1f6b3c76c",
+      "clean": true,
+      "test_counts": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0
+      },
+      "command": "records/fmt01/command/command.json"
+    }
+  },
+  "executed": 240,
+  "final_counts": {
+    "passed": 240,
+    "failed": 0,
+    "ignored": 0
+  },
+  "reasoning": [
+    {
+      "test": "helper_tests::helper_resource_result_is_not_silently_treated_as_a_copy_result",
+      "finding": "Original candidate remains Unsupported/E-UNSUPPORTED in Verify.184 expanded only the diagnostic to mention borrowed environment lending. Exact message, phase, category and single diagnostic are now asserted in both raw/Wire routes.",
+      "original_candidate_changed": false
+    },
+    {
+      "test": "package_tests::fields::field_transfer_keeps_input_provenance_at_create_returns",
+      "finding": "Original package_local fixture creates both managed fields inside the function and has no parameters.186 correctly preserves field freshness, so its original Create candidate now passes. A separate real Package parameter is accepted under Give and rejected under Create through raw/Wire.",
+      "original_candidate_changed": false,
+      "added_nearest_negative": "Incoming Package field cannot become independently fresh."
+    },
+    {
+      "test": "package_tests::fields::no_package_scalar_controls_charge_resource_frontier_setup_exactly",
+      "finding": "186 Slots::new charges a scan of SSA values for package_widths. Existing effect inference and final validation each invoke it, adding2*count to the earlier controls. The original1/32-local fixtures and all N/N-1 assertions remain.",
+      "original_candidate_changed": false,
+      "measured_boundaries": [
+        {
+          "locals": 1,
+          "old_N": 22,
+          "N": 24,
+          "at_N": "Pass",
+          "at_N_minus_1": "ResourceLimit",
+          "default_cost": 24
+        },
+        {
+          "locals": 32,
+          "old_N": 394,
+          "N": 458,
+          "at_N": "Pass",
+          "at_N_minus_1": "ResourceLimit",
+          "default_cost": 458
+        }
+      ]
+    }
+  ],
+  "initial_failures": [
+    "baseline01 is the genuine frozen schema23 237/3 result, retained without relabeling.",
+    "measure01 deliberately retained old22/394 final equality and therefore remains Fail; it printed measured24/458 after successfully exercising both N/N-1 boundaries."
+  ],
+  "changed_paths": [
+    "changes/191-baseline-fixtures.md",
+    "crates/zil-verify/src/helper_tests.rs",
+    "crates/zil-verify/src/package_tests/fields.rs"
+  ],
+  "new_native_executions": 0,
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "limitations": [
+    "All executions here are Verify library/raw/Wire controls on the pre191 production baseline.",
+    "Composition with191 schema24 and188/189/190 is the integrator responsibility and has not been relabeled as executed here."
+  ]
+}
