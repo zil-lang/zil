@@ -74,7 +74,7 @@
     "verify_only_replay": "take-window02@f5ad8ef82384d9325def9e521daa8788ec47c8a8:2/0; raw/Wire E-BORROW-CONFLICT with the then-fresh Analyze candidate.",
     "final_behavior": "Same bad source now Analyze/SafeReject/E-ANALYZE-IR. The identical hostile raw operation ordering, with original complete untrusted candidate, independently remains Verify/SafeReject/E-BORROW-CONFLICT through raw and Wire.",
     "repair_commits": [
-      "eac98127",
+      "eac981270c6b488d108f8fdbc9a18eac69e646e2",
       "6654830229e1351fa03c9a1fa8cfc5b55cf84da5",
       "70678a8dbad7f1da27730fec301712a36b851520"
     ]
@@ -125,7 +125,14 @@
     },
     "workspace02": {
       "source_commit": "85f01d622d9c31bffe165e5720bbf09658af5084",
-      "status_at_receipt_creation": "Running; final root receipt is authoritative"
+      "status": "Pass",
+      "passed": 2469,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 252,
+      "owner": "/root; this reviewer only read the completed receipt and verified its output hashes/counts, did not execute the full workspace",
+      "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/204-root/workspace02/command.json",
+      "command_receipt_sha256": "2f711b91f238544b63c1184eeebd64b2c79012954ffdfd60996f180636195e13"
     },
     "clippy": "Root owns the same-source formal gate; not counted as reviewer execution"
   },
