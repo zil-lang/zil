@@ -1,0 +1,171 @@
+{
+  "status": "AuthorScopePassed",
+  "production_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+  "scope": "bounded same-F two-field owning State; source and Types author scope, separate independent kernels; not formal full-language acceptance",
+  "related_source_tests": {
+    "197": 14,
+    "199": 9,
+    "200_analyze": 8,
+    "200_frontend": 12,
+    "total_passed": 43,
+    "failed": 0,
+    "archive_receipt": "commands/combined01/command.json"
+  },
+  "state200_source_native_executions": 58,
+  "source_native_optimizations": [
+    "O0",
+    "O2"
+  ],
+  "original_cli_cases": [
+    {
+      "source": "crates/zil-driver/tests/impl200_fixtures/00_single_callback_state.zil",
+      "sha256": "56cfb56651a856772561c3587819140974c214ce5edbeaba9541e89eb3cc2116",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "exit_code": 0,
+      "diagnostics": [],
+      "archive_receipt": "commands/cli-final-00_single_callback_state/command.json"
+    },
+    {
+      "source": "crates/zil-driver/tests/impl200_fixtures/01_same_f_two_callback_state.zil",
+      "sha256": "73a0a0fa1fb97e9efd28e42a86f3e91560256dcb7cee69b570d5806db23b916f",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "exit_code": 0,
+      "diagnostics": [],
+      "archive_receipt": "commands/cli-final-01_same_f_two_callback_state/command.json"
+    },
+    {
+      "source": "crates/zil-driver/tests/impl200_fixtures/02_store_of_callback_state.zil",
+      "sha256": "23faee6a4575e6c522fa8ffed71d929dfd8463241197c7760cbe670f11f65fa8",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "exit_code": 1,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "StoreElement fields require finite Copy or explicit direct manages resources",
+          "span": {
+            "file": 0,
+            "start": 58,
+            "end": 59
+          },
+          "notes": []
+        }
+      ],
+      "archive_receipt": "commands/cli-final-02_store_of_callback_state/command.json"
+    }
+  ],
+  "budgets": {
+    "copy-publication": {
+      "expand_work": 1210,
+      "types_work": 1724,
+      "types_locals": 13,
+      "checks": "N, N-1 ResourceLimit, fresh N",
+      "analyze_verify": "separate independent suites"
+    },
+    "managed-preparation": {
+      "expand_work": 1239,
+      "types_work": 2433,
+      "types_locals": 15,
+      "checks": "N, N-1 ResourceLimit, fresh N",
+      "analyze_verify": "separate independent suites"
+    },
+    "owned": {
+      "expand_work": 2617,
+      "types_work": 3562,
+      "types_locals": 19,
+      "checks": "N, N-1 ResourceLimit, fresh N",
+      "analyze_verify": "separate independent suites"
+    }
+  },
+  "old_single_f_exact_budget": "independent reviewer owns baseline comparison and original-N replay; no author attribution",
+  "consumers": {
+    "linux_native": {
+      "status": "Pass",
+      "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+      "cli_sha256": "4eaf5291d867f0ebc64390f5ab3850ea6726570216ab688ae971c44e457a2fc9",
+      "executions": 100,
+      "ordinary_executions": 14,
+      "instrumented_executions": 86,
+      "actual_allocation_failures": 66,
+      "native_executions": 100,
+      "wine_executions": 0,
+      "module_count": 4,
+      "all_allocated_freed": true,
+      "all_final_live_zero": true,
+      "archive_summary": "runs/consumer-linux02/summary.json"
+    },
+    "win64_wine": {
+      "status": "Pass",
+      "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+      "cli_sha256": "4eaf5291d867f0ebc64390f5ab3850ea6726570216ab688ae971c44e457a2fc9",
+      "executions": 100,
+      "ordinary_executions": 14,
+      "instrumented_executions": 86,
+      "actual_allocation_failures": 66,
+      "native_executions": 0,
+      "wine_executions": 100,
+      "module_count": 4,
+      "all_allocated_freed": true,
+      "all_final_live_zero": true,
+      "all_bad_operations_zero": true,
+      "archive_summary": "runs/consumer-win6402/summary.json"
+    }
+  },
+  "native_windows": "NotRun",
+  "lint": {
+    "status": "Pass",
+    "crates": [
+      "zil-expand",
+      "zil-types"
+    ],
+    "scope": "libraries",
+    "deny_warnings": true,
+    "archive_receipt": "commands/clippy02/command.json"
+  },
+  "initial_failures": {
+    "source01": {
+      "commit": "353407d02dbb9d8399d99388e6a3e3298a76f7ee",
+      "passed": 8,
+      "failed": 4
+    },
+    "source02": {
+      "commit": "8247f3bfcbdd3842aab57c25d31cbeef7e51849f",
+      "passed": 10,
+      "failed": 2
+    },
+    "first_wine": "startup aborted with inherited TMPDIR; same original PE controls and final corrected environment preserved"
+  },
+  "evidence_archive": {
+    "archive_path": "/workspace/scratch/39be3faa4442/run-logs/200-frontend/200-author-evidence.zip",
+    "archive_bytes": 17319983,
+    "archive_sha256": "2ea3e332e54e79d6036e550d529e3e6e6fc5fcf7933a165fbb13da0cedca844f",
+    "members": 7259,
+    "every_member_hash_checked": true,
+    "excluded_execution_artifacts": 318,
+    "source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+    "compiler_cli_sha256": "4eaf5291d867f0ebc64390f5ab3850ea6726570216ab688ae971c44e457a2fc9"
+  },
+  "archive_payload_files_verified": 7258,
+  "archive_in_git": false,
+  "executables_and_objects_in_archive": false,
+  "safety_frontend_only_results_not_counted_as_verify": true,
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "rust_product_breakthrough": "NotProven",
+  "independent_review": "owned by integration, not this author summary",
+  "temporary_copies_released": {
+    "files": 7514,
+    "bytes": 385567891,
+    "condition": "each exact SHA and length matched the verified external ZIP manifest before removal; changed or unknown files were retained",
+    "compiler_and_archive_retained": true,
+    "unarchived_run_files_removed": 0
+  }
+}
