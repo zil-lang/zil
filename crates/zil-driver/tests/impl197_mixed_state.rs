@@ -83,17 +83,6 @@ fn compile(
     fs::write(case.0.join("compile.json"), report.to_json()).unwrap();
     report
 }
-fn accepted(label: &str, text: &str) {
-    let case = Case::new(label);
-    let report = compile(&case, &[("main", text)], None);
-    assert_eq!(
-        report.status,
-        ResultCategory::Success,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.verification_runs, 1, "{}", report.to_json());
-}
 fn rejected(label: &str, text: &str, phase: Phase, status: ResultCategory, message: &str) {
     let case = Case::new(label);
     let report = compile(&case, &[("main", text)], None);
