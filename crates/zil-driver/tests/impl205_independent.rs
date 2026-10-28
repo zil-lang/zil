@@ -841,7 +841,7 @@ fn main()->i32{{let state=revise(make(67),pack(make(65),make(66),0));emit(77);re
     let InstructionKind::TakeLocal { local } = instruction.kind else {
         panic!("{instruction:#?}")
     };
-    instruction.kind = InstructionKind::Load { local };
+    instruction.kind = InstructionKind::Load(local);
     typed_attack(
         "borrowed-access-cannot-publish-replacement",
         &access,
