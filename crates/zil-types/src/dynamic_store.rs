@@ -28,6 +28,60 @@ fn legacy_fields(ty: &Type) -> bool {
                 || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))))
 }
 
+/// Admission for an actually owned capture, not for an arbitrary Store
+/// element. The inner element deliberately uses the original leaf profile;
+/// allowing callback elements here would open recursive owning storage.
+pub(super) fn owned_capture(ty: &Type, work: &mut usize, limits: &Limits, span: Span) -> R<bool> {
+    let cost = inference::type_snapshot_work(ty, span, limits)?;
+    *work = work.checked_sub(cost.saturating_mul(8)).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "Store capture type budget exceeded",
+            Some(span),
+        )
+    })?;
+    fn store(ty: &Type) -> bool {
+        matches!(ty, Type::Managed(payload)
+            if matches!(payload.as_ref(), Type::OwnedStore { element }
+                if legacy_element(element) && leaf_content(element)))
+    }
+    fn leaf_content(ty: &Type) -> bool {
+        match ty {
+            Type::Closure(_)
+            | Type::FunctionPointer { .. }
+            | Type::ForeignCallback { .. }
+            | Type::Address { .. }
+            | Type::Desc(_)
+            | Type::OwnedStore { .. } => false,
+            Type::Tuple(fields) => fields.iter().all(leaf_content),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.iter().all(|(_, field)| leaf_content(field))
+            }
+            Type::Array { element, .. } | Type::Managed(element) => leaf_content(element),
+            Type::Enum { variants, .. } => variants
+                .iter()
+                .all(|(_, fields)| fields.iter().all(leaf_content)),
+            Type::ErrorUnion { error, result } => leaf_content(error) && leaf_content(result),
+            _ => true,
+        }
+    }
+    Ok(match ty {
+        Type::Managed(_) => store(ty),
+        Type::Package { fields, .. } => {
+            fields.iter().any(|(_, field)| store(field))
+                && fields.iter().all(|(_, field)| {
+                    field.is_copy_value()
+                        || store(field)
+                        || matches!(field, Type::Managed(payload)
+                            if **payload == Type::ByteBuffer
+                                || (matches!(payload.as_ref(), Type::Record { .. })
+                                    && payload.is_copy_value()))
+                })
+        }
+        _ => false,
+    })
+}
+
 pub(super) fn supported_element(ty: &Type) -> bool {
     legacy_element(ty) || callback_element(ty, |ty| matches!(ty, Type::Closure(_)))
 }
@@ -105,6 +159,7 @@ fn check_callback_captures(
             }
         }
     }
+    let mut has_owned_store = false;
     while let Some((id, depth)) = pending.pop() {
         *work = work.checked_sub(1).ok_or_else(exhausted)?;
         if depth > limits.max_call_depth {
@@ -136,17 +191,113 @@ fn check_callback_captures(
                 // environment retains the existing shell/field live flags;
                 // only the complete Store element must have nonzero layout.
                 Type::Package { .. } if legacy_fields(capture) => {}
+                Type::Managed(_) | Type::Package { .. }
+                    if owned_capture(capture, work, limits, span)? =>
+                {
+                    has_owned_store = true;
+                }
                 ty if ty.is_copy_value() => {}
                 _ => {
                     return Err(unsupported(
                         span,
-                        "Store callbacks require self-contained finite captures without Store, addresses or nested callable Packages",
+                        "Store callbacks require self-contained finite captures and qualified owned leaf Store captures",
                     ));
                 }
             }
         }
     }
+    if has_owned_store {
+        // This additional graph walk is exclusive to the new capture profile.
+        // A sibling old lending environment is not subject to its ancestor's
+        // result restriction unless that sibling itself owns a Store child.
+        *work = work.checked_sub(fields.len()).ok_or_else(exhausted)?;
+        let mut profiles = BTreeMap::new();
+        for (_, field) in fields {
+            if let Type::Closure(id) = field {
+                owned_capture_profile(*id, closures, &mut profiles, work, limits, 0, span)?;
+            }
+        }
+    }
     Ok(())
+}
+
+fn owned_capture_profile(
+    id: ClosureId,
+    closures: &[ClosureDefinition],
+    profiles: &mut BTreeMap<ClosureId, Option<bool>>,
+    work: &mut usize,
+    limits: &Limits,
+    depth: usize,
+    span: Span,
+) -> R<bool> {
+    let exhausted = || {
+        Diagnostic::limit(
+            Phase::Types,
+            "Store capture graph budget exceeded",
+            Some(span),
+        )
+    };
+    if depth > limits.max_call_depth {
+        return Err(exhausted());
+    }
+    let lookup = profiles.len().checked_ilog2().map_or(1, |n| n as usize + 2);
+    *work = work
+        .checked_sub(lookup.saturating_mul(3).saturating_add(1))
+        .ok_or_else(exhausted)?;
+    if let Some(profile) = profiles.get(&id) {
+        return profile.ok_or_else(|| unsupported(span, "cyclic owned Store capture graph"));
+    }
+    profiles.insert(id, None);
+    let definition = closures
+        .get(id.0 as usize)
+        .filter(|definition| definition.id == id)
+        .ok_or_else(|| {
+            error(
+                "E-CLOSURE-INFERENCE",
+                span,
+                "Store callback definition is absent",
+            )
+        })?;
+    *work = work
+        .checked_sub(definition.captures.len())
+        .ok_or_else(exhausted)?;
+    let mut owns = false;
+    for capture in &definition.captures {
+        match capture {
+            Type::Closure(child) => {
+                owns |= owned_capture_profile(
+                    *child,
+                    closures,
+                    profiles,
+                    work,
+                    limits,
+                    depth + 1,
+                    span,
+                )?;
+            }
+            Type::Managed(_) => owns |= is_carrier(capture),
+            Type::Package { fields, .. } => {
+                *work = work.checked_sub(fields.len()).ok_or_else(exhausted)?;
+                owns |= fields.iter().any(|(_, field)| is_carrier(field));
+            }
+            _ => {}
+        }
+    }
+    if owns {
+        let cost = inference::type_snapshot_work(&definition.result, span, limits)?;
+        *work = work.checked_sub(cost).ok_or_else(exhausted)?;
+        if !definition.result.is_copy_value() {
+            return Err(unsupported(
+                span,
+                "owned Store capture environments require Copy results",
+            ));
+        }
+    }
+    // Descendant insertions may have increased the tree since the first lookup.
+    let lookup = profiles.len().checked_ilog2().map_or(1, |n| n as usize + 2);
+    *work = work.checked_sub(lookup).ok_or_else(exhausted)?;
+    profiles.insert(id, Some(owns));
+    Ok(owns)
 }
 
 fn has_storage(ty: &Type) -> bool {
