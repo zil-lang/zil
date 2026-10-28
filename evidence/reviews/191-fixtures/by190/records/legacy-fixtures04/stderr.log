@@ -1,0 +1,3 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/main/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.38s
+     Running tests/shared_addresses.rs (/workspace/scratch/39be3faa4442/targets178/formal191/debug/deps/shared_addresses-d13aab5638b5a57a)

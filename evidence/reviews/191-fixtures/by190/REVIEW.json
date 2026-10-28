@@ -6,7 +6,7 @@
   "parent_commit": "ae3ac2445605c19914760fcd47c9f130700f8aac",
   "executed_tests": 0,
   "new_machine_tests": 0,
-  "verdict": "Pass",
+  "verdict": "Superseded",
   "scope": "Exact legacy-fixture migration only; this is not a new execution receipt or independent production admission.",
   "findings": [
     {
@@ -68,5 +68,7 @@
   "limitations": [
     "Did not execute the revised tests; root owns their actual bounded and whole-workspace receipts.",
     "Review binds schema24 finite-production candidate; later190 or193 semantic additions require their own exact-source evaluation."
-  ]
+  ],
+  "superseded_by": "96c83df5b4133ebfbd93402394b6633c6989be07",
+  "correction": "The earlier read-only semantic migration review missed the unqualified Phase name and native helper GEP precondition, and incorrectly accepted the assumption that the unused external-address capture could lend. The original source record is retained; it is not final acceptance."
 }

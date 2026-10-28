@@ -1,0 +1,205 @@
+
+running 12 tests
+test exact_work_budget_includes_set_scans_across_functions ... ok
+test initialization_facts_survive_a_branch_and_backedge ... ok
+test callable_return_metadata_is_reserved_before_fingerprinting_or_validation ... ok
+test exact_work_budget_covers_cfg_edges_and_predecessor_visits ... ok
+test every_type_position_rejects_unknown_semantics_before_hashing ... ok
+test all_metadata_positions_are_bounded_before_fingerprinting ... ok
+test unsupported_metadata_does_not_allocate_unbounded_diagnostics ... ok
+test original_raw_reproducer_checks_each_limit_independently ... ok
+test structural_limits_accumulate_across_functions ... ok
+test call_argument_visits_are_bounded_before_fingerprinting ... ok
+test known_recursive_aggregate_shape_obeys_selected_depth ... ok
+test exact_work_budget_covers_instruction_visits_and_fingerprinting ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 18 tests
+test exclusive_nearest_conflicts ... ok
+test low_budget_is_a_limit_and_whole_object_aliases_are_conservative ... ok
+test address_transfer_clears_the_source ... ok
+test closure_hold_and_exclusive_environment_move ... ok
+test raw_closure_address_parameter_cannot_disagree_with_its_entry ... ok
+test raw_exclusive_ssa_transfer_is_single_use_even_without_source_local ... ok
+test independent_and_sequential_reborrows ... ok
+test raw_load_cannot_copy_exclusive_address_or_environment ... ok
+test raw_shared_upgrade_and_false_closure_call_kind_fail ... ok
+test raw_permission_conflicts_are_independent_of_candidate_inference ... ok
+test wire_roundtrip_preserves_executable_permissions ... ok
+test native_exclusive_call_and_reborrow ... ok
+test default_closure_modifies_the_external_position ... ok
+test compound_dereference_keeps_one_authority_and_evaluates_address_once ... ok
+test capture_permissions_follow_calls_and_do_not_escape_scope ... ok
+test default_address_captures_reborrow_and_move_address_captures_transfer ... ok
+test projected_address_writes_and_method_receiver ... ok
+test return_contracts_and_control_flow_keep_parent_windows ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+
+running 9 tests
+test ordinary_owned_aggregates_desc_captures_and_error_payloads_stay_closed ... ok
+test an_owned_byte_environment_can_lend_its_actual_payload ... ok
+test local_byte_descriptors_remain_borrowed_when_captured ... ok
+test owned_views_are_grounded_in_actual_shells_and_captures ... ok
+test package_refill_keeps_fnmut_but_partial_error_is_once ... ok
+test owned_windows_retain_helper_alias_and_lifetime_boundaries ... ok
+test packages_move_return_replace_and_refill_real_byte_owners ... ok
+test live_windows_block_package_field_and_whole_transfers ... ok
+test direct_and_package_owning_factories_have_real_call_modes ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+
+running 9 tests
+test mixed_environment_and_capture_hold_cannot_be_erased_or_forged ... ok
+test storage_end_cannot_leave_an_address_or_captured_address_live ... ok
+test every_live_address_and_mixed_closure_alias_keeps_its_source ... ok
+test unsupported_reference_contracts_and_authority_remain_explicit ... FAILED
+test bool_unit_and_i64_reference_types_preserve_operand_inference ... ok
+test branch_shadow_loop_and_scalar_parameter_storage ... ok
+test mixed_move_environment_keeps_pointer_and_snapshot_distinct ... ok
+test scalar_address_copies_overwrites_and_rhs_last_use ... ok
+test address_constraints_apply_before_ct_and_inside_closure_body ... ok
+
+failures:
+
+---- unsupported_reference_contracts_and_authority_remain_explicit stdout ----
+
+thread 'unsupported_reference_contracts_and_authority_remain_explicit' (353) panicked at crates/zil-driver/tests/shared_addresses.rs:72:5:
+missing real source address: ; ZIL verified LLVM module
+; verified-fingerprint: 5c845c3c22fbf04541eb46e88e5d61bf128d7c910b11f6147c167827079593d9
+target triple = "x86_64-unknown-linux-gnu"
+
+%zil_env_0 = type {  }
+define internal void @zil.closure.drop.0(ptr %env) {
+entry:
+  ret void
+}
+declare void @llvm.trap()
+@zil.return.format = private unnamed_addr constant [6 x i8] c"%lld\0A\00"
+declare i32 @printf(ptr, ...)
+
+define i32 @zil.fn.0() {
+entry:
+  %local.0 = alloca %zil_env_0, align 1
+  br label %bb.0
+bb.0:
+  %v.0 = freeze %zil_env_0 zeroinitializer
+  store %zil_env_0 %v.0, ptr %local.0, align 1
+  %v.1 = add i32 0, 0
+  ret i32 %v.1
+zil.trap:
+  call void @llvm.trap()
+  unreachable
+}
+
+define i32 @zil.fn.1(%zil_env_0 %env, ptr %arg.0) {
+entry:
+  %local.0 = alloca ptr, align 8
+  store ptr %arg.0, ptr %local.0, align 8
+  br label %bb.0
+bb.0:
+  %v.0 = load ptr, ptr %local.0, align 8
+  %v.1 = load i32, ptr %v.0, align 4
+  ret i32 %v.1
+zil.trap:
+  call void @llvm.trap()
+  unreachable
+}
+
+define i32 @main() {
+entry:
+  %entry.result = call i32 @zil.fn.0()
+  %entry.wide = sext i32 %entry.result to i64
+  %entry.printed = call i32 (ptr, ...) @printf(ptr @zil.return.format, i64 %entry.wide)
+  ret i32 0
+}
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    unsupported_reference_contracts_and_authority_remain_explicit
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+
+running 24 tests
+test closure_body_local_slice_does_not_cross_its_callable_boundary ... ok
+test apparent_disjoint_ranges_still_use_the_whole_backing_origin ... ok
+test mutable_slice_index_uses_existing_exclusive_qualification ... ok
+test forged_hold_claims_never_manufacture_a_slice_origin ... ok
+test length_cannot_bypass_a_live_exclusive_child_but_parent_resumes_after_use ... ok
+test both_range_endpoints_are_typed_and_the_third_operand_is_checked ... ok
+test mutable_slice_transfer_consumes_the_actual_carrier_once ... ok
+test discarded_range_and_index_still_check_the_implicit_dynamic_length_read ... ok
+test projected_mutable_fat_pointer_is_a_view_not_a_second_owned_qualification ... ok
+test branch_joins_preserve_all_slice_return_origins_and_mutable_carrier_state ... ok
+test slice_captures_and_explicit_callable_signatures_remain_closed ... ok
+test shared_window_cannot_write_or_become_exclusive ... ok
+test ordinary_returned_slice_origins_cross_two_call_boundaries ... ok
+test slice_profiles_reject_foreign_abi_and_ct ... ok
+test slice_from_local_array_cannot_escape_and_late_len_keeps_storage_alive ... ok
+test slice_projection_result_elements_permissions_and_len_type_are_rebuilt ... ok
+test review_third_range_operand_must_dominate_across_a_real_cfg_join ... ok
+test slice_targets_require_the_exact_x64_profile_not_just_a_pointer_width ... ok
+test new_wire_endpoints_reject_truncation_versions_and_stale_identity ... ok
+test whole_unsized_reads_writes_and_non_slice_len_have_no_admission ... ok
+test unsupported_slice_storage_and_nested_elements_are_rejected_independently ... ok
+test range_optional_endpoints_integer_widths_and_subranges_are_not_new_loans ... ok
+test ordinary_slice_windows_admit_copy_elements_and_both_targets ... ok
+test slice_shapes_and_operations_obey_exact_work_and_depth_budgets ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 29 tests
+test byte_borrow_wire_boolean_and_fingerprint_are_not_trusted ... ok
+test all_byte_storage_operations_round_trip_raw_and_wire ... ok
+test canonical_definition_is_required_and_cannot_replace_its_cleanup ... ok
+test byte_storage_profile_is_checked_independently_of_the_raw_type_tag ... ok
+test byte_storage_remains_outside_compile_time_and_aggregate_profiles ... ok
+test create_and_give_factories_preserve_unique_responsibility ... ok
+test description_and_borrow_origin_claims_are_independently_rebuilt ... ok
+test description_and_slice_parameters_cannot_hide_aliasing_at_call_entry ... ok
+test exclusive_child_reborrow_suspends_its_byte_window_parent ... ok
+test description_parameter_can_return_shared_or_exclusive_slice ... ok
+test ordinary_managed_constructor_and_field_access_cannot_forge_the_head ... ok
+test live_window_cannot_cross_give_or_discharge ... ok
+test exact_operand_types_are_checked_for_every_new_operation ... ok
+test package_cannot_hide_borrowed_bytes_and_unused_explicit_desc_capture_is_valid ... ok
+test owned_load_and_duplicate_ssa_store_cannot_copy_responsibility ... ok
+test exclusive_window_blocks_metadata_and_other_windows_until_last_use ... ok
+test owned_parameter_or_local_storage_cannot_escape_as_a_bare_slice ... ok
+test recursive_no_return_prefix_keeps_required_parameter_separation ... ok
+test recursive_write_prefix_is_visible_to_the_callers_live_window ... ok
+test same_source_description_read_write_without_live_windows_remains_legal ... ok
+test ordinary_helper_effects_conflict_with_live_caller_windows ... ok
+test shared_and_exclusive_views_from_unknown_parameters_require_real_separation ... ok
+test separation_obligations_propagate_through_forwarding_helpers ... ok
+test unknown_operands_and_wrong_byte_storage_result_do_not_reach_lowering ... ok
+test necessary_apart_comes_from_live_windows_not_different_parameter_names ... ok
+test reserve_capacity_must_dominate_a_real_control_flow_join ... ok
+test shared_window_allows_metadata_reads_but_blocks_reserve_and_push ... ok
+test wire_truncation_and_preceding_version_cannot_admit_byte_storage ... ok
+test verification_budget_boundary_is_deterministic_for_raw_and_wire ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 9 tests
+test owned_package_slice_escape_is_rejected_and_lending_captures_remain_closed ... ok
+test duplicate_managed_ssa_cannot_be_hidden_in_distinct_package_fields ... ok
+test capture_views_stay_live_across_owner_consumption ... ok
+test direct_and_package_capture_roots_are_independently_reconstructed ... ok
+test package_field_backing_is_reconstructed_from_raw_and_wire ... ok
+test live_field_window_rejects_take_replace_and_whole_transfer ... ok
+test checked_owned_fields_separate_but_same_field_requires_last_use ... ok
+test helper_actual_aliases_are_checked_against_package_and_capture_roots ... ok
+test owning_capture_mode_cannot_hide_a_backing_write ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
