@@ -1,0 +1,3 @@
+O2
+"/workspace/scratch/39be3faa4442/run-logs/193-review/source02/cases/review193-state-slice-and-counter-165-6/program"
+exit Some(0); expected 0

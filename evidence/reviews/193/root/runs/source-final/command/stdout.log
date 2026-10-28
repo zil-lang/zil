@@ -1,0 +1,9 @@
+
+running 4 tests
+test two_distinct_slice_operands_cannot_relabel_one_actual_backing ... ok
+test nested_borrowed_descriptors_use_the_actual_last_call_backing ... ok
+test nested_helpers_preserve_mutable_slice_parent_and_large_copy_values ... ok
+test a_state_callback_receives_its_buffer_and_counter_siblings ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+

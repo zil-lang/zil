@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/193-review/composed-linux01/O0/allocation-probe"
+  ],
+  "status": "Completed",
+  "start": 1793164937.3045008,
+  "stdin_hex": "37",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "8"
+  },
+  "exit_code": 1,
+  "stdout_sha256": "80e7f6e96f8b33f7759cd2824ed8c5144faf93e28c48904ffd22c3ee718fd9ed",
+  "stderr_sha256": "526a5801bcc29c9553cafc90c1d50ee86249c0798c16de1957d26939ec0f1c90",
+  "end": 1793164937.3057694
+}
