@@ -1,0 +1,6 @@
+{
+  "file": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wineserver",
+  "reason": "Relocate private Ubuntu Wine wrapper absolute executable path; system untouched",
+  "original_sha256": "a0d0ce13ed039949a30dc261cf93f4d6c4606cab5783980cd42f476dfb3b881a",
+  "relocated_sha256": "f5d142f81cc820dc109b579b163b1803ca83934a3428bc4e3f35cd778a665741"
+}
