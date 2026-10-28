@@ -482,11 +482,29 @@ pub(super) fn check_module(
         // callback contract can stand in for it. Ordinary parameter, move,
         // Package construction and cleanup checks still cover both values.
         if f.callable_contract.is_none()
-            && let [(_, first, false, _), (_, second, false, _)] = parameters.as_slice()
+            && let [(first_position, first, false, _), (second_position, second, false, _)] =
+                parameters.as_slice()
             && first == second
             && let Type::Package { fields, .. } = &f.return_type
         {
-            budget.spend(fields.len().saturating_add(2))?;
+            budget.spend(
+                fields
+                    .len()
+                    .saturating_add(f.parameters.len())
+                    .saturating_add(2),
+            )?;
+            for (position, local) in f.parameters.iter().enumerate() {
+                if position == *first_position as usize || position == *second_position as usize {
+                    continue;
+                }
+                let ty = &f.locals[local.0 as usize].ty;
+                if !ty.is_copy_value() && !matches!(ty, Type::Managed(_)) {
+                    return Err(unsupported(
+                        "two-input owning State constructors require finite Copy or direct Managed ordinary parameters",
+                        Some(f.span),
+                    ));
+                }
+            }
             let mut callable_fields = 0usize;
             let mut same_environment = true;
             for (_, ty) in fields {
