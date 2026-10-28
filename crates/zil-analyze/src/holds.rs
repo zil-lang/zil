@@ -238,6 +238,24 @@ fn infer(
                         budget.lookup(state.len(), "Hold storage lookup")?;
                         state.remove(local);
                     }
+                    InstructionKind::CallClosureShared { callee, .. }
+                    | InstructionKind::CallClosureMut { callee, .. }
+                        if instruction.result.is_some_and(|value| {
+                            matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
+                        }) =>
+                    {
+                        found.insert(Root::Local(*callee));
+                    }
+                    InstructionKind::CallClosureBorrowed { callee, .. }
+                        if instruction.result.is_some_and(|value| {
+                            matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
+                        }) =>
+                    {
+                        let actual = values
+                            .get(callee.0 as usize)
+                            .ok_or_else(|| bad("lending callee outside value table"))?;
+                        extend(&mut found, actual, budget)?;
+                    }
                     InstructionKind::Call {
                         function,
                         arguments,

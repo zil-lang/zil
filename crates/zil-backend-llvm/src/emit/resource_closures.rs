@@ -12,7 +12,9 @@ pub(super) fn owns(definition: &ClosureDefinition) -> bool {
 }
 
 pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
-    owns(definition) || matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
+    owns(definition)
+        || !definition.lending_captures.is_empty()
+        || matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
 }
 
 /// Flags are appended after all data fields, grouped by capture order.

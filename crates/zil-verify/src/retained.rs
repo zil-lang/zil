@@ -21,12 +21,6 @@ pub(super) fn check_claim(
             }
             budget.spend(indices.len().saturating_add(1))?;
         }
-        if !c.lending_captures.is_empty() {
-            return Err(unsupported(
-                "opaque environment lending requires its independently checked result and loan protocol",
-                Some(f.span),
-            ));
-        }
     }
     let Type::Closure(id) = f.return_type else {
         return if f.callable_return_contract.is_none() {
@@ -59,6 +53,12 @@ pub(super) fn check_claim(
         return Err(bad(
             f,
             "returned environment identity or exact callable kind disagrees",
+        ));
+    }
+    if c.lending_captures != d.lending_captures {
+        return Err(bad(
+            f,
+            "opaque lending sources differ from the concrete environment definition",
         ));
     }
     if !c.hold.is_empty() || !c.call.is_empty() || !c.writes.is_empty() {

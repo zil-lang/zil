@@ -1,0 +1,11 @@
+# Borrowing a result from an owned environment
+
+`main.zil`, `factory.zil`, `helpers.zil` and `state.zil` are four real source modules. Two opaque factories retain their ByteBuffer and a deterministic Drop marker. A shared factory exposes a stable view; a mutable factory appends and returns a shared view of its updated storage. A generic borrowed helper forwards the shared result. A generic owning State borrows its callback field, consumes each result before the next iteration, and updates a separate Copy counter while the current view is live.
+
+The native consumer accepts digits 0–3. Its expected output is `A`, the requested prefix of `BCD`, then `HAZ`. `H` is the State callback's Drop marker and `Z` is the outer factory's marker. An invalid digit exits 9 without output. Each real allocator failure has a separate expected output, exit 1 and exact allocation/free count; the runner wraps the actual runtime realloc/free ABI. No runtime binary is part of this source directory.
+
+Run the checked compiler through `tools/language/184/consumer.py --repo . --cli /absolute/path/to/zil --out /fresh/output/directory`. The script builds O0 and O2, checks four loaded modules and exactly one verification run, executes ordinary and instrumented cases, and retains original command receipts. The full matrix has 38 native executions, including 20 allocation failures.
+
+The admitted result is a shared `&Copy` or `&[Copy]` from an actual inline Copy capture or owned ByteBuffer capture. Explicit call arguments remain finite Copy. Result loans keep the actual environment place alive; intersecting mutable calls, transfers, replacements and destruction are rejected until the last use. ReadCapture activation copies are not the borrowed storage. FnOnce, consuming adapters, by-value temporaries, external Address/Desc captures and nested Package/Closure lending sources remain outside this slice.
+
+The consumer deliberately uses a direct borrowed callback call inside generic State.run. A generic State function calling another generic callable helper still reaches the existing unsupported nested synchronous helper contract. The original attempt and subsequent source corrections are preserved in author evidence. General life/HRTB, arbitrary retained borrowing and product-level Rust cost or maintenance comparisons are not claimed here.
