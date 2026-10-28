@@ -94,18 +94,39 @@ pub(super) fn specialize<'a>(
         {
             return Ok(Cow::Owned(normalized.module));
         }
-        return Engine::new(&normalized.module, limits, &normalized.pattern_types)
-            .and_then(|mut engine| engine.run(&normalized.module))
+        return specialize_engine(&normalized.module, limits, &normalized.pattern_types)
             .map(Cow::Owned)
             .map_err(|error| vec![error]);
     }
     if module.items.iter().all(|item| params(item).is_empty()) {
         return Ok(Cow::Borrowed(module));
     }
-    Engine::new(module, limits, &BTreeMap::new())
-        .and_then(|mut engine| engine.run(module))
+    specialize_engine(module, limits, &BTreeMap::new())
         .map(Cow::Owned)
         .map_err(|error| vec![error])
+}
+
+fn specialize_engine(
+    module: &Module,
+    limits: &Limits,
+    pattern_types: &BTreeMap<String, TypeRef>,
+) -> R<Module> {
+    let mut engine = Engine::new(module, limits, pattern_types)?;
+    if !engine.callable_nominal_collision {
+        return engine.run(module);
+    }
+    // Generated aggregates no longer carry the original generic declaration.
+    // Protect actual nominal identities in the original, still-scoped AST,
+    // before substituting a caller binder into those aggregate fields.
+    let protected = super::modules::protect_alias_nominals(module, &mut engine.budget)?;
+    let mut engine = Engine::with_budget(&protected, limits, pattern_types, engine.budget)?;
+    if engine.callable_nominal_collision {
+        return Err(error(
+            module.span,
+            "callable binder still collides with a nominal identity after scoped normalization",
+        ));
+    }
+    engine.run(&protected)
 }
 
 struct Engine<'a> {
@@ -118,6 +139,7 @@ struct Engine<'a> {
     callable_name: Option<String>,
     store_parameter: Option<String>,
     retained_stores: Vec<String>,
+    callable_nominal_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     instances: BTreeMap<(String, Vec<String>), String>,
     instance_types: BTreeMap<String, TypeRef>,
@@ -165,7 +187,14 @@ impl<'a> Engine<'a> {
         limits: &'a Limits,
         pattern_types: &'a BTreeMap<String, TypeRef>,
     ) -> R<Self> {
-        let mut budget = Budget::new(limits);
+        Self::with_budget(module, limits, pattern_types, Budget::new(limits))
+    }
+    fn with_budget(
+        module: &'a Module,
+        limits: &'a Limits,
+        pattern_types: &'a BTreeMap<String, TypeRef>,
+        mut budget: Budget<'a>,
+    ) -> R<Self> {
         let traits = trait_bounds::Index::new(module, &mut budget)?;
         let mut engine = Self {
             pattern_types,
@@ -177,6 +206,7 @@ impl<'a> Engine<'a> {
             callable_name: None,
             store_parameter: None,
             retained_stores: Vec::new(),
+            callable_nominal_collision: false,
             signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
             instance_types: BTreeMap::new(),
@@ -235,6 +265,16 @@ impl<'a> Engine<'a> {
             };
             let mut seen = BTreeSet::new();
             for parameter in params(item) {
+                // This parameter/name was already charged by item preflight.
+                // Borrow the existing nominal index; do not add a global scan,
+                // name copy or a hygiene pass to the noncolliding old path.
+                if callable
+                    .as_ref()
+                    .is_some_and(|bounds| bounds.contains_generic(&parameter.name))
+                    && engine.nominals.contains_key(&parameter.name)
+                {
+                    engine.callable_nominal_collision = true;
+                }
                 if !seen.insert(&parameter.name) {
                     return Err(error(parameter.span, "duplicate type parameter"));
                 }
