@@ -1,0 +1,1 @@
+fn sink<T>(value:T){}fn bad<T>(value:T,flag:bool){while flag{sink(value);continue}}fn main(){}

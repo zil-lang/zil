@@ -1,0 +1,1 @@
+fn good<T>(value:T){for index in 0..2{let consumed=value;break}}fn main(){}

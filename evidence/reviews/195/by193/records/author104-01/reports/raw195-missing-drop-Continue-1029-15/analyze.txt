@@ -1,0 +1,12 @@
+Err(
+    [
+        Diagnostic {
+            phase: Analyze,
+            category: SafeReject,
+            code: "E-ANALYZE-IR",
+            message: "resource closure: storage boundary discards an owned carrier",
+            span: None,
+            notes: [],
+        },
+    ],
+)

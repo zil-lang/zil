@@ -1,0 +1,11 @@
+
+running 6 tests
+test control_edges_cannot_hide_a_forged_actual_captured_description_origin ... ok
+test duplicate_cleanup_on_each_real_loop_exit_is_independently_rejected ... ok
+test nearest_mixed_loop_targets_match_the_manual_native_cleanup_oracle ... ok
+test nested_break_carries_invalidated_origins_but_excludes_returning_paths ... ok
+test nested_exit_snapshots_with_shadowed_moved_ids_keep_exact_existing_limits ... ok
+test nested_match_distinguishes_returned_value_from_break_and_continue_debts ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+

@@ -1,0 +1,36 @@
+raw=[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-CLEANUP",
+        message: "Return cleanup must lead to an ordinary return on this edge",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 266,
+                end: 271,
+            },
+        ),
+        notes: [],
+    },
+]
+wire=[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-CLEANUP",
+        message: "Return cleanup must lead to an ordinary return on this edge",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 266,
+                end: 271,
+            },
+        ),
+        notes: [],
+    },
+]

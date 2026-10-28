@@ -1,0 +1,4 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/review195/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.50s
+     Running tests/review195_by193.rs (/workspace/scratch/39be3faa4442/targets178/review195/debug/deps/review195_by193-1d011aab6e738970)
+error: test failed, to rerun pass `-p zil-driver --test review195_by193`

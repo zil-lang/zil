@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "implementation": "195",
+  "reviewer": "/root/resume188_acceptance",
+  "implementation_author": "/root/resume190",
+  "implementation_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+  "reviewed_source": "1a890dabc4eb04b26570439718b0a9432511fa95",
+  "additional_test_source": "597f4a730d417c7652487f4c4fa3d6aa57bf025a",
+  "status": "Pass",
+  "verdict": "Pass",
+  "executed": 110,
+  "passed": 110,
+  "failed": 0,
+  "execution_accounting": {
+    "author_suites_reexecuted_at_exact_candidate": 104,
+    "new_independent_tests_at_clean_tests_only_source": 6,
+    "pilot_runs_are_not_added": true,
+    "author_only_observations_are_not_added": true,
+    "commands": {
+      "author104-01": {
+        "passed": 104,
+        "failed": 0,
+        "status": "Pass",
+        "source_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+        "git_status": ""
+      },
+      "new06-pilot01": {
+        "passed": 5,
+        "failed": 1,
+        "status": "Fail",
+        "source_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+        "git_status": "?? crates/zil-driver/tests/review195_by193.rs\n"
+      },
+      "new06-pilot02": {
+        "passed": 5,
+        "failed": 1,
+        "status": "Fail",
+        "source_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+        "git_status": "?? crates/zil-driver/tests/review195_by193.rs\n"
+      },
+      "new06-pilot03": {
+        "passed": 6,
+        "failed": 0,
+        "status": "Pass",
+        "source_commit": "1a890dabc4eb04b26570439718b0a9432511fa95",
+        "git_status": "?? crates/zil-driver/tests/review195_by193.rs\n"
+      },
+      "new06-final01": {
+        "passed": 6,
+        "failed": 0,
+        "status": "Pass",
+        "source_commit": "597f4a730d417c7652487f4c4fa3d6aa57bf025a",
+        "git_status": ""
+      },
+      "fmt-final01": {
+        "passed": 0,
+        "failed": 0,
+        "status": "Pass",
+        "source_commit": "597f4a730d417c7652487f4c4fa3d6aa57bf025a",
+        "git_status": ""
+      },
+      "clippy-final01": {
+        "passed": 0,
+        "failed": 0,
+        "status": "Pass",
+        "source_commit": "597f4a730d417c7652487f4c4fa3d6aa57bf025a",
+        "git_status": ""
+      }
+    }
+  },
+  "coverage": {
+    "author_suites": [
+      "generic_regressions",
+      "generics",
+      "impl178_generic_store",
+      "impl186_generic_owned_success",
+      "impl190_flow_source",
+      "impl190_for_ranges",
+      "impl195_loop_control_raw",
+      "impl195_loop_control_source",
+      "impl195_symbolic"
+    ],
+    "independent_cases": [
+      "nested match Return versus break/continue consumption, including a concrete Copy call which cannot repair the generic body",
+      "nested Store origins: unrelated alias accepted, replacement on break invalidates original alias, replacement on Return does not pollute surviving break",
+      "outer for with inner while and tuple match Return/Break/Continue, FnMut environment and three cleanup scopes",
+      "duplicate DropManaged on each actual break/continue edge, raw and Wire; original Flow unchanged",
+      "forged captured Desc actual source aliases a live shared observation across callback calls with loop exits, raw and Wire",
+      "four nested loops and names hiding moved IDs/carriers: exact node, work and structural-depth limits"
+    ],
+    "independent_native_executions": 8,
+    "independent_native_optimizations": [
+      "O0",
+      "O2"
+    ],
+    "independent_native_inputs": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "independent_raw_wire_attack_routes": 6,
+    "independent_raw_wire_accepted_control_routes": 4,
+    "task195_source_native_reexecutions_in_author_suite": 82,
+    "task195_total_native_in_this_review_final_runs": 90,
+    "adjacent_suite_native_checks_not_added_to_task195_native_count": true,
+    "platform": "x86_64 Linux native",
+    "wine_in_this_review": "NotRun",
+    "four_module_consumer_in_this_review": "NotRun"
+  },
+  "boundaries": {
+    "depth": {
+      "minimum": 13,
+      "n_minus_one_rejects": true,
+      "fresh_default_retry": true,
+      "evidence": "records/new06-final01/reports/review195-by193-depth-30-15/frontier.json"
+    },
+    "nodes": {
+      "minimum": 1812,
+      "n_minus_one_rejects": true,
+      "fresh_default_retry": true,
+      "evidence": "records/new06-final01/reports/review195-by193-nodes-30-13/frontier.json"
+    },
+    "work": {
+      "minimum": 6042,
+      "n_minus_one_rejects": true,
+      "fresh_default_retry": true,
+      "evidence": "records/new06-final01/reports/review195-by193-work-30-14/frontier.json"
+    }
+  },
+  "findings": {
+    "blocking_production_defects": [],
+    "unchanged_inputs_preserved_from_failed_pilots": [
+      "Store<i32> budget control rejected by the existing nominal element gate (pilot01)",
+      "resource Item with Store<Item> budget control rejected by existing category gate (pilot02)"
+    ],
+    "fixture_resolution": "The two exact previous source inputs remain asserted negative; the positive budget control explicitly uses package Item{manages r:R}. No acceptance/production/default-limit change.",
+    "scope_exit_labels": "The duplicate cleanup attacks alter real obligations; changing Break/Continue reason labels alone is not claimed to violate safety."
+  },
+  "checks": {
+    "format": "Pass",
+    "clippy_selected_review_test": "Pass",
+    "production_byte_identity": "Pass",
+    "command_log_sha256_checks": "Pass",
+    "review_worktree_clean_for_all_counted_executions": true
+  },
+  "limitations": [
+    "No full workspace execution by this reviewer; root owns final integrated acceptance.",
+    "No native Windows or Wine execution by this reviewer. Author platform/consumer records are separate evidence.",
+    "No comparative Rust runtime, memory, maintenance or compile-time performance measurement.",
+    "Depth13/12 is the complete Expand structural boundary for this source, not a claimed four-loop-frame-specific bound.",
+    "Existing handoff startup failures are metadata/history issues, not a passing acceptance claim or new language rejection."
+  ],
+  "rust_goals": {
+    "safety": "Bounded source/raw/Wire and native obligations passed; not a complete language proof.",
+    "runtime_memory": "Behavior and cleanup order measured; no Rust cost comparison.",
+    "expression_maintenance": "Ordinary nested control now composes with synchronous helper effects; comparative maintenance cost unmeasured.",
+    "compile_cost": "Explicit work/node/depth frontiers tested; no speedup claim.",
+    "repeatable_product_breakthrough": "Not established by this finite slice."
+  },
+  "whole_language": "NotSatisfied",
+  "product_gates": "NotRun",
+  "parent_B0": "Doing",
+  "evidence_manifest": "MANIFEST.json"
+}

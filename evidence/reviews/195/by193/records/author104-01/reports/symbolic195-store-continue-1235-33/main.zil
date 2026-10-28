@@ -1,0 +1,1 @@
+fn bad<T:StoreElement>(give store:Store<T>){for index in 0..2{let taken=give store;continue}}fn main(){}
