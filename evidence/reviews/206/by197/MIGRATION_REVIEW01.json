@@ -1,0 +1,92 @@
+{
+  "implementation": "206",
+  "reviewer": "/root/review205_finish",
+  "status": "LegacyDiagnosticMigrationPass",
+  "source": "ff3652dea5146eb4aa9169468538338f6e3cba28",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "registration": "main b1da8cf9 / changes/206-legacy-diagnostics.md; only the two named original tests are added to the write set.",
+  "baseline": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/legacy-baseline01/RESULT.json",
+    "bytes": 3926,
+    "sha256": "f9310cd967067e71b570b8d0fab697db9c2164ddef13594dcd46d98988fe1eea"
+  },
+  "reviewed_diff": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/legacy-migration-reviewed.diff",
+    "bytes": 3368,
+    "sha256": "f6e2efe702587db7f665e610336bd9fab55b1b02f1befa3b86e8bd0b467b3ea5"
+  },
+  "original_full_failure": "d078f9e2 actual 2612 passed / 2 failed / 0 ignored, 265 groups; independently recomputed from original logs. Preserved as Fail.",
+  "analyze": {
+    "case": "impl201_store::fields_require_direct_finite_shape_and_complete_resources / hidden Nested{Managed ByteBuffer,Closure}",
+    "exact_raw_205_206_and_migrated": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/legacy-analyze02/cases/raw201-1027008-5/module.txt",
+      "bytes": 9707,
+      "sha256": "da733544f4e37f7e3beceb078cea6d2238a359ccbb2cb6109126b17699d21060"
+    },
+    "bytes": 9707,
+    "sha256": "da733544f4e37f7e3beceb078cea6d2238a359ccbb2cb6109126b17699d21060",
+    "phase": "Analyze",
+    "category": "Unsupported",
+    "code": "E-UNSUPPORTED",
+    "new_message": "ordinary Package Product is not a Store element profile",
+    "old_message": "callback Store requires a complete State with one or two direct self-contained callbacks, finite Copy fields and direct Managed resources",
+    "actual_test": {
+      "command": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/legacy-analyze02/command/command.json",
+        "bytes": 1005,
+        "sha256": "c691d68bcb3ffbd8d59defbf242c32167eb1238d424b885d3e407871bcc4e149"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/legacy-analyze02/command/stdout.log",
+        "bytes": 182,
+        "sha256": "baed935762330584e80104acacfb5bb34faf4b4bb44e6b887fcb0e6c2cbbd01a"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/legacy-analyze02/command/stderr.log",
+        "bytes": 167,
+        "sha256": "80ed715f89c7ba9616ae42fa0698787146a8def77ac4f252f3d1be67772f3946"
+      }
+    },
+    "pass": 1,
+    "fail": 0,
+    "raw_negative_cases": 7,
+    "review": "Only the existing Package hidden field selects the new gate message; all original constructors and Address/Array/Store nearest neighbors keep prior expectations."
+  },
+  "verify": {
+    "case": "package_tests::package_fields_reject_noncopy_and_nested_owners / extra=package()",
+    "identity_scope": "Older unit test did not save raw input; exact whole constructor/helper file identity and narrow diff are proven, not an older serialized module.",
+    "phase": "Verify",
+    "category": "SafeReject",
+    "code": "E-VERIFY-TYPE",
+    "message": "stored value does not match local type",
+    "actual_test": {
+      "command": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/legacy-verify02/command/command.json",
+        "bytes": 986,
+        "sha256": "fcddb8794d521bd966434d40fcca064f993f33b1d684d7104046995a708db484"
+      },
+      "stdout": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/legacy-verify02/command/stdout.log",
+        "bytes": 189,
+        "sha256": "57cf28663a1347ae8eb7d3a0a388f9decc5082f939b1490cfa774ae20d1210de"
+      },
+      "stderr": {
+        "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/legacy-verify02/command/stderr.log",
+        "bytes": 162,
+        "sha256": "71c0494be390d47de06b218018c9b595c022be8880b8c563a86c1b372e5f2d18"
+      }
+    },
+    "pass": 1,
+    "fail": 0,
+    "raw_wire_negative_cases": 5,
+    "review": "Only the local field type was already altered by the original raw fixture; Store operand remains original flat type. The new complete Product type admits but exact value mismatch rejects. Four original Desc/Address/Tuple<Managed>/ErrorUnion<Managed> neighbors retain non-Copy assertions. No repair to hostile constructor or conversion to success."
+  },
+  "retained_attempts": {
+    "reviewer_legacy01": "Both actual test functions passed at16dea, but command start git_status includes a transient untracked metadata synchronization directory. Preserved verbatim; final clean repeats are legacy-analyze02/legacy-verify02 atff3652.",
+    "collector01": "Actual collection assertion failed on nonempty git status; original Fail and script kept, collector02 checks new clean records.",
+    "author_legacy_migration02": "Author reports a misplaced test-local variable caused actual compile failure before corrected source; original command/output retained by root."
+  },
+  "scope": "Diagnostic assertions only; production repair for independent capture defect is separately reviewed. No hostile native execution.",
+  "production_modified_by_reviewer": false,
+  "final_language_review": "Pending final integration gates."
+}

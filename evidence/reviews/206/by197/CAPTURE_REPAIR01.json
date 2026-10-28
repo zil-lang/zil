@@ -1,0 +1,163 @@
+{
+  "implementation": "206",
+  "reviewer": "/root/review205_finish",
+  "status": "ConfirmedCaptureDefectRepaired",
+  "original_failure_source": "daeec6a659c2a3c91fbe9ed167d7ace70dad84c6",
+  "repair_verification_source": "16dea787b04473b5e13e2697ca0dc5c9e3a240af",
+  "final_test_source": "ff3652dea5146eb4aa9169468538338f6e3cba28",
+  "normative_hash": "d71ea98d7c05e1491c62d535124f0076281db9cc625942de3672b55ef40a784d",
+  "original_finding": {
+    "git_commit": "a45ce58bfffbc2de551fe306161402366b8bd5a0",
+    "git_path": "evidence/reviews/206/by197/CAPTURE_FINDING01.json",
+    "bytes": 6433,
+    "sha256": "0b4436340e3566921c6e78e3cc818b9eee4a95cb1aae0291cf99949e111fcd4d"
+  },
+  "full_independent_result": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/REPAIR_RESULTS.json",
+    "bytes": 21348,
+    "sha256": "86a8955d4245ae225848c6872459fe9fe2c741f078d1f3d17c26f04772cce09d"
+  },
+  "collector": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/collect-repair02-command/command.json",
+    "bytes": 775,
+    "sha256": "a7027870f834aae0c0388c4c2671cf9bbaf748b47e466865a21552d886c8360d"
+  },
+  "original_and_repaired_inputs": [
+    {
+      "name": "control.zil",
+      "bytes": 122,
+      "sha256": "f26f4c19b033c3fb3b70d3a5efbe26afc9e06f81ccbeda47cb8f220edb2e7d7b"
+    },
+    {
+      "name": "syntax.txt",
+      "bytes": 16439,
+      "sha256": "cee510830df117aaec52d16726beab964c0a1d222553a9f7f08d87680fc151ae"
+    },
+    {
+      "name": "core.txt",
+      "bytes": 13662,
+      "sha256": "21b71c27ce7a5c7eb419d784a1ab0168d1bc69ab6493b71ded92bceec6f03830"
+    },
+    {
+      "name": "types.txt",
+      "bytes": 28430,
+      "sha256": "566527ea95dc0234c43c76ad4ab42053728a234af812d88fcde7617098d153aa"
+    },
+    {
+      "name": "control.analyze.txt",
+      "bytes": 3874,
+      "sha256": "b4472e0cd470f7e53ac32aca2e30c86f7c96b5dcef624d6f75075154a052c6db"
+    },
+    {
+      "name": "control.typed.txt",
+      "bytes": 25399,
+      "sha256": "734664fc2c9f46c79aef2a3e9ce7091cf3443caa9266089f51a85d8b1b8702c2"
+    },
+    {
+      "name": "control.candidate.txt",
+      "bytes": 3247,
+      "sha256": "5b872e30f69824299e1deb163b178ef861e57f355e0ff4dddbd7e384da6d4175"
+    },
+    {
+      "name": "control.wire",
+      "bytes": 1639,
+      "sha256": "952b33c46aca0b6eb22c8ddd9e79489e6da3a574878b53ff48e348277737f0e8"
+    },
+    {
+      "name": "product.typed.txt",
+      "bytes": 28019,
+      "sha256": "492e8fdebe8406d81217036256712eda3e41e8127d3fa490f142f1be67249251"
+    },
+    {
+      "name": "product.candidate.txt",
+      "bytes": 3242,
+      "sha256": "86b3c4e326b5fe254979da9b2e44c46c8f2facdb4a2aaa54085586bbb8ebb8dd"
+    },
+    {
+      "name": "product.wire",
+      "bytes": 1807,
+      "sha256": "76db02eb3ff7e5102e46a5c82039fadaa2a5ece307b89de17380898d5a0a3067"
+    },
+    {
+      "name": "product.analyze.txt",
+      "bytes": 513,
+      "sha256": "f9c311b83319bb4508560c0f98168ec4a2821293885a475fa976f3ae93a3d459"
+    }
+  ],
+  "actual_before": {
+    "raw": "Ok(VerifiedModule)",
+    "wire": "Ok(VerifiedModule)",
+    "record": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture01/cases/independent206-capture-1024491/product.verify.txt",
+      "bytes": 79440,
+      "sha256": "19a7a6079d5faa19325f1e875eec012915191a45c3ded4f837c1eab0eafea832"
+    }
+  },
+  "actual_after": {
+    "phase": "Verify",
+    "category": "Unsupported",
+    "code": "E-UNSUPPORTED",
+    "message": "non-Copy type requires another checker",
+    "both_raw_and_wire": true,
+    "record": {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture02/cases/independent206-capture-1026809/product.verify.txt",
+      "bytes": 526,
+      "sha256": "57b3e8e1a75deaea22ec6485ac60addba3ec8f5a964f089776949cc9f6a0f4a4"
+    }
+  },
+  "legal_flat_control": "Both raw and Wire continue to accept exact original control.",
+  "repair_review": "Only Closure-definition Package capture admission routes directly to existing packages::check_type_for. This closes local and unused-function captures without depending on returned-factory checks or Analyze. Ordinary Package local/SSA admission and non-Package capture checks retain their earlier paths. Old flat captures already reach this exact same function and charges; no broader capture profile or machine protocol is introduced.",
+  "independent_limited": {
+    "tests": 46,
+    "failed": 0,
+    "native": 12,
+    "raw_wire_original_pairs": 29,
+    "added_capture_pairs": 2,
+    "new_nested_budget_values_unchanged": true,
+    "old45_and39_fixtures_unchanged": true,
+    "exact_assertion_followup": {
+      "tests": 1,
+      "failed": 0,
+      "command": {
+        "command": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture02/command/command.json",
+          "bytes": 955,
+          "sha256": "bd7f83961fe43f826b664e4b3f4472b4584de586a95ef65c3ab07040b836ea62"
+        },
+        "stdout": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture02/command/stdout.log",
+          "bytes": 189,
+          "sha256": "1aca731c4171acb2197a98ea1300bac4dcb455f3d3891ebfa4b15635d05cf173"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/39be3faa4442/run-logs/206-review/capture02/command/stderr.log",
+          "bytes": 305,
+          "sha256": "b3b9ba43e27084330b9eae967c14e32067978fef718215b20642f5f9c9edcd66"
+        }
+      }
+    }
+  },
+  "compiler_delta_from_cli03": [
+    {
+      "path": "crates/zil-verify/src/closures.rs",
+      "old_bytes": 29550,
+      "old_sha256": "ed1c709dd916160dc598068cb225950e7b4d04b68747b9efedb63398175c3b49",
+      "new_bytes": 30106,
+      "new_sha256": "591a1cfe5c896ac489a04e2102dc1691ce447f2d70d4d98a7c9ccfd572a5adb8",
+      "kind": "production"
+    },
+    {
+      "path": "crates/zil-verify/src/package_tests.rs",
+      "old_bytes": 41281,
+      "old_sha256": "c93da24d70902ef4eb03c1930bf30bac7b2c7b1152a7a0d557455929afeb0e72",
+      "new_bytes": 42125,
+      "new_sha256": "0d99765aaa1a36e03dc288f1158887792074feba2c3149cc65185f97954e4009",
+      "kind": "unit-test-only"
+    }
+  ],
+  "final_cli_consumer": "Pending new CLI identity. Old CLI03 observations retain their original source and are not final-source consumer evidence.",
+  "original_fail_preserved": true,
+  "no_hostile_native_execution": true,
+  "final_language_review": "Pending full workspace, final Clippy and new CLI consumer gates.",
+  "production_modified_by_reviewer": false
+}
