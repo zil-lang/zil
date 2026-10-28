@@ -431,9 +431,22 @@ fn field_transfer_keeps_input_provenance_at_create_returns() {
     b.op(InstructionKind::DropPackage { local });
     let m = module(b.finish(Some(value), CleanupExitKind::Return));
     accepted(m.clone());
-    let mut forged = m;
-    forged.functions[0].result_mode = PassingMode::Create;
-    rejected(forged, "create result is not independently proven fresh");
+    // The original candidate constructs both fields here.186 now preserves
+    // their actual freshness through the Package and its local storage.
+    let mut fresh = m;
+    fresh.functions[0].result_mode = PassingMode::Create;
+    accepted(fresh);
+
+    // A genuinely incoming field still cannot acquire creation provenance.
+    let mut b = Body::new(owned());
+    b.0.result_mode = PassingMode::Give;
+    let local = b.parameter(package());
+    let value = take(&mut b, local, 0);
+    b.op(InstructionKind::DropPackage { local });
+    let mut incoming = module(b.finish(Some(value), CleanupExitKind::Return));
+    accepted(incoming.clone());
+    incoming.functions[0].result_mode = PassingMode::Create;
+    rejected(incoming, "create result is not independently proven fresh");
 }
 
 #[test]
@@ -844,6 +857,7 @@ fn no_package_scalar_controls_charge_resource_frontier_setup_exactly() {
     // both final validation and setup; the prior 10/258 failure is retained.
     // This fixture deliberately registers a resource despite having no owning
     // or description locals, so it reaches the resource pass's scalar path.
+    let mut observed = Vec::new();
     for (count, expected_cost) in [(1, 22), (32, 394)] {
         let mut b = Body::new(Type::Unit);
         for value in 0..count {
@@ -853,17 +867,20 @@ fn no_package_scalar_controls_charge_resource_frontier_setup_exactly() {
         }
         let m = module(b.finish(None, CleanupExitKind::Return));
         accepted(m.clone());
-        assert_eq!(
-            responsibility_cost(&m, expected_cost).unwrap(),
-            expected_cost
+        let actual_cost = responsibility_cost(&m, Limits::default().max_analysis_steps).unwrap();
+        eprintln!(
+            "scalar responsibility count={count}, old={expected_cost}, measured={actual_cost}"
         );
+        assert_eq!(responsibility_cost(&m, actual_cost).unwrap(), actual_cost);
         assert_eq!(
-            responsibility_cost(&m, expected_cost - 1)
+            responsibility_cost(&m, actual_cost - 1)
                 .unwrap_err()
                 .category,
             zil_base::ResultCategory::ResourceLimit
         );
+        observed.push((count, actual_cost));
     }
+    assert_eq!(observed, vec![(1, 22), (32, 394)]);
 }
 
 #[test]
