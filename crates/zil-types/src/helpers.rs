@@ -281,6 +281,10 @@ pub(super) fn install(
             store_templates::validate_header(function)?;
             let (snapshot_work, store_shapes) = inference::helper_snapshot_work(function, limits)?;
             state.snapshot(snapshot_work.saturating_mul(2), function.span)?;
+            // New State declaration bodies are constrained even when no
+            // concrete instance is requested. No concrete ClosureId is needed
+            // for lexical origins, mode checks or the bounded Once paths.
+            state_origins::collect(function, Bindings::default(), &context, state, limits)?;
             state.helper_templates.insert(
                 (core.module_id, function.id),
                 Template {
