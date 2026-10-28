@@ -5,7 +5,9 @@ extern "C" fn getchar()->i32;
 extern "C" fn putchar(code:i32)->i32;
 
 fn main()->model.Error!i32 {
-    let mode=unsafe { getchar() }-48;
+    var command:i32=0;
+    unsafe { command=getchar() };
+    let mode=command-48;
     if mode<0 || mode>4 { return 9 };
     let marker=model.marker(77);
     if mode==4 {
