@@ -241,7 +241,7 @@ fn original_probes_keep_inputs_and_remove_the_unrelated_head_switch() {
             "../../../examples/mainline/mixed_capture182/probes/helper_address_parameter.zil"
         ),
         ResultCategory::Unsupported,
-        Phase::Expand,
+        Phase::Types,
         "one finite Copy callable signature",
     );
 }
