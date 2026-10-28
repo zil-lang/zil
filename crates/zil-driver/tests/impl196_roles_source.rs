@@ -189,7 +189,7 @@ fn original_positive_probes_reach_verify_unchanged() {
     }
 }
 #[test]
-fn original_alias_and_duplicate_move_probes_reach_security_checks() {
+fn original_exclusive_alias_and_second_role_write_probes_reach_security_checks() {
     for index in [5, 11] {
         let (label, source) = ORIGINALS[index];
         let case = Case::new(label);
