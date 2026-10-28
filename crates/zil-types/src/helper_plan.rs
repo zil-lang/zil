@@ -7,6 +7,7 @@ enum Shape {
     Unknown,
     Environment(ClosureId),
     Package(Vec<(String, ClosureId)>),
+    Store(Box<Shape>),
 }
 
 impl Shape {
@@ -15,6 +16,7 @@ impl Shape {
             Self::Package(fields) => fields.iter().fold(1usize, |n, (name, _)| {
                 n.saturating_add(name.len()).saturating_add(1)
             }),
+            Self::Store(element) => 1usize.saturating_add(element.work()),
             _ => 1,
         }
     }
@@ -25,7 +27,7 @@ impl Shape {
                 let id = fields.first()?.1;
                 fields.iter().all(|(_, other)| *other == id).then_some(id)
             }
-            Self::Unknown => None,
+            Self::Unknown | Self::Store(_) => None,
         }
     }
 }
@@ -43,6 +45,7 @@ struct Walk<'a, 'b> {
     found: BTreeSet<Instance>,
     state: &'b mut closures::State,
     limits: &'a Limits,
+    store_shapes: bool,
 }
 
 impl Walk<'_, '_> {
@@ -107,6 +110,20 @@ impl Walk<'_, '_> {
                 }
             }
             Type::Closure(id) => Shape::Environment(*id),
+            Type::Managed(payload) | Type::Desc(payload) if self.store_shapes => {
+                if let Type::OwnedStore { element } = payload.as_ref() {
+                    let element = self.shape(element, bounds, bindings, span, depth + 1)?;
+                    if matches!(element, Shape::Package(_)) {
+                        self.state
+                            .snapshot(element.work().saturating_add(1), span)?;
+                        Shape::Store(Box::new(element))
+                    } else {
+                        Shape::Unknown
+                    }
+                } else {
+                    Shape::Unknown
+                }
+            }
             Type::Address { inner, .. } => self.shape(inner, bounds, bindings, span, depth + 1)?,
             Type::Package { fields, .. } => {
                 self.state.snapshot(fields.len(), span)?;
@@ -334,6 +351,15 @@ impl Walk<'_, '_> {
                 for argument in arguments {
                     shapes.push(self.expr(argument, depth + 1)?);
                 }
+                if self.store_shapes
+                    && matches!(
+                        dynamic_store::primitive(callee),
+                        Some("store_at" | "store_at_mut" | "store_pop")
+                    )
+                    && let Some(Shape::Store(element)) = shapes.first()
+                {
+                    return self.clone_shape(element, expression.span);
+                }
                 self.state.snapshot(1, expression.span)?;
                 let tables = self.tables.clone();
                 if let Some(signature) = self.signature(callee, &tables)? {
@@ -518,6 +544,7 @@ fn dependencies(
         found: BTreeSet::new(),
         state,
         limits,
+        store_shapes: template.store_shapes,
     };
     for parameter in &function.parameters {
         let shape = walk.shape(&parameter.ty, bounds, instance.1, parameter.span, 0)?;
