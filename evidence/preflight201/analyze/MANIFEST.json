@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "task": "preflight201",
+  "component": "Analyze",
+  "compiler_source_commit": "5c2fbc50135d6ca12ee0481153b954194ad39b9d",
+  "audit_snapshot": "9b8328042ea0e426b74543f2684016617806d850",
+  "summary_sha256": "9b826456e9c5e154a79cddfb62d1287e772340242b56a405593f82a64d1f6559",
+  "external_evidence": {
+    "file": "201-analyze-preflight-evidence.zip",
+    "bytes": 48914,
+    "sha256": "f72cf4b84609c6bc4b094fdb8e3288b2e663a1017dd85b088a303b71b09636b7",
+    "payload_files": 24,
+    "execution_artifacts_included": 0,
+    "crc_and_payload_sha256_checked": true
+  }
+}
