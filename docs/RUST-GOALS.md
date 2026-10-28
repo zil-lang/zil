@@ -227,3 +227,15 @@ Package完整拥有数组字段、真实共享用户资源头、有限动态Stor
 | 至少一项实质突破 | 有限组合能力真实推进，完整2250/0保证本片集成回归 | 尚未建立冻结产品四目标合取或产品级净突破；不降低既有product-gates |
 
 详见docs/LANGUAGE-201.md及evidence/integration/201/final/RESULT.json。原失败按实际身份保留，重放与作者计数不叠加；B0 Doing、完整1.4 NotSatisfied、产品和原生Windows NotRun。
+
+## 202：完整普通 StoreElement 模板与真实库组合
+
+| 目标 | 当前实证 | 限制与下一义务 |
+|---|---|---|
+| Rust同类安全 | caller作用域/完整名义身份、raw未用定义、无Store指令的实际T资格、Desc写效应与CT边界均独立核；四类真实缺陷已由原输入关闭 | 全语言安全未完成；F/G声明模式、保留/挂起/并发继续实施 |
+| 运行与内存同级 | 六个普通泛型helper有真实函数边界；Linux/Wine各126次运行、各86真实分配失败，live0；没有新隐式Box/RC/锁 | 行为与责任平衡不代替同语义Rust运行时间、峰值内存或尾延迟配对；资格定义可能生成未调用helper代码 |
+| 表达与维护更简单 | 同一完整T可经empty/reserve/push/pop/len/capacity、错误联合及跨模块调用；原失败输入无需改成builtin内联 | 通用F/G State、一般trait/lending、卫生Syntax等未完成；实际框架维护成本未测 |
+| 编译成本更低 | 若干旧输入精确额度保持，新输入均有N/N−1/fresh；默认限额不增 | 有限额度控制不能证明全部旧输入零成本，更不构成Rust编译性能胜出；专项分支独立 |
+| 至少一项实质突破 | 完整T组合和五模块故障闭环已真实推进，整仓2319/0 | 完整产品四目标合取与产品级净突破尚未建立，既有product-gates保持 |
+
+身份、实际失败和重放边界见docs/LANGUAGE-202.md与evidence/integration/202/final/RESULT.json。B0 Doing、完整1.4 NotSatisfied、产品/原生Windows NotRun。
