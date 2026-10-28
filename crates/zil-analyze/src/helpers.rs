@@ -307,6 +307,72 @@ fn forwarded<'a>(
     }))
 }
 
+// This is an owning value boundary, not a noescape helper with an empty Call
+// claim. Inspect both actual parameter slots and the complete result shape;
+// the later resource pass still checks every move, field and cleanup position.
+fn two_input_state_constructor(
+    module: &TypedModule,
+    function: &TypedFunction,
+    candidates: &[(u32, LocalId)],
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    if candidates.len() != 2
+        || candidates[0].1 == candidates[1].1
+        || function.environment.is_some()
+        || function.foreign.is_some()
+    {
+        return Ok(false);
+    }
+    let (Type::Closure(first), Type::Closure(second)) = (
+        &function.locals[candidates[0].1.0 as usize].ty,
+        &function.locals[candidates[1].1.0 as usize].ty,
+    ) else {
+        return Ok(false);
+    };
+    if first != second {
+        return Ok(false);
+    }
+    let Type::Package { fields, .. } = &function.return_type else {
+        return Ok(false);
+    };
+    budget.spend(
+        fields.len().saturating_add(2),
+        "owning State constructor field envelope",
+    )?;
+    let mut callbacks = 0;
+    for (_, field) in fields {
+        if let Type::Closure(id) = field {
+            if id != first {
+                return Ok(false);
+            }
+            callbacks += 1;
+        }
+    }
+    if !(1..=2).contains(&callbacks) {
+        return Ok(false);
+    }
+    budget.product(
+        function.parameters.len(),
+        2,
+        1,
+        "owning State constructor extra parameter membership",
+    )?;
+    for parameter in &function.parameters {
+        if *parameter == candidates[0].1 || *parameter == candidates[1].1 {
+            continue;
+        }
+        let ty = &function.locals[parameter.0 as usize].ty;
+        budget.type_work(ty, true, "owning State constructor extra parameter shape")?;
+        if !ty.is_copy_value() && !matches!(ty, Type::Managed(_)) {
+            return Ok(false);
+        }
+    }
+    // The one shared ClosureId proves a type property only. No parameter or
+    // SSA responsibility is deduplicated here or in the ordinary resource pass.
+    callable_fields::self_contained(module, *first, budget)?;
+    Ok(true)
+}
+
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
     let order = dependency_order(module, budget)?;
     budget.spend(module.functions.len(), "checked helper dependencies")?;
@@ -344,6 +410,12 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 if fields.iter().any(|(_,ty)| *ty==Type::Closure(id)))
         {
             callable_fields::self_contained(module, id, budget)?;
+            continue;
+        }
+        if function.callable_contract.is_none()
+            && candidates.len() == 2
+            && two_input_state_constructor(module, function, &candidates, budget)?
+        {
             continue;
         }
         let claim = function
