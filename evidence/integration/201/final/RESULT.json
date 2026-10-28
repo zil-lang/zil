@@ -1,0 +1,103 @@
+{
+  "status": "Pass",
+  "scope": "201 finite same-F callback Store integration; not full1.4 or product completion",
+  "source_commit": "893ea73eb4d86717476504c39562d32d87e1337e",
+  "source_clean": true,
+  "source_objects": {
+    "crates": "79021c72731082053e9e2d89b0d932463c303aa9",
+    "examples": "70b74317c393a7edd5594a3f737a8ebf6050ac82",
+    "tools": "51f8aef1bc6bcbd60e3ae6b4453f39b1e51019f0",
+    "Cargo.toml": "71adfaea2deb83d99a108a0aa43e6c47937fe3b5",
+    "Cargo.lock": "38a62627c9e74866270068f2594959001ee00fe3",
+    "_zil_design.md": "a325ffe3739eaf0aea3ef5b746486c0ae2d1cac4",
+    "spec": "5f0837b3efa5527b36d53c537044e4c25cff6217",
+    "policy/dependencies.json": "59fbacb84e9daa791c501fa94eac41ff01cdb7e4",
+    "validation/product-gates.json": "14d352d66503ba948a55b673ccb913ffb3e5842e"
+  },
+  "scope_equivalent_main_before_receipt": "0bf137f932a2ebb593ee69af2a8832533b6b0844",
+  "spec_hash": "4c57f670cae6805444e0531485deee9c3a4a9486f533fc97e49f0b5104bccfbf",
+  "normative_hash": "b72c7a0f8d62814324d7660cfc2b4655aae12bd5272b0511075f1aa7d93accb3",
+  "schema_version": 25,
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--offline",
+    "--locked",
+    "-j2",
+    "--no-fail-fast"
+  ],
+  "passed": 2250,
+  "failed": 0,
+  "ignored": 0,
+  "test_result_groups": 235,
+  "duration_seconds": 101.13783931732178,
+  "independent_review": {
+    "path": "evidence/reviews/201/by197/REVIEW.json",
+    "implementation_commit": "7d690f67d76d665bf2e383ffab2c071d05685ecd",
+    "review_commit": "c68a9f41fe28591a4fb5f6f10d8f6120ca6f0287",
+    "verdict": "Pass",
+    "targeted_tests": 46,
+    "native_source_executions": 54,
+    "linux_consumer_executions": 118,
+    "actual_allocation_failures": 84
+  },
+  "author_evidence": {
+    "frontend": "evidence/impl/201/frontend/SUMMARY.json",
+    "analyze": "evidence/impl/201/analyze/SUMMARY.json",
+    "frontend_final_tests": 16,
+    "frontend_native": 32,
+    "frontend_deferred_next_stage_boundary_tests": 2,
+    "analyze_raw": 9,
+    "analyze_source": 7,
+    "analyze_related_regression": 35,
+    "linux_consumer": 118,
+    "wine_consumer": 118,
+    "actual_failures_per_platform": 84,
+    "counts_overlap_and_are_not_summed": true
+  },
+  "migration_reviews": [
+    "evidence/reviews/201/by197/MIGRATION.json",
+    "evidence/reviews/201/by197/MIGRATION-175.json",
+    "evidence/reviews/201/by197/MIGRATION-180.json"
+  ],
+  "prior_full_run": {
+    "source_commit": "e5737621a4513ff6e7d9a978f16be209cbf65bc6",
+    "passed": 2249,
+    "failed": 1,
+    "ignored": 0,
+    "test_result_groups": 235,
+    "cause": "Only historical180 Copy fields substring expectation failed. Actual original input retained Types Unsupported/E-UNSUPPORTED and verification_runs=0. No production change.",
+    "correction_commit": "1adf94568e701ec66bfae119bfa83106cef11c4f",
+    "targeted_retest": "1 passed,0 failed,18 filtered",
+    "closed_originals_archive": {
+      "archive": "/workspace/scratch/39be3faa4442/run-logs/201-root/zil201-integration01-closed-nonexecutables.zip",
+      "bytes": 62548237,
+      "sha256": "32eb15eb1c478b0726183d723415d481867908e28ba247ab0d9337b91792fde6",
+      "source": "/dev/shm/zil201-integration01",
+      "source_commit": "e5737621a4513ff6e7d9a978f16be209cbf65bc6",
+      "run_status": "Fail",
+      "file_count": 24581,
+      "original_bytes": 1307444635,
+      "machine_products_hash_only": 1030,
+      "all_payload_sha256_and_crc_verified": true,
+      "originals_removed_after_reverification": true,
+      "shm_available_after": 3355181056
+    }
+  },
+  "external_archive": {
+    "file": "201-integration-evidence.zip",
+    "bytes": 806711,
+    "sha256": "a962da63aa74482d334d65bd3ee44cb1a4ae79ff689215a826a35063c8aac072",
+    "payload_files": 318,
+    "excluded_machine_products": 10,
+    "all_payloads_verified": true
+  },
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "native_windows": "NotRun",
+  "formal_draft_product_pipeline": "NotRun",
+  "compiler_speed_claim": "None; separate workstream",
+  "remaining_priority": "202 ordinary StoreElement full-type template binding; F/G persistent State and complete1.4 obligations remain"
+}
