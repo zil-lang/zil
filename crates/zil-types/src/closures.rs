@@ -251,12 +251,9 @@ impl State {
             if let Type::Closure(id) = capture.stored_type() {
                 retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
             }
-            if matches!(capture.stored_type(), Type::Desc(inner) if *inner == Type::ByteBuffer) {
-                return Err(unsupported(
-                    capture.span,
-                    "borrowed ByteBuffer captures require a dynamic storage effect contract; use an actual owning capture",
-                ));
-            }
+            // A local byte-storage Desc uses the same actual capture-source
+            // and dynamic access checks as a direct synchronous operation.
+            // Retained results still independently require self containment.
         }
         if !checker.has_return {
             checker

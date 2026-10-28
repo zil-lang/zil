@@ -24,3 +24,11 @@
 ## 身份
 
 基线ebaddd7faf7b83b257b873e8544af0fef13e670a；1.4、schema23；design 8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5，norm1068cda3fe79b906f49eeee4bd3f62863f9db4ae85e8a0dbaa3c439d310777b8。工单只读main/.task/impl/187.md。与184的closures.rs交集仅此ByteBuffer局部准入，串行合流并各自独审。
+
+## 实际纵切补正
+
+同一原始最小输入依次保留Types、Analyze budget.rs、Verify及Lower的真实Unsupported。root依据这些失败及后端同构排除项扩写Analyze budget.rs、Lower lib.rs和LLVM emit.rs：只去除Desc<ByteBuffer>的旧额外捕获限制，保留真正已实现的类型形状、Store排除、Slice/owned-error门和有限Copy签名。资源/窗口/私有来源独立求证、计费与布局均不改。原先“预计无需Lower/LLVM变更”的判断由实际失败修正，不能把到Verify成功当机器执行完成。
+
+实际机器构建又暴露同一emit.rs中capture_type与Closure字段alignment的旧Managed<ByteBuffer>单项限制。这两处同步接受已核Desc<ByteBuffer>，调用既有llvm_type(ptr)及alignment(8)，不新增表示、堆盒、引用计数或运行时映射。
+
+impl099原两项局部弱描述捕获输入属于新能力，需同源迁移为Success；root与184的相邻lending旧例统一迁移，本片不编辑该共享测试文件。
