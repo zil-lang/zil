@@ -1,0 +1,17 @@
+{
+  "reviewer": "/root/restore177_inventory",
+  "reviewed_commit": "20dcec0f22fa72f1d3d3c0079cfcb0b5c595ceab",
+  "cherry_pick": "3d41b361",
+  "scope": "Non-author read-only review of root tests-only 094 expectation migration; not independent approval of my187 production",
+  "result": "Pass",
+  "source": "fn main(){let b=bytes_new();let d=b;let f=move()=>bytes_len(d);}",
+  "source_sha256": "d47f9f86e35c0d25d6937034fc3e2a5a6031fe820304acac0f82898772e112ef",
+  "observations": [
+    "Original source literal occurs exactly once in both revisions and is byte-identical",
+    "Only this newly supported local unused Desc capture moves from Types/Unsupported to a separate Success assertion",
+    "Other rejection sources, phases, codes and assertions unchanged",
+    "changes explicitly conditions acceptance on actual repaired187 source execution and independent review"
+  ],
+  "old_execution": "run-logs/187-author/frozen03: source was actual Success and old Unsupported assertion failed",
+  "new_execution": "NotRun at this source review; author bounded frozen acceptance will record actual result separately"
+}
