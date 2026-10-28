@@ -141,6 +141,8 @@ struct Engine<'a> {
     store_parameter: Option<String>,
     retained_stores: Vec<String>,
     inferred_state_values: BTreeSet<String>,
+    has_store_templates: bool,
+    has_single_state_values: bool,
     callable_nominal_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
@@ -211,6 +213,8 @@ impl<'a> Engine<'a> {
             store_parameter: None,
             retained_stores: Vec::new(),
             inferred_state_values: BTreeSet::new(),
+            has_store_templates: false,
+            has_single_state_values: false,
             callable_nominal_collision: false,
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
@@ -246,6 +250,10 @@ impl<'a> Engine<'a> {
                 engine.enums.insert(e.name.clone(), e);
             }
             if let ItemKind::Function(f) = &item.kind {
+                // The item/header is already prepaid. Only a module with a
+                // real ordinary StoreElement template needs the new single-F
+                // producer facts; old State-only callers keep their cost.
+                engine.has_store_templates |= store_templates::parameter(f).is_some();
                 engine.signatures.insert(f.name.clone(), Cow::Borrowed(f));
             }
             if let ItemKind::Extern { abi, function } = &item.kind {
@@ -1455,6 +1463,7 @@ impl<'a> Engine<'a> {
                                     )?
                                 {
                                     self.ty(&mut result, depth + 1)?;
+                                    self.note_single_state_value_result(&result, &callable)?;
                                     return Ok(Some(result));
                                 }
                                 return self.signature_result(&instance);
@@ -1465,6 +1474,7 @@ impl<'a> Engine<'a> {
                                     hints.symbolic_result(result, &callable, &mut self.budget)?
                             {
                                 self.ty(&mut result, depth + 1)?;
+                                self.note_single_state_value_result(&result, &callable)?;
                                 return Ok(Some(result));
                             }
                             return self.signature_result(&target);
@@ -1772,7 +1782,9 @@ impl<'a> Engine<'a> {
                 .as_ref()
                 .and_then(callable::CallableTemplates::dual_names)
             {
-                self.note_state_value_result(&result, names, 0)?;
+                self.note_state_value_result(&result, callable::StoreCallbacks::Pair(names), 0)?;
+            } else if let Some(callable) = &callable {
+                self.note_single_state_value_result(&result, callable)?;
             }
             Ok(Some(result))
         } else {
