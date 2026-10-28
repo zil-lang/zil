@@ -1,0 +1,72 @@
+{
+  "task": "191-fixtures",
+  "reviewer": "/root/resume190",
+  "review_kind": "ReadOnlySourceReview",
+  "source_commit": "68abfb67de1ebea5bbaf64810476f3737dcd0954",
+  "parent_commit": "ae3ac2445605c19914760fcd47c9f130700f8aac",
+  "executed_tests": 0,
+  "new_machine_tests": 0,
+  "verdict": "Pass",
+  "scope": "Exact legacy-fixture migration only; this is not a new execution receipt or independent production admission.",
+  "findings": [
+    {
+      "area": "write scope",
+      "result": "Only six test files and one changes document. No production file, public data type or default limit changes."
+    },
+    {
+      "area": "Analyze budgets",
+      "result": "Original three inputs remain unchanged; +6 per function equals accepted188 four dependency table slots, one frontier visit and one checked entry. N-1 ResourceLimit assertions remain."
+    },
+    {
+      "area": "042 raw signature",
+      "result": "Same forged address signature and original i32 entry remain; exact Verify SafeReject E-VERIFY-CLOSURE-ENTRY and message now asserted."
+    },
+    {
+      "area": "shared_addresses",
+      "result": "Both former unused closure strings move unchanged to actual native0 checks (helper also executes O2); other reference/permission negatives remain."
+    },
+    {
+      "area": "091 and099 lending",
+      "result": "Original claims retain empty lending source lists; no result/source construction changes. Exact E-VERIFY-LENDING replaces obsolete closed-shape diagnostics."
+    },
+    {
+      "area": "095 borrowed byte storage",
+      "result": "Original Package-Desc negative remains; original explicit no-operation Desc capture now calls existing raw/Wire pass helper. No call authority, mutation or hidden effect is inferred from an unused definition."
+    }
+  ],
+  "files": [
+    {
+      "path": "changes/191-full-workspace-fixtures.md",
+      "sha256": "505277ba10f4f202726f34f3f4f53826c3b37f54d77d2bcb8985c40471573e68"
+    },
+    {
+      "path": "crates/zil-analyze/tests/budgets.rs",
+      "sha256": "5db446912d5043e2ad3141319ebcaa34b5232d9343b2857e72ec076520e130c5"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl042.rs",
+      "sha256": "d291d41d5e6d2ec12cc0b79cc07a7e3e65c5684880a179d8fa842d90be9a6548"
+    },
+    {
+      "path": "crates/zil-driver/tests/shared_addresses.rs",
+      "sha256": "179b978fe4901c4ff4e084309044d9682385fd4bf635192019c45ba7afb036fe"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl091_slices.rs",
+      "sha256": "3460d90f6a1c102558093f7945b41c7fe3de82dafc08d2e7962e19aa64ebfcc3"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl095_byte_buffers.rs",
+      "sha256": "489bfa783340c14e423be3cd6decf4105661945162ba177f32cf1b5e70587ec6"
+    },
+    {
+      "path": "crates/zil-verify/tests/impl099_owned_bytes.rs",
+      "sha256": "1a49f833013cab6e9b525e3daa79ec5eaaf175149e8d3524e1878d29a1e31510"
+    }
+  ],
+  "execution_receipts_reviewed": [],
+  "limitations": [
+    "Did not execute the revised tests; root owns their actual bounded and whole-workspace receipts.",
+    "Review binds schema24 finite-production candidate; later190 or193 semantic additions require their own exact-source evaluation."
+  ]
+}
