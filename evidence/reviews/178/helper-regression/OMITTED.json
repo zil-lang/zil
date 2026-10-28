@@ -1,0 +1,242 @@
+[
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/candidate.txt",
+    "bytes": 165195,
+    "sha256": "971c2261783dafa95d56179c9506bda89280bddcf57d65b4ab3d92a659cbba0a"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/core.txt",
+    "bytes": 776909,
+    "sha256": "28f6f12bd2d63ba5a34d97e7b5b80cd508cdd6f88c2f7597f3b9290f1a3ec317"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/ct-core.txt",
+    "bytes": 813424,
+    "sha256": "5f342d07590b6553f2249bf8c9cf4d56e9b6d614f540f66dcc5e75dd59f97eab"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/interfaces.txt",
+    "bytes": 17809,
+    "sha256": "b6c727812fa7cf9b127f72d22e097f605355fb1799a762130ddd9072e145ffc8"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/lir.txt",
+    "bytes": 1112784,
+    "sha256": "2f96f5f57cf561601918dea5f8fbe4591c8fbaf6398948942074f347b617f8a1"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/llvm.ll",
+    "bytes": 83292,
+    "sha256": "a1aeb5e427c30e540d21bba1f687c00252c2173687d40fe32287a2b1f3a88268"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/source-map.txt",
+    "bytes": 457736,
+    "sha256": "652327e17c320e52edc7881404431dc2144f02b0c3c46fa3bb3e89d46c69c1e8"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/syntax.txt",
+    "bytes": 1537215,
+    "sha256": "07d2803de47d731f5a694625a9b9f57c3489e6db66f3b472ce1312e35787ceba"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/typed.txt",
+    "bytes": 1111956,
+    "sha256": "48e3b41010f9774a5797b6890cbaa4b4429af5d9057f44caf739357420df8094"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/verified-interfaces.txt",
+    "bytes": 32589,
+    "sha256": "1504653ffdb24426d4c263fa7beb7ee7332f390cb7d3c02c1a8711d818a97d57"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-ir/verified.txt",
+    "bytes": 1112033,
+    "sha256": "98884931a49658680149e8c42a2f14d18402f58ff928019ff7891e91e4fb43fb"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-rust-O0",
+    "bytes": 4572440,
+    "sha256": "96a8d9981074fd755477ee553b020611adeed4bcb717d3f6d318b9389cd34db8"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-rust-O2",
+    "bytes": 4552768,
+    "sha256": "8bbcc21369fbbb7d4fe7af05273befb1cd4ce83c43a622e309183ceaa2af5a1c"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-zil-O0",
+    "bytes": 25872,
+    "sha256": "c9042eba116872ff03977afaf2f45a36e69bb8eeaed0d18d532ae66d362ae46c"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-zil-O0.ll",
+    "bytes": 83292,
+    "sha256": "a1aeb5e427c30e540d21bba1f687c00252c2173687d40fe32287a2b1f3a88268"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-0/lifecycle-zil-O2",
+    "bytes": 17264,
+    "sha256": "ffdc5db26a2a35f49048275878f07456dee511184733eefb2bb1a1fe2f1acae4"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/candidate.txt",
+    "bytes": 132085,
+    "sha256": "a4f27884c6a290aba91cbd8071d41e8d59ee0a58f7d92389b70b3fdeca2554d5"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/core.txt",
+    "bytes": 457890,
+    "sha256": "a4727ab24456b7d06102d2f71c8fef5c6ab05dc1d92bb5e2b352f12ce1c1c4dd"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/ct-core.txt",
+    "bytes": 500067,
+    "sha256": "f48041b1c44f2d591e25e11064fff721dc9e5c467a39b8f45aab7fa897446f9f"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/interfaces.txt",
+    "bytes": 31143,
+    "sha256": "a6a1f48ca877cb118953fbc08c3497feb3bd9439eee14f21fe4dd42746cd4eb8"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/lir.txt",
+    "bytes": 585603,
+    "sha256": "57a1622e260171239172be70ed5ec17cc33a332ef1bff894dcfe847347a9b404"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/llvm.ll",
+    "bytes": 40551,
+    "sha256": "a324b886b5cd96c488f1541442330c5398d4ac9c8910813618c9905c1a47f710"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/source-map.txt",
+    "bytes": 265224,
+    "sha256": "6d9b81fcf85e8120f8cfd8aa813ac4ca87ab5162331b6016cc130ecfef111a8e"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/syntax.txt",
+    "bytes": 963403,
+    "sha256": "241cb1ba4abbe15f4728fffe31976d2fe4a1b6ea12a19cd08cfdae1cc682742d"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/typed.txt",
+    "bytes": 584769,
+    "sha256": "ef5634ead8f5027cdea24096fda8ec80bf75963ac373fe9727653493c75bd7fe"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/verified-interfaces.txt",
+    "bytes": 38268,
+    "sha256": "e004c37f3f79cc061aeca7d432fa5a06ae6b700e6ce0266ef36e346be45e0064"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-ir/verified.txt",
+    "bytes": 584846,
+    "sha256": "ef7c15fdd6f29029b2fc879849091f24298ccb7637c8df5bc0f6554e7ff397e1"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-rust-O0",
+    "bytes": 4566944,
+    "sha256": "3e98fa6285accdfe477b521f3015766c9cf9a9b761969cc5f58b8a9dc26f53cf"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-rust-O2",
+    "bytes": 4550424,
+    "sha256": "60fe89055f6a3c1d317ca2c9b79e9975aea9166914d4e365529b364cfe5cf9bb"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-zil-O0",
+    "bytes": 20648,
+    "sha256": "872e66da67dd111b3ad7685d4f89ec933d675cab0ed885c1a632911c68cf1a72"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-zil-O0.ll",
+    "bytes": 40551,
+    "sha256": "a324b886b5cd96c488f1541442330c5398d4ac9c8910813618c9905c1a47f710"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-helper-ui-333-1/main-zil-O2",
+    "bytes": 16512,
+    "sha256": "21a0df696aeb9d9ce8d998183613d1fbe6a1d318438f51f01b09d5f086c02a54"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/candidate.txt",
+    "bytes": 146168,
+    "sha256": "bcb703e612243fab61a104914ca63a2efaeeda5eca9202b05604ac8b49c9b771"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/core.txt",
+    "bytes": 743010,
+    "sha256": "2f85413abe4aa30160967a52464f91c8958acc334bd9d6deed2be402b18fc40f"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/ct-core.txt",
+    "bytes": 776418,
+    "sha256": "ba5b0ec6f8ff7ea0168c8359ea2086566c3c50fb7384ed0b8d5e2ae4890815ac"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/interfaces.txt",
+    "bytes": 17819,
+    "sha256": "e70514d681f7898b1f888495aa5aaeab1945210e6933f706baeb11abc7b97893"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/lir.txt",
+    "bytes": 922064,
+    "sha256": "6a14af931949eca5b22f628c22713b278dc6dd0d2f26974cf81ea6b942d927b1"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/llvm.ll",
+    "bytes": 66552,
+    "sha256": "15f1ba6d024824bc7c739919b5d9c2b3c03d5b6488dd0c3f54002f529cf81194"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/source-map.txt",
+    "bytes": 427790,
+    "sha256": "a826570631cc12c01bc467503b73777bb95849ed9896ddf444edce022e97835d"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/syntax.txt",
+    "bytes": 1485314,
+    "sha256": "5e248514f95e439be4831220aa133e7fc9963fdce480e45e84ec8f7d5d96a767"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/typed.txt",
+    "bytes": 921224,
+    "sha256": "8a0105c42cdf24e94e53900fe55d8ddac0e24b1a49546aaa801691caa403dc65"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/verified-interfaces.txt",
+    "bytes": 30866,
+    "sha256": "687923ae95e4166e90e32667679c158aaa1fea5d84194eb02e5c641ba1284e8f"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-ir/verified.txt",
+    "bytes": 921301,
+    "sha256": "5b428df6ccc273cd283ca2daf4fa28975056aa82f13a2b861f2e52ceb8d00420"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-rust-O0",
+    "bytes": 4568584,
+    "sha256": "d9ee03c2effa6da63e0bea7ee6bd11b42375f64249a8775682231965146bc991"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-rust-O2",
+    "bytes": 4553296,
+    "sha256": "d0643021573e2edc4786631f6931c7cfb5845aee0b2cc612e1acddfab86dd9b0"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-zil-O0",
+    "bytes": 25400,
+    "sha256": "40650d2e796095a744227978e0852f5dbcb5e18a95e1a1866ebf0396489a90d1"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-zil-O0.ll",
+    "bytes": 66552,
+    "sha256": "15f1ba6d024824bc7c739919b5d9c2b3c03d5b6488dd0c3f54002f529cf81194"
+  },
+  {
+    "path": "runs/helper-repair05/cases/zil-retained-ui-542-0/main-zil-O2",
+    "bytes": 16952,
+    "sha256": "03635ae440170137c0a57e2b41fa6770d81dc4cd08f15fd2463ffc8dd5ef09f6"
+  }
+]

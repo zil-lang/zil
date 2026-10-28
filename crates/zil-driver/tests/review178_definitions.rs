@@ -126,3 +126,26 @@ fn raw_and_wire_reject_erasing_the_factory_result_mode() {
         );
     }
 }
+
+#[test]
+fn callable_resource_exception_does_not_open_noncallable_generic_give() {
+    let source = "resource R { n:i32 } fn bad<T>(give owned:R)->i32=>owned.n; fn main() {}";
+    let input = SourceUnit::new(FileId(0), ModuleId(0), "helper-boundary178.zil", source);
+    let report = compile_source(&input, &CompileOptions::default());
+    let path = directory();
+    fs::write(path.join("input.zil"), source).unwrap();
+    fs::write(path.join("result.json"), report.to_json()).unwrap();
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == Phase::Expand && d.message.contains("callable helper"))
+    );
+}
