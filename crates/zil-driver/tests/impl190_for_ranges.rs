@@ -153,7 +153,7 @@ fn main()->i32{{return visit(42)}}
     native("endpoint-once-consumption", &source, b"LHABC");
     accepted(
         "endpoint-once-callback-core",
-        "fn start<F:FnOnce()->i64>(f:F)->i32{for index in f()..3i64{}return 0}fn main(){}",
+        "fn start<F:FnOnce()->i64>(f:F)->i32{for index in f()..i64(3){}return 0}fn main(){}",
         Stage::Core,
     );
 }
@@ -162,7 +162,7 @@ fn main()->i32{{return visit(42)}}
 fn every_integer_width_infers_unsuffixed_bounds_without_borrowing_authority() {
     for width in ["u8", "u16", "i32", "i64"] {
         let source = format!(
-            "fn sum<T>(token:T,high:{width})->(T,i32){{var sum=0;for index in 0..high{{sum+=i32(index)}}return (token,sum)}}fn main()->i32{{let result=sum(0,3{width});return result.0+result.1-3}}"
+            "fn sum<T>(token:T,high:{width})->(T,i32){{var sum=0;for index in 0..high{{sum+=i32(index)}}return (token,sum)}}fn main()->i32{{let result=sum(0,{width}(3));return result.0+result.1-3}}"
         );
         native(&format!("width-{width}"), &source, b"");
     }
@@ -180,7 +180,7 @@ fn sum<T>(token:T,bounds:Bounds,items:[i64;1])->(T,i32){
     for index in 0..identity(bounds.high){sum+=i32(index)}
     return (token,sum)
 }
-fn main()->i32{let result=sum(0,Bounds{high:2},[3i64]);return result.0+result.1-7}
+fn main()->i32{let result=sum(0,Bounds{high:2},[i64(3)]);return result.0+result.1-7}
 "#;
     native("hint-projections", source, b"");
 }
@@ -193,7 +193,7 @@ fn visit<T>(token:T,low:i64,high:i64)->(T,i32){
     for index in low..high{sum+=i32(index)}
     return (token,sum+index)
 }
-fn main()->i32{let empty=visit(0,2i64,2i64);let reversed=visit(0,5i64,2i64);return empty.1+reversed.1-14}
+fn main()->i32{let empty=visit(0,i64(2),i64(2));let reversed=visit(0,i64(5),i64(2));return empty.1+reversed.1-14}
 "#;
     native("empty-reversed", source, b"");
     rejected(
@@ -231,8 +231,8 @@ fn backedges_cannot_repeat_a_noncopy_or_once_consumption() {
             "fn bad<F:FnOnce()->i32>(f:F)->i32{var total=0;for index in 0..2{total+=f()}return total}fn main(){}",
         ),
         (
-            "resource-give",
-            "resource R{n:i32}fn bad<F:Fn()->i32>(f:&F,give r:R){for index in 0..2{let taken=give r}}fn main(){}",
+            "store-give",
+            "fn bad<T:StoreElement>(give store:Store<T>){for index in 0..2{let taken=give store}}fn main(){}",
         ),
     ] {
         rejected(
@@ -242,6 +242,14 @@ fn backedges_cannot_repeat_a_noncopy_or_once_consumption() {
             "generic loop must preserve outer carrier and non-Copy consumption state",
         );
     }
+    // This original new probe is outside the pre-existing symbolic give lane;
+    // retain its exact earlier rejection instead of claiming a loop proof.
+    rejected(
+        "resource-give-still-outside-lane",
+        "resource R{n:i32}fn bad<F:Fn()->i32>(f:&F,give r:R){for index in 0..2{let taken=give r}}fn main(){}",
+        ResultCategory::Unsupported,
+        "generic managed give requires a direct Package manages field",
+    );
 }
 
 #[test]
@@ -261,7 +269,7 @@ fn index_mutability_scope_widths_and_known_integer_requirements_are_checked() {
         ),
         (
             "mixed-width",
-            "fn bad<T>(value:T){for index in 0u8..3i64{}}fn main(){}",
+            "fn bad<T>(value:T){for index in 0u8..i64(3){}}fn main(){}",
             ResultCategory::SafeReject,
             "generic body types must agree before concrete instantiation",
         ),
