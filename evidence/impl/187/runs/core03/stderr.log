@@ -1,0 +1,4 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 2.32s
+     Running tests/impl187_borrowed_bytes.rs (/workspace/scratch/39be3faa4442/targets178/author187/debug/deps/impl187_borrowed_bytes-ecf8a0924fe5afd3)

@@ -1,0 +1,1 @@
+fn make()->impl Fn()->&[i32]{let values=[7,11];return move()=>&values[..]}fn main()->i32{let f=make();let values=f();return values[0]+values[1]+i32(values.len())-20}

@@ -1,0 +1,93 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root",
+  "implementation_author": "/root/history178_audit",
+  "implementation_commit": "b1461dc39bd920770885b27796068a560e1e6a2a",
+  "review_test_commit": "898a12b29500a3682d8bacf16e2e9f6fad850736",
+  "production_identical_to_reviewed_source": true,
+  "executed": 72,
+  "assertions": 72,
+  "final_counts": {
+    "passed": 72,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 7
+  },
+  "counting": "68 neighboring tests passed in source01 plus all four independently authored tests in source03; production sources identical, counts not added across repeated fixtures. Platform executions reported separately.",
+  "runs": {
+    "source01": {
+      "status": "Fail",
+      "source_commit": "12623670bbacedeb551b04f550e751806301ee94",
+      "passed": 71,
+      "failed": 1,
+      "ignored": 0,
+      "groups": 7
+    },
+    "source02": {
+      "status": "Fail",
+      "source_commit": "9fe5c2028524495c8dce38ec8550a23d84f50316",
+      "passed": 3,
+      "failed": 1,
+      "ignored": 0,
+      "groups": 1
+    },
+    "source03": {
+      "status": "Pass",
+      "source_commit": "d1b2d7cf091879a2fcd5355d867963bbca8f6165",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 1
+    }
+  },
+  "independent_groups": 4,
+  "independent_native_runs": 8,
+  "platforms": {
+    "linux01": {
+      "status": "Pass",
+      "source_commit": "898a12b29500a3682d8bacf16e2e9f6fad850736",
+      "execution": "native",
+      "executions": 38,
+      "fault_injections": 20,
+      "optimization_levels": [
+        "O0",
+        "O2"
+      ],
+      "independent_runner": "tools/language/184/review_platform.py"
+    },
+    "win64-01": {
+      "status": "Pass",
+      "source_commit": "898a12b29500a3682d8bacf16e2e9f6fad850736",
+      "execution": "Wine compatibility",
+      "executions": 38,
+      "fault_injections": 20,
+      "optimization_levels": [
+        "O0",
+        "O2"
+      ],
+      "independent_runner": "tools/language/184/review_platform.py"
+    }
+  },
+  "initial_failures": [
+    "source01: reviewer attempted to access a private manages field from another module; retained actual E-FIELD-PRIVATE.",
+    "source02: reviewer tried illegal pub manages syntax; retained Parse rejection.",
+    "source03: same semantic disjoint-field/move controls placed in declaring module API; production code unchanged."
+  ],
+  "review_notes": [
+    "Real BorrowCapture addresses and ABI by-pointer path preserve environment storage; copying a Copy environment gives a distinct storage instance even while a shared result observes the original.",
+    "A live lent result blocks the actual environment mutable call, without conflating another instance or an unrelated managed field.",
+    "Borrowing callback payload preserves whole-parent move conflict and allows distinct sibling ByteBuffer growth.",
+    "Two ordinary forwarding functions preserve caller origins; activation-local and branch-local return addresses remain rejected.",
+    "Verifier checks exact independently reconstructed capture-source sets and actual call mode; public lists cannot create lifetime authority.",
+    "Analyze precharges newly public vectors; producer and verifier source graphs remain separate and bounded."
+  ],
+  "limitations": [
+    "Finite Copy explicit parameters; shared results only from admitted self-owned environment storage.",
+    "External Desc/Address captures cannot claim ownership via lending_captures; FnOnce/Consume and transient environment results reject.",
+    "Windows results use Wine compatibility, not native Windows.",
+    "Does not cover 187 ByteBuffer Desc captures, 188 nested helpers, or 189 explicit Address callback arguments."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

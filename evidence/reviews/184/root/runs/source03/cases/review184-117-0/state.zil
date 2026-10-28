@@ -1,0 +1,1 @@
+pub package State<F>{manages other:ByteBuffer;pub callback:F;pub count:i32}pub fn state<F:Fn()->&[u8]>(f:F)->State<F>{return State::<F>{other:bytes_new(),callback:f,count:0}}pub fn inspect<F:Fn()->&[u8]>(s:State<F>)->i32{let cb=&s.callback;let view=cb();bytes_reserve(s.other,4);return i32(view[0])-7}

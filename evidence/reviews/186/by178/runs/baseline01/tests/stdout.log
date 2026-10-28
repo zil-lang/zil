@@ -1,0 +1,31 @@
+
+running 16 tests
+test a_later_failing_argument_cleans_the_staged_generic_union ... ok
+test an_error_returning_old_branch_does_not_poison_the_surviving_fresh_branch ... ok
+test actual_field_sources_survive_whole_moves_replacements_branches_and_loops ... ok
+test concrete_wide_copy_errors_keep_zero_success_responsibility ... ok
+test direct_store_and_existing_copy_error_inference_keep_their_meaning ... ok
+test error_only_create_consumes_old_success_without_claiming_a_new_resource ... ok
+test incoming_or_mixed_fields_cannot_be_repackaged_as_created ... ok
+test fresh_payload_survives_local_union_moves_and_question_rewrapping ... ok
+test loop_local_and_discarded_unions_clean_exactly_once ... ok
+test propagated_failure_drops_incoming_element_and_earlier_store ... ok
+test two_nominal_shapes_transfer_through_ordinary_union_values ... ok
+test unused_definitions_cannot_launder_old_success_into_create ... ok
+test mutable_managed_slots_preserve_creation_through_their_package_representation ... ok
+test unused_signatures_require_the_written_mode_and_actual_copy_error_shape ... ok
+test unused_union_moves_and_descriptor_aliases_do_not_create_permissions ... ok
+test written_modes_are_checked_with_and_without_instantiation ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.67s
+
+
+running 5 tests
+test actual_package_field_source_does_not_authorize_duplicate_movement ... ok
+test generic_origin_does_not_replace_actual_tag_descriptor_or_cleanup_checks ... ok
+test instantiated_modes_do_not_authorize_false_creation_sources ... ok
+test instantiated_union_still_requires_one_consumption ... ok
+test package_fields_cannot_launder_inputs_or_joined_old_sources_into_create ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

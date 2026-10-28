@@ -1,0 +1,1 @@
+resource R{n:i32}package Mixed{pad:i32;manages old:R;wide:[i32;2];manages bytes:ByteBuffer}fn create(give old:R)->ByteBuffer contract{result(create)}{let p=Mixed{pad:7,old:give old,wide:[11,13],bytes:bytes_new()};let moved=p;return give moved.bytes}fn main()->i32{let b=create(R{n:17});return i32(bytes_len(b))}

@@ -1,0 +1,11 @@
+
+running 6 tests
+test another_factory_instance_with_the_same_closure_id_is_not_the_parameter ... ok
+test raw_and_wire_check_actual_nested_edges_and_child_instructions ... ok
+test raw_and_wire_do_not_trust_parent_or_coordinated_child_traces ... ok
+test raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap ... ok
+test raw_and_wire_reject_recursive_actual_edges_despite_finite_claims ... ok
+test dag_construction_and_trace_composition_pay_each_phase_budget ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

@@ -1,0 +1,61 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root",
+  "implementation_author": "/root/history178_audit",
+  "implementation_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+  "review_test_commit": "18430f825828e07c7440593d3d8a602dfa0abb46",
+  "platform_test_commit": "9bb141a327cf2433efd755e24551409f4c17caab",
+  "production_identical_to_reviewed_source": true,
+  "executed": 40,
+  "final_counts": {
+    "passed": 40,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 4
+  },
+  "counts_basis": "source01 author06517+18914+raw5 and source03 final independent4; production identical. Repeated independent executions not added.",
+  "independent_groups": 4,
+  "independent_native_runs": 8,
+  "independent_raw_wire_pairs": 1,
+  "platforms": {
+    "linux01": {
+      "status": "Pass",
+      "source_commit": "9bb141a327cf2433efd755e24551409f4c17caab",
+      "execution": "native",
+      "native_executions": 60,
+      "ordinary_executions": 12,
+      "instrumented_executions": 48,
+      "actual_allocation_failures": 32
+    },
+    "win64-01": {
+      "status": "Pass",
+      "source_commit": "9bb141a327cf2433efd755e24551409f4c17caab",
+      "execution": "Wine compatibility",
+      "native_executions": 60,
+      "ordinary_executions": 12,
+      "instrumented_executions": 48,
+      "actual_allocation_failures": 32
+    }
+  },
+  "review_notes": [
+    "Explicit Copy references preserve actual parent permissions through returned ordinary reborrows and callback invocation; distinct aggregate storage executes, identical storage conflicts.",
+    "Actual Desc effects are substituted through an ordinary caller and a helper extra reference, so same underlying resource rejects while distinct resource succeeds.",
+    "FnOnce Copy-error result correctly mutates an argument and settles owned capture plus outer guard on both success and error paths, with actual output AZ.",
+    "Retargeting two explicit exclusive parameters to one SSA value is rejected by independent affine-transfer checking in both raw and Wire, before a later loan conflict check is needed.",
+    "Reviewed Address inference permission unification, projected Copy input mutability, supported signature gates in all phases, reborrow argument lowering and current-argument checks for all five callback call forms.",
+    "Independent four-module fixed oracles include every real allocation failure, zero callbacks, malformed/EOF input and failure index beyond the last allocation. Win64 is Wine compatibility, not native Windows."
+  ],
+  "initial_failures": [
+    "source01 expected later E-BORROW-CONFLICT for duplicate exclusive SSA, but actual earlier E-VERIFY-MOVE already rejected it correctly; source03 keeps input unchanged and asserts exact code and transfer message.",
+    "source02 migration script assertion stopped before writing; unchanged reviewer expectation repeated failure, retained.",
+    "Author065 old unsupported expectation is migrated by root97ed with unchanged input; this is not a production permission change."
+  ],
+  "limitations": [
+    "Address callback parameters accept one layer of finite Copy; returned argument borrowing, slice/resource/Package arguments and function pointer address ABI stay closed.",
+    "Consumer still copies a Package Copy field to a local and writes back; direct field borrowing belongs to192.",
+    "Full workspace and combined188/190/191 acceptance are separate gates."
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

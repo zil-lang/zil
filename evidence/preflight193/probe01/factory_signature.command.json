@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/review189/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/run-logs/193-preflight/probe01/factory_signature.zil",
+    "--stop-after",
+    "verify",
+    "--json"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/review191-baseline",
+  "exit_code": 3,
+  "timeout": false,
+  "elapsed_seconds": 0.0032393932342529297,
+  "source_sha256": "0f980f9396776d969528e8fa82a9967e3775c2e7f6a6d72215e15842b1b2e78f",
+  "stdout_sha256": "e249302c358bed1e3c989c7d9c4df537d29451d9217258b804c64a8167738dbc",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,1 @@
+resource R{n:i32}fn inspect<F:Fn()->i32>(f:&F,r:R)->i32{return f()+r.n}fn main()->i32{let a=R{n:21};let f=()=>a.n;return inspect(&f,a)-42}

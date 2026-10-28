@@ -1,0 +1,282 @@
+{
+  "source_commit": "b9071e009b34a492b061497b1a07db062470dddc",
+  "cli_sha256": "e0887c9a9d21c96050c3759138962447d3f99fb7d047da0b25bb2910931727f4",
+  "candidate_components": [
+    "main14d62b4",
+    "182ebaddd7",
+    "186fc96383d"
+  ],
+  "probes": [
+    {
+      "name": "bytebuffer-local-desc",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "borrowed ByteBuffer captures require a dynamic storage effect contract; use an actual owning capture"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "bytebuffer-owned-control",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "name": "bytebuffer-slice-capture",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "slice capture or use in a closure is not implemented"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "bytebuffer-helper-desc",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "unsupported signature in closure inference"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "store-local-desc",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "Store capture requires a separate retained storage profile"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "closure-address-param",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "closure value requires a finite Copy type"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "closure-mut-address-param",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "closure value requires a finite Copy type"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "closure-package-param",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "package or slice closure signatures are not implemented"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "callback-branch-control",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "name": "callback-loop-control",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "cyclic callable helper trace requires a loop contract"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "callback-nested-helper",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "recursive or nested synchronous callable helper contracts are not implemented"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "callback-two-parameters",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "callback-generic-value-param",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "one callable type parameter with a direct bound is implemented"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "callback-two-closures-one-type",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must occur once as F, &F, &mut F or an owning State<F>"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "callback-return-generic",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "opaque-factory-branch-control",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "name": "closure-owned-error-result",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "higher-order scalar conversion is not implemented"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "array-direct-resource",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "package-nested-package",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "package requires at least one manages field and has no custom whole Drop"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "owned-store-closure-element",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-OWNED-STORE-TYPE",
+          "message": "store_new requires a concrete Store context"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "option-control",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-TYPE-MISMATCH",
+          "message": "expected Unsupported(\"type form is not yet lowered\"), found i32"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "name": "ct-emit",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "parse",
+      "diagnostics": [
+        {
+          "code": "E-PARSE-IDENTIFIER",
+          "message": "expected an identifier"
+        }
+      ],
+      "verification_runs": 0
+    }
+  ]
+}

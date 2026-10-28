@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "/workspace/scratch/39be3faa4442/run-logs/189-review/win64-01/O2/allocation-probe.exe"
+  ],
+  "status": "Completed",
+  "start": 1793159791.6458359,
+  "stdin_hex": "33",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "8",
+    "LD_LIBRARY_PATH": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu"
+  },
+  "exit_code": 0,
+  "stdout_sha256": "c15be36fd8f535636152516f8907cbae7a5a553c34115de0bb756318e1500bc8",
+  "stderr_sha256": "aa66489a0d8f02f0acf308e7ca0fa6672951fc3f29e982c2c5a9b49035c9612f",
+  "end": 1793159792.4585493
+}

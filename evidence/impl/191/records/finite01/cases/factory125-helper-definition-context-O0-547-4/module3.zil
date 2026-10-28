@@ -1,0 +1,1 @@
+pub fn other()->impl Fn()->i64{return move ()=>7}

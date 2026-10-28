@@ -1,0 +1,20 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-cli"
+  ],
+  "source_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
+  "dirty": "",
+  "started": 1793157164.8071969,
+  "exit": 0,
+  "finished": 1793157165.1508026,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "ecfeb00833a635ad7eb4ba25727f04d3649b9550c974148f900ff5ed45ce275a",
+  "groups": [],
+  "cli_sha256": "ce756a21ab82ff8a06a000b0e7d765c7b608b2657b1674e906426d6d79df7066"
+}

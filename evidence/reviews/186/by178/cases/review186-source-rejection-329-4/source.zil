@@ -1,0 +1,1 @@
+resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn forward(give v:R)->R contract{result(give)}{return give v}fn bad()->R contract{result(create)}{let p=P{pad:7,old:R{n:17},wide:[11,13],fresh:forward(R{n:29})};let q=p;return give q.fresh}fn main(){}

@@ -1,0 +1,37 @@
+
+running 10 tests
+test active_mutable_result_prevents_overlapping_call_or_replacement ... ok
+test borrowed_generic_helper_forwards_environment_lending_origin ... ok
+test conditional_sources_and_ordinary_parameter_forwarding_are_preserved ... ok
+test environment_results_reject_local_external_and_temporary_sources ... ok
+test live_byte_environment_views_reject_mutation_move_and_drop ... ok
+test copy_environment_reads_and_address_writes_use_one_actual_slot ... ok
+test mutable_factory_result_allows_next_call_after_last_use ... ok
+test owned_byte_environment_can_mutate_after_prior_result_last_use ... ok
+test owned_byte_environment_lends_real_storage_and_survives_factory_return ... ok
+test shared_factory_result_uses_real_stored_copy_environment ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s
+
+
+running 5 tests
+test analyze_bounds_both_public_lending_vectors_before_fingerprinting ... ok
+test analyzer_rejects_opaque_lending_mismatch_and_pays_nonempty_metadata ... ok
+test raw_and_wire_cannot_erase_result_hold_or_mutate_shared_entry ... ok
+test raw_and_wire_reject_consumed_and_by_value_environment_results ... FAILED
+test raw_and_wire_reconstruct_exact_environment_sources ... ok
+
+failures:
+
+---- raw_and_wire_reject_consumed_and_by_value_environment_results stdout ----
+
+thread 'raw_and_wire_reject_consumed_and_by_value_environment_results' (144) panicked at crates/zil-driver/tests/impl184_lending_raw.rs:35:24:
+once-call: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-CLOSURE-CALL", message: "closure call mode does not match its concrete entry", span: Some(Span { file: FileId(0), start: 106, end: 109 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    raw_and_wire_reject_consumed_and_by_value_environment_results
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

@@ -1,0 +1,1 @@
+fn make(seed:i64)->impl Fn(i64)->i64{return move (n:i64)=>seed+n}fn run<F:Fn(i64)->i64>(f:&F)->i64{let local=make(2);return f(local(true))}fn value()->i64{let f=make(37);return run(&f)}

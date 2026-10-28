@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/187-author/consumer01/O2/allocation-probe"
+  ],
+  "status": "Completed",
+  "start": 1793156174.5569549,
+  "stdin_hex": "31",
+  "controlled_environment": {
+    "ZIL_TEST_FAIL_AT": "2"
+  },
+  "exit_code": 1,
+  "stdout_sha256": "df10572cd727fe26c6db0809d8b5975e4e56c6265eb37aa6d586f211ac164235",
+  "stderr_sha256": "fc0b59a2e41e2e22397d6085c489e17cf6cd657f48405c285cde7e7bc4d4884a",
+  "end": 1793156174.5590315
+}

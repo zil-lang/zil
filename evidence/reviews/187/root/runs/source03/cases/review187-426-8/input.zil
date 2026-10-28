@@ -1,0 +1,1 @@
+fn fill(b:ByteBuffer,n:u8)->bool{return bytes_reserve(b,1)&&bytes_push(b,n)}fn main()->i32{let a=bytes_new();let b=bytes_new();if !fill(a,65u8){return 8}let read=a;let edit=b;let f=()=>{let view=bytes_view(read);bytes_reserve(edit,4);return i32(view[0])};return f()-65}

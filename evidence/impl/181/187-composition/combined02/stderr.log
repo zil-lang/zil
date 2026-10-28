@@ -1,0 +1,11 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/prepare187/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.52s
+     Running tests/impl094_byte_buffers.rs (/workspace/scratch/39be3faa4442/targets178/prepare187/debug/deps/impl094_byte_buffers-1b2e66181494bb94)
+     Running tests/impl099_owned_bytes.rs (/workspace/scratch/39be3faa4442/targets178/prepare187/debug/deps/impl099_owned_bytes-ca18ea3e28820a9d)
+     Running tests/impl182_capture_contracts.rs (/workspace/scratch/39be3faa4442/targets178/prepare187/debug/deps/impl182_capture_contracts-e0324ece1d1073c5)
+     Running tests/impl184_lending.rs (/workspace/scratch/39be3faa4442/targets178/prepare187/debug/deps/impl184_lending-7eb3fbdc20edd05c)
+     Running tests/impl184_lending_raw.rs (/workspace/scratch/39be3faa4442/targets178/prepare187/debug/deps/impl184_lending_raw-3cf1ecefcf76f44a)
+     Running tests/impl186_generic_owned_success.rs (/workspace/scratch/39be3faa4442/targets178/prepare187/debug/deps/impl186_generic_owned_success-3e00fa64064fdc70)
+     Running tests/impl186_raw_owned_success.rs (/workspace/scratch/39be3faa4442/targets178/prepare187/debug/deps/impl186_raw_owned_success-6cd987e2e27b3d8c)
+     Running tests/impl187_borrowed_bytes.rs (/workspace/scratch/39be3faa4442/targets178/prepare187/debug/deps/impl187_borrowed_bytes-ecf8a0924fe5afd3)
+     Running tests/review185_lending_transport.rs (/workspace/scratch/39be3faa4442/targets178/prepare187/debug/deps/review185_lending_transport-4b4d4edcb7180257)

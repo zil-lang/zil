@@ -1,0 +1,10 @@
+
+running 5 tests
+test actual_package_field_source_does_not_authorize_duplicate_movement ... ok
+test generic_origin_does_not_replace_actual_tag_descriptor_or_cleanup_checks ... ok
+test instantiated_modes_do_not_authorize_false_creation_sources ... ok
+test instantiated_union_still_requires_one_consumption ... ok
+test package_fields_cannot_launder_inputs_or_joined_old_sources_into_create ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

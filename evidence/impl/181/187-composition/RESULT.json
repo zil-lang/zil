@@ -1,0 +1,26 @@
+{
+  "status": "Pass",
+  "source_commit": "d3424d858471bc9fb0c7509c3c8c262365201778",
+  "scope": "Combined182/184/186/187 and unchanged legacy-input expectations, limited driver suites only.",
+  "executed": 110,
+  "assertions": 110,
+  "runs": {
+    "combined01": {
+      "status": "Fail",
+      "source_commit": "ee728154140b1ce8bda58f7eebeba92d59642213",
+      "passed": 109,
+      "failed": 1,
+      "groups": 9
+    },
+    "combined02": {
+      "status": "Pass",
+      "source_commit": "d3424d858471bc9fb0c7509c3c8c262365201778",
+      "passed": 110,
+      "failed": 0,
+      "groups": 9
+    }
+  },
+  "production_conflict_review": "evidence/impl/187/review-prepare187-continuity.json",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

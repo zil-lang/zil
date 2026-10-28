@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl186_generic_owned_success",
+    "--",
+    "--test-threads=2"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt186",
+  "start": 1793155197.6460962,
+  "source_commit": "a55d0dc475318878d154569f8d83ad7ba2acbc9e",
+  "git_status": "A  changes/186-package-field-creation-provenance.md\n M crates/zil-analyze/src/resources.rs\n M crates/zil-driver/tests/impl186_generic_owned_success.rs\n M crates/zil-verify/src/resources.rs\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author186",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": "/workspace/scratch/39be3faa4442/run-logs/186-author/field-develop01/cases",
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793155205.306019,
+  "stdout.log_sha256": "89f795babac23ff8744e7b4c285f44a1f424b874ff3ee19fc6229e224aa1bfe6",
+  "stderr.log_sha256": "d7f883daefce763d821365d0ef551722f662ea89a5bcd064cf990e8bb58abade"
+}

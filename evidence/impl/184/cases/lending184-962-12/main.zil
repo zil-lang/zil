@@ -1,0 +1,1 @@
+fn main(){let n=3;let p=&n;let f=move()=>p;let v=f();}

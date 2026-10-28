@@ -1,0 +1,29 @@
+{
+  "command": [
+    "python3",
+    "tools/language/184/consumer.py",
+    "--repo",
+    ".",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets178/author184fresh/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/runs178/author184/consumer03"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt184",
+  "start": 1793154989.0048745,
+  "source_commit": "087020115beca4cde72ae3302f58a398652188a8",
+  "git_status": " M crates/zil-analyze/src/budget.rs\n M crates/zil-analyze/src/helpers.rs\n M crates/zil-analyze/src/holds.rs\n M crates/zil-analyze/src/resources.rs\n M crates/zil-analyze/src/retained.rs\n M crates/zil-backend-llvm/src/emit.rs\n M crates/zil-backend-llvm/src/emit/resource_closures.rs\n M crates/zil-lower/src/lib.rs\n M crates/zil-types/src/addresses.rs\n M crates/zil-types/src/closures.rs\n M crates/zil-types/src/helpers.rs\n M crates/zil-types/src/inference.rs\n M crates/zil-types/src/lending.rs\n M crates/zil-types/src/lib.rs\n M crates/zil-types/src/program.rs\n M crates/zil-types/src/retained.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/borrows/loans.rs\n M crates/zil-verify/src/closures.rs\n M crates/zil-verify/src/helpers.rs\n M crates/zil-verify/src/resources.rs\n M crates/zil-verify/src/retained.rs\n?? crates/zil-driver/tests/impl184_lending.rs\n?? crates/zil-driver/tests/impl184_lending_raw.rs\n?? examples/mainline/lending184/\n?? tools/language/184/\n",
+  "environment": {
+    "CARGO_TARGET_DIR": null,
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": null,
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Fail",
+  "exit_code": 1,
+  "end": 1793154989.496657,
+  "stdout.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr.log_sha256": "49ae376ba028eb97648d5a219f6158c08c14e2d1efb4d4b16c4ea8080c54a1e2"
+}

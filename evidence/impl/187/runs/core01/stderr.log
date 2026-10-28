@@ -1,0 +1,24 @@
+   Compiling zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-analyze)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-ct)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt187/crates/zil-driver)
+warning: function `candidate` is never used
+   --> crates/zil-driver/tests/impl187_borrowed_bytes.rs:134:4
+    |
+134 | fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
+    |    ^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `reject_candidate` is never used
+   --> crates/zil-driver/tests/impl187_borrowed_bytes.rs:146:4
+    |
+146 | fn reject_candidate(
+    |    ^^^^^^^^^^^^^^^^
+
+warning: `zil-driver` (test "impl187_borrowed_bytes") generated 2 warnings
+    Finished `test` profile [unoptimized] target(s) in 4.10s
+     Running tests/impl187_borrowed_bytes.rs (/workspace/scratch/39be3faa4442/targets178/author187/debug/deps/impl187_borrowed_bytes-ecf8a0924fe5afd3)
+error: test failed, to rerun pass `-p zil-driver --test impl187_borrowed_bytes`

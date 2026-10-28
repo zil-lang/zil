@@ -1,0 +1,1 @@
+fn twice<F:FnOnce()->i64>(f:F)->i64{return f()+f()}fn make()->impl Fn()->i64{return move ()=>42}fn value()->i64{return 0}

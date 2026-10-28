@@ -1,0 +1,8 @@
+{
+  "scope": "Compact author187 evidence without executable build products",
+  "source_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
+  "original_runs_root": "/workspace/scratch/39be3faa4442/run-logs/187-author",
+  "indexed_payload_count": 4488,
+  "indexed_payload_bytes": 213818970,
+  "preservation": "Original payloads have not been removed by this evidence selection. Parent may separately archive and hash them. This index alone is not a substitute for original execution logs."
+}

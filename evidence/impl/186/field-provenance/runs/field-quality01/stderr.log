@@ -1,0 +1,7 @@
+    Checking zil-verify v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-verify)
+    Checking zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-analyze)
+    Checking zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-lower)
+    Checking zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-ct)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-backend-llvm)
+    Checking zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt186/crates/zil-driver)
+    Finished `dev` profile [unoptimized] target(s) in 1.87s

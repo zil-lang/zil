@@ -45,9 +45,9 @@ fn reviewer_in_range_duplicate_and_unsorted_claims_cannot_hide_behind_bounds() {
     for (label, indices, category) in [
         ("duplicate", vec![0, 0], ResultCategory::SafeReject),
         ("unsorted", vec![1, 0], ResultCategory::SafeReject),
-        ("first", vec![0], ResultCategory::Unsupported),
-        ("second", vec![1], ResultCategory::Unsupported),
-        ("both", vec![0, 1], ResultCategory::Unsupported),
+        ("first", vec![0], ResultCategory::SafeReject),
+        ("second", vec![1], ResultCategory::SafeReject),
+        ("both", vec![0, 1], ResultCategory::SafeReject),
     ] {
         let (mut module, mut plan) = fixture();
         module.closures[0].lending_captures = indices;
@@ -75,6 +75,9 @@ fn reviewer_in_range_duplicate_and_unsorted_claims_cannot_hide_behind_bounds() {
                     && d.message.contains("lending")),
                 "{label}/{path}: {diagnostics:?}"
             );
+            if matches!(label, "first" | "second" | "both") {
+                assert!(diagnostics.iter().any(|d| d.code == "E-VERIFY-LENDING"));
+            }
         }
     }
 }

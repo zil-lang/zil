@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Analyze,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "recursive callable helper dependency requires an explicit finite contract",
+        span: None,
+        notes: [],
+    },
+]

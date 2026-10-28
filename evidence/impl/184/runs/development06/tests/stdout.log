@@ -1,0 +1,29 @@
+
+running 10 tests
+test active_mutable_result_prevents_overlapping_call_or_replacement ... ok
+test borrowed_generic_helper_forwards_environment_lending_origin ... ok
+test conditional_sources_and_ordinary_parameter_forwarding_are_preserved ... ok
+test environment_results_reject_local_external_and_temporary_sources ... ok
+test live_byte_environment_views_reject_mutation_move_and_drop ... FAILED
+test copy_environment_reads_and_address_writes_use_one_actual_slot ... ok
+test mutable_factory_result_allows_next_call_after_last_use ... ok
+test owned_byte_environment_can_mutate_after_prior_result_last_use ... ok
+test owned_byte_environment_lends_real_storage_and_survives_factory_return ... ok
+test shared_factory_result_uses_real_stored_copy_environment ... ok
+
+failures:
+
+---- live_byte_environment_views_reject_mutation_move_and_drop stdout ----
+
+thread 'live_byte_environment_views_reject_mutation_move_and_drop' (281) panicked at crates/zil-driver/tests/impl184_lending.rs:114:9:
+assertion `left == right` failed: let f=bytes(7u8);var a=f();{let g=bytes(8u8);a=g();}return i32(a.len()): {"status":"SafeReject","phase":"parse","diagnostics":[{"phase":"parse","category":"SafeReject","code":"E-PARSE-IDENTIFIER","message":"expected an identifier","span":{"file":0,"start":320,"end":323},"notes":[]},{"phase":"parse","category":"SafeReject","code":"E-PARSE-MODULE-STATEMENT","message":"module scope requires a declaration; executable statements belong inside a function","span":{"file":0,"start":344,"end":350},"notes":[]}],"artifacts":{},"input_fingerprint":"5fc0b0b3c0cf03577ff0424748f4cd3b1dd0dabc2564ce9ae04d251dd5d71803","seconds":0.001076502,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"main.zil"},"scalar_interfaces":[]}
+  left: Parse
+ right: Verify
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    live_byte_environment_views_reject_mutation_move_and_drop
+
+test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+

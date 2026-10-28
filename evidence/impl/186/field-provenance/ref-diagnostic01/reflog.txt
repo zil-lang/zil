@@ -1,0 +1,10 @@
+9b22708a HEAD@{2026-10-28 11:37:13 +0900}: commit: docs: propose independent Package field creation provenance for 186
+a55d0dc4 HEAD@{2026-10-28 11:29:24 +0900}: commit: test(186): preserve exact frozen generic result and platform evidence
+fc96383d HEAD@{2026-10-28 11:24:53 +0900}: commit: docs(186): clarify symbolic success provenance and preserve diagnostic prefix
+71d30d50 HEAD@{2026-10-28 11:23:09 +0900}: commit: test(186): target live cleanup and cover staged and wide-error exits
+ed73ee25 HEAD@{2026-10-28 11:21:55 +0900}: commit: test(186): declare native generic result allocation-failure oracles
+70847099 HEAD@{2026-10-28 11:21:32 +0900}: commit: test(186): add instantiated raw attacks and four-module generic consumer
+1d5221da HEAD@{2026-10-28 11:19:39 +0900}: commit: fix(186): retain unresolved variables inside error-union call hints
+172961c0 HEAD@{2026-10-28 11:19:00 +0900}: commit: fix(186): select finite error context and separate test definitions
+100b4a5c HEAD@{2026-10-28 11:18:11 +0900}: commit: test(186): exercise unused definitions and concrete success transfers
+3e1b3857 HEAD@{2026-10-28 11:16:39 +0900}: commit: feat(186): preserve generic Store success ownership and creation origin

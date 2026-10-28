@@ -1579,10 +1579,15 @@ impl Transfer<'_> {
                         // helpers::check_module already checked this relation.
                         // Callback consumers use its public write upper bound,
                         // never the helper's private body or inferred effects.
-                        budget
-                            .spend(contract.traces.len().saturating_add(contract.writes.len()))?;
+                        let CallableTraces::Finite(traces) = &contract.traces else {
+                            return Err(unsupported(
+                                "cyclic callable Flow semantics are not implemented",
+                                Some(span),
+                            ));
+                        };
+                        budget.spend(traces.len().saturating_add(contract.writes.len()))?;
                         let definition = &self.module.closures[contract.closure.0 as usize];
-                        if contract.traces.iter().any(|trace| !trace.calls.is_empty())
+                        if traces.iter().any(|trace| !trace.calls.is_empty())
                             && contract
                                 .writes
                                 .iter()

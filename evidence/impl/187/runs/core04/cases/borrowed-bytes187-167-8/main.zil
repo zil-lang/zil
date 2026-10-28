@@ -1,0 +1,1 @@
+fn main(){let b=bytes_new();let f=(n:&i32)=>i32(bytes_len(b))+*n}

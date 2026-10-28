@@ -748,6 +748,8 @@ fn byte_storage_remains_outside_compile_time_and_aggregate_profiles() {
             inner: Box::new(Type::ByteBuffer),
         },
     ] {
+        let owned_success = matches!(&ty, Type::ErrorUnion { result, .. }
+            if matches!(result.as_ref(), Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer));
         let mut f = Body::new(0, Type::Unit);
         f.parameter(ty);
         let mut t = case(vec![f.finish(None)]);
@@ -759,7 +761,22 @@ fn byte_storage_remains_outside_compile_time_and_aggregate_profiles() {
             &Limits::default(),
         )
         .unwrap_err();
-        assert_eq!(errors[0].category, ResultCategory::Unsupported);
+        if owned_success {
+            assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+            assert_eq!(errors[0].code, "E-VERIFY-RESOURCE", "{errors:?}");
+            assert!(
+                errors[0]
+                    .message
+                    .contains("outstanding resource responsibility"),
+                "{errors:?}"
+            );
+        } else {
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::Unsupported,
+                "{errors:?}"
+            );
+        }
     }
 }
 

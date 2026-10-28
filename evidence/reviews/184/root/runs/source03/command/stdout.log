@@ -1,0 +1,9 @@
+
+running 4 tests
+test a_live_result_blocks_only_its_actual_mutable_environment ... ok
+test a_lent_callback_payload_keeps_its_field_while_another_storage_field_grows ... ok
+test copying_a_shared_observed_environment_creates_distinct_storage ... ok
+test ordinary_reference_forwarding_does_not_erase_the_environment_origin ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+

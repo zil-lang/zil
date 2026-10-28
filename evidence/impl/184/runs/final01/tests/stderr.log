@@ -1,0 +1,11 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt184/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.49s
+     Running tests/impl064.rs (/workspace/scratch/39be3faa4442/targets178/author184freeze/debug/deps/impl064-ca51857e9cc709d7)
+     Running tests/impl065_helpers.rs (/workspace/scratch/39be3faa4442/targets178/author184freeze/debug/deps/impl065_helpers-086b76848dc0a398)
+     Running tests/impl070_retained.rs (/workspace/scratch/39be3faa4442/targets178/author184freeze/debug/deps/impl070_retained-e288f22da3bca16f)
+     Running tests/impl168_retained_composition.rs (/workspace/scratch/39be3faa4442/targets178/author184freeze/debug/deps/impl168_retained_composition-e15ec715193e5615)
+     Running tests/impl179_field_precision.rs (/workspace/scratch/39be3faa4442/targets178/author184freeze/debug/deps/impl179_field_precision-b8aa0a896a16c234)
+     Running tests/impl180_store_mut.rs (/workspace/scratch/39be3faa4442/targets178/author184freeze/debug/deps/impl180_store_mut-756b4c4683bfaceb)
+     Running tests/impl184_lending.rs (/workspace/scratch/39be3faa4442/targets178/author184freeze/debug/deps/impl184_lending-7eb3fbdc20edd05c)
+     Running tests/impl184_lending_raw.rs (/workspace/scratch/39be3faa4442/targets178/author184freeze/debug/deps/impl184_lending_raw-3cf1ecefcf76f44a)
+     Running tests/impl185_lending_schema.rs (/workspace/scratch/39be3faa4442/targets178/author184freeze/debug/deps/impl185_lending_schema-8fec89d5447e07f8)

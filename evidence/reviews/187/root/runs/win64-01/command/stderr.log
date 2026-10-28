@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/39be3faa4442/language14/review187/tools/language/187/review_platform.py", line 224, in <module>
+    main()
+  File "/workspace/scratch/39be3faa4442/language14/review187/tools/language/187/review_platform.py", line 153, in main
+    build = command(argv, directory / "build")
+            ^^^^^^^
+UnboundLocalError: cannot access local variable 'command' where it is not associated with a value

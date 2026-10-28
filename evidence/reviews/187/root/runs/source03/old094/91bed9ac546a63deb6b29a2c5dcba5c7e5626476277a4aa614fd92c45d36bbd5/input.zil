@@ -1,0 +1,1 @@
+fn take(give b:ByteBuffer){}fn main(){let b=bytes_new();take(give b);take(give b);}

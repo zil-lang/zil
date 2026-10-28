@@ -1,0 +1,842 @@
+{
+  "status": "Pass",
+  "source_commit": "49c60f0cb663c67310f722b2e2d8d563693c2c84",
+  "git_status": "",
+  "cli_sha256": "1703dd74e7e7d8bf5b87c817d8e1b00d048f51387bbc886df56e70f8183cd047",
+  "sources": {
+    "factory.zil": "a435ce36910d5dd32b35ce1de1743f68c3af9e5dbe223ce4b8dc26099ac13cbb",
+    "helpers.zil": "9ee3f7124d9a953704f590ff03732b678a3428ca0469fd68a36fdb78531e03f6",
+    "main.zil": "0e3598cb894d541d1d899c261a2d001da36a5d743dc663772172690348f64f5f",
+    "state.zil": "c4143c654f2dc7c1a68ef0ce4a937a1d9bd8b1ca33c5baae4675e960f2086c93"
+  },
+  "runner_sha256": "78d31a5e403748416d5de339ca2597f60c934530791052a0c2b84c873b0b83ba",
+  "probe_sha256": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+  "builds": [
+    {
+      "optimization": "O0",
+      "verification_runs": 1,
+      "module_count": 4,
+      "llvm_sha256": "9f3cfcdba9365ef666a8bd5aadb581a9482d52054d9acc73b8d03190a726339b",
+      "executable_sha256": "cc7661365928e9290cf0163974c269b0b319992464755708bf2a6a300b5b52e0",
+      "callable_returns": [
+        {
+          "name": "grow",
+          "closure": 1,
+          "kind": "FnMut",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": [
+            0,
+            1
+          ],
+          "lending_captures": [
+            1
+          ]
+        },
+        {
+          "name": "snapshot",
+          "closure": 0,
+          "kind": "Fn",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": [
+            0,
+            1
+          ],
+          "lending_captures": [
+            1
+          ]
+        }
+      ],
+      "callable_contracts": [
+        {
+          "name": "append::<env1>",
+          "parameter": 0,
+          "closure": 1,
+          "kind": "FnMut",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": "Borrowed",
+          "traces": [
+            {
+              "calls": [
+                "FnMut"
+              ],
+              "exit": "Return"
+            }
+          ]
+        },
+        {
+          "name": "append_leaf::<env1>",
+          "parameter": 0,
+          "closure": 1,
+          "kind": "FnMut",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": "Borrowed",
+          "traces": [
+            {
+              "calls": [
+                "FnMut"
+              ],
+              "exit": "Return"
+            }
+          ]
+        },
+        {
+          "name": "peek::<env0>",
+          "parameter": 0,
+          "closure": 0,
+          "kind": "Fn",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": "Borrowed",
+          "traces": [
+            {
+              "calls": [
+                "Fn"
+              ],
+              "exit": "Return"
+            }
+          ]
+        },
+        {
+          "name": "read::<env0>",
+          "parameter": 0,
+          "closure": 0,
+          "kind": "Fn",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": "Borrowed",
+          "traces": [
+            {
+              "calls": [
+                "Fn"
+              ],
+              "exit": "Return"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "optimization": "O2",
+      "verification_runs": 1,
+      "module_count": 4,
+      "llvm_sha256": "9f3cfcdba9365ef666a8bd5aadb581a9482d52054d9acc73b8d03190a726339b",
+      "executable_sha256": "b3c42a840dc12a123bd2e98be6dab78a0d1c9141bd9741e5b530492c61b2b587",
+      "callable_returns": [
+        {
+          "name": "grow",
+          "closure": 1,
+          "kind": "FnMut",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": [
+            0,
+            1
+          ],
+          "lending_captures": [
+            1
+          ]
+        },
+        {
+          "name": "snapshot",
+          "closure": 0,
+          "kind": "Fn",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": [
+            0,
+            1
+          ],
+          "lending_captures": [
+            1
+          ]
+        }
+      ],
+      "callable_contracts": [
+        {
+          "name": "append::<env1>",
+          "parameter": 0,
+          "closure": 1,
+          "kind": "FnMut",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": "Borrowed",
+          "traces": [
+            {
+              "calls": [
+                "FnMut"
+              ],
+              "exit": "Return"
+            }
+          ]
+        },
+        {
+          "name": "append_leaf::<env1>",
+          "parameter": 0,
+          "closure": 1,
+          "kind": "FnMut",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": "Borrowed",
+          "traces": [
+            {
+              "calls": [
+                "FnMut"
+              ],
+              "exit": "Return"
+            }
+          ]
+        },
+        {
+          "name": "peek::<env0>",
+          "parameter": 0,
+          "closure": 0,
+          "kind": "Fn",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": "Borrowed",
+          "traces": [
+            {
+              "calls": [
+                "Fn"
+              ],
+              "exit": "Return"
+            }
+          ]
+        },
+        {
+          "name": "read::<env0>",
+          "parameter": 0,
+          "closure": 0,
+          "kind": "Fn",
+          "hold": [],
+          "call": [],
+          "writes": [],
+          "cleanup": "Borrowed",
+          "traces": [
+            {
+              "calls": [
+                "Fn"
+              ],
+              "exit": "Return"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "input": 0,
+      "stdout": "AHAZ",
+      "exit_code": 0,
+      "expected_stdout": "AHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O0/count-0/ordinary/command.json"
+    },
+    {
+      "input": 0,
+      "stdout": "AHAZ",
+      "exit_code": 0,
+      "expected_stdout": "AHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O0/count-0/allocation/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "input": 0,
+      "stdout": "Z",
+      "exit_code": 1,
+      "expected_stdout": "Z",
+      "expected_exit": 1,
+      "fail_at": 1,
+      "command": "O0/count-0/failure-1/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 1,
+      "stdout": "ABHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O0/count-1/ordinary/command.json"
+    },
+    {
+      "input": 1,
+      "stdout": "ABHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O0/count-1/allocation/command.json",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      }
+    },
+    {
+      "input": 1,
+      "stdout": "Z",
+      "exit_code": 1,
+      "expected_stdout": "Z",
+      "expected_exit": 1,
+      "fail_at": 1,
+      "command": "O0/count-1/failure-1/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 1,
+      "stdout": "AHZ",
+      "exit_code": 1,
+      "expected_stdout": "AHZ",
+      "expected_exit": 1,
+      "fail_at": 2,
+      "command": "O0/count-1/failure-2/command.json",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "input": 2,
+      "stdout": "ABCHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABCHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O0/count-2/ordinary/command.json"
+    },
+    {
+      "input": 2,
+      "stdout": "ABCHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABCHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O0/count-2/allocation/command.json",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 3
+      }
+    },
+    {
+      "input": 2,
+      "stdout": "Z",
+      "exit_code": 1,
+      "expected_stdout": "Z",
+      "expected_exit": 1,
+      "fail_at": 1,
+      "command": "O0/count-2/failure-1/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 2,
+      "stdout": "AHZ",
+      "exit_code": 1,
+      "expected_stdout": "AHZ",
+      "expected_exit": 1,
+      "fail_at": 2,
+      "command": "O0/count-2/failure-2/command.json",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "input": 2,
+      "stdout": "ABHZ",
+      "exit_code": 1,
+      "expected_stdout": "ABHZ",
+      "expected_exit": 1,
+      "fail_at": 3,
+      "command": "O0/count-2/failure-3/command.json",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      }
+    },
+    {
+      "input": 3,
+      "stdout": "ABCDHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABCDHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O0/count-3/ordinary/command.json"
+    },
+    {
+      "input": 3,
+      "stdout": "ABCDHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABCDHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O0/count-3/allocation/command.json",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "input": 3,
+      "stdout": "Z",
+      "exit_code": 1,
+      "expected_stdout": "Z",
+      "expected_exit": 1,
+      "fail_at": 1,
+      "command": "O0/count-3/failure-1/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 3,
+      "stdout": "AHZ",
+      "exit_code": 1,
+      "expected_stdout": "AHZ",
+      "expected_exit": 1,
+      "fail_at": 2,
+      "command": "O0/count-3/failure-2/command.json",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "input": 3,
+      "stdout": "ABHZ",
+      "exit_code": 1,
+      "expected_stdout": "ABHZ",
+      "expected_exit": 1,
+      "fail_at": 3,
+      "command": "O0/count-3/failure-3/command.json",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      }
+    },
+    {
+      "input": 3,
+      "stdout": "ABCHZ",
+      "exit_code": 1,
+      "expected_stdout": "ABCHZ",
+      "expected_exit": 1,
+      "fail_at": 4,
+      "command": "O0/count-3/failure-4/command.json",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 3
+      }
+    },
+    {
+      "input": 9,
+      "stdout": "",
+      "exit_code": 9,
+      "expected_stdout": "",
+      "expected_exit": 9,
+      "fail_at": 0,
+      "command": "O0/invalid/command.json"
+    },
+    {
+      "input": 0,
+      "stdout": "AHAZ",
+      "exit_code": 0,
+      "expected_stdout": "AHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O2/count-0/ordinary/command.json"
+    },
+    {
+      "input": 0,
+      "stdout": "AHAZ",
+      "exit_code": 0,
+      "expected_stdout": "AHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O2/count-0/allocation/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "input": 0,
+      "stdout": "Z",
+      "exit_code": 1,
+      "expected_stdout": "Z",
+      "expected_exit": 1,
+      "fail_at": 1,
+      "command": "O2/count-0/failure-1/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 1,
+      "stdout": "ABHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O2/count-1/ordinary/command.json"
+    },
+    {
+      "input": 1,
+      "stdout": "ABHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O2/count-1/allocation/command.json",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      }
+    },
+    {
+      "input": 1,
+      "stdout": "Z",
+      "exit_code": 1,
+      "expected_stdout": "Z",
+      "expected_exit": 1,
+      "fail_at": 1,
+      "command": "O2/count-1/failure-1/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 1,
+      "stdout": "AHZ",
+      "exit_code": 1,
+      "expected_stdout": "AHZ",
+      "expected_exit": 1,
+      "fail_at": 2,
+      "command": "O2/count-1/failure-2/command.json",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "input": 2,
+      "stdout": "ABCHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABCHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O2/count-2/ordinary/command.json"
+    },
+    {
+      "input": 2,
+      "stdout": "ABCHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABCHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O2/count-2/allocation/command.json",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 3
+      }
+    },
+    {
+      "input": 2,
+      "stdout": "Z",
+      "exit_code": 1,
+      "expected_stdout": "Z",
+      "expected_exit": 1,
+      "fail_at": 1,
+      "command": "O2/count-2/failure-1/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 2,
+      "stdout": "AHZ",
+      "exit_code": 1,
+      "expected_stdout": "AHZ",
+      "expected_exit": 1,
+      "fail_at": 2,
+      "command": "O2/count-2/failure-2/command.json",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "input": 2,
+      "stdout": "ABHZ",
+      "exit_code": 1,
+      "expected_stdout": "ABHZ",
+      "expected_exit": 1,
+      "fail_at": 3,
+      "command": "O2/count-2/failure-3/command.json",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      }
+    },
+    {
+      "input": 3,
+      "stdout": "ABCDHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABCDHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O2/count-3/ordinary/command.json"
+    },
+    {
+      "input": 3,
+      "stdout": "ABCDHAZ",
+      "exit_code": 0,
+      "expected_stdout": "ABCDHAZ",
+      "expected_exit": 0,
+      "fail_at": 0,
+      "command": "O2/count-3/allocation/command.json",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 4
+      }
+    },
+    {
+      "input": 3,
+      "stdout": "Z",
+      "exit_code": 1,
+      "expected_stdout": "Z",
+      "expected_exit": 1,
+      "fail_at": 1,
+      "command": "O2/count-3/failure-1/command.json",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "input": 3,
+      "stdout": "AHZ",
+      "exit_code": 1,
+      "expected_stdout": "AHZ",
+      "expected_exit": 1,
+      "fail_at": 2,
+      "command": "O2/count-3/failure-2/command.json",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "input": 3,
+      "stdout": "ABHZ",
+      "exit_code": 1,
+      "expected_stdout": "ABHZ",
+      "expected_exit": 1,
+      "fail_at": 3,
+      "command": "O2/count-3/failure-3/command.json",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      }
+    },
+    {
+      "input": 3,
+      "stdout": "ABCHZ",
+      "exit_code": 1,
+      "expected_stdout": "ABCHZ",
+      "expected_exit": 1,
+      "fail_at": 4,
+      "command": "O2/count-3/failure-4/command.json",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 3
+      }
+    },
+    {
+      "input": 9,
+      "stdout": "",
+      "exit_code": 9,
+      "expected_stdout": "",
+      "expected_exit": 9,
+      "fail_at": 0,
+      "command": "O2/invalid/command.json"
+    }
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "native_executions": 38,
+  "fault_executions": 20
+}

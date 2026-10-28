@@ -1,0 +1,1 @@
+fn leaf<F:Fn()->&[u8]>(f:&F)->&[u8]{return f()}pub fn forward<F:Fn()->&[u8]>(f:&F)->&[u8]{let ignored=leaf(f);return leaf(f)}

@@ -1,0 +1,1 @@
+fn a<F:Fn()->i32>(f:&F)->i32{return b(f)}fn b<F:Fn()->i32>(f:&F)->i32{return c(f)}fn c<F:Fn()->i32>(f:&F)->i32{return a(f)}fn main(){}

@@ -1,0 +1,29 @@
+{
+  "reviewer": "/root/restore177_inventory",
+  "reviewed_commit": "ee728154140b1ce8bda58f7eebeba92d59642213",
+  "base": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
+  "scope": "Requested read-only review of root merge continuity and two099 source-preserving fixture changes; not reapproval of own187 production or full184 semantics",
+  "result": "Pass",
+  "observations": [
+    "CallClosureShared/Mut check_pairs retains187 module argument and deferred separation reconstruction",
+    "184 environment-position access.check(empty,[Root::Local(callee)],is_mut) immediately follows; subsequent held-capture checks remain",
+    "descriptor_origins remains in loans admission and head_windows is absent",
+    "Both099 local Desc capture source strings preserved byte-for-byte and moved from Unsupported to independent Success controls",
+    "The separate184 owning-environment lending migration is present but outside the requested two187-input review scope"
+  ],
+  "inputs": [
+    {
+      "source": "fn entry099()->i64{let b=bytes_new();let d=b;let f=move()=>bytes_len(d);return f()}",
+      "sha256": "75ec15253d38db32603e973f540963c580442605079f933af3e6b0024bfa846b"
+    },
+    {
+      "source": "fn entry099()->i64{let b=bytes_new();let f=()=>bytes_len(b);return f()}",
+      "sha256": "67ec3349738ae6156cc8caf8801e67bb3f629fbebb1795dc380b039c04c4dfc4"
+    }
+  ],
+  "files": {
+    "crates/zil-verify/src/borrows/loans.rs": "44491550fa38d6ab65dd1bdc9ae8c462aedcfc0b",
+    "crates/zil-driver/tests/impl099_owned_bytes.rs": "99ccd25158e1f3b9b013d2d3f0839fc227cae78a"
+  },
+  "tests": "NotRun by this short continuity review; root is executing the integrated candidate separately"
+}

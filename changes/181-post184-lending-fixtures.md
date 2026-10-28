@@ -1,0 +1,5 @@
+# 181：184实现后的旧lending输入预期
+
+184 b146已由非作者独立审查并合入。099的自包含move ByteBuffer工厂返回共享视图，原源码完全保留，移入成功控制；局部Desc捕获仍先保留旧Unsupported，待187独立复核合入。185三条有限合法下标但Copy结果伪称lending的原raw/Wire输入继续拒绝；诊断从语义尚未实现的Unsupported改为精确SafeReject E-VERIFY-LENDING。乱序、重复、预算、指纹与Wire内容均保持。
+
+本提交不改变生产代码或默认预算，不将非法来源变成合法。只有真实已实现的lending源获得成功预期。限定执行另绑定精确源码提交，历史失败结果不改写。

@@ -1,0 +1,28 @@
+{
+  "source_commit": "c8594514faa1de65672a0e944dfd0ea2b8f97460",
+  "dirty": " M changes/187-local-borrowed-byte-descriptions.md\n M crates/zil-analyze/src/helpers.rs\n M crates/zil-driver/tests/impl187_borrowed_bytes.rs\n M crates/zil-types/src/helpers.rs\n M crates/zil-verify/src/borrows.rs\n M crates/zil-verify/src/borrows/buffer_effects.rs\n M crates/zil-verify/src/borrows/captures.rs\n M crates/zil-verify/src/borrows/loans.rs\n M crates/zil-verify/src/helpers.rs\n?? evidence/impl/187/\n",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl187_borrowed_bytes",
+    "--",
+    "--test-threads=2"
+  ],
+  "source_hashes": {
+    "crates/zil-analyze/src/helpers.rs": "a86964877c3f0da24bffa91d250c4f31be4acd627c6d00dcf1d050f4daf187ee",
+    "crates/zil-driver/tests/impl187_borrowed_bytes.rs": "62bb66c46e5490883297cf81f11d6467e7d6de902926185b84b5fb5e1a1665c4",
+    "crates/zil-types/src/helpers.rs": "043a8687d18bdb39f13e967d007dfcf81690d734d42d23ee20df95ce4084018f",
+    "crates/zil-verify/src/borrows.rs": "f7c4a346e3ae75b6bc3f367f41aa8f9df0d3238b0ee42f163aedac76179bb36a",
+    "crates/zil-verify/src/borrows/buffer_effects.rs": "7d3a86cbaaa7cf6a0e8636f6f34207e8cccbfddd5b4151d1d01baec9daba6c32",
+    "crates/zil-verify/src/borrows/captures.rs": "8517af0d01cda4c7ba9b86bf24fd0b259bfccbdbe1698e1540d48323a011b229",
+    "crates/zil-verify/src/borrows/loans.rs": "1b23b7b659d932e64e0fa55c5804fc7f36c8b4b4e4b866a916f6400831ef1782",
+    "crates/zil-verify/src/helpers.rs": "162264c310ac2eec5fb4ba69d0803a8395e7f67f66ebc6e74046263f21d06242"
+  },
+  "start": 1793156836.701971
+}

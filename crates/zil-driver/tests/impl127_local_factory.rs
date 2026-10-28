@@ -152,6 +152,8 @@ fn trace(text: &str, kind: CallableKind, calls: &[usize]) {
     assert_eq!(
         contract
             .traces
+            .as_finite()
+            .unwrap()
             .iter()
             .map(|t| t.calls.len())
             .collect::<Vec<_>>(),
@@ -160,6 +162,8 @@ fn trace(text: &str, kind: CallableKind, calls: &[usize]) {
     assert!(
         contract
             .traces
+            .as_finite()
+            .unwrap()
             .iter()
             .all(|t| t.exit == CallableExit::Return && t.calls.iter().all(|k| *k == kind))
     );
@@ -236,6 +240,8 @@ fn four_modules_clean_called_unused_and_error_environments() {
         contracts[0]
             .contract
             .traces
+            .as_finite()
+            .unwrap()
             .iter()
             .map(|t| t.calls.len())
             .collect::<Vec<_>>(),

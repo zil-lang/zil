@@ -1,0 +1,82 @@
+{
+  "status": "Pass",
+  "scope": "191 schema24 explicit callable Flow transport, identity, bounded raw/Wire, and finite-profile composition; runtime Flow semantics remain Unsupported until190",
+  "author": "/root",
+  "source_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c",
+  "initial_implementation_commit": "0a42188b9d94d3fff582c9a16511708a9959dc22",
+  "composed_production_commit": "a00472dab7fe4368ee8b1ea6c7d96df00cb6bb31",
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "1f847737718bca55856287ea124f8c9084a4f5d838f466c0d6da5a04594b1113",
+  "schema_version": 24,
+  "commands": {
+    "clippy01": {
+      "source_commit": "0a42188b9d94d3fff582c9a16511708a9959dc22",
+      "clean": true,
+      "status": "Pass",
+      "groups": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "command": "records/clippy01/command/command.json"
+    },
+    "composed-check01": {
+      "source_commit": "a00472dab7fe4368ee8b1ea6c7d96df00cb6bb31",
+      "clean": true,
+      "status": "Pass",
+      "groups": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "command": "records/composed-check01/command/command.json"
+    },
+    "composed-tests01": {
+      "source_commit": "a00472dab7fe4368ee8b1ea6c7d96df00cb6bb31",
+      "clean": true,
+      "status": "Fail",
+      "groups": 16,
+      "passed": 438,
+      "failed": 2,
+      "ignored": 0,
+      "command": "records/composed-tests01/command/command.json"
+    },
+    "composed-verify02": {
+      "source_commit": "06daaaed653e045a55a005ff6ff41eb2e9a1c60c",
+      "clean": true,
+      "status": "Pass",
+      "groups": 1,
+      "passed": 240,
+      "failed": 0,
+      "ignored": 0,
+      "command": "records/composed-verify02/command/command.json"
+    },
+    "finite01": {
+      "source_commit": "0a42188b9d94d3fff582c9a16511708a9959dc22",
+      "clean": true,
+      "status": "Fail",
+      "groups": 11,
+      "passed": 371,
+      "failed": 3,
+      "ignored": 0,
+      "command": "records/finite01/command/command.json"
+    },
+    "source01": {
+      "source_commit": "0a42188b9d94d3fff582c9a16511708a9959dc22",
+      "clean": true,
+      "status": "Pass",
+      "groups": 3,
+      "passed": 63,
+      "failed": 0,
+      "ignored": 0,
+      "command": "records/source01/command/command.json"
+    }
+  },
+  "failure_disposition": {
+    "finite01": "Three unchanged Verify fixtures independently reproduced on pre191 schema23 baseline; tests-only migration9505 preserves inputs and default limits, final240/0. See evidence/reviews/191-baseline/REVIEW.json.",
+    "composed-tests01": "Two additional unchanged helper fixtures reflected prior closed188/189 gates;06da changes only precise recursive diagnostic and accepted unused Copy address helper parameters. Desc rejection retained. Production identical, freshVerify240/0; other15suites200/0 on a004 remain recorded separately."
+  },
+  "counts_policy": "Do not sum repeated suites across runs; no whole-workspace test claim. 16 composed suites covered440 tests at identical production across a004 and06da, but fullall440 at a singlefinalsource not run here.",
+  "new_machine_execution": "None claimed for public transport; finite regression native executions remain attributed to their respective command receipts.",
+  "full_language": "NotSatisfied",
+  "runtime_helper_flow": "NotImplementedIn191",
+  "zui_product": "NotRun"
+}

@@ -1,0 +1,1 @@
+import leaf;pub fn twice<F:FnMut()->i32>(f:&mut F)->i32{let n=leaf.leaf(f);return n+leaf.leaf(f)}pub fn choose<F:FnMut()->i32>(flag:bool,f:&mut F)->i32{if flag{return twice(f)};return 0}

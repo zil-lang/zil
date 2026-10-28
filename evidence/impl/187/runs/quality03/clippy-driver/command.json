@@ -1,0 +1,23 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl187_borrowed_bytes",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "source_commit": "472b3ce052b850ef51fbfa3f8d818c51e080a112",
+  "dirty": "",
+  "started": 1793157258.3578484,
+  "exit": 0,
+  "finished": 1793157258.3855515,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "8f3ae2616dd1e18d0fe1f4076d35b698a81fb5dae3fa8b45c2750e9a19508e5e"
+}

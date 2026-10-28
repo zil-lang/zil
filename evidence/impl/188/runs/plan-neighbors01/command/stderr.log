@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt188/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.80s
+     Running tests/impl125_factory_helpers.rs (/workspace/scratch/39be3faa4442/targets178/author188/debug/deps/impl125_factory_helpers-458f153cbbbf0c6d)
+     Running tests/impl127_local_factory.rs (/workspace/scratch/39be3faa4442/targets178/author188/debug/deps/impl127_local_factory-0578d78d9d0ed937)
+     Running tests/impl127_raw_factory.rs (/workspace/scratch/39be3faa4442/targets178/author188/debug/deps/impl127_raw_factory-546609b9378cb505)
+     Running tests/impl176_callable_fields.rs (/workspace/scratch/39be3faa4442/targets178/author188/debug/deps/impl176_callable_fields-5ccc076d899cc77e)
+     Running tests/impl184_lending.rs (/workspace/scratch/39be3faa4442/targets178/author188/debug/deps/impl184_lending-7eb3fbdc20edd05c)
+     Running tests/impl184_lending_raw.rs (/workspace/scratch/39be3faa4442/targets178/author188/debug/deps/impl184_lending_raw-3cf1ecefcf76f44a)
+     Running tests/impl188_nested_helpers.rs (/workspace/scratch/39be3faa4442/targets178/author188/debug/deps/impl188_nested_helpers-fefacff303671db3)
+     Running tests/impl188_nested_helpers_raw.rs (/workspace/scratch/39be3faa4442/targets178/author188/debug/deps/impl188_nested_helpers_raw-4ec50ddc1b2d498e)

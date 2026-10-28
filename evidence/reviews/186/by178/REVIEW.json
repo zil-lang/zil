@@ -1,0 +1,118 @@
+{
+  "implementation_commit": "0fb8aaaeeef058ddd6420e4fc8981c3f957ea330",
+  "implementation_author": "/root/design14_acceptance",
+  "reviewer": "/root/history178_audit",
+  "verdict": "Pass",
+  "status": "Pass",
+  "review_source": "bfa01ab742c7e679705f420ea21b136b58d5f46a",
+  "scope": "Independent review of0fb direct Managed Package field birth repair in Analyze/Verify resources.rs only. The earlier186 Expand/generic implementation remains the separate root review; no184 self-review or integration claim.",
+  "production_identity": {
+    "source_sha256": {
+      "crates/zil-analyze/src/resources.rs": "b4bcdb1fbe70d19e9837c1991990541a524cb3c7e2f7e8dfb4767b8fea1eea1d",
+      "crates/zil-verify/src/resources.rs": "7abd413bfe8555eff47b2825a02c9f74abb5ec7232338a4efce2e7770f9c583d"
+    },
+    "diff_from_implementation": [
+      "crates/zil-driver/tests/review186_field_origins.rs"
+    ],
+    "production_identical": true
+  },
+  "spec_hash": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "642f7de6249bdc52b42fd3c2ad16059cc801ae68c9c94cce83f205c51a55e063",
+  "registry_matches_actual": true,
+  "commands": {
+    "tests": {
+      "source_commit": "bfa01ab742c7e679705f420ea21b136b58d5f46a",
+      "status": "Pass",
+      "exit_code": 0,
+      "receipt": "runs/final02/tests/command.json"
+    },
+    "test-clippy": {
+      "source_commit": "bfa01ab742c7e679705f420ea21b136b58d5f46a",
+      "status": "Pass",
+      "exit_code": 0,
+      "receipt": "runs/final02/test-clippy/command.json"
+    },
+    "clippy": {
+      "source_commit": "bfa01ab742c7e679705f420ea21b136b58d5f46a",
+      "status": "Pass",
+      "exit_code": 0,
+      "receipt": "runs/final02/clippy/command.json"
+    },
+    "fmt": {
+      "source_commit": "bfa01ab742c7e679705f420ea21b136b58d5f46a",
+      "status": "Pass",
+      "exit_code": 0,
+      "receipt": "runs/final02/fmt/command.json"
+    }
+  },
+  "tests": {
+    "passed": 27,
+    "failed": 0,
+    "ignored": 0,
+    "author_replay": 21,
+    "independent_groups": 6
+  },
+  "independent_native": {
+    "executions": 10,
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "cases": [
+      "Copy fields between physical Managed indices1and3",
+      "incoming Package target field replaced by fresh creation, then whole move",
+      "different Managed ByteBuffer/R payloads",
+      "whole Package branch selection of fresh fields onfalse",
+      "whole Package branch selection of fresh fields ontrue"
+    ]
+  },
+  "independent_source_rejections": {
+    "count": 5,
+    "phase": "Analyze",
+    "reason": "Incoming responsibility cannot satisfycreate",
+    "cases": [
+      "old sibling withfresh sibling",
+      "zero-iteration path throughinputPackage",
+      "old field taken and reinserted intoformerlyfresh slot",
+      "result(give) call wrapped insidePackage",
+      "unknownPackage-producing call"
+    ]
+  },
+  "independent_raw_wire": {
+    "mutations": 3,
+    "rejections": 6,
+    "phase": "Verify",
+    "code": "E-VERIFY-RESOURCE",
+    "cases": [
+      "MakePackage operands ofsameManagedtype swapped across physicalfields1and3",
+      "TakePackageField retargeted fromfreshfield3tooldfield1",
+      "zero-iteration may-Incoming loop changed fromgive tocreate withoutAnalyze"
+    ]
+  },
+  "budget_boundaries": {
+    "analyze": {
+      "rejected": 8689,
+      "accepted": 8690
+    },
+    "verify": {
+      "rejected": 5798,
+      "accepted": 5799
+    },
+    "default_limits_changed": false
+  },
+  "static_review": {
+    "origin_source": "MakePackage copies each actual Managed operand birth before consumption. Whole localStore/Take and StorePackageField/TakePackageField copy their actual per-fieldfacts; physical indices includeCopy gaps. No constructor changesIncomingtoCreated merely because itwraps anowner.",
+    "unknown_source": "InputPackage fields and unknownPackage SSA producers initializeIncoming. Existing result(give) remainsIncoming at call boundary, and nonManaged owned fields receive no newfresh authority.",
+    "join": "Analyze unions{Created,Incoming}; Verify independently ORs FRESH/INPUT bits. Incoming onany path survives; live/debt validity is still checked separately.",
+    "budget": "Analyze precharges package-value scan, fieldmap entries, lookup/copy/update/clone/join. Birth sets have onlytwo possibilities. Verify charges width-table allocation, per-row bytes and everycloned/merged row before allocation/traversal; state dimensions derive fromthe checkedfunction.",
+    "independence": "Verify does not import Analyze/Types source computation and doesnot trust candidate resource declarations forfreshness."
+  },
+  "preserved_failures": {
+    "reviewer_test_clippy": "final01 had2collapsible-if warnings inindependent test guards; onlytestsyntax changed, originalfailedreceipt retained, final02Pass",
+    "handoff": "baseline01 exit1 inheritedhistorical/current-main handoff issues retained; not represented asformal acceptance"
+  },
+  "full_workspace": "NotRun",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "cost_claim": "No runtime/memory/compilation or maintenance comparison withRust claimed."
+}

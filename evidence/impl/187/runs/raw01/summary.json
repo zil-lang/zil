@@ -1,0 +1,34 @@
+{
+  "source_commit": "f0b920b8ae10662075a1c17b58586f83177f7b24",
+  "dirty": " M crates/zil-analyze/src/budget.rs\n M crates/zil-types/src/closures.rs\n M crates/zil-verify/src/closures.rs\n?? crates/zil-driver/tests/impl187_borrowed_bytes.rs\n",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-j2",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl187_borrowed_bytes",
+    "raw_and_wire",
+    "--",
+    "--test-threads=2"
+  ],
+  "source_hashes": {
+    "crates/zil-driver/tests/impl187_borrowed_bytes.rs": "d210d52335fb854ff656de6849e6d48842fbee8e4e8d7f64311eb28117d09260",
+    "crates/zil-types/src/closures.rs": "035a9c05ceb90a499a7b85f240a8f7c2aadb84e48aa95e02211d4b00ff5cb010",
+    "crates/zil-analyze/src/budget.rs": "7fd6b49893f95e8dfef6e7b138ab71440b7924b1b98bc9906c940b9730f103e2",
+    "crates/zil-verify/src/closures.rs": "6160fc0745eb5d3091227f13071e6a0cf5aa991cb21141c6d9d8fca56668550a"
+  },
+  "start": 1793155757.214728,
+  "exit": 0,
+  "finish": 1793155757.6645515,
+  "groups": [
+    [
+      "5",
+      "0",
+      "0"
+    ]
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "format": "zil-language193-preflight-origin/1",
+  "status": "Recorded",
+  "compiler": {
+    "path": "/workspace/scratch/39be3faa4442/targets178/review189/debug/zil",
+    "sha256": "c705c0d356209fe672ad6e1452bb174ed15709f60850a50e44c8217d0e9ff499",
+    "build_source": "9bb141a327cf2433efd755e24551409f4c17caab",
+    "production_source": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+    "build_record_path": "/workspace/scratch/39be3faa4442/run-logs/189-review/build01/command/command.json",
+    "build_record_sha256": "fb546c65271347a6b6d7b53870c5d4546e5c924329fc82d1d197e4df0ef33786"
+  },
+  "source_inspection_commit": "9bb141a327cf2433efd755e24551409f4c17caab",
+  "recording_worktree_commit": "9505afd923679fd78ecd3cca4057f3038edc414a",
+  "design_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "controls": {
+    "success": 4,
+    "safe_reject": 2,
+    "unsupported_before_analyze_or_verify": 13
+  },
+  "source_checks": 19,
+  "native_executions": 0,
+  "raw_wire_checks": 0,
+  "source_expectations_in_193_are_proposed_not_observed": true,
+  "prior_unexecuted_attempt": {
+    "cwd": "/workspace/scratch/39be3faa4442/language14/review189",
+    "exception": "FileNotFoundError: cwd had been removed by root cleanup before subprocess execution",
+    "compiler_started": false,
+    "counted_as_probe": false,
+    "resolution": "Used existing review191-baseline as cwd; reused identical previously built CLI and original 19 source inputs."
+  },
+  "production_files_modified": false,
+  "task193_implemented": false,
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

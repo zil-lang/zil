@@ -1,0 +1,591 @@
+diff --git a/crates/zil-analyze/src/resources.rs b/crates/zil-analyze/src/resources.rs
+index deb7ecfc..c4d06198 100644
+--- a/crates/zil-analyze/src/resources.rs
++++ b/crates/zil-analyze/src/resources.rs
+@@ -47,6 +47,10 @@ struct Fact {
+ struct State {
+     cells: BTreeMap<Place, Fact>,
+     later: BTreeSet<(LocalId, LocalId)>,
++    // Complete SSA Packages carry the actual birth of each direct Managed
++    // field. Local Packages already have separate lifecycle cells. Unknown
++    // producers keep Incoming; packaging itself never creates a resource.
++    package_values: BTreeMap<(ValueId, u32), BTreeSet<Birth>>,
+ }
+ #[derive(Clone, Copy)]
+ struct Shape {
+@@ -106,12 +110,19 @@ fn replace(state: &mut State, place: Place, fact: Fact, budget: &mut Budget) ->
+ }
+ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
+     budget.spend(
+-        state.cells.len().saturating_add(state.later.len()),
++        state
++            .cells
++            .len()
++            .saturating_add(state.later.len())
++            .saturating_add(state.package_values.len()),
+         "resource state clone",
+     )?;
+     for fact in state.cells.values() {
+         fact_cost(fact, budget)?;
+     }
++    for birth in state.package_values.values() {
++        budget.spend(birth.len(), "Package SSA birth clone")?;
++    }
+     Ok(state.clone())
+ }
+ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
+@@ -137,8 +148,78 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
+     let before = to.later.len();
+     to.later.extend(&from.later);
+     changed |= before != to.later.len();
++    for (key, source) in &from.package_values {
++        budget.lookup(to.package_values.len(), "Package SSA birth join lookup")?;
++        let target = to
++            .package_values
++            .get_mut(key)
++            .ok_or_else(|| error("incompatible Package SSA birth shapes"))?;
++        budget.spend(
++            target.len().saturating_add(source.len()),
++            "Package SSA birth join",
++        )?;
++        let before = target.len();
++        target.extend(source);
++        changed |= before != target.len();
++    }
+     Ok(changed)
+ }
++
++fn package_value_shapes(
++    f: &TypedFunction,
++    budget: &mut Budget,
++) -> CompileResult<BTreeMap<(ValueId, u32), BTreeSet<Birth>>> {
++    budget.spend(f.values.len(), "Package SSA birth shape scan")?;
++    let mut fields = BTreeMap::new();
++    for (value, ty) in f.values.iter().enumerate() {
++        if let Type::Package { fields: types, .. } = ty {
++            budget.spend(types.len(), "Package SSA birth field scan")?;
++            for (index, (_, ty)) in types.iter().enumerate() {
++                if matches!(ty, Type::Managed(_)) {
++                    budget.lookup(fields.len(), "Package SSA birth shape insertion")?;
++                    budget.spend(2, "Package SSA birth allocation")?;
++                    fields.insert(
++                        (ValueId(value as u32), index as u32),
++                        BTreeSet::from([Birth::Incoming]),
++                    );
++                }
++            }
++        }
++    }
++    Ok(fields)
++}
++
++fn package_birth(
++    state: &State,
++    value: ValueId,
++    index: u32,
++    budget: &mut Budget,
++) -> CompileResult<BTreeSet<Birth>> {
++    budget.lookup(state.package_values.len(), "Package SSA birth lookup")?;
++    let birth = state
++        .package_values
++        .get(&(value, index))
++        .ok_or_else(|| error("missing Package SSA birth field"))?;
++    budget.spend(birth.len(), "Package SSA birth copy")?;
++    Ok(birth.clone())
++}
++
++fn set_package_birth(
++    state: &mut State,
++    value: ValueId,
++    index: u32,
++    birth: BTreeSet<Birth>,
++    budget: &mut Budget,
++) -> CompileResult<()> {
++    budget.lookup(state.package_values.len(), "Package SSA birth update")?;
++    let target = state
++        .package_values
++        .get_mut(&(value, index))
++        .ok_or_else(|| error("missing Package SSA birth field"))?;
++    budget.spend(target.len(), "Package SSA birth replacement")?;
++    *target = birth;
++    Ok(())
++}
+ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<Shape> {
+     Ok(match ty {
+         ty if owned_error(ty) => Shape {
+@@ -1023,11 +1104,21 @@ impl Flow<'_> {
+                     if fields.len() != expected.len() {
+                         return Err(error("package field arity mismatch"));
+                     }
+-                    for (value, (_, ty)) in fields.iter().zip(expected) {
++                    for (index, (value, (_, ty))) in fields.iter().zip(expected).enumerate() {
+                         budget.type_work(ty, false, "package assembly type comparison")?;
+                         if f.values.get(value.0 as usize) != Some(ty) {
+                             return Err(error("package field type mismatch"));
+                         }
++                        if matches!(ty, Type::Managed(_)) {
++                            let birth = copied(state, Place::Value(*value), budget)?.birth;
++                            set_package_birth(
++                                state,
++                                i.result.expect("checked Package result"),
++                                index as u32,
++                                birth,
++                                budget,
++                            )?;
++                        }
+                         self.consume(state, *value, check, budget)?;
+                     }
+                     produced = Some(Fact {
+@@ -1326,13 +1417,18 @@ impl Flow<'_> {
+                                     budget,
+                                 )?;
+                             }
++                            let birth = if matches!(ty, Type::Managed(_)) {
++                                copied(state, Place::Value(value), budget)?.birth
++                            } else {
++                                BTreeSet::from([Birth::Incoming])
++                            };
+                             self.consume(state, value, check, budget)?;
+                             replace(
+                                 state,
+                                 place,
+                                 Fact {
+                                     life: BTreeSet::from([Life::Available]),
+-                                    birth: BTreeSet::from([Birth::Incoming]),
++                                    birth,
+                                     sources: BTreeSet::new(),
+                                 },
+                                 budget,
+@@ -1397,9 +1493,10 @@ impl Flow<'_> {
+                                         "package field take requires that field live on every path",
+                                     ));
+                                 }
++                                budget.spend(fact.birth.len(), "package field birth transfer")?;
+                                 produced = Some(Fact {
+                                     life: BTreeSet::from([Life::Available]),
+-                                    birth: BTreeSet::from([Birth::Incoming]),
++                                    birth: fact.birth.clone(),
+                                     sources: BTreeSet::new(),
+                                 });
+                                 fact.life = BTreeSet::from([Life::Transferred]);
+@@ -1566,6 +1663,29 @@ impl Flow<'_> {
+                                     budget,
+                                 )?;
+                             }
++                            if let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty {
++                                budget.spend(fields.len(), "whole Package birth transfer")?;
++                                for (index, (_, ty)) in fields.iter().enumerate() {
++                                    if matches!(ty, Type::Managed(_)) {
++                                        let birth = copied(
++                                            state,
++                                            Place::PackageField {
++                                                local: *local,
++                                                index: index as u32,
++                                            },
++                                            budget,
++                                        )?
++                                        .birth;
++                                        set_package_birth(
++                                            state,
++                                            i.result.ok_or_else(|| error("move has no result"))?,
++                                            index as u32,
++                                            birth,
++                                            budget,
++                                        )?;
++                                    }
++                                }
++                            }
+                             package_transition(f, state, *local, Life::Transferred, check, budget)?;
+                             produced = Some(fact.clone());
+                             fact.life = BTreeSet::from([Life::Transferred]);
+@@ -1625,6 +1745,21 @@ impl Flow<'_> {
+                             }
+                             source.life = BTreeSet::from([Life::Available]);
+                             package_transition(f, state, *local, Life::Available, check, budget)?;
++                            if let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty {
++                                budget.spend(fields.len(), "whole Package birth store")?;
++                                for (index, (_, ty)) in fields.iter().enumerate() {
++                                    if matches!(ty, Type::Managed(_)) {
++                                        let place = Place::PackageField {
++                                            local: *local,
++                                            index: index as u32,
++                                        };
++                                        let mut field = copied(state, place, budget)?;
++                                        field.birth =
++                                            package_birth(state, *value, index as u32, budget)?;
++                                        replace(state, place, field, budget)?;
++                                    }
++                                }
++                            }
+                         }
+                         replace(state, Place::Local(*local), source, budget)?;
+                     }
+@@ -2019,7 +2154,10 @@ fn analyze_function_with_dependencies(
+     } else {
+         Vec::new()
+     };
+-    let mut initial = State::default();
++    let mut initial = State {
++        package_values: package_value_shapes(f, budget)?,
++        ..State::default()
++    };
+     for (place, s) in &shapes {
+         budget.lookup(initial.cells.len(), "initial resource state")?;
+         let mut fact = Fact::default();
+@@ -2353,7 +2491,10 @@ fn analyze_function_eager_reference(
+         return Ok(Effect::default());
+     }
+     let after = afters(f, reachable, &shapes, budget)?;
+-    let mut initial = State::default();
++    let mut initial = State {
++        package_values: package_value_shapes(f, budget)?,
++        ..State::default()
++    };
+     for (place, s) in &shapes {
+         budget.lookup(initial.cells.len(), "initial resource state")?;
+         let mut fact = Fact::default();
+diff --git a/crates/zil-driver/tests/impl186_generic_owned_success.rs b/crates/zil-driver/tests/impl186_generic_owned_success.rs
+index 09825ceb..6bf3fb91 100644
+--- a/crates/zil-driver/tests/impl186_generic_owned_success.rs
++++ b/crates/zil-driver/tests/impl186_generic_owned_success.rs
+@@ -433,3 +433,149 @@ fn main()->WideError!i32{{let pending=create::<Q>({fail});let store=pending?;ret
+         native("copy-error", &[("main", &source)], b"", i32::from(fail));
+     }
+ }
++
++#[test]
++fn mutable_managed_slots_preserve_creation_through_their_package_representation() {
++    for (definition, main, stdout) in [
++        (
++            "fn create()->R contract{result(create)}{var slot:R=R{code:65};return give slot}",
++            "fn main()->i32{let r=create();return r.code-65}",
++            b"A".as_slice(),
++        ),
++        (
++            "fn create()->E!R contract{result(create)}{var slot:R=R{code:65};return give slot}",
++            "fn main()->E!i32{let r=create()?;return r.code-65}",
++            b"A".as_slice(),
++        ),
++        (
++            "fn create()->E!ByteBuffer contract{result(create)}{var slot:ByteBuffer=bytes_new();return give slot}",
++            "fn main()->E!i32{let b=create()?;return i32(bytes_len(b))}",
++            b"".as_slice(),
++        ),
++        (
++            "fn create<T:StoreElement>()->Store<T>contract{result(create)}{var slot:Store<T>=empty();return give slot}",
++            "fn main()->i32{let s=create::<P>();return i32(store_len(s))}",
++            b"".as_slice(),
++        ),
++        (
++            "fn create<T:StoreElement>()->E!Store<T>contract{result(create)}{var slot:Store<T>=empty();return give slot}",
++            "fn main()->E!i32{let s=create::<Q>()?;return i32(store_len(s))}",
++            b"".as_slice(),
++        ),
++    ] {
++        native(
++            "mutable-created",
++            &[("main", &format!("{MODEL}{HELPERS}{definition}\n{main}"))],
++            stdout,
++            0,
++        );
++    }
++}
++
++#[test]
++fn an_error_returning_old_branch_does_not_poison_the_surviving_fresh_branch() {
++    // Keep the independent review's definition, calls and expectations intact.
++    let definition = r#"
++fn select<T:StoreElement>(give old:Store<T>,flag:bool)->E!Store<T>contract{result(create)}{
++ var slot:Store<T>=empty();
++ if flag{slot=give old;return E.Fail};
++ return give slot
++}
++"#;
++    accepted(
++        "unused-surviving-branch",
++        &format!("{MODEL}{HELPERS}{definition}fn main(){{}}"),
++    );
++    for flag in [false, true] {
++        let source = format!(
++            "{MODEL}{HELPERS}{definition}fn main()->E!i32{{let incoming=make(p(65),false)?;let result=select(give incoming,{flag})?;return 0}}"
++        );
++        native(
++            "surviving-branch",
++            &[("main", &source)],
++            b"A",
++            i32::from(flag),
++        );
++    }
++}
++
++#[test]
++fn actual_field_sources_survive_whole_moves_replacements_branches_and_loops() {
++    for (definition, call, stdout) in [
++        (
++            "fn create()->R contract{result(create)}{let built=P{r:R{code:65},n:7};let moved=built;return give moved.r}",
++            "create()",
++            b"A".as_slice(),
++        ),
++        (
++            "fn create(flag:bool)->R contract{result(create)}{var slot:R=R{code:65};if flag{slot=R{code:66}}else{slot=R{code:67}};return give slot}",
++            "create(false)",
++            b"AC".as_slice(),
++        ),
++        (
++            "fn create(flag:bool)->R contract{result(create)}{var slot:R=R{code:65};if flag{slot=R{code:66}}else{slot=R{code:67}};return give slot}",
++            "create(true)",
++            b"AB".as_slice(),
++        ),
++        (
++            "fn create()->R contract{result(create)}{var n:i32=0;var slot:R=R{code:65};while n<2{slot=R{code:66+n};n=n+1};return give slot}",
++            "create()",
++            b"ABC".as_slice(),
++        ),
++        (
++            "package Pair{manages old:R;manages fresh:R}fn create(give old:R)->R contract{result(create)}{let pair=Pair{old:give old,fresh:R{code:66}};let moved=pair;return give moved.fresh}",
++            "create(R{code:65})",
++            b"AB".as_slice(),
++        ),
++    ] {
++        native(
++            "field-creation",
++            &[(
++                "main",
++                &format!("{MODEL}{definition}fn main()->i32{{let r={call};return 0}}"),
++            )],
++            stdout,
++            0,
++        );
++    }
++}
++
++#[test]
++fn incoming_or_mixed_fields_cannot_be_repackaged_as_created() {
++    for definition in [
++        "fn bad(give old:R)->R contract{result(create)}{var slot:R=R{code:65};slot=give old;return give slot}",
++        "fn bad(give old:R,flag:bool)->R contract{result(create)}{var slot:R=R{code:65};if flag{slot=give old};return give slot}",
++        "fn bad(give old:R)->R contract{result(create)}{let built=P{r:give old,n:7};let moved=built;return give moved.r}",
++        "fn bad(p:P)->R contract{result(create)}{let moved=p;return give moved.r}",
++        "fn bad()->R contract{result(create)}{let unknown=p(65);return give unknown.r}",
++        "package Pair{manages old:R;manages fresh:R}fn bad(give old:R)->R contract{result(create)}{let pair=Pair{old:give old,fresh:R{code:66}};let moved=pair;return give moved.old}",
++    ] {
++        let report = check(
++            "old-field-create",
++            &format!("{MODEL}{definition}fn main(){{}}"),
++        );
++        assert_eq!(
++            report.status,
++            ResultCategory::SafeReject,
++            "{}",
++            report.to_json()
++        );
++        assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
++        assert_eq!(report.verification_runs, 0);
++        assert!(
++            report.diagnostics.iter().any(|d| d
++                .message
++                .contains("create result forwards an incoming responsibility")),
++            "{}",
++            report.to_json()
++        );
++    }
++    rejected(
++        "generic-old-field-mix",
++        &format!(
++            "{MODEL}{HELPERS}fn bad<T:StoreElement>(give old:Store<T>,flag:bool)->E!Store<T>contract{{result(create)}}{{var slot:Store<T>=empty();if flag{{slot=give old}};return give slot}}fn main(){{}}"
++        ),
++        ResultCategory::SafeReject,
++        "create result",
++    );
++}
+diff --git a/crates/zil-verify/src/resources.rs b/crates/zil-verify/src/resources.rs
+index 24613358..c78239c0 100644
+--- a/crates/zil-verify/src/resources.rs
++++ b/crates/zil-verify/src/resources.rs
+@@ -257,6 +257,10 @@ enum Root {
+ struct State {
+     debt: Vec<u8>,
+     fresh: Vec<u8>,
++    // Independent SSA Package field provenance. These bytes do not add debt:
++    // a complete Package still moves as one value, with local partial fields
++    // checked by the existing responsibility slots.
++    package_fresh: Vec<Vec<u8>>,
+     desc: Vec<BTreeSet<Root>>,
+     // An edge a -> b means b may have been initialized later while a remained live.
+     newer: Vec<BTreeSet<usize>>,
+@@ -269,6 +273,7 @@ struct Slots {
+     // fields do not. Field debts follow all SSA slots and precede captures so
+     // they still participate in the ordinary-return conservation check.
+     package_fields: Vec<Vec<Option<usize>>>,
++    package_widths: Vec<usize>,
+     desc_local: Vec<Option<usize>>,
+     desc_value: Vec<Option<usize>>,
+     capture_debt: Vec<Option<usize>>,
+@@ -374,6 +379,19 @@ impl Slots {
+         let managed_value = f.values.iter().map(|t| slot(t, true)).collect();
+         let desc_local = f.locals.iter().map(|l| slot(&l.ty, false)).collect();
+         let desc_value = f.values.iter().map(|t| slot(t, false)).collect();
++        budget.spend(f.values.len())?;
++        let mut package_widths = Vec::new();
++        for (value, ty) in f.values.iter().enumerate() {
++            if let Type::Package { fields, .. } = ty {
++                if package_widths.is_empty() {
++                    budget.spend(f.values.len())?;
++                    package_widths = vec![0; f.values.len()];
++                }
++                // Field byte allocation is charged in empty, before it occurs.
++                budget.spend(1)?;
++                package_widths[value] = fields.len();
++            }
++        }
+         let mut package_fields = if package_declarations.is_empty() && array_declarations.is_empty()
+         {
+             Vec::new()
+@@ -447,6 +465,7 @@ impl Slots {
+             managed_local,
+             managed_value,
+             package_fields,
++            package_widths,
+             desc_local,
+             desc_value,
+             capture_debt,
+@@ -481,9 +500,17 @@ impl Slots {
+                 .saturating_add(self.desc_count)
+                 .saturating_add(self.local_count),
+         )?;
++        budget.spend(self.package_widths.len())?;
++        let mut package_fresh = Vec::with_capacity(self.package_widths.len());
++        for &width in &self.package_widths {
++            budget.spend(width)?;
++            // An input or unknown Package producer cannot prove new fields.
++            package_fresh.push(vec![INPUT; width]);
++        }
+         Ok(State {
+             debt: vec![EMPTY; self.debt_count],
+             fresh: vec![0; self.debt_count],
++            package_fresh,
+             desc: vec![BTreeSet::new(); self.desc_count],
+             newer: vec![BTreeSet::new(); self.local_count],
+         })
+@@ -495,9 +522,13 @@ fn state_cost(s: &State, budget: &mut Budget) -> Check<()> {
+         s.debt
+             .len()
+             .saturating_mul(2)
++            .saturating_add(s.package_fresh.len())
+             .saturating_add(s.desc.len())
+             .saturating_add(s.newer.len()),
+     )?;
++    for row in &s.package_fresh {
++        budget.spend(row.len())?;
++    }
+     for row in &s.desc {
+         budget.spend(row.len())?;
+     }
+@@ -520,6 +551,13 @@ fn merge(target: &mut State, source: &State, budget: &mut Budget) -> Check<bool>
+         .iter_mut()
+         .zip(&source.debt)
+         .chain(target.fresh.iter_mut().zip(&source.fresh))
++        .chain(
++            target
++                .package_fresh
++                .iter_mut()
++                .flatten()
++                .zip(source.package_fresh.iter().flatten()),
++        )
+     {
+         let next = *a | *b;
+         changed |= next != *a;
+@@ -907,8 +945,20 @@ impl Transfer<'_> {
+                 InstructionKind::OwnedStoreNew { .. }
+                 | InstructionKind::MakeManaged { .. }
+                 | InstructionKind::ByteBufferNew => fresh_result = Some(FRESH),
+-                InstructionKind::MakePackage { fields }
+-                | InstructionKind::MakeOwnedArray { elements: fields } => {
++                InstructionKind::MakePackage { fields } => {
++                    let output = instruction.result.expect("checked Package result");
++                    budget.spend(fields.len())?;
++                    for (index, &value) in fields.iter().enumerate() {
++                        if matches!(f.values[value.0 as usize], Type::Managed(_)) {
++                            let source = slots.managed_value[value.0 as usize]
++                                .expect("checked Managed field source");
++                            state.package_fresh[output.0 as usize][index] = state.fresh[source];
++                        }
++                        self.consume(state, value, span, validate)?;
++                    }
++                    fresh_result = Some(INPUT);
++                }
++                InstructionKind::MakeOwnedArray { elements: fields } => {
+                     for &value in fields {
+                         self.consume(state, value, span, validate)?;
+                     }
+@@ -1057,7 +1107,7 @@ impl Transfer<'_> {
+                     }
+                     if take {
+                         state.debt[field] = MOVED;
+-                        fresh_result = Some(INPUT);
++                        fresh_result = Some(state.fresh[field]);
+                     } else {
+                         state.debt[field] = discharged(state.debt[field]);
+                     }
+@@ -1087,9 +1137,17 @@ impl Transfer<'_> {
+                                 budget,
+                             )?;
+                         }
++                        budget.spend(1)?;
++                        let fresh = if matches!(f.values[value.0 as usize], Type::Managed(_)) {
++                            let source = slots.managed_value[value.0 as usize]
++                                .expect("checked Managed field source");
++                            state.fresh[source]
++                        } else {
++                            INPUT
++                        };
+                         self.consume(state, *value, span, validate)?;
+                         state.debt[field] = LIVE;
+-                        state.fresh[field] = INPUT;
++                        state.fresh[field] = fresh;
+                     }
+                 }
+                 InstructionKind::BorrowLocal { local }
+@@ -1226,6 +1284,18 @@ impl Transfer<'_> {
+                                 budget,
+                             )?;
+                         }
++                        if let Type::Package { fields: types, .. } = &f.locals[local.0 as usize].ty
++                        {
++                            budget.spend(types.len())?;
++                            let output = instruction.result.expect("checked Package move result");
++                            for (position, (_, ty)) in types.iter().enumerate() {
++                                if matches!(ty, Type::Managed(_)) {
++                                    let field = fields[position].expect("checked Managed field");
++                                    state.package_fresh[output.0 as usize][position] =
++                                        state.fresh[field];
++                                }
++                            }
++                        }
+                         fresh_result = Some(state.fresh[index]);
+                         state.debt[index] = MOVED;
+                         for &field in fields.iter().flatten() {
+@@ -1288,9 +1358,20 @@ impl Transfer<'_> {
+                         }
+                         state.debt[index] = LIVE;
+                         state.fresh[index] = fresh;
+-                        for &field in fields.iter().flatten() {
+-                            state.debt[field] = LIVE;
+-                            state.fresh[field] = INPUT;
++                        budget.spend(fields.len())?;
++                        for (position, field) in fields.iter().enumerate() {
++                            if let Some(field) = field {
++                                state.debt[*field] = LIVE;
++                                state.fresh[*field] = if matches!(
++                                    &f.locals[local.0 as usize].ty,
++                                    Type::Package { fields: types, .. }
++                                        if matches!(types[position].1, Type::Managed(_))
++                                ) {
++                                    state.package_fresh[value.0 as usize][position]
++                                } else {
++                                    INPUT
++                                };
++                            }
+                         }
+                     }
+                     if let Some(dst) = slots.desc_local[local.0 as usize] {

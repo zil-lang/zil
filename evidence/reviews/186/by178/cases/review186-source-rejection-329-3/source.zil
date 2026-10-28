@@ -1,0 +1,1 @@
+resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn bad(give old:R)->R contract{result(create)}{var p=P{pad:7,old:give old,wide:[11,13],fresh:R{n:29}};let incoming=give p.old;p.fresh=give incoming;return give p.fresh}fn main(){}

@@ -1,0 +1,1 @@
+import factory;fn main()->i32{let first=factory.make(41);let second=first;let a=first();let b=second();return *a+*b-82}

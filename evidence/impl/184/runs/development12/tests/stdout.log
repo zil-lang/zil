@@ -1,0 +1,29 @@
+
+running 13 tests
+test active_mutable_result_prevents_overlapping_call_or_replacement ... ok
+test borrowed_mutable_helper_and_whole_parent_transfer_preserve_result_loans ... ok
+test borrowed_generic_helper_forwards_environment_lending_origin ... ok
+test callable_field_view_keeps_its_actual_field_without_blocking_copy_sibling ... ok
+test conditional_sources_and_ordinary_parameter_forwarding_are_preserved ... ok
+test environment_results_reject_local_external_and_temporary_sources ... ok
+test copy_environment_reads_and_address_writes_use_one_actual_slot ... ok
+test live_byte_environment_views_reject_mutation_move_and_drop ... ok
+test mutable_factory_result_allows_next_call_after_last_use ... ok
+test inline_aggregate_projection_and_slice_results_keep_actual_environment_storage ... ok
+test owned_byte_environment_lends_real_storage_and_survives_factory_return ... ok
+test owned_byte_environment_can_mutate_after_prior_result_last_use ... ok
+test shared_factory_result_uses_real_stored_copy_environment ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.25s
+
+
+running 6 tests
+test analyze_bounds_both_public_lending_vectors_before_fingerprinting ... ok
+test raw_and_wire_cannot_erase_result_hold_or_mutate_shared_entry ... ok
+test analyzer_rejects_opaque_lending_mismatch_and_pays_nonempty_metadata ... ok
+test raw_and_wire_keep_owned_payload_write_and_cleanup_obligations ... ok
+test raw_and_wire_reject_consumed_and_by_value_environment_results ... ok
+test raw_and_wire_reconstruct_exact_environment_sources ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
