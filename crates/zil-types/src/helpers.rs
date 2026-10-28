@@ -112,7 +112,7 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
             || bound.generic_name.is_empty()
             || bound.kind == CallableKind::FunctionPointer
             || !closures::supported_signature(&bound.parameters, &bound.result)
-            || (bounds.len() > 1 && !bound.result.is_copy_value())
+            || (bounds.len() > 1 && !owned_state && !bound.result.is_copy_value())
         {
             return Err(reject());
         }
@@ -162,6 +162,19 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
     }
     if !present[0] {
         return Err(reject());
+    }
+    if owned_state
+        && bounds.len() == 2
+        && function.parameters.iter().enumerate().any(|(index, parameter)| {
+            !bounds.iter().any(|bound| bound.index as usize == index)
+                && !(parameter.ty.is_copy_value()
+                    || matches!(&parameter.ty, Type::Managed(_) if resources::supported(&parameter.ty)))
+        })
+    {
+        return Err(unsupported(
+            function.span,
+            "two-input owning State constructors require finite Copy or direct Managed ordinary parameters",
+        ));
     }
     if function.parameters.iter().enumerate().any(|(i,p)|
         !bounds.iter().any(|bound| bound.index as usize == i)
