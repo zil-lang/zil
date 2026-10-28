@@ -377,3 +377,28 @@ fn role_events_have_stage_local_work_limits_and_fresh_retry() {
     let dir = directory("budgets");
     fs::write(dir.join("boundaries.json"),format!("{{\"types\":{types},\"analyze\":{analyze},\"verify\":{verify},\"checks\":\"N, N-1 ResourceLimit, fresh N\"}}\n")).unwrap();
 }
+#[test]
+fn nested_capture_role_binding_pays_work_before_signature_clones() {
+    let source = include_str!("impl196_fixtures/12_nested_second_role_owned_write.zil");
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "nested-budget196.zil", source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let types = boundary(|n| {
+        zil_types::check(
+            &core,
+            &TargetProfile::host_llvm(),
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|_| ())
+    });
+    let dir = directory("nested-capture-budget");
+    fs::write(dir.join("source.zil"), source).unwrap();
+    fs::write(
+        dir.join("boundaries.json"),
+        format!("{{\"types\":{types},\"checks\":\"N, N-1 ResourceLimit, fresh N\"}}\n"),
+    )
+    .unwrap();
+}
