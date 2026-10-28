@@ -719,11 +719,17 @@ fn nested_second_role_mutates_a_captured_callback_and_cleans_its_owner_once() {
     let report = compile(&case, &wrong, None);
     assert_eq!(
         report.status,
-        ResultCategory::SafeReject,
+        ResultCategory::Unsupported,
         "{}",
         report.to_json()
     );
     assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("opaque callable kind adaptation"))
+    );
     let unit = SourceUnit::new(FileId(0), ModuleId(0), "review196.zil", NESTED_CAPTURE);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
