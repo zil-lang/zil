@@ -316,7 +316,10 @@ pub fn infer_program_closures(
                 .core
                 .functions
                 .iter()
-                .map(|f| contains_closure(&f.body, 0, &mut budget))
+                .map(|f| {
+                    contains_closure(&f.body, 0, &mut budget)
+                        .map(|found| found || !f.state_parameters.is_empty())
+                })
                 .collect::<R<Vec<_>>>()
                 .map_err(|e| vec![e])?,
         );
@@ -987,6 +990,12 @@ enum Term {
         shape: Rc<Type>,
         environment: usize,
     },
+    /// Source identities are attached to real field positions, not merged by
+    /// their eventual shared concrete ClosureId.
+    StatePackage {
+        shape: Rc<Type>,
+        fields: Vec<(u32, usize)>,
+    },
     Function(Rc<Signature>),
     /// Nominal receiver already constrained; only valid immediately as a callee.
     Method(Rc<Signature>),
@@ -1020,6 +1029,7 @@ struct Solver<'a, 'b, 'c> {
     factory_terms: BTreeMap<FunctionId, usize>,
     ordinary_return_identity: Option<usize>,
     helper_environments: BTreeMap<String, usize>,
+    state_modes: BTreeMap<usize, CallableKind>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
     enums: &'a BTreeMap<String, Type>,
@@ -1066,6 +1076,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             factory_terms: BTreeMap::new(),
             ordinary_return_identity: None,
             helper_environments: BTreeMap::new(),
+            state_modes: BTreeMap::new(),
             signatures,
             imports,
             enums,
@@ -1081,8 +1092,27 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             this.graph
                 .set_store_parameter(&parameter.name, function.span)?;
         }
+        if let Some(state) = function.state_parameters.first() {
+            state_origins::validate_shape(function)?;
+            for binding in &state.bindings {
+                this.seed_state_environment(
+                    &binding.generic_name,
+                    binding.kind,
+                    &binding.parameters,
+                    &binding.result,
+                    function.id,
+                    function.span,
+                )?;
+            }
+        }
         for (index, parameter) in function.parameters.iter().enumerate() {
-            let term = if let Some(bound) = function
+            let term = if function
+                .state_parameters
+                .first()
+                .is_some_and(|state| state.index as usize == index)
+            {
+                this.known_term(&parameter.ty, parameter.span)?
+            } else if let Some(bound) = function
                 .callable_parameters
                 .iter()
                 .find(|bound| bound.index as usize == index)
@@ -1106,6 +1136,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         .insert(bound.generic_name.clone(), id);
                     id
                 };
+                if callable_fields::template(function)
+                    && function
+                        .callable_parameters
+                        .iter()
+                        .any(|other| other.generic_index != bound.generic_index)
+                {
+                    this.budget.work(1, parameter.span)?;
+                    this.state_modes.insert(id, bound.kind);
+                }
                 if callable_fields::placeholder_package(&parameter.ty, &bound.generic_name) {
                     this.state_term(&parameter.ty, &bound.generic_name, id, parameter.span)?
                 } else {
@@ -1127,6 +1166,73 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         Ok(this)
     }
+    fn seed_state_environment(
+        &mut self,
+        name: &str,
+        kind: CallableKind,
+        parameters: &[Type],
+        result: &Type,
+        identity: zil_base::NodeId,
+        span: Span,
+    ) -> R<()> {
+        let ty = Type::Opaque {
+            identity,
+            hidden: Box::new(Type::FunctionPointer {
+                parameters: parameters.to_vec(),
+                result: Box::new(result.clone()),
+            }),
+        };
+        let Term::Closure(id) = self.known_term(&ty, span)? else {
+            unreachable!()
+        };
+        self.budget.work(name.len().saturating_add(2), span)?;
+        self.helper_environments.insert(name.to_owned(), id);
+        self.state_modes.insert(id, kind);
+        Ok(())
+    }
+
+    fn state_term_many(&mut self, ty: &Type, bindings: &[(String, usize)], span: Span) -> R<Term> {
+        validate_type(ty, 0, span, self.budget)?;
+        let Type::Package { name, fields } = ty else {
+            return Err(unsupported(span, "State requires a complete Package"));
+        };
+        self.budget.work(
+            fields
+                .len()
+                .saturating_mul(bindings.len().saturating_add(2)),
+            span,
+        )?;
+        let mut sources = Vec::new();
+        let mut shape = Vec::new();
+        for (index, (name, ty)) in fields.iter().enumerate() {
+            let binding = if let Type::Named(name) = ty {
+                bindings.iter().find(|(binder, _)| binder == name)
+            } else {
+                None
+            };
+            let ty = if let Some((_, source)) = binding {
+                sources.push((index as u32, *source));
+                Type::Named("$callback".into())
+            } else {
+                ty.clone()
+            };
+            shape.push((name.clone(), ty));
+        }
+        if sources.len() != 2 {
+            return Err(unsupported(
+                span,
+                "State requires both direct callable fields",
+            ));
+        }
+        Ok(Term::StatePackage {
+            shape: Rc::new(Type::Package {
+                name: callable_fields::nominal_base(name).to_owned(),
+                fields: shape,
+            }),
+            fields: sources,
+        })
+    }
+
     fn known_result(&mut self, signature: &Signature, span: Span) -> R<Term> {
         if matches!(signature.result, Type::Opaque { .. }) {
             if let Some(id) = self.factory_terms.get(&signature.concrete_id(span)?) {
@@ -1179,6 +1285,27 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
 
     fn known_term(&mut self, ty: &Type, span: Span) -> R<Term> {
+        if self.helper_environments.len() > 1
+            && let Type::Package { fields, .. } = ty
+        {
+            self.budget.work(
+                fields.len().saturating_mul(self.helper_environments.len()),
+                span,
+            )?;
+            let mut bindings = Vec::new();
+            for (name, id) in &self.helper_environments {
+                if fields
+                    .iter()
+                    .any(|(_, ty)| matches!(ty, Type::Named(n) if n == name))
+                {
+                    self.budget.work(name.len().saturating_add(1), span)?;
+                    bindings.push((name.clone(), *id));
+                }
+            }
+            if bindings.len() == 2 {
+                return self.state_term_many(ty, &bindings, span);
+            }
+        }
         for (name, id) in &self.helper_environments {
             if matches!(ty,Type::Named(n) if n==name) {
                 return Ok(Term::Closure(*id));
@@ -1278,20 +1405,110 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             }
         };
+        self.bind_source_bound(id, bound, argument.span)?;
+        Ok(id)
+    }
+    fn bind_source_bound(&mut self, id: usize, bound: &CoreCallableParameter, span: Span) -> R<()> {
+        if !self.state_modes.is_empty() {
+            self.budget.work(1, span)?;
+            if self
+                .state_modes
+                .get(&id)
+                .is_some_and(|kind| !helpers::compatible(*kind, bound.kind))
+            {
+                return Err(error(
+                    "E-CLOSURE-MODE",
+                    span,
+                    "the State declaration does not provide the requested callable capability",
+                ));
+            }
+        }
         let parameters = self.closures[id].parameters.clone();
         if parameters.len() != bound.parameters.len() {
             return Err(error(
                 "E-CALL-ARITY",
-                argument.span,
+                span,
                 "closure signature differs from callable bound",
             ));
         }
         for (variable, ty) in parameters.into_iter().zip(&bound.parameters) {
-            self.bind(variable, ty, argument.span)?;
+            self.bind(variable, ty, span)?;
         }
-        self.bind(self.closures[id].result, &bound.result, argument.span)?;
-        Ok(id)
+        self.bind(self.closures[id].result, &bound.result, span)?;
+        Ok(())
     }
+
+    fn state_call(
+        &mut self,
+        signature: &Signature,
+        arguments: &[CoreExpr],
+        depth: usize,
+        span: Span,
+    ) -> R<Term> {
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "State helper argument count differs",
+            ));
+        }
+        self.budget.work(
+            signature.callable.len().saturating_add(arguments.len()),
+            span,
+        )?;
+        let mut sources = Vec::new();
+        for (index, (argument, ty)) in arguments.iter().zip(&signature.parameters).enumerate() {
+            if let Some(state) = &signature.state_parameter
+                && state.index as usize == index
+            {
+                let value = self.expr(argument, depth + 1, false)?;
+                let Term::StatePackage { fields, .. } = &value else {
+                    return Err(error(
+                        "E-TYPE-MISMATCH",
+                        argument.span,
+                        "both State field origins are required",
+                    ));
+                };
+                for (declaration, bound) in state.bindings.iter().zip(&signature.callable) {
+                    let id = fields
+                        .iter()
+                        .find(|(field, _)| *field == declaration.fields[0])
+                        .map(|(_, id)| *id)
+                        .ok_or_else(|| {
+                            error(
+                                "E-TYPE-MISMATCH",
+                                argument.span,
+                                "State selector has no source callable",
+                            )
+                        })?;
+                    self.bind_source_bound(id, bound, argument.span)?;
+                    sources.push((bound.generic_name.clone(), id));
+                }
+                let expected = self.state_term_many(ty, &sources, argument.span)?;
+                self.unify(&value, &expected, argument.span)?;
+            } else if let Some(bound) = signature
+                .callable
+                .iter()
+                .find(|bound| bound.index as usize == index)
+            {
+                let id = self.bind_callable_argument(argument, ty, bound, depth + 1)?;
+                sources.push((bound.generic_name.clone(), id));
+            } else {
+                let value = self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                self.bind_term(&value, ty, argument.span)?;
+            }
+        }
+        if matches!(&signature.result, Type::Package { .. })
+            && signature.callable.iter().any(|bound| {
+                callable_fields::placeholder_package(&signature.result, &bound.generic_name)
+            })
+        {
+            self.state_term_many(&signature.result, &sources, span)
+        } else {
+            self.known_result(signature, span)
+        }
+    }
+
     fn fresh(&mut self, domain: u8, literal: bool, span: Span) -> R<Variable> {
         self.budget.work(1, span)?;
         if self.graph.len() >= self.budget.limits.max_nodes {
@@ -1468,6 +1685,29 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     ))
                 }
             }
+            (
+                Term::StatePackage {
+                    shape: a,
+                    fields: af,
+                },
+                Term::StatePackage {
+                    shape: b,
+                    fields: bf,
+                },
+            ) => {
+                validate_type(a, 0, span, self.budget)?;
+                validate_type(b, 0, span, self.budget)?;
+                self.budget.work(af.len().saturating_add(bf.len()), span)?;
+                if a == b && af == bf {
+                    Ok(())
+                } else {
+                    Err(error(
+                        "E-TYPE-MISMATCH",
+                        span,
+                        "State requires the same nominal shape and both field source identities",
+                    ))
+                }
+            }
             (Term::Closure(a), Term::Closure(b)) if a == b => Ok(()),
             (Term::Closure(_), Term::Closure(_)) => Err(error(
                 "E-TYPE-MISMATCH",
@@ -1492,6 +1732,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 | Term::Closure(_)
                 | Term::ClosureArray { .. }
                 | Term::ClosurePackage { .. }
+                | Term::StatePackage { .. }
                 | Term::ClosureAddress(..)
         ) {
             return Err(unsupported(
@@ -1531,6 +1772,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     "E-CAPTURED-FN-POINTER",
                     span,
                     "function pointer conversion requires a closure with no captures",
+                ));
+            }
+            if self.owner.is_some()
+                && binding.owner != self.owner
+                && (matches!(&binding.term, Term::StatePackage { .. })
+                    || matches!(&binding.term, Term::Closure(id) | Term::ClosureAddress(id, _) if self.state_modes.contains_key(id)))
+            {
+                return Err(unsupported(
+                    span,
+                    "capturing a new State declaration source is outside the finite preserved capability profile",
                 ));
             }
             if self.owner.is_some()
@@ -2510,6 +2761,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return self.known_term(&Type::I64, span);
                     }
                     Term::Function(signature) => {
+                        if callable_fields::signature(&signature)
+                            && signature.callable.len() == 2
+                            && signature.callable[0].generic_index
+                                != signature.callable[1].generic_index
+                        {
+                            return self.state_call(&signature, arguments, depth, span);
+                        }
                         if signature.type_parameter.is_some() {
                             return Err(error(
                                 "E-TYPE-APPLICATION",
@@ -2560,6 +2818,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             );
                         }
                         return self.known_result(&signature, span);
+                    }
+                    Term::ClosureAddress(id, _)
+                        if self.state_modes.get(&id) == Some(&CallableKind::FnOnce) =>
+                    {
+                        return Err(error(
+                            "E-CLOSURE-MODE",
+                            span,
+                            "FnOnce State declaration requires an owned callable value",
+                        ));
                     }
                     Term::Closure(id) | Term::ClosureAddress(id, _) => {
                         self.budget.work(self.closures[id].parameters.len(), span)?;
@@ -2686,6 +2953,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 };
                 let object_type =
                     self.projected_base(object, depth + 1, write && !resource_field)?;
+                if let Term::StatePackage { shape, fields } = &object_type {
+                    validate_type(shape, 0, span, self.budget)?;
+                    let (index, field) = aggregates::field(shape, member, span)?;
+                    if let Some((_, source)) = fields.iter().find(|(field, _)| *field == index) {
+                        return Ok(Term::Closure(*source));
+                    }
+                    return self.known_term(
+                        &if write {
+                            field
+                        } else {
+                            packages::projection_type(field)
+                        },
+                        span,
+                    );
+                }
                 if let Term::ClosurePackage { shape, environment } = &object_type {
                     validate_type(shape, 0, span, self.budget)?;
                     let field = aggregates::field(shape, member, span)?.1;
