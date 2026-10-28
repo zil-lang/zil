@@ -2,13 +2,17 @@
 //! Pure ordinary functions are positive controls, so TypeApply stripping cannot
 //! accidentally pass by hiding behind unrelated resource rejection.
 #[path = "../src/ct_program.rs"]
+#[allow(dead_code)]
 mod adapter;
 use std::{
+    cell::Cell,
     fs,
     path::PathBuf,
     sync::atomic::{AtomicUsize, Ordering},
 };
-use zil_base::{FileId, Limits, ModuleId, NodeId, Phase, SourceUnit, TargetProfile};
+use zil_base::{
+    Diagnostic, FileId, Limits, ModuleId, NodeId, Phase, ResultCategory, SourceUnit, TargetProfile,
+};
 use zil_ct::SourceCompiler;
 use zil_ir::*;
 
@@ -135,7 +139,14 @@ fn pure_control_compiles_but_new_type_applications_never_execute_in_ct() {
     let c = Case::new("pure-control");
     c.write("program.txt", format!("{original:#?}"));
     c.write("result.txt", format!("{valid:#?}"));
-    valid.unwrap();
+    let verified =
+        zil_verify::verify_ct_program(valid.unwrap(), &target, &Limits::default()).unwrap();
+    let evaluation = zil_ct::evaluate_program(&verified).unwrap();
+    c.write("evaluation.txt", format!("{evaluation:#?}"));
+    assert_eq!(
+        evaluation.value,
+        zil_ct::CompileTimeValue::Scalar(Constant::I32(7))
+    );
     // A new application is forbidden even around an otherwise pure, concrete
     // callee. Removing the wrapper and executing the callee would be a bypass.
     let mut query = call(&original, "pure");
@@ -209,4 +220,128 @@ fn a_regular_wrapper_cannot_hide_template_or_application_execution() {
         &generic,
         &call(&generic, "wrapper"),
     );
+}
+
+struct ObservedCompiler(Cell<usize>);
+impl SourceCompiler for ObservedCompiler {
+    fn compile(
+        &self,
+        _: &CoreExpr,
+        _: Option<&Type>,
+        _: &Limits,
+    ) -> zil_base::CompileResult<CtProgram> {
+        self.0.set(self.0.get() + 1);
+        Err(vec![Diagnostic::error(
+            Phase::Ct,
+            "E-REVIEW-QUERY-REACHED",
+            None,
+            "independent observer records whether query compilation occurred",
+        )])
+    }
+}
+
+#[test]
+fn raw_application_metadata_is_charged_before_preparing_its_ct_argument() {
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "ct202-order.zil",
+        "fn pure()->i64{return 7}fn sink(n:i64)->i32{return 0}fn main()->i32{return sink(#(pure()))}",
+    );
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let mut core = zil_expand::expand(&unit, &ast).unwrap();
+    let sink = core
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "sink")
+        .unwrap();
+    sink.type_parameters = vec![CoreTypeParameter {
+        index: 0,
+        name: "T".into(),
+        bound: CoreTypeBound::StoreElement,
+    }];
+    let main = core
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let CoreStatementKind::Return(Some(expr)) = &mut main.body.statements[0].kind else {
+        unreachable!()
+    };
+    let CoreExprKind::Call { callee, .. } = &mut expr.kind else {
+        unreachable!()
+    };
+    *callee = Box::new(CoreExpr {
+        id: NodeId(920_001),
+        span: callee.span,
+        kind: CoreExprKind::TypeApply {
+            callee: callee.clone(),
+            type_arguments: vec![Type::Package {
+                name: "RuntimeElement".into(),
+                fields: vec![("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer)))],
+            }],
+        },
+    });
+    let limits = Limits {
+        max_analysis_steps: 2048,
+        ..Limits::default()
+    };
+    for oversized in [false, true] {
+        let case = Case::new(if oversized {
+            "precharge-oversized-type"
+        } else {
+            "precharge-valid-type-query-control"
+        });
+        let mut changed = core.clone();
+        if oversized {
+            let main = changed
+                .functions
+                .iter_mut()
+                .find(|f| f.name == "main")
+                .unwrap();
+            let CoreStatementKind::Return(Some(expr)) = &mut main.body.statements[0].kind else {
+                unreachable!()
+            };
+            let CoreExprKind::Call { callee, .. } = &mut expr.kind else {
+                unreachable!()
+            };
+            let CoreExprKind::TypeApply { type_arguments, .. } = &mut callee.kind else {
+                unreachable!()
+            };
+            type_arguments[0] = Type::Named("wide".repeat(2048));
+        }
+        let observer = ObservedCompiler(Cell::new(0));
+        let result = zil_ct::evaluate_source_constants_with_compiler(
+            &changed,
+            &TargetProfile::host_llvm(),
+            &limits,
+            None,
+            &observer,
+        );
+        case.write("core.txt", format!("{changed:#?}"));
+        case.write("result.txt", format!("{result:#?}"));
+        case.write(
+            "observer.json",
+            format!(
+                "{{\"compiler_calls\":{},\"oversized_type\":{oversized}}}\n",
+                observer.0.get()
+            ),
+        );
+        let errors = result.unwrap_err();
+        if oversized {
+            assert_eq!(observer.0.get(), 0);
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.phase == Phase::Ct && d.category == ResultCategory::ResourceLimit),
+                "{errors:#?}"
+            );
+        } else {
+            assert_eq!(observer.0.get(), 1);
+            assert!(
+                errors.iter().any(|d| d.code == "E-REVIEW-QUERY-REACHED"),
+                "{errors:#?}"
+            );
+        }
+    }
 }
