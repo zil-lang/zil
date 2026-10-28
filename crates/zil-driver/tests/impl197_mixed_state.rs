@@ -435,3 +435,71 @@ fn aggregate_bound_remains_explicitly_outside_the_finite_profile() {
         "generic bound",
     );
 }
+
+#[test]
+fn owning_fnonce_field_consumes_once_and_cleans_the_remaining_state() {
+    let prefix = r#"
+extern "C" fn putchar(x:i32)->i32;
+resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
+package State<T,F>{manages ticket:R;callback:F;value:T}
+fn pack<T:Copy,F:FnOnce()->i32>(callback:F,value:T)->State<T,F>{return State::<T,F>{ticket:R{code:84},callback:callback,value:value}}
+fn make()->impl FnOnce()->i32{let r=R{code:65};return move()=>{let value=give r;return value.code}}
+"#;
+    native(
+        "fnonce-cleanup",
+        &[(
+            "main",
+            &format!(
+                "{prefix}fn run<T:Copy,G:FnOnce()->i32>(state:State<T,G>)->T{{state.callback();return state.value}}fn main()->i32{{return run(pack(make(),7))-7}}"
+            ),
+        )],
+        "AT",
+    );
+    let bad = format!(
+        "{prefix}fn run<T:Copy,G:FnOnce()->i32>(state:State<T,G>)->T{{state.callback();state.callback();return state.value}}fn main()->i32{{return run(pack(make(),7))-7}}"
+    );
+    rejected(
+        "fnonce-reuse",
+        &bad,
+        Phase::Expand,
+        ResultCategory::SafeReject,
+        "callback field used after",
+    );
+}
+
+#[test]
+fn mixed_state_direct_fnmut_field_calls_compose_with_continue_and_break() {
+    native(
+        "state-loop-exits",
+        &[(
+            "main",
+            r#"
+package State<T,F>{manages bytes:ByteBuffer;callback:F;value:T}
+fn pack<T:Copy,F:FnMut(&mut T)->T>(callback:F,value:T)->State<T,F>{return State::<T,F>{bytes:bytes_new(),callback:callback,value:value}}
+fn spin<T:Copy,G:FnMut(&mut T)->T>(state:State<T,G>,count:i32)->T{
+var current=state;var i=0;while i<count{i+=1;if i==2{continue}current.callback(&mut current.value);if i==4{break}}return current.value}
+fn factory()->impl FnMut(&mut i32)->i32{var hits=0;return move(value:&mut i32)=>{hits+=1;*value+=1;return *value}}
+fn main()->i32{return spin(pack(factory(),10),7)-13}
+"#,
+        )],
+        "",
+    );
+}
+
+#[test]
+fn explicit_result_context_can_supply_phantom_copy_data() {
+    native(
+        "expected-state-result",
+        &[(
+            "main",
+            r#"
+package State<T,F>{manages bytes:ByteBuffer;callback:F}
+fn empty<T:Copy,F:Fn()->i32>(callback:F)->State<T,F>{return State::<T,F>{bytes:bytes_new(),callback:callback}}
+fn select<T:Copy,G:Fn()->i32>(callback:G,value:T)->State<T,G>{return empty(callback)}
+fn factory()->impl Fn()->i32{return move()=>7}
+fn main()->i32{let a=select(factory(),i32(1));let b=select(factory(),i64(2));return a.callback()+b.callback()-14}
+"#,
+        )],
+        "",
+    );
+}
