@@ -189,7 +189,7 @@ fn original_positive_probes_reach_verify_unchanged() {
     }
 }
 #[test]
-fn original_alias_and_duplicate_move_probes_reach_security_checks() {
+fn original_exclusive_alias_and_second_role_write_probes_reach_security_checks() {
     for index in [5, 11] {
         let (label, source) = ORIGINALS[index];
         let case = Case::new(label);
@@ -348,6 +348,46 @@ fn multi_role_runtime_loop_has_joint_flow() {
             .any(|node| node.calls.iter().map(|e| e.parameter).collect::<Vec<_>>() == vec![0, 1])
     );
     assert!(c.roles.iter().all(|r| r.kind == CallableKind::FnMut));
+}
+#[test]
+fn nested_helper_second_role_writes_the_actual_owned_environment() {
+    native(
+        "nested-owned-write",
+        &[(
+            "main",
+            include_str!("impl196_fixtures/12_nested_second_role_owned_write.zil"),
+        )],
+        "",
+        0,
+    );
+}
+#[test]
+fn nested_helper_keeps_actual_identity_signature_and_permission_checks() {
+    let cases = [
+        (
+            "nested-same-f-different-id",
+            "fn pair<F:Fn()->i32>(a:&F,b:&F)->i32{return a()+b()}fn make()->impl Fn()->i32{return move()=>{let a=move()=>1;let b=move()=>2;return pair(&a,&b)}}fn main()->i32{let f=make();return f()}",
+        ),
+        (
+            "nested-second-signature",
+            "fn pair<F:Fn()->i32,G:Fn()->i32>(a:&F,b:&G)->i32{return a()+b()}fn make()->impl Fn()->i32{return move()=>{let a=move()=>1;let b=move()=>true;return pair(&a,&b)}}fn main()->i32{let f=make();return f()}",
+        ),
+        (
+            "nested-second-permission",
+            "fn pair<F:Fn()->i32,G:FnMut()->i32>(a:&F,b:&mut G)->i32{return a()+b()}fn make()->impl Fn()->i32{return move()=>{let a=move()=>1;var count=0;var b=()=>{count+=1;return count};return pair(&a,&b)}}fn main()->i32{let f=make();return f()}",
+        ),
+    ];
+    for (label, source) in cases {
+        let case = Case::new(label);
+        let report = compile(&case, &[("main", source)], None);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types);
+    }
 }
 #[test]
 fn each_owned_role_cleans_its_own_uncalled_environment() {
