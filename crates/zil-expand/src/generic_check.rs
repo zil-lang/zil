@@ -65,6 +65,7 @@ pub(super) fn validate_parametric<'l>(
             .collect(),
         moved: BTreeSet::new(),
         store_owners: BTreeSet::new(),
+        store_results: BTreeSet::new(),
         store_origins: BTreeMap::new(),
         invalidated_stores: BTreeSet::new(),
         fresh_stores: BTreeSet::new(),
@@ -78,6 +79,15 @@ pub(super) fn validate_parametric<'l>(
             if parameter.give {
                 state.store_owners.insert(id);
             }
+        } else if let Some((error, _)) = stores::success(&parameter.ty) {
+            stores::copy_error(error, check.nominals, check.budget)?;
+            if !parameter.give {
+                return Err(unsupported(
+                    parameter.span,
+                    "generic Store success parameter requires an explicit give payload mode",
+                ));
+            }
+            state.store_results.insert(id);
         } else if parameter.give && !check.concrete_helper_resource(&parameter.ty) {
             return Err(unsupported(
                 parameter.span,
@@ -88,7 +98,10 @@ pub(super) fn validate_parametric<'l>(
     check
         .traits
         .store_types(&check.result, &check.bounds, &check.variables, check.budget)?;
-    if stores::element(&check.result).is_some() && check.result_mode == zil_ir::PassingMode::Infer {
+    if let Some((error, _)) = stores::success(&check.result) {
+        stores::copy_error(error, check.nominals, check.budget)?;
+    }
+    if stores::carrier(&check.result).is_some() && check.result_mode == zil_ir::PassingMode::Infer {
         return Err(unsupported(
             function.span,
             "generic Store result requires result(create/give)",
@@ -102,8 +115,7 @@ pub(super) fn validate_parametric<'l>(
         }
         FunctionBody::Expression(value) => {
             let result = check.result.clone();
-            check.check_store_return(value, &state)?;
-            let actual = check.expr(value, &mut state, Some(&result), false)?;
+            let actual = check.return_expression(value, &mut state)?;
             if check.callable.is_some() || matches!(group(&result).kind, TypeKind::Error { .. }) {
                 same_return(&actual, &result, value.span, check.budget)?;
             } else {
@@ -266,6 +278,7 @@ fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>, nominals: &BTreeMap<String,
         TypeKind::Impl(_) => false,
         TypeKind::Tuple(ts) => ts.iter().all(|t| known_copy(t, vars, nominals)),
         TypeKind::Array { element, .. } => known_copy(element, vars, nominals),
+        TypeKind::Error { result, .. } if stores::element(result).is_some() => false,
         TypeKind::Error { error, result } => {
             known_copy(error, vars, nominals) && known_copy(result, vars, nominals)
         }
@@ -286,6 +299,9 @@ struct State {
     locals: BTreeMap<String, Local>,
     moved: BTreeSet<usize>,
     store_owners: BTreeSet<usize>,
+    // These locals hold an ordinary affine union, not a direct Managed Store.
+    // Only explicit success modes can establish this fact.
+    store_results: BTreeSet<usize>,
     store_origins: BTreeMap<usize, BTreeSet<usize>>,
     invalidated_stores: BTreeSet<usize>,
     // A new symbolic position is not necessarily a newly created resource.
@@ -346,6 +362,11 @@ impl Check<'_, '_, '_> {
     fn owning_store_expression(&self, expression: &Expr, state: &State) -> bool {
         match &expression.kind {
             ExprKind::Group(inner) => self.owning_store_expression(inner, state),
+            ExprKind::Name(name) => state
+                .locals
+                .get(name)
+                .is_some_and(|local| state.store_results.contains(&local.id)),
+            ExprKind::Try(inner) => self.owning_store_expression(inner, state),
             ExprKind::Unary {
                 op: UnaryOp::Give,
                 operand,
@@ -368,11 +389,7 @@ impl Check<'_, '_, '_> {
                 _ => false,
             },
             ExprKind::Call { callee, .. } => {
-                let callee = match &callee.kind {
-                    ExprKind::TypeApply { callee, .. } => callee.as_ref(),
-                    _ => callee.as_ref(),
-                };
-                let Some(name) = super::super::foreign::bare_name(callee) else {
+                let Some(name) = stores::call_name(callee) else {
                     return false;
                 };
                 if name == "store_new" {
@@ -402,6 +419,10 @@ impl Check<'_, '_, '_> {
         self.tick(expression.span)?;
         match &expression.kind {
             ExprKind::Group(inner) => self.fresh_store_expression(inner, state),
+            ExprKind::Name(name) => Ok(state.locals.get(name).is_some_and(|local| {
+                state.store_results.contains(&local.id) && state.fresh_stores.contains(&local.id)
+            })),
+            ExprKind::Try(inner) => self.fresh_store_expression(inner, state),
             ExprKind::Unary {
                 op: UnaryOp::Give,
                 operand,
@@ -416,11 +437,7 @@ impl Check<'_, '_, '_> {
                         state.fresh_stores.contains(&local.id))))
             }
             ExprKind::Call { callee, .. } => {
-                let callee = match &callee.kind {
-                    ExprKind::TypeApply { callee, .. } => callee.as_ref(),
-                    _ => callee.as_ref(),
-                };
-                let Some(name) = super::super::foreign::bare_name(callee) else {
+                let Some(name) = stores::call_name(callee) else {
                     return Ok(false);
                 };
                 Ok(name == "store_new"
@@ -438,25 +455,36 @@ impl Check<'_, '_, '_> {
             _ => Ok(false),
         }
     }
-    fn check_store_return(&mut self, expression: &Expr, state: &State) -> R<()> {
-        if stores::element(&self.result).is_some()
-            && !self.owning_store_expression(expression, state)
+    fn return_expression(&mut self, expression: &Expr, state: &mut State) -> R<TypeRef> {
+        // Capture the ownership facts before expression evaluation consumes
+        // its source. Looking only at the returned syntax type erases the
+        // distinction between a Store carrier and its Copy description.
+        let owns = self.owning_store_expression(expression, state);
+        let fresh = owns && self.fresh_store_expression(expression, state)?;
+        let expected = self.result.clone();
+        let actual = self.expr(expression, state, Some(&expected), false)?;
+        if let Some((error_type, _)) = stores::success(&expected)
+            && type_key(&actual, self.budget)? == type_key(error_type, self.budget)?
         {
+            // This return injects the Copy error and owns zero success Stores.
+            return Ok(actual);
+        }
+        if stores::carrier(&expected).is_some() && !owns {
             return Err(error(
                 expression.span,
                 "generic Store result requires an actual create/give value, not a descriptor",
             ));
         }
-        if stores::element(&self.result).is_some()
+        if stores::carrier(&expected).is_some()
             && self.result_mode == zil_ir::PassingMode::Create
-            && !self.fresh_store_expression(expression, state)?
+            && !fresh
         {
             return Err(error(
                 expression.span,
                 "generic Store create result requires a fresh source on every returning path",
             ));
         }
-        Ok(())
+        Ok(actual)
     }
     fn store_origins(&mut self, expression: &Expr, state: &State) -> R<BTreeSet<usize>> {
         match &expression.kind {
@@ -673,6 +701,9 @@ impl Check<'_, '_, '_> {
             self.budget.node(self.result.span, 0)?;
         }
         for _ in &state.fresh_stores {
+            self.budget.node(self.result.span, 0)?;
+        }
+        for _ in &state.store_results {
             self.budget.node(self.result.span, 0)?;
         }
         Ok(state.clone())
@@ -1292,12 +1323,16 @@ impl Check<'_, '_, '_> {
                         ));
                     }
                     let element = if name == "store_new" {
-                        expected.and_then(stores::element).cloned().ok_or_else(|| {
-                            error(
-                                e.span,
-                                "store_new requires an explicit Store element context",
-                            )
-                        })?
+                        expected
+                            .and_then(stores::carrier)
+                            .and_then(stores::element)
+                            .cloned()
+                            .ok_or_else(|| {
+                                error(
+                                    e.span,
+                                    "store_new requires an explicit Store element context",
+                                )
+                            })?
                     } else {
                         let store = self.expr(&arguments[0].value, state, None, true)?;
                         stores::element(&store).cloned().ok_or_else(|| {
@@ -1537,7 +1572,9 @@ impl Check<'_, '_, '_> {
                         found.insert(param.name.clone(), ty.clone());
                     }
                 }
-                if let (Some(result), Some(expected)) = (&function.return_type, expected) {
+                if let (Some(result), Some(expected)) = (&function.return_type, expected)
+                    && let Some(expected) = stores::call_context(result, expected)
+                {
                     unify(
                         result,
                         expected,
@@ -1553,7 +1590,7 @@ impl Check<'_, '_, '_> {
                     }
                     let hint = substituted_type(&parameter.ty, &found, self.budget)?;
                     if parameter.give
-                        && stores::element(&hint).is_some()
+                        && stores::carrier(&hint).is_some()
                         && !self.owning_store_expression(&argument.value, state)
                     {
                         return Err(error(
@@ -1803,6 +1840,12 @@ impl Check<'_, '_, '_> {
                     mutable,
                 } => {
                     if let Some(ty) = ty {
+                        if stores::success(ty).is_some() {
+                            return Err(unsupported(
+                                ty.span,
+                                "generic owned Store union locals require a producer-inferred success mode",
+                            ));
+                        }
                         self.traits
                             .store_types(ty, &self.bounds, &self.variables, self.budget)?;
                     }
@@ -1830,10 +1873,28 @@ impl Check<'_, '_, '_> {
                         } else {
                             state.store_origins.insert(local.id, origins);
                         }
+                    } else if let Some((error_type, _)) = stores::success(&local.ty) {
+                        stores::copy_error(error_type, self.nominals, self.budget)?;
+                        if !owns_store {
+                            return Err(error(
+                                value.span,
+                                "generic Store success local requires an actual owning union",
+                            ));
+                        }
+                        state.store_results.insert(local.id);
+                        if fresh_store {
+                            state.fresh_stores.insert(local.id);
+                        }
                     }
                 }
                 StmtKind::Assign { target, op, value } => {
                     let (ty, writable) = self.place(target, state)?;
+                    if stores::success(&ty).is_some() {
+                        return Err(unsupported(
+                            target.span,
+                            "generic owning Store union replacement is not implemented",
+                        ));
+                    }
                     if !writable {
                         return Err(error(target.span, "assignment requires a writable place"));
                     }
@@ -1931,10 +1992,7 @@ impl Check<'_, '_, '_> {
                 StmtKind::Return(value) => {
                     let expected = self.result.clone();
                     let actual = match value {
-                        Some(e) => {
-                            self.check_store_return(e, state)?;
-                            self.expr(e, state, Some(&expected), false)?
-                        }
+                        Some(e) => self.return_expression(e, state)?,
                         None => unit(statement.span),
                     };
                     if self.callable.is_some()
