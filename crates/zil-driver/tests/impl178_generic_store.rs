@@ -526,3 +526,48 @@ fn real_copy_shapes_including_static_foreign_values_remain_elements() {
     );
     native(&[("main", &source)], b"A", 0);
 }
+
+#[test]
+fn actual_generic_calls_do_not_merge_distinct_nominal_elements() {
+    for value in ["other(65)", "Twin{r:R{code:65},n:65}"] {
+        let source = format!(
+            "{MODEL}{HELPERS}package Twin{{manages r:R;n:i32}}fn main(){{let s:Store<Item>=empty();push(s,{value});}}"
+        );
+        let report = check(&[("main", &source)]);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.phase == zil_base::Phase::Expand && d.code == "E-GENERIC-ARGUMENT"),
+            "{}",
+            report.to_json()
+        );
+    }
+    let report = check(&[(
+        "main",
+        "fn wrong<T:StoreElement,U:StoreElement>(s:Store<T>,v:U){store_push(s,v)}fn main(){}",
+    )]);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Expand
+                && d.message.contains("generic body types must agree")),
+        "{}",
+        report.to_json()
+    );
+}
