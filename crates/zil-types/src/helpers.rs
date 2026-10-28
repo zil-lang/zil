@@ -52,6 +52,7 @@ impl Bindings {
 pub(super) struct Template {
     pub function: Rc<CoreFunction>,
     pub snapshot_work: usize,
+    pub store_shapes: bool,
     pub context: Rc<Context>,
     pub public: bool,
 }
@@ -271,13 +272,14 @@ pub(super) fn install(
     for function in &core.functions {
         if !function.callable_parameters.is_empty() {
             validate_template(function)?;
-            let snapshot_work = inference::helper_snapshot_work(function, limits)?;
+            let (snapshot_work, store_shapes) = inference::helper_snapshot_work(function, limits)?;
             state.snapshot(snapshot_work.saturating_mul(2), function.span)?;
             state.helper_templates.insert(
                 (core.module_id, function.id),
                 Template {
                     function: Rc::new(function.clone()),
                     snapshot_work,
+                    store_shapes,
                     public: state.helper_tables[&context.module][&function.name].public,
                     context: context.clone(),
                 },
