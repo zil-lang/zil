@@ -19,5 +19,12 @@
       "sha256": "6c1b1cda1d54109b904bde79195d32e9cbb6eab0045c42254446b63381bc6982"
     }
   },
-  "scope": "Byte-identical review copies. Baseline observations are separate from future 205 acceptance."
+  "scope": "Byte-identical review copies. Baseline observations are separate from future 205 acceptance.",
+  "additional_originals": {
+    "04_single_state_non_t_alias.zil": {
+      "source_commit": "9ecae62a389f5357e62139061e6078e980493fd5",
+      "bytes": 233,
+      "sha256": "7a88eac73129444f5035e476ce4c406beb12b902b37f63bff466dd98f54c718a"
+    }
+  }
 }
