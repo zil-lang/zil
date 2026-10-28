@@ -144,6 +144,47 @@ impl Builder<'_, '_> {
             ty,
         ))
     }
+    pub(super) fn borrow_package_field(
+        &mut self,
+        local: LocalId,
+        index: u32,
+        field: Type,
+        mutable: bool,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let work = inference::type_snapshot_work(&field, span, self.limits)?;
+        self.closures.snapshot(work.saturating_mul(2), span)?;
+        if !field.is_copy_value() && !matches!(field, Type::Closure(_)) {
+            return Err(unsupported(
+                span,
+                "package field addresses require a finite Copy field or concrete callback",
+            ));
+        }
+        if mutable && !self.function.locals[local.0 as usize].mutable {
+            return Err(error(
+                "E-IMMUTABLE-ASSIGNMENT",
+                span,
+                "exclusive field borrow requires a mutable Package position",
+            ));
+        }
+        self.check_owned_array_closure(&field, 1, span)?;
+        let ty = Type::Address {
+            mutable,
+            inner: Box::new(field),
+        };
+        Ok((
+            self.value(
+                InstructionKind::BorrowPackageField {
+                    local,
+                    index,
+                    mutable,
+                },
+                ty.clone(),
+                span,
+            )?,
+            ty,
+        ))
+    }
     /// Locate a write target before evaluating its RHS. Projections retain the
     /// same authority; only an explicit ReborrowAddress creates a child window.
     fn address_place(&mut self, e: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
@@ -269,38 +310,7 @@ impl Builder<'_, '_> {
             }
             CoreExprKind::Member { object, member } => {
                 if let Some((local, index, field)) = self.package_place(e)? {
-                    let work = inference::type_snapshot_work(&field, e.span, self.limits)?;
-                    self.closures.snapshot(work.saturating_mul(2), e.span)?;
-                    if !field.is_copy_value() && !matches!(field, Type::Closure(_)) {
-                        return Err(unsupported(
-                            e.span,
-                            "package field addresses require a finite Copy field or concrete callback",
-                        ));
-                    }
-                    if mutable && !self.function.locals[local.0 as usize].mutable {
-                        return Err(error(
-                            "E-IMMUTABLE-ASSIGNMENT",
-                            e.span,
-                            "exclusive field borrow requires a mutable Package position",
-                        ));
-                    }
-                    self.check_owned_array_closure(&field, 1, e.span)?;
-                    let ty = Type::Address {
-                        mutable,
-                        inner: Box::new(field),
-                    };
-                    return Ok((
-                        self.value(
-                            InstructionKind::BorrowPackageField {
-                                local,
-                                index,
-                                mutable,
-                            },
-                            ty.clone(),
-                            e.span,
-                        )?,
-                        ty,
-                    ));
+                    return self.borrow_package_field(local, index, field, mutable, e.span);
                 }
                 let (address, ty) = self.projection_base(object, mutable)?;
                 let Type::Address { mutable, inner } = ty else {

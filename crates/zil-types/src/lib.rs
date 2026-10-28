@@ -337,6 +337,9 @@ pub fn check(
 struct Builder<'a, 'c> {
     function: TypedFunction,
     helper_bounds: Vec<CoreCallableParameter>,
+    // Owning State specialization removes symbolic parameters, but a direct
+    // field invocation still uses the mode promised by that static interface.
+    state_callable_mode: Option<(ClosureId, CallableKind)>,
     factory_bound: Option<CoreCallableReturn>,
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
@@ -409,6 +412,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 span: f.span,
             },
             helper_bounds: f.callable_parameters.clone(),
+            state_callable_mode: None,
             factory_bound: f.callable_return.clone(),
             signatures,
             imports: None,
@@ -2183,11 +2187,19 @@ impl<'a, 'c> Builder<'a, 'c> {
             _ => None,
         };
         let mut borrowed_callee = None;
+        let field_callee = self.package_callable_callee(callee)?;
         // An owning environment is not a Copy callee value. Shared and
         // Exclusive invocation borrow the actual local; Consume transfers it.
         let captured_once = existing_place.and_then(|local| self.closure_captures.get(&local).cloned())
             .filter(|(_, ty)| matches!(ty, Type::Closure(id) if self.closures.pending[id.0 as usize].callable_kind() == CallableKind::FnOnce));
-        let (mut callee_value, ty) = if let Some((index, ty)) = captured_once {
+        let (mut callee_value, ty) = if let Some((value, id, kind)) = field_callee {
+            if kind == CallableKind::FnOnce {
+                (Some(value), Type::Closure(id))
+            } else {
+                borrowed_callee = Some(value);
+                (None, Type::Closure(id))
+            }
+        } else if let Some((index, ty)) = captured_once {
             existing_place = None;
             (
                 Some(self.value(InstructionKind::TakeCapture { index }, ty.clone(), span)?),
@@ -2239,16 +2251,21 @@ impl<'a, 'c> Builder<'a, 'c> {
                 "called value is not a function pointer or concrete closure",
             ));
         };
-        let kind = self
-            .helper_bounds
-            .iter()
-            .find(|bound| {
-                existing_place == self.function.parameters.get(bound.index as usize).copied()
-            })
-            .map_or_else(
-                || self.closures.pending[id.0 as usize].callable_kind(),
-                |bound| bound.kind,
-            );
+        let kind = field_callee.map_or_else(
+            || {
+                self.helper_bounds
+                    .iter()
+                    .find(|bound| {
+                        existing_place
+                            == self.function.parameters.get(bound.index as usize).copied()
+                    })
+                    .map_or_else(
+                        || self.closures.pending[id.0 as usize].callable_kind(),
+                        |bound| bound.kind,
+                    )
+            },
+            |(_, _, kind)| kind,
+        );
         let owns_resources = self.closures.pending[id.0 as usize].owns_resources();
         let lends = self.lending_closure(&Type::Closure(id))?;
         if lends
