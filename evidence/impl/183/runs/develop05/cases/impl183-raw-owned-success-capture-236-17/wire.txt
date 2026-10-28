@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "owning error-union captures are outside the finite closure profile",
+        span: None,
+        notes: [],
+    },
+]

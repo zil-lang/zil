@@ -64,7 +64,11 @@ type Live = BTreeSet<Place>;
 pub(super) fn owned_error(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. }))
+            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)))
+}
+
+fn managed_success(ty: &Type) -> bool {
+    matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(_)))
 }
 
 fn error(message: &str) -> Vec<Diagnostic> {
@@ -832,13 +836,27 @@ impl Flow<'_> {
                         sources: BTreeSet::new(),
                     });
                 }
-                InstructionKind::MakeErrorUnion { value, .. }
+                InstructionKind::MakeErrorUnion { value, is_error }
                     if out_shape.is_some_and(|s| s.owned) =>
                 {
+                    // Birth belongs to the selected success owner, not to the
+                    // wrapper. A Copy error has no success responsibility.
+                    let birth = if i
+                        .result
+                        .is_some_and(|v| managed_success(&f.values[v.0 as usize]))
+                    {
+                        if *is_error {
+                            BTreeSet::new()
+                        } else {
+                            copied(state, Place::Value(*value), budget)?.birth
+                        }
+                    } else {
+                        BTreeSet::from([Birth::Incoming])
+                    };
                     self.consume(state, *value, check, budget)?;
                     produced = Some(Fact {
                         life: BTreeSet::from([Life::Available]),
-                        birth: BTreeSet::from([Birth::Incoming]),
+                        birth,
                         sources: BTreeSet::new(),
                     });
                 }
@@ -846,11 +864,16 @@ impl Flow<'_> {
                     if !f.values.get(value.0 as usize).is_some_and(owned_error) {
                         return Err(error("TakeErrorUnion requires an owned error-union value"));
                     }
+                    let birth = if managed_success(&f.values[value.0 as usize]) {
+                        copied(state, Place::Value(*value), budget)?.birth
+                    } else {
+                        BTreeSet::from([Birth::Incoming])
+                    };
                     self.consume(state, *value, check, budget)?;
                     if out_shape.is_some_and(|s| s.owned) {
                         produced = Some(Fact {
                             life: BTreeSet::from([Life::Available]),
-                            birth: BTreeSet::from([Birth::Incoming]),
+                            birth,
                             sources: BTreeSet::new(),
                         });
                     }
@@ -1936,12 +1959,13 @@ impl Flow<'_> {
         }
         if let Terminator::Return(value) = f.blocks[b].terminator {
             if let Some(value) = value {
-                if check
-                    && f.result_mode == PassingMode::Create
-                    && copied(state, Place::Value(value), budget)?.birth
-                        != BTreeSet::from([Birth::Created])
-                {
-                    return Err(error("create result forwards an incoming responsibility"));
+                if check && f.result_mode == PassingMode::Create {
+                    let birth = copied(state, Place::Value(value), budget)?.birth;
+                    if birth != BTreeSet::from([Birth::Created])
+                        && !(managed_success(&f.return_type) && birth.is_empty())
+                    {
+                        return Err(error("create result forwards an incoming responsibility"));
+                    }
                 }
                 self.consume(state, value, check, budget)?;
             }

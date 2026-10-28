@@ -1,0 +1,25 @@
+{
+  "status": "Fail",
+  "source_commit": "6771648d00fb1d759063862bf06fa723bd17d9ac",
+  "dirty": "",
+  "cli_sha256": "f2dba1910007eeca2c2732af20a5100796952508436c2c68ef12698d31ac494f",
+  "platform": "linux",
+  "execution": "native",
+  "source_hashes": {
+    "examples/mainline/owned_result183/adapter.zil": "b5aac263341f9dd7cd7db57ba97bca05bd693964efda74be373624e51ac11544",
+    "examples/mainline/owned_result183/factory.zil": "fb8ea734cb416d75797ad985c42b09be1da07a7c83341f9627b7bab8b34775c2",
+    "examples/mainline/owned_result183/main.zil": "b60c074fab80d97ccbfa98e9c1e8706d5ac279e3073a50dd2148cb317d85142d",
+    "examples/mainline/owned_result183/model.zil": "8588c0b28523dfb7d108c0a706e64e0b1d138fa0f65526e55f02fd781b1a0958",
+    "tools/language/183/consumer.py": "41c150a9f866c85231fa19659c0fa9dca4bf70cfa1335fa6f0c679a2882fe777",
+    "tools/language/177/consumer.py": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb",
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5",
+    "tools/language/181/heap_probe.c": "aa078bd0c5247d0ed0bb4baa2dbf56f9c765940b2ef06b248177a12537d5fd03"
+  },
+  "builds": [],
+  "observations": [],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "error_type": "RuntimeError",
+  "error": "O0 compiler rejection: {'status': 'SafeReject', 'phase': 'verify', 'diagnostics': [{'phase': 'verify', 'category': 'SafeReject', 'code': 'E-VERIFY-FOREIGN', 'message': 'a foreign symbol must have exactly one declaration in the module', 'span': {'file': 1, 'start': 11, 'end': 37}, 'notes': []}], 'artifacts': {'candidate': '/workspace/scratch/39be3faa4442/run-logs/183-author/linux-consumer03/O0/phases/candidate.txt', 'core': '/workspace/scratch/39be3faa4442/run-logs/183-author/linux-consumer03/O0/phases/core.txt', 'ct-core': '/workspace/scratch/39be3faa4442/run-logs/183-author/linux-consumer03/O0/phases/ct-core.txt', 'interfaces': '/workspace/scratch/39be3faa4442/run-logs/183-author/linux-consumer03/O0/phases/interfaces.txt', 'source-map': '/workspace/scratch/39be3faa4442/run-logs/183-author/linux-consumer03/O0/phases/source-map.txt', 'syntax': '/workspace/scratch/39be3faa4442/run-logs/183-author/linux-consumer03/O0/phases/syntax.txt', 'typed': '/workspace/scratch/39be3faa4442/run-logs/183-author/linux-consumer03/O0/phases/typed.txt'}, 'input_fingerprint': '340a845fe13429f092664f073b31f4815aa67257e6a119e8ea3f8eb1bc048bdd', 'seconds': 0.054876995, 'cache_hit': False, 'commands': [], 'disk_cache': 'disabled', 'query_events': [{'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'parse', 'disposition': 'executed'}, {'phase': 'expand', 'disposition': 'executed'}, {'phase': 'ct', 'disposition': 'executed'}, {'phase': 'types', 'disposition': 'executed'}, {'phase': 'analyze', 'disposition': 'executed'}, {'phase': 'verify', 'disposition': 'executed'}], 'verification_runs': 1, 'source_files': {'0': '/workspace/scratch/39be3faa4442/language14/wt183/examples/mainline/owned_result183/main.zil', '1': '/workspace/scratch/39be3faa4442/language14/wt183/examples/mainline/owned_result183/model.zil', '2': '/workspace/scratch/39be3faa4442/language14/wt183/examples/mainline/owned_result183/factory.zil', '3': '/workspace/scratch/39be3faa4442/language14/wt183/examples/mainline/owned_result183/adapter.zil'}, 'scalar_interfaces': [{'module': 0, 'signature_fingerprint': 'd677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19', 'implementation_fingerprint': 'b60c074fab80d97ccbfa98e9c1e8706d5ac279e3073a50dd2148cb317d85142d', 'contract_fingerprint': None, 'result_origins': None, 'callable_contracts': None, 'callable_returns': None, 'exports': []}, {'module': 1, 'signature_fingerprint': 'b6e3695f8551a39186515801fcb641eba7d0d5bed1778f5129eb87130653a868', 'implementation_fingerprint': '8588c0b28523dfb7d108c0a706e64e0b1d138fa0f65526e55f02fd781b1a0958', 'contract_fingerprint': None, 'result_origins': None, 'callable_contracts': None, 'callable_returns': None, 'exports': ['item', 'marker', 'score']}, {'module': 2, 'signature_fingerprint': '8a7fbbf519224b2cb66602c9e84e6d1c47fe5dab1977326178dde20147b39270', 'implementation_fingerprint': 'fb8ea734cb416d75797ad985c42b09be1da07a7c83341f9627b7bab8b34775c2', 'contract_fingerprint': None, 'result_origins': None, 'callable_contracts': None, 'callable_returns': None, 'exports': ['buffer', 'store']}, {'module': 3, 'signature_fingerprint': '4a0f11dac0e566e5e6cc0a1f813ce6cc432853b83968d9faa3192977e08629e7', 'implementation_fingerprint': 'b5aac263341f9dd7cd7db57ba97bca05bd693964efda74be373624e51ac11544', 'contract_fingerprint': None, 'result_origins': None, 'callable_contracts': None, 'callable_returns': None, 'exports': ['buffer', 'store']}]}"
+}

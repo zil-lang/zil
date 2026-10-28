@@ -1,0 +1,18 @@
+{
+  "source_commit": "0d19b096b574156b3d54fe3589f1d03e99eb93c2",
+  "dirty": "",
+  "command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-cli",
+    "--bin",
+    "zil",
+    "-j2"
+  ],
+  "exit_code": 101,
+  "elapsed_seconds": 3.3230857849121094,
+  "status": "Fail"
+}

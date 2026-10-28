@@ -1,0 +1,12 @@
+[
+  "python3",
+  "tools/language/183/consumer.py",
+  "--repo",
+  ".",
+  "--cli",
+  "/workspace/scratch/39be3faa4442/targets178/author183-final/debug/zil",
+  "--out",
+  "/workspace/scratch/39be3faa4442/run-logs/183-author/linux-consumer02",
+  "--platform",
+  "linux"
+]

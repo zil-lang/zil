@@ -1,0 +1,1 @@
+import model;pub fn make()->model.E!model.R contract{result(create)}=>model.R{code:65}

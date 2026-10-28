@@ -365,14 +365,14 @@ fn resolve_indexed(
             }
         }
         let raw_result = if matches!(f.result_mode, PassingMode::Create | PassingMode::Give) {
-            Type::Managed(Box::new(f.return_type.clone()))
+            owned_mode_type(&f.return_type)
         } else {
             f.return_type.clone()
         };
         f.return_type = resolver.ty(&raw_result, 0, f.span).map_err(|e| vec![e])?;
         for p in &mut f.parameters {
             let raw = if p.mode == PassingMode::Give {
-                Type::Managed(Box::new(p.ty.clone()))
+                owned_mode_type(&p.ty)
             } else {
                 p.ty.clone()
             };
@@ -407,6 +407,19 @@ fn resolve_indexed(
     core.enums = resolved_enums;
     Ok(core)
 }
+
+/// A source ownership mode selects the direct success resource of a fallible
+/// signature. The outer union remains an ordinary Value, never a Managed head.
+fn owned_mode_type(ty: &Type) -> Type {
+    match ty {
+        Type::ErrorUnion { error, result } => Type::ErrorUnion {
+            error: error.clone(),
+            result: Box::new(Type::Managed(result.clone())),
+        },
+        _ => Type::Managed(Box::new(ty.clone())),
+    }
+}
+
 struct Resolver<'a> {
     callable_names: BTreeSet<String>,
     declarations: BTreeMap<String, &'a CoreAggregate>,
@@ -688,18 +701,17 @@ impl Resolver<'_> {
             } => {
                 let failure = self.ty(failure, depth + 1, span)?;
                 let result = self.ty(result, depth + 1, span)?;
-                if !(failure.is_copy_value() || packages::supported(&failure))
-                    || !(result.is_copy_value() || packages::supported(&result))
-                {
-                    return Err(unsupported(
-                        span,
-                        "error union payloads require finite Copy values or complete owned Packages",
-                    ));
-                }
-                Type::ErrorUnion {
+                let union = Type::ErrorUnion {
                     error: Box::new(failure),
                     result: Box::new(result),
+                };
+                if !errors::supported(&union) {
+                    return Err(unsupported(
+                        span,
+                        "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+                    ));
                 }
+                union
             }
             Type::FunctionPointer { parameters, result } => Type::FunctionPointer {
                 parameters: parameters

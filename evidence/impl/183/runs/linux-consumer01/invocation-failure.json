@@ -1,0 +1,8 @@
+{
+  "status": "Fail",
+  "source_commit": "0d19b096b574156b3d54fe3589f1d03e99eb93c2",
+  "stage": "runner preflight",
+  "reason": "Prior CLI command selected zil-driver package instead of actual zil-cli; no binary was created. Consumer invocation reached missing CLI hash before its report initialization and raised FileNotFoundError. No source compilation or execution occurred.",
+  "observed_missing_path": "/workspace/scratch/39be3faa4442/targets178/author183/debug/zil",
+  "cli_build_receipt": "../cli-build01/command.json"
+}

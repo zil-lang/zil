@@ -1,0 +1,1 @@
+enum E{Fail}fn wrap(give b:ByteBuffer)->E!ByteBuffer contract{result(give)}=>give b;fn main()->i32{let b=bytes_new();bytes_push(b,u8(65));let w=bytes_view(b);let u=wrap(give b);return i32(w[0])-65}

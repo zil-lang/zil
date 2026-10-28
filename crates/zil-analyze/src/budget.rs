@@ -174,6 +174,10 @@ fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
 
 fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
     if let Type::ErrorUnion { error, result } = ty {
+        if matches!(result.as_ref(), Type::Managed(_)) {
+            scalar(error, span)?;
+            return local_value(result, span, module);
+        }
         for payload in [error.as_ref(), result.as_ref()] {
             if matches!(payload, Type::Package { .. }) {
                 local_value(payload, span, module)?;

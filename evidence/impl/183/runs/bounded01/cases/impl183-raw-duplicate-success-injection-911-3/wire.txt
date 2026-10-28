@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-RESOURCE",
+        message: "managed SSA value was not available exactly once",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 103,
+                end: 109,
+            },
+        ),
+        notes: [],
+    },
+]

@@ -1,0 +1,55 @@
+75:     functions: [
+76:         FunctionPlan {
+77:             function: FunctionId(
+78:                 0,
+79:             ),
+80:             blocks: [],
+81:             holds: [],
+82:         },
+83:         FunctionPlan {
+84:             function: FunctionId(
+85:                 1,
+86:             ),
+87:             blocks: [
+98:                 },
+99:             ],
+100:             holds: [
+101:                 ValueHold {
+102:                     value: ValueId(
+103:                         0,
+120:         },
+121:         FunctionPlan {
+122:             function: FunctionId(
+123:                 2,
+124:             ),
+125:             blocks: [
+173:                 },
+174:             ],
+175:             holds: [
+176:                 ValueHold {
+177:                     value: ValueId(
+178:                         0,
+267:         },
+268:         FunctionPlan {
+269:             function: FunctionId(
+270:                 3,
+271:             ),
+272:             blocks: [
+279:                 },
+280:             ],
+281:             holds: [
+282:                 ValueHold {
+283:                     value: ValueId(
+284:                         0,
+295:         },
+296:         FunctionPlan {
+297:             function: FunctionId(
+298:                 4,
+299:             ),
+300:             blocks: [
+403:                 },
+404:             ],
+405:             holds: [
+406:                 ValueHold {
+407:                     value: ValueId(
+408:                         0,
