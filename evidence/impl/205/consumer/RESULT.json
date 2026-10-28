@@ -1,0 +1,256 @@
+{
+  "scope": "205 five-module author consumer, with actual 204 qualified leaf Store captures and complete State replacement",
+  "schema": 27,
+  "normative_hash": "9813f43ee7c86d786f197f0ed4b8e65938ee354d94b2cdaec858e09e7871ce5e",
+  "source_commit": "82c5cc1c366af419f6bf659a1067943e1032a070",
+  "compiler_source_commit": "c0f10092b0013baf78493c632416b719200d4c4a",
+  "compiler_sha256": "d1033b19c58206ad91ae286fc697685b454e2bbde6860ec66a4cfcba36131ca2",
+  "sources": {
+    "factory.zil": "56354be536c9f39998d3d82aa4fecef439b5e7557eec3ac65339f2cbade902da",
+    "main.zil": "18993f6569879d03f27ae0917a5a63e9573d74f0ea6c66f3e816861e8bdb4f3c",
+    "portable.zil": "1c0490e810d48af767d2a9604691739cb963f64cb952ddbdfe3c2877e328e755",
+    "state.zil": "1b3fd7f86ebf94d2755c63a7b6875a85e5f65d11dc6deba20101c60ce7f296a4",
+    "store_helpers.zil": "97d6c0ddffc974912ce6a361903e1967b89c7ca5622f3e933bc6a7de7319e145"
+  },
+  "oracle_initial_commit": "784de34b",
+  "oracle_changes_after_observing_machine_output": false,
+  "initial_oracle_freeze_sha256": "08bde307f17a6c50e47d404b3d907613355a7f7b8476d32d2e3956abc5704dcd",
+  "final_source_oracle_freeze_sha256": "aad97036a27003d22b7dcb78ae02a14b60b2d137cc92d76aafc31bd5b3a199cc",
+  "platforms": [
+    {
+      "status": "Pass",
+      "platform": "linux",
+      "execution": "native",
+      "source_commit": "82c5cc1c366af419f6bf659a1067943e1032a070",
+      "compiler_source_commit": "c0f10092b0013baf78493c632416b719200d4c4a",
+      "cli_sha256": "d1033b19c58206ad91ae286fc697685b454e2bbde6860ec66a4cfcba36131ca2",
+      "executions": 140,
+      "native_executions": 140,
+      "wine_executions": 0,
+      "ordinary_executions": 20,
+      "instrumented_executions": 120,
+      "actual_allocation_failures": 88,
+      "summary_path": "/workspace/scratch/39be3faa4442/run-logs/205-consumer/linux01/summary.json",
+      "summary_sha256": "ca59d7e430d5881c83a6be2bf592b5df9d2eadd8e2af0a6436bf1d4310e6ed6a",
+      "all_final_live_zero": true,
+      "maximum_observed_requested_payload_bytes": 264,
+      "maximum_observed_live_allocations": 4,
+      "builds": [
+        {
+          "optimization": "O0",
+          "verification_runs": 1,
+          "llvm_sha256": "a4d37029d98f735f2fa391b9ed4fdac3b88b54132918ddc551cf02b99e519917",
+          "executable_sha256": "8ee5d9d6d51714781eb2f6f5b6de013de17279bc5beb85f601b0d1e52ce4eda7",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/store_helpers.zil"
+          },
+          "module_count": 5,
+          "allocation_probe_sha256": "d78abfe1c97ca3283902bcd62bd85f3c4812c508ff6b608f993a235e9075d28e"
+        },
+        {
+          "optimization": "O2",
+          "verification_runs": 1,
+          "llvm_sha256": "a4d37029d98f735f2fa391b9ed4fdac3b88b54132918ddc551cf02b99e519917",
+          "executable_sha256": "414e11cd96ebb4c1bce33001bd34c2a490c46b74bde90008caa3f91ad1d463c3",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/store_helpers.zil"
+          },
+          "module_count": 5,
+          "allocation_probe_sha256": "890ff44b2edfbd8689023e8cc39ae6e75c1b1a0a9164ed5c352c33420a653e7a"
+        }
+      ]
+    },
+    {
+      "status": "Pass",
+      "platform": "win64",
+      "execution": "Wine compatibility",
+      "source_commit": "82c5cc1c366af419f6bf659a1067943e1032a070",
+      "compiler_source_commit": "c0f10092b0013baf78493c632416b719200d4c4a",
+      "cli_sha256": "d1033b19c58206ad91ae286fc697685b454e2bbde6860ec66a4cfcba36131ca2",
+      "executions": 140,
+      "native_executions": 0,
+      "wine_executions": 140,
+      "ordinary_executions": 20,
+      "instrumented_executions": 120,
+      "actual_allocation_failures": 88,
+      "summary_path": "/workspace/scratch/39be3faa4442/run-logs/205-consumer/wine02/summary.json",
+      "summary_sha256": "a7769db91a2bdf6a99091ea72d5f935198068d70970eab4305b776ff363b0a3f",
+      "all_final_live_zero": true,
+      "maximum_observed_requested_payload_bytes": 264,
+      "maximum_observed_live_allocations": 4,
+      "builds": [
+        {
+          "optimization": "O0",
+          "verification_runs": 1,
+          "llvm_sha256": "386a15438e2deb6ba732b6838facf142df79e0058e38b3fe63f6a26c4eedc6e0",
+          "executable_sha256": "bfecab58273404225ba7fd60ef14a6b68c0a0b1924e2c891eb6e91dc84d71def",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/store_helpers.zil"
+          },
+          "module_count": 5,
+          "probe_llvm_sha256": "1c540311cbecaede9ea9d04d6c7f8d33e32717c737e0d15e724d407931a7e835",
+          "redirected_symbols": {
+            "HeapAlloc": 2,
+            "HeapReAlloc": 2,
+            "HeapFree": 2,
+            "ExitProcess": 2
+          },
+          "instrumentation": "separate exact external-symbol redirection",
+          "allocation_probe_sha256": "2a9896191babe6ed51aac60bd217ca78c199f7f3682c219bad2c09dd62a5451d"
+        },
+        {
+          "optimization": "O2",
+          "verification_runs": 1,
+          "llvm_sha256": "386a15438e2deb6ba732b6838facf142df79e0058e38b3fe63f6a26c4eedc6e0",
+          "executable_sha256": "e3dbc6c42a01a34e102ea3d8f0960ecb211f77e9c78de1bdc0a1e88b439610a6",
+          "source_files": {
+            "0": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/main.zil",
+            "1": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/factory.zil",
+            "2": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/state.zil",
+            "3": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/portable.zil",
+            "4": "/workspace/scratch/39be3faa4442/language14/review195/examples/mainline/state_replacement205/store_helpers.zil"
+          },
+          "module_count": 5,
+          "probe_llvm_sha256": "1c540311cbecaede9ea9d04d6c7f8d33e32717c737e0d15e724d407931a7e835",
+          "redirected_symbols": {
+            "HeapAlloc": 2,
+            "HeapReAlloc": 2,
+            "HeapFree": 2,
+            "ExitProcess": 2
+          },
+          "instrumentation": "separate exact external-symbol redirection",
+          "allocation_probe_sha256": "c7b610c19788836a743ba1fa74b575578280ad0be56fbc6c58db83a7a214a365"
+        }
+      ]
+    }
+  ],
+  "normal_input_output": [
+    {
+      "name": "reverse-update",
+      "input": "0",
+      "stdout": "NANBNCCPaQCBCLZS333c2b",
+      "exit": 0
+    },
+    {
+      "name": "event-update",
+      "input": "1",
+      "stdout": "NANBABNCCP1aQCBCLZS333c22b",
+      "exit": 0
+    },
+    {
+      "name": "synchronous-cancel",
+      "input": "2",
+      "stdout": "NANBABNCCK3cABALZS111a22b",
+      "exit": 0
+    },
+    {
+      "name": "label-preparation-failure",
+      "input": "3",
+      "stdout": "NANBESabZ",
+      "exit": 1
+    },
+    {
+      "name": "last-argument-failure",
+      "input": "4",
+      "stdout": "NANBNCEcSabZ",
+      "exit": 1
+    },
+    {
+      "name": "reverse-argument-failure",
+      "input": "5",
+      "stdout": "NANBNCESabcZ",
+      "exit": 1
+    },
+    {
+      "name": "consume-then-refill",
+      "input": "6",
+      "stdout": "NANBNCCUA1aVQCBCLZS333c2b",
+      "exit": 0
+    },
+    {
+      "name": "continue-break-update",
+      "input": "7",
+      "stdout": "NANBABABABNCCP111aQCBCLZS333c2222b",
+      "exit": 0
+    },
+    {
+      "name": "invalid-input",
+      "input": "9",
+      "stdout": "",
+      "exit": 9
+    },
+    {
+      "name": "eof",
+      "input": "",
+      "stdout": "",
+      "exit": 9
+    }
+  ],
+  "runtime_layout": {
+    "Item": 8,
+    "Bag": 32,
+    "Closure": 40,
+    "State": 104,
+    "evidence_sha256": "afb28193e9cb77ad45cec50750f275e6df76afb7b2c0ac54842738f6d5f4a77f"
+  },
+  "actual_combinations": [
+    "three distinct same-F environments own separate leaf Store/Managed Ticket/counter",
+    "full State through ordinary identity/seed/pop/push/reserve plus real shared and mutable element windows",
+    "replacement prepared and warmed before old callback cleanup; P-old-A-Q order",
+    "synchronous cancellation branch K preserves original State and drops prepared C",
+    "three different Copy argument preparation failures before or after replacement factory, preserving actual argument order cleanup",
+    "weak FnOnce consumes actual FnMut old field before V; replacement return retains caller actual FnMut use",
+    "zero/one/continue/break event paths and every real allocation failure point"
+  ],
+  "wine_environment": {
+    "WINEPREFIX": "/workspace/scratch/39be3faa4442/toolchains178/wine-prefix-review181",
+    "WINESERVER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wineserver",
+    "WINELOADER": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+    "WINEDEBUG": "-all",
+    "TMPDIR": null
+  },
+  "wine_child_environment": {
+    "LD_LIBRARY_PATH": "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/x86_64-linux-gnu"
+  },
+  "earlier_failures": [
+    {
+      "path": "source01",
+      "compiler_source": "eed44b700d46e0e34b46506f39c6385e12ea0f5a",
+      "result": "Expand SafeReject on missing single-F actual producer fact; Verify0/native0",
+      "preserved": true
+    },
+    {
+      "path": "producer01",
+      "result": "same four imported modules; pack-only Expand Success, adding identity(initial) same rejection; no Verify/native",
+      "preserved": true
+    },
+    {
+      "path": "root:205-root/consumer-source03",
+      "result": "root CLI03 Types E-IMMUTABLE-ASSIGNMENT; consumer bag was let while its counter writes require var; root executed, not this author",
+      "correction": "82c5 changes only let bag→var bag; original source in Git/first source archive, root keeps original command"
+    },
+    {
+      "path": "wine01",
+      "result": "Win64 O0 build/Verify success; first Wine start failed local IPC bind Operation not permitted inside sandbox, no accepted ZIL runtime observations",
+      "preserved": true,
+      "resolution": "wine02 uses authorized host Wine IPC with identical source/CLI/oracle/prefix"
+    }
+  ],
+  "full_workspace": "NotRun by this author; integration owner reports separately",
+  "native_windows": "NotRun",
+  "product": "NotRun",
+  "full_language": "NotSatisfied",
+  "performance": "Allocation payload counts/bytes are behavioral evidence, not RSS, timing or a comparison with Rust."
+}
