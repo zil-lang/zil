@@ -173,5 +173,12 @@
     "new_slice204_errors": 2,
     "receipt": "handoff01/command.json",
     "cause": "Two acceptance-reference formatting mistakes subsequently corrected; original historical missing-record errors retained."
+  },
+  "historical_handoff": {
+    "status": "Fail",
+    "errors": 1138,
+    "new_slice_errors_178_through_204": 0,
+    "receipt": "handoff02/command.json",
+    "scope": "Historical record integrity, not compiler validation; inherited missing commits/evidence retained as Fail."
   }
 }
