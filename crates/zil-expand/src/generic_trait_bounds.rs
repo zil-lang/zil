@@ -137,10 +137,12 @@ impl<'a> Index<'a> {
     }
 
     pub(super) fn bounds(&self, function: &Function, budget: &mut Budget<'_>) -> R<Bounds> {
-        if callable::template(function)?.is_some() {
-            return Ok(Bounds::new());
-        }
-        self.parameter_bounds(&function.generics, budget)
+        let callable = callable::template(function)?;
+        self.parameter_bounds_except(
+            &function.generics,
+            budget,
+            callable.as_ref().map(|bound| bound.generic_name.as_str()),
+        )
     }
 
     pub(super) fn parameter_bounds(
@@ -148,13 +150,39 @@ impl<'a> Index<'a> {
         parameters: &[GenericParam],
         budget: &mut Budget<'_>,
     ) -> R<Bounds> {
+        self.parameter_bounds_except(parameters, budget, None)
+    }
+
+    fn parameter_bounds_except(
+        &self,
+        parameters: &[GenericParam],
+        budget: &mut Budget<'_>,
+        retained: Option<&str>,
+    ) -> R<Bounds> {
         let mut result = Bounds::new();
         for parameter in parameters {
+            if retained == Some(parameter.name.as_str()) {
+                continue;
+            }
             let GenericParamKind::Type(bounds) = &parameter.kind else {
                 continue;
             };
             let mut names = Vec::new();
             for bound in bounds {
+                if copy::is_bound(bound) {
+                    budget.ty(bound)?;
+                    if parameters.iter().any(|p| p.name == copy::BOUND) {
+                        return Err(error(
+                            bound.span,
+                            "Copy bound resolves to a shadowing type parameter",
+                        ));
+                    }
+                    if names.iter().any(|name| name == copy::BOUND) {
+                        return Err(error(bound.span, "duplicate Copy bound"));
+                    }
+                    names.push(copy::BOUND.to_owned());
+                    continue;
+                }
                 if stores::is_bound(bound) {
                     budget.ty(bound)?;
                     if names.iter().any(|name| name == stores::BOUND) {
@@ -192,12 +220,23 @@ impl<'a> Index<'a> {
         variables: &BTreeSet<String>,
         budget: &mut Budget<'_>,
         span: Span,
+        retained: Option<&str>,
     ) -> R<()> {
         for parameter in parameters {
+            if retained == Some(parameter.name.as_str()) {
+                continue;
+            }
             let GenericParamKind::Type(bounds) = &parameter.kind else {
                 continue;
             };
             for bound in bounds {
+                if copy::is_bound(bound) {
+                    let actual = found
+                        .get(&parameter.name)
+                        .ok_or_else(|| error(span, "Copy argument has no unique symbolic type"))?;
+                    copy::require(actual, &self.nominals, available, variables, budget)?;
+                    continue;
+                }
                 if stores::is_bound(bound) {
                     let actual = found.get(&parameter.name).ok_or_else(|| {
                         error(span, "StoreElement argument has no unique symbolic type")
@@ -248,7 +287,7 @@ impl<'a> Index<'a> {
         let mut selected = None;
         for trait_name in bounds.get(variable).into_iter().flatten() {
             budget.node(span, 0)?;
-            if trait_name == stores::BOUND {
+            if trait_name == stores::BOUND || trait_name == copy::BOUND {
                 continue;
             }
             let (_, declaration) = self.declarations[trait_name.as_str()];

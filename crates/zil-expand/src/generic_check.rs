@@ -346,6 +346,27 @@ struct Check<'s, 'b, 'l> {
     budget: &'b mut Budget<'l>,
 }
 impl Check<'_, '_, '_> {
+    fn known_copy(&mut self, ty: &TypeRef) -> R<bool> {
+        if known_copy(ty, &self.variables, self.nominals) {
+            return Ok(true);
+        }
+        if !dependent(ty, &self.variables) {
+            return Ok(false);
+        }
+        match copy::require(
+            ty,
+            self.nominals,
+            &self.bounds,
+            &self.variables,
+            self.budget,
+        ) {
+            Ok(()) => Ok(true),
+            Err(diagnostic) if diagnostic.category == zil_base::ResultCategory::ResourceLimit => {
+                Err(diagnostic)
+            }
+            Err(_) => Ok(false),
+        }
+    }
     fn concrete_helper_resource(&self, ty: &TypeRef) -> bool {
         if self.callable.is_none() || dependent(ty, &self.variables) {
             return false;
@@ -1293,9 +1314,7 @@ impl Check<'_, '_, '_> {
                     .as_ref()
                     .is_some_and(|bound| bound.owned_state)
                     && self.package_local(e, state).is_some();
-                if !borrowing
-                    && (!known_copy(&ty, &self.variables, self.nominals) || owning_package)
-                {
+                if !borrowing && (!self.known_copy(&ty)? || owning_package) {
                     for ((owner, _), field) in &self.package_slots {
                         self.budget.node(e.span, 0)?;
                         if *owner == id && state.moved.contains(field) {
@@ -1467,7 +1486,7 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Index { object, .. } => {
                 let (ty, _) = self.place(e, state)?;
-                if !borrowing && !known_copy(&ty, &self.variables, self.nominals) {
+                if !borrowing && !self.known_copy(&ty)? {
                     // Existing concrete owning arrays transfer complete Package
                     // elements, and Copy-member reads project without a move.
                     // A reference to such an array grants neither operation by
@@ -1542,7 +1561,7 @@ impl Check<'_, '_, '_> {
                 let TypeKind::Reference { inner, .. } = &group(&ty).kind else {
                     return Err(error(e.span, "dereference requires an address"));
                 };
-                if !borrowing && !known_copy(inner, &self.variables, self.nominals) {
+                if !borrowing && !self.known_copy(inner)? {
                     return Err(needs_bound());
                 }
                 Ok(*inner.clone())
@@ -1954,7 +1973,8 @@ impl Check<'_, '_, '_> {
                 if variables.iter().any(|name| !found.contains_key(name)) {
                     return Err(error(e.span, "unconstrained nested generic argument"));
                 }
-                if let Some(callee) = callable::template(function)? {
+                let callable = callable::template(function)?;
+                if let Some(callee) = &callable {
                     let actual = &found[&callee.generic_name];
                     let (kind, parameters, result) = if let Some(caller) = &self.callable
                         && callable::parameter_mode(actual, &caller.generic_name) == Some(None)
@@ -1984,19 +2004,21 @@ impl Check<'_, '_, '_> {
                         ));
                     }
                     for (actual, expected) in parameters.iter().zip(&callee.parameters) {
-                        same(actual, expected, e.span, self.budget)?;
+                        let expected = substituted_type(expected, &found, self.budget)?;
+                        same(actual, &expected, e.span, self.budget)?;
                     }
-                    same(result, &callee.result, e.span, self.budget)?;
-                } else {
-                    self.traits.check_arguments(
-                        &function.generics,
-                        &found,
-                        &self.bounds,
-                        &self.variables,
-                        self.budget,
-                        e.span,
-                    )?;
+                    let expected = substituted_type(&callee.result, &found, self.budget)?;
+                    same(result, &expected, e.span, self.budget)?;
                 }
+                self.traits.check_arguments(
+                    &function.generics,
+                    &found,
+                    &self.bounds,
+                    &self.variables,
+                    self.budget,
+                    e.span,
+                    callable.as_ref().map(|bound| bound.generic_name.as_str()),
+                )?;
                 match &function.return_type {
                     Some(result) => substituted_type(result, &found, self.budget),
                     None => Ok(unit(e.span)),
@@ -2113,9 +2135,7 @@ impl Check<'_, '_, '_> {
                     substitutions.insert(p.name.clone(), ty.clone());
                 }
                 let ty = substituted_type(&field.ty, &substitutions, self.budget)?;
-                if through_address
-                    && (field.manages || !known_copy(&ty, &self.variables, self.nominals))
-                {
+                if through_address && (field.manages || !self.known_copy(&ty)?) {
                     return Err(unsupported(
                         e.span,
                         "generic address field reads require a proven Copy projection",

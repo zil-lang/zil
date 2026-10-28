@@ -16,6 +16,8 @@ mod aliases;
 mod bytes;
 #[path = "generic_callable.rs"]
 pub(super) mod callable;
+#[path = "generic_copy.rs"]
+mod copy;
 #[path = "generic_enum.rs"]
 mod enums;
 #[path = "generic_helper_graph.rs"]
@@ -43,6 +45,17 @@ pub(super) fn specialize<'a>(
                 "StoreElement is a compiler shape bound and cannot be implemented",
             )]);
         }
+        if let ItemKind::Impl(implementation) = &item.kind
+            && implementation
+                .trait_type
+                .as_ref()
+                .is_some_and(copy::is_bound)
+        {
+            return Err(vec![error(
+                item.span,
+                "Copy is a compiler structural bound and cannot be implemented",
+            )]);
+        }
         let declared = match &item.kind {
             ItemKind::Aggregate(a) => Some(a.name.as_str()),
             ItemKind::Enum(e) => Some(e.name.as_str()),
@@ -54,6 +67,12 @@ pub(super) fn specialize<'a>(
             declared.filter(|n| super::byte_buffer_name(n) || super::owned_store_name(n))
         {
             return Err(vec![super::primitive_name_error(name, item.span)]);
+        }
+        if declared.is_some_and(copy::reserved_name) {
+            return Err(vec![error(
+                item.span,
+                "Copy is a reserved structural capability name",
+            )]);
         }
         for param in params(item) {
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
@@ -311,7 +330,8 @@ impl<'a> Engine<'a> {
         };
         for item in &module.items {
             if params(item).is_empty()
-                || matches!(&item.kind, ItemKind::Function(f) if callable::template(f)?.is_some())
+                || matches!(&item.kind, ItemKind::Function(f)
+                    if callable::template(f)?.is_some() && f.generics.len() == 1)
             {
                 self.budget.item(item)?;
                 self.pending.push_back(item.clone());
@@ -335,7 +355,18 @@ impl<'a> Engine<'a> {
             .iter()
             .map(|ty| self.original_type(ty))
             .collect::<R<Vec<_>>>()?;
-        let parameters = params(item);
+        let retained = match &item.kind {
+            ItemKind::Function(function) => callable::template(function)?,
+            _ => None,
+        };
+        let parameters: Vec<_> = params(item)
+            .iter()
+            .filter(|p| {
+                retained
+                    .as_ref()
+                    .is_none_or(|bound| p.name != bound.generic_name)
+            })
+            .collect();
         if parameters.len() != arguments.len() {
             return Err(error(
                 span,
@@ -383,12 +414,13 @@ impl<'a> Engine<'a> {
             .map(|(p, ty)| (p.name.clone(), ty))
             .collect();
         self.traits.check_arguments(
-            parameters,
+            params(item),
             &substitution,
             &trait_bounds::Bounds::new(),
             &BTreeSet::new(),
             &mut self.budget,
             span,
+            retained.as_ref().map(|bound| bound.generic_name.as_str()),
         )?;
         self.budget.substituted_item(item, &substitution)?;
         let mut instance = item.clone();
@@ -396,7 +428,11 @@ impl<'a> Engine<'a> {
         self.budget.item(&instance)?;
         match &mut instance.kind {
             ItemKind::Function(f) => {
-                f.generics.clear();
+                f.generics.retain(|parameter| {
+                    retained
+                        .as_ref()
+                        .is_some_and(|bound| parameter.name == bound.generic_name)
+                });
                 f.name.clone_from(&generated);
                 self.signatures
                     .insert(generated.clone(), Cow::Owned(f.clone()));
@@ -1190,6 +1226,58 @@ impl<'a> Engine<'a> {
                             if function.params.len() != actual.len() {
                                 return Err(error(e.span, "callable helper arity mismatch"));
                             }
+                            if function.generics.len() > 1 {
+                                let variables: BTreeSet<_> = function
+                                    .generics
+                                    .iter()
+                                    .filter(|p| p.name != callable.generic_name)
+                                    .map(|p| p.name.clone())
+                                    .collect();
+                                let mut found = BTreeMap::new();
+                                if let (Some(result), Some(expected)) =
+                                    (&function.return_type, expected)
+                                {
+                                    let expected = self.original_type(expected)?;
+                                    unify(
+                                        result,
+                                        &expected,
+                                        &variables,
+                                        &mut found,
+                                        e.span,
+                                        &mut self.budget,
+                                    )?;
+                                }
+                                for (index, (parameter, actual)) in
+                                    function.params.iter().zip(actual).enumerate()
+                                {
+                                    if index == callable.index {
+                                        continue;
+                                    }
+                                    let actual = actual.ok_or_else(|| {
+                                        error(
+                                            e.span,
+                                            "ordinary Copy type argument cannot be inferred",
+                                        )
+                                    })?;
+                                    let actual = self.original_type(&actual)?;
+                                    unify_argument(
+                                        &parameter.ty,
+                                        &actual,
+                                        &variables,
+                                        &mut found,
+                                        e.span,
+                                        &mut self.budget,
+                                    )?;
+                                }
+                                let types = function.generics.iter()
+                                    .filter(|p| p.name != callable.generic_name)
+                                    .map(|p| found.get(&p.name).cloned().ok_or_else(|| error(e.span,
+                                        format!("Copy type parameter {} has no unique constraint", p.name))))
+                                    .collect::<R<Vec<_>>>()?;
+                                let instance = self.instantiate(&target, types, e.span)?;
+                                callee.kind = ExprKind::Name(instance.clone());
+                                return self.signature_result(&instance);
+                            }
                             if callable.owned_state
                                 && let (Some(hints), Some(result)) = (&hints, &function.return_type)
                                 && let Some(mut result) = hints.symbolic_result(
@@ -1883,6 +1971,13 @@ fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -
     let visitor = Substitution { substitutions };
     match &mut item.kind {
         ItemKind::Function(f) => {
+            for parameter in &mut f.generics {
+                if let GenericParamKind::Type(bounds) = &mut parameter.kind {
+                    for bound in bounds {
+                        visitor.ty(bound);
+                    }
+                }
+            }
             for p in &mut f.params {
                 visitor.ty(&mut p.ty);
             }
