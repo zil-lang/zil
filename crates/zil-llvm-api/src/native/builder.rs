@@ -142,11 +142,12 @@ struct Construction<'a> {
     module: &'a Module,
     builder: Builder,
     types: BTreeMap<m::Ty, Handle>,
-    globals: BTreeMap<String, Handle>,
-    locals: BTreeMap<String, Handle>,
-    blocks: BTreeMap<String, Handle>,
+    globals: BTreeMap<&'a str, Handle>,
+    function_types: BTreeMap<&'a str, Handle>,
+    locals: BTreeMap<&'a str, Handle>,
+    blocks: BTreeMap<&'a str, Handle>,
 }
-impl Construction<'_> {
+impl<'a> Construction<'a> {
     fn ty(&mut self, ty: &m::Ty) -> Result<Handle, Error> {
         if let Some(&raw) = self.types.get(ty) {
             return Ok(raw);
@@ -189,11 +190,11 @@ impl Construction<'_> {
             Ok(match v {
                 m::Val::Local(n) => *self
                     .locals
-                    .get(n)
+                    .get(n.as_str())
                     .ok_or_else(|| error(ErrorKind::Verify, format!("unbuilt SSA %{n}")))?,
                 m::Val::Global(n) => *self
                     .globals
-                    .get(n)
+                    .get(n.as_str())
                     .ok_or_else(|| error(ErrorKind::Verify, format!("unbuilt symbol @{n}")))?,
                 m::Val::Int(n) => LLVMConstInt(self.ty(ty)?, *n as u64, 0),
                 m::Val::Bool(b) => LLVMConstInt(self.ty(ty)?, u64::from(*b), 0),
@@ -276,9 +277,9 @@ impl Construction<'_> {
         }
         Ok(())
     }
-    fn emit(&mut self, inst: &m::Inst) -> Result<Handle, Error> {
-        let name = cstring(inst.result.as_deref().unwrap_or(""))?;
-        let n = name.as_ptr();
+    fn emit(&mut self, inst: &'a m::Inst) -> Result<Handle, Error> {
+        let name = inst.result.as_deref().map(cstring).transpose()?;
+        let n = name.as_ref().map_or(c"".as_ptr(), |name| name.as_ptr());
         let b = self.builder.0;
         // SAFETY: the whole module has passed type/SSA/CFG preflight. The
         // dependency schedule makes operands available before use. Index and
@@ -392,18 +393,32 @@ impl Construction<'_> {
                     args,
                     vararg,
                 } => {
-                    let params = if let Some(types) = vararg {
-                        types.clone()
+                    // Direct calls reuse the exact declared LLVM function type.
+                    // Machine preflight has already checked every argument and ABI attribute.
+                    let t = if let m::Val::Global(name) = callee {
+                        *self
+                            .function_types
+                            .get(name.as_str())
+                            .ok_or_else(|| error(ErrorKind::Verify, "missing declared call type"))?
                     } else {
-                        args.iter().map(|a| a.ty.clone()).collect()
+                        let result = self.ty(result)?;
+                        let mut params = if let Some(types) = vararg {
+                            types
+                                .iter()
+                                .map(|t| self.ty(t))
+                                .collect::<Result<Vec<_>, _>>()?
+                        } else {
+                            args.iter()
+                                .map(|a| self.ty(&a.ty))
+                                .collect::<Result<Vec<_>, _>>()?
+                        };
+                        LLVMFunctionType(
+                            result,
+                            params.as_mut_ptr(),
+                            params.len() as u32,
+                            i32::from(vararg.is_some()),
+                        )
                     };
-                    let sig = m::Signature {
-                        result: result.clone(),
-                        result_attrs: result_attrs.clone(),
-                        params: params.into_iter().map(m::Param::unnamed).collect(),
-                        variadic: vararg.is_some(),
-                    };
-                    let t = self.signature(&sig)?;
                     let callee = self.value(callee, &m::Ty::Ptr)?;
                     let mut values = args
                         .iter()
@@ -418,12 +433,12 @@ impl Construction<'_> {
                     call
                 }
                 m::Op::Phi { ty, .. } => LLVMBuildPhi(b, self.ty(ty)?, n),
-                m::Op::Branch(target) => LLVMBuildBr(b, self.blocks[target]),
+                m::Op::Branch(target) => LLVMBuildBr(b, self.blocks[target.as_str()]),
                 m::Op::CondBranch { condition, yes, no } => LLVMBuildCondBr(
                     b,
                     self.value(condition, &m::Ty::Int(1))?,
-                    self.blocks[yes],
-                    self.blocks[no],
+                    self.blocks[yes.as_str()],
+                    self.blocks[no.as_str()],
                 ),
                 m::Op::Return(None) => LLVMBuildRetVoid(b),
                 m::Op::Return(Some(a)) => LLVMBuildRet(b, self.value(&a.value, &a.ty)?),
@@ -434,13 +449,13 @@ impl Construction<'_> {
             return Err(error(ErrorKind::Emit, "LLVMBuilder returned NULL"));
         }
         if let Some(name) = &inst.result {
-            self.locals.insert(name.clone(), out);
+            self.locals.insert(name.as_str(), out);
         }
         Ok(out)
     }
     fn function(
         &mut self,
-        f: &m::Function,
+        f: &'a m::Function,
         schedule: &[(usize, usize)],
         cancelled: &(dyn Fn() -> bool + Sync),
     ) -> Result<(), Error> {
@@ -449,7 +464,7 @@ impl Construction<'_> {
         };
         self.locals.clear();
         self.blocks.clear();
-        let function = self.globals[&f.name];
+        let function = self.globals[f.name.as_str()];
         for (i, p) in f.signature.params.iter().enumerate() {
             let name = p
                 .name
@@ -460,7 +475,7 @@ impl Construction<'_> {
             unsafe {
                 LLVMSetValueName2(value, name.as_ptr().cast(), name.len());
             }
-            self.locals.insert(name.to_owned(), value);
+            self.locals.insert(name, value);
         }
         for block in blocks {
             let name = cstring(&block.name)?;
@@ -469,12 +484,12 @@ impl Construction<'_> {
             if raw.is_null() {
                 return Err(error(ErrorKind::Emit, "LLVM block creation failed"));
             }
-            self.blocks.insert(block.name.clone(), raw);
+            self.blocks.insert(block.name.as_str(), raw);
         }
         let mut phis = vec![];
         for block in blocks {
             unsafe {
-                LLVMPositionBuilderAtEnd(self.builder.0, self.blocks[&block.name]);
+                LLVMPositionBuilderAtEnd(self.builder.0, self.blocks[block.name.as_str()]);
             }
             for inst in &block.instructions {
                 if let m::Op::Phi { ty, incoming } = &inst.op {
@@ -490,7 +505,7 @@ impl Construction<'_> {
                 check(cancelled)?;
             }
             unsafe {
-                LLVMPositionBuilderAtEnd(self.builder.0, self.blocks[&blocks[b].name]);
+                LLVMPositionBuilderAtEnd(self.builder.0, self.blocks[blocks[b].name.as_str()]);
             }
             self.emit(&blocks[b].instructions[j])?;
         }
@@ -500,7 +515,7 @@ impl Construction<'_> {
             let mut predecessors = vec![];
             for (v, block) in incoming {
                 values.push(self.value(v, ty)?);
-                predecessors.push(self.blocks[block]);
+                predecessors.push(self.blocks[block.as_str()]);
             }
             unsafe {
                 LLVMAddIncoming(
@@ -544,6 +559,7 @@ pub(super) fn build(
         builder,
         types: BTreeMap::new(),
         globals: BTreeMap::new(),
+        function_types: BTreeMap::new(),
         locals: BTreeMap::new(),
         blocks: BTreeMap::new(),
     };
@@ -584,7 +600,8 @@ pub(super) fn build(
                 for (i, p) in f.signature.params.iter().enumerate() {
                     state.attributes(raw, (i + 1) as u32, &p.attrs, false)?;
                 }
-                state.globals.insert(f.name.clone(), raw);
+                state.globals.insert(f.name.as_str(), raw);
+                state.function_types.insert(f.name.as_str(), ty);
             }
             m::Item::Global(g) => {
                 let name = cstring(&g.name)?;
@@ -600,7 +617,7 @@ pub(super) fn build(
                         LLVMSetAlignment(raw, g.alignment);
                     }
                 }
-                state.globals.insert(g.name.clone(), raw);
+                state.globals.insert(g.name.as_str(), raw);
             }
             _ => {}
         }
@@ -611,7 +628,7 @@ pub(super) fn build(
         {
             let value = state.value(value, &g.ty)?;
             unsafe {
-                LLVMSetInitializer(state.globals[&g.name], value);
+                LLVMSetInitializer(state.globals[g.name.as_str()], value);
             }
         }
     }

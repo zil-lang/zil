@@ -423,30 +423,37 @@ impl Op {
             Self::Branch(_) | Self::CondBranch { .. } | Self::Return(_) | Self::Unreachable
         )
     }
-    pub fn values(&self) -> Vec<&Val> {
-        match self {
+    /// Borrow operands in semantic order without allocating a list per instruction.
+    pub fn values(&self) -> impl Iterator<Item = &Val> {
+        let (first, second, args, incoming): (
+            Option<&Val>,
+            Option<&Val>,
+            &[Arg],
+            &[(Val, String)],
+        ) = match self {
             Self::Alloca { .. } | Self::Branch(_) | Self::Unreachable | Self::Return(None) => {
-                vec![]
+                (None, None, &[], &[])
             }
-            Self::Load { ptr, .. } => vec![ptr],
-            Self::Store { arg, ptr, .. } => vec![&arg.value, ptr],
+            Self::Load { ptr, .. } => (Some(ptr), None, &[], &[]),
+            Self::Store { arg, ptr, .. } => (Some(&arg.value), Some(ptr), &[], &[]),
             Self::Binary { left, right, .. } | Self::Compare { left, right, .. } => {
-                vec![left, right]
+                (Some(left), Some(right), &[], &[])
             }
             Self::Cast { arg, .. }
             | Self::Extract { arg, .. }
             | Self::Freeze(arg)
-            | Self::Return(Some(arg)) => vec![&arg.value],
-            Self::Gep { ptr, indices, .. } => std::iter::once(ptr)
-                .chain(indices.iter().map(|a| &a.value))
-                .collect(),
-            Self::Insert { arg, field, .. } => vec![&arg.value, &field.value],
-            Self::Call { callee, args, .. } => std::iter::once(callee)
-                .chain(args.iter().map(|a| &a.value))
-                .collect(),
-            Self::Phi { incoming, .. } => incoming.iter().map(|(v, _)| v).collect(),
-            Self::CondBranch { condition, .. } => vec![condition],
-        }
+            | Self::Return(Some(arg)) => (Some(&arg.value), None, &[], &[]),
+            Self::Gep { ptr, indices, .. } => (Some(ptr), None, indices, &[]),
+            Self::Insert { arg, field, .. } => (Some(&arg.value), Some(&field.value), &[], &[]),
+            Self::Call { callee, args, .. } => (Some(callee), None, args, &[]),
+            Self::Phi { incoming, .. } => (None, None, &[], incoming),
+            Self::CondBranch { condition, .. } => (Some(condition), None, &[], &[]),
+        };
+        first
+            .into_iter()
+            .chain(second)
+            .chain(args.iter().map(|a| &a.value))
+            .chain(incoming.iter().map(|(value, _)| value))
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
