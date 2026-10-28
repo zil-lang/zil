@@ -1899,6 +1899,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             let function_id = pending.function;
             let function = CoreFunction {
                 callable_return: None,
+                type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
@@ -2045,6 +2046,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let function_id = pending.function;
         let function = CoreFunction {
             callable_return: None,
+            type_parameters: Vec::new(),
             callable_parameters: Vec::new(),
             result_mode: zil_ir::PassingMode::Infer,
             foreign: None,
@@ -2519,6 +2521,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
                 callable_return: None,
+                type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,

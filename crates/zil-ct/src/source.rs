@@ -291,6 +291,7 @@ fn evaluate_with_context(
         walker.scopes.push(scope);
         functions.push(CoreFunction {
             callable_return: f.callable_return.clone(),
+            type_parameters: f.type_parameters.clone(),
             callable_parameters: f.callable_parameters.clone(),
             result_mode: f.result_mode,
             foreign: f.foreign.clone(),
@@ -1679,6 +1680,7 @@ mod tests {
             unsupported: vec![],
             functions: vec![CoreFunction {
                 callable_return: None,
+                type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
