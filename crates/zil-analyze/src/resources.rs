@@ -2078,9 +2078,17 @@ impl Flow<'_> {
                             CallableKind::Fn,
                         ),
                         InstructionKind::CallClosureBorrowed { callee, kind, .. } => {
-                            let Type::Address { inner, .. } = &f.values[callee.0 as usize] else {
+                            let Type::Address { inner, mutable } = &f.values[callee.0 as usize]
+                            else {
                                 return Err(error("borrowed environment call requires an address"));
                             };
+                            if kind == CallableKind::FnOnce
+                                || (kind == CallableKind::FnMut && !mutable)
+                            {
+                                return Err(error(
+                                    "borrowed environment call requires Fn or an exclusive FnMut address",
+                                ));
+                            }
                             (Place::Value(callee), inner.as_ref(), kind)
                         }
                         _ => unreachable!(),
