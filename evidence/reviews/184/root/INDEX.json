@@ -19794,78 +19794,78 @@
       "path": "source03/cases/review184-117-0/phases/candidate.txt",
       "bytes": 12651,
       "sha256": "2c87cc29762920681762b1cb857930385deb505d7cc968566399c6c09b903dc9",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/phases/core.txt",
       "bytes": 80794,
       "sha256": "0587885968f48bfee8e37b0cbf465c4976a20ea79b7991de4be46c391314c72e",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/phases/ct-core.txt",
       "bytes": 84471,
       "sha256": "c0b66c1467e40b9b3bb1118322242b9e6b8b83cc83b2204cf22477f152bb6a41",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/phases/interfaces.txt",
       "bytes": 8243,
       "sha256": "58172a405463e18969d6c8f14d23c407ddc8d19c0eceaf8333c60f16006b7845",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/phases/lir.txt",
       "bytes": 97786,
       "sha256": "d1348aeec29b529ee1c599436d77395f7f280773cd46f289dfff094037b30bbc",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/phases/llvm.ll",
       "bytes": 13452,
       "sha256": "c97828bd01edc19aa952bee7a7a184a638c03e829f582a93cbb4a674b2db6441",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/phases/source-map.txt",
       "bytes": 44558,
       "sha256": "6d2ca8072013e21a9466161ebc8d678ef600625239d20d55d352d8d9a87d4cc1",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/phases/syntax.txt",
       "bytes": 179262,
       "sha256": "e6f5a0dc1a51910f1375eebbd4a5ef906847135318c50282e76152414b03e8d9",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/phases/typed.txt",
       "bytes": 96951,
       "sha256": "f6dacd499f23ef224413e9f914c5518387053afc535f007dd27d7e6bc8ae678d",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/phases/verified-interfaces.txt",
       "bytes": 12165,
       "sha256": "ad74ca406bc4e0d5d423fe6c4426bf3c4edaec4b6bfeaddbe240763c19f9dbcd",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/phases/verified.txt",
       "bytes": 97028,
       "sha256": "86f55b6a8bd687356d15f375d2db3ff2b21e492c91369d39679fa5606d96aa2e",
-      "retained": false,
-      "reason": "execution product or verbose phase; hash retained"
+      "retained": true,
+      "reason": null
     },
     {
       "path": "source03/cases/review184-117-0/program",
@@ -22304,6 +22304,7 @@
       "reason": null
     }
   ],
-  "retained_bytes": 1293304,
-  "excluded_executables": true
+  "retained_bytes": 2020665,
+  "excluded_executables": true,
+  "representative_complete_phase": "source03/cases/review184-117-0"
 }
