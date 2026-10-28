@@ -1,0 +1,13 @@
+{
+  "path": "/workspace/scratch/39be3faa4442/run-logs/204-types/204-types-evidence-compact.zip",
+  "bytes": 2353257,
+  "sha256": "0b94722749323c1e394d5ad1d408adb4a5b2940960834dfeeb1f16d7f36a1fb0",
+  "original_record_count": 4235,
+  "unique_object_count": 1124,
+  "excluded_execution_product_count": 258,
+  "validation": "Every unique stored object verified by ZIP CRC, length and SHA256.",
+  "index_validation": "Every INDEX row was re-read and matched by byte count and SHA256; 4,235 original evidence paths preserved.",
+  "index_format": "INDEX.json files[].path -> files[].stored_path; MANIFEST.json lists unique objects and excluded execution products. restore.py verifies each row before restoring.",
+  "author_test_source_commit": "7453433e192a319a2ea5b0dab7140a2e9a814b4b",
+  "scope": "Separate evidence ZIP; not for source bundle. Executable, PE, object, library archive and LLVM build products are excluded, with hashes retained."
+}
