@@ -734,6 +734,37 @@ fn unused_capture_table_without_store_operations_checks_the_second_actual_leaf()
             ));
             fields
         }),
+        ("hidden-function-pointer", {
+            let mut fields = fields.clone();
+            fields.push((
+                "hidden".into(),
+                Type::Tuple(vec![Type::Array {
+                    element: Box::new(Type::FunctionPointer {
+                        parameters: vec![Type::I32],
+                        result: Box::new(Type::I32),
+                    }),
+                    length: 1,
+                }]),
+            ));
+            fields
+        }),
+        ("hidden-foreign-callback", {
+            let mut fields = fields.clone();
+            fields.push((
+                "hidden".into(),
+                Type::Record {
+                    name: "CallbackRecord".into(),
+                    fields: vec![(
+                        "callback".into(),
+                        Type::ForeignCallback {
+                            parameters: vec![Type::I32],
+                            result: Box::new(Type::I32),
+                        },
+                    )],
+                },
+            ));
+            fields
+        }),
     ] {
         let mut bad = module.clone();
         let name = format!("{name}-{label}");
@@ -865,10 +896,10 @@ fn phase_budgets(label: &str, source: &str) -> [usize; 4] {
 #[test]
 fn legacy_byte_capture_has_exact_fresh_budget_control() {
     let source = "fn make()->impl Fn()->i32{let b=bytes_new();return move()=>i32(bytes_len(b))}fn main()->i32{let callback=make();return callback()}";
-    // A baseline measurement is retained before any 204 production merge.
-    // After that measurement the observed vector is locked here unchanged.
+    // Measured at a94bd81d before any 204 production merge. That complete
+    // production domain equals ee0; retain its old source and fees exactly.
     let actual = phase_budgets("legacy-byte-capture", source);
-    assert!(actual.iter().all(|n| *n > 0));
+    assert_eq!(actual, [2, 196, 2230, 2490]);
 }
 
 #[test]

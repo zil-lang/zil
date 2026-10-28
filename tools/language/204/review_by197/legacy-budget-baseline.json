@@ -1,0 +1,23 @@
+{
+  "reviewer": "/root/impl197",
+  "scope": "Exact old ByteBuffer-owning callback budget baseline before any 204 production merge; not new Store capture execution",
+  "source_commit": "a94bd81d11b9af695984360388c1e31056784e7a",
+  "git_status": "?? evidence/reviews/203/by197/.rsync-tmp/\n",
+  "source_state_note": "The environment briefly materialized this untracked evidence synchronization directory. It was not a compilation input and later disappeared without reviewer deletion. This run is not labeled a fully clean checkout. Tracked production and test inputs were the stated commit.",
+  "production_equal_to": "ee0ebb3f78d942a58c8cf3576654e937c5e35629",
+  "spec_hash": "6975c100e3ae6905adc147828c7be0899d727adc5c6764462bc28ec5db8b55b0",
+  "normative_hash": "92c5dd37cb319f7c81b5ccbdcc51830f872808b485458c3b3a7f35bae65c74b7",
+  "command_receipt": "/workspace/scratch/39be3faa4442/run-logs/204-review-by197/legacy01/command.json",
+  "command_receipt_sha256": "8c2ae253b3256095dc9517ddb61eea16f1e2f0e172078aab0cd0ce068ce6b397",
+  "source_sha256": "03adc9b51bcb08173eca45f0ea613c507103590dd1293e9273100e17e13619c9",
+  "passed": 1,
+  "failed": 0,
+  "native_runs": 0,
+  "boundaries": {
+    "Expand": 2,
+    "Types": 196,
+    "Analyze": 2230,
+    "Verify": 2490
+  },
+  "method": "Each exact N, N-1 ResourceLimit, fresh N; fresh Types/Analyze output equals control. The old vector is now frozen as an explicit assertion in the same test."
+}
