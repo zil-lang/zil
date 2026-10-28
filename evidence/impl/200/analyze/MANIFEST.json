@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task": "200",
+  "component": "Analyze",
+  "tested_candidate": "65e82c62de59149078313ff772920c0f667009df",
+  "source_files": {
+    "crates/zil-analyze/src/helpers.rs": {
+      "sha256": "b4a736cc70795ab66de888922ee3f89aed5babd664f363b421f1d2259f90b245",
+      "bytes": 21792
+    },
+    "crates/zil-analyze/tests/impl200_constructor.rs": {
+      "sha256": "391689ed2dba96e3061fcb8e87a336618ccad2db1ae8b5d6faa4be281cb30a40",
+      "bytes": 14231
+    },
+    "crates/zil-driver/tests/impl200_analyze_constructor.rs": {
+      "sha256": "400cb026b8eae76564537bea731e0d5f43770e989c198bdc37331362bba47059",
+      "bytes": 19285
+    },
+    "crates/zil-driver/tests/impl200_fixtures/00_single_callback_state.zil": {
+      "sha256": "56cfb56651a856772561c3587819140974c214ce5edbeaba9541e89eb3cc2116",
+      "bytes": 559
+    },
+    "crates/zil-driver/tests/impl200_fixtures/01_same_f_two_callback_state.zil": {
+      "sha256": "73a0a0fa1fb97e9efd28e42a86f3e91560256dcb7cee69b570d5806db23b916f",
+      "bytes": 630
+    },
+    "data/normative-inputs.json": {
+      "sha256": "942dae1ce604d4ecb10112cf2659d623d5ae8fd0c99f0c27b1a81cf52d1a4a17",
+      "bytes": 876
+    }
+  },
+  "external_evidence": {
+    "file": "200-analyze-evidence.zip",
+    "bytes": 421362,
+    "sha256": "103230bb220cc28eb694f1654108d4d3492fc5593d7ca5460ab7b34276e0ccf3",
+    "payload_files": 348,
+    "execution_artifacts_included": 0,
+    "crc_and_every_payload_sha256_checked": true
+  }
+}
