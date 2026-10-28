@@ -385,7 +385,7 @@ fn main()->i32{{let f=make(4);return middle(&f)}}
             &source,
             Phase::Types,
             ResultCategory::Unsupported,
-            "not the actual supplied parameter",
+            "not one actual supplied role",
         );
     }
 }

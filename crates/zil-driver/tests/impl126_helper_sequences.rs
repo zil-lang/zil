@@ -195,15 +195,12 @@ fn nine_distinct_exits_keep_complete_public_sequences() {
             .collect::<Vec<_>>(),
         (1..=9).collect::<Vec<_>>()
     );
-    assert!(
-        claim
-            .traces
-            .as_finite()
-            .unwrap()
-            .iter()
-            .all(|t| t.exit == CallableExit::Return
-                && t.calls.iter().all(|k| *k == CallableKind::Fn))
-    );
+    assert!(claim.traces.as_finite().unwrap().iter().all(|t| {
+        t.exit == CallableExit::Return
+            && t.calls
+                .iter()
+                .all(|event| event.parameter == 0 && event.kind == CallableKind::Fn)
+    }));
     case.write("contract.txt", format!("{claim:#?}"));
 }
 #[test]

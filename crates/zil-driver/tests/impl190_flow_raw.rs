@@ -76,9 +76,20 @@ fn flow(module: &mut TypedModule) -> &mut CallableFlow {
 fn reject(
     label: &str,
     module: TypedModule,
+    candidate: CandidatePlan,
+    category: ResultCategory,
+    code: &str,
+) {
+    reject_with_analyze_category(label, module, candidate, category, code, category);
+}
+
+fn reject_with_analyze_category(
+    label: &str,
+    module: TypedModule,
     mut candidate: CandidatePlan,
     category: ResultCategory,
     code: &str,
+    analyze_category: ResultCategory,
 ) {
     candidate.module_fingerprint = module.fingerprint();
     let bytes =
@@ -112,7 +123,7 @@ fn reject(
     assert!(
         diagnostics
             .iter()
-            .any(|d| d.phase == Phase::Analyze && d.category == category),
+            .any(|d| d.phase == Phase::Analyze && d.category == analyze_category),
         "{label} Analyze: {diagnostics:?}"
     );
 }
@@ -290,7 +301,7 @@ fn zero_event_fn_once_cycle_stays_an_explicit_scope_limit() {
         panic!("zero event loop must preserve a Flow");
     };
     assert!(graph.nodes.iter().all(|node| node.calls.is_empty()));
-    claim.kind = CallableKind::FnOnce;
+    claim.roles[0].kind = CallableKind::FnOnce;
     reject(
         "zero-event-once",
         module,
@@ -571,12 +582,16 @@ fn main()->i32{let f=make(4);return run(&f,3)-12}
         function.values[other.0 as usize]
     );
     arguments[0] = other;
-    reject(
+    // Schema25 Analyze detects the actual borrowed local factory origin before
+    // comparing traces. This remains outside the finite forwarding profile.
+    // Independent raw/Wire Verify still rejects the forged public contract.
+    reject_with_analyze_category(
         "same-closure-id-on-loop",
         module,
         candidate,
         ResultCategory::SafeReject,
         "E-VERIFY-CALLABLE-CONTRACT",
+        ResultCategory::Unsupported,
     );
 }
 
@@ -746,10 +761,10 @@ fn a_flow_does_not_waive_hold_call_write_or_cleanup_obligations() {
             .find_map(|f| f.callable_contract.as_mut())
             .unwrap();
         match mutation {
-            0 => claim.hold.push(0),
-            1 => claim.call.push(0),
-            2 => claim.writes.push(0),
-            _ => claim.cleanup = CallableCleanup::Owned,
+            0 => claim.roles[0].hold.push(0),
+            1 => claim.roles[0].call.push(0),
+            2 => claim.roles[0].writes.push(0),
+            _ => claim.roles[0].cleanup = CallableCleanup::Owned,
         }
         reject(
             &format!("envelope-{mutation}"),
