@@ -1,0 +1,22 @@
+
+running 5 tests
+test both_lending_fields_survive_wire_and_change_fingerprints ... ok
+test opaque_public_json_retains_the_lending_relation ... FAILED
+test malformed_capture_indices_are_independently_rejected ... ok
+test oversized_lending_claims_are_bounded_before_verifier_fingerprinting ... ok
+test transport_claim_does_not_grant_a_copy_result_lending_capability ... ok
+
+failures:
+
+---- opaque_public_json_retains_the_lending_relation stdout ----
+
+thread 'opaque_public_json_retains_the_lending_relation' (212) panicked at crates/zil-driver/tests/impl185_lending_schema.rs:155:5:
+{"status":"Success","phase":"verify","diagnostics":[],"artifacts":{},"input_fingerprint":"4efbf5b5e6dde2237fdee75b992868498c48306f172674c326d2ca9bbe7bb0d4","seconds":0.0015139,"cache_hit":false,"commands":[],"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"},{"phase":"verify","disposition":"executed"}],"verification_runs":1,"source_files":{"0":"export185.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    opaque_public_json_retains_the_lending_relation
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
