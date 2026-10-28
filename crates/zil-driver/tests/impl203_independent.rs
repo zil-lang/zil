@@ -1925,7 +1925,7 @@ fn value_inferred_ordinary_calls_unify_every_argument_and_keep_nominal_identity(
         ),
     ] {
         assert_ne!(source, control);
-        reject_source(&label, &source, &[Phase::Expand, Phase::Types], None);
+        reject_source(label, &source, &[Phase::Expand, Phase::Types], None);
     }
 }
 
