@@ -48,6 +48,64 @@ pub(super) struct Context<'a> {
     pub(super) effects: &'a [Effects],
 }
 
+/// One actual call edge. Its captured slots remain distinct from the incoming
+/// environment position and from ordinary argument positions.
+pub(super) struct Invocation<'a> {
+    pub(super) function: FunctionId,
+    arguments: &'a [ValueId],
+    environment: Option<&'a Slots>,
+    captures: &'a CaptureFacts,
+    ordinary: &'a Facts,
+    span: Span,
+}
+
+impl Invocation<'_> {
+    pub(super) fn substitute(&self, root: Root, budget: &mut Budget) -> Check<Roots> {
+        let ungrounded = || {
+            reject(
+                "E-BORROW-ORIGIN",
+                Some(self.span),
+                "window separation has no independently grounded call source",
+            )
+        };
+        let slot = match root {
+            Root::Parameter(parameter) => {
+                let value = self
+                    .arguments
+                    .get(parameter as usize)
+                    .ok_or_else(ungrounded)?;
+                let roots = &self.ordinary.values[value.0 as usize];
+                budget.spend(roots.len())?;
+                return Ok(roots.clone());
+            }
+            Root::Capture(capture) => {
+                let slots = self.environment.ok_or_else(ungrounded)?;
+                lookup(budget, slots.len())?;
+                slots.get(&capture)
+            }
+            Root::ParameterCapture(parameter, capture) => {
+                let value = self
+                    .arguments
+                    .get(parameter as usize)
+                    .ok_or_else(ungrounded)?;
+                let slots = &self.captures.values[value.0 as usize];
+                lookup(budget, slots.len())?;
+                slots.get(&capture)
+            }
+            Root::Local(_) | Root::Field(..) => return Err(ungrounded()),
+        }
+        .filter(|roots| !roots.is_empty())
+        .ok_or_else(ungrounded)?;
+        let mut roots = Vec::new();
+        // Source and Root have different ordering domains. Use the existing
+        // charged sorted-root join instead of assuming their order coincides.
+        for source in slot {
+            roots_join(&mut roots, &[source.position()], budget)?;
+        }
+        Ok(roots)
+    }
+}
+
 pub(super) fn input_state(facts: &CaptureFacts, block: usize, budget: &mut Budget) -> Check<State> {
     let input = &facts.inputs[block];
     state_cost(input, budget)?;
@@ -285,6 +343,53 @@ fn add_slot(
 }
 
 impl Context<'_> {
+    pub(super) fn invocation<'a>(
+        &'a self,
+        instruction: &'a Instruction,
+        locals: &'a State,
+        budget: &mut Budget,
+    ) -> Check<Option<Invocation<'a>>> {
+        let (function, arguments, environment) = match &instruction.kind {
+            InstructionKind::Call {
+                function,
+                arguments,
+            } => (*function, arguments, None),
+            InstructionKind::CallClosure { callee, arguments }
+            | InstructionKind::CallClosureOnce { callee, arguments }
+            | InstructionKind::CallClosureBorrowed {
+                callee, arguments, ..
+            } => {
+                let (id, _) = helpers::parameter_type(&self.function.values[callee.0 as usize])
+                    .expect("independently checked concrete call type");
+                (
+                    self.module.closures[id.0 as usize].function,
+                    arguments,
+                    Some(&self.facts.values[callee.0 as usize]),
+                )
+            }
+            InstructionKind::CallClosureShared { callee, arguments }
+            | InstructionKind::CallClosureMut { callee, arguments } => {
+                let (id, _) = helpers::parameter_type(&self.function.locals[callee.0 as usize].ty)
+                    .expect("independently checked concrete local call type");
+                lookup(budget, locals.len())?;
+                (
+                    self.module.closures[id.0 as usize].function,
+                    arguments,
+                    locals.get(callee),
+                )
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some(Invocation {
+            function,
+            arguments,
+            environment,
+            captures: self.facts,
+            ordinary: self.ordinary,
+            span: instruction.span,
+        }))
+    }
+
     fn callback(
         &self,
         id: ClosureId,
@@ -335,13 +440,8 @@ impl Context<'_> {
         locals: &State,
         budget: &mut Budget,
     ) -> Check<Effects> {
-        let (module, f, ordinary, captures, effects) = (
-            self.module,
-            self.function,
-            self.ordinary,
-            self.facts,
-            self.effects,
-        );
+        let (f, ordinary, captures, effects) =
+            (self.function, self.ordinary, self.facts, self.effects);
         let mut row = Effects::new();
         let empty = Slots::new();
         match &instruction.kind {
@@ -349,24 +449,10 @@ impl Context<'_> {
                 function,
                 arguments,
             } => {
-                let callee = &module.functions[function.0 as usize];
-                if let Some(contract) = &callee.callable_contract {
-                    // The public trace determines whether the environment can be
-                    // invoked. Its concrete entry's verified accesses refine the
-                    // capability upper bound without reading private helper rows.
-                    budget.spend(contract.traces.len())?;
-                    if contract.traces.iter().any(|trace| !trace.calls.is_empty()) {
-                        let argument = arguments[contract.parameter as usize];
-                        return self.callback(
-                            contract.closure,
-                            &captures.values[argument.0 as usize],
-                            &[],
-                            instruction.span,
-                            budget,
-                        );
-                    }
-                    return Ok(row);
-                }
+                // The independently reconstructed callee CFG includes both its
+                // ordinary parameter accesses and actual callback invocations.
+                // A public callable contract is an upper bound, not a reason
+                // to discard either source class or invent a zero-call effect.
                 for (source, write) in &effects[function.0 as usize] {
                     budget.spend(1)?;
                     match *source {
