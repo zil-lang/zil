@@ -737,9 +737,16 @@ pub(super) fn check(
                         budget,
                     )?;
                 }
-                InstructionKind::BorrowOwnedArrayElement { local, mutable, .. }
-                | InstructionKind::BorrowPackageField { local, mutable, .. } => {
+                InstructionKind::BorrowOwnedArrayElement { local, mutable, .. } => {
                     access.check(&empty, &[Root::Local(*local)], *mutable, budget)?;
+                }
+                InstructionKind::BorrowPackageField {
+                    local,
+                    index,
+                    mutable,
+                } => {
+                    let root = field_root(f, *local, *index, budget)?;
+                    access.check(&empty, &[root], *mutable, budget)?;
                 }
                 InstructionKind::Store { local, .. }
                 | InstructionKind::StorageLive(local)
@@ -756,7 +763,8 @@ pub(super) fn check(
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
                 | InstructionKind::StorePackageField { local, index, .. } => {
-                    access.check(&empty, &[field_root(f, *local, *index)], true, budget)?;
+                    let root = field_root(f, *local, *index, budget)?;
+                    access.check(&empty, &[root], true, budget)?;
                 }
                 InstructionKind::ReadAddress { address }
                 | InstructionKind::SliceLength { address }
