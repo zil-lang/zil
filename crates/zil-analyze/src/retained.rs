@@ -35,6 +35,21 @@ pub(super) fn check_function(
         ));
     }
     budget.spend(function.parameters.len(), "factory parameter envelope")?;
+    let mut parameters_supported = true;
+    for parameter in &function.parameters {
+        let ty = &function.locals[parameter.0 as usize].ty;
+        if ty.is_copy_value()
+            || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
+            || matches!(ty, Type::Package { .. })
+        {
+            continue;
+        }
+        if dynamic_store::is_owned_carrier(ty) {
+            dynamic_store::owned_capture(module, ty, budget)?;
+        } else {
+            parameters_supported = false;
+        }
+    }
     if function.environment.is_some()
         || function.foreign.is_some()
         || function.callable_contract.is_some()
@@ -46,12 +61,7 @@ pub(super) fn check_function(
         || !contract.hold.is_empty()
         || !contract.call.is_empty()
         || !contract.writes.is_empty()
-        || function.parameters.iter().any(|p| {
-            let ty = &function.locals[p.0 as usize].ty;
-            !(ty.is_copy_value()
-                || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
-                || matches!(ty, Type::Package { .. }))
-        })
+        || !parameters_supported
     {
         return Err(bad(
             "callable return contract requires an ordinary self-contained factory with its exact kind",
@@ -63,6 +73,9 @@ pub(super) fn check_function(
         if matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
             || matches!(ty, Type::Package { .. } | Type::Closure(_))
         {
+            cleanup.push(index as u32);
+        } else if dynamic_store::is_owned_carrier(ty) {
+            dynamic_store::owned_capture(module, ty, budget)?;
             cleanup.push(index as u32);
         } else if !ty.is_copy_value() {
             return Err(bad(
