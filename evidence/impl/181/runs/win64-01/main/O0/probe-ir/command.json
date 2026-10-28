@@ -1,0 +1,21 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang",
+    "--target=x86_64-pc-windows-msvc",
+    "-x",
+    "ir",
+    "-O0",
+    "-c",
+    "/workspace/scratch/39be3faa4442/run-logs/181-platform/win64-01/main/O0/probe.ll",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/181-platform/win64-01/main/O0/probe.obj"
+  ],
+  "status": "Completed",
+  "start": 1793150991.8148868,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "0eeba7d03c8ec46cd7dd832388a5305d2f0c3e2f16afacc34e35bd2ae6156ee4",
+  "end": 1793150991.8612888
+}

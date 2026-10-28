@@ -1,0 +1,20 @@
+[
+  {
+    "argv": [
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wineserver64",
+      "-k"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "/workspace/scratch/39be3faa4442/toolchains178/wine9/usr/lib/wine/wine64",
+      "/workspace/scratch/39be3faa4442/run-logs/181-platform/win64-01/main/O0/program.exe"
+    ],
+    "exit_code": 0,
+    "stdout": "DEFHZMNOPK",
+    "stderr": ""
+  }
+]

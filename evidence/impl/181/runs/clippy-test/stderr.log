@@ -1,0 +1,9 @@
+    Checking zil-syntax v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-syntax)
+    Checking zil-lower v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-lower)
+    Checking zil-ct v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-ct)
+    Checking zil-analyze v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-analyze)
+    Checking zil-expand v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-expand)
+    Checking zil-types v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-types)
+    Checking zil-db v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-db)
+    Checking zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt181/crates/zil-driver)
+    Finished `dev` profile [unoptimized] target(s) in 2.61s

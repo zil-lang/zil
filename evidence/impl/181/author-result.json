@@ -1,0 +1,49 @@
+{
+  "status": "Pass",
+  "scope": "181 author public identity, exact target validation and Store platform path; combination with178-180 is separately pending",
+  "implementation_author": "/root",
+  "implementation_commit": "8493aca5ce86a77cd5e9ea8ab3d3629bafafa2a6",
+  "rule_version": "ZIL-LANG-1.4",
+  "schema_version": 22,
+  "spec_hash": "fe11dddb8fd64aebd773e90dea5ceaa545da3e41e280fd939806c4dc0ea212e2",
+  "normative_hash": "1cf7aadb8800c31436f158ee3cdf78bcea330ed2bfafc29112b8d11211655a6e",
+  "tests": {
+    "public_ir": 31,
+    "target_profiles": 3,
+    "fmt": "Pass",
+    "clippy_changed_libs_and_target_test": "Pass"
+  },
+  "platforms": {
+    "linux": {
+      "status": "Pass",
+      "source_commit": "23d256323c1e39f5821c80686d0c8f1a4cd225e7",
+      "cli_sha256": "e9cf79452c46fafb8b6c48fe4a7f462f05c1adc6a00e87654b3ea0eadd4a04b1",
+      "executions": 72,
+      "ordinary_executions": 22,
+      "instrumented_executions": 50,
+      "failure_executions": 32,
+      "receipt": "runs/linux02/summary.json",
+      "live_allocations_after_every_probe": 0
+    },
+    "win64_wine": {
+      "status": "Pass",
+      "source_commit": "8493aca5ce86a77cd5e9ea8ab3d3629bafafa2a6",
+      "cli_sha256": "e9cf79452c46fafb8b6c48fe4a7f462f05c1adc6a00e87654b3ea0eadd4a04b1",
+      "executions": 72,
+      "ordinary_executions": 22,
+      "instrumented_executions": 50,
+      "failure_executions": 32,
+      "receipt": "runs/win64-02/summary.json",
+      "live_allocations_after_every_probe": 0
+    }
+  },
+  "failed_runs_preserved": [
+    "target-tests01.log: nonexistent encoder function in new test, no tests executed; corrected to existing encode_module_candidate",
+    "win64-01: first Wine invocation timed out before any observation; retained and not counted as pass",
+    "public legacy wire21 assertions were found by independent181 reviewer, fixed to22 with old opcode coverage retained; review receipt records original failure"
+  ],
+  "environment": "Private extracted Rust/LLVM/Wine; Wine compatibility is not native Windows certification",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}
