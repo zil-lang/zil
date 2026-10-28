@@ -1,0 +1,3 @@
+analyze=Err([Diagnostic { phase: Analyze, category: Unsupported, code: "E-UNSUPPORTED", message: "helper callable origin is unknown, mixed, or a borrowed local factory result", span: None, notes: [] }])
+raw=Err([Diagnostic { phase: Verify, category: Unsupported, code: "E-UNSUPPORTED", message: "helper callable origin is unknown, mixed, or a borrowed local factory result", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }])
+wire=Err([Diagnostic { phase: Verify, category: Unsupported, code: "E-UNSUPPORTED", message: "helper callable origin is unknown, mixed, or a borrowed local factory result", span: Some(Span { file: FileId(0), start: 0, end: 1 }), notes: [] }])

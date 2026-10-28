@@ -1,0 +1,185 @@
+{
+  "run_root": "/workspace/scratch/39be3faa4442/runs178/review185-schema",
+  "files": [
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/candidate.txt",
+      "bytes": 146162,
+      "sha256": "90178779802d2658c32af4de39e388fe52f44743fb9dc9397a664bf847980a49",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/core.txt",
+      "bytes": 743010,
+      "sha256": "86c6bc1272dc5f63894cb8bb8465c3d19268c041bba2ba55c035e4f849bca7d3",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/ct-core.txt",
+      "bytes": 776418,
+      "sha256": "835aaee607fb52088554b877026979b3e4e84ce4618a5a6b90ddbe63966f5aab",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/interfaces.txt",
+      "bytes": 17819,
+      "sha256": "e70514d681f7898b1f888495aa5aaeab1945210e6933f706baeb11abc7b97893",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/lir.txt",
+      "bytes": 922514,
+      "sha256": "ac8961bb4a5117c0649243cbd2a88d75c6a20a9246fbfd0bb8527bc5a0f13054",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/llvm.ll",
+      "bytes": 66552,
+      "sha256": "854d29adfeeab5b208cb453e03b22a3e6c653d9269237f174fa1ddaa8ec290d7",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/source-map.txt",
+      "bytes": 427790,
+      "sha256": "a826570631cc12c01bc467503b73777bb95849ed9896ddf444edce022e97835d",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/syntax.txt",
+      "bytes": 1485314,
+      "sha256": "5e248514f95e439be4831220aa133e7fc9963fdce480e45e84ec8f7d5d96a767",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/typed.txt",
+      "bytes": 921680,
+      "sha256": "7311593c1c29e50680778300367921a8e0511263fe124098f4046ffa0b8b0389",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/verified-interfaces.txt",
+      "bytes": 31094,
+      "sha256": "f4fb8f01b4adf87e004c7a9039b3fc85322934dcf238b7d11f9797c52a6d168e",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-ir/verified.txt",
+      "bytes": 921757,
+      "sha256": "e088ebf40eb6e762e69317cb61190fdb9cda5c01cdb09288c98c5452e22d09ad",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-rust-O0",
+      "bytes": 4568584,
+      "sha256": "57e28147f8e5a7f0d9d28a8d26a6e8ac455922a3193500e09e5e6e295a5944af",
+      "reason": "executable or generated object"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-rust-O2",
+      "bytes": 4553312,
+      "sha256": "3ba5b2fb3dd2c5f65d832856854c9674804aac58a996b5c2ed5519f74fcf745b",
+      "reason": "executable or generated object"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-zil-O0",
+      "bytes": 25400,
+      "sha256": "40650d2e796095a744227978e0852f5dbcb5e18a95e1a1866ebf0396489a90d1",
+      "reason": "executable or generated object"
+    },
+    {
+      "path": "baseline01/cases/zil-retained-ui-1586-0/main-zil-O2",
+      "bytes": 16952,
+      "sha256": "03635ae440170137c0a57e2b41fa6770d81dc4cd08f15fd2463ffc8dd5ef09f6",
+      "reason": "executable or generated object"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/candidate.txt",
+      "bytes": 146162,
+      "sha256": "90178779802d2658c32af4de39e388fe52f44743fb9dc9397a664bf847980a49",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/core.txt",
+      "bytes": 743010,
+      "sha256": "86c6bc1272dc5f63894cb8bb8465c3d19268c041bba2ba55c035e4f849bca7d3",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/ct-core.txt",
+      "bytes": 776418,
+      "sha256": "835aaee607fb52088554b877026979b3e4e84ce4618a5a6b90ddbe63966f5aab",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/interfaces.txt",
+      "bytes": 17819,
+      "sha256": "e70514d681f7898b1f888495aa5aaeab1945210e6933f706baeb11abc7b97893",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/lir.txt",
+      "bytes": 922514,
+      "sha256": "ac8961bb4a5117c0649243cbd2a88d75c6a20a9246fbfd0bb8527bc5a0f13054",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/llvm.ll",
+      "bytes": 66552,
+      "sha256": "854d29adfeeab5b208cb453e03b22a3e6c653d9269237f174fa1ddaa8ec290d7",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/source-map.txt",
+      "bytes": 427790,
+      "sha256": "a826570631cc12c01bc467503b73777bb95849ed9896ddf444edce022e97835d",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/syntax.txt",
+      "bytes": 1485314,
+      "sha256": "5e248514f95e439be4831220aa133e7fc9963fdce480e45e84ec8f7d5d96a767",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/typed.txt",
+      "bytes": 921680,
+      "sha256": "7311593c1c29e50680778300367921a8e0511263fe124098f4046ffa0b8b0389",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/verified-interfaces.txt",
+      "bytes": 31094,
+      "sha256": "f4fb8f01b4adf87e004c7a9039b3fc85322934dcf238b7d11f9797c52a6d168e",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-ir/verified.txt",
+      "bytes": 921757,
+      "sha256": "e088ebf40eb6e762e69317cb61190fdb9cda5c01cdb09288c98c5452e22d09ad",
+      "reason": "repeated legacy phase output"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-rust-O0",
+      "bytes": 4568584,
+      "sha256": "57e28147f8e5a7f0d9d28a8d26a6e8ac455922a3193500e09e5e6e295a5944af",
+      "reason": "executable or generated object"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-rust-O2",
+      "bytes": 4553312,
+      "sha256": "3ba5b2fb3dd2c5f65d832856854c9674804aac58a996b5c2ed5519f74fcf745b",
+      "reason": "executable or generated object"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-zil-O0",
+      "bytes": 25400,
+      "sha256": "40650d2e796095a744227978e0852f5dbcb5e18a95e1a1866ebf0396489a90d1",
+      "reason": "executable or generated object"
+    },
+    {
+      "path": "final01/cases/zil-retained-ui-296-0/main-zil-O2",
+      "bytes": 16952,
+      "sha256": "03635ae440170137c0a57e2b41fa6770d81dc4cd08f15fd2463ffc8dd5ef09f6",
+      "reason": "executable or generated object"
+    }
+  ]
+}
