@@ -202,6 +202,70 @@ fn two_same_type_capture_and_package_field_roots_remain_independent() {
 }
 
 #[test]
+fn strong_window_new_work_has_exact_fresh_boundaries_and_old_bytes_keep_2230() {
+    let original = include_str!("impl204_fixtures/04_take_capture_live_window.zil");
+    let new_source = original.replace("+ view.value - 42", "+ answer - 42");
+    let old_source = "fn make()->impl Fn()->i32{let b=bytes_new();return move()=>i32(bytes_len(b))}fn main()->i32{let callback=make();return callback()}";
+    for (label, source, old) in [
+        ("new-window", new_source.as_str(), false),
+        ("old-byte", old_source, true),
+    ] {
+        let module = typed_window(label, source);
+        let expected = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            match zil_analyze::analyze(
+                &module,
+                &Limits {
+                    max_analysis_steps: middle,
+                    ..Limits::default()
+                },
+            ) {
+                Ok(plan) => {
+                    assert_eq!(plan, expected);
+                    high = middle;
+                }
+                Err(errors) => {
+                    assert_eq!(errors.len(), 1);
+                    assert_eq!(errors[0].phase, Phase::Analyze);
+                    assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+                    low = middle + 1;
+                }
+            }
+        }
+        let case = Case::new(&format!("boundary-{label}"), source);
+        for steps in [low, low - 1, low] {
+            let result = zil_analyze::analyze(
+                &module,
+                &Limits {
+                    max_analysis_steps: steps,
+                    ..Limits::default()
+                },
+            );
+            case.write(&format!("steps-{steps}.txt"), format!("{result:#?}"));
+            if steps == low {
+                assert_eq!(result.unwrap(), expected);
+            } else {
+                assert_eq!(
+                    result.unwrap_err()[0].category,
+                    ResultCategory::ResourceLimit
+                );
+            }
+        }
+        assert_eq!(
+            zil_analyze::analyze(&module, &Limits::default()).unwrap(),
+            expected
+        );
+        case.write("boundary.json", format!("{{\"label\":\"{label}\",\"analyze\":{low},\"fresh_equal\":true,\"below\":\"ResourceLimit\"}}\n"));
+        if old {
+            assert_eq!(low, 2230);
+        }
+        println!("204 {label} Analyze N={low}, N-1 ResourceLimit, fresh equal");
+    }
+}
+
+#[test]
 fn unchanged_originals_pass_analyze_and_independent_raw_and_wire_verify() {
     for (index, source) in ORIGINALS.iter().enumerate() {
         candidate(&format!("original-{index}"), source);
