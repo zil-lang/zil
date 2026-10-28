@@ -2,7 +2,7 @@
   "schema_version": 1,
   "task": "203 independent State binders and complete value-inferred ordinary calls: Types author evidence",
   "author_branch": "impl/203-types",
-  "production_freeze": "1846878e3d3e6e4083b102557ae6c98d0dec85f9",
+  "production_freeze": "2d90245c07469549f08c7220c7191ad8ab1cf234",
   "compiler_schema": 27,
   "design_sha256": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
   "normative_sha256": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
@@ -12,10 +12,11 @@
     "215d62dc1c742109ee9295fd30eab9b07d2bcae1",
     "f3e802e14670ce7413e4d943fe8c06a6576bd608",
     "6e102de14886ec952a5221f8eec43ed2a531ae5f",
-    "1846878e3d3e6e4083b102557ae6c98d0dec85f9"
+    "1846878e3d3e6e4083b102557ae6c98d0dec85f9",
+    "2d90245c07469549f08c7220c7191ad8ab1cf234"
   ],
   "final_author_results": {
-    "run": "final02",
+    "run": "final03",
     "total_passed": 66,
     "total_failed": 0,
     "new_author_source_groups": 13,
@@ -24,7 +25,7 @@
     "legacy_202_independent_groups": 19,
     "legacy_202_raw_groups": 4,
     "legacy_202_budget_groups": 2,
-    "clippy_run": "clippy04",
+    "clippy_run": "clippy05",
     "clippy_status": "Pass",
     "independent_and_integration_credit": "The author replay does not substitute for non-author review. Root fullworkspace, actual frozen CLI and Linux/Wine fault matrices have separate receipts and are not added to these counts."
   },
@@ -58,7 +59,8 @@
         40
       ],
       "checks": "default == exact N == fresh N; N-1 Types ResourceLimit",
-      "archive_path": "logs/final02/budget202-old-nested-helper"
+      "archive_path": "logs/final03/budget202-old-nested-helper",
+      "archive_file": "203-types-condition-evidence.zip"
     },
     {
       "label": "budget202-old-original02",
@@ -71,7 +73,8 @@
         16
       ],
       "checks": "default == exact N == fresh N; N-1 Types ResourceLimit",
-      "archive_path": "logs/final02/budget202-old-original02"
+      "archive_path": "logs/final03/budget202-old-original02",
+      "archive_file": "203-types-condition-evidence.zip"
     },
     {
       "label": "budget202-old-two-elements",
@@ -84,7 +87,8 @@
         39
       ],
       "checks": "default == exact N == fresh N; N-1 Types ResourceLimit",
-      "archive_path": "logs/final02/budget202-old-two-elements"
+      "archive_path": "logs/final03/budget202-old-two-elements",
+      "archive_file": "203-types-condition-evidence.zip"
     },
     {
       "label": "budget202-original-factory",
@@ -94,7 +98,8 @@
       "types_functions": 9,
       "old_work_locals": null,
       "checks": "default == exact N == fresh N; N-1 Types ResourceLimit",
-      "archive_path": "logs/final02/budget202-original-factory"
+      "archive_path": "logs/final03/budget202-original-factory",
+      "archive_file": "203-types-condition-evidence.zip"
     },
     {
       "label": "budget202-original-push",
@@ -104,34 +109,38 @@
       "types_functions": 8,
       "old_work_locals": null,
       "checks": "default == exact N == fresh N; N-1 Types ResourceLimit",
-      "archive_path": "logs/final02/budget202-original-push"
+      "archive_path": "logs/final03/budget202-original-push",
+      "archive_file": "203-types-condition-evidence.zip"
     },
     {
-      "label": "state203-budget-bare-complete-value-711194-34",
+      "label": "state203-budget-bare-complete-value-716390-34",
       "source_sha256": "37cb82db18b692754aaef92a58dca3997286d5acdb570179db8c00de84437585",
       "types_work": 62651,
       "types_locals": 50,
       "types_functions": 14,
       "checks": "default == N == fresh N; N-1 Types ResourceLimit; raw and Wire Verify",
-      "archive_path": "logs/final02/state203-budget-bare-complete-value-711194-34"
+      "archive_path": "logs/final03/state203-budget-bare-complete-value-716390-34",
+      "archive_file": "203-types-condition-evidence.zip"
     },
     {
-      "label": "state203-budget-different-mutable-store-711194-10",
+      "label": "state203-budget-different-mutable-store-716390-12",
       "source_sha256": "63405c1082c70a0e95388b86d9209dcc246c1f94e435a17c7a1681fe2b348644",
       "types_work": 60889,
       "types_locals": 49,
       "types_functions": 14,
       "checks": "default == N == fresh N; N-1 Types ResourceLimit; raw and Wire Verify",
-      "archive_path": "logs/final02/state203-budget-different-mutable-store-711194-10"
+      "archive_path": "logs/final03/state203-budget-different-mutable-store-716390-12",
+      "archive_file": "203-types-condition-evidence.zip"
     },
     {
-      "label": "state203-budget-same-declared-modes-711194-1",
+      "label": "state203-budget-same-declared-modes-716390-7",
       "source_sha256": "4014fa77d574a6a5f008a49bdb89e49c42736195ca9c4babc4ac8bf04ea74000",
       "types_work": 15907,
       "types_locals": 29,
       "types_functions": 7,
       "checks": "default == N == fresh N; N-1 Types ResourceLimit; raw and Wire Verify",
-      "archive_path": "logs/final02/state203-budget-same-declared-modes-711194-1"
+      "archive_path": "logs/final03/state203-budget-same-declared-modes-716390-7",
+      "archive_file": "203-types-condition-evidence.zip"
     }
   ],
   "failure_policy": {
@@ -204,7 +213,8 @@
       ],
       "native_execution_records": 2,
       "archive_path": "logs/alias01",
-      "interpretation": "Clean original independent alias-parent reproduction: unused definition incorrectly accepted a named field alias after parent transfer. The used counterpart was already rejected by Verify."
+      "interpretation": "Clean original independent alias-parent reproduction: unused definition incorrectly accepted a named field alias after parent transfer. The used counterpart was already rejected by Verify.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "alias02",
@@ -253,7 +263,8 @@
       ],
       "native_execution_records": 2,
       "archive_path": "logs/alias02",
-      "interpretation": "Dirty alias-parent fix passed the unchanged independent group and its two native positive controls."
+      "interpretation": "Dirty alias-parent fix passed the unchanged independent group and its two native positive controls.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "alias03",
@@ -309,7 +320,8 @@
       ],
       "native_execution_records": 2,
       "archive_path": "logs/alias03",
-      "interpretation": "Independent alias group passed, but the new author refill test was accidentally inside a raw ZIL string and zero author tests were selected. It is not counted as a refill pass."
+      "interpretation": "Independent alias group passed, but the new author refill test was accidentally inside a raw ZIL string and zero author tests were selected. It is not counted as a refill pass.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "alias04",
@@ -365,7 +377,8 @@
       ],
       "native_execution_records": 2,
       "archive_path": "logs/alias04",
-      "interpretation": "Independent alias group passed; author refill positive used an immutable owner and correctly hit E-IMMUTABLE-ASSIGNMENT. The fixture was changed to an actual mutable local owner."
+      "interpretation": "Independent alias group passed; author refill positive used an immutable owner and correctly hit E-IMMUTABLE-ASSIGNMENT. The fixture was changed to an actual mutable local owner.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "alias05",
@@ -414,7 +427,8 @@
       ],
       "native_execution_records": 0,
       "archive_path": "logs/alias05",
-      "interpretation": "Author fresh-after-refill positive reused the local name view and correctly hit E-NAME-DUPLICATE. The fresh alias received a distinct local name."
+      "interpretation": "Author fresh-after-refill positive reused the local name view and correctly hit E-NAME-DUPLICATE. The fresh alias received a distinct local name.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "alias06",
@@ -477,7 +491,8 @@
       ],
       "native_execution_records": 72,
       "archive_path": "logs/alias06",
-      "interpretation": "Dirty alias-parent and refill combination: 41/0. Later independent exclusive-view access finding was not covered by this run."
+      "interpretation": "Dirty alias-parent and refill combination: 41/0. Later independent exclusive-view access finding was not covered by this run.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "alias07",
@@ -540,7 +555,8 @@
       ],
       "native_execution_records": 76,
       "archive_path": "logs/alias07",
-      "interpretation": "Dirty semantic combination: 43/0 including actual repeated named mutable Store field calls and raw loop/refill controls. Subsequent edits were explicit new-path precharges and an unused-mut test warning."
+      "interpretation": "Dirty semantic combination: 43/0 including actual repeated named mutable Store field calls and raw loop/refill controls. Subsequent edits were explicit new-path precharges and an unused-mut test warning.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "budgets01",
@@ -588,7 +604,8 @@
       ],
       "native_execution_records": 0,
       "archive_path": "logs/budgets01",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "budgets02",
@@ -651,7 +668,8 @@
       ],
       "native_execution_records": 54,
       "archive_path": "logs/budgets02",
-      "interpretation": "33/1: authorized bare-call migrations passed; the only failure was the old hardcoded schema26 assertion against schema27. Original stale25 attack bytes were preserved."
+      "interpretation": "33/1: authorized bare-call migrations passed; the only failure was the old hardcoded schema26 assertion against schema27. Original stale25 attack bytes were preserved.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "check01",
@@ -691,7 +709,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/check01",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "check02",
@@ -729,7 +748,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/check02",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "check03",
@@ -767,7 +787,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/check03",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "check04",
@@ -805,7 +826,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/check04",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "check05",
@@ -843,7 +865,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/check05",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "check06",
@@ -881,7 +904,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/check06",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "check07",
@@ -919,7 +943,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/check07",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "clippy01",
@@ -961,7 +986,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/clippy01",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "clippy02",
@@ -1008,7 +1034,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/clippy02",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "clippy03",
@@ -1054,7 +1081,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/clippy03",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "clippy04",
@@ -1104,7 +1132,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/clippy04",
-      "interpretation": "Final clean compiler and author integration-test Clippy with -D warnings passed."
+      "interpretation": "Final clean compiler and author integration-test Clippy with -D warnings passed.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "exclusive01",
@@ -1153,7 +1182,8 @@
       ],
       "native_execution_records": 2,
       "archive_path": "logs/exclusive01",
-      "interpretation": "Actual current dirty alias-parent patch still accepted an unused exclusive field view across a conflicting direct FnMut call. Original negative and last-use-before-direct controls were preserved."
+      "interpretation": "Actual current dirty alias-parent patch still accepted an unused exclusive field view across a conflicting direct FnMut call. Original negative and last-use-before-direct controls were preserved.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "exclusive02",
@@ -1202,7 +1232,8 @@
       ],
       "native_execution_records": 4,
       "archive_path": "logs/exclusive02",
-      "interpretation": "Dirty access-kind and ancestor fix: six unchanged independent unused-definition groups passed."
+      "interpretation": "Dirty access-kind and ancestor fix: six unchanged independent unused-definition groups passed.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "final01",
@@ -1272,7 +1303,8 @@
       ],
       "native_execution_records": 54,
       "archive_path": "logs/final01",
-      "interpretation": "Clean 81afc8d5: 36/0, before the later independent alias-parent finding. This is not final acceptance for the alias fix."
+      "interpretation": "Clean 81afc8d5: 36/0, before the later independent alias-parent finding. This is not final acceptance for the alias fix.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "final02",
@@ -1349,7 +1381,8 @@
       ],
       "native_execution_records": 110,
       "archive_path": "logs/final02",
-      "interpretation": "Final clean production freeze: 66/0 = new author source 13 + author replay of independent 203 source 28 + legacy 202 independent 19 + raw 4 + budget 2. Author source contributes 22 native executions; independent and integration counts remain separate."
+      "interpretation": "Final clean production freeze: 66/0 = new author source 13 + author replay of independent 203 source 28 + legacy 202 independent 19 + raw 4 + budget 2. Author source contributes 22 native executions; independent and integration counts remain separate. Historical 184 checkpoint; a later independent loop-condition-only alias case required the 2d90245c follow-up.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "independent01",
@@ -1397,7 +1430,8 @@
       ],
       "native_execution_records": 18,
       "archive_path": "logs/independent01",
-      "interpretation": "Author replay: one negative had an earlier Expand rejection; an unused raw positive had inconsistent renamed parameter and aggregate binders. The independent author corrected that fixture separately."
+      "interpretation": "Author replay: one negative had an earlier Expand rejection; an unused raw positive had inconsistent renamed parameter and aggregate binders. The independent author corrected that fixture separately.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "legacyraw01",
@@ -1446,7 +1480,8 @@
       ],
       "native_execution_records": 0,
       "archive_path": "logs/legacyraw01",
-      "interpretation": "Unchanged 202 independent guard failed only on attack 7 removing TypeApply from a push with unique complete actual T. Original mutated Core and Ok result are retained."
+      "interpretation": "Unchanged 202 independent guard failed only on attack 7 removing TypeApply from a push with unique complete actual T. Original mutated Core and Ok result are retained.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "moves01",
@@ -1495,7 +1530,8 @@
       ],
       "native_execution_records": 0,
       "archive_path": "logs/moves01",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "regression01",
@@ -1540,7 +1576,8 @@
       ],
       "native_execution_records": 0,
       "archive_path": "logs/regression01",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source01",
@@ -1590,7 +1627,8 @@
       ],
       "native_execution_records": 4,
       "archive_path": "logs/source01",
-      "interpretation": "Original four-source run: two native positives succeeded; the two negative fixtures incorrectly expected a Verify run although Expand rejected. Only the stage assertions were corrected."
+      "interpretation": "Original four-source run: two native positives succeeded; the two negative fixtures incorrectly expected a Verify run although Expand rejected. Only the stage assertions were corrected.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source02",
@@ -1638,7 +1676,8 @@
       ],
       "native_execution_records": 6,
       "archive_path": "logs/source02",
-      "interpretation": "Same-concrete FnMut Store native controls passed; truly different actual closure roots hit the old Analyze constructor gate. Root later added independent argument-to-field correspondence checks."
+      "interpretation": "Same-concrete FnMut Store native controls passed; truly different actual closure roots hit the old Analyze constructor gate. Root later added independent argument-to-field correspondence checks.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source03",
@@ -1688,7 +1727,8 @@
       ],
       "native_execution_records": 8,
       "archive_path": "logs/source03",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source04",
@@ -1730,7 +1770,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/source04",
-      "interpretation": "Rust compile failure from a misplaced match branch while adding full-value inference; no test execution."
+      "interpretation": "Rust compile failure from a misplaced match branch while adding full-value inference; no test execution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source05",
@@ -1772,7 +1813,8 @@
       "test_groups": [],
       "native_execution_records": 0,
       "archive_path": "logs/source05",
-      "interpretation": "Rust compile failure from a shadowed error helper; no test execution."
+      "interpretation": "Rust compile failure from a shadowed error helper; no test execution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source06",
@@ -1820,7 +1862,8 @@
       ],
       "native_execution_records": 12,
       "archive_path": "logs/source06",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source07",
@@ -1868,7 +1911,8 @@
       ],
       "native_execution_records": 12,
       "archive_path": "logs/source07",
-      "interpretation": "A new Rust test was accidentally placed inside an existing raw ZIL source string; the fixture failed parsing. The test block was moved out without changing the intended ZIL source."
+      "interpretation": "A new Rust test was accidentally placed inside an existing raw ZIL source string; the fixture failed parsing. The test block was moved out without changing the intended ZIL source.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source08",
@@ -1916,7 +1960,8 @@
       ],
       "native_execution_records": 14,
       "archive_path": "logs/source08",
-      "interpretation": "The five-module author fixture omitted ProjectSources.paths; actual Expand ModuleNotFound. Only the module map in the test harness was corrected."
+      "interpretation": "The five-module author fixture omitted ProjectSources.paths; actual Expand ModuleNotFound. Only the module map in the test harness was corrected.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source09",
@@ -1965,7 +2010,8 @@
       ],
       "native_execution_records": 0,
       "archive_path": "logs/source09",
-      "interpretation": "The unchanged consumer accessed a private active field. The consumer author explicitly published only that required field in addfb808."
+      "interpretation": "The unchanged consumer accessed a private active field. The consumer author explicitly published only that required field in addfb808.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source10",
@@ -2014,7 +2060,8 @@
       ],
       "native_execution_records": 6,
       "archive_path": "logs/source10",
-      "interpretation": "First clean five-module source replay after publishing active: O0/O2 inputs 0,1,6, six native successes."
+      "interpretation": "First clean five-module source replay after publishing active: O0/O2 inputs 0,1,6, six native successes.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source11",
@@ -2076,7 +2123,8 @@
       ],
       "native_execution_records": 60,
       "archive_path": "logs/source11",
-      "interpretation": "Dirty actual-position move fix: author 10, independent replay 22 and legacy budget 2 passed; not relabelled as the later clean commit."
+      "interpretation": "Dirty actual-position move fix: author 10, independent replay 22 and legacy budget 2 passed; not relabelled as the later clean commit.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "source12",
@@ -2146,7 +2194,8 @@
       ],
       "native_execution_records": 60,
       "archive_path": "logs/source12",
-      "interpretation": "Clean 6e102de: 203 author 10, independent replay 22 and legacy budget 2 passed. Old 202 raw suite was 3/1 solely because its formerly forbidden uniquely inferred bare call is now legal under norm a355."
+      "interpretation": "Clean 6e102de: 203 author 10, independent replay 22 and legacy budget 2 passed. Old 202 raw suite was 3/1 solely because its formerly forbidden uniquely inferred bare call is now legal under norm a355.",
+      "archive_file": "203-types-author-evidence.zip"
     },
     {
       "label": "unused01",
@@ -2195,21 +2244,289 @@
       ],
       "native_execution_records": 0,
       "archive_path": "logs/unused01",
-      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution."
+      "interpretation": "Intermediate command recorded with its actual HEAD, patch digest, exit status, sources and outputs; no final-acceptance attribution.",
+      "archive_file": "203-types-author-evidence.zip"
+    },
+    {
+      "label": "condition01",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil203",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl203_source",
+          "raw_field_alias",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil203-types",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil203-types/condition01"
+        },
+        "head": "5e4bd1fb0bac0006a290d5aaaeb9d695cbcc24e8",
+        "tracked_diff_sha256": "b3a94d15486327f1f5987c476999b4e23a734d3b83f117a8a544dc4e2d4b9b4e",
+        "started_utc": "2026-10-28T13:10:51Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+      "head_normative_sha256": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+      "clean": false,
+      "exit_code": 101,
+      "test_groups": [
+        {
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 0,
+      "archive_path": "logs/condition01",
+      "archive_file": "203-types-condition-evidence.zip",
+      "interpretation": "Real 184-production failure: the original body-alias controls passed, but moving the alias call solely into the while condition caused both public Types entries to accept the old alias on the next iteration after take/refill. Original Core and Ok results retained."
+    },
+    {
+      "label": "condition02",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil203",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--test",
+          "impl203_source",
+          "raw_field_alias",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil203-types",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil203-types/condition02"
+        },
+        "head": "5e4bd1fb0bac0006a290d5aaaeb9d695cbcc24e8",
+        "tracked_diff_sha256": "ccda4a0968104b5dbe3a704f2b1bf7c62c1d24efc9b90a50539a7082b21c92fa",
+        "started_utc": "2026-10-28T13:11:47Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+      "head_normative_sha256": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+      "clean": false,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 0,
+      "archive_path": "logs/condition02",
+      "archive_file": "203-types-condition-evidence.zip",
+      "interpretation": "The unchanged condition-only alias case and prior controls passed after collecting repeated-condition alias uses before the body frame."
+    },
+    {
+      "label": "final03",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil203",
+          "cargo",
+          "test",
+          "--offline",
+          "-p",
+          "zil-driver",
+          "--no-fail-fast",
+          "--test",
+          "impl203_source",
+          "--test",
+          "impl203_independent",
+          "--test",
+          "impl202_budget",
+          "--test",
+          "impl202_raw",
+          "--test",
+          "impl202_independent",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil203-types",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil203-types/final03"
+        },
+        "head": "2d90245c07469549f08c7220c7191ad8ab1cf234",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T13:13:11Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+      "head_normative_sha256": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+      "clean": true,
+      "exit_code": 0,
+      "test_groups": [
+        {
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 19,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 28,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "passed": 13,
+          "failed": 0,
+          "ignored": 0
+        }
+      ],
+      "native_execution_records": 110,
+      "archive_path": "logs/final03",
+      "archive_file": "203-types-condition-evidence.zip",
+      "interpretation": "Final clean 2d90245c: 66/0 = new author 13 (22 native) + author replay of independent 203 groups 28 + legacy 202 independent19/raw4/budget2. Independent review and root matrices are separate."
+    },
+    {
+      "label": "clippy05",
+      "command_receipt": {
+        "command": [
+          "bash",
+          "-c",
+          "source /workspace/scratch/39be3faa4442/toolchains178/env.sh\nexec \"$@\"",
+          "zil203",
+          "cargo",
+          "clippy",
+          "--offline",
+          "-p",
+          "zil-types",
+          "-p",
+          "zil-driver",
+          "--lib",
+          "--test",
+          "impl203_source",
+          "--test",
+          "impl202_raw",
+          "--test",
+          "impl202_independent",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+        "environment": {
+          "TMPDIR": "/dev/shm/zil203-types",
+          "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets200/frontend",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "ZIL_TEST_REPORT_DIR": "/dev/shm/zil203-types/clippy05"
+        },
+        "head": "2d90245c07469549f08c7220c7191ad8ab1cf234",
+        "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_utc": "2026-10-28T13:14:58Z",
+        "untracked": {}
+      },
+      "head_design_sha256": "c83b9c0dd726d3d2740fb02b2e46d7b51f3891e031d9994c309a6734b421d489",
+      "head_normative_sha256": "a3557b7a000baed3d381b2f8f53eafd24f03c65aa8a94a3fdbf31708d69a9e52",
+      "clean": true,
+      "exit_code": 0,
+      "test_groups": [],
+      "native_execution_records": 0,
+      "archive_path": "logs/clippy05",
+      "archive_file": "203-types-condition-evidence.zip",
+      "interpretation": "Final clean 2d90245c compiler and author test Clippy -D warnings passed."
     }
   ],
-  "external_archive": {
-    "path": "/workspace/scratch/39be3faa4442/run-logs/203-types/203-types-author-evidence.zip",
-    "filename": "203-types-author-evidence.zip",
-    "bytes": 46443364,
-    "sha256": "c67a2f4c952297d38812498217cc6729a7ba3e6b183904e15793efcf1d5d8cce",
-    "payload_files": 11934,
-    "zip_entries_including_manifest": 11935,
-    "uncompressed_payload_bytes": 1227621239,
-    "excluded_execution_products": 1644,
-    "excluded_execution_bytes": 47898020,
-    "crc_verification": "All entries passed zipfile.testzip",
-    "sha256_verification": "All included payload files reread and matched the manifest",
-    "under_50mb": true
+  "external_archives": [
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/203-types/203-types-author-evidence.zip",
+      "filename": "203-types-author-evidence.zip",
+      "bytes": 46443364,
+      "sha256": "c67a2f4c952297d38812498217cc6729a7ba3e6b183904e15793efcf1d5d8cce",
+      "payload_files": 11934,
+      "zip_entries_including_manifest": 11935,
+      "uncompressed_payload_bytes": 1227621239,
+      "excluded_execution_products": 1644,
+      "excluded_execution_bytes": 47898020,
+      "crc_verification": "All entries passed zipfile.testzip",
+      "sha256_verification": "All included payload files reread and matched the manifest",
+      "under_50mb": true
+    },
+    {
+      "path": "/workspace/scratch/39be3faa4442/run-logs/203-types/203-types-condition-evidence.zip",
+      "filename": "203-types-condition-evidence.zip",
+      "bytes": 9240888,
+      "sha256": "edadafee73bb4a20cc76c217fe209802ab055787bb2ec5aa8fc41d606e62c39b",
+      "payload_files": 2291,
+      "zip_entries_including_manifest": 2292,
+      "uncompressed_payload_bytes": 245688468,
+      "excluded_execution_products": 318,
+      "excluded_execution_bytes": 9728224,
+      "crc_verification": "All entries passed zipfile.testzip",
+      "sha256_verification": "All included payload files reread and matched the manifest",
+      "under_50mb": true
+    }
+  ],
+  "loop_condition_followup": {
+    "baseline_production": "1846878e3d3e6e4083b102557ae6c98d0dec85f9",
+    "actual_failure": "condition01",
+    "fix_commit": "2d90245c07469549f08c7220c7191ad8ab1cf234",
+    "implementation": "While/WhileLet collect the charged condition alias-use set before entering the body; the body and condition use sets jointly constrain reachable back edges. ForRange bounds remain evaluated once.",
+    "test_scope": "The added exact raw case moves the same view call from the body to the while condition. The previous fresh-per-iteration, break-only, shared-repeat, exclusive-repeat and refill controls remain unchanged.",
+    "runtime_scope": "This is an unused-Core declaration check, not a newly demonstrated executable Verify bypass."
+  },
+  "compact_delivery_archive": {
+    "path": "/workspace/scratch/39be3faa4442/run-logs/203-types/203-types-evidence-compact.zip",
+    "filename": "203-types-evidence-compact.zip",
+    "bytes": 6746353,
+    "sha256": "a57fb5e2b7558ac2336043d7d9211323933c4d6c36ddf4ff54a15bbb41b6f53f",
+    "logical_files": 14225,
+    "stored_unique_contents": 2056,
+    "logical_bytes": 1473309707,
+    "stored_uncompressed_bytes": 146933191,
+    "format": "Standard deflated ZIP with original-path INDEX.json, canonical records/ entries and optional checked restore.py",
+    "verification": "All ZIP entries passed CRC; every canonical content SHA256 checked, every logical file mapping matched its original size and SHA256",
+    "under_50mb": true,
+    "recommended_delivery": true
   }
 }
