@@ -3,6 +3,8 @@ use zil_ir::{CallableKind, CoreModule, Type};
 
 const ORIGINAL: &str = include_str!("impl205_fixtures/00_original_state_and_replacement.zil");
 const LAST_USE: &str = include_str!("impl205_fixtures/03_mixed_unused_copy_alias_last_use.zil");
+const MIXED_ALIAS: &str = include_str!("impl205_fixtures/01_mixed_unused_copy_alias.zil");
+const SINGLE_ALIAS: &str = include_str!("impl205_fixtures/02_single_state_unused_copy_alias.zil");
 
 fn run(text: &str) -> Result<CoreModule, Vec<Diagnostic>> {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "state205.zil", text);
@@ -122,5 +124,184 @@ fn adjacent_shapes_do_not_use_the_mixed_header_exception() {
                 .any(|d| d.phase == Phase::Expand && d.category == ResultCategory::Unsupported),
             "{errors:?}"
         );
+    }
+}
+
+fn alias_reject(text: &str, message: &str) {
+    let errors = run(text).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.phase == Phase::Expand
+            && d.category == ResultCategory::SafeReject
+            && d.code == "E-GENERIC-ARGUMENT"
+            && d.message.contains(message)),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn original_omitted_and_retained_definitions_reject_the_same_old_address() {
+    alias_reject(MIXED_ALIAS, "State alias outlives");
+    alias_reject(SINGLE_ALIAS, "State alias outlives");
+    let non_t = SINGLE_ALIAS
+        .replace("State<T,F>", "State<F>")
+        .replace(";tag:T", "")
+        .replace("<T:Copy,F:", "<F:");
+    alias_reject(&non_t, "State alias outlives");
+    run(LAST_USE).unwrap();
+    run(&SINGLE_ALIAS.replace("    view()\n", "").replace(
+        "    let replacement=next.a",
+        "    view()\n    let replacement=next.a",
+    ))
+    .unwrap();
+}
+
+#[test]
+fn last_use_sibling_and_fresh_epoch_keep_distinct_field_positions() {
+    run(&MIXED_ALIAS.replace("next.a=replacement", "next.b=replacement")).unwrap();
+    run(&MIXED_ALIAS.replace("    view()", "    let fresh=&next.a\n    fresh()")).unwrap();
+    run(&SINGLE_ALIAS.replace("    view()", "    let fresh=&next.a\n    fresh()")).unwrap();
+    alias_reject(
+        &MIXED_ALIAS.replace("let view=&next.a", "let first=&next.a\n    let view=first"),
+        "State alias outlives",
+    );
+    alias_reject(
+        &MIXED_ALIAS
+            .replace("next.a=replacement", "let other=next")
+            .replace("return next", "return other"),
+        "State alias outlives",
+    );
+}
+
+#[test]
+fn branch_join_and_loop_condition_do_not_resurrect_an_old_epoch() {
+    alias_reject(
+        &MIXED_ALIAS
+            .replace("replacement:F)", "replacement:F,flag:bool)")
+            .replace("next.a=replacement", "if flag { next.a=replacement }"),
+        "State alias outlives",
+    );
+    run(&LAST_USE
+        .replace("replacement:F)", "replacement:F,flag:bool)")
+        .replace("    view()", "    if flag { view() } else { view() }"))
+    .unwrap();
+    let prefix = "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}\nfn recycle<T:Copy,F:Fn()->i32>(state:State<T,F>)->State<T,F>{var next=state;let view=&next.a;";
+    alias_reject(
+        &format!(
+            "{prefix}while view()==0 {{ let moved=next.a;next.a=moved }} return next }}fn main(){{}}"
+        ),
+        "loop condition or backedge",
+    );
+    alias_reject(
+        &format!(
+            "{prefix}while true {{ view();let moved=next.a;next.a=moved;continue }} return next }}fn main(){{}}"
+        ),
+        "loop condition or backedge",
+    );
+    run(&format!("{prefix}while view()==0 {{ let moved=next.a;next.a=moved;break }} return next }}fn main(){{}}")).unwrap();
+    run(&format!(
+        "{prefix}while view()==0 {{ let moved=next.b;next.b=moved }} return next }}fn main(){{}}"
+    ))
+    .unwrap();
+}
+
+#[test]
+fn callee_and_earlier_argument_windows_survive_nested_preparation() {
+    let prefix = "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}\nfn consume<F:Fn(i32)->i32>(callback:F)->i32{return 0}\nfn both<F:Fn(i32)->i32>(callback:&F,value:i32)->i32{return callback(value)}\n";
+    for call in [
+        "view(consume(next.a))",
+        "next.a(consume(next.a))",
+        "both(&next.a,consume(next.a))",
+    ] {
+        let text = format!(
+            "{prefix}fn replace<T:Copy,F:Fn(i32)->i32>(state:State<T,F>,replacement:F)->State<T,F>{{var next=state;let view=&next.a;{call};next.a=replacement;return next}}fn main(){{}}"
+        );
+        alias_reject(&text, "prepared callee or argument window");
+        let sibling = text
+            .replace("consume(next.a)", "consume(next.b)")
+            .replace("next.a=replacement", "next.b=replacement");
+        run(&sibling).unwrap();
+    }
+}
+
+#[test]
+fn conditional_addresses_and_reborrows_preserve_alternatives_and_parent_precision() {
+    let text = "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}\nfn replace<T:Copy,F:FnMut()->i32>(state:State<T,F>,replacement:F,flag:bool)->State<T,F>{var next=state;let view=if flag { &mut next.a } else { &mut next.b };view();return next}fn main(){}";
+    run(text).unwrap();
+    let reads = "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}\nfn recycle<T:Copy,F:Fn()->i32>(state:State<T,F>)->State<T,F>{var next=state;let first=&mut next.tag;let second=&mut *first;let one=*second;let two=*first;return next}fn main(){}";
+    run(reads).unwrap();
+    alias_reject(
+        &reads.replace(
+            "let one=*second;let two=*first",
+            "let one=*first;let two=*second",
+        ),
+        "State alias outlives",
+    );
+    let refresh = "package State<T,F>{manages bytes:ByteBuffer;a:F;b:F;tag:T}\nfn recycle<T:Copy,F:Fn()->i32>(state:State<T,F>)->State<T,F>{var next=state;var view=&next.a;while view()==0 {let moved=next.a;next.a=moved;view=&next.a}return next}fn main(){}";
+    run(refresh).unwrap();
+    alias_reject(
+        &refresh.replace(
+            "let moved=next.a;next.a=moved;view=&next.a",
+            "view=&next.a;let moved=next.a;next.a=moved",
+        ),
+        "loop condition or backedge",
+    );
+}
+
+fn boundary(text: &str) -> usize {
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "state205-budget.zil", text);
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let check = |n| {
+        zil_expand::expand_with_map_limits(
+            &source,
+            &syntax,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+    };
+    let mut low = 0;
+    let mut high = Limits::default().max_analysis_steps;
+    check(high).unwrap();
+    while low + 1 < high {
+        let n = low + (high - low) / 2;
+        match check(n) {
+            Ok(_) => high = n,
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| d.category == ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                low = n;
+            }
+        }
+    }
+    check(high).unwrap();
+    assert!(
+        check(high - 1)
+            .unwrap_err()
+            .iter()
+            .all(|d| d.category == ResultCategory::ResourceLimit)
+    );
+    check(high).unwrap();
+    high
+}
+
+#[test]
+fn real_alias_work_and_new_header_have_exact_fresh_budget_boundaries() {
+    let legacy =
+        include_str!("../../zil-driver/tests/impl197_cases/01-existing-state-f-sibling/main.zil");
+    for (name, source) in [
+        ("header", ORIGINAL),
+        ("unused_alias", LAST_USE),
+        ("legacy_alias", legacy),
+    ] {
+        let n = boundary(source);
+        eprintln!("state205_{name}_expand_n={n}");
+        if name == "legacy_alias" {
+            assert!(n > 1731);
+        }
     }
 }
