@@ -7,3 +7,5 @@ LLVM owned_field把已核完整Package child作为父的一个直接责任位，
 原消费者草稿与所有预声明输入逐字收入tools/language/206/consumer/predeclared；其中五模块也逐字作为examples/mainline/package_product206施工源。ORACLE.json SHA956e2142fc79cd4ea0431c5cfecdaa8d54d47072873795e88a3c8d1df929ec6d保持；未执行的草稿元数据仍保NotRun，不改成通过。源码入口、字段类型、实际Created/Incoming与有界费用须由Types/Analyze/Verify分别完成，机器predicate不构成权限证明。
 
 本次提交是待联合验证的表示变更；所有新206语言贯通、机器执行及分配观察此刻NotRun。有限旧核回归/Clippy、后续五模块真实执行与独审分别留准确源码身份，不能用旧片结果替代本片。完整1.4 NotSatisfied、B0 Doing、产品与原生Windows NotRun。
+
+8cc6917合入bfb7923a的Copy澄清后，以规范d71e、设计f26a执行有限旧Lower/LLVM检查：all-target Clippy通过，backend18/lower3，共21/0/0。该命令未执行新206语言输入。新增impl206_machine保留从真实源到内联payload及父字段清理的永久回归；五模块run.py仅读取原固定ORACLE.json，校验输入和工具哈希、实际编译器身份、全观察与最终计数，不调用模型重算预期；两者尚待Types/Analyze/Verify联合运行。
