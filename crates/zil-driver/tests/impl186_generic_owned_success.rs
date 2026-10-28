@@ -185,7 +185,7 @@ fn written_modes_are_checked_with_and_without_instantiation() {
             };
             accepted(
                 "written-modes",
-                &format!("{MODEL}{HELPERS}{definition}{main}"),
+                &format!("{MODEL}{HELPERS}{definition}\n{main}"),
             );
         }
     }
@@ -275,7 +275,7 @@ fn unused_definitions_cannot_launder_old_success_into_create() {
     ] {
         rejected(
             "old-create",
-            &format!("{MODEL}{HELPERS}{definition}fn main(){{}}"),
+            &format!("{MODEL}{HELPERS}{definition}\nfn main(){{}}"),
             ResultCategory::SafeReject,
             "fresh source",
         );
@@ -333,7 +333,7 @@ fn unused_union_moves_and_descriptor_aliases_do_not_create_permissions() {
     ] {
         rejected(
             "move-category",
-            &format!("{MODEL}{HELPERS}{definition}fn main(){{}}"),
+            &format!("{MODEL}{HELPERS}{definition}\nfn main(){{}}"),
             category,
             message,
         );
@@ -344,7 +344,7 @@ fn unused_union_moves_and_descriptor_aliases_do_not_create_permissions() {
 fn unused_signatures_require_the_written_mode_and_actual_copy_error_shape() {
     for (definition, category, message) in [
         (
-            "fn bad<T:StoreElement>()->E!Store<T>=>store_new()",
+            "fn bad<T:StoreElement>()->E!Store<T> =>store_new()",
             ResultCategory::Unsupported,
             "requires result(create/give)",
         ),
@@ -381,7 +381,7 @@ fn unused_signatures_require_the_written_mode_and_actual_copy_error_shape() {
     ] {
         rejected(
             "shape-mode",
-            &format!("{MODEL}{HELPERS}{definition}fn main(){{}}"),
+            &format!("{MODEL}{HELPERS}{definition}\nfn main(){{}}"),
             category,
             message,
         );
