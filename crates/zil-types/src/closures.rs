@@ -419,6 +419,8 @@ pub(super) struct Graph {
     work_left: std::cell::Cell<usize>,
     depth_limit: usize,
     node_limit: usize,
+    store_parameter: Option<String>,
+    source_callback_parameters: Vec<String>,
 }
 impl Graph {
     pub(super) fn new(limits: &Limits) -> Self {
@@ -428,7 +430,53 @@ impl Graph {
             work_left: std::cell::Cell::new(limits.max_analysis_steps),
             depth_limit: limits.max_call_depth,
             node_limit: limits.max_nodes,
+            store_parameter: None,
+            source_callback_parameters: Vec::new(),
         }
+    }
+    pub(super) fn set_store_parameter(&mut self, name: &str, span: Span) -> R<()> {
+        self.spend_count(name.len().saturating_add(1), span)?;
+        self.store_parameter = Some(name.to_owned());
+        Ok(())
+    }
+    pub(super) fn symbolic_store_type(&self, ty: &Type) -> bool {
+        self.store_parameter
+            .as_ref()
+            .is_some_and(|name| store_templates::symbolic_type(ty, name))
+    }
+    pub(super) fn is_store_parameter(&self, ty: &Type) -> bool {
+        matches!(ty, Type::Named(name) if self.store_parameter.as_ref() == Some(name))
+    }
+    pub(super) fn source_callback_parameter(&mut self, name: &str, span: Span) -> R<()> {
+        self.spend_count(
+            self.source_callback_parameters
+                .len()
+                .saturating_mul(name.len().saturating_add(1))
+                .saturating_add(name.len())
+                .saturating_add(1),
+            span,
+        )?;
+        if !self
+            .source_callback_parameters
+            .iter()
+            .any(|old| old == name)
+        {
+            if self.source_callback_parameters.len() >= 2 {
+                return Err(unsupported(
+                    span,
+                    "source callback parameter bound exceeded",
+                ));
+            }
+            self.source_callback_parameters.push(name.to_owned());
+        }
+        Ok(())
+    }
+    fn source_callback_package(&self, ty: &Type) -> bool {
+        !self.source_callback_parameters.is_empty()
+            && dynamic_store::callback_element(
+                ty,
+                |ty| matches!(ty, Type::Named(name) if self.source_callback_parameters.contains(name)),
+            )
     }
     fn spend(&self, span: Span) -> R<()> {
         self.spend_count(1, span)
@@ -551,6 +599,15 @@ impl Graph {
         Ok(())
     }
     pub(super) fn bind(&mut self, variable: Variable, ty: &Type, span: Span) -> R<()> {
+        self.bind_source(variable, ty, None, span)
+    }
+    pub(super) fn bind_source(
+        &mut self,
+        variable: Variable,
+        ty: &Type,
+        source_callbacks: Option<&BTreeMap<String, usize>>,
+        span: Span,
+    ) -> R<()> {
         self.reserve_type(ty, 0, span)?;
         let domain = match ty {
             Type::Unit => UNIT,
@@ -560,6 +617,8 @@ impl Graph {
             Type::ForeignHandle => HANDLE,
             Type::I32 => I32,
             Type::I64 => I64,
+            ty if self.symbolic_store_type(ty) => AGGREGATE,
+            ty if self.source_callback_package(ty) => AGGREGATE,
             ty if *ty == Type::ByteBuffer
                 || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
@@ -577,6 +636,20 @@ impl Graph {
                 AGGREGATE
             }
             _ => {
+                if let Some(callbacks) = source_callbacks {
+                    // Only the new unresolved shell pays for this extra walk.
+                    // Ordinary concrete/Copy paths returned above unchanged.
+                    self.reserve_type(ty, 0, span)?;
+                    if dynamic_store::callback_element(
+                        ty,
+                        |ty| matches!(ty, Type::Named(name) if callbacks.contains_key(name)),
+                    ) {
+                        for name in callbacks.keys() {
+                            self.source_callback_parameter(name, span)?;
+                        }
+                        return self.bind(variable, ty, span);
+                    }
+                }
                 return Err(unsupported(
                     span,
                     "closure value requires a finite Copy type",
