@@ -1,0 +1,33 @@
+# 178：泛型 Store 元素协议
+
+依据：1.4 §2.1、§8.1–8.2、§19.6；工单 `.task/impl/178.md`，基线
+`8c4ed992138fc103c0fbaf6318e2e34d261bda81`。本提案先于接受性改动提交。
+
+## 为什么
+
+177 已有真实 Store、完整元素、独立窗口/清理和具体回调 State，但泛型正文
+没有 Store 原语签名、局部载体与 Desc 区分，以及 create/give 结果合同。
+具体 helper 的绕行无法成为跨 Item 的可复用容器库。
+
+## 合同
+
+采用规范明确保留的 `T: StoreElement`：它只描述当前有限、非零、完整
+Package 元素形状，不授予 Copy、Managed、字段可见性或 give 权限。
+用户 impl、同名空 trait、无约束 T 和同布局不同名义类型不能伪造资格。
+所有未实例化模板同样检查；实际实例仍进入 Types、Analyze、独立 Verify。
+
+Store 普通参数和普通赋值取得 Desc；工厂结果、明确 give 参数或实际 give
+表达式才建立拥有位置。完整 give 使原位置失活，普通 Desc 别名不升级。
+`store_new` 需要明确 Store 期望类型，`store_push` 返回完整未插入元素，
+`store_pop` 返回真实末项；错误联合与 `?` 使用实际两侧类型。
+
+只开放这一协议所需的 `result(create/give)`，未实现的一般 where/合同仍
+明确 Unsupported。既有具体 Store 元素范围、独立安全核、ABI 和默认预算不变。
+
+## 实施与验收
+
+在 Expand 加入有限元素约束检查、符号 Store 签名和真实拥有位置跟踪，
+不从安全阶段共享判定函数。保留实际名义身份和原求值次序。
+以至少两种 Item 的跨模块泛型 empty/reserve/push/pop/len/relay 真实程序
+验证；包含 O0/O2、容量失败退还、自动清理、源码最近反例与 raw/Wire 篡改。
+限定测试和失败记录保留，正式全量与独立审核由集成方执行。
