@@ -1,0 +1,23 @@
+{
+  "source_commit": "11b3d825e8f0e9907b097c7e7227acffedfa16c2",
+  "source_directory": "evidence/impl/205/preflight",
+  "files": {
+    "00_original_state_and_replacement.zil": {
+      "bytes": 138,
+      "sha256": "5251f83be296a6273532690540cfde459938f39801afc614ba1cbb672df2b05a"
+    },
+    "01_mixed_unused_copy_alias.zil": {
+      "bytes": 239,
+      "sha256": "ea27ef687fb8e03cbf5c3f8216fa2b904064575490155e7296da1c351ab31f8b"
+    },
+    "02_single_state_unused_copy_alias.zil": {
+      "bytes": 252,
+      "sha256": "2601332cc0d78658ac96f105e83fea18ce8544bccafe45f2e1ccc8e0254b2d62"
+    },
+    "03_mixed_unused_copy_alias_last_use.zil": {
+      "bytes": 239,
+      "sha256": "6c1b1cda1d54109b904bde79195d32e9cbb6eab0045c42254446b63381bc6982"
+    }
+  },
+  "scope": "Byte-identical review copies. Baseline observations are separate from future 205 acceptance."
+}
