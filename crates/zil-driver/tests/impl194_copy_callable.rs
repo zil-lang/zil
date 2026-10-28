@@ -214,7 +214,7 @@ fn record_enum_tuple_array_error_and_function_pointer_are_real_copy_shapes() {
         ),
         (
             "enum",
-            "enum E{A(i32),B}fn main()->i32{let f=move(x:E)=>x;let v=map(&f,E.A(7));match v{E.A(n)=>{return n-7},E.B=>{return 1}}}",
+            "enum E{A(i32),B}fn main()->i32{let f=move(x:E)=>x;let v=map(&f,E.A(7));match v{E.A(n)=>{return n-7},E.B()=>{return 1}}}",
         ),
         (
             "tuple",
@@ -380,7 +380,7 @@ fn borrowed_lending_windows_are_not_extended_by_copy_data() {
         "fn make()->impl FnMut()->&i32{var n=6;return move()=>{n+=1;return &n}}fn read<T:Copy,F:FnMut()->&i32>(f:&mut F,x:T)->&i32=>f();fn main()->i32{var f=make();let p=read(&mut f,0);let q=read(&mut f,i64(0));return *p+*q}",
         Phase::Verify,
         ResultCategory::SafeReject,
-        "borrow",
+        "active address window",
     );
 }
 
@@ -424,7 +424,7 @@ fn uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities() 
             "member",
             "fn bad<T:Copy>(x:T)->i32=>x.n;fn main(){}",
             ResultCategory::Unsupported,
-            "projection",
+            "operation on an unconstrained",
         ),
         (
             "method",
