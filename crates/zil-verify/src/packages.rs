@@ -154,6 +154,10 @@ pub(super) fn check_ordinary_type(
         let mut names = BTreeSet::new();
         let mut owns = false;
         for (name, field) in fields {
+            budget.spend(
+                name.len()
+                    .saturating_mul(fields.len().saturating_add(1).ilog2() as usize + 2),
+            )?;
             if name.is_empty() || !names.insert(name) {
                 return Err(reject(
                     "E-VERIFY-PACKAGE",

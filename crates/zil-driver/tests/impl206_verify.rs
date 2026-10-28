@@ -225,6 +225,13 @@ fn real_product_verify_work_has_exact_n_minus_one_and_fresh_boundaries() {
                     ..Limits::default()
                 },
             )
+            .map(|verified| {
+                (
+                    verified.module().clone(),
+                    verified.plan().clone(),
+                    verified.fingerprint(),
+                )
+            })
         };
         let expected = run(Limits::default().max_analysis_steps).unwrap();
         let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
