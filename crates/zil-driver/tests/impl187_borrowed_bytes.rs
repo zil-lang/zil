@@ -220,7 +220,7 @@ fn actual_readonly_capture_composes_with_a_live_shared_byte_view() {
             ),
         ] {
             let source = format!(
-                "{SUPPORT}fn main()->i32{{let b=bytes_new();if !bytes_reserve(b,1){{return 7}};bytes_push(b,u8(65));let d=b;let view=bytes_view(b);let f=()=>{read};return {invocation}+i32(view[0])-{expected}}"
+                "{SUPPORT}fn main()->i32{{let b=bytes_new();if !bytes_reserve(b,1){{return 7}};bytes_push(b,u8(65));let d=b;let view=bytes_view(b);let f=()=>{read};return {invocation}+i32(view[0])-{expected}}}"
             );
             native(&[("main", &source)], b"", 0);
         }
@@ -272,6 +272,22 @@ fn independent_buffer_sources_do_not_inherit_an_unrelated_window() {
         Phase::Verify,
         "E-BORROW-CONFLICT",
     );
+}
+
+#[test]
+fn helper_argument_views_are_checked_with_the_actual_capture_effects() {
+    let source = "fn inspect<F:Fn()->i32>(f:&F,b:ByteBuffer)->i32{let view=bytes_view(b);let answer=f();return answer+i32(view[0])}fn main()->i32{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));bytes_reserve(b,2);bytes_push(b,u8(66));let f=()=>{bytes_push(b,u8(67));return i32(bytes_len(b))};return inspect(&f,a)-67}";
+    native(&[("main", source)], b"", 0);
+    rejected(
+        &source.replace("inspect(&f,a)", "inspect(&f,b)"),
+        ResultCategory::SafeReject,
+        Phase::Verify,
+        "E-BORROW-CONFLICT",
+    );
+    let read = source
+        .replace("bytes_push(b,u8(67));return", "return")
+        .replace("inspect(&f,a)", "inspect(&f,b)");
+    native(&[("main", &read)], b"", 0);
 }
 
 #[test]
