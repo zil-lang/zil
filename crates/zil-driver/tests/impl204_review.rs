@@ -447,8 +447,8 @@ fn main()->i32{{return run(pack(make(65),make(66)))}}
             "let b=ready.second();emit(67)",
             "let b=ready.second();ready.second();emit(67)",
         ),
-        Phase::Types,
-        "E-CLOSURE-MODE",
+        Phase::Expand,
+        "E-GENERIC-ARGUMENT",
     );
 }
 
@@ -826,17 +826,48 @@ fn actual_capture_writes_and_transfers_cannot_be_hidden_by_mode_or_read_metadata
         })
         .unwrap();
     let mut second = f.blocks[block].instructions[index].clone();
-    let ty = f.values[second.result.unwrap().0 as usize].clone();
-    second.result = Some(ValueId(f.values.len() as u32));
+    let original_value = second.result.unwrap();
+    let ty = f.values[original_value.0 as usize].clone();
+    let added_value = ValueId(f.values.len() as u32);
+    second.result = Some(added_value);
     f.values.push(ty);
     f.blocks[block].instructions.insert(index + 1, second);
-    attack(
-        "actual-store-capture-taken-twice",
-        repeated,
-        &plan,
-        false,
-        ResultCategory::SafeReject,
-        "E-VERIFY-RESOURCE",
+    let case = Case::new("actual-store-capture-taken-twice");
+    case.write("typed.txt", format!("{repeated:#?}"));
+    let analyzed = zil_analyze::analyze(&repeated, &Limits::default());
+    case.write("analyze.txt", format!("{analyzed:#?}"));
+    assert!(analyzed.unwrap_err().iter().any(|d| {
+        d.phase == Phase::Analyze
+            && d.category == ResultCategory::SafeReject
+            && d.code == "E-ANALYZE-IR"
+    }));
+    // Analyze correctly refuses the duplicate ownership transfer. Supply a
+    // structurally complete, explicitly untrusted candidate to independently
+    // reach Verify's actual capture debt check instead of its dense-Hold gate.
+    let mut forged = plan.clone();
+    let entry = forged
+        .functions
+        .iter_mut()
+        .find(|p| p.function == function)
+        .unwrap();
+    assert_eq!(entry.holds.len(), added_value.0 as usize);
+    let original_hold = &entry.holds[original_value.0 as usize];
+    assert_eq!(original_hold.value, original_value);
+    assert!(original_hold.roots.is_empty());
+    entry.holds.push(ValueHold {
+        value: added_value,
+        roots: vec![],
+    });
+    forged.module_fingerprint = repeated.fingerprint();
+    case.write(
+        "candidate-origin.txt",
+        "Analyze rejected. Original control plan plus an explicit untrusted empty Hold claim for the new owned ValueId; not a fresh Analyze proof.\n",
+    );
+    verify_pair(
+        &case,
+        &repeated,
+        &forged,
+        Some((ResultCategory::SafeReject, "E-VERIFY-RESOURCE")),
     );
 }
 
