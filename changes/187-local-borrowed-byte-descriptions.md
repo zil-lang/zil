@@ -32,3 +32,13 @@
 实际机器构建又暴露同一emit.rs中capture_type与Closure字段alignment的旧Managed<ByteBuffer>单项限制。这两处同步接受已核Desc<ByteBuffer>，调用既有llvm_type(ptr)及alignment(8)，不新增表示、堆盒、引用计数或运行时映射。
 
 impl099原两项局部弱描述捕获输入属于新能力，需同源迁移为Success；root与184的相邻lending旧例统一迁移，本片不编辑该共享测试文件。
+
+## 内部窗口与实参义务补全
+
+实际check探针发现，闭包内部先从read描述形成view、再经edit描述reserve时，原私有Apart只记录普通Parameter/Parameter，漏掉Capture/Capture与ParameterCapture。两个捕获来自同一Buffer的输入错误Success；异源也Success。该不安全机器未执行，不能以先前外层view反例通过判定能力已闭合。
+
+root据此授权Verify borrows.rs及borrows/{buffer_effects,captures,loans}.rs：分离义务只记录真实外部描述/地址来源，保留普通参数、当前闭包捕获和来参环境捕获的身份；在每条真实普通/闭包调用边逐槽替换并独立拒绝实际相交。拥有捕获保持环境内部责任，环境位置不与其外部目标混为一体。公共Hold/Call/writes及schema23不变，所有遍历与闭包都计入原预算。
+
+普通helper额外Desc<ByteBuffer>参数先前也被Types/helpers.rs有限Copy门拒绝。其开放以同一私有义务可表达capture/argument关系为条件；普通R描述、Store、显式Address callback参数仍保持原边界。callee实际Effects同时保留其普通显式参数与真实被调用捕获，不再因看到callable_contract就只导入callback效果。原Types拒绝、内部窗口漏拒、编译环境/测试格式失败均保留，不更改原正例与同源反例目标。
+
+内部Capture/Capture修复后，同源反例、异源机器、raw/Wire与预算已实际通过；额外ByteBuffer参数随后在Analyze/helpers.rs暴露同构旧门，Verify/helpers.rs也独立保有该门。root授权两处仅追加相同Desc<ByteBuffer>形状，保留普通R和Address额外参数旧边界，不改变已有trace/公有writes含义。

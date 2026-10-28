@@ -170,6 +170,15 @@ fn reject_candidate(
     ] {
         fs::write(dir.join(format!("{route}.txt")), format!("{errors:#?}\n")).unwrap();
         assert!(errors.iter().all(|d| d.phase == zil_base::Phase::Verify));
+        let category = if code == "E-UNSUPPORTED" {
+            ResultCategory::Unsupported
+        } else {
+            ResultCategory::SafeReject
+        };
+        assert!(
+            errors.iter().all(|d| d.category == category),
+            "{label}/{route}: {errors:?}"
+        );
         assert!(
             errors
                 .iter()
@@ -291,6 +300,72 @@ fn helper_argument_views_are_checked_with_the_actual_capture_effects() {
 }
 
 #[test]
+fn internal_capture_windows_propagate_separation_to_each_actual_call() {
+    for invocation in ["f()", "call(&f)"] {
+        for operation in [
+            "bytes_reserve(edit,2)",
+            "bytes_push(edit,u8(66))",
+            "bytes_truncate(edit,0)",
+            "bytes_view_mut(edit)",
+        ] {
+            let source = format!(
+                "{SUPPORT}fn main()->i32{{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));bytes_reserve(b,2);let read=a;let edit=b;let f=()=>{{let view=bytes_view(read);{operation};return i32(view[0])}};return {invocation}-65}}"
+            );
+            native(&[("main", &source)], b"", 0);
+            rejected(
+                &source.replace("let edit=b", "let edit=a"),
+                ResultCategory::SafeReject,
+                Phase::Verify,
+                "E-BORROW-CONFLICT",
+            );
+        }
+    }
+    let exclusive = format!(
+        "{SUPPORT}fn main()->i32{{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));let read=a;let other=b;let f=()=>{{let view=bytes_view_mut(read);bytes_len(other);return i32(view[0])}};return call(&f)-65}}"
+    );
+    native(&[("main", &exclusive)], b"", 0);
+    rejected(
+        &exclusive.replace("let other=b", "let other=a"),
+        ResultCategory::SafeReject,
+        Phase::Verify,
+        "E-BORROW-CONFLICT",
+    );
+    let owned = "fn main()->i32{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));var f=move()=>{let view=bytes_view(a);bytes_reserve(b,2);return i32(view[0])};return f()+f()-130}";
+    native(&[("main", owned)], b"", 0);
+}
+
+#[test]
+fn helper_body_accesses_do_not_disappear_behind_its_callback_contract() {
+    for (body, answer) in [
+        ("bytes_reserve(b,4);return f()", 66),
+        ("bytes_reserve(b,4);return 0", 65),
+    ] {
+        let source = format!(
+            "fn touch<F:Fn()->i32>(f:&F,b:ByteBuffer)->i32{{{body}}}fn main()->i32{{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));let view=bytes_view(a);let f=()=>i32(bytes_len(a));return touch(&f,b)+i32(view[0])-{answer}}}"
+        );
+        native(&[("main", &source)], b"", 0);
+        rejected(
+            &source.replace("touch(&f,b)", "touch(&f,a)"),
+            ResultCategory::SafeReject,
+            Phase::Verify,
+            "E-BORROW-CONFLICT",
+        );
+    }
+}
+
+#[test]
+fn internal_capture_obligations_cross_two_ordinary_description_helpers() {
+    let source = "fn inner(a:ByteBuffer,b:ByteBuffer)->i32{let f=()=>{let view=bytes_view(a);bytes_reserve(b,2);return i32(view[0])};return f()}fn outer(a:ByteBuffer,b:ByteBuffer)->i32{return inner(a,b)}fn main()->i32{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));return outer(a,b)-65}";
+    native(&[("main", source)], b"", 0);
+    rejected(
+        &source.replace("outer(a,b)-65", "outer(a,a)-65"),
+        ResultCategory::SafeReject,
+        Phase::Verify,
+        "E-BORROW-CONFLICT",
+    );
+}
+
+#[test]
 fn ordinary_helper_layers_preserve_readonly_and_hidden_clear_effects() {
     let source = format!(
         "{SUPPORT}fn read(b:ByteBuffer)->i32=>i32(bytes_len(b));fn forward(b:ByteBuffer)->i32=>read(b);fn clear(b:ByteBuffer)->bool=>bytes_truncate(b,0);fn clear_again(b:ByteBuffer)->bool=>clear(b);fn main()->i32{{let b=bytes_new();bytes_reserve(b,1);bytes_push(b,u8(65));let d=b;let view=bytes_view(b);let f=()=>forward(d);return call(&f)+i32(view[0])-66}}"
@@ -351,6 +426,139 @@ fn borrowed_slices_explicit_address_arguments_and_retained_escape_stay_closed() 
         Phase::Types,
         "E-UNSUPPORTED",
     );
+    rejected(
+        "resource R{n:i32}fn inspect<F:Fn()->i32>(f:&F,r:R)->i32{return f()+r.n}fn main()->i32{let a=R{n:21};let f=()=>a.n;return inspect(&f,a)-42}",
+        ResultCategory::Unsupported,
+        Phase::Types,
+        "E-UNSUPPORTED",
+    );
+}
+
+#[test]
+fn raw_and_wire_reconstruct_internal_capture_and_parameter_window_obligations() {
+    use zil_ir::InstructionKind as I;
+    let source = format!(
+        "{SUPPORT}fn main()->i32{{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));let read=a;let edit=b;let f=()=>{{let view=bytes_view(read);bytes_reserve(edit,2);return i32(view[0])}};return call(&f)-65}}"
+    );
+    let (mut module, plan) = candidate(&source);
+    for instruction in module
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+    {
+        if let I::MakeClosure { captures, .. } = &mut instruction.kind {
+            assert_eq!(captures.len(), 2);
+            captures[1] = captures[0];
+        }
+    }
+    reject_candidate(
+        "internal-window-capture-capture-alias",
+        module,
+        plan,
+        "E-BORROW-CONFLICT",
+        "window contract requires separation",
+    );
+
+    let source = "fn inspect<F:Fn()->i32>(f:&F,b:ByteBuffer)->i32{let view=bytes_view(b);let answer=f();return answer+i32(view[0])}fn main()->i32{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));bytes_reserve(b,2);bytes_push(b,u8(66));let f=()=>{bytes_push(b,u8(67));return i32(bytes_len(b))};return inspect(&f,a)-67}";
+    let (mut module, plan) = candidate(source);
+    let helper = module
+        .functions
+        .iter()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap()
+        .id;
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let source = function
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match &i.kind {
+            I::MakeClosure { captures, .. } => Some(captures[0]),
+            _ => None,
+        })
+        .unwrap();
+    for instruction in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let I::Call {
+            function,
+            arguments,
+        } = &mut instruction.kind
+            && *function == helper
+        {
+            assert_eq!(arguments.len(), 2);
+            arguments[1] = source;
+        }
+    }
+    reject_candidate(
+        "internal-window-capture-argument-alias",
+        module,
+        plan,
+        "E-BORROW-CONFLICT",
+        "window contract requires separation",
+    );
+}
+
+#[test]
+fn internal_window_separation_work_has_a_bounded_raw_and_wire_limit() {
+    let source = format!(
+        "{SUPPORT}fn main()->i32{{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));let f=()=>{{let view=bytes_view(a);bytes_reserve(b,2);return i32(view[0])}};return call(&f)-65}}"
+    );
+    let (module, plan) = candidate(&source);
+    let target = TargetProfile::host_llvm();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    let dir = directory();
+    fs::write(dir.join("main.zil"), &source).unwrap();
+    fs::write(dir.join("candidate.bin"), &bytes).unwrap();
+    for wire in [false, true] {
+        let run = |work| {
+            let limits = Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            };
+            if wire {
+                zil_verify::verify_module_bytes(&bytes, &target, &limits)
+            } else {
+                zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits)
+            }
+        };
+        let (mut lower, mut upper) = (0, Limits::default().max_analysis_steps);
+        assert!(run(upper).is_ok());
+        while lower + 1 < upper {
+            let middle = lower + (upper - lower) / 2;
+            match run(middle) {
+                Ok(_) => upper = middle,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|d| d.category == ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    lower = middle;
+                }
+            }
+        }
+        assert!(run(upper).is_ok());
+        let errors = run(lower).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category == ResultCategory::ResourceLimit)
+        );
+        fs::write(
+            dir.join(if wire {
+                "wire-budget.txt"
+            } else {
+                "raw-budget.txt"
+            }),
+            format!("success={upper}\nResourceLimit={lower}\n{errors:#?}\n"),
+        )
+        .unwrap();
+    }
 }
 
 #[test]
