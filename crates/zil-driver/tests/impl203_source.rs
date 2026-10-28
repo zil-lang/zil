@@ -523,11 +523,34 @@ fn raw_field_alias_invalidation_survives_refill_and_keeps_independent_fields() {
     core.functions[index].body.statements =
         vec![owner.clone(), borrow.clone(), break_loop, end.clone()];
     raw_types("alias-loop-break-before-repeat", &core, None);
-    let repeat = loop_statement(vec![call.clone(), take, refill]);
+    let repeat = loop_statement(vec![call.clone(), take.clone(), refill.clone()]);
     core.functions[index].body.statements =
         vec![owner.clone(), borrow.clone(), repeat, end.clone()];
     raw_types(
         "alias-loop-old-borrow-next-iteration",
+        &core,
+        Some("E-STATE-ALIAS"),
+    );
+    let S::Expression(condition_call) = &call.kind else {
+        unreachable!()
+    };
+    let zero = expression(E::Integer("0".into()));
+    let alias_condition = expression(E::Binary {
+        op: zil_ir::BinaryOp::Equal,
+        left: Box::new(condition_call.clone()),
+        right: Box::new(zero),
+    });
+    let condition_loop = statement(S::While {
+        condition: alias_condition,
+        body: zil_ir::CoreBlock {
+            statements: vec![take, refill],
+            span,
+        },
+    });
+    core.functions[index].body.statements =
+        vec![owner.clone(), borrow.clone(), condition_loop, end.clone()];
+    raw_types(
+        "alias-loop-condition-old-borrow-next-iteration",
         &core,
         Some("E-STATE-ALIAS"),
     );
