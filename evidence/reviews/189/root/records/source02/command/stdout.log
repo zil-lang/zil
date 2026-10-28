@@ -1,0 +1,21 @@
+
+running 4 tests
+test raw_and_wire_reject_two_current_exclusive_parameters_pointing_at_one_value ... FAILED
+test descriptor_capture_is_substituted_at_ordinary_caller_with_extra_reference ... ok
+test reborrowed_aggregate_arguments_keep_actual_parent_and_restore_after_call ... ok
+test consuming_error_callback_settles_owned_capture_after_mutating_argument ... ok
+
+failures:
+
+---- raw_and_wire_reject_two_current_exclusive_parameters_pointing_at_one_value stdout ----
+
+thread 'raw_and_wire_reject_two_current_exclusive_parameters_pointing_at_one_value' (97) panicked at crates/zil-driver/tests/review189_call_arguments.rs:155:9:
+[Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-MOVE", message: "non-Copy SSA carrier was already transferred", span: Some(Span { file: FileId(0), start: 76, end: 92 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    raw_and_wire_reject_two_current_exclusive_parameters_pointing_at_one_value
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+

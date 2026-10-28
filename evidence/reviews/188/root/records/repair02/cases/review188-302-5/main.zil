@@ -1,0 +1,1 @@
+import outer;fn main()->i32{var n=0;var f=()=>{n+=1;return n};let total=outer.run(&mut f);return total+n-14}

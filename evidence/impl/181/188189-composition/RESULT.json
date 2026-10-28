@@ -1,0 +1,35 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "source_commit": "34b25aa5a09190735b720a400b6c2f6d6de9fecf",
+  "executed": 114,
+  "passed": 114,
+  "failed": 0,
+  "groups": 11,
+  "runs": [
+    {
+      "name": "source01",
+      "status": "Fail",
+      "source_commit": "49e4891b9ede1140c7f42a9b131a630eee5714c5",
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 0,
+      "clean": true
+    },
+    {
+      "name": "source02",
+      "status": "Pass",
+      "source_commit": "34b25aa5a09190735b720a400b6c2f6d6de9fecf",
+      "passed": 114,
+      "failed": 0,
+      "ignored": 0,
+      "groups": 11,
+      "clean": true
+    }
+  ],
+  "scope": "Actual combined184/187/188/189 driver suites and both independent reviewers; not the whole workspace.",
+  "initial_failure": "Automatic merge duplicated helper_graph registration; source01 compiled zero tests. Removed only duplicate declaration, preserving reviewed188 code.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

@@ -1,0 +1,1 @@
+fn make()->impl Fn(&i32)->&i32{let n=3;return move(p:&i32)=>&n}fn main(){}

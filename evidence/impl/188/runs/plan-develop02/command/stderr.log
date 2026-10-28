@@ -1,0 +1,4 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/39be3faa4442/language14/wt188/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.65s
+     Running tests/impl188_nested_helpers.rs (/workspace/scratch/39be3faa4442/targets178/author188/debug/deps/impl188_nested_helpers-fefacff303671db3)
+error: test failed, to rerun pass `-p zil-driver --test impl188_nested_helpers`

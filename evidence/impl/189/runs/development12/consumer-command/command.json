@@ -1,0 +1,29 @@
+{
+  "command": [
+    "python3",
+    "tools/language/189/consumer.py",
+    "--repo",
+    ".",
+    "--cli",
+    "/workspace/scratch/39be3faa4442/targets178/author189fresh01/debug/zil",
+    "--out",
+    "/workspace/scratch/39be3faa4442/runs178/author189/development12/consumer"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt189",
+  "start": 1793158920.8280747,
+  "source_commit": "7e7aba613d382f6d0102a02fb8666987b64c8612",
+  "git_status": " M examples/mainline/address189/factory.zil\n M examples/mainline/address189/main.zil\n M examples/mainline/address189/state.zil\n",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/scratch/39be3faa4442/targets178/author189fresh01",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": null,
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793158922.0106845,
+  "stdout.log_sha256": "6349e2b198d4d7c6b3b632fa3340ebc01241f06f14c5129d87e0addb7c6ddb1b",
+  "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,1 @@
+import factory;import helpers;fn main()->i32{var n=20;let f=factory.make(1);let total=helpers.twice(&f,&mut n);return total+n-65}

@@ -1,0 +1,38 @@
+[
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-LENDING",
+            message: "declared lending capture sources differ from independently reconstructed returns",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 45,
+                    end: 66,
+                },
+            ),
+            notes: [],
+        },
+    ],
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-LENDING",
+            message: "declared lending capture sources differ from independently reconstructed returns",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 45,
+                    end: 66,
+                },
+            ),
+            notes: [],
+        },
+    ],
+]

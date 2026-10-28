@@ -1,0 +1,1 @@
+fn main(){let n=3;let f=(p:&mut i32)=>{*p+=1};f(&n);}

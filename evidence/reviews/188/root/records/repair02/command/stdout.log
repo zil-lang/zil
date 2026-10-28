@@ -1,0 +1,51 @@
+
+running 14 tests
+test an_unused_recursive_definition_is_rejected_without_instantiating_it ... ok
+test finite_nesting_does_not_admit_recursion_loops_or_mixed_kinds ... ok
+test mutable_reborrows_keep_call_order_and_release_after_the_outer_call ... ok
+test nested_helpers_keep_current_call_and_lending_result_loans ... ok
+test cross_module_state_uses_nested_lending_helpers_and_a_disjoint_counter ... ok
+test independent_24_layer_reproducer_uses_the_default_test_stack ... ok
+test planning_a_known_factory_type_does_not_establish_parameter_origin ... ok
+test consumed_environments_are_settled_once_even_when_the_leaf_never_calls ... ok
+test branches_keep_zero_one_and_multiple_actual_calls ... ok
+test nested_exhaustive_matches_keep_their_defensive_trap_prefix ... ok
+test an_error_return_cuts_off_later_nested_calls_and_cleans_owned_locals ... ok
+test long_alias_chain_respects_a_callback_that_shadows_a_helper_name ... ok
+test owning_state_can_schedule_helpers_for_a_different_checked_factory_type ... ok
+test the_original_minimal_helper_composes_through_multiple_levels ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+
+running 12 tests
+test deep_finite_dependencies_pay_the_existing_instantiation_depth_bound ... ok
+test analyze_reconstructs_its_own_callee_order_and_body_counts ... ok
+test another_factory_instance_with_the_same_closure_id_is_not_the_parameter ... ok
+test raw_core_dependency_cycles_do_not_rely_on_expand_or_the_host_stack ... ok
+test empty_child_traces_do_not_authorize_reusing_an_owned_environment ... ok
+test nested_result_still_requires_the_actual_environment_hold ... ok
+test raw_and_wire_do_not_trust_parent_or_coordinated_child_traces ... ok
+test raw_and_wire_check_actual_nested_edges_and_child_instructions ... ok
+test raw_and_wire_reject_recursive_actual_edges_despite_finite_claims ... ok
+test raw_and_wire_keep_zero_calls_and_stop_at_a_nested_trap ... ok
+test dag_construction_and_trace_composition_pay_each_phase_budget ... ok
+test the_default_helper_depth_boundary_returns_a_diagnostic_without_host_recursion ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+
+running 4 tests
+test unused_three_node_generic_cycle_has_no_finite_forwarding_contract ... ok
+test branch_and_zero_call_edges_preserve_a_real_mutable_environment_across_modules ... ok
+test nested_lending_results_continue_to_block_the_actual_owning_environment ... ok
+test forward_declared_helper_chain_uses_dependency_order_instead_of_vector_order ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+
+running 1 test
+test finite_forward_chain_finishes_each_frontend_stage_on_the_default_test_stack ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

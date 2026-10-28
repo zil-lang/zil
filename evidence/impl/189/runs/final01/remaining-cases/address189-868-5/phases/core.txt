@@ -1,0 +1,269 @@
+CoreProgram {
+    root: ModuleId(
+        0,
+    ),
+    source_fingerprint: Fingerprint(
+        [
+            122,
+            101,
+            210,
+            38,
+            99,
+            232,
+            90,
+            39,
+            179,
+            231,
+            204,
+            201,
+            56,
+            110,
+            43,
+            124,
+            247,
+            20,
+            35,
+            175,
+            65,
+            191,
+            108,
+            36,
+            81,
+            110,
+            169,
+            117,
+            75,
+            97,
+            121,
+            232,
+        ],
+    ),
+    modules: [
+        ProgramModule {
+            core: CoreModule {
+                schema_version: 23,
+                module_id: ModuleId(
+                    0,
+                ),
+                source_fingerprint: Fingerprint(
+                    [
+                        211,
+                        37,
+                        179,
+                        235,
+                        214,
+                        16,
+                        240,
+                        18,
+                        10,
+                        143,
+                        223,
+                        251,
+                        33,
+                        198,
+                        198,
+                        64,
+                        229,
+                        121,
+                        12,
+                        141,
+                        238,
+                        88,
+                        40,
+                        189,
+                        195,
+                        18,
+                        86,
+                        168,
+                        49,
+                        193,
+                        59,
+                        77,
+                    ],
+                ),
+                functions: [
+                    CoreFunction {
+                        callable_return: None,
+                        id: NodeId(
+                            1,
+                        ),
+                        name: "main",
+                        callable_parameter: None,
+                        foreign: None,
+                        parameters: [],
+                        return_type: Unit,
+                        result_mode: Infer,
+                        body: CoreBlock {
+                            statements: [
+                                CoreStatement {
+                                    id: NodeId(
+                                        6,
+                                    ),
+                                    kind: Binding {
+                                        name: "f",
+                                        mutable: false,
+                                        ty: None,
+                                        initializer: Some(
+                                            CoreExpr {
+                                                id: NodeId(
+                                                    5,
+                                                ),
+                                                kind: Closure {
+                                                    move_capture: false,
+                                                    parameters: [
+                                                        CoreClosureParameter {
+                                                            name: "p",
+                                                            ty: Some(
+                                                                Address {
+                                                                    mutable: false,
+                                                                    inner: Named(
+                                                                        "$module0_R",
+                                                                    ),
+                                                                },
+                                                            ),
+                                                            mode: Infer,
+                                                            span: Span {
+                                                                file: FileId(
+                                                                    0,
+                                                                ),
+                                                                start: 34,
+                                                                end: 38,
+                                                            },
+                                                        },
+                                                    ],
+                                                    return_type: None,
+                                                    body: CoreBlock {
+                                                        statements: [
+                                                            CoreStatement {
+                                                                id: NodeId(
+                                                                    4,
+                                                                ),
+                                                                kind: Return(
+                                                                    Some(
+                                                                        CoreExpr {
+                                                                            id: NodeId(
+                                                                                3,
+                                                                            ),
+                                                                            kind: Member {
+                                                                                object: CoreExpr {
+                                                                                    id: NodeId(
+                                                                                        2,
+                                                                                    ),
+                                                                                    kind: Name(
+                                                                                        "p",
+                                                                                    ),
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 41,
+                                                                                        end: 42,
+                                                                                    },
+                                                                                },
+                                                                                member: "n",
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 41,
+                                                                                end: 44,
+                                                                            },
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                                span: Span {
+                                                                    file: FileId(
+                                                                        0,
+                                                                    ),
+                                                                    start: 41,
+                                                                    end: 44,
+                                                                },
+                                                            },
+                                                        ],
+                                                        span: Span {
+                                                            file: FileId(
+                                                                0,
+                                                            ),
+                                                            start: 41,
+                                                            end: 44,
+                                                        },
+                                                    },
+                                                },
+                                                span: Span {
+                                                    file: FileId(
+                                                        0,
+                                                    ),
+                                                    start: 33,
+                                                    end: 44,
+                                                },
+                                            },
+                                        ),
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 27,
+                                        end: 45,
+                                    },
+                                },
+                            ],
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 26,
+                                end: 46,
+                            },
+                        },
+                        receiver: None,
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 17,
+                            end: 46,
+                        },
+                    },
+                ],
+                aggregates: [
+                    CoreAggregate {
+                        id: NodeId(
+                            0,
+                        ),
+                        name: "$module0_R",
+                        kind: Resource,
+                        teardown: None,
+                        fields: [
+                            CoreField {
+                                name: "n",
+                                ty: I32,
+                                public: false,
+                                manages: false,
+                                span: Span {
+                                    file: FileId(
+                                        0,
+                                    ),
+                                    start: 11,
+                                    end: 16,
+                                },
+                            },
+                        ],
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 0,
+                            end: 17,
+                        },
+                    },
+                ],
+                enums: [],
+                unsupported: [],
+            },
+            imports: [],
+            exports: [],
+        },
+    ],
+}

@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Analyze,
+        category: SafeReject,
+        code: "E-ANALYZE-IR",
+        message: "public helper trace claim differs from its CFG",
+        span: None,
+        notes: [],
+    },
+]

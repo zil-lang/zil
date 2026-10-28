@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R;n:i32}fn main(){let f=(p:&P)=>p.n;}

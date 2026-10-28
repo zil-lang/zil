@@ -1,0 +1,1 @@
+import factory;fn main()->i32{var f=factory.grow();let a=f(5u8);let first=i32(a[0]);let b=f(8u8);return first+i32(b[0])+i32(b[1])+i32(b.len())-20}

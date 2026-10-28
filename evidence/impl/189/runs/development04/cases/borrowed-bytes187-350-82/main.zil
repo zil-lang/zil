@@ -1,0 +1,1 @@
+fn main()->i32{let b=bytes_new();let f=()=>i32(bytes_len(b));return f()}

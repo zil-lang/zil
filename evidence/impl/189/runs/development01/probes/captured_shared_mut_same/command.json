@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/workspace/scratch/39be3faa4442/targets178/author189/debug/zil",
+    "check",
+    "/workspace/scratch/39be3faa4442/runs178/author189/development01/probes/captured_shared_mut_same/main.zil",
+    "--json",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/runs178/author189/development01/probes/captured_shared_mut_same/phases"
+  ],
+  "exit_code": 1,
+  "source_commit": "ebdf10ce69d035826a79ef9485cdb69743c0fa31",
+  "source_dirty": true
+}

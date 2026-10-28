@@ -1,0 +1,13 @@
+fn level0<F:Fn()->i32>(f:&F)->i32=>level1(f)
+fn level1<F:Fn()->i32>(f:&F)->i32=>level2(f)
+fn level2<F:Fn()->i32>(f:&F)->i32=>level3(f)
+fn level3<F:Fn()->i32>(f:&F)->i32=>level4(f)
+fn level4<F:Fn()->i32>(f:&F)->i32=>level5(f)
+fn level5<F:Fn()->i32>(f:&F)->i32=>level6(f)
+fn level6<F:Fn()->i32>(f:&F)->i32=>level7(f)
+fn level7<F:Fn()->i32>(f:&F)->i32=>level8(f)
+fn level8<F:Fn()->i32>(f:&F)->i32=>level9(f)
+fn level9<F:Fn()->i32>(f:&F)->i32=>level10(f)
+fn level10<F:Fn()->i32>(f:&F)->i32=>level11(f)
+fn level11<F:Fn()->i32>(f:&F)->i32=>f()
+fn main()->i32{let f=move()=>4;return level0(&f)-4}

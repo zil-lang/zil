@@ -1,0 +1,146 @@
+{
+  "implementation_author": "/root/history178_audit",
+  "implementation_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+  "source_commit": "9b01a8ce1f3e59f166a1b61be7a777f646818610",
+  "production_equivalence": "9b01a8ce differs from bfe60582 only by root-authored tests-only065 expectation migration and its changes note.",
+  "status": "ScopedPass",
+  "review": "AwaitingIndependentRootReview",
+  "schema": 23,
+  "spec_sha256": "8df5f5bb3cb25fdea8670124b09941713529c859ab18864d0fc87090864786d5",
+  "normative_hash": "1068cda3fe79b906f49eeee4bd3f62863f9db4ae85e8a0dbaa3c439d310777b8",
+  "normative_registry_matches_actual": true,
+  "commands": {
+    "tests": {
+      "status": "Fail",
+      "exit_code": 101,
+      "source_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+      "git_status": "",
+      "receipt": "runs/final01/tests/command.json",
+      "tests": {
+        "passed": 16,
+        "failed": 1,
+        "ignored": 0
+      }
+    },
+    "remaining-tests": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+      "git_status": "",
+      "receipt": "runs/final01/remaining-tests/command.json",
+      "tests": {
+        "passed": 119,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "migrated065": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "9b01a8ce1f3e59f166a1b61be7a777f646818610",
+      "git_status": "",
+      "receipt": "runs/final01/migrated065/command.json",
+      "tests": {
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "build": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+      "git_status": "",
+      "receipt": "runs/final01/build/command.json"
+    },
+    "consumer-command": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+      "git_status": "",
+      "receipt": "runs/final01/consumer-command/command.json"
+    },
+    "fmt": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+      "git_status": "",
+      "receipt": "runs/final01/fmt/command.json"
+    },
+    "clippy": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+      "git_status": "",
+      "receipt": "runs/final01/clippy/command.json"
+    },
+    "test-clippy": {
+      "status": "Pass",
+      "exit_code": 0,
+      "source_commit": "bfe60582c46526a75349d4eefd3c60fde8f327e6",
+      "git_status": "",
+      "receipt": "runs/final01/test-clippy/command.json"
+    }
+  },
+  "scoped_tests": {
+    "passed": 136,
+    "failed": 0,
+    "ignored": 0,
+    "new_source": 14,
+    "new_raw_and_budget": 5
+  },
+  "initial_frozen_legacy_run": {
+    "passed": 16,
+    "failed": 1,
+    "ignored": 0,
+    "reason": "Original065 extra&i32 helper parameter expected Unsupported. Original input unchanged in root97ed737f/author9b01a8ce; actualSuccess/Verify/1 now asserted. First failure remains."
+  },
+  "source_native_executions": 54,
+  "consumer_native_executions": 50,
+  "consumer_fault_executions": 32,
+  "consumer_allocation_balance": "Exact expected calls/failures, allocated=frees, live0 in all instrumented runs; actual two Buffer owners and Ticket Drop.",
+  "consumer_state_field_boundary": "Callback field is borrowed; the Copy sibling is read into a mutable local and written back. Actual Package Copy field address remains Task192.",
+  "raw_wire_attacks": {
+    "mutations": 8,
+    "independent_verifier_rejections": 16,
+    "scope": "definition/entry mismatch, shared parent forged exclusive, erased explicit argument Hold, nested/slice parameter, actual capture alias, hidden direct/helper Desc write"
+  },
+  "verify_work_boundary": {
+    "rejected": 6999,
+    "accepted": 7000
+  },
+  "verification_runs": "One independently verified execution plan per successful source compile; raw and Wire enter Verify independently.",
+  "preserved_failures": {
+    "development02": "Cargo E0463/rlib cache infrastructure failure; tests not executed, fresh target used afterward.",
+    "development03": "Invalid numeric suffix fixture syntax; fixed to typed locals and valid literal syntax.",
+    "development04": "Original187 address signature Unsupported expectation obsolete; rootb72f migration preserved original source and the other three closed profiles.",
+    "development06": "Rust test typo LimitReached; actual enum is ResourceLimit. No tests executed.",
+    "development08_consumer": "State fixture lacked a required manages field; corrected to a real owned observation Buffer.",
+    "development08_inference": "Actual unannotated record/array parameter projections rejected before bounded type-constraint repair; source and diagnostics retained.",
+    "development10": "Actual Package Copy sibling address Unsupported, recorded separately for192 without broadening189.",
+    "development11": "Consumer ignored reserve failure, so exit8 differed from expected failure path. Explicit return codes and caller checks added, allocation/free observations retained.",
+    "final01_tests": "Single original065 expectation migrated by root; exact original input and first failure retained."
+  },
+  "boundary": {
+    "supported": "Finite Copy or one-layer &Copy/&mut Copy explicit callback parameters; any Address parameter requires Copy result. Direct, actual-place Fn/FnMut/FnOnce, borrowed generic helper, opaque factory, current-call actual-source conflict checks.",
+    "preserved": "184 Copy-parameter environment lending retains its actual capture relation;187 borrowed ByteBuffer captures and exact helper Effects retained.",
+    "unsupported": [
+      "explicit resource/Package/slice/nestedAddress callback parameters",
+      "address-parameter function-pointer ABI",
+      "result borrowing from explicit parameters",
+      "general lifetime/HRTB and async",
+      "Package Copy field actual address acquisition (192)",
+      "nested generic helper composition is separately owned by188"
+    ]
+  },
+  "rust_goals": {
+    "safety": "Actual source,16raw/Wire rejections, current-call aliases, last use and allocation cleanup tested; independent root review pending.",
+    "runtime_and_memory": "Existing LLVM pointer parameters and environment ABI, no new box/RC/lock; allocation balance measured, matched Rust runtime/RSS comparison not run.",
+    "expression_and_maintenance": "Reusable address callback/helper/factory and inference; State Copy field still needs local read/borrow/write-back until192. Maintenance advantage unmeasured.",
+    "compile_cost": "Existing bounded budgets, measured Verify work boundary, no default budget changes and no compile-speed comparison.",
+    "breakthrough": "Engineering increment in actual-source callback parameter composition; no claim of full Rust superiority or product-level net breakthrough."
+  },
+  "full_workspace": "NotRunByAuthor",
+  "full_language": "NotSatisfied",
+  "product": "NotRun"
+}

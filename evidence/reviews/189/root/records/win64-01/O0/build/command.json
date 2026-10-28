@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets178/review189/debug/zil",
+    "build",
+    "/workspace/scratch/39be3faa4442/language14/review189/examples/mainline/address189/main.zil",
+    "--opt",
+    "O0",
+    "-o",
+    "/workspace/scratch/39be3faa4442/run-logs/189-review/win64-01/O0/program.exe",
+    "--emit-dir",
+    "/workspace/scratch/39be3faa4442/run-logs/189-review/win64-01/O0/phases",
+    "--json",
+    "--target",
+    "win64",
+    "--linker",
+    "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/lld-link",
+    "--windows-lib",
+    "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernel32.lib",
+    "--windows-lib",
+    "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/msvcrt.lib",
+    "--windows-lib",
+    "/workspace/scratch/39be3faa4442/toolchains178/win64-imports/kernelbase.lib"
+  ],
+  "status": "Completed",
+  "start": 1793159732.8406932,
+  "stdin_hex": "",
+  "controlled_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "1b582f2620e951ebb0c91a4f894c2bf4ca73a270446551244fc5fa1141fbbefb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793159732.9587429
+}
