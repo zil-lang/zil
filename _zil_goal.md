@@ -88,3 +88,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-28：196–198验收与199–200继续
 
 196角色表/联合事件、197混合拥有State及198离线bundle均经非作者审核合入；公开schema25，精确7fef1779全仓2138/0。完整1.4与产品门保持。199直接字段调用位置正在独审；200按三个原始探针继续同F双持久字段与双输入拥有构造，前端/独立Analyze/Verify并行。callback Store清理、不同F/G State、一般trait/lending、卫生Syntax、挂起并发等按changes/200-proposal.md真实缺口另承接，不从终态删除。
+
+## 2026-10-28：196–200 检查点接受
+
+199真实字段调用和200同F双字段/双输入构造现已非作者审核并合入；最终clean b9c006b0完整工作区2198/0/0。原失败、旧预算1731→1807→1731的实际对照、仅文本迁移以及同源基础设施失败重试均按原身份保留。当前报告见docs/LANGUAGE-200.md，实际受测身份见evidence/integration/200/final/RESULT.json。标准完整main bundle支持用户线下明确合并编译支线；不自动合并或重标速度成绩。下一201优先回调Store的真实元素资格、窗口、布局和逐元素清理，再推进F/G持久State及其余1.4义务。完整语言NotSatisfied、产品NotRun、B0 Doing保持。
