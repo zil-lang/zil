@@ -997,6 +997,13 @@
       "effects": "Per-role Hold/Call/Writes and Owned/Borrowed cleanup substitute the actual environment. Even a final invocation checks captured windows, all explicit arguments and ordinary parameter effects together. A missing event for the first role does not erase a second-role write or a nonreturning prefix.",
       "budget": "Role rows, actual origin propagation, complete ordered event prefixes, child mappings, queued graph states and comparisons consume existing work before allocation/expansion. Ordinary no-role functions preserve previous exact budgets. Limits and product thresholds are unchanged.",
       "boundary": "Finite synchronous up to two roles only. Multiple-role lending/owning State, dynamic callbacks, async, recursion and cyclic FnOnce remain closed. Actual 196 producer, independent review and machine receipts are required."
+    },
+    "same_environment_state200": {
+      "source": "Finite owning constructor takes one or two by-value concrete closures bound to the same F and declared mode, returning one complete Package with one or two direct same-F self-contained callable fields. Existing one-State input operations remain; ordinary Copy T follows197. Signature/actual field shape identify the boundary, never the function name.",
+      "identity": "One F type/ClosureId is not one runtime value. Every actual parameter and Package field retains its own storage, move, initialization and cleanup debt; full ordinary nominal data-family identity is unchanged.",
+      "verification": "Ordinary no-helper-contract self-contained owning boundary is independently reconstructed by Analyze and Verify. No fabricated empty callback contract, field-as-parameter event or producer authority flag. Both actual inputs and all field obligations undergo ordinary independent checks.",
+      "machine": "Existing Package/Closure operations and layouts are provisionally sufficient; no new opcode or schema change without an actual representation need. Actual implementation/native/raw receipts remain necessary.",
+      "boundary": "No F/G State, State plus replacement-F generic entrance, two-State entrance, nested callback fields, callback Store elements, dynamic/escaping borrowed environments or async. Existing supported source operations are preserved."
     }
   }
 }

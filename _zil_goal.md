@@ -84,3 +84,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-28：178–195验收收口
 
 当前17个有限切片已合入，181组合总片与B0继续施工；194结构Copy与195循环控制收口后，全仓2063/0，实际受测身份及未完成义务见docs/LANGUAGE-195.md和evidence/integration/195/final/RESULT.json。优先197单State+CopyT，196多角色公共合同并行准备；两者仍是提案，后续拥有组合、保留窗口、卫生UI DSL及异步/并发义务不取消。完整语言NotSatisfied、产品NotRun，编译专项独立。
+
+## 2026-10-28：196–198验收与199–200继续
+
+196角色表/联合事件、197混合拥有State及198离线bundle均经非作者审核合入；公开schema25，精确7fef1779全仓2138/0。完整1.4与产品门保持。199直接字段调用位置正在独审；200按三个原始探针继续同F双持久字段与双输入拥有构造，前端/独立Analyze/Verify并行。callback Store清理、不同F/G State、一般trait/lending、卫生Syntax、挂起并发等按changes/200-proposal.md真实缺口另承接，不从终态删除。

@@ -1,0 +1,27 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/targets196/frontend/debug/zil",
+    "check",
+    "evidence/preflight200/cases/00_single_callback_state.zil",
+    "--emit-dir",
+    "/dev/shm/zil200-preflight/00_single_callback_state/phases",
+    "--json"
+  ],
+  "cwd": "/workspace/scratch/39be3faa4442/language14/wt195",
+  "start": 1793174488.792684,
+  "source_commit": "bbdb967d38e574a11d5a96518ed2213039dc6bd3",
+  "git_status": "",
+  "environment": {
+    "CARGO_TARGET_DIR": null,
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_REPORT_DIR": null,
+    "ZIL_CLANG": "/workspace/scratch/39be3faa4442/toolchains178/llvm-17.0.6/usr/lib/llvm-17/bin/clang"
+  },
+  "status": "Pass",
+  "exit_code": 0,
+  "end": 1793174488.8632884,
+  "stdout.log_sha256": "c1eaf2c778d9669d12cfaeb2b315a0cb62200fdb1a4867ff3be804fea776259c",
+  "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
