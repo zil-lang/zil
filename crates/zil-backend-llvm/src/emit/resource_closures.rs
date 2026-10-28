@@ -66,20 +66,18 @@ pub(super) fn drop_functions(
             ));
             match ty {
                 Type::Managed(payload) => {
-                    if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
-                        return unsupported(
-                            "Store capture requires a separate retained storage profile",
-                            None,
-                        );
-                    }
-                    let resource = resources
-                        .iter()
-                        .find(|resource| &resource.payload == payload.as_ref())
-                        .expect("verified captured resource definition");
-                    let teardown = if resource.payload == Type::ByteBuffer {
-                        Some("zil.bytes.drop".into())
+                    let teardown = if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                        Some(dynamic_store::helper(payload, resources, "drop")?)
                     } else {
-                        resource.teardown.map(symbol)
+                        let resource = resources
+                            .iter()
+                            .find(|resource| &resource.payload == payload.as_ref())
+                            .expect("verified captured resource definition");
+                        if resource.payload == Type::ByteBuffer {
+                            Some("zil.bytes.drop".into())
+                        } else {
+                            resource.teardown.map(symbol)
+                        }
                     };
                     if let Some(teardown) = teardown {
                         text.push_str(&format!(
@@ -98,25 +96,23 @@ pub(super) fn drop_functions(
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
                         let Type::Managed(payload) = ty else { continue };
-                        if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
-                            return unsupported(
-                                "Store fields require a separate owning composition profile",
-                                None,
-                            );
-                        }
-                        let resource = resources
-                            .iter()
-                            .find(|resource| &resource.payload == payload.as_ref())
-                            .expect("verified captured package resource definition");
                         let field_flag = flag + offset;
                         offset += 1;
                         text.push_str(&format!(
                             "  %field.flag.{index}.{field} = getelementptr {env}, ptr %env, i32 0, i32 {field_flag}\n  %field.live.{index}.{field} = load i1, ptr %field.flag.{index}.{field}, align 1\n  br i1 %field.live.{index}.{field}, label %field.drop.{index}.{field}, label %field.done.{index}.{field}\nfield.drop.{index}.{field}:\n  store i1 false, ptr %field.flag.{index}.{field}, align 1\n"
                         ));
-                        let teardown = if resource.payload == Type::ByteBuffer {
-                            Some("zil.bytes.drop".into())
+                        let teardown = if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                            Some(dynamic_store::helper(payload, resources, "drop")?)
                         } else {
-                            resource.teardown.map(symbol)
+                            let resource = resources
+                                .iter()
+                                .find(|resource| &resource.payload == payload.as_ref())
+                                .expect("verified captured package resource definition");
+                            if resource.payload == Type::ByteBuffer {
+                                Some("zil.bytes.drop".into())
+                            } else {
+                                resource.teardown.map(symbol)
+                            }
                         };
                         if let Some(teardown) = teardown {
                             text.push_str(&format!(
