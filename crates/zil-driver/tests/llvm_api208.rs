@@ -74,7 +74,9 @@ fn success(report: &zil_driver::CompileReport) {
     assert!(
         s.object_reports
             .iter()
-            .all(|s| s.contains("\"verify_before_after\":true"))
+            .all(|s| s.contains("\"verify_before_after\":true")
+                && s.contains("\"input_kind\":\"builder\"")
+                && s.contains("\"parse_ns\":0"))
     );
     assert_eq!(report.commands.len(), 1, "only the linker is a subprocess");
     assert!(!report.commands[0].iter().any(|v| v == "ir" || v == "-c"));

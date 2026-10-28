@@ -9,6 +9,7 @@ mod resource_closures;
 mod resources;
 mod slices;
 use std::collections::{BTreeMap, BTreeSet};
+use zil_llvm_api::model as m;
 
 use zil_base::{CompileResult, Diagnostic, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::{
@@ -31,6 +32,14 @@ pub fn emit_with_options(
     lir: &LirModule,
     options: &EmitOptions,
 ) -> CompileResult<String> {
+    Ok(lower_with_options(verified, lir, options)?.to_text())
+}
+
+pub(crate) fn lower_with_options(
+    verified: &VerifiedModule,
+    lir: &LirModule,
+    options: &EmitOptions,
+) -> CompileResult<m::Module> {
     bind_lir(verified, lir)?;
     let functions = lir
         .functions
@@ -45,7 +54,7 @@ pub fn emit_with_options(
     let wrapper = entry_wrapper(&functions, options.entry, &lir.resources)?;
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     let mut intrinsics = BTreeSet::new();
-    let mut body = String::new();
+    let mut body = m::Code::new();
     for function in &lir.functions {
         if function.foreign.is_some() {
             if matches!(options.entry, EntryPoint::ReturnValue(_))
@@ -60,18 +69,18 @@ pub fn emit_with_options(
                     Some(function.span),
                 );
             }
-            body.push_str(&foreign::declaration(function, &lir.target)?);
+            body.append(foreign::declaration(function, &lir.target)?);
             continue;
         }
-        body.push_str(
-            &FunctionEmitter {
+        body.append(
+            FunctionEmitter {
                 function,
                 target: &lir.target,
                 functions: &functions,
                 closures: &closures,
                 resources: &lir.resources,
                 intrinsics: &mut intrinsics,
-                text: String::new(),
+                text: m::Code::new(),
                 temporary: 0,
                 continuation: 0,
                 partial_packages: BTreeSet::new(),
@@ -79,12 +88,7 @@ pub fn emit_with_options(
             .emit()?,
         );
     }
-    let mut text = format!(
-        "; ZIL verified LLVM module\n; verified-fingerprint: {}\n\
-         target triple = \"{}\"\n\n",
-        verified.fingerprint().to_hex(),
-        lir.target.triple,
-    );
+    let mut text = m::Code::new();
     for closure in &lir.closures {
         let mut fields = closure
             .captures
@@ -97,13 +101,13 @@ pub fn emit_with_options(
                 .iter()
                 .flat_map(|ty| std::iter::repeat_n("i1".into(), resource_closures::flag_count(ty))),
         );
-        let fields = fields.join(", ");
-        text.push_str(&format!(
-            "{} = type {{ {fields} }}\n",
-            environment_type(closure.id)
+
+        text.push(m::Event::NamedType(
+            m::type_name(&(environment_type(closure.id)).clone()),
+            (fields).clone(),
         ));
     }
-    text.push_str(&resource_closures::drop_functions(
+    text.append(resource_closures::drop_functions(
         &lir.closures,
         &lir.resources,
     )?);
@@ -114,31 +118,94 @@ pub fn emit_with_options(
                     let id = result(instruction)?;
                     let data = units
                         .iter()
-                        .map(|unit| format!("i16 {unit}"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    text.push_str(&format!("@zil.wstr.{}.{} = private unnamed_addr constant [{} x i16] [{data}], align 2\n", function.id.0, id.0, units.len()));
+                        .map(|unit| m::Arg::new(m::Ty::Int(16), *unit))
+                        .collect::<Vec<_>>();
+                    text.push(m::Event::Global(m::Global {
+                        name: format!("zil.wstr.{}.{}", function.id.0, id.0),
+                        linkage: m::Linkage::Private,
+                        ty: m::Ty::array((units.len()) as u64, m::Ty::Int(16)),
+                        initializer: Some(m::Val::Array({
+                            let mut args = vec![];
+                            args.extend((data).clone());
+                            args
+                        })),
+                        constant: true,
+                        unnamed_addr: true,
+                        alignment: 2,
+                    }));
                 }
             }
         }
     }
-    text.push_str("declare void @llvm.trap()\n");
-    text.push_str(&byte_buffer::runtime(lir)?);
-    text.push_str(&dynamic_store::runtime(lir)?);
+    text.push(m::Event::Declare(m::Function {
+        name: "llvm.trap".into(),
+        linkage: m::Linkage::External,
+        signature: m::Signature {
+            result: m::Ty::Void,
+            result_attrs: vec![],
+            params: vec![],
+            variadic: false,
+        },
+        attrs: vec![],
+        blocks: None,
+    }));
+    text.append(byte_buffer::runtime(lir)?);
+    text.append(dynamic_store::runtime(lir)?);
     for (operation, bits) in intrinsics {
-        text.push_str(&format!(
-            "declare {{ i{bits}, i1 }} @llvm.{operation}.with.overflow.i{bits}(i{bits}, i{bits})\n"
-        ));
+        text.push(m::Event::Declare(m::Function {
+            name: format!("llvm.{}.with.overflow.i{}", operation, bits),
+            linkage: m::Linkage::External,
+            signature: m::Signature {
+                result: m::Ty::Struct(vec![m::Ty::Int(bits), m::Ty::Int(1)]),
+                result_attrs: vec![],
+                params: vec![
+                    m::Param {
+                        ty: m::Ty::Int(bits),
+                        name: None,
+                        attrs: vec![],
+                    },
+                    m::Param {
+                        ty: m::Ty::Int(bits),
+                        name: None,
+                        attrs: vec![],
+                    },
+                ],
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }));
     }
     if matches!(options.entry, EntryPoint::ReturnValue(_)) {
-        text.push_str(
-            "@zil.return.format = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\"\n",
-        );
-        text.push_str("declare i32 @printf(ptr, ...)\n");
+        text.push(m::Event::Global(m::Global {
+            name: "zil.return.format".into(),
+            linkage: m::Linkage::Private,
+            ty: m::Ty::array(6, m::Ty::Int(8)),
+            initializer: Some(m::Val::Bytes(vec![37, 108, 108, 100, 10, 0])),
+            constant: true,
+            unnamed_addr: true,
+            alignment: 0,
+        }));
+        text.push(m::Event::Declare(m::Function {
+            name: "printf".into(),
+            linkage: m::Linkage::External,
+            signature: m::Signature {
+                result: m::Ty::Int(32),
+                result_attrs: vec![],
+                params: vec![m::Param {
+                    ty: m::Ty::Ptr,
+                    name: None,
+                    attrs: vec![],
+                }],
+                variadic: true,
+            },
+            attrs: vec![],
+            blocks: None,
+        }));
     }
-    text.push('\n');
-    text.push_str(&body);
-    text.push_str(&wrapper);
+
+    text.append(body);
+    text.append(wrapper);
     if windows && options.entry != EntryPoint::None {
         if let Some(existing) = lir.functions.iter().find(|f| {
             f.foreign
@@ -156,11 +223,74 @@ pub fn emit_with_options(
                 );
             }
         } else {
-            text.push_str("declare void @ExitProcess(i32)\n");
+            text.push(m::Event::Declare(m::Function {
+                name: "ExitProcess".into(),
+                linkage: m::Linkage::External,
+                signature: m::Signature {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    params: vec![m::Param {
+                        ty: m::Ty::Int(32),
+                        name: None,
+                        attrs: vec![],
+                    }],
+                    variadic: false,
+                },
+                attrs: vec![],
+                blocks: None,
+            }));
         }
-        text.push_str("define void @zil.pe.entry() {\nentry:\n  %code = call i32 @main()\n  call void @ExitProcess(i32 %code)\n  unreachable\n}\n");
+        text.append(m::Code::from(vec![
+            m::Event::Begin(m::Function {
+                name: "zil.pe.entry".into(),
+                linkage: m::Linkage::External,
+                signature: m::Signature {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    params: vec![],
+                    variadic: false,
+                },
+                attrs: vec![],
+                blocks: None,
+            }),
+            m::Event::Label("entry".into()),
+            m::Event::Instruction(m::Inst::new(
+                Some("code".into()),
+                m::Op::Call {
+                    result: m::Ty::Int(32),
+                    result_attrs: vec![],
+                    callee: m::global("main".into()),
+                    args: vec![],
+                    vararg: None,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global("ExitProcess".into()),
+                    args: vec![m::Arg::new(m::Ty::Int(32), m::local("code".into()))],
+                    vararg: None,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(None, m::Op::Unreachable)),
+            m::Event::End,
+        ]));
     }
-    Ok(text)
+    m::Module::from_code(
+        lir.target.triple.clone(),
+        verified.fingerprint().to_hex(),
+        text,
+    )
+    .map_err(|message| {
+        vec![Diagnostic::error(
+            Phase::Codegen,
+            "E-CODEGEN-CFG",
+            None,
+            message,
+        )]
+    })
 }
 
 fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
@@ -304,9 +434,9 @@ fn entry_wrapper(
     functions: &BTreeMap<FunctionId, &TypedFunction>,
     entry: EntryPoint,
     resources: &[ResourceDefinition],
-) -> CompileResult<String> {
+) -> CompileResult<m::Code> {
     let function = match entry {
-        EntryPoint::None => return Ok(String::new()),
+        EntryPoint::None => return Ok(m::Code::new()),
         EntryPoint::Main => {
             let mains = functions
                 .values()
@@ -352,28 +482,120 @@ fn entry_wrapper(
         );
     }
     let symbol = symbol(function.id);
-    let mut text = String::from("define i32 @main() {\nentry:\n");
+    let mut text = m::Code::from(vec![
+        m::Event::Begin(m::Function {
+            name: "main".into(),
+            linkage: m::Linkage::External,
+            signature: m::Signature {
+                result: m::Ty::Int(32),
+                result_attrs: vec![],
+                params: vec![],
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }),
+        m::Event::Label("entry".into()),
+    ]);
     match entry {
         EntryPoint::Main => match &function.return_type {
-            Type::Unit => text.push_str(&format!("  call void @{symbol}()\n  ret i32 0\n")),
-            Type::I32 => text.push_str(&format!(
-                "  %entry.result = call i32 @{symbol}()\n  ret i32 %entry.result\n"
-            )),
+            Type::Unit => text.append(m::Code::from(vec![
+                m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Call {
+                        result: m::Ty::Void,
+                        result_attrs: vec![],
+                        callee: m::global(symbol.to_string()),
+                        args: vec![],
+                        vararg: None,
+                    },
+                )),
+                m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Return(Some(m::Arg::new(m::Ty::Int(32), m::Val::Int(0)))),
+                )),
+            ])),
+            Type::I32 => text.append(m::Code::from(vec![
+                m::Event::Instruction(m::Inst::new(
+                    Some("entry.result".into()),
+                    m::Op::Call {
+                        result: m::Ty::Int(32),
+                        result_attrs: vec![],
+                        callee: m::global(symbol.to_string()),
+                        args: vec![],
+                        vararg: None,
+                    },
+                )),
+                m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Return(Some(m::Arg::new(
+                        m::Ty::Int(32),
+                        m::local("entry.result".into()),
+                    ))),
+                )),
+            ])),
             Type::ErrorUnion { result, .. }
                 if matches!(result.as_ref(), Type::I32 | Type::Unit) =>
             {
                 let llvm = llvm_type(&function.return_type)?;
-                text.push_str(&format!(
-                    "  %entry.result = call {llvm} @{symbol}()\n  %entry.error = extractvalue {llvm} %entry.result, 0\n  br i1 %entry.error, label %error, label %success\nerror:\n"
-                ));
-                text.push_str(&errors::entry_cleanup(&function.return_type, resources)?);
-                text.push_str("  ret i32 1\nsuccess:\n");
+                text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.result".into()),
+                        m::Op::Call {
+                            result: (llvm).clone(),
+                            result_attrs: vec![],
+                            callee: m::global(symbol.to_string()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.error".into()),
+                        m::Op::Extract {
+                            arg: m::Arg::new((llvm).clone(), m::local("entry.result".into())),
+                            index: 0,
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::CondBranch {
+                            condition: m::local("entry.error".into()),
+                            yes: "error".into(),
+                            no: "success".into(),
+                        },
+                    )),
+                    m::Event::Label("error".into()),
+                ]));
+                text.append(errors::entry_cleanup(&function.return_type, resources)?);
+                text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Return(Some(m::Arg::new(m::Ty::Int(32), m::Val::Int(1)))),
+                    )),
+                    m::Event::Label("success".into()),
+                ]));
                 if **result == Type::I32 {
-                    text.push_str(&format!(
-                        "  %entry.success = extractvalue {llvm} %entry.result, 2\n  ret i32 %entry.success\n"
-                    ));
+                    text.append(m::Code::from(vec![
+                        m::Event::Instruction(m::Inst::new(
+                            Some("entry.success".into()),
+                            m::Op::Extract {
+                                arg: m::Arg::new((llvm).clone(), m::local("entry.result".into())),
+                                index: 2,
+                            },
+                        )),
+                        m::Event::Instruction(m::Inst::new(
+                            None,
+                            m::Op::Return(Some(m::Arg::new(
+                                m::Ty::Int(32),
+                                m::local("entry.success".into()),
+                            ))),
+                        )),
+                    ]));
                 } else {
-                    text.push_str("  ret i32 0\n");
+                    text.push(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Return(Some(m::Arg::new(m::Ty::Int(32), m::Val::Int(0)))),
+                    )));
                 }
             }
             _ => {
@@ -385,20 +607,126 @@ fn entry_wrapper(
         },
         EntryPoint::ReturnValue(_) => {
             match function.return_type {
-                Type::I64 => text.push_str(&format!("  %entry.wide = call i64 @{symbol}()\n")),
-                Type::U16 => text.push_str(&format!("  %entry.result = call i16 @{symbol}()\n  %entry.wide = zext i16 %entry.result to i64\n")),
-                Type::U8 => text.push_str(&format!("  %entry.result = call i8 @{symbol}()\n  %entry.wide = zext i8 %entry.result to i64\n")),
-                Type::I32 => text.push_str(&format!(
-                    "  %entry.result = call i32 @{symbol}()\n  %entry.wide = sext i32 %entry.result to i64\n")),
-                Type::Bool => text.push_str(&format!(
-                    "  %entry.result = call i1 @{symbol}()\n  %entry.wide = zext i1 %entry.result to i64\n")),
-                _ => return unsupported("a return-value harness requires u8, u16, i32, i64, or bool", Some(function.span)),
+                Type::I64 => text.push(m::Event::Instruction(m::Inst::new(
+                    Some("entry.wide".into()),
+                    m::Op::Call {
+                        result: m::Ty::Int(64),
+                        result_attrs: vec![],
+                        callee: m::global(symbol.to_string()),
+                        args: vec![],
+                        vararg: None,
+                    },
+                ))),
+                Type::U16 => text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.result".into()),
+                        m::Op::Call {
+                            result: m::Ty::Int(16),
+                            result_attrs: vec![],
+                            callee: m::global(symbol.to_string()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.wide".into()),
+                        m::Op::Cast {
+                            opcode: "zext".into(),
+                            arg: m::Arg::new(m::Ty::Int(16), m::local("entry.result".into())),
+                            to: m::Ty::Int(64),
+                        },
+                    )),
+                ])),
+                Type::U8 => text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.result".into()),
+                        m::Op::Call {
+                            result: m::Ty::Int(8),
+                            result_attrs: vec![],
+                            callee: m::global(symbol.to_string()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.wide".into()),
+                        m::Op::Cast {
+                            opcode: "zext".into(),
+                            arg: m::Arg::new(m::Ty::Int(8), m::local("entry.result".into())),
+                            to: m::Ty::Int(64),
+                        },
+                    )),
+                ])),
+                Type::I32 => text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.result".into()),
+                        m::Op::Call {
+                            result: m::Ty::Int(32),
+                            result_attrs: vec![],
+                            callee: m::global(symbol.to_string()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.wide".into()),
+                        m::Op::Cast {
+                            opcode: "sext".into(),
+                            arg: m::Arg::new(m::Ty::Int(32), m::local("entry.result".into())),
+                            to: m::Ty::Int(64),
+                        },
+                    )),
+                ])),
+                Type::Bool => text.append(m::Code::from(vec![
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.result".into()),
+                        m::Op::Call {
+                            result: m::Ty::Int(1),
+                            result_attrs: vec![],
+                            callee: m::global(symbol.to_string()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    )),
+                    m::Event::Instruction(m::Inst::new(
+                        Some("entry.wide".into()),
+                        m::Op::Cast {
+                            opcode: "zext".into(),
+                            arg: m::Arg::new(m::Ty::Int(1), m::local("entry.result".into())),
+                            to: m::Ty::Int(64),
+                        },
+                    )),
+                ])),
+                _ => {
+                    return unsupported(
+                        "a return-value harness requires u8, u16, i32, i64, or bool",
+                        Some(function.span),
+                    );
+                }
             }
-            text.push_str("  %entry.printed = call i32 (ptr, ...) @printf(ptr @zil.return.format, i64 %entry.wide)\n  ret i32 0\n");
+            text.append(m::Code::from(vec![
+                m::Event::Instruction(m::Inst::new(
+                    Some("entry.printed".into()),
+                    m::Op::Call {
+                        result: m::Ty::Int(32),
+                        result_attrs: vec![],
+                        callee: m::global("printf".into()),
+                        args: vec![
+                            m::Arg::new(m::Ty::Ptr, m::global("zil.return.format".into())),
+                            m::Arg::new(m::Ty::Int(64), m::local("entry.wide".into())),
+                        ],
+                        vararg: Some(vec![m::Ty::Ptr]),
+                    },
+                )),
+                m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Return(Some(m::Arg::new(m::Ty::Int(32), m::Val::Int(0)))),
+                )),
+            ]));
         }
         EntryPoint::None => unreachable!("the no-wrapper case returns above"),
     }
-    text.push_str("}\n");
+    text.push(m::Event::End);
     Ok(text)
 }
 
@@ -409,7 +737,7 @@ struct FunctionEmitter<'a> {
     closures: &'a BTreeMap<ClosureId, &'a ClosureDefinition>,
     resources: &'a [ResourceDefinition],
     intrinsics: &'a mut BTreeSet<(&'static str, u32)>,
-    text: String,
+    text: m::Code,
     temporary: u64,
     continuation: u64,
     // Only locals with field ownership/update operations need field flags.
@@ -418,7 +746,7 @@ struct FunctionEmitter<'a> {
 }
 
 impl FunctionEmitter<'_> {
-    fn emit(mut self) -> CompileResult<String> {
+    fn emit(mut self) -> CompileResult<m::Code> {
         let mut parameters = self
             .function
             .parameters
@@ -429,7 +757,7 @@ impl FunctionEmitter<'_> {
                 if *ty == Type::Unit {
                     Ok(None)
                 } else {
-                    Ok(Some(format!("{} %arg.{index}", llvm_type(ty)?)))
+                    Ok(Some(m::Param::new(llvm_type(ty)?, format!("arg.{index}"))))
                 }
             })
             .collect::<CompileResult<Vec<_>>>()?
@@ -442,15 +770,22 @@ impl FunctionEmitter<'_> {
             } else {
                 environment_type(environment)
             };
-            parameters.insert(0, format!("{ty} %env"));
+            parameters.insert(0, m::Param::new(ty, "env"));
         }
-        let parameters = parameters.join(", ");
-        self.line(format!(
-            "define {} @{}({parameters}) {{",
-            llvm_type(&self.function.return_type)?,
-            symbol(self.function.id)
-        ));
-        self.line("entry:");
+
+        self.event(m::Event::Begin(m::Function {
+            name: symbol(self.function.id).to_string(),
+            linkage: m::Linkage::External,
+            signature: m::Signature {
+                result: (llvm_type(&self.function.return_type)?).clone(),
+                result_attrs: vec![],
+                params: (parameters).clone(),
+                variadic: false,
+            },
+            attrs: vec![],
+            blocks: None,
+        }));
+        self.event(m::Event::Label("entry".into()));
         let mut address_taken = BTreeSet::new();
         let mut package_views = BTreeMap::new();
         for instruction in self
@@ -482,26 +817,42 @@ impl FunctionEmitter<'_> {
                 continue;
             }
             if self.owns_storage(&local.ty) {
-                self.line(format!(
-                    "  %resource.live.{} = alloca i1, align 1",
-                    local.id.0
-                ));
-                self.line(format!(
-                    "  store i1 {}, ptr %resource.live.{}, align 1",
-                    self.function.parameters.contains(&local.id),
-                    local.id.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("resource.live.{}", local.id.0)),
+                    m::Op::Alloca {
+                        ty: m::Ty::Int(1),
+                        align: 1,
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(
+                            m::Ty::Int(1),
+                            m::val(self.function.parameters.contains(&local.id)),
+                        ),
+                        ptr: m::local(format!("resource.live.{}", local.id.0)),
+                        align: 1,
+                    },
+                )));
             }
             if local.ty == Type::Unit && address_taken.contains(&local.id) {
-                self.line(format!("  %local.{} = alloca i8, align 1", local.id.0));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("local.{}", local.id.0)),
+                    m::Op::Alloca {
+                        ty: m::Ty::Int(8),
+                        align: 1,
+                    },
+                )));
             }
             if local.ty != Type::Unit {
-                self.line(format!(
-                    "  %local.{} = alloca {}, align {}",
-                    local.id.0,
-                    llvm_type(&local.ty)?,
-                    alignment(&local.ty, self.closures)?
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("local.{}", local.id.0)),
+                    m::Op::Alloca {
+                        ty: (llvm_type(&local.ty)?).clone(),
+                        align: (alignment(&local.ty, self.closures)?) as u32,
+                    },
+                )));
             }
             self.package_flags(local.id, true, self.function.parameters.contains(&local.id))?;
             self.owned_array_flags(local.id, true, self.function.parameters.contains(&local.id))?;
@@ -515,40 +866,50 @@ impl FunctionEmitter<'_> {
                 && once_slots.insert(callee)
             {
                 let ty = self.value_type(callee)?;
-                self.line(format!(
-                    "  %closure.once.{} = alloca {}, align {}",
-                    callee.0,
-                    llvm_type(ty)?,
-                    alignment(ty, self.closures)?
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("closure.once.{}", callee.0)),
+                    m::Op::Alloca {
+                        ty: (llvm_type(ty)?).clone(),
+                        align: (alignment(ty, self.closures)?) as u32,
+                    },
+                )));
             }
             if let InstructionKind::ExtractIndex { aggregate, .. }
             | InstructionKind::UpdateIndex { aggregate, .. } = &instruction.kind
             {
                 let result = instruction.result.expect("verified index result");
                 let ty = &self.function.values[aggregate.0 as usize];
-                self.line(format!(
-                    "  %index.slot.{} = alloca {}, align {}",
-                    result.0,
-                    llvm_type(ty)?,
-                    alignment(ty, self.closures)?
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("index.slot.{}", result.0)),
+                    m::Op::Alloca {
+                        ty: (llvm_type(ty)?).clone(),
+                        align: (alignment(ty, self.closures)?) as u32,
+                    },
+                )));
             }
         }
         for (index, local) in self.function.parameters.iter().enumerate() {
             let ty = self.local_type(*local)?;
             if *ty != Type::Unit {
-                self.line(format!(
-                    "  store {} %arg.{index}, ptr %local.{}, align {}",
-                    llvm_type(ty)?,
-                    local.0,
-                    alignment(ty, self.closures)?
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(
+                            (llvm_type(ty)?).clone(),
+                            m::local(format!("arg.{}", index)),
+                        ),
+                        ptr: m::local(format!("local.{}", local.0)),
+                        align: (alignment(ty, self.closures)?) as u32,
+                    },
+                )));
             }
         }
-        self.line(format!("  br label %bb.{}", self.function.entry.0));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Branch(format!("bb.{}", self.function.entry.0)),
+        )));
         for block in &self.function.blocks {
-            self.line(format!("bb.{}:", block.id.0));
+            self.event(m::Event::Label(format!("bb.{}", block.id.0)));
             for instruction in &block.instructions {
                 self.instruction(instruction)?;
             }
@@ -556,10 +917,22 @@ impl FunctionEmitter<'_> {
         }
         // Even a statically unreachable source block cannot grant LLVM UB. All
         // explicit failure edges, including checked arithmetic, end in a trap.
-        self.line("zil.trap:");
-        self.line("  call void @llvm.trap()");
-        self.line("  unreachable");
-        self.line("}\n");
+        self.event(m::Event::Label("zil.trap".into()));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Call {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                callee: m::global("llvm.trap".into()),
+                args: vec![],
+                vararg: None,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Unreachable,
+        )));
+        self.event(m::Event::End);
         Ok(self.text)
     }
 
@@ -616,11 +989,14 @@ impl FunctionEmitter<'_> {
                 value,
             } => self.store_package_field(instruction, *local, *index, *value)?,
             InstructionKind::DescribeLocal { local } => {
-                self.line(format!(
-                    "  %v.{} = getelementptr i8, ptr %local.{}, i64 0",
-                    result(instruction)?.0,
-                    local.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result(instruction)?.0)),
+                    m::Op::Gep {
+                        ty: m::Ty::Int(8),
+                        ptr: m::local(format!("local.{}", local.0)),
+                        indices: vec![m::Arg::new(m::Ty::Int(64), m::Val::Int(0))],
+                    },
+                )));
             }
             InstructionKind::ReadDesc { desc, index } => {
                 self.read_desc(instruction, *desc, *index)?
@@ -673,49 +1049,90 @@ impl FunctionEmitter<'_> {
                 let result = result(instruction)?;
                 match constant {
                     Constant::Unit => {}
-                    Constant::Bool(value) => {
-                        self.line(format!("  %v.{} = or i1 false, {value}", result.0))
-                    }
-                    Constant::I32(value) => {
-                        self.line(format!("  %v.{} = add i32 0, {value}", result.0))
-                    }
-                    Constant::I64(value) => {
-                        self.line(format!("  %v.{} = add i64 0, {value}", result.0))
-                    }
-                    Constant::U8(value) => {
-                        self.line(format!("  %v.{} = add i8 0, {value}", result.0))
-                    }
-                    Constant::U16(value) => {
-                        self.line(format!("  %v.{} = add i16 0, {value}", result.0))
-                    }
+                    Constant::Bool(value) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "or".into(),
+                            ty: m::Ty::Int(1),
+                            left: m::Val::Bool(false),
+                            right: m::val(*(value)),
+                        },
+                    ))),
+                    Constant::I32(value) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "add".into(),
+                            ty: m::Ty::Int(32),
+                            left: m::Val::Int(0),
+                            right: m::val(*(value)),
+                        },
+                    ))),
+                    Constant::I64(value) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "add".into(),
+                            ty: m::Ty::Int(64),
+                            left: m::Val::Int(0),
+                            right: m::val(*(value)),
+                        },
+                    ))),
+                    Constant::U8(value) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "add".into(),
+                            ty: m::Ty::Int(8),
+                            left: m::Val::Int(0),
+                            right: m::val(*(value)),
+                        },
+                    ))),
+                    Constant::U16(value) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "add".into(),
+                            ty: m::Ty::Int(16),
+                            left: m::Val::Int(0),
+                            right: m::val(*(value)),
+                        },
+                    ))),
                     Constant::NullHandle | Constant::NullWideString => {
-                        self.line(format!("  %v.{} = freeze ptr null", result.0))
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(format!("v.{}", result.0)),
+                            m::Op::Freeze(m::Arg::new(m::Ty::Ptr, m::Val::Null)),
+                        )))
                     }
-                    Constant::WideString(_) => self.line(format!(
-                        "  %v.{} = freeze ptr @zil.wstr.{}.{}",
-                        result.0, self.function.id.0, result.0
-                    )),
+                    Constant::WideString(_) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Freeze(m::Arg::new(
+                            m::Ty::Ptr,
+                            m::global(format!("zil.wstr.{}.{}", self.function.id.0, result.0)),
+                        )),
+                    ))),
                 }
             }
             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                 let result = result(instruction)?;
                 let ty = self.local_type(*local)?;
                 if *ty != Type::Unit {
-                    self.line(format!(
-                        "  %v.{} = load {}, ptr %local.{}, align {}",
-                        result.0,
-                        llvm_type(ty)?,
-                        local.0,
-                        alignment(ty, self.closures)?
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Load {
+                            ty: (llvm_type(ty)?).clone(),
+                            ptr: m::local(format!("local.{}", local.0)),
+                            align: (alignment(ty, self.closures)?) as u32,
+                        },
+                    )));
                 }
                 if matches!(instruction.kind, InstructionKind::TakeLocal { .. })
                     && self.owns_storage(self.local_type(*local)?)
                 {
-                    self.line(format!(
-                        "  store i1 false, ptr %resource.live.{}, align 1",
-                        local.0
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Store {
+                            arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                            ptr: m::local(format!("resource.live.{}", local.0)),
+                            align: 1,
+                        },
+                    )));
                     self.package_flags(*local, false, false)?;
                     self.owned_array_flags(*local, false, false)?;
                 }
@@ -723,29 +1140,40 @@ impl FunctionEmitter<'_> {
             InstructionKind::Store { local, value } => {
                 let ty = self.local_type(*local)?;
                 if *ty != Type::Unit {
-                    self.line(format!(
-                        "  store {} %v.{}, ptr %local.{}, align {}",
-                        llvm_type(ty)?,
-                        value.0,
-                        local.0,
-                        alignment(ty, self.closures)?
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Store {
+                            arg: m::Arg::new(
+                                (llvm_type(ty)?).clone(),
+                                m::local(format!("v.{}", value.0)),
+                            ),
+                            ptr: m::local(format!("local.{}", local.0)),
+                            align: (alignment(ty, self.closures)?) as u32,
+                        },
+                    )));
                 }
                 if self.owns_storage(self.local_type(*local)?) {
-                    self.line(format!(
-                        "  store i1 true, ptr %resource.live.{}, align 1",
-                        local.0
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Store {
+                            arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)),
+                            ptr: m::local(format!("resource.live.{}", local.0)),
+                            align: 1,
+                        },
+                    )));
                     self.package_flags(*local, false, true)?;
                     self.owned_array_flags(*local, false, true)?;
                 }
             }
             InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
-                self.line(format!(
-                    "  %v.{} = getelementptr i8, ptr %local.{}, i64 0",
-                    result(instruction)?.0,
-                    local.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result(instruction)?.0)),
+                    m::Op::Gep {
+                        ty: m::Ty::Int(8),
+                        ptr: m::local(format!("local.{}", local.0)),
+                        indices: vec![m::Arg::new(m::Ty::Int(64), m::Val::Int(0))],
+                    },
+                )));
             }
             InstructionKind::AddressField { address, index } => {
                 let Type::Address { inner, .. } = self.value_type(*address)? else {
@@ -755,13 +1183,17 @@ impl FunctionEmitter<'_> {
                         Some(instruction.span),
                     );
                 };
-                self.line(format!(
-                    "  %v.{} = getelementptr {}, ptr %v.{}, i32 0, i32 {}",
-                    result(instruction)?.0,
-                    llvm_type(inner)?,
-                    address.0,
-                    index
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result(instruction)?.0)),
+                    m::Op::Gep {
+                        ty: (llvm_type(inner)?).clone(),
+                        ptr: m::local(format!("v.{}", address.0)),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::val(*(index))),
+                        ],
+                    },
+                )));
             }
             InstructionKind::AddressIndex { address, index } => {
                 if self.value_type(*address)?.is_slice_address() {
@@ -785,28 +1217,50 @@ impl FunctionEmitter<'_> {
                 let array_type = llvm_type(inner)?;
                 let index_value = self.widened_index(*index)?;
                 let valid = self.temp();
-                self.line(format!("  {valid} = icmp ult i64 {index_value}, {length}"));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((valid).clone())),
+                    m::Op::Compare {
+                        predicate: "ult".into(),
+                        ty: m::Ty::Int(64),
+                        left: m::val((index_value).clone()),
+                        right: m::val(length),
+                    },
+                )));
                 let continuation = self.continuation;
                 self.continuation += 1;
-                self.line(format!(
-                    "  br i1 {valid}, label %address.ok.{continuation}, label %zil.trap"
-                ));
-                self.line(format!("address.ok.{continuation}:"));
-                self.line(format!(
-                    "  %v.{} = getelementptr {array_type}, ptr %v.{}, i64 0, i64 {index_value}",
-                    result(instruction)?.0,
-                    address.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::CondBranch {
+                        condition: m::val((valid).clone()),
+                        yes: format!("address.ok.{}", continuation),
+                        no: "zil.trap".into(),
+                    },
+                )));
+                self.event(m::Event::Label(format!("address.ok.{}", continuation)));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result(instruction)?.0)),
+                    m::Op::Gep {
+                        ty: (array_type).clone(),
+                        ptr: m::local(format!("v.{}", address.0)),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(64), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(64), m::val((index_value).clone())),
+                        ],
+                    },
+                )));
             }
             InstructionKind::ReborrowAddress { address, .. } => {
                 if self.value_type(*address)?.is_slice_address() {
                     return self.reborrow_slice(instruction, *address);
                 }
-                self.line(format!(
-                    "  %v.{} = getelementptr i8, ptr %v.{}, i64 0",
-                    result(instruction)?.0,
-                    address.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result(instruction)?.0)),
+                    m::Op::Gep {
+                        ty: m::Ty::Int(8),
+                        ptr: m::local(format!("v.{}", address.0)),
+                        indices: vec![m::Arg::new(m::Ty::Int(64), m::Val::Int(0))],
+                    },
+                )));
             }
             InstructionKind::AddressSlice {
                 address,
@@ -816,11 +1270,16 @@ impl FunctionEmitter<'_> {
                 self.slice_range(instruction, *address, *start, *end)?;
             }
             InstructionKind::SliceLength { address } => {
-                self.line(format!(
-                    "  %v.{} = extractvalue {{ ptr, i64 }} %v.{}, 1",
-                    result(instruction)?.0,
-                    address.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result(instruction)?.0)),
+                    m::Op::Extract {
+                        arg: m::Arg::new(
+                            m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64)]),
+                            m::local(format!("v.{}", address.0)),
+                        ),
+                        index: 1,
+                    },
+                )));
             }
             InstructionKind::WriteAddress { address, value } => {
                 let Type::Address { inner, .. } = self.value_type(*address)? else {
@@ -831,13 +1290,17 @@ impl FunctionEmitter<'_> {
                     );
                 };
                 if **inner != Type::Unit {
-                    self.line(format!(
-                        "  store {} %v.{}, ptr %v.{}, align {}",
-                        llvm_type(inner)?,
-                        value.0,
-                        address.0,
-                        alignment(inner, self.closures)?
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Store {
+                            arg: m::Arg::new(
+                                (llvm_type(inner)?).clone(),
+                                m::local(format!("v.{}", value.0)),
+                            ),
+                            ptr: m::local(format!("v.{}", address.0)),
+                            align: (alignment(inner, self.closures)?) as u32,
+                        },
+                    )));
                 }
             }
             InstructionKind::ReadAddress { address } => {
@@ -849,21 +1312,26 @@ impl FunctionEmitter<'_> {
                     );
                 };
                 if **inner != Type::Unit {
-                    self.line(format!(
-                        "  %v.{} = load {}, ptr %v.{}, align {}",
-                        result(instruction)?.0,
-                        llvm_type(inner)?,
-                        address.0,
-                        alignment(inner, self.closures)?
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result(instruction)?.0)),
+                        m::Op::Load {
+                            ty: (llvm_type(inner)?).clone(),
+                            ptr: m::local(format!("v.{}", address.0)),
+                            align: (alignment(inner, self.closures)?) as u32,
+                        },
+                    )));
                 }
             }
             InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
                 if self.owns_storage(self.local_type(*local)?) {
-                    self.line(format!(
-                        "  store i1 false, ptr %resource.live.{}, align 1",
-                        local.0
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Store {
+                            arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                            ptr: m::local(format!("resource.live.{}", local.0)),
+                            align: 1,
+                        },
+                    )));
                     self.package_flags(*local, false, false)?;
                     self.owned_array_flags(*local, false, false)?;
                 }
@@ -880,15 +1348,24 @@ impl FunctionEmitter<'_> {
                     UnaryOp::Negate => {
                         self.checked_binary("ssub", &ty, "0", &value(*operand), result)?
                     }
-                    UnaryOp::Not => {
-                        self.line(format!("  %v.{} = xor i1 %v.{}, true", result.0, operand.0))
-                    }
-                    UnaryOp::BitNot => self.line(format!(
-                        "  %v.{} = xor {} %v.{}, -1",
-                        result.0,
-                        llvm_type(&ty)?,
-                        operand.0
-                    )),
+                    UnaryOp::Not => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "xor".into(),
+                            ty: m::Ty::Int(1),
+                            left: m::local(format!("v.{}", operand.0)),
+                            right: m::Val::Bool(true),
+                        },
+                    ))),
+                    UnaryOp::BitNot => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Binary {
+                            opcode: "xor".into(),
+                            ty: (llvm_type(&ty)?).clone(),
+                            left: m::local(format!("v.{}", operand.0)),
+                            right: m::Val::Int(-1),
+                        },
+                    ))),
                     _ => {
                         return unsupported(
                             format!("LLVM unary operation {op:?}"),
@@ -923,20 +1400,31 @@ impl FunctionEmitter<'_> {
                 for argument in arguments {
                     let ty = self.value_type(*argument)?;
                     if *ty != Type::Unit {
-                        emitted_arguments.push(format!("{} %v.{}", llvm_type(ty)?, argument.0));
+                        emitted_arguments.push(m::Arg::new(
+                            llvm_type(ty)?,
+                            m::local(format!("v.{}", argument.0)),
+                        ));
                     }
                 }
                 let assignment = if callee.return_type == Type::Unit {
-                    String::new()
+                    None
                 } else {
-                    format!("%v.{} = ", result(instruction)?.0)
+                    Some(format!("v.{}", result(instruction)?.0))
                 };
-                self.line(format!(
-                    "  {assignment}call {} @{}({})",
-                    llvm_type(&callee.return_type)?,
-                    symbol(*function),
-                    emitted_arguments.join(", ")
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    (assignment).clone(),
+                    m::Op::Call {
+                        result: (llvm_type(&callee.return_type)?).clone(),
+                        result_attrs: vec![],
+                        callee: m::global(symbol(*function).to_string()),
+                        args: {
+                            let mut args = vec![];
+                            args.extend((emitted_arguments.clone()).clone());
+                            args
+                        },
+                        vararg: None,
+                    },
+                )));
             }
             InstructionKind::MakeVariant { variant, fields } => {
                 self.make_variant(instruction, *variant, fields)?
@@ -949,11 +1437,13 @@ impl FunctionEmitter<'_> {
             } => self.read_variant(instruction, *value, *variant, *index)?,
             InstructionKind::FunctionRef { function }
             | InstructionKind::ForeignFunctionRef { function } => {
-                self.line(format!(
-                    "  %v.{} = freeze ptr @{}",
-                    result(instruction)?.0,
-                    symbol(*function)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result(instruction)?.0)),
+                    m::Op::Freeze(m::Arg::new(
+                        m::Ty::Ptr,
+                        m::global(symbol(*function).to_string()),
+                    )),
+                )));
             }
             InstructionKind::CallIndirect { callee, arguments } => {
                 let Type::FunctionPointer {
@@ -971,20 +1461,31 @@ impl FunctionEmitter<'_> {
                 for argument in arguments {
                     let ty = self.value_type(*argument)?;
                     if *ty != Type::Unit {
-                        emitted_arguments.push(format!("{} %v.{}", llvm_type(ty)?, argument.0));
+                        emitted_arguments.push(m::Arg::new(
+                            llvm_type(ty)?,
+                            m::local(format!("v.{}", argument.0)),
+                        ));
                     }
                 }
                 let assignment = if **return_type == Type::Unit {
-                    String::new()
+                    None
                 } else {
-                    format!("%v.{} = ", result(instruction)?.0)
+                    Some(format!("v.{}", result(instruction)?.0))
                 };
-                self.line(format!(
-                    "  {assignment}call {} %v.{}({})",
-                    llvm_type(return_type)?,
-                    callee.0,
-                    emitted_arguments.join(", ")
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    (assignment).clone(),
+                    m::Op::Call {
+                        result: (llvm_type(return_type)?).clone(),
+                        result_attrs: vec![],
+                        callee: m::local(format!("v.{}", callee.0)),
+                        args: {
+                            let mut args = vec![];
+                            args.extend((emitted_arguments.clone()).clone());
+                            args
+                        },
+                        vararg: None,
+                    },
+                )));
             }
             InstructionKind::ExtractIndex { aggregate, index } => {
                 self.indexed(instruction, *aggregate, *index, None)?
@@ -1003,7 +1504,10 @@ impl FunctionEmitter<'_> {
                 let llvm = llvm_type(ty)?;
                 let mut previous = "zeroinitializer".to_owned();
                 if fields.is_empty() {
-                    self.line(format!("{} = freeze {llvm} zeroinitializer", value(result)));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((value(result)).clone())),
+                        m::Op::Freeze(m::Arg::new((llvm).clone(), m::Val::Zero)),
+                    )));
                 }
                 for (index, field) in fields.iter().enumerate() {
                     let ft = &self.function.values[field.0 as usize];
@@ -1017,22 +1521,33 @@ impl FunctionEmitter<'_> {
                     } else {
                         value(*field)
                     };
-                    self.line(format!(
-                        "{target} = insertvalue {llvm} {previous}, {} {fv}, {index}",
-                        aggregate_field_type(ft)?
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((target).clone())),
+                        m::Op::Insert {
+                            arg: m::Arg::new((llvm).clone(), m::val((previous).clone())),
+                            index: (index) as u32,
+                            field: m::Arg::new(
+                                (aggregate_field_type(ft)?).clone(),
+                                m::val((fv).clone()),
+                            ),
+                        },
+                    )));
                     previous = target;
                 }
             }
             InstructionKind::ExtractField { aggregate, index } => {
                 let result = instruction.result.expect("verified field result");
                 if self.function.values[result.0 as usize] != Type::Unit {
-                    self.line(format!(
-                        "{} = extractvalue {} {}, {index}",
-                        value(result),
-                        llvm_type(&self.function.values[aggregate.0 as usize])?,
-                        value(*aggregate)
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((value(result)).clone())),
+                        m::Op::Extract {
+                            arg: m::Arg::new(
+                                (llvm_type(&self.function.values[aggregate.0 as usize])?).clone(),
+                                m::val((value(*aggregate)).clone()),
+                            ),
+                            index: *index,
+                        },
+                    )));
                 }
             }
             InstructionKind::UpdateField {
@@ -1047,13 +1562,20 @@ impl FunctionEmitter<'_> {
                 } else {
                     value(*field)
                 };
-                self.line(format!(
-                    "{} = insertvalue {} {}, {} {fv}, {index}",
-                    value(result),
-                    llvm_type(&self.function.values[aggregate.0 as usize])?,
-                    value(*aggregate),
-                    aggregate_field_type(ft)?
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(result)).clone())),
+                    m::Op::Insert {
+                        arg: m::Arg::new(
+                            (llvm_type(&self.function.values[aggregate.0 as usize])?).clone(),
+                            m::val((value(*aggregate)).clone()),
+                        ),
+                        index: *index,
+                        field: m::Arg::new(
+                            (aggregate_field_type(ft)?).clone(),
+                            m::val((fv).clone()),
+                        ),
+                    },
+                )));
             }
             InstructionKind::MakeClosure { closure, captures } => {
                 let output = result(instruction)?;
@@ -1081,10 +1603,10 @@ impl FunctionEmitter<'_> {
                     fields.push((captures.len() + offset, "i1".into(), "true".into()));
                 }
                 if fields.is_empty() {
-                    self.line(format!(
-                        "  {} = freeze {environment} zeroinitializer",
-                        value(output)
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((value(output)).clone())),
+                        m::Op::Freeze(m::Arg::new((environment).clone(), m::Val::Zero)),
+                    )));
                 } else {
                     let mut aggregate = String::from("zeroinitializer");
                     let count = fields.len();
@@ -1094,7 +1616,17 @@ impl FunctionEmitter<'_> {
                         } else {
                             self.temp()
                         };
-                        self.line(format!("  {next} = insertvalue {environment} {aggregate}, {field} {captured}, {index}"));
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(m::name((next).clone())),
+                            m::Op::Insert {
+                                arg: m::Arg::new(
+                                    (environment).clone(),
+                                    m::val((aggregate).clone()),
+                                ),
+                                index: (index) as u32,
+                                field: m::Arg::new((field).clone(), m::val((captured).clone())),
+                            },
+                        )));
                         aggregate = next;
                     }
                 }
@@ -1110,22 +1642,36 @@ impl FunctionEmitter<'_> {
                 if ty != Type::Unit {
                     if mutable {
                         let address = self.temp();
-                        self.line(format!(
-                            "  {address} = getelementptr {}, ptr %env, i32 0, i32 {index}",
-                            environment_type(environment)
-                        ));
-                        self.line(format!(
-                            "  %v.{} = load {}, ptr {address}, align {}",
-                            result(instruction)?.0,
-                            llvm_type(&ty)?,
-                            alignment(&ty, self.closures)?
-                        ));
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(m::name((address).clone())),
+                            m::Op::Gep {
+                                ty: (environment_type(environment)).clone(),
+                                ptr: m::local("env".into()),
+                                indices: vec![
+                                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                    m::Arg::new(m::Ty::Int(32), m::val(*(index))),
+                                ],
+                            },
+                        )));
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(format!("v.{}", result(instruction)?.0)),
+                            m::Op::Load {
+                                ty: (llvm_type(&ty)?).clone(),
+                                ptr: m::val((address).clone()),
+                                align: (alignment(&ty, self.closures)?) as u32,
+                            },
+                        )));
                     } else {
-                        self.line(format!(
-                            "  %v.{} = extractvalue {} %env, {index}",
-                            result(instruction)?.0,
-                            environment_type(environment)
-                        ));
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(format!("v.{}", result(instruction)?.0)),
+                            m::Op::Extract {
+                                arg: m::Arg::new(
+                                    (environment_type(environment)).clone(),
+                                    m::local("env".into()),
+                                ),
+                                index: *index,
+                            },
+                        )));
                     }
                 }
             }
@@ -1140,16 +1686,28 @@ impl FunctionEmitter<'_> {
                 let ty = self.closure_definition(environment)?.captures[*index as usize].clone();
                 if ty != Type::Unit {
                     let address = self.temp();
-                    self.line(format!(
-                        "  {address} = getelementptr {}, ptr %env, i32 0, i32 {index}",
-                        environment_type(environment)
-                    ));
-                    self.line(format!(
-                        "  store {} {}, ptr {address}, align {}",
-                        llvm_type(&ty)?,
-                        value(*written),
-                        alignment(&ty, self.closures)?
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((address).clone())),
+                        m::Op::Gep {
+                            ty: (environment_type(environment)).clone(),
+                            ptr: m::local("env".into()),
+                            indices: vec![
+                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                m::Arg::new(m::Ty::Int(32), m::val(*(index))),
+                            ],
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Store {
+                            arg: m::Arg::new(
+                                (llvm_type(&ty)?).clone(),
+                                m::val((value(*written)).clone()),
+                            ),
+                            ptr: m::val((address).clone()),
+                            align: (alignment(&ty, self.closures)?) as u32,
+                        },
+                    )));
                 }
             }
             InstructionKind::CallClosureMut { callee, arguments } => {
@@ -1169,26 +1727,35 @@ impl FunctionEmitter<'_> {
                 let function = definition.function;
                 let return_type = llvm_type(&definition.result)?;
                 let assignment = if definition.result == Type::Unit {
-                    String::new()
+                    None
                 } else {
-                    format!("%v.{} = ", result(instruction)?.0)
+                    Some(format!("v.{}", result(instruction)?.0))
                 };
-                let mut emitted_arguments = vec![format!(
-                    "{} {}",
+                let mut emitted_arguments = vec![m::Arg::new(
                     environment_type(*environment),
-                    value(*callee)
+                    m::val(value(*callee)),
                 )];
                 for argument in arguments {
                     let ty = self.value_type(*argument)?;
                     if *ty != Type::Unit {
-                        emitted_arguments.push(format!("{} {}", llvm_type(ty)?, value(*argument)));
+                        emitted_arguments
+                            .push(m::Arg::new(llvm_type(ty)?, m::val(value(*argument))));
                     }
                 }
-                self.line(format!(
-                    "  {assignment}call {return_type} @{}({})",
-                    symbol(function),
-                    emitted_arguments.join(", ")
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    (assignment).clone(),
+                    m::Op::Call {
+                        result: (return_type).clone(),
+                        result_attrs: vec![],
+                        callee: m::global(symbol(function).to_string()),
+                        args: {
+                            let mut args = vec![];
+                            args.extend((emitted_arguments.clone()).clone());
+                            args
+                        },
+                        vararg: None,
+                    },
+                )));
             }
             InstructionKind::Unsupported(feature) => {
                 return unsupported(feature.clone(), Some(instruction.span));
@@ -1218,31 +1785,63 @@ impl FunctionEmitter<'_> {
             }
             BinaryOp::Divide | BinaryOp::Remainder => {
                 let is_zero = self.temp();
-                self.line(format!(
-                    "  {is_zero} = icmp eq {operand_type} {right_text}, 0"
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((is_zero).clone())),
+                    m::Op::Compare {
+                        predicate: "eq".into(),
+                        ty: (operand_type).clone(),
+                        left: m::val((right_text).clone()),
+                        right: m::Val::Int(0),
+                    },
+                )));
                 if matches!(ty, Type::U8 | Type::U16) {
                     self.trap_if(&is_zero);
                 } else {
                     let minimum = match ty {
-                        Type::I32 => i32::MIN.to_string(),
-                        Type::I64 => i64::MIN.to_string(),
+                        Type::I32 => i128::from(i32::MIN),
+                        Type::I64 => i128::from(i64::MIN),
                         _ => return unsupported("non-integer division", Some(span)),
                     };
                     let is_minimum = self.temp();
                     let is_minus_one = self.temp();
                     let is_overflow = self.temp();
                     let is_invalid = self.temp();
-                    self.line(format!(
-                        "  {is_minimum} = icmp eq {operand_type} {left_text}, {minimum}"
-                    ));
-                    self.line(format!(
-                        "  {is_minus_one} = icmp eq {operand_type} {right_text}, -1"
-                    ));
-                    self.line(format!(
-                        "  {is_overflow} = and i1 {is_minimum}, {is_minus_one}"
-                    ));
-                    self.line(format!("  {is_invalid} = or i1 {is_zero}, {is_overflow}"));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((is_minimum).clone())),
+                        m::Op::Compare {
+                            predicate: "eq".into(),
+                            ty: (operand_type).clone(),
+                            left: m::val((left_text).clone()),
+                            right: m::val(minimum),
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((is_minus_one).clone())),
+                        m::Op::Compare {
+                            predicate: "eq".into(),
+                            ty: (operand_type).clone(),
+                            left: m::val((right_text).clone()),
+                            right: m::Val::Int(-1),
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((is_overflow).clone())),
+                        m::Op::Binary {
+                            opcode: "and".into(),
+                            ty: m::Ty::Int(1),
+                            left: m::val((is_minimum).clone()),
+                            right: m::val((is_minus_one).clone()),
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((is_invalid).clone())),
+                        m::Op::Binary {
+                            opcode: "or".into(),
+                            ty: m::Ty::Int(1),
+                            left: m::val((is_zero).clone()),
+                            right: m::val((is_overflow).clone()),
+                        },
+                    )));
                     self.trap_if(&is_invalid);
                 }
                 let op = match (
@@ -1254,10 +1853,15 @@ impl FunctionEmitter<'_> {
                     (false, true) => "sdiv",
                     (false, false) => "srem",
                 };
-                self.line(format!(
-                    "  %v.{} = {op} {operand_type} {left_text}, {right_text}",
-                    result.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result.0)),
+                    m::Op::Binary {
+                        opcode: op.to_string(),
+                        ty: (operand_type).clone(),
+                        left: m::val((left_text).clone()),
+                        right: m::val((right_text).clone()),
+                    },
+                )));
             }
             BinaryOp::AddWrapping | BinaryOp::SubtractWrapping | BinaryOp::MultiplyWrapping => {
                 let op = match operation {
@@ -1265,10 +1869,15 @@ impl FunctionEmitter<'_> {
                     BinaryOp::SubtractWrapping => "sub",
                     _ => "mul",
                 };
-                self.line(format!(
-                    "  %v.{} = {op} {operand_type} {left_text}, {right_text}",
-                    result.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result.0)),
+                    m::Op::Binary {
+                        opcode: op.to_string(),
+                        ty: (operand_type).clone(),
+                        left: m::val((left_text).clone()),
+                        right: m::val((right_text).clone()),
+                    },
+                )));
             }
             BinaryOp::Equal
             | BinaryOp::NotEqual
@@ -1278,12 +1887,24 @@ impl FunctionEmitter<'_> {
             | BinaryOp::GreaterEqual => {
                 if ty == Type::Unit {
                     match operation {
-                        BinaryOp::Equal => {
-                            self.line(format!("  %v.{} = or i1 false, true", result.0))
-                        }
-                        BinaryOp::NotEqual => {
-                            self.line(format!("  %v.{} = or i1 false, false", result.0))
-                        }
+                        BinaryOp::Equal => self.event(m::Event::Instruction(m::Inst::new(
+                            Some(format!("v.{}", result.0)),
+                            m::Op::Binary {
+                                opcode: "or".into(),
+                                ty: m::Ty::Int(1),
+                                left: m::Val::Bool(false),
+                                right: m::Val::Bool(true),
+                            },
+                        ))),
+                        BinaryOp::NotEqual => self.event(m::Event::Instruction(m::Inst::new(
+                            Some(format!("v.{}", result.0)),
+                            m::Op::Binary {
+                                opcode: "or".into(),
+                                ty: m::Ty::Int(1),
+                                left: m::Val::Bool(false),
+                                right: m::Val::Bool(false),
+                            },
+                        ))),
                         _ => return unsupported("ordered comparison of unit", Some(span)),
                     }
                 } else {
@@ -1299,10 +1920,15 @@ impl FunctionEmitter<'_> {
                         BinaryOp::Greater => "sgt",
                         _ => "sge",
                     };
-                    self.line(format!(
-                        "  %v.{} = icmp {predicate} {operand_type} {left_text}, {right_text}",
-                        result.0
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Compare {
+                            predicate: predicate.to_string(),
+                            ty: (operand_type).clone(),
+                            left: m::val((left_text).clone()),
+                            right: m::val((right_text).clone()),
+                        },
+                    )));
                 }
             }
             BinaryOp::And
@@ -1315,10 +1941,15 @@ impl FunctionEmitter<'_> {
                     BinaryOp::Or | BinaryOp::BitOr => "or",
                     _ => "xor",
                 };
-                self.line(format!(
-                    "  %v.{} = {op} {operand_type} {left_text}, {right_text}",
-                    result.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result.0)),
+                    m::Op::Binary {
+                        opcode: op.to_string(),
+                        ty: (operand_type).clone(),
+                        left: m::val((left_text).clone()),
+                        right: m::val((right_text).clone()),
+                    },
+                )));
             }
             BinaryOp::ShiftLeft | BinaryOp::ShiftRight => {
                 let bits = match ty {
@@ -1331,9 +1962,15 @@ impl FunctionEmitter<'_> {
                 let invalid = self.temp();
                 // Unsigned comparison also rejects every negative signed count.
                 // Check before the shift, whose out-of-range LLVM result is poison.
-                self.line(format!(
-                    "  {invalid} = icmp uge {operand_type} {right_text}, {bits}"
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((invalid).clone())),
+                    m::Op::Compare {
+                        predicate: "uge".into(),
+                        ty: (operand_type).clone(),
+                        left: m::val((right_text).clone()),
+                        right: m::val(bits),
+                    },
+                )));
                 self.trap_if(&invalid);
                 let op = if operation == BinaryOp::ShiftLeft {
                     "shl"
@@ -1342,10 +1979,15 @@ impl FunctionEmitter<'_> {
                 } else {
                     "lshr"
                 };
-                self.line(format!(
-                    "  %v.{} = {op} {operand_type} {left_text}, {right_text}",
-                    result.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result.0)),
+                    m::Op::Binary {
+                        opcode: op.to_string(),
+                        ty: (operand_type).clone(),
+                        left: m::val((left_text).clone()),
+                        right: m::val((right_text).clone()),
+                    },
+                )));
             }
         }
         Ok(())
@@ -1356,15 +1998,26 @@ impl FunctionEmitter<'_> {
             Type::U8 | Type::U16 => {
                 let from = llvm_type(self.value_type(index)?)?;
                 let extended = self.temp();
-                self.line(format!(
-                    "  {extended} = zext {from} {} to i64",
-                    value(index)
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((extended).clone())),
+                    m::Op::Cast {
+                        opcode: "zext".into(),
+                        arg: m::Arg::new((from).clone(), m::val((value(index)).clone())),
+                        to: m::Ty::Int(64),
+                    },
+                )));
                 Ok(extended)
             }
             Type::I32 => {
                 let extended = self.temp();
-                self.line(format!("  {extended} = sext i32 {} to i64", value(index)));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((extended).clone())),
+                    m::Op::Cast {
+                        opcode: "sext".into(),
+                        arg: m::Arg::new(m::Ty::Int(32), m::val((value(index)).clone())),
+                        to: m::Ty::Int(64),
+                    },
+                )));
                 Ok(extended)
             }
             Type::I64 => Ok(value(index)),
@@ -1387,7 +2040,15 @@ impl FunctionEmitter<'_> {
         let input = value(input);
         let operation = match (&source, target) {
             (a, b) if a == b && a.is_integer() => {
-                self.line(format!("  %v.{} = add {to} {input}, 0", result.0));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result.0)),
+                    m::Op::Binary {
+                        opcode: "add".into(),
+                        ty: (to).clone(),
+                        left: m::val((input).clone()),
+                        right: m::Val::Int(0),
+                    },
+                )));
                 return Ok(());
             }
             (Type::U8, Type::U16 | Type::I32 | Type::I64) | (Type::U16, Type::I32 | Type::I64) => {
@@ -1398,7 +2059,15 @@ impl FunctionEmitter<'_> {
                 // Unsigned comparison also rejects every negative signed input.
                 let maximum = if *target == Type::U8 { 255 } else { 65535 };
                 let invalid = self.temp();
-                self.line(format!("  {invalid} = icmp ugt {from} {input}, {maximum}"));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((invalid).clone())),
+                    m::Op::Compare {
+                        predicate: "ugt".into(),
+                        ty: (from).clone(),
+                        left: m::val((input).clone()),
+                        right: m::val(maximum),
+                    },
+                )));
                 self.trap_if(&invalid);
                 "trunc"
             }
@@ -1406,18 +2075,46 @@ impl FunctionEmitter<'_> {
                 let below = self.temp();
                 let above = self.temp();
                 let invalid = self.temp();
-                self.line(format!("  {below} = icmp slt i64 {input}, {}", i32::MIN));
-                self.line(format!("  {above} = icmp sgt i64 {input}, {}", i32::MAX));
-                self.line(format!("  {invalid} = or i1 {below}, {above}"));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((below).clone())),
+                    m::Op::Compare {
+                        predicate: "slt".into(),
+                        ty: m::Ty::Int(64),
+                        left: m::val((input).clone()),
+                        right: m::val(i32::MIN),
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((above).clone())),
+                    m::Op::Compare {
+                        predicate: "sgt".into(),
+                        ty: m::Ty::Int(64),
+                        left: m::val((input).clone()),
+                        right: m::val(i32::MAX),
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((invalid).clone())),
+                    m::Op::Binary {
+                        opcode: "or".into(),
+                        ty: m::Ty::Int(1),
+                        left: m::val((below).clone()),
+                        right: m::val((above).clone()),
+                    },
+                )));
                 self.trap_if(&invalid);
                 "trunc"
             }
             _ => return unsupported("verified integer conversion type", Some(self.function.span)),
         };
-        self.line(format!(
-            "  %v.{} = {operation} {from} {input} to {to}",
-            result.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(format!("v.{}", result.0)),
+            m::Op::Cast {
+                opcode: operation.to_string(),
+                arg: m::Arg::new((from).clone(), m::val((input).clone())),
+                to: (to).clone(),
+            },
+        )));
         Ok(())
     }
 
@@ -1449,14 +2146,39 @@ impl FunctionEmitter<'_> {
         self.intrinsics.insert((operation, bits));
         let pair = self.temp();
         let overflow = self.temp();
-        self.line(format!("  {pair} = call {{ i{bits}, i1 }} @llvm.{operation}.with.overflow.i{bits}(i{bits} {left}, i{bits} {right})"));
-        self.line(format!(
-            "  %v.{} = extractvalue {{ i{bits}, i1 }} {pair}, 0",
-            result.0
-        ));
-        self.line(format!(
-            "  {overflow} = extractvalue {{ i{bits}, i1 }} {pair}, 1"
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((pair).clone())),
+            m::Op::Call {
+                result: m::Ty::Struct(vec![m::Ty::Int((bits) as u32), m::Ty::Int(1)]),
+                result_attrs: vec![],
+                callee: m::global(format!("llvm.{}.with.overflow.i{}", operation, bits)),
+                args: vec![
+                    m::Arg::new(m::Ty::Int((bits) as u32), m::val(left)),
+                    m::Arg::new(m::Ty::Int((bits) as u32), m::val(right)),
+                ],
+                vararg: None,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(format!("v.{}", result.0)),
+            m::Op::Extract {
+                arg: m::Arg::new(
+                    m::Ty::Struct(vec![m::Ty::Int((bits) as u32), m::Ty::Int(1)]),
+                    m::val((pair).clone()),
+                ),
+                index: 0,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((overflow).clone())),
+            m::Op::Extract {
+                arg: m::Arg::new(
+                    m::Ty::Struct(vec![m::Ty::Int((bits) as u32), m::Ty::Int(1)]),
+                    m::val((pair).clone()),
+                ),
+                index: 1,
+            },
+        )));
         self.trap_if(&overflow);
         Ok(())
     }
@@ -1464,17 +2186,25 @@ impl FunctionEmitter<'_> {
     fn trap_if(&mut self, condition: &str) {
         let continuation = self.continuation;
         self.continuation += 1;
-        self.line(format!(
-            "  br i1 {condition}, label %zil.trap, label %checked.{continuation}"
-        ));
-        self.line(format!("checked.{continuation}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::val(condition),
+                yes: "zil.trap".into(),
+                no: format!("checked.{}", continuation),
+            },
+        )));
+        self.event(m::Event::Label(format!("checked.{}", continuation)));
     }
 
     fn terminator(&mut self, terminator: &Terminator) -> CompileResult<()> {
         match terminator {
             Terminator::Return(value) => {
                 if self.function.return_type == Type::Unit {
-                    self.line("  ret void");
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Return(None),
+                    )));
                 } else {
                     let returned = value.ok_or_else(|| {
                         vec![Diagnostic::error(
@@ -1484,23 +2214,34 @@ impl FunctionEmitter<'_> {
                             "a non-unit return has no value",
                         )]
                     })?;
-                    self.line(format!(
-                        "  ret {} %v.{}",
-                        llvm_type(&self.function.return_type)?,
-                        returned.0
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Return(Some(m::Arg::new(
+                            (llvm_type(&self.function.return_type)?).clone(),
+                            m::local(format!("v.{}", returned.0)),
+                        ))),
+                    )));
                 }
             }
-            Terminator::Jump(block) => self.line(format!("  br label %bb.{}", block.0)),
+            Terminator::Jump(block) => self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Branch(format!("bb.{}", block.0)),
+            ))),
             Terminator::Branch {
                 condition,
                 then_block,
                 else_block,
-            } => self.line(format!(
-                "  br i1 %v.{}, label %bb.{}, label %bb.{}",
-                condition.0, then_block.0, else_block.0
+            } => self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::CondBranch {
+                    condition: m::local(format!("v.{}", condition.0)),
+                    yes: format!("bb.{}", then_block.0),
+                    no: format!("bb.{}", else_block.0),
+                },
+            ))),
+            Terminator::Unreachable | Terminator::Trap => self.event(m::Event::Instruction(
+                m::Inst::new(None, m::Op::Branch("zil.trap".into())),
             )),
-            Terminator::Unreachable | Terminator::Trap => self.line("  br label %zil.trap"),
         }
         Ok(())
     }
@@ -1558,46 +2299,80 @@ impl FunctionEmitter<'_> {
         let align = alignment(ty, self.closures)?;
         let index_value = self.widened_index(index)?;
         let valid = self.temp();
-        self.line(format!("  {valid} = icmp ult i64 {index_value}, {length}"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((valid).clone())),
+            m::Op::Compare {
+                predicate: "ult".into(),
+                ty: m::Ty::Int(64),
+                left: m::val((index_value).clone()),
+                right: m::val(length),
+            },
+        )));
         let continuation = self.continuation;
         self.continuation += 1;
-        self.line(format!(
-            "  br i1 {valid}, label %index.ok.{continuation}, label %zil.trap"
-        ));
-        self.line(format!("index.ok.{continuation}:"));
-        self.line(format!(
-            "  store {llvm} {}, ptr %index.slot.{}, align {align}",
-            value(aggregate),
-            result.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::val((valid).clone()),
+                yes: format!("index.ok.{}", continuation),
+                no: "zil.trap".into(),
+            },
+        )));
+        self.event(m::Event::Label(format!("index.ok.{}", continuation)));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new((llvm).clone(), m::val((value(aggregate)).clone())),
+                ptr: m::local(format!("index.slot.{}", result.0)),
+                align: (align) as u32,
+            },
+        )));
         let address = self.temp();
-        self.line(format!(
-            "  {address} = getelementptr {llvm}, ptr %index.slot.{}, i64 0, i64 {index_value}",
-            result.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((address).clone())),
+            m::Op::Gep {
+                ty: (llvm).clone(),
+                ptr: m::local(format!("index.slot.{}", result.0)),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(64), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(64), m::val((index_value).clone())),
+                ],
+            },
+        )));
         if let Some(update) = update {
             let v = if element == Type::Unit {
                 "zeroinitializer".into()
             } else {
                 value(update)
             };
-            self.line(format!(
-                "  store {} {v}, ptr {address}, align {}",
-                aggregate_field_type(&element)?,
-                alignment(&element, self.closures)?
-            ));
-            self.line(format!(
-                "  {} = load {llvm}, ptr %index.slot.{}, align {align}",
-                value(result),
-                result.0
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(
+                        (aggregate_field_type(&element)?).clone(),
+                        m::val((v).clone()),
+                    ),
+                    ptr: m::val((address).clone()),
+                    align: (alignment(&element, self.closures)?) as u32,
+                },
+            )));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((value(result)).clone())),
+                m::Op::Load {
+                    ty: (llvm).clone(),
+                    ptr: m::local(format!("index.slot.{}", result.0)),
+                    align: (align) as u32,
+                },
+            )));
         } else if element != Type::Unit {
-            self.line(format!(
-                "  {} = load {}, ptr {address}, align {}",
-                value(result),
-                llvm_type(&element)?,
-                alignment(&element, self.closures)?
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((value(result)).clone())),
+                m::Op::Load {
+                    ty: (llvm_type(&element)?).clone(),
+                    ptr: m::val((address).clone()),
+                    align: (alignment(&element, self.closures)?) as u32,
+                },
+            )));
         }
         Ok(())
     }
@@ -1606,9 +2381,12 @@ impl FunctionEmitter<'_> {
         self.temporary += 1;
         format!("%tmp.{id}")
     }
-    fn line(&mut self, text: impl AsRef<str>) {
-        self.text.push_str(text.as_ref());
-        self.text.push('\n');
+    fn event(&mut self, event: m::Event) {
+        self.text.push(event);
+    }
+
+    fn line(&mut self, code: m::Code) {
+        self.text.append(code);
     }
 }
 
@@ -1628,10 +2406,10 @@ fn symbol(id: FunctionId) -> String {
 fn value(id: ValueId) -> String {
     format!("%v.{}", id.0)
 }
-fn environment_type(id: ClosureId) -> String {
-    format!("%zil_env_{}", id.0)
+fn environment_type(id: ClosureId) -> m::Ty {
+    m::Ty::Named(format!("zil_env_{}", id.0))
 }
-fn llvm_type(ty: &Type) -> CompileResult<String> {
+fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::Unit => Ok("void".into()),
         Type::Bool => Ok("i1".into()),
@@ -1639,37 +2417,38 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
         Type::I64 => Ok("i64".into()),
         Type::U8 => Ok("i8".into()),
         Type::U16 => Ok("i16".into()),
-        Type::ByteBuffer | Type::OwnedStore { .. } => Ok("{ ptr, i64, i64 }".into()),
+        Type::ByteBuffer | Type::OwnedStore { .. } => Ok(m::Ty::Struct(vec![
+            m::Ty::Ptr,
+            m::Ty::Int(64),
+            m::Ty::Int(64),
+        ])),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok("ptr".into()),
-        Type::Array { element, length } => {
-            Ok(format!("[{length} x {}]", aggregate_field_type(element)?))
-        }
-        Type::Tuple(fields) => Ok(format!(
-            "{{ {} }}",
+        Type::Array { element, length } => Ok(m::Ty::array(
+            u64::from(*length),
+            aggregate_field_type(element)?,
+        )),
+        Type::Tuple(fields) => Ok(m::Ty::Struct(
             fields
                 .iter()
                 .map(aggregate_field_type)
-                .collect::<CompileResult<Vec<_>>>()?
-                .join(", ")
+                .collect::<CompileResult<Vec<_>>>()?,
         )),
-        Type::Record { fields, .. } | Type::Package { fields, .. } => Ok(format!(
-            "{{ {} }}",
+        Type::Record { fields, .. } | Type::Package { fields, .. } => Ok(m::Ty::Struct(
             fields
                 .iter()
                 .map(|(_, t)| aggregate_field_type(t))
-                .collect::<CompileResult<Vec<_>>>()?
-                .join(", ")
+                .collect::<CompileResult<Vec<_>>>()?,
         )),
         Type::Enum { .. } => enums::llvm_enum_type(ty),
-        Type::ErrorUnion { error, result } => Ok(format!(
-            "{{ i1, {}, {} }}",
+        Type::ErrorUnion { error, result } => Ok(m::Ty::Struct(vec![
+            m::Ty::Int(1),
             aggregate_field_type(error)?,
-            aggregate_field_type(result)?
-        )),
+            aggregate_field_type(result)?,
+        ])),
         Type::Closure(id) => Ok(environment_type(*id)),
         Type::FunctionPointer { .. } => Ok("ptr".into()),
         Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Slice { .. }) => {
-            Ok("{ ptr, i64 }".into())
+            Ok(m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64)]))
         }
         Type::Address { inner, .. }
             if inner.is_copy_value()
@@ -1696,14 +2475,14 @@ fn llvm_type(ty: &Type) -> CompileResult<String> {
         _ => unsupported(format!("LLVM type {}", ty.name()), None),
     }
 }
-fn aggregate_field_type(ty: &Type) -> CompileResult<String> {
+fn aggregate_field_type(ty: &Type) -> CompileResult<m::Ty> {
     if *ty == Type::Unit {
         Ok("{}".into())
     } else {
         llvm_type(ty)
     }
 }
-fn capture_type(ty: &Type) -> CompileResult<String> {
+fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::Unit => Ok("i8".into()),
         _ if ty.is_copy_value()

@@ -3,6 +3,9 @@
 //! One call owns one context and returns owned bytes; no LLVM pointer escapes.
 //! Native support is optional for library/reference builds; the mainline CLI enables it.
 
+pub mod model;
+mod preflight;
+
 #[cfg(feature = "native")]
 #[allow(unsafe_code)]
 mod native;
@@ -30,6 +33,9 @@ pub struct Receipt {
     pub relocation: String,
     pub code_model: String,
     pub verify_before_after: bool,
+    pub input_kind: String,
+    pub preflight_ns: u64,
+    pub builder_ns: u64,
     pub parse_ns: u64,
     pub optimize_ns: u64,
     pub emit_ns: u64,
@@ -71,6 +77,7 @@ pub const fn available() -> bool {
 
 /// Cancellation is cooperative at phase boundaries, never an unsafe interruption
 /// inside LLVM. The caller must recheck before publishing the returned object.
+/// Legacy differential-test entry; disabled in the standard CLI.
 /// Input must be trusted compiler-generated IR. Parse/verifier errors are returned
 /// but this wrapper does not sandbox LLVM bugs or make hostile IR a safe input.
 pub fn compile(
@@ -78,13 +85,47 @@ pub fn compile(
     config: &Config<'_>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
-    #[cfg(feature = "native")]
+    #[cfg(feature = "text-reference")]
     {
         native::compile(ir, config, cancelled)
     }
-    #[cfg(not(feature = "native"))]
+    #[cfg(not(feature = "text-reference"))]
     {
         let _ = (ir, config, cancelled);
+        Err(Error {
+            kind: ErrorKind::Unavailable,
+            message: "text parsing is reference-only; use compile_module or enable text-reference"
+                .into(),
+        })
+    }
+}
+
+/// Check the machine representation before any LLVMBuilder operation.
+/// This is not and cannot create a ZIL VerifiedModule capability.
+pub fn validate_module(module: &model::Module) -> Result<(), Error> {
+    preflight::validate(module)
+        .map(|_| ())
+        .map_err(|message| Error {
+            kind: ErrorKind::Verify,
+            message,
+        })
+}
+
+/// Generate an object directly from immutable, structured machine IR.
+/// No assembly serialization or LLVMParseIRInContext is involved. Machine
+/// preflight and the LLVM verifier are not substitutes for the caller's ZIL Verify.
+pub fn compile_module(
+    module: &model::Module,
+    config: &Config<'_>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Object, Error> {
+    #[cfg(feature = "native")]
+    {
+        native::compile_module(module, config, cancelled)
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        let _ = (module, config, cancelled);
         Err(Error {
             kind: ErrorKind::Unavailable,
             message: "rebuild with llvm-api feature and LLVM 17.0.6".into(),

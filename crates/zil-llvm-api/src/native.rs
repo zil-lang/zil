@@ -3,6 +3,11 @@
 //! ParseIR consumes its memory buffer even on failure; target refs are borrowed;
 //! all LLVM work for one unit stays on one thread. No raw handle is Send/Sync.
 use super::{Config, Error, ErrorKind, Object, Optimization, Receipt};
+enum Input<'a> {
+    #[cfg(feature = "text-reference")]
+    Text(&'a str),
+    Structured(&'a crate::model::Module),
+}
 use std::{
     ffi::{CStr, CString, c_char, c_int, c_uint, c_void},
     ptr,
@@ -20,11 +25,13 @@ unsafe extern "C" {
     fn LLVMInitializeX86AsmParser();
     fn LLVMContextCreate() -> Handle;
     fn LLVMContextDispose(ctx: Handle);
+    #[cfg(feature = "text-reference")]
     fn LLVMCreateMemoryBufferWithMemoryRangeCopy(
         data: *const c_char,
         len: usize,
         name: *const c_char,
     ) -> Handle;
+    #[cfg(feature = "text-reference")]
     fn LLVMParseIRInContext(
         ctx: Handle,
         buffer: Handle,
@@ -103,6 +110,7 @@ owned!(Machine, LLVMDisposeTargetMachine);
 owned!(Layout, LLVMDisposeTargetData);
 owned!(PassOptions, LLVMDisposePassBuilderOptions);
 owned!(Buffer, LLVMDisposeMemoryBuffer);
+mod builder;
 static INIT: Once = Once::new();
 fn error(kind: ErrorKind, message: impl Into<String>) -> Error {
     Error {
@@ -149,8 +157,23 @@ fn verify(module: &Module) -> Result<(), Error> {
     }
 }
 
+#[cfg(feature = "text-reference")]
 pub(super) fn compile(
     ir: &str,
+    config: &Config<'_>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Object, Error> {
+    compile_input(Input::Text(ir), config, cancelled)
+}
+pub(super) fn compile_module(
+    module: &crate::model::Module,
+    config: &Config<'_>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Object, Error> {
+    compile_input(Input::Structured(module), config, cancelled)
+}
+fn compile_input(
+    input: Input<'_>,
     config: &Config<'_>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
@@ -190,35 +213,6 @@ pub(super) fn compile(
     if context.0.is_null() {
         return Err(error(ErrorKind::Emit, "LLVMContextCreate returned NULL"));
     }
-    let t = Instant::now();
-    let buffer = unsafe {
-        LLVMCreateMemoryBufferWithMemoryRangeCopy(
-            ir.as_ptr().cast(),
-            ir.len(),
-            c"zil-unit".as_ptr(),
-        )
-    };
-    if buffer.is_null() {
-        return Err(error(ErrorKind::Parse, "cannot allocate IR buffer"));
-    }
-    let mut module = ptr::null_mut();
-    let mut msg = ptr::null_mut();
-    // LLVMParseIRInContext takes ownership of buffer (also on parse failure).
-    let failed = unsafe { LLVMParseIRInContext(context.0, buffer, &mut module, &mut msg) };
-    let module = Module(module);
-    let message = unsafe { take_message(msg) };
-    if failed != 0 || module.0.is_null() {
-        return Err(error(ErrorKind::Parse, message));
-    }
-    let parse_ns = nanos(t);
-    verify(&module)?;
-    check(cancelled)?;
-    if unsafe { text(LLVMGetTarget(module.0)) } != config.triple {
-        return Err(error(
-            ErrorKind::Target,
-            "IR target differs from the verified target configuration",
-        ));
-    }
     let triple =
         CString::new(config.triple).map_err(|e| error(ErrorKind::Target, e.to_string()))?;
     let mut target = ptr::null_mut();
@@ -256,6 +250,56 @@ pub(super) fn compile(
         ));
     }
     let data_layout = unsafe { take_message(LLVMCopyStringRepOfTargetData(layout.0)) };
+    let (module, input_kind, preflight_ns, builder_ns, parse_ns) = match input {
+        #[cfg(feature = "text-reference")]
+        Input::Text(ir) => {
+            let t = Instant::now();
+            // LLVMParseIRInContext consumes its buffer on success and failure.
+            let buffer = unsafe {
+                LLVMCreateMemoryBufferWithMemoryRangeCopy(
+                    ir.as_ptr().cast(),
+                    ir.len(),
+                    c"zil-unit".as_ptr(),
+                )
+            };
+            if buffer.is_null() {
+                return Err(error(ErrorKind::Parse, "cannot allocate IR buffer"));
+            }
+            let mut raw = ptr::null_mut();
+            let mut msg = ptr::null_mut();
+            let failed = unsafe { LLVMParseIRInContext(context.0, buffer, &mut raw, &mut msg) };
+            let module = Module(raw);
+            let message = unsafe { take_message(msg) };
+            if failed != 0 || module.0.is_null() {
+                return Err(error(ErrorKind::Parse, message));
+            }
+            (module, "llvm-text", 0, 0, nanos(t))
+        }
+        Input::Structured(program) => {
+            if program.triple != config.triple {
+                return Err(error(
+                    ErrorKind::Target,
+                    "structured module target differs from configuration",
+                ));
+            }
+            let t = Instant::now();
+            let schedule = crate::preflight::validate(program)
+                .map_err(|message| error(ErrorKind::Verify, message))?;
+            let preflight_ns = nanos(t);
+            check(cancelled)?;
+            let t = Instant::now();
+            let module = builder::build(context.0, program, layout.0, &schedule, cancelled)?;
+            (module, "builder", preflight_ns, nanos(t), 0)
+        }
+    };
+    verify(&module)?;
+    check(cancelled)?;
+    if unsafe { text(LLVMGetTarget(module.0)) } != config.triple {
+        return Err(error(
+            ErrorKind::Target,
+            "IR target differs from the verified target configuration",
+        ));
+    }
     let previous = unsafe { text(LLVMGetDataLayoutStr(module.0)) };
     if !previous.is_empty() && previous != data_layout {
         return Err(error(
@@ -326,6 +370,9 @@ pub(super) fn compile(
             relocation: "PIC".into(),
             code_model: "default".into(),
             verify_before_after: true,
+            input_kind: input_kind.into(),
+            preflight_ns,
+            builder_ns,
             parse_ns,
             optimize_ns,
             emit_ns,

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
-# Explicit exception: raw handles and unsafe operations exist only in native.rs.
+# Explicit exception: raw handles and unsafe operations exist only in native.rs and native/builder.rs.
 # No front-end or verifier dependency, no exported raw native handles.
 [lints.rust]
 unsafe_code = "deny"
@@ -14,3 +14,5 @@ unsafe_op_in_unsafe_fn = "deny"
 [features]
 default = []
 native = []
+# Legacy text-to-object path is an explicit differential-test capability only.
+text-reference = ["native"]

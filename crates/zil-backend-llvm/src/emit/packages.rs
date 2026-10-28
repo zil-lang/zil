@@ -96,8 +96,10 @@ pub(super) fn teardown_paths(
     Ok(result)
 }
 
-fn gep_suffix(path: &[u32]) -> String {
-    path.iter().map(|index| format!(", i32 {index}")).collect()
+fn gep_suffix(path: &[u32]) -> Vec<m::Arg> {
+    path.iter()
+        .map(|index| m::Arg::new(m::Ty::Int(32), *index))
+        .collect()
 }
 
 impl FunctionEmitter<'_> {
@@ -124,20 +126,27 @@ impl FunctionEmitter<'_> {
             .collect::<Vec<_>>();
         for index in owned {
             if allocate {
-                self.line(format!(
-                    "  %package.live.{}.{index} = alloca i1, align 1",
-                    local.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("package.live.{}.{}", local.0, index)),
+                    m::Op::Alloca {
+                        ty: m::Ty::Int(1),
+                        align: 1,
+                    },
+                )));
             }
-            self.line(format!(
-                "  store i1 {live}, ptr %package.live.{}.{index}, align 1",
-                local.0
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(1), m::val(live)),
+                    ptr: m::local(format!("package.live.{}.{}", local.0, index)),
+                    align: 1,
+                },
+            )));
         }
         Ok(())
     }
 
-    fn package_field(&self, local: LocalId, index: u32) -> CompileResult<(String, Type)> {
+    fn package_field(&self, local: LocalId, index: u32) -> CompileResult<(m::Ty, Type)> {
         let ty = self.local_type(local)?;
         let Type::Package { fields, .. } = ty else {
             return invalid(
@@ -170,11 +179,17 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         }
-        self.line(format!(
-            "  {} = getelementptr {package}, ptr %local.{}, i32 0, i32 {index}",
-            value(result(instruction)?),
-            local.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result(instruction)?)).clone())),
+            m::Op::Gep {
+                ty: (package).clone(),
+                ptr: m::local(format!("local.{}", local.0)),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
         Ok(())
     }
 
@@ -196,16 +211,25 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         let pointer = self.temp();
-        self.line(format!(
-            "  {pointer} = getelementptr {package}, ptr %local.{}, i32 0, i32 {index}",
-            local.0
-        ));
-        self.line(format!(
-            "  {} = load {}, ptr {pointer}, align {}",
-            value(result(instruction)?),
-            llvm_type(&field)?,
-            alignment(&field, self.closures)?
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((pointer).clone())),
+            m::Op::Gep {
+                ty: (package).clone(),
+                ptr: m::local(format!("local.{}", local.0)),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result(instruction)?)).clone())),
+            m::Op::Load {
+                ty: (llvm_type(&field)?).clone(),
+                ptr: m::val((pointer).clone()),
+                align: (alignment(&field, self.closures)?) as u32,
+            },
+        )));
         Ok(())
     }
 
@@ -223,11 +247,17 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         }
-        self.line(format!(
-            "  {} = getelementptr {package}, ptr %local.{}, i32 0, i32 {index}",
-            value(result(instruction)?),
-            local.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result(instruction)?)).clone())),
+            m::Op::Gep {
+                ty: (package).clone(),
+                ptr: m::local(format!("local.{}", local.0)),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
         Ok(())
     }
 
@@ -246,20 +276,33 @@ impl FunctionEmitter<'_> {
             );
         }
         let pointer = self.temp();
-        self.line(format!(
-            "  {pointer} = getelementptr {package}, ptr %local.{}, i32 0, i32 {index}",
-            local.0
-        ));
-        self.line(format!(
-            "  {} = load {}, ptr {pointer}, align {}",
-            value(result(instruction)?),
-            llvm_type(&field)?,
-            alignment(&field, self.closures)?
-        ));
-        self.line(format!(
-            "  store i1 false, ptr %package.live.{}.{index}, align 1",
-            local.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((pointer).clone())),
+            m::Op::Gep {
+                ty: (package).clone(),
+                ptr: m::local(format!("local.{}", local.0)),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result(instruction)?)).clone())),
+            m::Op::Load {
+                ty: (llvm_type(&field)?).clone(),
+                ptr: m::val((pointer).clone()),
+                align: (alignment(&field, self.closures)?) as u32,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                ptr: m::local(format!("package.live.{}.{}", local.0, index)),
+                align: 1,
+            },
+        )));
         Ok(())
     }
 
@@ -280,22 +323,35 @@ impl FunctionEmitter<'_> {
         }
         if field != Type::Unit {
             let pointer = self.temp();
-            self.line(format!(
-                "  {pointer} = getelementptr {package}, ptr %local.{}, i32 0, i32 {index}",
-                local.0
-            ));
-            self.line(format!(
-                "  store {} {}, ptr {pointer}, align {}",
-                llvm_type(&field)?,
-                value(input),
-                alignment(&field, self.closures)?
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((pointer).clone())),
+                m::Op::Gep {
+                    ty: (package).clone(),
+                    ptr: m::local(format!("local.{}", local.0)),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::val(index)),
+                    ],
+                },
+            )));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new((llvm_type(&field)?).clone(), m::val((value(input)).clone())),
+                    ptr: m::val((pointer).clone()),
+                    align: (alignment(&field, self.closures)?) as u32,
+                },
+            )));
         }
         if owned_field(&field) {
-            self.line(format!(
-                "  store i1 true, ptr %package.live.{}.{index}, align 1",
-                local.0
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)),
+                    ptr: m::local(format!("package.live.{}.{}", local.0, index)),
+                    align: 1,
+                },
+            )));
         }
         Ok(())
     }
@@ -323,37 +379,73 @@ impl FunctionEmitter<'_> {
         &mut self,
         local: LocalId,
         index: u32,
-        package: &str,
+        package: &m::Ty,
         teardowns: &[(Vec<u32>, String)],
     ) {
         let flag = self.temp();
         let label = self.continuation;
         self.continuation += 1;
-        self.line(format!(
-            "  {flag} = load i1, ptr %package.live.{}.{index}, align 1",
-            local.0
-        ));
-        self.line(format!(
-            "  br i1 {flag}, label %package.field.drop.{label}, label %package.field.done.{label}"
-        ));
-        self.line(format!("package.field.drop.{label}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((flag).clone())),
+            m::Op::Load {
+                ty: m::Ty::Int(1),
+                ptr: m::local(format!("package.live.{}.{}", local.0, index)),
+                align: 1,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::val((flag).clone()),
+                yes: format!("package.field.drop.{}", label),
+                no: format!("package.field.done.{}", label),
+            },
+        )));
+        self.event(m::Event::Label(format!("package.field.drop.{}", label)));
         // Retire this obligation before user teardown. The field address can
         // never silently become a live description of the replacement value.
-        self.line(format!(
-            "  store i1 false, ptr %package.live.{}.{index}, align 1",
-            local.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                ptr: m::local(format!("package.live.{}.{}", local.0, index)),
+                align: 1,
+            },
+        )));
         for (path, teardown) in teardowns {
             let pointer = self.temp();
             let suffix = gep_suffix(path);
-            self.line(format!(
-                "  {pointer} = getelementptr {package}, ptr %local.{}, i32 0, i32 {index}{suffix}",
-                local.0
-            ));
-            self.line(format!("  call void @{teardown}(ptr {pointer})"));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((pointer).clone())),
+                m::Op::Gep {
+                    ty: (package).clone(),
+                    ptr: m::local(format!("local.{}", local.0)),
+                    indices: {
+                        let mut args = vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::val(index)),
+                        ];
+                        args.extend((suffix).clone());
+                        args
+                    },
+                },
+            )));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global(teardown.to_string()),
+                    args: vec![m::Arg::new(m::Ty::Ptr, m::val((pointer).clone()))],
+                    vararg: None,
+                },
+            )));
         }
-        self.line(format!("  br label %package.field.done.{label}"));
-        self.line(format!("package.field.done.{label}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Branch(format!("package.field.done.{}", label)),
+        )));
+        self.event(m::Event::Label(format!("package.field.done.{}", label)));
     }
 
     pub(super) fn drop_package(
@@ -380,20 +472,33 @@ impl FunctionEmitter<'_> {
         let flag = self.temp();
         let label = self.continuation;
         self.continuation += 1;
-        self.line(format!(
-            "  {flag} = load i1, ptr %resource.live.{}, align 1",
-            local.0
-        ));
-        self.line(format!(
-            "  br i1 {flag}, label %package.drop.{label}, label %package.done.{label}"
-        ));
-        self.line(format!("package.drop.{label}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((flag).clone())),
+            m::Op::Load {
+                ty: m::Ty::Int(1),
+                ptr: m::local(format!("resource.live.{}", local.0)),
+                align: 1,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::val((flag).clone()),
+                yes: format!("package.drop.{}", label),
+                no: format!("package.done.{}", label),
+            },
+        )));
+        self.event(m::Event::Label(format!("package.drop.{}", label)));
         // Surrender the carrier obligation before invoking any user teardown.
         // No package or payload write occurs after a field can release its data.
-        self.line(format!(
-            "  store i1 false, ptr %resource.live.{}, align 1",
-            local.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                ptr: m::local(format!("resource.live.{}", local.0)),
+                align: 1,
+            },
+        )));
         for (index, paths) in teardowns {
             if self.partial_packages.contains(&local) {
                 self.emit_package_field_drop(local, index as u32, &package, &paths);
@@ -401,15 +506,39 @@ impl FunctionEmitter<'_> {
                 for (path, teardown) in paths {
                     let pointer = self.temp();
                     let suffix = gep_suffix(&path);
-                    self.line(format!(
-                        "  {pointer} = getelementptr {package}, ptr %local.{}, i32 0, i32 {index}{suffix}", local.0
-                    ));
-                    self.line(format!("  call void @{teardown}(ptr {pointer})"));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((pointer).clone())),
+                        m::Op::Gep {
+                            ty: (package).clone(),
+                            ptr: m::local(format!("local.{}", local.0)),
+                            indices: {
+                                let mut args = vec![
+                                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                                ];
+                                args.extend((suffix).clone());
+                                args
+                            },
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Call {
+                            result: m::Ty::Void,
+                            result_attrs: vec![],
+                            callee: m::global(teardown.to_string()),
+                            args: vec![m::Arg::new(m::Ty::Ptr, m::val((pointer).clone()))],
+                            vararg: None,
+                        },
+                    )));
                 }
             }
         }
-        self.line(format!("  br label %package.done.{label}"));
-        self.line(format!("package.done.{label}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Branch(format!("package.done.{}", label)),
+        )));
+        self.event(m::Event::Label(format!("package.done.{}", label)));
         Ok(())
     }
 }

@@ -8,7 +8,7 @@ use zil_base::{CompileResult, Diagnostic, Phase, ResultCategory};
 use zil_ir::LirModule;
 use zil_verify::VerifiedModule;
 
-use crate::{EmitOptions, EntryPoint, emit_with_options};
+use crate::{EmitOptions, EntryPoint};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Optimization {
@@ -159,11 +159,15 @@ pub fn build_with_cancellation(
             "codegen units and jobs must be in 1..=64",
         ));
     }
-    let llvm = emit_with_options(verified, lir, &options.emit)?;
+    let machine = crate::emit::lower_with_options(verified, lir, &options.emit)?;
+    zil_llvm_api::validate_module(&machine)
+        .map_err(|e| infra("E-LLVM-API-VERIFY", e.to_string()))?;
+    // Diagnostic/reference output only. The API consumes the owned machine IR.
+    let llvm = machine.to_text();
     let plan = if options.codegen.units > 1 {
-        crate::cgu::partition(&llvm, lir, options.emit.entry, options.codegen.units)
+        crate::machine_cgu::partition(&machine, lir, options.emit.entry, options.codegen.units)
     } else {
-        crate::cgu::Plan {
+        crate::machine_cgu::Plan {
             units: Vec::new(),
             fallback: None,
         }
@@ -257,22 +261,22 @@ pub fn build_with_cancellation(
         commands.push(run_command(&mut command, "E-LLVM-COMPILE")?);
         vec![object_path]
     } else {
-        let units = if split { plan.units } else { vec![llvm] };
+        let units = if split { plan.units } else { vec![machine] };
         let inputs = units
             .into_iter()
             .enumerate()
-            .map(|(id, text)| {
+            .map(|(id, module)| {
                 let input = staging.0.join(format!("unit-{id}.ll"));
                 let object = staging.0.join(format!("unit-{id}.o"));
-                // LLVM API consumes the in-memory text, not a subprocess or disk read.
+                // Only the reference backend serializes individual codegen units.
                 if options.backend == NativeBackend::Clang {
-                    fs::write(&input, &text)
+                    fs::write(&input, module.to_text())
                         .map_err(|e| io_error("write codegen unit", &input, e))?;
                 }
                 Ok(UnitInput {
                     input,
                     object,
-                    text,
+                    module,
                 })
             })
             .collect::<CompileResult<Vec<_>>>()?;
@@ -350,7 +354,7 @@ pub fn build_with_cancellation(
 struct UnitInput {
     input: PathBuf,
     object: PathBuf,
-    text: String,
+    module: zil_llvm_api::model::Module,
 }
 type UnitResult = (Option<Vec<String>>, Option<String>);
 
@@ -362,7 +366,22 @@ fn compile_units(
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<Vec<UnitResult>> {
     let mut schedule = (0..inputs.len()).collect::<Vec<_>>();
-    schedule.sort_by_key(|id| (std::cmp::Reverse(inputs[*id].text.len()), *id));
+    schedule.sort_by_key(|id| {
+        (
+            std::cmp::Reverse(
+                inputs[*id]
+                    .module
+                    .items
+                    .iter()
+                    .map(|item| match item {
+                        zil_llvm_api::model::Item::Function(f) => f.cost(),
+                        _ => 1,
+                    })
+                    .sum::<usize>(),
+            ),
+            *id,
+        )
+    });
     let next = AtomicUsize::new(0);
     let results = std::thread::scope(|scope| {
         let workers = (0..options.codegen.jobs.min(inputs.len()))
@@ -455,32 +474,33 @@ fn compile_api_unit(
             Optimization::O2 => ApiOpt::O2,
         },
     };
-    let object = zil_llvm_api::compile(&unit.text, &config, cancelled).map_err(|error| {
-        let (code, category) = match error.kind {
-            ErrorKind::Cancelled => ("E-LLVM-API-CANCELLED", ResultCategory::Cancelled),
-            ErrorKind::Unavailable => ("E-LLVM-API-UNAVAILABLE", ResultCategory::Unsupported),
-            ErrorKind::Version => ("E-LLVM-API-VERSION", ResultCategory::InfraError),
-            ErrorKind::Target => ("E-LLVM-API-TARGET", ResultCategory::InfraError),
-            ErrorKind::Parse => ("E-LLVM-API-PARSE", ResultCategory::InfraError),
-            ErrorKind::Verify => ("E-LLVM-API-VERIFY", ResultCategory::InfraError),
-            ErrorKind::Optimize => ("E-LLVM-API-OPTIMIZE", ResultCategory::InfraError),
-            ErrorKind::Emit => ("E-LLVM-API-EMIT", ResultCategory::InfraError),
-        };
-        vec![Diagnostic::new(
-            Phase::Link,
-            category,
-            code,
-            error.to_string(),
-            None,
-        )]
-    })?;
+    let object =
+        zil_llvm_api::compile_module(&unit.module, &config, cancelled).map_err(|error| {
+            let (code, category) = match error.kind {
+                ErrorKind::Cancelled => ("E-LLVM-API-CANCELLED", ResultCategory::Cancelled),
+                ErrorKind::Unavailable => ("E-LLVM-API-UNAVAILABLE", ResultCategory::Unsupported),
+                ErrorKind::Version => ("E-LLVM-API-VERSION", ResultCategory::InfraError),
+                ErrorKind::Target => ("E-LLVM-API-TARGET", ResultCategory::InfraError),
+                ErrorKind::Parse => ("E-LLVM-API-PARSE", ResultCategory::InfraError),
+                ErrorKind::Verify => ("E-LLVM-API-VERIFY", ResultCategory::InfraError),
+                ErrorKind::Optimize => ("E-LLVM-API-OPTIMIZE", ResultCategory::InfraError),
+                ErrorKind::Emit => ("E-LLVM-API-EMIT", ResultCategory::InfraError),
+            };
+            vec![Diagnostic::new(
+                Phase::Link,
+                category,
+                code,
+                error.to_string(),
+                None,
+            )]
+        })?;
     check_cancelled(cancelled)?;
     fs::write(&unit.object, &object.bytes)
         .map_err(|e| io_error("write LLVM API object", &unit.object, e))?;
     let r = &object.receipt;
     let q = zil_base::json_string;
     let receipt = format!(
-        "{{\"backend\":\"llvm-api\",\"llvm_version\":{},\"triple\":{},\"cpu\":{},\"features\":{},\"data_layout\":{},\"pipeline\":{},\"relocation\":{},\"code_model\":{},\"verify_before_after\":{},\"object_bytes\":{},\"parse_ns\":{},\"optimize_ns\":{},\"emit_ns\":{},\"total_ns\":{}}}",
+        "{{\"backend\":\"llvm-api\",\"llvm_version\":{},\"triple\":{},\"cpu\":{},\"features\":{},\"data_layout\":{},\"pipeline\":{},\"relocation\":{},\"code_model\":{},\"verify_before_after\":{},\"object_bytes\":{},\"input_kind\":{},\"preflight_ns\":{},\"builder_ns\":{},\"parse_ns\":{},\"optimize_ns\":{},\"emit_ns\":{},\"total_ns\":{}}}",
         q(&r.llvm_version),
         q(&r.triple),
         q(&r.cpu),
@@ -491,6 +511,9 @@ fn compile_api_unit(
         q(&r.code_model),
         r.verify_before_after,
         object.bytes.len(),
+        q(&r.input_kind),
+        r.preflight_ns,
+        r.builder_ns,
         r.parse_ns,
         r.optimize_ns,
         r.emit_ns,

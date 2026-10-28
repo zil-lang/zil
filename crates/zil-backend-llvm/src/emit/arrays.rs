@@ -28,20 +28,27 @@ impl FunctionEmitter<'_> {
         let length = *length;
         for index in 0..length {
             if allocate {
-                self.line(format!(
-                    "  %array.live.{}.{index} = alloca i1, align 1",
-                    local.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("array.live.{}.{}", local.0, index)),
+                    m::Op::Alloca {
+                        ty: m::Ty::Int(1),
+                        align: 1,
+                    },
+                )));
             }
-            self.line(format!(
-                "  store i1 {live}, ptr %array.live.{}.{index}, align 1",
-                local.0
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(1), m::val(live)),
+                    ptr: m::local(format!("array.live.{}.{}", local.0, index)),
+                    align: 1,
+                },
+            )));
         }
         Ok(())
     }
 
-    fn owned_array_shape(&self, local: LocalId) -> CompileResult<(String, Type, u32)> {
+    fn owned_array_shape(&self, local: LocalId) -> CompileResult<(m::Ty, Type, u32)> {
         let ty = self.local_type(local)?;
         let Type::Array { element, length } = ty else {
             return invalid(
@@ -98,34 +105,71 @@ impl FunctionEmitter<'_> {
                     return Ok(());
                 }
                 if matches!(ty, Type::Managed(_)) {
-                    self.line(format!("  {} = getelementptr {array}, ptr %local.{}, i32 0, i32 {index}, i32 {field}", value(result(instruction)?), local.0));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((value(result(instruction)?)).clone())),
+                        m::Op::Gep {
+                            ty: (array).clone(),
+                            ptr: m::local(format!("local.{}", local.0)),
+                            indices: vec![
+                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                m::Arg::new(m::Ty::Int(32), m::val(index)),
+                                m::Arg::new(m::Ty::Int(32), m::val(field)),
+                            ],
+                        },
+                    )));
                 } else {
                     let pointer = self.temp();
-                    self.line(format!("  {pointer} = getelementptr {array}, ptr %local.{}, i32 0, i32 {index}, i32 {field}", local.0));
-                    self.line(format!(
-                        "  {} = load {}, ptr {pointer}, align {}",
-                        value(result(instruction)?),
-                        llvm_type(ty)?,
-                        alignment(ty, self.closures)?
-                    ));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((pointer).clone())),
+                        m::Op::Gep {
+                            ty: (array).clone(),
+                            ptr: m::local(format!("local.{}", local.0)),
+                            indices: vec![
+                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                m::Arg::new(m::Ty::Int(32), m::val(index)),
+                                m::Arg::new(m::Ty::Int(32), m::val(field)),
+                            ],
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name((value(result(instruction)?)).clone())),
+                        m::Op::Load {
+                            ty: (llvm_type(ty)?).clone(),
+                            ptr: m::val((pointer).clone()),
+                            align: (alignment(ty, self.closures)?) as u32,
+                        },
+                    )));
                 }
             }
             InstructionKind::TakeOwnedArrayElement { index, .. } => {
                 let pointer = self.temp();
-                self.line(format!(
-                    "  {pointer} = getelementptr {array}, ptr %local.{}, i32 0, i32 {index}",
-                    local.0
-                ));
-                self.line(format!(
-                    "  {} = load {}, ptr {pointer}, align {}",
-                    value(result(instruction)?),
-                    llvm_type(&element)?,
-                    alignment(&element, self.closures)?
-                ));
-                self.line(format!(
-                    "  store i1 false, ptr %array.live.{}.{index}, align 1",
-                    local.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((pointer).clone())),
+                    m::Op::Gep {
+                        ty: (array).clone(),
+                        ptr: m::local(format!("local.{}", local.0)),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::val(index)),
+                        ],
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(result(instruction)?)).clone())),
+                    m::Op::Load {
+                        ty: (llvm_type(&element)?).clone(),
+                        ptr: m::val((pointer).clone()),
+                        align: (alignment(&element, self.closures)?) as u32,
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                        ptr: m::local(format!("array.live.{}.{}", local.0, index)),
+                        align: 1,
+                    },
+                )));
             }
             InstructionKind::StoreOwnedArrayElement {
                 index,
@@ -140,20 +184,36 @@ impl FunctionEmitter<'_> {
                     );
                 }
                 let pointer = self.temp();
-                self.line(format!(
-                    "  {pointer} = getelementptr {array}, ptr %local.{}, i32 0, i32 {index}",
-                    local.0
-                ));
-                self.line(format!(
-                    "  store {} {}, ptr {pointer}, align {}",
-                    llvm_type(&element)?,
-                    value(input),
-                    alignment(&element, self.closures)?
-                ));
-                self.line(format!(
-                    "  store i1 true, ptr %array.live.{}.{index}, align 1",
-                    local.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((pointer).clone())),
+                    m::Op::Gep {
+                        ty: (array).clone(),
+                        ptr: m::local(format!("local.{}", local.0)),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::val(index)),
+                        ],
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(
+                            (llvm_type(&element)?).clone(),
+                            m::val((value(input)).clone()),
+                        ),
+                        ptr: m::val((pointer).clone()),
+                        align: (alignment(&element, self.closures)?) as u32,
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)),
+                        ptr: m::local(format!("array.live.{}.{}", local.0, index)),
+                        align: 1,
+                    },
+                )));
             }
             InstructionKind::DropOwnedArrayElement { index, .. } => {
                 let teardowns = self.owned_array_teardowns(&element)?;
@@ -163,24 +223,40 @@ impl FunctionEmitter<'_> {
                 let flag = self.temp();
                 let label = self.continuation;
                 self.continuation += 1;
-                self.line(format!(
-                    "  {flag} = load i1, ptr %resource.live.{}, align 1",
-                    local.0
-                ));
-                self.line(format!(
-                    "  br i1 {flag}, label %array.drop.{label}, label %array.done.{label}"
-                ));
-                self.line(format!("array.drop.{label}:"));
-                self.line(format!(
-                    "  store i1 false, ptr %resource.live.{}, align 1",
-                    local.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((flag).clone())),
+                    m::Op::Load {
+                        ty: m::Ty::Int(1),
+                        ptr: m::local(format!("resource.live.{}", local.0)),
+                        align: 1,
+                    },
+                )));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::CondBranch {
+                        condition: m::val((flag).clone()),
+                        yes: format!("array.drop.{}", label),
+                        no: format!("array.done.{}", label),
+                    },
+                )));
+                self.event(m::Event::Label(format!("array.drop.{}", label)));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                        ptr: m::local(format!("resource.live.{}", local.0)),
+                        align: 1,
+                    },
+                )));
                 let teardowns = self.owned_array_teardowns(&element)?;
                 for index in 0..length {
                     self.drop_owned_array_element(local, index, &array, &teardowns)?;
                 }
-                self.line(format!("  br label %array.done.{label}"));
-                self.line(format!("array.done.{label}:"));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Branch(format!("array.done.{}", label)),
+                )));
+                self.event(m::Event::Label(format!("array.done.{}", label)));
             }
             InstructionKind::BorrowOwnedArrayElement { index, .. } => {
                 if !matches!(element, Type::Closure(_)) {
@@ -190,11 +266,17 @@ impl FunctionEmitter<'_> {
                         Some(instruction.span),
                     );
                 }
-                self.line(format!(
-                    "  {} = getelementptr {array}, ptr %local.{}, i32 0, i32 {index}",
-                    value(result(instruction)?),
-                    local.0
-                ));
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name((value(result(instruction)?)).clone())),
+                    m::Op::Gep {
+                        ty: (array).clone(),
+                        ptr: m::local(format!("local.{}", local.0)),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::val(index)),
+                        ],
+                    },
+                )));
             }
             _ => unreachable!("owning array local operation"),
         }
@@ -224,40 +306,76 @@ impl FunctionEmitter<'_> {
         &mut self,
         local: LocalId,
         index: u32,
-        array: &str,
+        array: &m::Ty,
         teardowns: &[(Vec<u32>, String)],
     ) -> CompileResult<()> {
         let flag = self.temp();
         let label = self.continuation;
         self.continuation += 1;
-        self.line(format!(
-            "  {flag} = load i1, ptr %array.live.{}.{index}, align 1",
-            local.0
-        ));
-        self.line(format!(
-            "  br i1 {flag}, label %array.element.drop.{label}, label %array.element.done.{label}"
-        ));
-        self.line(format!("array.element.drop.{label}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((flag).clone())),
+            m::Op::Load {
+                ty: m::Ty::Int(1),
+                ptr: m::local(format!("array.live.{}.{}", local.0, index)),
+                align: 1,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::val((flag).clone()),
+                yes: format!("array.element.drop.{}", label),
+                no: format!("array.element.done.{}", label),
+            },
+        )));
+        self.event(m::Event::Label(format!("array.element.drop.{}", label)));
         // Retire the element before invoking teardown. Its Package is complete,
         // so no hidden nested partial-state flags are read after any payload free.
-        self.line(format!(
-            "  store i1 false, ptr %array.live.{}.{index}, align 1",
-            local.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                ptr: m::local(format!("array.live.{}.{}", local.0, index)),
+                align: 1,
+            },
+        )));
         for (field, teardown) in teardowns {
             let pointer = self.temp();
             let field = field
                 .iter()
-                .map(|index| format!(", i32 {index}"))
-                .collect::<String>();
-            self.line(format!(
-                "  {pointer} = getelementptr {array}, ptr %local.{}, i32 0, i32 {index}{field}",
-                local.0
-            ));
-            self.line(format!("  call void @{teardown}(ptr {pointer})"));
+                .map(|index| m::Arg::new(m::Ty::Int(32), *index))
+                .collect::<Vec<_>>();
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((pointer).clone())),
+                m::Op::Gep {
+                    ty: (array).clone(),
+                    ptr: m::local(format!("local.{}", local.0)),
+                    indices: {
+                        let mut args = vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::val(index)),
+                        ];
+                        args.extend((field).clone());
+                        args
+                    },
+                },
+            )));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global(teardown.to_string()),
+                    args: vec![m::Arg::new(m::Ty::Ptr, m::val((pointer).clone()))],
+                    vararg: None,
+                },
+            )));
         }
-        self.line(format!("  br label %array.element.done.{label}"));
-        self.line(format!("array.element.done.{label}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Branch(format!("array.element.done.{}", label)),
+        )));
+        self.event(m::Event::Label(format!("array.element.done.{}", label)));
         Ok(())
     }
 }

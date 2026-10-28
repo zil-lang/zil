@@ -1,4 +1,4 @@
-#![cfg(feature = "native")]
+#![cfg(feature = "text-reference")]
 use std::sync::atomic::{AtomicUsize, Ordering};
 use zil_llvm_api::{Config, ErrorKind, Optimization, compile};
 const GOOD: &str =

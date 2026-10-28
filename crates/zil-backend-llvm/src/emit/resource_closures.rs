@@ -43,25 +43,75 @@ fn flag_index(definition: &ClosureDefinition, capture: u32) -> usize {
 pub(super) fn drop_functions(
     closures: &[ClosureDefinition],
     resources: &[ResourceDefinition],
-) -> CompileResult<String> {
-    let mut text = String::new();
+) -> CompileResult<m::Code> {
+    let mut text = m::Code::new();
     // Every concrete environment has an addressable field cleanup entry.
     // Resource-free callbacks simply return; this preserves unique field slots
     // without inventing a capture cleanup obligation.
     for definition in closures {
         let env = environment_type(definition.id);
-        text.push_str(&format!(
-            "define internal void @zil.closure.drop.{}(ptr %env) {{\nentry:\n",
-            definition.id.0
-        ));
+        text.append(m::Code::from(vec![
+            m::Event::Begin(m::Function {
+                name: format!("zil.closure.drop.{}", definition.id.0),
+                linkage: m::Linkage::Internal,
+                signature: m::Signature {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    params: vec![m::Param {
+                        ty: m::Ty::Ptr,
+                        name: Some("env".into()),
+                        attrs: vec![],
+                    }],
+                    variadic: false,
+                },
+                attrs: vec![],
+                blocks: None,
+            }),
+            m::Event::Label("entry".into()),
+        ]));
         for (index, ty) in definition.captures.iter().enumerate() {
             if flag_count(ty) == 0 {
                 continue;
             }
             let flag = flag_index(definition, index as u32);
-            text.push_str(&format!(
-                "  %flag.ptr.{index} = getelementptr {env}, ptr %env, i32 0, i32 {flag}\n  %live.{index} = load i1, ptr %flag.ptr.{index}, align 1\n  br i1 %live.{index}, label %drop.{index}, label %done.{index}\ndrop.{index}:\n  store i1 false, ptr %flag.ptr.{index}, align 1\n"
-            ));
+            text.append(m::Code::from(vec![
+                m::Event::Instruction(m::Inst::new(
+                    Some(format!("flag.ptr.{}", index)),
+                    m::Op::Gep {
+                        ty: (env).clone(),
+                        ptr: m::local("env".into()),
+                        indices: vec![
+                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                            m::Arg::new(m::Ty::Int(32), m::val(flag)),
+                        ],
+                    },
+                )),
+                m::Event::Instruction(m::Inst::new(
+                    Some(format!("live.{}", index)),
+                    m::Op::Load {
+                        ty: m::Ty::Int(1),
+                        ptr: m::local(format!("flag.ptr.{}", index)),
+                        align: 1,
+                    },
+                )),
+                m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::CondBranch {
+                        condition: m::local(format!("live.{}", index)),
+                        yes: format!("drop.{}", index),
+                        no: format!("done.{}", index),
+                    },
+                )),
+                m::Event::Label(format!("drop.{}", index)),
+                m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                        ptr: m::local(format!("flag.ptr.{}", index)),
+                        align: 1,
+                    },
+                )),
+            ]));
             match ty {
                 Type::Managed(payload) => {
                     if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
@@ -80,16 +130,62 @@ pub(super) fn drop_functions(
                         resource.teardown.map(symbol)
                     };
                     if let Some(teardown) = teardown {
-                        text.push_str(&format!(
-                            "  %payload.{index} = getelementptr {env}, ptr %env, i32 0, i32 {index}\n  call void @{teardown}(ptr %payload.{index})\n"
-                        ));
+                        text.append(m::Code::from(vec![
+                            m::Event::Instruction(m::Inst::new(
+                                Some(format!("payload.{}", index)),
+                                m::Op::Gep {
+                                    ty: (env).clone(),
+                                    ptr: m::local("env".into()),
+                                    indices: vec![
+                                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                        m::Arg::new(m::Ty::Int(32), m::val(index)),
+                                    ],
+                                },
+                            )),
+                            m::Event::Instruction(m::Inst::new(
+                                None,
+                                m::Op::Call {
+                                    result: m::Ty::Void,
+                                    result_attrs: vec![],
+                                    callee: m::global(teardown.to_string()),
+                                    args: vec![m::Arg::new(
+                                        m::Ty::Ptr,
+                                        m::local(format!("payload.{}", index)),
+                                    )],
+                                    vararg: None,
+                                },
+                            )),
+                        ]));
                     }
                 }
                 Type::Closure(child) => {
                     if owns(&closures[child.0 as usize]) {
-                        text.push_str(&format!(
-                            "  %child.{index} = getelementptr {env}, ptr %env, i32 0, i32 {index}\n  call void @zil.closure.drop.{}(ptr %child.{index})\n", child.0
-                        ));
+                        text.append(m::Code::from(vec![
+                            m::Event::Instruction(m::Inst::new(
+                                Some(format!("child.{}", index)),
+                                m::Op::Gep {
+                                    ty: (env).clone(),
+                                    ptr: m::local("env".into()),
+                                    indices: vec![
+                                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                        m::Arg::new(m::Ty::Int(32), m::val(index)),
+                                    ],
+                                },
+                            )),
+                            m::Event::Instruction(m::Inst::new(
+                                None,
+                                m::Op::Call {
+                                    result: m::Ty::Void,
+                                    result_attrs: vec![],
+                                    callee: m::global(format!("zil.closure.drop.{}", child.0)),
+                                    args: vec![m::Arg::new(
+                                        m::Ty::Ptr,
+                                        m::local(format!("child.{}", index)),
+                                    )],
+                                    vararg: None,
+                                },
+                            )),
+                        ]));
                     }
                 }
                 Type::Package { fields, .. } => {
@@ -108,29 +204,98 @@ pub(super) fn drop_functions(
                             .expect("verified captured package resource definition");
                         let field_flag = flag + offset;
                         offset += 1;
-                        text.push_str(&format!(
-                            "  %field.flag.{index}.{field} = getelementptr {env}, ptr %env, i32 0, i32 {field_flag}\n  %field.live.{index}.{field} = load i1, ptr %field.flag.{index}.{field}, align 1\n  br i1 %field.live.{index}.{field}, label %field.drop.{index}.{field}, label %field.done.{index}.{field}\nfield.drop.{index}.{field}:\n  store i1 false, ptr %field.flag.{index}.{field}, align 1\n"
-                        ));
+                        text.append(m::Code::from(vec![
+                            m::Event::Instruction(m::Inst::new(
+                                Some(format!("field.flag.{}.{}", index, field)),
+                                m::Op::Gep {
+                                    ty: (env).clone(),
+                                    ptr: m::local("env".into()),
+                                    indices: vec![
+                                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                        m::Arg::new(m::Ty::Int(32), m::val(field_flag)),
+                                    ],
+                                },
+                            )),
+                            m::Event::Instruction(m::Inst::new(
+                                Some(format!("field.live.{}.{}", index, field)),
+                                m::Op::Load {
+                                    ty: m::Ty::Int(1),
+                                    ptr: m::local(format!("field.flag.{}.{}", index, field)),
+                                    align: 1,
+                                },
+                            )),
+                            m::Event::Instruction(m::Inst::new(
+                                None,
+                                m::Op::CondBranch {
+                                    condition: m::local(format!("field.live.{}.{}", index, field)),
+                                    yes: format!("field.drop.{}.{}", index, field),
+                                    no: format!("field.done.{}.{}", index, field),
+                                },
+                            )),
+                            m::Event::Label(format!("field.drop.{}.{}", index, field)),
+                            m::Event::Instruction(m::Inst::new(
+                                None,
+                                m::Op::Store {
+                                    arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                                    ptr: m::local(format!("field.flag.{}.{}", index, field)),
+                                    align: 1,
+                                },
+                            )),
+                        ]));
                         let teardown = if resource.payload == Type::ByteBuffer {
                             Some("zil.bytes.drop".into())
                         } else {
                             resource.teardown.map(symbol)
                         };
                         if let Some(teardown) = teardown {
-                            text.push_str(&format!(
-                                "  %payload.{index}.{field} = getelementptr {env}, ptr %env, i32 0, i32 {index}, i32 {field}\n  call void @{teardown}(ptr %payload.{index}.{field})\n"
-                            ));
+                            text.append(m::Code::from(vec![
+                                m::Event::Instruction(m::Inst::new(
+                                    Some(format!("payload.{}.{}", index, field)),
+                                    m::Op::Gep {
+                                        ty: (env).clone(),
+                                        ptr: m::local("env".into()),
+                                        indices: vec![
+                                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                            m::Arg::new(m::Ty::Int(32), m::val(index)),
+                                            m::Arg::new(m::Ty::Int(32), m::val(field)),
+                                        ],
+                                    },
+                                )),
+                                m::Event::Instruction(m::Inst::new(
+                                    None,
+                                    m::Op::Call {
+                                        result: m::Ty::Void,
+                                        result_attrs: vec![],
+                                        callee: m::global(teardown.to_string()),
+                                        args: vec![m::Arg::new(
+                                            m::Ty::Ptr,
+                                            m::local(format!("payload.{}.{}", index, field)),
+                                        )],
+                                        vararg: None,
+                                    },
+                                )),
+                            ]));
                         }
-                        text.push_str(&format!(
-                            "  br label %field.done.{index}.{field}\nfield.done.{index}.{field}:\n"
-                        ));
+                        text.append(m::Code::from(vec![
+                            m::Event::Instruction(m::Inst::new(
+                                None,
+                                m::Op::Branch(format!("field.done.{}.{}", index, field)),
+                            )),
+                            m::Event::Label(format!("field.done.{}.{}", index, field)),
+                        ]));
                     }
                 }
                 _ => unreachable!("verified owned capture"),
             }
-            text.push_str(&format!("  br label %done.{index}\ndone.{index}:\n"));
+            text.append(m::Code::from(vec![
+                m::Event::Instruction(m::Inst::new(None, m::Op::Branch(format!("done.{}", index)))),
+                m::Event::Label(format!("done.{}", index)),
+            ]));
         }
-        text.push_str("  ret void\n}\n");
+        text.append(m::Code::from(vec![
+            m::Event::Instruction(m::Inst::new(None, m::Op::Return(None))),
+            m::Event::End,
+        ]));
     }
     Ok(text)
 }
@@ -144,10 +309,17 @@ impl FunctionEmitter<'_> {
         let environment = self.function.environment.expect("verified environment");
         let env = environment_type(environment);
         let result = instruction.result.expect("verified capture borrow");
-        self.line(format!(
-            "  {} = getelementptr {env}, ptr %env, i32 0, i32 {index}",
-            value(result)
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result)).clone())),
+            m::Op::Gep {
+                ty: (env).clone(),
+                ptr: m::local("env".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
         Ok(())
     }
 
@@ -177,20 +349,40 @@ impl FunctionEmitter<'_> {
             .filter_map(|(field, (_, ty))| matches!(ty, Type::Managed(_)).then_some(field))
             .collect::<Vec<_>>();
         let env = environment_type(environment);
-        self.line(format!(
-            "  %local.{} = getelementptr {env}, ptr %env, i32 0, i32 {index}",
-            local.0
-        ));
-        self.line(format!(
-            "  %resource.live.{} = getelementptr {env}, ptr %env, i32 0, i32 {flag}",
-            local.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(format!("local.{}", local.0)),
+            m::Op::Gep {
+                ty: (env).clone(),
+                ptr: m::local("env".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(format!("resource.live.{}", local.0)),
+            m::Op::Gep {
+                ty: (env).clone(),
+                ptr: m::local("env".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(flag)),
+                ],
+            },
+        )));
         for (offset, field) in owned.into_iter().enumerate() {
-            self.line(format!(
-                "  %package.live.{}.{field} = getelementptr {env}, ptr %env, i32 0, i32 {}",
-                local.0,
-                flag + 1 + offset
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(format!("package.live.{}.{}", local.0, field)),
+                m::Op::Gep {
+                    ty: (env).clone(),
+                    ptr: m::local("env".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::val(flag + 1 + offset)),
+                    ],
+                },
+            )));
         }
         Ok(())
     }
@@ -215,11 +407,17 @@ impl FunctionEmitter<'_> {
             .function
             .environment
             .expect("verified active environment");
-        self.line(format!(
-            "  {} = getelementptr {}, ptr %env, i32 0, i32 {index}",
-            value(result(instruction)?),
-            environment_type(environment)
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result(instruction)?)).clone())),
+            m::Op::Gep {
+                ty: (environment_type(environment)).clone(),
+                ptr: m::local("env".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
         Ok(())
     }
 
@@ -236,22 +434,45 @@ impl FunctionEmitter<'_> {
         let ty = definition.captures[index as usize].clone();
         let flag = flag_index(definition, index);
         let flag_ptr = self.temp();
-        self.line(format!(
-            "  {flag_ptr} = getelementptr {}, ptr %env, i32 0, i32 {flag}",
-            environment_type(environment)
-        ));
-        self.line(format!("  store i1 false, ptr {flag_ptr}, align 1"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((flag_ptr).clone())),
+            m::Op::Gep {
+                ty: (environment_type(environment)).clone(),
+                ptr: m::local("env".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(flag)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                ptr: m::val((flag_ptr).clone()),
+                align: 1,
+            },
+        )));
         let address = self.temp();
-        self.line(format!(
-            "  {address} = getelementptr {}, ptr %env, i32 0, i32 {index}",
-            environment_type(environment)
-        ));
-        self.line(format!(
-            "  {} = load {}, ptr {address}, align {}",
-            value(result(instruction)?),
-            llvm_type(&ty)?,
-            alignment(&ty, self.closures)?
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((address).clone())),
+            m::Op::Gep {
+                ty: (environment_type(environment)).clone(),
+                ptr: m::local("env".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result(instruction)?)).clone())),
+            m::Op::Load {
+                ty: (llvm_type(&ty)?).clone(),
+                ptr: m::val((address).clone()),
+                align: (alignment(&ty, self.closures)?) as u32,
+            },
+        )));
         Ok(())
     }
 
@@ -276,26 +497,51 @@ impl FunctionEmitter<'_> {
         let flag = self.temp();
         let label = self.continuation;
         self.continuation += 1;
-        self.line(format!(
-            "  {flag} = load i1, ptr %resource.live.{}, align 1",
-            local.0
-        ));
-        self.line(format!(
-            "  br i1 {flag}, label %closure.drop.{label}, label %closure.done.{label}"
-        ));
-        self.line(format!("closure.drop.{label}:"));
-        self.line(format!(
-            "  store i1 false, ptr %resource.live.{}, align 1",
-            local.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((flag).clone())),
+            m::Op::Load {
+                ty: m::Ty::Int(1),
+                ptr: m::local(format!("resource.live.{}", local.0)),
+                align: 1,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::val((flag).clone()),
+                yes: format!("closure.drop.{}", label),
+                no: format!("closure.done.{}", label),
+            },
+        )));
+        self.event(m::Event::Label(format!("closure.drop.{}", label)));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                ptr: m::local(format!("resource.live.{}", local.0)),
+                align: 1,
+            },
+        )));
         if has_owned {
-            self.line(format!(
-                "  call void @zil.closure.drop.{}(ptr %local.{})",
-                environment.0, local.0
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global(format!("zil.closure.drop.{}", environment.0)),
+                    args: vec![m::Arg::new(
+                        m::Ty::Ptr,
+                        m::local(format!("local.{}", local.0)),
+                    )],
+                    vararg: None,
+                },
+            )));
         }
-        self.line(format!("  br label %closure.done.{label}"));
-        self.line(format!("closure.done.{label}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Branch(format!("closure.done.{}", label)),
+        )));
+        self.event(m::Event::Label(format!("closure.done.{}", label)));
         Ok(())
     }
 
@@ -318,16 +564,18 @@ impl FunctionEmitter<'_> {
         let result_ty = definition.result.clone();
         let pointer = by_pointer(definition);
         let env_argument = if pointer {
-            format!("ptr %local.{}", local.0)
+            m::Arg::new(m::Ty::Ptr, m::local(format!("local.{}", local.0)))
         } else {
             let loaded = self.temp();
-            self.line(format!(
-                "  {loaded} = load {}, ptr %local.{}, align {}",
-                environment_type(environment),
-                local.0,
-                alignment(&Type::Closure(environment), self.closures)?
-            ));
-            format!("{} {loaded}", environment_type(environment))
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((loaded).clone())),
+                m::Op::Load {
+                    ty: (environment_type(environment)).clone(),
+                    ptr: m::local(format!("local.{}", local.0)),
+                    align: (alignment(&Type::Closure(environment), self.closures)?) as u32,
+                },
+            )));
+            m::Arg::new(environment_type(environment), m::val(loaded))
         };
         self.emit_resource_closure_call(instruction, function, &result_ty, env_argument, arguments)
     }
@@ -357,18 +605,20 @@ impl FunctionEmitter<'_> {
         let function = definition.function;
         let result_ty = definition.result.clone();
         let env_argument = if by_pointer(definition) {
-            format!("ptr {}", value(callee))
+            m::Arg::new(m::Ty::Ptr, m::val(value(callee)))
         } else {
             // Only the existing non-owning Shared ABI copies its read-only
             // fields. Owning/FnMut/FnOnce environments always stay in place.
             let loaded = self.temp();
-            self.line(format!(
-                "  {loaded} = load {}, ptr {}, align {}",
-                environment_type(environment),
-                value(callee),
-                alignment(&Type::Closure(environment), self.closures)?
-            ));
-            format!("{} {loaded}", environment_type(environment))
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((loaded).clone())),
+                m::Op::Load {
+                    ty: (environment_type(environment)).clone(),
+                    ptr: m::val((value(callee)).clone()),
+                    align: (alignment(&Type::Closure(environment), self.closures)?) as u32,
+                },
+            )));
+            m::Arg::new(environment_type(environment), m::val(loaded))
         };
         self.emit_resource_closure_call(instruction, function, &result_ty, env_argument, arguments)
     }
@@ -392,29 +642,42 @@ impl FunctionEmitter<'_> {
         let result_ty = definition.result.clone();
         let has_owned = owns(definition);
         let pointer = by_pointer(definition);
-        self.line(format!(
-            "  store {} {}, ptr %closure.once.{}, align {}",
-            environment_type(environment),
-            value(callee),
-            callee.0,
-            alignment(&Type::Closure(environment), self.closures)?
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(
+                    (environment_type(environment)).clone(),
+                    m::val((value(callee)).clone()),
+                ),
+                ptr: m::local(format!("closure.once.{}", callee.0)),
+                align: (alignment(&Type::Closure(environment), self.closures)?) as u32,
+            },
+        )));
         self.emit_resource_closure_call(
             instruction,
             function,
             &result_ty,
             if pointer {
-                format!("ptr %closure.once.{}", callee.0)
+                m::Arg::new(m::Ty::Ptr, m::local(format!("closure.once.{}", callee.0)))
             } else {
-                format!("{} {}", environment_type(environment), value(callee))
+                m::Arg::new(environment_type(environment), m::val(value(callee)))
             },
             arguments,
         )?;
         if has_owned {
-            self.line(format!(
-                "  call void @zil.closure.drop.{}(ptr %closure.once.{})",
-                environment.0, callee.0
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global(format!("zil.closure.drop.{}", environment.0)),
+                    args: vec![m::Arg::new(
+                        m::Ty::Ptr,
+                        m::local(format!("closure.once.{}", callee.0)),
+                    )],
+                    vararg: None,
+                },
+            )));
         }
         Ok(())
     }
@@ -424,27 +687,35 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         function: FunctionId,
         result_ty: &Type,
-        environment: String,
+        environment: m::Arg,
         arguments: &[ValueId],
     ) -> CompileResult<()> {
         let assignment = if *result_ty == Type::Unit {
-            String::new()
+            None
         } else {
-            format!("{} = ", value(result(instruction)?))
+            Some(format!("v.{}", result(instruction)?.0))
         };
         let mut emitted_arguments = vec![environment];
         for argument in arguments {
             let ty = self.value_type(*argument)?;
             if *ty != Type::Unit {
-                emitted_arguments.push(format!("{} {}", llvm_type(ty)?, value(*argument)));
+                emitted_arguments.push(m::Arg::new(llvm_type(ty)?, m::val(value(*argument))));
             }
         }
-        self.line(format!(
-            "  {assignment}call {} @{}({})",
-            llvm_type(result_ty)?,
-            symbol(function),
-            emitted_arguments.join(", ")
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            (assignment).clone(),
+            m::Op::Call {
+                result: (llvm_type(result_ty)?).clone(),
+                result_attrs: vec![],
+                callee: m::global(symbol(function).to_string()),
+                args: {
+                    let mut args = vec![];
+                    args.extend((emitted_arguments.clone()).clone());
+                    args
+                },
+                vararg: None,
+            },
+        )));
         Ok(())
     }
 }

@@ -16,7 +16,7 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
 }
 
 impl FunctionEmitter<'_> {
-    fn desc_field(&self, desc: ValueId, index: u32) -> CompileResult<(String, Type)> {
+    fn desc_field(&self, desc: ValueId, index: u32) -> CompileResult<(m::Ty, Type)> {
         let Type::Desc(payload) = self.value_type(desc)? else {
             return invalid(
                 "E-CODEGEN-CFG",
@@ -52,16 +52,25 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         let pointer = self.temp();
-        self.line(format!(
-            "  {pointer} = getelementptr {payload}, ptr {}, i32 0, i32 {index}",
-            value(desc)
-        ));
-        self.line(format!(
-            "  {} = load {}, ptr {pointer}, align {}",
-            value(result(instruction)?),
-            llvm_type(&field)?,
-            alignment(&field, self.closures)?
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((pointer).clone())),
+            m::Op::Gep {
+                ty: (payload).clone(),
+                ptr: m::val((value(desc)).clone()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((value(result(instruction)?)).clone())),
+            m::Op::Load {
+                ty: (llvm_type(&field)?).clone(),
+                ptr: m::val((pointer).clone()),
+                align: (alignment(&field, self.closures)?) as u32,
+            },
+        )));
         Ok(())
     }
 
@@ -77,16 +86,25 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         let pointer = self.temp();
-        self.line(format!(
-            "  {pointer} = getelementptr {payload}, ptr {}, i32 0, i32 {index}",
-            value(desc)
-        ));
-        self.line(format!(
-            "  store {} {}, ptr {pointer}, align {}",
-            llvm_type(&field)?,
-            value(input),
-            alignment(&field, self.closures)?
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((pointer).clone())),
+            m::Op::Gep {
+                ty: (payload).clone(),
+                ptr: m::val((value(desc)).clone()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new((llvm_type(&field)?).clone(), m::val((value(input)).clone())),
+                ptr: m::val((pointer).clone()),
+                align: (alignment(&field, self.closures)?) as u32,
+            },
+        )));
         Ok(())
     }
 
@@ -127,36 +145,81 @@ impl FunctionEmitter<'_> {
         let flag = self.temp();
         let label = self.continuation;
         self.continuation += 1;
-        self.line(format!(
-            "  {flag} = load i1, ptr %resource.live.{}, align 1",
-            local.0
-        ));
-        self.line(format!(
-            "  br i1 {flag}, label %resource.drop.{label}, label %resource.done.{label}"
-        ));
-        self.line(format!("resource.drop.{label}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((flag).clone())),
+            m::Op::Load {
+                ty: m::Ty::Int(1),
+                ptr: m::local(format!("resource.live.{}", local.0)),
+                align: 1,
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::val((flag).clone()),
+                yes: format!("resource.drop.{}", label),
+                no: format!("resource.done.{}", label),
+            },
+        )));
+        self.event(m::Event::Label(format!("resource.drop.{}", label)));
         // The activation owns the obligation before invoking user code. There
         // is no write into a payload after its teardown could have released it.
-        self.line(format!(
-            "  store i1 false, ptr %resource.live.{}, align 1",
-            local.0
-        ));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                ptr: m::local(format!("resource.live.{}", local.0)),
+                align: 1,
+            },
+        )));
         if let Some(store_drop) = store_drop {
-            self.line(format!("  call void @{store_drop}(ptr %local.{})", local.0));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global(store_drop.to_string()),
+                    args: vec![m::Arg::new(
+                        m::Ty::Ptr,
+                        m::local(format!("local.{}", local.0)),
+                    )],
+                    vararg: None,
+                },
+            )));
         } else if byte_buffer {
-            self.line(format!(
-                "  call void @zil.bytes.drop(ptr %local.{})",
-                local.0
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global("zil.bytes.drop".into()),
+                    args: vec![m::Arg::new(
+                        m::Ty::Ptr,
+                        m::local(format!("local.{}", local.0)),
+                    )],
+                    vararg: None,
+                },
+            )));
         } else if let Some(teardown) = teardown {
-            self.line(format!(
-                "  call void @{}(ptr %local.{})",
-                symbol(teardown),
-                local.0
-            ));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global(symbol(teardown).to_string()),
+                    args: vec![m::Arg::new(
+                        m::Ty::Ptr,
+                        m::local(format!("local.{}", local.0)),
+                    )],
+                    vararg: None,
+                },
+            )));
         }
-        self.line(format!("  br label %resource.done.{label}"));
-        self.line(format!("resource.done.{label}:"));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Branch(format!("resource.done.{}", label)),
+        )));
+        self.event(m::Event::Label(format!("resource.done.{}", label)));
         Ok(())
     }
 }
