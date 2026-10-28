@@ -100,6 +100,8 @@ def main():
     original_manifest = oracle_path.parent / "SOURCE-MANIFEST.json"
     original_sources = json.loads(original_manifest.read_text())["files"]
     source_manifest_path = repo / "tools/language/206/consumer/SOURCE-MANIFEST.json"
+    if digest(source_manifest_path) != "e691a94f6fa9ee451dee11225a45437c3aed328d9c2ebf5c8b46ce30da9e123a":
+        raise RuntimeError("the explicitly fixed consumer02 source manifest changed")
     source_manifest = json.loads(source_manifest_path.read_text())
     if source_manifest["original_source_manifest_sha256"] != digest(original_manifest):
         raise RuntimeError("the revised fixture no longer identifies the original source declaration")
@@ -126,6 +128,7 @@ def main():
     tool_hashes = {}
     for name in ["tools/language/206/consumer/run.py",
                  "tools/language/206/consumer/SOURCE-MANIFEST.json",
+                 "tools/language/206/consumer/fixture-consumer02.diff",
                  "tools/language/206/consumer/predeclared/SOURCE-MANIFEST.json",
                  "tools/language/173/allocator_probe.c",
                  "tools/research/142/allocator_probe.c", "tools/language/181/heap_probe.c"]:
