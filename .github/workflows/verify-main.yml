@@ -12,14 +12,26 @@ concurrency:
 jobs:
   workspace:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Install the supported LLVM API toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y clang-17 libllvm17t64 lld-17
+          echo "ZIL_CLANG=/usr/bin/clang-17" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> "$GITHUB_ENV"
       - name: Record exact checkout and restorable source history
         shell: bash
         run: |
@@ -33,7 +45,8 @@ jobs:
           git bundle verify "$RUNNER_TEMP/receipts/repository.bundle" 2>&1 | tee "$RUNNER_TEMP/receipts/bundle-verify.log"
           rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
           rustc -vV > "$RUNNER_TEMP/receipts/toolchain.txt"
-          clang --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
+          "$ZIL_CLANG" --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
+          python3 tools/llvm/check_toolchain.py > "$RUNNER_TEMP/receipts/llvm-api-toolchain.json"
       - name: Formatting
         shell: bash
         run: |
@@ -45,6 +58,20 @@ jobs:
         run: |
           set -euo pipefail
           cargo test --locked --workspace 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
+      - name: Reference-only build and explicit unavailable control
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/target-reference" cargo test --locked --workspace --no-default-features 2>&1 | tee "$RUNNER_TEMP/receipts/reference.log"
+      - name: Native API State and allocation-failure controls
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --release -p zil-cli
+          python3 tools/research/208/validate.py --repo . --cli "$CARGO_TARGET_DIR/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/consumer209"
+          cp "$RUNNER_TEMP/consumer209/summary.json" "$RUNNER_TEMP/receipts/consumer209.json"
       - name: All-target Clippy
         if: ${{ !cancelled() }}
         shell: bash
