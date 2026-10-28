@@ -1,5 +1,10 @@
 import model;
 
+pub fn marker(mode:i32)->model.Error!model.Mark contract { result(create) } {
+    if mode==5 { return model.Error.Failed };
+    return model.marker(77)
+}
+
 pub fn buffer(mode:i32)->model.Error!ByteBuffer contract { result(create) } {
     let marker=model.marker(66);
     let buffer=bytes_new();

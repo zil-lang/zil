@@ -1,8 +1,8 @@
 # 183 可失败直接资源返回
 
-四个真实模块把 `Error!ByteBuffer` 和 `Error!Store<Item>` 从 create 工厂经显式 give 参数适配层送到调用方，再由 `?` 取出实际拥有载荷。`Item` 含 u8、直接拥有 Mark、i64 字段，使用真实填充后元素布局。
+四个真实模块把 `Error!Mark`、`Error!ByteBuffer` 和 `Error!Store<Item>` 从 create 工厂经显式 give 参数适配层送到调用方，再由 `?` 取出实际拥有载荷。`Item` 含 u8、直接拥有 Mark、i64 字段，使用真实填充后元素布局。
 
-输入为一个字符：`0` 成功，`1` ByteBuffer 完成后普通错误，`2` Store 完成后普通错误，`3` 调用方持有两种资源后普通错误，`4` 直接丢弃两个成功联合；其他输入返回 9。Drop 字符为 B（缓冲区工厂局部）、S（Store 工厂局部）、C（实际 Store 元素）、M（主函数局部）；成功路径另输出存储中的 A。
+输入为一个字符：`0` 成功，`1` ByteBuffer 完成后普通错误，`2` Store 完成后普通错误，`3` 调用方持有三种资源后普通错误，`4` 直接丢弃缓冲区和 Store 的成功联合，`5` 在用户资源创建前返回错误；其他输入返回 9。Drop 字符为 B（缓冲区工厂局部）、S（Store 工厂局部）、C（实际 Store 元素）、M（主函数局部）；成功路径另输出存储中的 A。
 
 `tools/language/183/consumer.py` 在 O0/O2 分别执行普通程序和实际分配入口探针。它按事先给出的 oracle 核对 stdout、退出码、分配/增长调用、活跃数量和 free；失败分支覆盖初次分配和保留旧块的增长失败。Linux 使用真实 realloc/free 包装，Win64 使用 181 已审 Heap ABI 探针和精确外部符号替换。普通二进制保持编译器原输出。
 

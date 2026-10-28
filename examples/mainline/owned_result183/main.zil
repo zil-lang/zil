@@ -7,8 +7,8 @@ fn main()->model.Error!i32 {
     var command:i32=0;
     unsafe { command=getchar() };
     let mode=command-48;
-    if mode<0 || mode>4 { return 9 };
-    let marker=model.marker(77);
+    if mode<0 || mode>5 { return 9 };
+    let marker=adapter.marker(factory.marker(mode))?;
     if mode==4 {
         adapter.buffer(factory.buffer(0));
         adapter.store(factory.store(0));
