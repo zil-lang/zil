@@ -1,0 +1,1 @@
+import model;fn hidden(d:model.R)->i32{let f=()=>{d.n=22;return d.n};return f()}pub fn relay(d:model.R)->i32{return hidden(d)}

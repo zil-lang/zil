@@ -524,7 +524,7 @@ impl Builder<'_, '_> {
                 } else {
                     CallableCleanup::Owned
                 },
-                traces: traces(&typed, &bound, self.closures, span)?,
+                traces: CallableTraces::Finite(traces(&typed, &bound, self.closures, span)?),
             });
         }
         self.closures.helper_exports.push(Export {
@@ -796,14 +796,25 @@ fn forwarded_traces(
             "nested helper parameter or declared callable kind differs",
         ));
     }
-    let count = contract.traces.len();
+    let count = contract
+        .traces
+        .as_finite()
+        .ok_or_else(|| {
+            unsupported(
+                instruction.span,
+                "cyclic callable Flow semantics are not implemented",
+            )
+        })?
+        .len();
     state.snapshot(count, instruction.span)?;
     for index in 0..count {
         let length = state.helper_functions[position]
             .callable_contract
             .as_ref()
             .unwrap()
-            .traces[index]
+            .traces
+            .as_finite()
+            .expect("finite contract checked above")[index]
             .calls
             .len();
         // Charge the following kind check and owned trace clone separately.
@@ -812,7 +823,9 @@ fn forwarded_traces(
             .callable_contract
             .as_ref()
             .unwrap()
-            .traces[index]
+            .traces
+            .as_finite()
+            .expect("finite contract checked above")[index]
             .calls
             .iter()
             .any(|mode| *mode != kind)
@@ -829,7 +842,9 @@ fn forwarded_traces(
             .as_ref()
             .unwrap()
             .traces
-            .clone(),
+            .as_finite()
+            .expect("finite contract checked above")
+            .to_vec(),
     ))
 }
 

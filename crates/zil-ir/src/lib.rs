@@ -613,7 +613,7 @@ pub struct CallableContracts {
     pub resume: Vec<String>,
 }
 
-/// Finite public helper claim. It is checked from the callee CFG before use;
+/// Public helper claim. It is checked from the callee CFG before use;
 /// neither construction nor transport confers authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableParameterContract {
@@ -628,8 +628,8 @@ pub struct CallableParameterContract {
     /// Conservative target-write upper bound: Desc and mutable Address captures.
     pub writes: Vec<u32>,
     pub cleanup: CallableCleanup,
-    /// Sorted unique finite paths, including zero-call and trapping paths.
-    pub traces: Vec<CallableTrace>,
+    /// Exact finite paths or an explicit cyclic call graph; neither grants trust.
+    pub traces: CallableTraces,
 }
 /// A raw opaque callable result claim. The first implemented form is a
 /// self-contained concrete environment with no external Hold/Call dependencies.
@@ -664,6 +664,43 @@ pub enum CallableExit {
 pub struct CallableTrace {
     pub calls: Vec<CallableKind>,
     pub exit: CallableExit,
+}
+/// Exact callback behavior, transported as an untrusted claim.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CallableTraces {
+    Finite(Vec<CallableTrace>),
+    Flow(CallableFlow),
+}
+impl CallableTraces {
+    /// Explicit projection: a cyclic graph is never an empty finite trace set.
+    pub fn as_finite(&self) -> Option<&[CallableTrace]> {
+        match self {
+            Self::Finite(traces) => Some(traces),
+            Self::Flow(_) => None,
+        }
+    }
+    pub fn as_finite_mut(&mut self) -> Option<&mut Vec<CallableTrace>> {
+        match self {
+            Self::Finite(traces) => Some(traces),
+            Self::Flow(_) => None,
+        }
+    }
+}
+/// Flat graph. Canonical semantic claims use entry zero and ordered BFS IDs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallableFlow {
+    pub entry: u32,
+    pub nodes: Vec<CallableFlowNode>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallableFlowNode {
+    pub calls: Vec<CallableKind>,
+    pub next: CallableFlowNext,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CallableFlowNext {
+    Edges(Vec<u32>),
+    Exit(CallableExit),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1350,7 +1387,7 @@ impl CandidatePlan {
 }
 
 fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V23\0".to_vec();
+    let mut bytes = b"ZIL-TYPED-MODULE-V24\0".to_vec();
     encode_u32(&mut bytes, module.schema_version);
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2168,7 +2205,7 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-1\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-2\0".to_vec();
     encode_callable_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
@@ -2210,15 +2247,47 @@ fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract) {
         CallableCleanup::Owned => 0,
         CallableCleanup::Borrowed => 1,
     });
-    encode_len(b, c.traces.len());
-    for trace in &c.traces {
-        encode_len(b, trace.calls.len());
-        for call in &trace.calls {
-            b.push(callable_kind_tag(*call));
+    match &c.traces {
+        CallableTraces::Finite(traces) => {
+            b.push(0);
+            encode_len(b, traces.len());
+            for trace in traces {
+                encode_callable_calls(b, &trace.calls);
+                encode_callable_exit(b, trace.exit);
+            }
         }
-        b.push(match trace.exit {
-            CallableExit::Return => 0,
-            CallableExit::Trap => 1,
-        });
+        CallableTraces::Flow(flow) => {
+            b.push(1);
+            encode_u32(b, flow.entry);
+            encode_len(b, flow.nodes.len());
+            for node in &flow.nodes {
+                encode_callable_calls(b, &node.calls);
+                match &node.next {
+                    CallableFlowNext::Edges(edges) => {
+                        b.push(0);
+                        encode_len(b, edges.len());
+                        for edge in edges {
+                            encode_u32(b, *edge);
+                        }
+                    }
+                    CallableFlowNext::Exit(exit) => {
+                        b.push(1);
+                        encode_callable_exit(b, *exit);
+                    }
+                }
+            }
+        }
     }
+}
+fn encode_callable_calls(b: &mut Vec<u8>, calls: &[CallableKind]) {
+    encode_len(b, calls.len());
+    for call in calls {
+        b.push(callable_kind_tag(*call));
+    }
+}
+fn encode_callable_exit(b: &mut Vec<u8>, exit: CallableExit) {
+    b.push(match exit {
+        CallableExit::Return => 0,
+        CallableExit::Trap => 1,
+    });
 }

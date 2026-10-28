@@ -1,0 +1,1 @@
+resource R{n:i64}fn apply<F:Fn(i64)->i64>(f:&F,n:i64)->i64{return f(n)}fn make(n:i64)->impl Fn()->i64{let init=(x:i64)=>x+2;let state=apply(&init,n);let held=R{n:state};return move ()=>held.n}fn value()->i64{let f=make(40);return f()}

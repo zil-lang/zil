@@ -251,7 +251,14 @@ fn forwarded<'a>(
             "nested helper must forward its actual parameter to an independently checked matching contract",
         ));
     }
-    Ok(Some(&claim.traces))
+    let finite = claim.traces.as_finite().ok_or_else(|| {
+        vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "cyclic callable Flow semantics are not implemented",
+            Some(instruction.span),
+        )]
+    })?;
+    Ok(Some(finite))
 }
 
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
@@ -288,6 +295,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .callable_contract
             .as_ref()
             .ok_or_else(|| bad("callable parameter has no public helper contract"))?;
+        let CallableTraces::Finite(claim_traces) = &claim.traces else {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "cyclic callable Flow semantics are not implemented",
+                Some(function.span),
+            )]);
+        };
         if candidates.len() != 1 || function.environment.is_some() || function.foreign.is_some() {
             return Err(bad("helper requires one concrete environment parameter"));
         }
@@ -555,11 +569,11 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         if processed != reachable.iter().filter(|r| **r).count() {
             return Err(bad("cyclic helper requires an explicit loop contract"));
         }
-        budget.spend(claim.traces.len(), "helper public trace comparison")?;
-        if traces.len() != claim.traces.len() {
+        budget.spend(claim_traces.len(), "helper public trace comparison")?;
+        if traces.len() != claim_traces.len() {
             return Err(bad("public helper trace claim differs from its CFG"));
         }
-        for ((count, exit), claim_trace) in traces.into_iter().zip(&claim.traces) {
+        for ((count, exit), claim_trace) in traces.into_iter().zip(claim_traces) {
             budget.spend(claim_trace.calls.len(), "helper public call comparison")?;
             if count != claim_trace.calls.len()
                 || exit != claim_trace.exit

@@ -249,7 +249,13 @@ fn forwarded<'a>(
             "nested helper must forward its actual parameter to an independently checked matching contract",
         ));
     }
-    Ok(Some(&claim.traces))
+    let finite = claim.traces.as_finite().ok_or_else(|| {
+        unsupported(
+            "cyclic callable Flow semantics are not implemented",
+            Some(instruction.span),
+        )
+    })?;
+    Ok(Some(finite))
 }
 
 /// Each reachable block is processed after all its predecessors. Trace sets
@@ -420,20 +426,50 @@ pub(super) fn check_claim_shape(
         .len()
         .saturating_add(claim.call.len())
         .saturating_add(claim.writes.len());
-    budget.spend(
-        field_count
-            .saturating_add(claim.traces.len())
-            .saturating_add(1),
-    )?;
-    if field_count > limits.max_nodes || claim.traces.len() > limits.max_nodes {
+    budget.spend(field_count.saturating_add(2))?;
+    if field_count > limits.max_nodes {
         return Err(limit(
             "raw callback contract metadata node allowance exhausted",
         ));
     }
-    for trace in &claim.traces {
-        budget.spend(trace.calls.len().saturating_add(1))?;
-        if trace.calls.len() > limits.max_nodes {
-            return Err(limit("raw callback trace node allowance exhausted"));
+    match &claim.traces {
+        CallableTraces::Finite(traces) => {
+            budget.spend(traces.len())?;
+            if traces.len() > limits.max_nodes {
+                return Err(limit(
+                    "raw callback contract metadata node allowance exhausted",
+                ));
+            }
+            for trace in traces {
+                budget.spend(trace.calls.len().saturating_add(1))?;
+                if trace.calls.len() > limits.max_nodes {
+                    return Err(limit("raw callback trace node allowance exhausted"));
+                }
+            }
+        }
+        CallableTraces::Flow(flow) => {
+            if flow.nodes.len() > limits.max_nodes {
+                return Err(limit("raw callback flow node allowance exhausted"));
+            }
+            budget.spend(flow.nodes.len().saturating_add(1).saturating_mul(2))?;
+            let (mut calls, mut edges) = (0usize, 0usize);
+            for node in &flow.nodes {
+                calls = calls
+                    .checked_add(node.calls.len())
+                    .filter(|n| *n <= limits.max_instructions)
+                    .ok_or_else(|| limit("raw callback flow call allowance exhausted"))?;
+                budget.spend(node.calls.len().saturating_add(1).saturating_mul(2))?;
+                match &node.next {
+                    CallableFlowNext::Edges(next) => {
+                        edges = edges
+                            .checked_add(next.len())
+                            .filter(|n| *n <= limits.max_analysis_steps)
+                            .ok_or_else(|| limit("raw callback flow edge allowance exhausted"))?;
+                        budget.spend(next.len().saturating_add(1).saturating_mul(2))?;
+                    }
+                    CallableFlowNext::Exit(_) => budget.spend(2)?,
+                }
+            }
         }
     }
     Ok(())
@@ -526,6 +562,12 @@ pub(super) fn check_module(
                 "callback helper is missing its independently checkable contract",
             ));
         };
+        let CallableTraces::Finite(claim_traces) = &claim.traces else {
+            return Err(unsupported(
+                "cyclic callable Flow semantics are not implemented",
+                Some(f.span),
+            ));
+        };
         if !closures::supports(definition.kind, claim.kind) {
             return Err(bad(
                 f,
@@ -598,7 +640,7 @@ pub(super) fn check_module(
             } else {
                 CallableCleanup::Owned
             },
-            traces,
+            traces: CallableTraces::Finite(traces),
         };
         budget.spend(
             claim
@@ -606,9 +648,9 @@ pub(super) fn check_module(
                 .len()
                 .saturating_add(claim.call.len())
                 .saturating_add(claim.writes.len())
-                .saturating_add(claim.traces.len()),
+                .saturating_add(claim_traces.len()),
         )?;
-        for trace in &claim.traces {
+        for trace in claim_traces {
             budget.spend(trace.calls.len())?;
         }
         if claim != &expected {
