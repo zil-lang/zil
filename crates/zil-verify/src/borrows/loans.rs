@@ -861,6 +861,10 @@ pub(super) fn check(
                     let root = field_root(f, *local, *index, budget)?;
                     access.check(&empty, &[root], *mutable, budget)?;
                 }
+                InstructionKind::ReadPackageField { local, index } => {
+                    let root = field_root(f, *local, *index, budget)?;
+                    access.check(&empty, &[root], false, budget)?;
+                }
                 InstructionKind::Store { local, .. }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)

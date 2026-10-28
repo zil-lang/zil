@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R;x:i32;y:i32}fn make()->P{return P{r:R{n:1},x:20,y:1}}fn main()->i32{let state=make();let a=&state.x;let b=&state.x;return *a+*b+state.x-60}

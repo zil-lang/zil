@@ -1,0 +1,180 @@
+{
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root",
+  "implementation_author": "/root/resume192",
+  "implementation_commit": "9cf4d846698ef4c21711da73ecf5db44c9799df1",
+  "original_candidate": "e362dcb65dec13fe0af194144936fa6857bc8335",
+  "tested_composed_source": "d29c8d9c1b3f7197218ea1a9ed9fd3e03ccae7f4",
+  "composition": "Author192 plus accepted188/189/191 production; new193 normative profile only, no193 production. a004 finite projections retained.",
+  "executed": 79,
+  "test_counts": {
+    "passed": 79,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 8,
+    "own_new_192_tests": 26,
+    "independent_root_tests": 4,
+    "neighbors": 49
+  },
+  "own_native_program_executions": 6,
+  "commands": {
+    "build01": {
+      "source_commit": "d29c8d9c1b3f7197218ea1a9ed9fd3e03ccae7f4",
+      "clean": true,
+      "status": "Pass",
+      "groups": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/build01/command/command.json"
+    },
+    "clippy01": {
+      "source_commit": "d29c8d9c1b3f7197218ea1a9ed9fd3e03ccae7f4",
+      "clean": true,
+      "status": "Pass",
+      "groups": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/clippy01/command/command.json"
+    },
+    "composed01": {
+      "source_commit": "53bab8fda021920ca9c662a91c091dc74f2cbd66",
+      "clean": true,
+      "status": "Pass",
+      "groups": 1,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/composed01/command/command.json"
+    },
+    "repair01": {
+      "source_commit": "d29c8d9c1b3f7197218ea1a9ed9fd3e03ccae7f4",
+      "clean": true,
+      "status": "Pass",
+      "groups": 8,
+      "passed": 79,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/repair01/command/command.json"
+    },
+    "source01": {
+      "source_commit": "cbc7e4982c5414ac64df573467c418940e47838f",
+      "clean": true,
+      "status": "Fail",
+      "groups": 0,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "record": "records/source01/command/command.json"
+    },
+    "source02": {
+      "source_commit": "a899f7bcd6ad459e48025fbea17dd33c81d8a2bd",
+      "clean": true,
+      "status": "Fail",
+      "groups": 3,
+      "passed": 24,
+      "failed": 3,
+      "ignored": 0,
+      "record": "records/source02/command/command.json"
+    },
+    "source03": {
+      "source_commit": "cbeb1bcb6c660a6b9733a8a2d6d5787eed21201e",
+      "clean": true,
+      "status": "Fail",
+      "groups": 1,
+      "passed": 2,
+      "failed": 2,
+      "ignored": 0,
+      "record": "records/source03/command/command.json"
+    }
+  },
+  "platforms": {
+    "linux01": {
+      "status": "Pass",
+      "source_commit": "d29c8d9c1b3f7197218ea1a9ed9fd3e03ccae7f4",
+      "cli_sha256": "a563fee63ea0628f76ee05a47dc832f94fae76ecd2a8a4c5e41a7efaa60b2fe6",
+      "native_executions": 60,
+      "ordinary_executions": 12,
+      "instrumented_executions": 48,
+      "actual_allocation_failures": 32,
+      "platform": "linux",
+      "execution": "native"
+    },
+    "win64-01": {
+      "status": "Pass",
+      "source_commit": "d29c8d9c1b3f7197218ea1a9ed9fd3e03ccae7f4",
+      "cli_sha256": "a563fee63ea0628f76ee05a47dc832f94fae76ecd2a8a4c5e41a7efaa60b2fe6",
+      "native_executions": 60,
+      "ordinary_executions": 12,
+      "instrumented_executions": 48,
+      "actual_allocation_failures": 32,
+      "platform": "win64",
+      "execution": "Wine compatibility"
+    }
+  },
+  "native_windows": "NotRun",
+  "source_files": [
+    {
+      "path": "crates/zil-types/src/addresses.rs",
+      "sha256": "e8c46510efda5677093320f50a0174b77ffd601a604ba4d7110f6107fcaf2a5f",
+      "bytes": 20995
+    },
+    {
+      "path": "crates/zil-types/src/closures.rs",
+      "sha256": "72c8bb66cacb80d98b95753d7c49704347e5b2cf098a092200b9c36758c85ea5",
+      "bytes": 114907
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "sha256": "2b3fd817ba571b1bcb4235e252bb83cac0471fe3161bd9f373adfa98ed619947",
+      "bytes": 116833
+    },
+    {
+      "path": "crates/zil-verify/src/packages.rs",
+      "sha256": "718fb9d9c0bf5e701c5c3a3013ce427f5c4a96cfc3432c2814ca52df91917ba0",
+      "bytes": 17435
+    },
+    {
+      "path": "crates/zil-verify/src/resources.rs",
+      "sha256": "1578ff5568d2167d29a8c5c33587bf5f1e0459e39b6c02f4bee658e8e83537a2",
+      "bytes": 85896
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/loans.rs",
+      "sha256": "a9ab82c8f3674c83933bc4ce26e93310ca696211b13c6672792495b076c1f201",
+      "bytes": 44535
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/roots.rs",
+      "sha256": "972d1662dba801ca972161ff3e8e8322c64946bbc8fa20ca8a01d2eb2bf0a692",
+      "bytes": 4410
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/packages.rs",
+      "sha256": "068c554465180565da9393838ed025b11b522b027301137646271f3075c1b455",
+      "bytes": 14766
+    }
+  ],
+  "checks": [
+    "Copy Package field permission and exact inline type are independently reconstructed; Copy has no standalone owning debt but parent activity/initialization remain required.",
+    "ReadPackageField now checks actual current field access, including hostile retargeting to the same index on another real parent instance.",
+    "Owned Package mutable field borrow must be FnMut; both Analyze and Verify inspect actual borrowed captured Package views, not unrelated fresh local Packages.",
+    "Independent mixed i64/u8/empty-record alignment and ordinary reborrow-parent tests execute O0/O2; same field direct read remains conflict.",
+    "Original user-resource sibling take/refill false positive was traced to179 coarse Managed(Record) root, repaired only for independently verified finite Copy payload nominal resources. No Managed classification or resource borrowing gate changed.",
+    "Root original sibling input runs unchanged with AB output/O0/O2; author raw/Wire checks stale resource Desc after take/refill, unknown nominal payload and nonCopy payload remain rejected.",
+    "188 nested helper plus owned Package environment and189 explicit Copy field argument compose with actual cleanup AB; earlier pre188 candidate failure was an absent dependency, not credited as successful verification.",
+    "Linux and Wine independently execute direct State callback/Copy sibling addresses with fixed stdout/exit/allocation/live0 oracles, every real allocation failure and after-last/invalid/EOF controls."
+  ],
+  "preserved_failures": {
+    "source01": "Duplicate local test utility caused zero-test compile failure; review code only.",
+    "source02": "Original author23 passed; three new review program spellings used unsupported i64 suffix/standalone block. Corrected source syntax, originals retained.",
+    "source03": "Two review controls passed; same unchanged sibling input exposed actual coarse-root precision gap. Nested-helper control was run before its188 dependency and rejected atExpand; later exact input passed after composition.",
+    "composed01": "Exact nested-helper input passed once accepted188 was present.",
+    "repair01": "Final 79/0 on composed repair source; independent six native runs and all raw/Wire controls passed."
+  },
+  "full_language": "NotSatisfied",
+  "zui_product": "NotRun",
+  "default_limits_changed": false
+}

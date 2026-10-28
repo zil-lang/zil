@@ -1,0 +1,1 @@
+fn make(n:i32)->impl Fn()->&i32{return move()=>&n}fn main()->i32{let f=make(42);return *f()-42}

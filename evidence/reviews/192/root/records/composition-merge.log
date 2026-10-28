@@ -1,0 +1,7 @@
+Auto-merging .task/impl/190.md
+CONFLICT (add/add): Merge conflict in .task/impl/190.md
+Auto-merging .task/impl/192.md
+CONFLICT (add/add): Merge conflict in .task/impl/192.md
+Auto-merging crates/zil-analyze/src/resources.rs
+Auto-merging crates/zil-verify/src/resources.rs
+Automatic merge failed; fix conflicts and then commit the result.

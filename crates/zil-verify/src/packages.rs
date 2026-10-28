@@ -359,17 +359,18 @@ pub(super) fn check_instruction(
             resources::charge_payload(ty, budget)?;
             match &instruction.kind {
                 InstructionKind::BorrowPackageField { mutable, .. } => {
-                    let Type::Closure(id) = ty else {
+                    if let Type::Closure(id) = ty {
+                        closures::self_contained(module, *id, budget)?;
+                    } else if !ty.is_copy_value() {
                         return Err(bad(
-                            "callback field borrow requires an exact concrete Closure field",
+                            "field borrow requires a finite Copy or exact concrete Closure field",
                         ));
-                    };
-                    closures::self_contained(module, *id, budget)?;
+                    }
                     if *mutable && !function.locals[local.0 as usize].mutable {
                         return Err(reject(
                             "E-VERIFY-MUTABILITY",
                             span,
-                            "exclusive callback field borrow requires mutable State storage",
+                            "exclusive field borrow requires mutable Package storage",
                         ));
                     }
                     Ok(Some(Type::Address {

@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R;x:i32}fn main()->i32{var a=P{r:R{n:1},x:20};let b=P{r:R{n:2},x:1};let p=&mut a.x;let old=b.x;*p+=old;return *p-21}

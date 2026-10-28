@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/workspace/scratch/39be3faa4442/run-logs/192-review/linux01/O0/program"
+  ],
+  "status": "Completed",
+  "start": 1793162891.3291824,
+  "stdin_hex": "39",
+  "controlled_environment": {},
+  "exit_code": 9,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "end": 1793162891.3308105
+}
