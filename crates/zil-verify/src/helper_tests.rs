@@ -532,7 +532,17 @@ fn helper_forwarding_does_not_guess_an_empty_nested_contract() {
             arguments: vec![ValueId(1)],
         },
     ));
-    raw.reject("callback helper forwarding");
+    for result in raw.both() {
+        let errors = result.unwrap_err();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert_eq!(errors[0].phase, Phase::Verify);
+        assert_eq!(errors[0].category, zil_base::ResultCategory::Unsupported);
+        assert_eq!(errors[0].code, "E-UNSUPPORTED");
+        assert_eq!(
+            errors[0].message,
+            "recursive callable helper dependency requires an explicit finite contract"
+        );
+    }
 }
 #[test]
 fn unrelated_function_cannot_forge_a_callback_contract() {
@@ -1253,6 +1263,7 @@ fn caller_cannot_drop_owned_environment_before_its_borrowed_call() {
 #[test]
 fn helper_extra_borrowed_parameters_need_a_complete_public_effect_contract() {
     for ty in [desc(), address(Type::I32, false), address(Type::I32, true)] {
+        let copy_address = matches!(ty, Type::Address { .. });
         let mut raw = fixture(CallableKind::Fn, CallableKind::Fn, true, 0, owned());
         let f = &mut raw.module.functions[0];
         f.parameters.push(LocalId(1));
@@ -1263,7 +1274,13 @@ fn helper_extra_borrowed_parameters_need_a_complete_public_effect_contract() {
             mutable: false,
             span: span(),
         });
-        raw.reject("other callback helper parameters");
+        if copy_address {
+            // 189 admitted one explicit Copy address layer. These unused helper
+            // parameters do not acquire any hidden capture or lending effect.
+            raw.accept();
+        } else {
+            raw.reject("other callback helper parameters");
+        }
     }
 }
 #[test]
