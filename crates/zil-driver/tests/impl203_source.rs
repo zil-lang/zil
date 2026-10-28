@@ -124,3 +124,113 @@ fn original_once_repeated() {
 fn original_reversed_declaration() {
     reject_consumed("original03", REVERSED);
 }
+
+const STORE_HELPERS: &str = r#"
+fn identity<T:StoreElement>(value:T)->T{return value}
+fn empty<T:StoreElement>()->Store<T> contract{result(create)}{return store_new()}
+fn reserve<T:StoreElement>(items:Store<T>,count:i64)->bool{return store_reserve(items,count)}
+fn push<T:StoreElement>(items:Store<T>,value:T)->T!void{return store_push(items,value)}
+fn pop<T:StoreElement>(items:Store<T>)->void!T{return store_pop(items)}
+"#;
+
+fn mutable_store(different_roots: bool) -> String {
+    let source = format!(
+        "{STORE_HELPERS}{}",
+        r#"
+extern "C" fn putchar(value:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package State<T,F,G>{manages marker:Ticket;first:F;second:G;tag:T}
+fn make(label:i32,value:i32)->impl FnMut()->i32{
+    let ticket=Ticket{code:label}
+    let bytes=bytes_new()
+    var count=value
+    return move()=>{ticket.code;bytes_len(bytes);count+=1;return count}
+}
+fn other(label:i32,value:i32)->impl Fn()->i32{
+    let ticket=Ticket{code:label}
+    return move()=>{ticket.code;return value+1}
+}
+fn pack<T:Copy,F:FnMut()->i32,G:FnOnce()->i32>(first:F,second:G,tag:T)->State<T,F,G>{
+    return State::<T,F,G>{marker:Ticket{code:90},first:first,second:second,tag:tag}
+}
+fn run<T:Copy,F:FnMut()->i32,G:FnOnce()->i32>(state:State<T,F,G>)->void!(i32,T){
+    let items:Store<State<T,F,G>>=empty::<State<T,F,G>>()
+    if !reserve(items,1){return ()}
+    push(items,identity::<State<T,F,G>>(state))
+    let view=store_at_mut(items,0)
+    let first=view.first()
+    unsafe{putchar(77)}
+    let again=store_at_mut(items,0).first()
+    unsafe{putchar(80)}
+    let next:State<T,F,G>=pop(items)?
+    let second=next.second()
+    unsafe{putchar(81)}
+    return (first+again+second-44,next.tag)
+}
+fn main()->void!i32{
+    let result=run(pack(make(65,10),make(66,20),17))?
+    if result.1!=17{return 1}
+    return result.0
+}
+"#
+    );
+    if different_roots {
+        source.replace("make(66,20)", "other(66,20)")
+    } else {
+        source
+    }
+}
+
+#[test]
+fn mutable_windows_and_owned_once_keep_both_declared_modes() {
+    for different_roots in [false, true] {
+        native(
+            &format!("mutable-store-distinct-{different_roots}"),
+            &mutable_store(different_roots),
+            "MPBQZA",
+            0,
+        );
+    }
+}
+
+#[test]
+fn store_windows_reject_borrowed_once_and_shared_mutable() {
+    for different_roots in [false, true] {
+        let source = mutable_store(different_roots);
+        for (label, source, message) in [
+            (
+                "borrowed-once",
+                source.replace(
+                    "let first=view.first()",
+                    "view.second();let first=view.first()",
+                ),
+                "FnOnce requires an owned Store element",
+            ),
+            (
+                "shared-mut",
+                source.replace("store_at_mut", "store_at"),
+                "mutable callback field",
+            ),
+        ] {
+            let case = Case::new(&format!("{label}-distinct-{different_roots}"));
+            let report = compile(&case, &source, Stage::Verify, Optimization::O0);
+            assert_eq!(
+                report.status,
+                ResultCategory::SafeReject,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 0, "{}", report.to_json());
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.phase == zil_base::Phase::Expand
+                        && diagnostic.message.contains(message)),
+                "{}",
+                report.to_json()
+            );
+        }
+    }
+}
