@@ -588,15 +588,14 @@ impl From<&Code> for Code {
     }
 }
 
-impl Module {
-    pub fn from_code(triple: String, fingerprint: String, code: Code) -> Result<Self, String> {
-        let mut module = Self {
-            triple,
-            fingerprint,
-            items: vec![],
-        };
+impl Code {
+    /// Finish a bounded lowering fragment before accumulating the next one.
+    /// Moving events into items per function avoids a whole-module event tape
+    /// coexisting with the final machine IR. Event validation and order are unchanged.
+    pub fn into_items(self) -> Result<Vec<Item>, String> {
+        let mut items = vec![];
         let mut active: Option<Function> = None;
-        for event in code.0 {
+        for event in self.0 {
             match event {
                 Event::Begin(mut f) if active.is_none() => {
                     f.blocks = Some(vec![]);
@@ -618,21 +617,31 @@ impl Module {
                         .instructions
                         .push(i);
                 }
-                Event::End => module.items.push(Item::Function(
+                Event::End => items.push(Item::Function(
                     active.take().ok_or("unmatched function end")?,
                 )),
                 Event::NamedType(n, fields) if active.is_none() => {
-                    module.items.push(Item::NamedType(n, fields))
+                    items.push(Item::NamedType(n, fields))
                 }
-                Event::Global(g) if active.is_none() => module.items.push(Item::Global(g)),
-                Event::Declare(f) if active.is_none() => module.items.push(Item::Function(f)),
+                Event::Global(g) if active.is_none() => items.push(Item::Global(g)),
+                Event::Declare(f) if active.is_none() => items.push(Item::Function(f)),
                 _ => return Err("malformed lowering event structure".into()),
             }
         }
         if active.is_some() {
             return Err("unterminated function".into());
         }
-        Ok(module)
+        Ok(items)
+    }
+}
+
+impl Module {
+    pub fn from_code(triple: String, fingerprint: String, code: Code) -> Result<Self, String> {
+        Ok(Self {
+            triple,
+            fingerprint,
+            items: code.into_items()?,
+        })
     }
     pub fn to_text(&self) -> String {
         let mut s = format!(
