@@ -194,7 +194,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         || callable_fields::template(f)
         || f.return_type.is_copy_value()
         || f.return_type.is_scalar_or_address()
-        || packages::supported(&f.return_type)
+        || packages::ordinary(&f.return_type)
         || errors::supported(&f.return_type)
         || packages::owned_array_supported(&f.return_type)
         || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
@@ -236,7 +236,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         if !(p.ty.is_copy_value()
             || p.ty.is_scalar_or_address()
             || resources::supported(&p.ty)
-            || packages::supported(&p.ty)
+            || packages::ordinary(&p.ty)
             || errors::supported(&p.ty)
             || packages::owned_array_supported(&p.ty))
         {

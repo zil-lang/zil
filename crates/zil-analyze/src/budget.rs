@@ -181,15 +181,24 @@ fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
     }))
 }
 
-fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
+fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
+    if matches!(ty, Type::Address { inner, .. }
+        if super::resources::product::nested(inner))
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "ordinary Package Product does not grant a borrowed Package boundary",
+            Some(span),
+        )]);
+    }
     if let Type::ErrorUnion { error, result } = ty {
         if matches!(result.as_ref(), Type::Managed(_)) {
             scalar(error, span)?;
-            return local_value(result, span, module);
+            return legacy_value(result, span, module);
         }
         for payload in [error.as_ref(), result.as_ref()] {
             if matches!(payload, Type::Package { .. }) {
-                local_value(payload, span, module)?;
+                legacy_value(payload, span, module)?;
             } else {
                 scalar(payload, span)?;
             }
@@ -199,7 +208,7 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
         && *length > 0
         && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
     {
-        local_value(element, span, module)
+        legacy_value(element, span, module)
     } else if let Type::Closure(id) = ty {
         if id.0 as usize >= module.closures.len() {
             return Err(bad("closure type references an absent environment"));
@@ -233,6 +242,20 @@ fn local_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()>
         Ok(())
     } else {
         scalar(ty, span)
+    }
+}
+
+// Ordinary Products never widen the old array, union or capture profile.
+fn local_value(
+    ty: &Type,
+    span: Span,
+    module: &TypedModule,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    if super::resources::product::nested(ty) {
+        super::resources::product::admit(ty, budget)
+    } else {
+        legacy_value(ty, span, module)
     }
 }
 
@@ -273,44 +296,49 @@ pub(super) fn preflight(
     // noncallback Store paths receive no new traversal or logical charge.
     let mut callback_store_elements = Vec::new();
     let mut owned_store_capture_roots = Vec::new();
-    for (ty, store_element, capture_owner) in module
+    for (ty, store_element, capture_owner, resource_head) in module
         .functions
         .iter()
         .flat_map(|f| {
             std::iter::once(&f.return_type)
                 .chain(f.locals.iter().map(|l| &l.ty))
                 .chain(f.values.iter())
-                .map(|ty| (ty, None, None))
+                .map(|ty| (ty, None, None, false))
                 .chain(
                     f.blocks
                         .iter()
                         .flat_map(|b| b.instructions.iter())
                         .filter_map(|i| match &i.kind {
                             InstructionKind::ConvertInteger { target, .. } => {
-                                Some((target, None, None))
+                                Some((target, None, None, false))
                             }
                             InstructionKind::OwnedStoreNew { element } => {
-                                Some((element, Some(element), None))
+                                Some((element, Some(element), None, false))
                             }
                             _ => None,
                         }),
                 )
         })
-        .chain(module.resources.iter().map(|r| (&r.payload, None, None)))
+        .chain(
+            module
+                .resources
+                .iter()
+                .map(|r| (&r.payload, None, None, true)),
+        )
         .chain(module.closures.iter().enumerate().flat_map(|(index, c)| {
             c.captures
                 .iter()
-                .map(move |ty| (ty, None, Some(zil_ir::ClosureId(index as u32))))
+                .map(move |ty| (ty, None, Some(zil_ir::ClosureId(index as u32)), false))
                 .chain(
                     c.parameters
                         .iter()
                         .chain(std::iter::once(&c.result))
-                        .map(|ty| (ty, None, None)),
+                        .map(|ty| (ty, None, None, false)),
                 )
         }))
     {
-        let mut pending = vec![(ty, 0usize, store_element, capture_owner)];
-        while let Some((ty, depth, store_element, capture_owner)) = pending.pop() {
+        let mut pending = vec![(ty, 0usize, store_element, capture_owner, resource_head)];
+        while let Some((ty, depth, store_element, capture_owner, resource_head)) = pending.pop() {
             budget.input(1, "type shape")?;
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
@@ -327,18 +355,37 @@ pub(super) fn preflight(
             match ty {
                 Type::Array { element, length } => {
                     budget.input(*length as usize, "array type size")?;
-                    pending.push((element, depth + 1, store_element, capture_owner));
+                    pending.push((
+                        element,
+                        depth + 1,
+                        store_element,
+                        capture_owner,
+                        resource_head,
+                    ));
                 }
                 Type::Slice { element } => {
-                    pending.push((element, depth + 1, store_element, None));
+                    pending.push((element, depth + 1, store_element, None, resource_head));
                 }
                 Type::OwnedStore { element } => {
-                    pending.push((element, depth + 1, store_element.or(Some(element)), None));
+                    if super::resources::product::nested(element) {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "ordinary Package Product is not a Store element profile",
+                            None,
+                        )]);
+                    }
+                    pending.push((
+                        element,
+                        depth + 1,
+                        store_element.or(Some(element)),
+                        None,
+                        resource_head,
+                    ));
                 }
                 Type::Tuple(fields) => {
                     budget.input(fields.len(), "aggregate type shape")?;
                     for t in fields {
-                        pending.push((t, depth + 1, store_element, capture_owner));
+                        pending.push((t, depth + 1, store_element, capture_owner, resource_head));
                     }
                 }
                 Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -346,7 +393,21 @@ pub(super) fn preflight(
                     budget.input(fields.len(), "record fields")?;
                     for (name, t) in fields {
                         budget.input(name.len(), "field name")?;
-                        pending.push((t, depth + 1, store_element, capture_owner));
+                        // Only ordinary value positions acquire the new Product
+                        // profile. Resource heads remain finite Copy, including
+                        // unused metadata. Reuse the paid field visit; the old
+                        // flat profile has no new table or logical charge.
+                        if resource_head
+                            && matches!(ty, Type::Package { .. })
+                            && matches!(t, Type::Package { .. })
+                        {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "ordinary Package Product is not a resource payload profile",
+                                None,
+                            )]);
+                        }
+                        pending.push((t, depth + 1, store_element, capture_owner, resource_head));
                     }
                 }
                 Type::Enum { name, variants } => {
@@ -357,29 +418,51 @@ pub(super) fn preflight(
                     for (name, fields) in variants {
                         budget.input(name.len().saturating_add(fields.len()), "enum fields")?;
                         for ty in fields {
-                            pending.push((ty, depth + 1, store_element, capture_owner));
+                            pending.push((
+                                ty,
+                                depth + 1,
+                                store_element,
+                                capture_owner,
+                                resource_head,
+                            ));
                         }
                     }
                 }
-                Type::Managed(inner) => {
-                    pending.push((inner, depth + 1, store_element, capture_owner))
-                }
+                Type::Managed(inner) => pending.push((
+                    inner,
+                    depth + 1,
+                    store_element,
+                    capture_owner,
+                    resource_head,
+                )),
                 Type::Address { inner, .. }
                 | Type::Desc(inner)
                 | Type::Opaque { hidden: inner, .. } => {
-                    pending.push((inner, depth + 1, store_element, None))
+                    pending.push((inner, depth + 1, store_element, None, resource_head))
                 }
                 Type::FunctionPointer { parameters, result }
                 | Type::ForeignCallback { parameters, result } => {
                     budget.input(parameters.len(), "function pointer signature")?;
-                    pending.push((result, depth + 1, store_element, None));
+                    pending.push((result, depth + 1, store_element, None, false));
                     for parameter in parameters {
-                        pending.push((parameter, depth + 1, store_element, None));
+                        pending.push((parameter, depth + 1, store_element, None, false));
                     }
                 }
                 Type::ErrorUnion { error, result } => {
-                    pending.push((error, depth + 1, store_element, capture_owner));
-                    pending.push((result, depth + 1, store_element, capture_owner));
+                    pending.push((
+                        error,
+                        depth + 1,
+                        store_element,
+                        capture_owner,
+                        resource_head,
+                    ));
+                    pending.push((
+                        result,
+                        depth + 1,
+                        store_element,
+                        capture_owner,
+                        resource_head,
+                    ));
                 }
                 Type::Closure(_) if store_element.is_some() => {
                     budget.spend(1, "callback Store admission entry")?;
@@ -419,7 +502,7 @@ pub(super) fn preflight(
                     None,
                 )]);
             }
-            local_value(ty, Span::default(), module)?;
+            legacy_value(ty, Span::default(), module)?;
         }
         for ty in &closure.parameters {
             if let Type::Address { inner, .. } = ty
@@ -444,7 +527,7 @@ pub(super) fn preflight(
             )
             && !closure.lending_captures.is_empty()
         {
-            local_value(&closure.result, Span::default(), module)?;
+            legacy_value(&closure.result, Span::default(), module)?;
         } else {
             scalar(&closure.result, Span::default())?;
         }
@@ -561,7 +644,7 @@ pub(super) fn preflight(
             )?;
         }
         budget.input(1, "return type preflight")?;
-        local_value(&function.return_type, function.span, module)?;
+        local_value(&function.return_type, function.span, module, budget)?;
         let scoped_aggregate = |ty: &Type| {
             matches!(ty, Type::Package { .. })
                 || super::resources::owned_error(ty)
@@ -577,6 +660,7 @@ pub(super) fn preflight(
                 &function.locals[parameter.0 as usize].ty,
                 function.span,
                 module,
+                budget,
             )?;
         }
         if function
@@ -588,12 +672,12 @@ pub(super) fn preflight(
         for local in &function.locals {
             budget.input(1, "local type preflight")?;
             budget.input(local.name.len(), "local metadata")?;
-            local_value(&local.ty, local.span, module)?;
+            local_value(&local.ty, local.span, module, budget)?;
             package |= scoped_aggregate(&local.ty);
         }
         for ty in &function.values {
             budget.input(1, "value type preflight")?;
-            local_value(ty, function.span, module)?;
+            local_value(ty, function.span, module, budget)?;
             package |= scoped_aggregate(ty);
         }
         for block in &function.blocks {

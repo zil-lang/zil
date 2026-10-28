@@ -1,0 +1,39 @@
+{
+  "status": "DraftNotRun",
+  "language_compilation": "NotRun",
+  "language_execution": "NotRun",
+  "formal_task": "206 not yet registered when this draft was prepared",
+  "author_role": "stage205_finish, prospective Lower/LLVM + consumer",
+  "production_reference": "54452f8a50eb494c7c444bca3a9682802246284f",
+  "new_source_scope": "Complete direct owning child Package fields; three levels Root -> Middle -> Leaf; Root owns only its child",
+  "existing_leaf_scope": "Managed Marker + ByteBuffer, ordinary Copy data, existing void!Leaf failure payload",
+  "closed_new_combinations": [
+    "Store<Root/Middle>",
+    "captured Root/Middle",
+    "arrays of Root/Middle",
+    "void!Root or void!Middle",
+    "deep child borrow or arbitrary deep lvalue"
+  ],
+  "files": {
+    "portable.zil": {
+      "bytes": 407,
+      "sha256": "2941ae9bc0134884ced99dbc6fea716808ee9d11c8339d77742b3d8bcf2df531"
+    },
+    "leaf.zil": {
+      "bytes": 1309,
+      "sha256": "395fb6c0848013d99ac7a08e66294aa36b019e32fbe63abf736def660f493242"
+    },
+    "product.zil": {
+      "bytes": 733,
+      "sha256": "d3e53fe12275657e96353e468d7f02f56da820bde249f57b2b091947a9722a0d"
+    },
+    "transitions.zil": {
+      "bytes": 923,
+      "sha256": "9e459a0d8114f3b81a72eef9c7d881d1e61e0d1501f3720950941a6b22aef9f0"
+    },
+    "main.zil": {
+      "bytes": 1567,
+      "sha256": "64857a4690940dbed1a4efb540cd45b0fc7ca6f052e1e26ae1808d1f08986d47"
+    }
+  }
+}

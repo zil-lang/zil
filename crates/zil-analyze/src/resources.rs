@@ -4,6 +4,7 @@
 use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+pub(super) mod product;
 mod summary_graph;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -37,6 +38,7 @@ enum Birth {
     Created,
     Incoming,
 }
+type PackageValues = BTreeMap<(ValueId, u32), BTreeSet<Birth>>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Fact {
     life: BTreeSet<Life>,
@@ -50,7 +52,8 @@ struct State {
     // Complete SSA Packages carry the actual birth of each direct Managed
     // field. Local Packages already have separate lifecycle cells. Unknown
     // producers keep Incoming; packaging itself never creates a resource.
-    package_values: BTreeMap<(ValueId, u32), BTreeSet<Birth>>,
+    package_values: PackageValues,
+    product_births: product::Origins,
 }
 #[derive(Clone, Copy)]
 struct Shape {
@@ -123,6 +126,7 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
     for birth in state.package_values.values() {
         budget.spend(birth.len(), "Package SSA birth clone")?;
     }
+    product::copy_cost(&state.product_births, budget)?;
     Ok(state.clone())
 }
 fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
@@ -162,15 +166,17 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
         target.extend(source);
         changed |= before != target.len();
     }
+    changed |= product::join(&mut to.product_births, &from.product_births, budget)?;
     Ok(changed)
 }
 
 fn package_value_shapes(
     f: &TypedFunction,
     budget: &mut Budget,
-) -> CompileResult<BTreeMap<(ValueId, u32), BTreeSet<Birth>>> {
+) -> CompileResult<(PackageValues, product::Origins)> {
     budget.spend(f.values.len(), "Package SSA birth shape scan")?;
     let mut fields = BTreeMap::new();
+    let mut products = product::Origins::new();
     for (value, ty) in f.values.iter().enumerate() {
         if let Type::Package { fields: types, .. } = ty {
             budget.spend(types.len(), "Package SSA birth field scan")?;
@@ -182,11 +188,19 @@ fn package_value_shapes(
                         (ValueId(value as u32), index as u32),
                         BTreeSet::from([Birth::Incoming]),
                     );
+                } else if matches!(ty, Type::Package { .. }) {
+                    product::add(
+                        &mut products,
+                        product::Carrier::Value(ValueId(value as u32)),
+                        index as u32,
+                        ty,
+                        budget,
+                    )?;
                 }
             }
         }
     }
-    Ok(fields)
+    Ok((fields, products))
 }
 
 fn package_birth(
@@ -281,8 +295,10 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
     })
 }
 fn package_owned_field(ty: &Type) -> bool {
-    matches!(ty, Type::Managed(_) | Type::Closure(_))
-        || matches!(ty, Type::Array { element, length } if *length > 0 && matches!(element.as_ref(), Type::Package { .. }))
+    matches!(
+        ty,
+        Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+    ) || matches!(ty, Type::Array { element, length } if *length > 0 && matches!(element.as_ref(), Type::Package { .. }))
 }
 
 fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> CompileResult<Shapes> {
@@ -1160,6 +1176,19 @@ impl Flow<'_> {
                                 birth,
                                 budget,
                             )?;
+                        } else if matches!(ty, Type::Package { .. }) {
+                            product::transfer(
+                                state,
+                                (product::Carrier::Value(*value), &[]),
+                                (
+                                    product::Carrier::Value(
+                                        i.result.expect("checked Package result"),
+                                    ),
+                                    &[index as u32],
+                                ),
+                                ty,
+                                budget,
+                            )?;
                         }
                         self.consume(state, *value, check, budget)?;
                     }
@@ -1469,6 +1498,15 @@ impl Flow<'_> {
                             } else {
                                 BTreeSet::from([Birth::Incoming])
                             };
+                            if matches!(ty, Type::Package { .. }) {
+                                product::transfer(
+                                    state,
+                                    (product::Carrier::Value(value), &[]),
+                                    (product::Carrier::Local(*local), &[*index]),
+                                    ty,
+                                    budget,
+                                )?;
+                            }
                             self.consume(state, value, check, budget)?;
                             replace(
                                 state,
@@ -1539,6 +1577,20 @@ impl Flow<'_> {
                                     return Err(error(
                                         "package field take requires that field live on every path",
                                     ));
+                                }
+                                if matches!(ty, Type::Package { .. }) {
+                                    product::transfer(
+                                        state,
+                                        (product::Carrier::Local(*local), &[*index]),
+                                        (
+                                            product::Carrier::Value(
+                                                i.result.expect("checked child result"),
+                                            ),
+                                            &[],
+                                        ),
+                                        ty,
+                                        budget,
+                                    )?;
                                 }
                                 budget.spend(fact.birth.len(), "package field birth transfer")?;
                                 produced = Some(Fact {
@@ -1738,6 +1790,21 @@ impl Flow<'_> {
                                             birth,
                                             budget,
                                         )?;
+                                    } else if matches!(ty, Type::Package { .. }) {
+                                        product::transfer(
+                                            state,
+                                            (product::Carrier::Local(*local), &[index as u32]),
+                                            (
+                                                product::Carrier::Value(
+                                                    i.result.ok_or_else(|| {
+                                                        error("move has no result")
+                                                    })?,
+                                                ),
+                                                &[index as u32],
+                                            ),
+                                            ty,
+                                            budget,
+                                        )?;
                                     }
                                 }
                             }
@@ -1812,6 +1879,14 @@ impl Flow<'_> {
                                         field.birth =
                                             package_birth(state, *value, index as u32, budget)?;
                                         replace(state, place, field, budget)?;
+                                    } else if matches!(ty, Type::Package { .. }) {
+                                        product::transfer(
+                                            state,
+                                            (product::Carrier::Value(*value), &[index as u32]),
+                                            (product::Carrier::Local(*local), &[index as u32]),
+                                            ty,
+                                            budget,
+                                        )?;
                                     }
                                 }
                             }
@@ -2254,8 +2329,10 @@ fn analyze_function_with_dependencies(
     } else {
         Vec::new()
     };
+    let (package_values, product_births) = package_value_shapes(f, budget)?;
     let mut initial = State {
-        package_values: package_value_shapes(f, budget)?,
+        package_values,
+        product_births,
         ..State::default()
     };
     for (place, s) in &shapes {
@@ -2272,6 +2349,18 @@ fn analyze_function_with_dependencies(
         }
         if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
             fact.birth.insert(Birth::Incoming);
+        }
+        if let Place::PackageField { local, index } = place
+            && let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty
+            && let child @ Type::Package { .. } = &fields[*index as usize].1
+        {
+            product::add(
+                &mut initial.product_births,
+                product::Carrier::Local(*local),
+                *index,
+                child,
+                budget,
+            )?;
         }
         initial.cells.insert(*place, fact);
     }
@@ -2591,8 +2680,10 @@ fn analyze_function_eager_reference(
         return Ok(Effect::default());
     }
     let after = afters(f, reachable, &shapes, budget)?;
+    let (package_values, product_births) = package_value_shapes(f, budget)?;
     let mut initial = State {
-        package_values: package_value_shapes(f, budget)?,
+        package_values,
+        product_births,
         ..State::default()
     };
     for (place, s) in &shapes {
@@ -2609,6 +2700,18 @@ fn analyze_function_eager_reference(
         }
         if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
             fact.birth.insert(Birth::Incoming);
+        }
+        if let Place::PackageField { local, index } = place
+            && let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty
+            && let child @ Type::Package { .. } = &fields[*index as usize].1
+        {
+            product::add(
+                &mut initial.product_births,
+                product::Carrier::Local(*local),
+                *index,
+                child,
+                budget,
+            )?;
         }
         initial.cells.insert(*place, fact);
     }
