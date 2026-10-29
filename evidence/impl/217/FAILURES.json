@@ -3,7 +3,7 @@
     {
       "name": "source-write01",
       "status": "InfrastructureFailure",
-      "reason": "32GB filesystem exhausted before first source file was written; portable.zil and check01 output were zero bytes. No compiler acceptance/native execution occurred. Cache cleanup restored space."
+      "reason": "32GB filesystem exhausted during first source write. portable.zil and check01 output were zero bytes. A subsequent CLI invocation could not write its JSON report, so its result is unavailable; no native executable was run. Cache cleanup restored space. No pass inferred."
     },
     {
       "name": "source-check02",
