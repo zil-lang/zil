@@ -4,4 +4,4 @@
 
 同步入口为tools/sync/SYNC-ZIL-v6.ps1。默认main同名推送；-MainOnly仅在包内其余heads均为main祖先时推主线；分叉、网络失败和远端竞争均明确失败，不强推。
 
-语言214–216补完整Product拥有捕获，与213合流工作并行；当前计划不代表完整1.4或ZUI全部语言前置已经验收。
+语言214–216的完整Product拥有捕获与217同步组合消费者已完成限定独审和正式回归，精确收据见evidence/integration/217/RESULT.json。完整1.4及ZUI全部需求仍未完成；可开工范围与真实余项见docs/ZUI-LANGUAGE-READINESS-217.md。
