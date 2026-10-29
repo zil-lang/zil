@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "task": "213",
+  "reviewer": "/root/branch_audit",
+  "implementation_author": "/root",
+  "implementation_commit": "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+  "tested_source_commit": "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+  "verdict": "Pass",
+  "scope": "Bounded independent review of language206 plus LLVM212 integration: source semantics preserved, direct LLVMBuilder lowering of newer Store/State/Product paths, actual native cleanup and current-Verify object-cache controls. Not full-language or product acceptance.",
+  "source_identity": {
+    "clean_at_start_and_end": true,
+    "parents": [
+      "a0796270cfde23379d1b227f0a8158121d7c91d5",
+      "867ae69184c2c73e600fca8c971ac362d7123439"
+    ],
+    "required_ancestry": [
+      {
+        "ancestor": "8527fb393d1b6938ad9a4e5d21ad710d78a19ad7",
+        "contained": true
+      },
+      {
+        "ancestor": "a0796270cfde23379d1b227f0a8158121d7c91d5",
+        "contained": true
+      }
+    ],
+    "crates_tree": "52e6e8758265d496138eb41ff38481ab5915da77",
+    "spec_tree": "18e91854c2c36473b61d0bd5b8e75c8fb334d49c",
+    "critical_input_sha256": {
+      "Cargo.toml": "8f253587aba20a1534d3408d70b623538ffe351f71265dc0c914ceb8b7ac39f8",
+      "Cargo.lock": "95ce63ee445a0ac309d0df439328d1573bae7cb05b686b51746e7114ede6adf4",
+      "_zil_design.md": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+      "spec/interfaces.json": "bf7905b2c64524c87780c748a248f50f6384743563edd26fb1f7366fa64ccf62",
+      "data/normative-inputs.json": "a96cae8877c4dbaa59f20e2b1d786459e8a69cbdcc7b4c78133a8cda594eda10",
+      "crates/zil-types/src/aggregates.rs": "3603d9771d0dd878e7247d4328b5cbff4dc1f6d1387eeda9d582d41c74a38510",
+      "crates/zil-backend-llvm/src/emit.rs": "e00114d37137872a03b951d9d88274ca9d85aaadcbcaee638c61232616f04b63",
+      "crates/zil-backend-llvm/src/emit/dynamic_store.rs": "baa7121f3e0c778ea1d6d4372eff07a4a722a13b355580bdf1c4b378c28de54e",
+      "crates/zil-backend-llvm/src/emit/packages.rs": "497c48aada3627c3ca24add01fb6f0c61509fd6374ffa853c7facabacd9cc9f2",
+      "crates/zil-backend-llvm/src/emit/resource_closures.rs": "ec807c4c0e8b475c797ea4c610c11169aa45bb6b456c44f8630eabda9b1c47ad",
+      "crates/zil-backend-llvm/src/build.rs": "94cbbb8e2f3efb2e804fadf9f550356ccecce681e07d58fd327b12c98bbe6367",
+      "crates/zil-backend-llvm/src/object_cache.rs": "f564c4cb5319fa5cdbcce9d74cdf46f68da3c53743284363f3926e9f7f1b6def"
+    },
+    "unchanged_from_language206": [
+      "crates/zil-syntax",
+      "crates/zil-expand",
+      "crates/zil-ir",
+      "crates/zil-analyze",
+      "crates/zil-verify",
+      "crates/zil-lower"
+    ]
+  },
+  "integration_method_review": {
+    "actual_git_merge_base": "1d7216f0c72f055a4e484f786a1a75a11f1cd12f",
+    "content_alignment_commits": [
+      "08cb9e6ff",
+      "272878c48"
+    ],
+    "independently_confirmed_crates_files_different": 20,
+    "reason": "The imported compiler-side language177 snapshot differs in crates only in API/driver integration plus the explicit Types body clone-to-take optimization; original Git ancestry remains intact."
+  },
+  "static_review": [
+    "Types keeps immutable original callable/state declaration headers while moving function bodies. Resolver order, original selector identities and logical budget charges are unchanged; failed owned-Core resolution publishes no partial result.",
+    "Store element cleanup enumerates actual field positions and emits a separate GEP and concrete-closure drop call for each field; shared ClosureId never substitutes for distinct instance storage.",
+    "Closure alignment uses the verified definition map including runtime ownership flags. Resource-free closures still have valid no-op drop entries.",
+    "Complete Product teardown uses reverse-pushed DFS to preserve declared leaf order; parent tracks one direct child obligation and taken children maintain independent local flags.",
+    "Builder code and native adapter remain identical to compiler212 outside necessary language206 lowering admission and cleanup updates; default CLI selects API and text-reference parsing is not in the built CLI.",
+    "Object cache remains after current source verification and machine preflight. Keys bind current installed compiler/library identities and exact machine items; it does not cache a VerifiedModule capability."
+  ],
+  "targeted_tests": {
+    "passed": 134,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 7,
+    "tests": [
+      "impl203_independent",
+      "impl204_review",
+      "impl205_independent",
+      "impl206_independent",
+      "impl206_independent_capture",
+      "impl206_machine",
+      "object_cache212"
+    ],
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--features",
+      "llvm-api",
+      "--test",
+      "impl203_independent",
+      "--test",
+      "impl204_review",
+      "--test",
+      "impl205_independent",
+      "--test",
+      "impl206_independent",
+      "--test",
+      "impl206_independent_capture",
+      "--test",
+      "impl206_machine",
+      "--test",
+      "object_cache212",
+      "--",
+      "--nocapture"
+    ],
+    "receipt": "targeted01/command.json",
+    "stdout_sha256": "814d7e4df3f050c22c48d77ea154723af9e3568f7f6b86fd94406682380177bb",
+    "stderr_sha256": "330b8a39e8e451eb11ef63ebd75e1fdcf55fa640f575e86390517491dbc9db16",
+    "coverage": "State selector/nominal/raw/Wire boundaries; independent capability use and actual values; recursive Product cleanup and failed RHS; cache invalid source, corrupt entries, linker failure, cancellation, concurrency, O0/O2 and checked overflow."
+  },
+  "native_matrix": {
+    "source_commit": "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+    "cli_sha256": "efc1ee72a25722ec10262ade600242b1a1e27fb09aba5fe733d07ab30baaf037",
+    "execution_count": 444,
+    "ordinary_executions": 72,
+    "instrumented_executions": 372,
+    "actual_allocation_failures": 260,
+    "all_live_zero": true,
+    "codegen_builds": 16,
+    "backend_ir_bytes_equal": true,
+    "parser_symbol_absent": true,
+    "instrumentation": "Only native link adds existing realloc/free --wrap probe object; LLVM API objects remain unmodified Builder products."
+  },
+  "native_matrix_contract": {
+    "sources": [
+      "examples/mainline/state_bindings203",
+      "examples/mainline/package_product206"
+    ],
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "modes": [
+      "default CLI LLVM API",
+      "explicit Clang",
+      "instrumented API object cache cold",
+      "instrumented API object cache hit"
+    ],
+    "source_oracle": "203 source-derived frozen scenarios and existing 206 immutable ORACLE.json, frozen before compiling; no output-based oracle updates.",
+    "api_uncached": "All uncached reports input_kind=builder, parse_ns=0.",
+    "cache_hit": "All hit builds have verification_runs=1 and nonzero current_preflight_ns; exact cache hits match actual units.",
+    "receipt": "differential01/RESULT.json",
+    "receipt_sha256": "1673d5d4438226cb52c0531800ab45b89b853d193ba572febb61f8ec5025e6ec",
+    "counts_separate_from_targeted_tests": true
+  },
+  "compiler_build": {
+    "source_commit": "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+    "cli_sha256": "efc1ee72a25722ec10262ade600242b1a1e27fb09aba5fe733d07ab30baaf037",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "build",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-cli"
+    ],
+    "receipt": "compiler-build.json",
+    "debug_info": 0,
+    "incremental": false
+  },
+  "independence": {
+    "reviewer_authored_production": false,
+    "production_changed_during_review": false,
+    "worktree": "/workspace/scratch/3cf12ce32e36/review-213",
+    "target": "/workspace/scratch/3cf12ce32e36/targets/review213",
+    "review_harnesses_outside_repo": true
+  },
+  "findings": [],
+  "unresolved_within_scope": [],
+  "formal_workspace": "Run separately by root; not counted as reviewer execution",
+  "historical_handoff": "Known pre-existing 1138 historical commit/receipt errors remain Fail, not waived or relabelled.",
+  "not_run": [
+    "Native Windows",
+    "Wine on this combined tree",
+    "Full formal product gates",
+    "Performance comparison",
+    "General language1.4 completion"
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "raw_evidence_archive": {
+    "filename": "review213-raw-evidence.zip",
+    "path": "/workspace/scratch/3cf12ce32e36/recovery/review213-raw-evidence.zip",
+    "bytes": 18779596,
+    "sha256": "1f1fe78e9059ad9efb73c9df36a2cd16131271e2942c564e54120f79b31e3d6e",
+    "included_files": 5576,
+    "uncompressed_bytes": 410992480,
+    "excluded_execution_products": 179,
+    "excluded_execution_product_bytes": 3356032,
+    "all_payload_hashes_and_crc_verified": true,
+    "originals_retained": true
+  }
+}

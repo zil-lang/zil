@@ -1,0 +1,7735 @@
+{
+  "source_commit": "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+  "cli_sha256": "efc1ee72a25722ec10262ade600242b1a1e27fb09aba5fe733d07ab30baaf037",
+  "status": "Pass",
+  "inputs": {
+    "203": {
+      "examples/mainline/state_bindings203/factory.zil": "4b54c265d6c1bba44f2c318af68366b104aa8182b105d936922c02d7dfc224e1",
+      "examples/mainline/state_bindings203/main.zil": "a73bfba066bdb67cf44fcfb09705461d4e5f7e17de6a70e5b3f0153e6bcbd140",
+      "examples/mainline/state_bindings203/portable.zil": "4836185748a7c2b2200aabdc6948497250d15f219a6b992af20c948250656e9c",
+      "examples/mainline/state_bindings203/state.zil": "adf023b8169e5f3269745a5a25a3007c48dfb864f0f84a975546afbeeeb49527",
+      "examples/mainline/state_bindings203/store_helpers.zil": "53148c2f87961fe62b09b800dd6fb9f559187b3ad0f2be0cbf8a526cec7e9b1a"
+    },
+    "206": {
+      "examples/mainline/package_product206/leaf.zil": "a5c60e7f08b8ff5ba713a9cb036f83437cf893ac8dc2f4504b78b73136aeb509",
+      "examples/mainline/package_product206/main.zil": "64857a4690940dbed1a4efb540cd45b0fc7ca6f052e1e26ae1808d1f08986d47",
+      "examples/mainline/package_product206/portable.zil": "2941ae9bc0134884ced99dbc6fea716808ee9d11c8339d77742b3d8bcf2df531",
+      "examples/mainline/package_product206/product.zil": "d3e53fe12275657e96353e468d7f02f56da820bde249f57b2b091947a9722a0d",
+      "examples/mainline/package_product206/transitions.zil": "9e459a0d8114f3b81a72eef9c7d881d1e61e0d1501f3720950941a6b22aef9f0"
+    }
+  },
+  "oracles": "fixed source-derived 203 scenarios and frozen 206 ORACLE.json, prepared before compilation",
+  "instrumentation": "Only native link adds existing realloc/free --wrap probe object; LLVM API objects remain unmodified Builder products.",
+  "parser_symbol_absent": true,
+  "builds": [
+    {
+      "name": "203-O0-default",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 31248,
+            "input_kind": "builder",
+            "preflight_ns": 7988474,
+            "builder_ns": 4812205,
+            "parse_ns": 0,
+            "optimize_ns": 221844,
+            "emit_ns": 23564348,
+            "total_ns": 37955936
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "878a2f14c6ef613efa2257371a40ebec24e6f6739aaa70ea04bb0b0b5e71fd36",
+      "executable_sha256": "398800489c81576881fb20ce0856c8ab83465f195b911bbf8d6bb54491b95184"
+    },
+    {
+      "name": "203-O0-clang",
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "878a2f14c6ef613efa2257371a40ebec24e6f6739aaa70ea04bb0b0b5e71fd36",
+      "executable_sha256": "f430cc7f4888896d824ed70d4ddedcd1162d32fbc6d5ea4963fe88a53b77aca5"
+    },
+    {
+      "name": "203-O0-api-probe-cold",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 31248,
+            "input_kind": "builder",
+            "preflight_ns": 7283842,
+            "builder_ns": 5312555,
+            "parse_ns": 0,
+            "optimize_ns": 172770,
+            "emit_ns": 22776861,
+            "total_ns": 36865477,
+            "cache": {
+              "state": "miss",
+              "action_key": "afaf6717f582917cd87afd5d3de6eb7d27454726dc547dab7dea055fd438e493",
+              "corrupt": false,
+              "key_ns": 12381783,
+              "lookup_ns": 52229,
+              "current_preflight_ns": 0
+            }
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 0,
+          "misses": 1,
+          "corrupt": 0,
+          "stored": 1,
+          "write_failures": 0,
+          "key_ns": 12381783,
+          "lookup_ns": 52229,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "878a2f14c6ef613efa2257371a40ebec24e6f6739aaa70ea04bb0b0b5e71fd36",
+      "executable_sha256": "110fd2031af381f1da337f506ee57ece6342820322a3fb8b1868a9f5b7a90a02"
+    },
+    {
+      "name": "203-O0-api-probe-hit",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "input_kind": "object-cache",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "object_bytes": 31248,
+            "cache": {
+              "state": "hit",
+              "action_key": "afaf6717f582917cd87afd5d3de6eb7d27454726dc547dab7dea055fd438e493",
+              "corrupt": false,
+              "key_ns": 12084771,
+              "lookup_ns": 1296655,
+              "current_preflight_ns": 13719519
+            },
+            "llvm_verification_this_request": false,
+            "producer_verified_before_after": true,
+            "preflight_ns": 13719519,
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 27100945
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 1,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 12084771,
+          "lookup_ns": 1296655,
+          "current_preflight_ns": 13719519,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "878a2f14c6ef613efa2257371a40ebec24e6f6739aaa70ea04bb0b0b5e71fd36",
+      "executable_sha256": "110fd2031af381f1da337f506ee57ece6342820322a3fb8b1868a9f5b7a90a02"
+    },
+    {
+      "name": "203-O2-default",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 5976,
+            "input_kind": "builder",
+            "preflight_ns": 17571543,
+            "builder_ns": 8503891,
+            "parse_ns": 0,
+            "optimize_ns": 43640818,
+            "emit_ns": 38506606,
+            "total_ns": 109329134
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "878a2f14c6ef613efa2257371a40ebec24e6f6739aaa70ea04bb0b0b5e71fd36",
+      "executable_sha256": "715c315eaecfb3852226e16a5a6b4468ad7b9fb559ad0818ecc6f8e0c405ec0e"
+    },
+    {
+      "name": "203-O2-clang",
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "878a2f14c6ef613efa2257371a40ebec24e6f6739aaa70ea04bb0b0b5e71fd36",
+      "executable_sha256": "da192d36b9098ec2270135f5ecf631047ebc62d3d22c658a32e86bf9d4b4c0a4"
+    },
+    {
+      "name": "203-O2-api-probe-cold",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 5976,
+            "input_kind": "builder",
+            "preflight_ns": 6308420,
+            "builder_ns": 3585086,
+            "parse_ns": 0,
+            "optimize_ns": 28840312,
+            "emit_ns": 49101971,
+            "total_ns": 88754414,
+            "cache": {
+              "state": "miss",
+              "action_key": "ea44df209b62061e35228a989d4b7f5c8ebce2c6516dc8ee23ee7c5fa17943c0",
+              "corrupt": false,
+              "key_ns": 11455341,
+              "lookup_ns": 25949,
+              "current_preflight_ns": 0
+            }
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 0,
+          "misses": 1,
+          "corrupt": 0,
+          "stored": 1,
+          "write_failures": 0,
+          "key_ns": 11455341,
+          "lookup_ns": 25949,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "878a2f14c6ef613efa2257371a40ebec24e6f6739aaa70ea04bb0b0b5e71fd36",
+      "executable_sha256": "62cc5922801a65c9cd79980736dda4d7dc2778815db08999142c7922b2048b16"
+    },
+    {
+      "name": "203-O2-api-probe-hit",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "input_kind": "object-cache",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "object_bytes": 5976,
+            "cache": {
+              "state": "hit",
+              "action_key": "ea44df209b62061e35228a989d4b7f5c8ebce2c6516dc8ee23ee7c5fa17943c0",
+              "corrupt": false,
+              "key_ns": 17333253,
+              "lookup_ns": 346252,
+              "current_preflight_ns": 7323682
+            },
+            "llvm_verification_this_request": false,
+            "producer_verified_before_after": true,
+            "preflight_ns": 7323682,
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 25003187
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 1,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 17333253,
+          "lookup_ns": 346252,
+          "current_preflight_ns": 7323682,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "878a2f14c6ef613efa2257371a40ebec24e6f6739aaa70ea04bb0b0b5e71fd36",
+      "executable_sha256": "62cc5922801a65c9cd79980736dda4d7dc2778815db08999142c7922b2048b16"
+    },
+    {
+      "name": "206-O0-default",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 45104,
+            "input_kind": "builder",
+            "preflight_ns": 8088575,
+            "builder_ns": 4180713,
+            "parse_ns": 0,
+            "optimize_ns": 162595,
+            "emit_ns": 30594527,
+            "total_ns": 44094130
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "4a20c4269ec0897ddae410c0df48fc0af32496da5e9274d060e172bebc2db38d",
+      "executable_sha256": "6b2f417328ece99b7341364aaf77728badac7decfa4e8a225112c9b438822fdd"
+    },
+    {
+      "name": "206-O0-clang",
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "4a20c4269ec0897ddae410c0df48fc0af32496da5e9274d060e172bebc2db38d",
+      "executable_sha256": "3584aa7785d14ecb39b76fd47e05c7513c2fcef5f8c40bce901d1ebaa7e0dc72"
+    },
+    {
+      "name": "206-O0-api-probe-cold",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 45104,
+            "input_kind": "builder",
+            "preflight_ns": 7981063,
+            "builder_ns": 5167120,
+            "parse_ns": 0,
+            "optimize_ns": 180572,
+            "emit_ns": 36627893,
+            "total_ns": 51371964,
+            "cache": {
+              "state": "miss",
+              "action_key": "25f139d2e1e81c60e2649a620f1052991a64c7461c9c5c241a0f496ac1a4e477",
+              "corrupt": false,
+              "key_ns": 22284658,
+              "lookup_ns": 46070,
+              "current_preflight_ns": 0
+            }
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 0,
+          "misses": 1,
+          "corrupt": 0,
+          "stored": 1,
+          "write_failures": 0,
+          "key_ns": 22284658,
+          "lookup_ns": 46070,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "4a20c4269ec0897ddae410c0df48fc0af32496da5e9274d060e172bebc2db38d",
+      "executable_sha256": "223d148dd76d76e2995ec5f05c3ea85e2cf35c6914b7f4667ba182a72d4a88b0"
+    },
+    {
+      "name": "206-O0-api-probe-hit",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "input_kind": "object-cache",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "object_bytes": 45104,
+            "cache": {
+              "state": "hit",
+              "action_key": "25f139d2e1e81c60e2649a620f1052991a64c7461c9c5c241a0f496ac1a4e477",
+              "corrupt": false,
+              "key_ns": 24121598,
+              "lookup_ns": 4055714,
+              "current_preflight_ns": 9950292
+            },
+            "llvm_verification_this_request": false,
+            "producer_verified_before_after": true,
+            "preflight_ns": 9950292,
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 38127604
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 1,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 24121598,
+          "lookup_ns": 4055714,
+          "current_preflight_ns": 9950292,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "4a20c4269ec0897ddae410c0df48fc0af32496da5e9274d060e172bebc2db38d",
+      "executable_sha256": "223d148dd76d76e2995ec5f05c3ea85e2cf35c6914b7f4667ba182a72d4a88b0"
+    },
+    {
+      "name": "206-O2-default",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 6960,
+            "input_kind": "builder",
+            "preflight_ns": 9248654,
+            "builder_ns": 4013090,
+            "parse_ns": 0,
+            "optimize_ns": 23806282,
+            "emit_ns": 23885377,
+            "total_ns": 61916787
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "4a20c4269ec0897ddae410c0df48fc0af32496da5e9274d060e172bebc2db38d",
+      "executable_sha256": "e9bc2c375d2dddcf296a59d2007bdc6947ba886547673f8aadd2ca9d69b77016"
+    },
+    {
+      "name": "206-O2-clang",
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "4a20c4269ec0897ddae410c0df48fc0af32496da5e9274d060e172bebc2db38d",
+      "executable_sha256": "b7533442ca5fc983e8b032d18afd88d53928f85e59e32f48943936b4c2a6aadb"
+    },
+    {
+      "name": "206-O2-api-probe-cold",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 6960,
+            "input_kind": "builder",
+            "preflight_ns": 8702780,
+            "builder_ns": 5954647,
+            "parse_ns": 0,
+            "optimize_ns": 36739211,
+            "emit_ns": 25726978,
+            "total_ns": 78365120,
+            "cache": {
+              "state": "miss",
+              "action_key": "b48fa1a1bff86d4d121de49911cac8ab97ef71ed7d709da942408b3203a88812",
+              "corrupt": false,
+              "key_ns": 21655210,
+              "lookup_ns": 44657,
+              "current_preflight_ns": 0
+            }
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 0,
+          "misses": 1,
+          "corrupt": 0,
+          "stored": 1,
+          "write_failures": 0,
+          "key_ns": 21655210,
+          "lookup_ns": 44657,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "4a20c4269ec0897ddae410c0df48fc0af32496da5e9274d060e172bebc2db38d",
+      "executable_sha256": "fbc43408981893b182427ed027bae664656367c7fbe680f3093a459667b68200"
+    },
+    {
+      "name": "206-O2-api-probe-hit",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "input_kind": "object-cache",
+            "llvm_version": "17.0.6",
+            "triple": "x86_64-unknown-linux-gnu",
+            "object_bytes": 6960,
+            "cache": {
+              "state": "hit",
+              "action_key": "b48fa1a1bff86d4d121de49911cac8ab97ef71ed7d709da942408b3203a88812",
+              "corrupt": false,
+              "key_ns": 18343426,
+              "lookup_ns": 430349,
+              "current_preflight_ns": 8014464
+            },
+            "llvm_verification_this_request": false,
+            "producer_verified_before_after": true,
+            "preflight_ns": 8014464,
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 26788239
+          }
+        ],
+        "object_cache": {
+          "requested": true,
+          "enabled": true,
+          "hits": 1,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 18343426,
+          "lookup_ns": 430349,
+          "current_preflight_ns": 8014464,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "verification_runs": 1,
+      "llvm_sha256": "4a20c4269ec0897ddae410c0df48fc0af32496da5e9274d060e172bebc2db38d",
+      "executable_sha256": "fbc43408981893b182427ed027bae664656367c7fbe680f3093a459667b68200"
+    }
+  ],
+  "executions": [
+    {
+      "name": "run-203-O0-default-count-0-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-default-count-1-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-default-count-2-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-default-count-3-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-default-count-7-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-default-full-capacity-push-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-default-invalid-input-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-default-eof-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-clang-count-0-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-clang-count-1-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-clang-count-2-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-clang-count-3-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-clang-count-7-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-clang-full-capacity-push-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-clang-invalid-input-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-clang-eof-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-0-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 289
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-0-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-0-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-0-3",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "PDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 288
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-0-4",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 289
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-1-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-1-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-1-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-1-3",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-1-4",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-1-5",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-1-6",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-1-7",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 292
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-1-8",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-2-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-2-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-2-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-2-3",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-2-4",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-2-5",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-2-6",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-2-7",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 292
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-2-8",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 297
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-3",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-4",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-5",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-6",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-7",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 149
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-8",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 150
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-9",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 151
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-10",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 152
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-11",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 296
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-3-12",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 297
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 301
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-3",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-4",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-5",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-6",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-7",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 149
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-8",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 150
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-9",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 151
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-10",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 152
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-11",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 153
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-12",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 154
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-13",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 13,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 155
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-14",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 14,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 156
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-15",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 300
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-count-7-16",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 301
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-full-capacity-push-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 72
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-full-capacity-push-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-cold-full-capacity-push-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 72
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-0-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 289
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-0-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-0-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-0-3",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "PDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 288
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-0-4",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 289
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-1-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-1-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-1-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-1-3",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-1-4",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-1-5",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-1-6",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-1-7",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 292
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-1-8",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-2-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-2-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-2-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-2-3",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-2-4",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-2-5",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-2-6",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-2-7",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 292
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-2-8",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 297
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-3",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-4",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-5",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-6",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-7",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 149
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-8",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 150
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-9",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 151
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-10",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 152
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-11",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 296
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-3-12",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 297
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 301
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-3",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-4",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-5",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-6",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-7",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 149
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-8",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 150
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-9",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 151
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-10",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 152
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-11",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 153
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-12",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 154
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-13",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 13,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 155
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-14",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 14,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 156
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-15",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "ACCAACCAACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 300
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-count-7-16",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 301
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-full-capacity-push-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 72
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-full-capacity-push-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O0-api-probe-hit-full-capacity-push-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 72
+      }
+    },
+    {
+      "name": "run-203-O2-default-count-0-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-default-count-1-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-default-count-2-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-default-count-3-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-default-count-7-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-default-full-capacity-push-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-default-invalid-input-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-default-eof-0",
+      "task": "203",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-clang-count-0-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-clang-count-1-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-clang-count-2-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-clang-count-3-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-clang-count-7-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-clang-full-capacity-push-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-clang-invalid-input-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-clang-eof-0",
+      "task": "203",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-0-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 289
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-0-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-0-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-0-3",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "PDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 288
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-0-4",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 289
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-1-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-1-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-1-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-1-3",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-1-4",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-1-5",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-1-6",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-1-7",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 292
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-1-8",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-2-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-2-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-2-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-2-3",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-2-4",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-2-5",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-2-6",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-2-7",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 292
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-2-8",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 297
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-3",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-4",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-5",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-6",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-7",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 149
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-8",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 150
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-9",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 151
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-10",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 152
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-11",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 296
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-3-12",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 297
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 301
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-3",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-4",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-5",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-6",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-7",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 149
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-8",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 150
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-9",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 151
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-10",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 152
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-11",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 153
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-12",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 154
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-13",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 13,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 155
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-14",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 14,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 156
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-15",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 300
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-count-7-16",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 301
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-full-capacity-push-0",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 72
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-full-capacity-push-1",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-cold-full-capacity-push-2",
+      "task": "203",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 72
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-0-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 289
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-0-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-0-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-0-3",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "PDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 288
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-0-4",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 289
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-1-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-1-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-1-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-1-3",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-1-4",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-1-5",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-1-6",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-1-7",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 292
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-1-8",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-2-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-2-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-2-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-2-3",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-2-4",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-2-5",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-2-6",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-2-7",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 292
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-2-8",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 293
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 297
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-3",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-4",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-5",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-6",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-7",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 149
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-8",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 150
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-9",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 151
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-10",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 152
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-11",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 296
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-3-12",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 297
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 301
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 144
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-3",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "A1ab2cd",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 145
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-4",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "AC1ab2cd",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 146
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-5",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 5,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 147
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-6",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 6,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 148
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-7",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 7,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 149
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-8",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 8,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 150
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-9",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 9,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 151
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-10",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 10,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 152
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-11",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAA1ab2cd",
+      "allocation": {
+        "alloc_calls": 11,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 153
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-12",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAAC1ab2cd",
+      "allocation": {
+        "alloc_calls": 12,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 154
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-13",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAACC1ab2cd",
+      "allocation": {
+        "alloc_calls": 13,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 155
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-14",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAACCA1ab2cd",
+      "allocation": {
+        "alloc_calls": 14,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 156
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-15",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "ACCAACCAACCAPDdQ2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 300
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-count-7-16",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "ACCAACCAACCAPDdQC2c1ab",
+      "allocation": {
+        "alloc_calls": 15,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 301
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-full-capacity-push-0",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 72
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-full-capacity-push-1",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "1ab2cd",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-203-O2-api-probe-hit-full-capacity-push-2",
+      "task": "203",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "2cd1ab",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 72
+      }
+    },
+    {
+      "name": "run-206-O0-default-whole-three-level-close-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-default-take-refill-independent-leaf-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-default-replace-complete-middle-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-default-rhs-last-copy-argument-failure-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-default-take-child-early-return-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-default-partial-child-early-return-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-default-whole-parent-relay-reassignment-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-default-replace-child-in-independent-local-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-default-invalid-input-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-default-eof-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O0",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-clang-whole-three-level-close-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-clang-take-refill-independent-leaf-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-clang-replace-complete-middle-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-clang-rhs-last-copy-argument-failure-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-clang-take-child-early-return-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-clang-partial-child-early-return-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-clang-whole-parent-relay-reassignment-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-clang-replace-child-in-independent-local-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-clang-invalid-input-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-clang-eof-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O0",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-whole-three-level-close-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-whole-three-level-close-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-whole-three-level-close-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-whole-three-level-close-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-take-refill-independent-leaf-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-take-refill-independent-leaf-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-take-refill-independent-leaf-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-take-refill-independent-leaf-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-complete-middle-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-complete-middle-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-complete-middle-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-complete-middle-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-complete-middle-4",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-complete-middle-5",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-rhs-last-copy-argument-failure-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-rhs-last-copy-argument-failure-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-rhs-last-copy-argument-failure-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-rhs-last-copy-argument-failure-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-rhs-last-copy-argument-failure-4",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-rhs-last-copy-argument-failure-5",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-take-child-early-return-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-take-child-early-return-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-take-child-early-return-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-take-child-early-return-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-partial-child-early-return-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-partial-child-early-return-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-partial-child-early-return-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-partial-child-early-return-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-whole-parent-relay-reassignment-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-whole-parent-relay-reassignment-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-whole-parent-relay-reassignment-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-whole-parent-relay-reassignment-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-child-in-independent-local-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-child-in-independent-local-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-child-in-independent-local-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-child-in-independent-local-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-cold-replace-child-in-independent-local-4",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-whole-three-level-close-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-whole-three-level-close-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-whole-three-level-close-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-whole-three-level-close-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-take-refill-independent-leaf-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-take-refill-independent-leaf-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-take-refill-independent-leaf-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-take-refill-independent-leaf-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-complete-middle-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-complete-middle-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-complete-middle-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-complete-middle-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-complete-middle-4",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-complete-middle-5",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-rhs-last-copy-argument-failure-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-rhs-last-copy-argument-failure-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-rhs-last-copy-argument-failure-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-rhs-last-copy-argument-failure-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-rhs-last-copy-argument-failure-4",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-rhs-last-copy-argument-failure-5",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-take-child-early-return-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-take-child-early-return-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-take-child-early-return-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-take-child-early-return-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-partial-child-early-return-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-partial-child-early-return-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-partial-child-early-return-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-partial-child-early-return-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-whole-parent-relay-reassignment-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-whole-parent-relay-reassignment-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-whole-parent-relay-reassignment-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-whole-parent-relay-reassignment-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-child-in-independent-local-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-child-in-independent-local-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-child-in-independent-local-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-child-in-independent-local-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O0-api-probe-hit-replace-child-in-independent-local-4",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O0",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O2-default-whole-three-level-close-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-default-take-refill-independent-leaf-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-default-replace-complete-middle-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-default-rhs-last-copy-argument-failure-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-default-take-child-early-return-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-default-partial-child-early-return-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-default-whole-parent-relay-reassignment-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-default-replace-child-in-independent-local-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-default-invalid-input-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-default-eof-0",
+      "task": "206",
+      "mode": "default",
+      "opt": "O2",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-clang-whole-three-level-close-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-clang-take-refill-independent-leaf-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-clang-replace-complete-middle-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-clang-rhs-last-copy-argument-failure-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-clang-take-child-early-return-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-clang-partial-child-early-return-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-clang-whole-parent-relay-reassignment-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-clang-replace-child-in-independent-local-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-clang-invalid-input-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-clang-eof-0",
+      "task": "206",
+      "mode": "clang",
+      "opt": "O2",
+      "exit": 9,
+      "stdout": "",
+      "allocation": null
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-whole-three-level-close-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-whole-three-level-close-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-whole-three-level-close-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-whole-three-level-close-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-take-refill-independent-leaf-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-take-refill-independent-leaf-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-take-refill-independent-leaf-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-take-refill-independent-leaf-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-complete-middle-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-complete-middle-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-complete-middle-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-complete-middle-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-complete-middle-4",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-complete-middle-5",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-rhs-last-copy-argument-failure-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-rhs-last-copy-argument-failure-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-rhs-last-copy-argument-failure-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-rhs-last-copy-argument-failure-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-rhs-last-copy-argument-failure-4",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-rhs-last-copy-argument-failure-5",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-take-child-early-return-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-take-child-early-return-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-take-child-early-return-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-take-child-early-return-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-partial-child-early-return-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-partial-child-early-return-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-partial-child-early-return-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-partial-child-early-return-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-whole-parent-relay-reassignment-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-whole-parent-relay-reassignment-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-whole-parent-relay-reassignment-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-whole-parent-relay-reassignment-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-child-in-independent-local-0",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-child-in-independent-local-1",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-child-in-independent-local-2",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-child-in-independent-local-3",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-cold-replace-child-in-independent-local-4",
+      "task": "206",
+      "mode": "api-probe-cold",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-whole-three-level-close-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-whole-three-level-close-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-whole-three-level-close-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-whole-three-level-close-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "PIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-take-refill-independent-leaf-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-take-refill-independent-leaf-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-take-refill-independent-leaf-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-take-refill-independent-leaf-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "tAPIXJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-complete-middle-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-complete-middle-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-complete-middle-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-complete-middle-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-complete-middle-4",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-complete-middle-5",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "IAJBKPLCMDN",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-rhs-last-copy-argument-failure-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-rhs-last-copy-argument-failure-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-rhs-last-copy-argument-failure-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-rhs-last-copy-argument-failure-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-rhs-last-copy-argument-failure-4",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-rhs-last-copy-argument-failure-5",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "EDCIAJBK",
+      "allocation": {
+        "alloc_calls": 4,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 80
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-take-child-early-return-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-take-child-early-return-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-take-child-early-return-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-take-child-early-return-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "QIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-partial-child-early-return-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-partial-child-early-return-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-partial-child-early-return-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-partial-child-early-return-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "RAIJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-whole-parent-relay-reassignment-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-whole-parent-relay-reassignment-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-whole-parent-relay-reassignment-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-whole-parent-relay-reassignment-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "HPIAJBK",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-child-in-independent-local-0",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-child-in-independent-local-1",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-child-in-independent-local-2",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FBA",
+      "allocation": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 8
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-child-in-independent-local-3",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 1,
+      "stdout": "FCIAJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 24
+      }
+    },
+    {
+      "name": "run-206-O2-api-probe-hit-replace-child-in-independent-local-4",
+      "task": "206",
+      "mode": "api-probe-hit",
+      "opt": "O2",
+      "exit": 0,
+      "stdout": "APICJBK",
+      "allocation": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 48
+      }
+    }
+  ],
+  "execution_count": 444,
+  "ordinary_executions": 72,
+  "instrumented_executions": 372,
+  "actual_allocation_failures": 260,
+  "all_live_zero": true,
+  "codegen_builds": 16,
+  "backend_ir_bytes_equal": true
+}

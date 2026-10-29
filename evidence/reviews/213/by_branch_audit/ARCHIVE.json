@@ -1,0 +1,12 @@
+{
+  "filename": "review213-raw-evidence.zip",
+  "path": "/workspace/scratch/3cf12ce32e36/recovery/review213-raw-evidence.zip",
+  "bytes": 18779596,
+  "sha256": "1f1fe78e9059ad9efb73c9df36a2cd16131271e2942c564e54120f79b31e3d6e",
+  "included_files": 5576,
+  "uncompressed_bytes": 410992480,
+  "excluded_execution_products": 179,
+  "excluded_execution_product_bytes": 3356032,
+  "all_payload_hashes_and_crc_verified": true,
+  "originals_retained": true
+}
