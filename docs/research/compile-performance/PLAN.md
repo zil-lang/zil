@@ -31,7 +31,7 @@ n/2n/4n的数据库探针只作算法归因，不能替代完整请求成本。�
 
 ## 长期合流策略
 
-保留 `research/compile-performance` 作为经过审核的可合流研究线；每个实验在临时task分支，未成熟实验不进入长期分支。阶段通过后，用户可用 Merge commit 将长期分支合入 main，随后将最新main merge回长期分支；双方保留祖先关系，长期分支继续存在。临时任务分支合完可删。
+保留 `research/compile-performance` 作为经过审核的可合流研究线；每个实验在临时task分支，未通过实验不保留在当前可合流的生产树。为保存可复现的负结果，允许候选与回退成对进入研究历史，发布点必须完成回退并给出裁决。阶段通过后，用户可用 Merge commit 将长期分支合入 main，随后将最新main merge回长期分支；双方保留祖先关系，长期分支继续存在。临时任务分支合完可删。
 
 对这条持续分支不用 squash/rebase 合流，不force-push已分享历史。阶段报告按提交保存在 `docs/research/compile-performance/` 和 `evidence/research/compile-performance/`；研究仍可按路径/提交追溯，分支名只是持续工作入口。若整阶段有未通过实验，只单独提交结果及保留候选引用，不把未验代码混进用户下一次合流。
 

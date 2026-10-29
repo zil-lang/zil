@@ -1,0 +1,10 @@
+   Compiling zil-cli v0.1.0 (/workspace/scratch/037bacfed72a/cperf-timing/crates/zil-cli)
+    Finished `test` profile [unoptimized] target(s) in 0.28s
+     Running tests/stage_timings.rs (/workspace/scratch/037bacfed72a/targets/cp02/debug/deps/stage_timings-56e3b43d6666af93)
+
+running 2 tests
+test failed_source_keeps_diagnostics_and_completed_timing_scopes ... ok
+test optional_timings_are_structured_and_do_not_replace_cli_output ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+

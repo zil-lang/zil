@@ -1,0 +1,81 @@
+{
+  "schema": "zil-compile-performance-independent-static-review/1",
+  "review_date": "2026-10-29",
+  "timezone": "Asia/Shanghai",
+  "reviewer": "/root/compiler_research",
+  "implementation_author": "/root/frontend_audit",
+  "baseline_commit": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "implementation_commit": "8a267372675f312e470d99e383037f8af7defe2a",
+  "author_local_commit": "79cbc7ec1a6542c52c938105f2f9f4382111d355",
+  "tree": "b61d453e5de6070fb4154b573e03885e2ddc93a8",
+  "verdict": "Pass",
+  "scope": "static review only",
+  "issues": [],
+  "source_changes_reviewed": [
+    "crates/zil-db/src/lib.rs",
+    "crates/zil-db/src/tests.rs"
+  ],
+  "readonly_commands": [
+    {
+      "argv": ["git", "diff", "ad509b5003d9d2a303428f9d01732292988084d8", "79cbc7ec1a6542c52c938105f2f9f4382111d355", "--", "crates/zil-db/src/lib.rs", "crates/zil-db/src/tests.rs"],
+      "exit": 0,
+      "observation": "Inspected the full production and test diff."
+    },
+    {
+      "argv": ["git", "show", "79cbc7ec1a6542c52c938105f2f9f4382111d355:crates/zil-db/src/lib.rs"],
+      "exit": 0,
+      "observation": "Inspected complete Database implementation, including unchanged begin/read/publish validation."
+    },
+    {
+      "argv": ["git", "show", "79cbc7ec1a6542c52c938105f2f9f4382111d355:crates/zil-db/src/tests.rs"],
+      "exit": 0,
+      "observation": "Read tests and the legacy full-scan oracle; did not execute these tests."
+    },
+    {
+      "argv": ["git", "diff", "--exit-code", "79cbc7ec1a6542c52c938105f2f9f4382111d355", "8a267372675f312e470d99e383037f8af7defe2a"],
+      "exit": 0,
+      "observation": "No file differences between author and canonical commits."
+    },
+    {
+      "argv": ["git", "rev-parse", "79cbc7ec1a6542c52c938105f2f9f4382111d355^{tree}", "8a267372675f312e470d99e383037f8af7defe2a^{tree}"],
+      "exit": 0,
+      "stdout": "b61d453e5de6070fb4154b573e03885e2ddc93a8\nb61d453e5de6070fb4154b573e03885e2ddc93a8\n"
+    },
+    {
+      "argv": ["git", "diff", "--name-only", "ad509b5003d9d2a303428f9d01732292988084d8", "79cbc7ec1a6542c52c938105f2f9f4382111d355"],
+      "exit": 0,
+      "observation": "Only the two zil-db files change production/tests; the other differences establish the research contract and baseline record."
+    }
+  ],
+  "proof_points": [
+    {
+      "invariant": "reverse[p] contains exactly the current published consumers with at least one dependency whose key is p.",
+      "argument": "Default and clear initialize both structures consistently. Successful publish validates before mutation, removes a replaced snapshot's old incoming edges and inserts its new incoming edges. Duplicate dependencies collapse only in the reverse set; kinds and observations remain in the snapshot. Failed publication returns before index mutation."
+    },
+    {
+      "invariant": "Invalidation selects the same least closed set as the prior full-scan algorithm.",
+      "argument": "Initial consumers are selected only when an edge to the changed key observes a changed fingerprint of its own kind. Every consumer reachable from a lost snapshot then becomes invalid regardless of kind, matching the previous gone-dependency predicate. Index mutation occurs after traversal."
+    },
+    {
+      "invariant": "Deletion and replacement leave no stale reverse edges.",
+      "argument": "Each removed snapshot is unlinked from every producer in its stored dependency list; empty sets are removed. All consumers of any removed producer are already in the invalidated closure. Same-result replacement updates its input edges while retaining unaffected downstream snapshots."
+    },
+    {
+      "invariant": "Existing observable query and authorization boundaries are retained.",
+      "argument": "Read still checks the complete dependency closure and active queries. Failure/abort and revision behavior are unchanged. The invalidation return remains sorted. No front-end, verifier capability, ABI, logical-budget or backend code changes are present."
+    },
+    {
+      "invariant": "The submitted tests address mutation maintenance as well as static DAG reachability.",
+      "argument": "Read-only inspection found coverage for input replacement with unchanged results, failed replacements, mixed/duplicate fingerprint edges, shared/deep closures, active state and clear. The pre-existing 9600-case oracle comparison now also checks exact reverse-index reconstruction. These are coverage observations, not reviewer execution results."
+    }
+  ],
+  "performance_reasoning": "The baseline scans snapshots even when publish introduces an entirely new key. The indexed lookup can avoid that scan in cold CLI builds as well as in persistent sessions. Reverse-edge maintenance, cloned keys and memory remain costs; no performance outcome is asserted by this review.",
+  "reviewer_runtime_tests": [],
+  "reviewer_benchmarks": [],
+  "limitations": [
+    "No CP01 build, unit test, driver test or benchmark was executed by this reviewer during this static review.",
+    "Author and root test results are not relabeled as reviewer executions.",
+    "This is a bounded source review, not a formal proof or whole-language safety/product acceptance.",
+    "Performance integration decision remains subject to the separately frozen measurements."
+  ]
+}

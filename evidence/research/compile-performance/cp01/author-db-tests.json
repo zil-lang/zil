@@ -1,0 +1,41 @@
+{
+  "source_commit": "79cbc7ec1a6542c52c938105f2f9f4382111d355",
+  "worktree": "/workspace/scratch/037bacfed72a/cperf-db",
+  "scope": "CP01 local DB tests and all-target DB Clippy; not full acceptance",
+  "commands": [
+    {
+      "command": [
+        "python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-db"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/cperf-db-79cbc7ec1-0.log",
+      "log_sha256": "1629082af0dfe122fb2f199e8f2b8bccaa2d424740695dac37cc08bbc4d78644"
+    },
+    {
+      "command": [
+        "python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-db",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/cperf-db-79cbc7ec1-1.log",
+      "log_sha256": "da617cec9cb409cc7d90040e129ad90b46ac0d3bfc0d87a5184fe72f43403805"
+    }
+  ]
+}

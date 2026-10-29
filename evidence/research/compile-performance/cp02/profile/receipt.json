@@ -1,0 +1,351 @@
+{
+  "source_commit": "9614aac90ee58359fef05da4dcfe92011b7c91c2",
+  "note": "diagnostic opt-in runs; not paired performance estimates",
+  "records": [
+    {
+      "case": "tree1024x8",
+      "phase": "check",
+      "command": [
+        "python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "/workspace/scratch/037bacfed72a/bin/zil-cp02",
+        "check",
+        "/workspace/scratch/037bacfed72a/runs/cp01-plan/corpus/tree1024x8/base/zil/main.zil",
+        "--json",
+        "--timings"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "verification_runs": 1,
+      "root": [
+        {
+          "id": 0,
+          "parent": null,
+          "name": "compile_path",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 2804,
+          "wall_ns": 1716677405,
+          "outcome": "Success"
+        }
+      ],
+      "major_spans": [
+        {
+          "id": 0,
+          "parent": null,
+          "name": "compile_path",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 2804,
+          "wall_ns": 1716677405,
+          "outcome": "Success"
+        },
+        {
+          "id": 1,
+          "parent": 0,
+          "name": "source_discovery",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 4036,
+          "wall_ns": 398648298,
+          "outcome": "ok"
+        },
+        {
+          "id": 3083,
+          "parent": 0,
+          "name": "compile_project",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 398652875,
+          "wall_ns": 1317372948,
+          "outcome": "Success"
+        },
+        {
+          "id": 6178,
+          "parent": 3083,
+          "name": "verify",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 1609365526,
+          "wall_ns": 95786999,
+          "outcome": "ok"
+        }
+      ],
+      "report": "tree1024x8-check.json"
+    },
+    {
+      "case": "tree1024x8",
+      "phase": "build",
+      "command": [
+        "python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "/workspace/scratch/037bacfed72a/bin/zil-cp02",
+        "build",
+        "/workspace/scratch/037bacfed72a/runs/cp01-plan/corpus/tree1024x8/base/zil/main.zil",
+        "--json",
+        "--timings",
+        "-o",
+        "/workspace/scratch/037bacfed72a/runs/cp02-profile/tree1024x8-build-program",
+        "--clang",
+        "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/llvm-17/bin/clang",
+        "--opt",
+        "O0"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "verification_runs": 1,
+      "root": [
+        {
+          "id": 0,
+          "parent": null,
+          "name": "compile_path",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 3636,
+          "wall_ns": 3043191828,
+          "outcome": "Success"
+        }
+      ],
+      "major_spans": [
+        {
+          "id": 0,
+          "parent": null,
+          "name": "compile_path",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 3636,
+          "wall_ns": 3043191828,
+          "outcome": "Success"
+        },
+        {
+          "id": 1,
+          "parent": 0,
+          "name": "source_discovery",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 5288,
+          "wall_ns": 127318514,
+          "outcome": "ok"
+        },
+        {
+          "id": 3083,
+          "parent": 0,
+          "name": "compile_project",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 127324313,
+          "wall_ns": 2915572501,
+          "outcome": "Success"
+        },
+        {
+          "id": 6178,
+          "parent": 3083,
+          "name": "verify",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 818888471,
+          "wall_ns": 94586951,
+          "outcome": "ok"
+        },
+        {
+          "id": 6180,
+          "parent": 3083,
+          "name": "lower",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 914615691,
+          "wall_ns": 40453369,
+          "outcome": "ok"
+        },
+        {
+          "id": 6181,
+          "parent": 3083,
+          "name": "backend",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 963413359,
+          "wall_ns": 2058814215,
+          "outcome": "ok"
+        },
+        {
+          "id": 6182,
+          "parent": 6181,
+          "name": "machine_lower",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 963415162,
+          "wall_ns": 291121044,
+          "outcome": "ok"
+        },
+        {
+          "id": 6198,
+          "parent": 6181,
+          "name": "link",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 2919947826,
+          "wall_ns": 101814166,
+          "outcome": "ok"
+        },
+        {
+          "id": 6202,
+          "parent": 3083,
+          "name": "publication",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 3034104329,
+          "wall_ns": 96706,
+          "outcome": "ok"
+        },
+        {
+          "id": 6203,
+          "parent": 3083,
+          "name": "cache_store",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 3034201315,
+          "wall_ns": 711,
+          "outcome": "ok"
+        }
+      ],
+      "report": "tree1024x8-build.json"
+    },
+    {
+      "case": "retained",
+      "phase": "build",
+      "command": [
+        "python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "/workspace/scratch/037bacfed72a/bin/zil-cp02",
+        "build",
+        "/workspace/scratch/037bacfed72a/runs/cp01-plan/corpus/retained/base/zil/main.zil",
+        "--json",
+        "--timings",
+        "-o",
+        "/workspace/scratch/037bacfed72a/runs/cp02-profile/retained-build-program",
+        "--clang",
+        "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/llvm-17/bin/clang",
+        "--opt",
+        "O0"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "verification_runs": 1,
+      "root": [
+        {
+          "id": 0,
+          "parent": null,
+          "name": "compile_path",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 2904,
+          "wall_ns": 44902828,
+          "outcome": "Success"
+        }
+      ],
+      "major_spans": [
+        {
+          "id": 0,
+          "parent": null,
+          "name": "compile_path",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 2904,
+          "wall_ns": 44902828,
+          "outcome": "Success"
+        },
+        {
+          "id": 1,
+          "parent": 0,
+          "name": "source_discovery",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 4116,
+          "wall_ns": 1110404,
+          "outcome": "ok"
+        },
+        {
+          "id": 14,
+          "parent": 0,
+          "name": "compile_project",
+          "kind": "request",
+          "unit_index": null,
+          "start_ns": 1114590,
+          "wall_ns": 43783781,
+          "outcome": "Success"
+        },
+        {
+          "id": 40,
+          "parent": 14,
+          "name": "verify",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 3682662,
+          "wall_ns": 718363,
+          "outcome": "ok"
+        },
+        {
+          "id": 42,
+          "parent": 14,
+          "name": "lower",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 4408406,
+          "wall_ns": 25078,
+          "outcome": "ok"
+        },
+        {
+          "id": 43,
+          "parent": 14,
+          "name": "backend",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 4601207,
+          "wall_ns": 40118254,
+          "outcome": "ok"
+        },
+        {
+          "id": 44,
+          "parent": 43,
+          "name": "machine_lower",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 4601828,
+          "wall_ns": 285830,
+          "outcome": "ok"
+        },
+        {
+          "id": 60,
+          "parent": 43,
+          "name": "link",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 12088755,
+          "wall_ns": 32439247,
+          "outcome": "ok"
+        },
+        {
+          "id": 64,
+          "parent": 14,
+          "name": "publication",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 44805210,
+          "wall_ns": 30466,
+          "outcome": "ok"
+        },
+        {
+          "id": 65,
+          "parent": 14,
+          "name": "cache_store",
+          "kind": "stage",
+          "unit_index": null,
+          "start_ns": 44835957,
+          "wall_ns": 641,
+          "outcome": "ok"
+        }
+      ],
+      "report": "retained-build.json"
+    }
+  ]
+}

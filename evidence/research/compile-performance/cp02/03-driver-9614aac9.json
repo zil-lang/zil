@@ -1,0 +1,21 @@
+{
+  "source_commit": "9614aac90ee58359fef05da4dcfe92011b7c91c2",
+  "command": [
+    "python",
+    "/workspace/scratch/037bacfed72a/run-tool.py",
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "stage_timings",
+    "--features",
+    "llvm-api"
+  ],
+  "target": "/workspace/scratch/037bacfed72a/targets/cp02",
+  "exit": 0,
+  "wall_seconds": 1.4104342460632324,
+  "log": "03-driver-9614aac9.log"
+}

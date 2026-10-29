@@ -1,0 +1,8 @@
+{
+  "implementation_commit": "9614aac90ee58359fef05da4dcfe92011b7c91c2",
+  "implementation_crates_tree": "2d3bdfe9336f666508e2ba88218480c8e3aa36ea",
+  "integrated_local_commit": "7332be7ed356014f4006e5b71a81ac550dfe4026",
+  "check": "git diff --exit-code 9614aac90ee58359fef05da4dcfe92011b7c91c2 7332be7ed356014f4006e5b71a81ac550dfe4026 -- crates",
+  "exit": 0,
+  "binary_sha256": "94938d821b9471ebbb8b3136d200a355b730c27aa6847e24534dd8d8513c0837"
+}

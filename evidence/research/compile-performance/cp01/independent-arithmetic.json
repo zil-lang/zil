@@ -1,0 +1,509 @@
+{
+  "schema": "zil-compile-performance-independent-arithmetic/1",
+  "reviewer": "/root/compiler_research",
+  "scope": "independent recalculation of existing frozen records; no new compiler execution or experiment",
+  "plan_sha256": "183e93676312492b9cefb1a80ba9508c4b4c0b8cbadc15eab1c06df64127eaf7",
+  "records_sha256": "a40cd41113dfb54fbc521578922cb229344cca8a88e4f1b703d1f62898969e04",
+  "original_summary_sha256": "dbcd231834aab4083dacb2379b2c2dfd58cc91d4378b474e0dc5dd4ace36ffa1",
+  "source_identity": {
+    "A": {
+      "commit": "ad509b5003d9d2a303428f9d01732292988084d8",
+      "crates_tree": "134e066683d75434484cd1252b02e678f9cc10d8"
+    },
+    "B": {
+      "commit": "8a267372675f312e470d99e383037f8af7defe2a",
+      "crates_tree": "ad4304677fdfaf5b23b5988d90f3c2b688fe7c53"
+    }
+  },
+  "imports_benchmark_helpers": false,
+  "verdict": "Pass",
+  "issues": [],
+  "coverage": {
+    "rows": 480,
+    "failed_rows": 0,
+    "timed_out_rows": 0,
+    "phase_rows": {
+      "check": 240,
+      "build": 240
+    },
+    "arm_rows": {
+      "A": 240,
+      "B": 240
+    },
+    "blocks": 3,
+    "cases": 5,
+    "request_kinds": 4,
+    "block_phase_case_request_arm_cells": 240,
+    "observations_per_cell": 2,
+    "exact_frozen_order": true,
+    "source_before_after_matches_frozen_snapshot_rows": 480,
+    "native_checks": 768,
+    "native_log_files_rehashed": 1536,
+    "binary_hash_cells": 15,
+    "same_logged_binary_hash_per_case_snapshot": true
+  },
+  "arithmetic": {
+    "number_type": "Decimal, precision 45",
+    "algorithm": "Average the two arm observations within each block; median across blocks; sum request- and case-weighted absolute costs; divide weighted B by weighted A.",
+    "compared_summary_numbers": 240,
+    "comparison_tolerance": 1e-12,
+    "max_absolute_difference": 3.5018210143962655e-16,
+    "by_phase": {
+      "check": {
+        "wall": {
+          "A": 0.3778253242675,
+          "B": 0.38004497913625,
+          "B_over_A": 1.0058748176106334,
+          "by_case": {
+            "tree4x2": {
+              "A": 0.01812578765,
+              "B": 0.017424280575,
+              "B_over_A": 0.9612978432415874
+            },
+            "tree32x8": {
+              "A": 0.0428473598,
+              "B": 0.03855628695,
+              "B_over_A": 0.8998521059400257
+            },
+            "tree256x8": {
+              "A": 0.20404401955,
+              "B": 0.205610771975,
+              "B_over_A": 1.0076785020627184
+            },
+            "tree1024x8": {
+              "A": 1.0182803859,
+              "B": 1.025692063575,
+              "B_over_A": 1.007278621662195
+            },
+            "retained": {
+              "A": 0.0189730464,
+              "B": 0.019997357,
+              "B_over_A": 1.0539876716898768
+            }
+          },
+          "by_request": {
+            "cold_process": {
+              "A": 0.546367054675,
+              "B": 0.571321268875,
+              "B_over_A": 1.0456729848303972
+            },
+            "unchanged": {
+              "A": 0.34314561595,
+              "B": 0.359480952325,
+              "B_over_A": 1.0476046774771566
+            },
+            "private_edit": {
+              "A": 0.372191659,
+              "B": 0.356259126775,
+              "B_over_A": 0.9571926671656014
+            },
+            "public_edit": {
+              "A": 0.36140659745,
+              "B": 0.3639391215,
+              "B_over_A": 1.0070074095710175
+            }
+          }
+        },
+        "by_case_request": {
+          "tree4x2/cold_process": {
+            "A": 0.0235033315,
+            "B": 0.020606043,
+            "B_over_A": 0.8767286033471468
+          },
+          "tree4x2/unchanged": {
+            "A": 0.0171727685,
+            "B": 0.01607331,
+            "B_over_A": 0.935976630675479
+          },
+          "tree4x2/private_edit": {
+            "A": 0.017319879,
+            "B": 0.017740851,
+            "B_over_A": 1.0243057125283612
+          },
+          "tree4x2/public_edit": {
+            "A": 0.0189135595,
+            "B": 0.0176111825,
+            "B_over_A": 0.9311405661107842
+          },
+          "tree32x8/cold_process": {
+            "A": 0.070478802,
+            "B": 0.0667282975,
+            "B_over_A": 0.9467853539848762
+          },
+          "tree32x8/unchanged": {
+            "A": 0.0373203355,
+            "B": 0.0323362875,
+            "B_over_A": 0.8664522187910128
+          },
+          "tree32x8/private_edit": {
+            "A": 0.042723717,
+            "B": 0.0364615295,
+            "B_over_A": 0.8534259671273452
+          },
+          "tree32x8/public_edit": {
+            "A": 0.0376525025,
+            "B": 0.0398742985,
+            "B_over_A": 1.0590079238425123
+          },
+          "tree256x8/cold_process": {
+            "A": 0.331067052,
+            "B": 0.334111782,
+            "B_over_A": 1.0091967170444978
+          },
+          "tree256x8/unchanged": {
+            "A": 0.175181485,
+            "B": 0.188456652,
+            "B_over_A": 1.075779509461288
+          },
+          "tree256x8/private_edit": {
+            "A": 0.206483045,
+            "B": 0.1862734715,
+            "B_over_A": 0.9021247797851877
+          },
+          "tree256x8/public_edit": {
+            "A": 0.180203844,
+            "B": 0.2115358465,
+            "B_over_A": 1.1738697788266936
+          },
+          "tree1024x8/cold_process": {
+            "A": 1.432302536,
+            "B": 1.52069263,
+            "B_over_A": 1.0617118882207996
+          },
+          "tree1024x8/unchanged": {
+            "A": 0.936638773,
+            "B": 0.978692955,
+            "B_over_A": 1.044899040283484
+          },
+          "tree1024x8/private_edit": {
+            "A": 0.997640408,
+            "B": 0.9655185275,
+            "B_over_A": 0.9678021457005779
+          },
+          "tree1024x8/public_edit": {
+            "A": 0.987802657,
+            "B": 0.9658190355,
+            "B_over_A": 0.9777449257255845
+          },
+          "retained/cold_process": {
+            "A": 0.028045957,
+            "B": 0.0192019925,
+            "B_over_A": 0.6846616965147597
+          },
+          "retained/unchanged": {
+            "A": 0.015714249,
+            "B": 0.018409808,
+            "B_over_A": 1.1715359734976836
+          },
+          "retained/private_edit": {
+            "A": 0.018400358,
+            "B": 0.0218262755,
+            "B_over_A": 1.186187545916226
+          },
+          "retained/public_edit": {
+            "A": 0.022055469,
+            "B": 0.019354765,
+            "B_over_A": 0.8775494640354281
+          }
+        },
+        "cpu": {
+          "A": 0.36071122499999997,
+          "B": 0.36258430124999996,
+          "B_over_A": 1.0051927306947546,
+          "by_case": {
+            "tree4x2": {
+              "A": 0.015927,
+              "B": 0.0160464,
+              "B_over_A": 1.00749670371068
+            },
+            "tree32x8": {
+              "A": 0.03865395,
+              "B": 0.035110875,
+              "B_over_A": 0.9083386044634507
+            },
+            "tree256x8": {
+              "A": 0.19312812499999998,
+              "B": 0.19315985,
+              "B_over_A": 1.0001642691865826
+            },
+            "tree1024x8": {
+              "A": 0.9759458499999999,
+              "B": 0.9830376499999999,
+              "B_over_A": 1.0072665916864136
+            },
+            "retained": {
+              "A": 0.01697295,
+              "B": 0.018280499999999998,
+              "B_over_A": 1.0770372857988741
+            }
+          },
+          "by_request": {
+            "cold_process": {
+              "A": 0.3969296,
+              "B": 0.411157075,
+              "B_over_A": 1.035843824698385
+            },
+            "unchanged": {
+              "A": 0.341967975,
+              "B": 0.35855499999999996,
+              "B_over_A": 1.0485046150885913
+            },
+            "private_edit": {
+              "A": 0.36904555,
+              "B": 0.35441924999999996,
+              "B_over_A": 0.9603672229620435
+            },
+            "public_edit": {
+              "A": 0.358075025,
+              "B": 0.361377625,
+              "B_over_A": 1.0092232067846676
+            }
+          }
+        }
+      },
+      "build": {
+        "wall": {
+          "A": 1.0471881188725,
+          "B": 1.07028870504375,
+          "B_over_A": 1.0220596335605128,
+          "by_case": {
+            "tree4x2": {
+              "A": 0.06476688465,
+              "B": 0.057702624425,
+              "B_over_A": 0.8909278983669627
+            },
+            "tree32x8": {
+              "A": 0.13836753375,
+              "B": 0.1288644261,
+              "B_over_A": 0.9313198161992968
+            },
+            "tree256x8": {
+              "A": 0.6285656298,
+              "B": 0.653070798475,
+              "B_over_A": 1.0389858552762377
+            },
+            "tree1024x8": {
+              "A": 2.741000067175,
+              "B": 2.799533911,
+              "B_over_A": 1.0213549224335947
+            },
+            "retained": {
+              "A": 0.061624677425,
+              "B": 0.061462485325,
+              "B_over_A": 0.99736806573637
+            }
+          },
+          "by_request": {
+            "cold_process": {
+              "A": 1.218940684575,
+              "B": 1.2977091287,
+              "B_over_A": 1.0646204078030783
+            },
+            "unchanged": {
+              "A": 1.0469964995,
+              "B": 1.07165962625,
+              "B_over_A": 1.023556073742155
+            },
+            "private_edit": {
+              "A": 1.00878459945,
+              "B": 1.010863696425,
+              "B_over_A": 1.002060991985934
+            },
+            "public_edit": {
+              "A": 1.0355429054,
+              "B": 1.073942962775,
+              "B_over_A": 1.0370820534569423
+            }
+          }
+        },
+        "by_case_request": {
+          "tree4x2/cold_process": {
+            "A": 0.067611658,
+            "B": 0.068125034,
+            "B_over_A": 1.0075930100693582
+          },
+          "tree4x2/unchanged": {
+            "A": 0.0621182765,
+            "B": 0.0542973575,
+            "B_over_A": 0.874096329765363
+          },
+          "tree4x2/private_edit": {
+            "A": 0.0655312495,
+            "B": 0.056975288,
+            "B_over_A": 0.8694369241349503
+          },
+          "tree4x2/public_edit": {
+            "A": 0.0670121485,
+            "B": 0.060639538,
+            "B_over_A": 0.9049036534024871
+          },
+          "tree32x8/cold_process": {
+            "A": 0.1556534595,
+            "B": 0.158291135,
+            "B_over_A": 1.0169458199546153
+          },
+          "tree32x8/unchanged": {
+            "A": 0.1411138285,
+            "B": 0.1256262915,
+            "B_over_A": 0.8902479142928221
+          },
+          "tree32x8/private_edit": {
+            "A": 0.1354271275,
+            "B": 0.1271213905,
+            "B_over_A": 0.9386700644595743
+          },
+          "tree32x8/public_edit": {
+            "A": 0.1282766455,
+            "B": 0.1214503625,
+            "B_over_A": 0.9467846779638465
+          },
+          "tree256x8/cold_process": {
+            "A": 0.742567991,
+            "B": 0.7784809215,
+            "B_over_A": 1.0483631545330103
+          },
+          "tree256x8/unchanged": {
+            "A": 0.6123660325,
+            "B": 0.6269594355,
+            "B_over_A": 1.0238311764949177
+          },
+          "tree256x8/private_edit": {
+            "A": 0.61167827,
+            "B": 0.6445203235,
+            "B_over_A": 1.0536917119844718
+          },
+          "tree256x8/public_edit": {
+            "A": 0.6353960755,
+            "B": 0.65319183,
+            "B_over_A": 1.0280073409109372
+          },
+          "tree1024x8/cold_process": {
+            "A": 3.1877807635,
+            "B": 3.411814541,
+            "B_over_A": 1.0702789163123074
+          },
+          "tree1024x8/unchanged": {
+            "A": 2.7575457385,
+            "B": 2.835278939,
+            "B_over_A": 1.0281892696881554
+          },
+          "tree1024x8/private_edit": {
+            "A": 2.6306753125,
+            "B": 2.609118631,
+            "B_over_A": 0.9918056472429073
+          },
+          "tree1024x8/public_edit": {
+            "A": 2.698739049,
+            "B": 2.815715839,
+            "B_over_A": 1.0433449799614176
+          },
+          "retained/cold_process": {
+            "A": 0.065537282,
+            "B": 0.06735284,
+            "B_over_A": 1.0277026746394518
+          },
+          "retained/unchanged": {
+            "A": 0.0587499005,
+            "B": 0.0571465115,
+            "B_over_A": 0.9727082261186127
+          },
+          "retained/private_edit": {
+            "A": 0.0624394655,
+            "B": 0.0642751855,
+            "B_over_A": 1.0293999954243682
+          },
+          "retained/public_edit": {
+            "A": 0.063551319,
+            "B": 0.060105654,
+            "B_over_A": 0.9457813770946281
+          }
+        },
+        "cpu": {
+          "A": 1.0270499849999999,
+          "B": 1.04788264125,
+          "B_over_A": 1.0202839750297061,
+          "by_case": {
+            "tree4x2": {
+              "A": 0.0617258,
+              "B": 0.054180775,
+              "B_over_A": 0.8777654562597812
+            },
+            "tree32x8": {
+              "A": 0.1337465,
+              "B": 0.12385275,
+              "B_over_A": 0.9260261016176125
+            },
+            "tree256x8": {
+              "A": 0.614791675,
+              "B": 0.63820475,
+              "B_over_A": 1.0380829408596008
+            },
+            "tree1024x8": {
+              "A": 2.693168875,
+              "B": 2.74517145,
+              "B_over_A": 1.0193090657933583
+            },
+            "retained": {
+              "A": 0.057567774999999995,
+              "B": 0.05791415,
+              "B_over_A": 1.0060168210426754
+            }
+          },
+          "by_request": {
+            "cold_process": {
+              "A": 1.054336375,
+              "B": 1.10747795,
+              "B_over_A": 1.0504028659733948
+            },
+            "unchanged": {
+              "A": 1.044332525,
+              "B": 1.0681618,
+              "B_over_A": 1.0228177083731065
+            },
+            "private_edit": {
+              "A": 1.004445775,
+              "B": 1.006905725,
+              "B_over_A": 1.0024490620212922
+            },
+            "public_edit": {
+              "A": 1.028811025,
+              "B": 1.070106175,
+              "B_over_A": 1.040138712549275
+            }
+          }
+        }
+      }
+    }
+  },
+  "exact_paired_block_bootstrap": {
+    "check": {
+      "ordered_resamples": 27,
+      "percentile_rule": "nearest rank, exact enumeration",
+      "interval95": [
+        0.9696857241915561,
+        1.0354479856480012
+      ],
+      "crosses_one": true,
+      "matches_original_monte_carlo_endpoints_within_1e_12": true
+    },
+    "build": {
+      "ordered_resamples": 27,
+      "percentile_rule": "nearest rank, exact enumeration",
+      "interval95": [
+        0.8890702001485145,
+        1.0986220646288782
+      ],
+      "crosses_one": true,
+      "matches_original_monte_carlo_endpoints_within_1e_12": true
+    }
+  },
+  "conclusion": "The independently recomputed point estimates do not establish an overall improvement. Both exploratory paired-block intervals include 1. NoGo is consistent with these records; a stable regression is not proven.",
+  "product_gates": "NotRun",
+  "new_compiler_executions": 0,
+  "limitations": [
+    "This recalculates existing records and checks their stored native logs; it is not a second performance experiment.",
+    "Three blocks on a shared host do not establish population-level performance guarantees.",
+    "Compiler binaries were not re-executed, and deleted executables could only be compared by their retained hashes.",
+    "The original summary intervals use Monte Carlo; the independent interval check instead enumerates all 27 ordered resamples."
+  ]
+}

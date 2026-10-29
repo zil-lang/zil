@@ -1,0 +1,19 @@
+{
+  "source_commit": "9614aac90ee58359fef05da4dcfe92011b7c91c2",
+  "command": [
+    "python",
+    "/workspace/scratch/037bacfed72a/run-tool.py",
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-cli",
+    "--test",
+    "stage_timings"
+  ],
+  "target": "/workspace/scratch/037bacfed72a/targets/cp02",
+  "exit": 0,
+  "wall_seconds": 0.39284801483154297,
+  "log": "04-cli-9614aac9.log"
+}

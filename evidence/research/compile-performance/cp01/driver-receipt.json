@@ -1,0 +1,29 @@
+{
+  "reviewer": "/root",
+  "implementation_author": "/root/frontend_audit",
+  "implementation_commit": "79cbc7ec1a6542c52c938105f2f9f4382111d355",
+  "binary": "/workspace/scratch/037bacfed72a/bin/zil-cp01",
+  "binary_sha256": "1f87bafc3eacc785fba9908f418b2af50989cb29cc701a408a6f0a64dce3ecef",
+  "command": [
+    "python",
+    "/workspace/scratch/037bacfed72a/run-tool.py",
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--lib",
+    "--test",
+    "impl068_vertical",
+    "--test",
+    "impl158_filesystem_cache",
+    "--test",
+    "object_cache212"
+  ],
+  "exit": 0,
+  "log": "/workspace/scratch/037bacfed72a/cp01-review/driver-tests.log",
+  "scope": "affected driver closure; not full workspace/product gates"
+}

@@ -1,0 +1,22 @@
+{
+  "source_commit": "9614aac90ee58359fef05da4dcfe92011b7c91c2",
+  "crates_tree": "2d3bdfe9336f666508e2ba88218480c8e3aa36ea",
+  "command": [
+    "python",
+    "/workspace/scratch/037bacfed72a/run-tool.py",
+    "cargo",
+    "build",
+    "--offline",
+    "--locked",
+    "--release",
+    "-p",
+    "zil-cli"
+  ],
+  "target": "/workspace/scratch/037bacfed72a/targets/cp02",
+  "exit": 0,
+  "wall_seconds": 65.03342700004578,
+  "log": "06-release-9614aac9.log",
+  "binary": "/workspace/scratch/037bacfed72a/bin/zil-cp02",
+  "binary_sha256": "94938d821b9471ebbb8b3136d200a355b730c27aa6847e24534dd8d8513c0837",
+  "binary_size": 6939840
+}

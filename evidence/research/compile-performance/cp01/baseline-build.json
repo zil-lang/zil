@@ -1,0 +1,57 @@
+{
+  "commit": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "tree": "fec01a1f44bd710a2f131122041708f977683206",
+  "binary": "/workspace/scratch/037bacfed72a/bin/zil-baseline",
+  "sha256": "aeb711106c185d4eb5570a4a22c9ba64502e96e566fb40f73a8c96091d31ff66",
+  "build_command": "python /workspace/scratch/037bacfed72a/run-tool.py cargo build --offline --locked --release -p zil-cli",
+  "build_exit": 0,
+  "tools": [
+    {
+      "argv": [
+        "rustc",
+        "-Vv"
+      ],
+      "exit": 0,
+      "stdout": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "clang",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "Ubuntu clang version 17.0.6 (++20231209124227+6009708b4367-1~exp1~20231209124336.77)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/llvm-17/bin\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/workspace/scratch/037bacfed72a/bin/zil-baseline",
+        "version"
+      ],
+      "exit": 0,
+      "stdout": "zil 0.1.0 (ZIL-LANG-1.4; Rust 2024; compiler draft; default backend: llvm-api)\n",
+      "stderr": ""
+    }
+  ],
+  "smoke_build": {
+    "argv": [
+      "python",
+      "/workspace/scratch/037bacfed72a/run-tool.py",
+      "/workspace/scratch/037bacfed72a/bin/zil-baseline",
+      "build",
+      "examples/mainline/zui_language177/main.zil",
+      "--json",
+      "-o",
+      "/workspace/scratch/037bacfed72a/runs/baseline-smoke/consumer"
+    ],
+    "exit": 0,
+    "report_path": "/workspace/scratch/037bacfed72a/runs/baseline-smoke/build.stdout.json"
+  },
+  "smoke_run": {
+    "input_hex": "33",
+    "exit": 0,
+    "stdout": "DEFHZMNOPK",
+    "stderr": ""
+  }
+}

@@ -5,6 +5,7 @@
 
 pub mod model;
 mod preflight;
+pub mod timing;
 
 #[cfg(feature = "native")]
 #[allow(unsafe_code)]
@@ -119,13 +120,26 @@ pub fn compile_module(
     config: &Config<'_>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
+    compile_module_with_trace(module, config, cancelled, &timing::TimingTrace::default())
+}
+
+/// Optional diagnostic intervals, including failures and native-handle cleanup.
+/// This does not change Config, object identity, verification, or optimization.
+pub fn compile_module_with_trace(
+    module: &model::Module,
+    config: &Config<'_>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    trace: &timing::TimingTrace,
+) -> Result<Object, Error> {
     #[cfg(feature = "native")]
     {
-        native::compile_module(module, config, cancelled)
+        trace.measure("llvm", "stage", |trace| {
+            native::compile_module(module, config, cancelled, trace)
+        })
     }
     #[cfg(not(feature = "native"))]
     {
-        let _ = (module, config, cancelled);
+        let _ = (module, config, cancelled, trace);
         Err(Error {
             kind: ErrorKind::Unavailable,
             message: "rebuild with llvm-api feature and LLVM 17.0.6".into(),

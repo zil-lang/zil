@@ -1,0 +1,13 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/037bacfed72a/cperf-timing/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.23s
+     Running tests/stage_timings.rs (/workspace/scratch/037bacfed72a/targets/cp02/debug/deps/stage_timings-51f48ad81fa6f1a9)
+
+running 5 tests
+test rejected_and_cancelled_requests_keep_only_actual_intervals ... ok
+test filesystem_discovery_failure_and_parse_stop_have_distinct_scopes ... ok
+test timing_switch_is_not_a_query_key_and_verify_still_runs ... ok
+test request_root_includes_real_session_capacity_eviction ... ok
+test native_cold_hit_and_link_failure_preserve_bytes_and_current_verification ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+

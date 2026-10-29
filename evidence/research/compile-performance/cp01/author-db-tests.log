@@ -1,0 +1,29 @@
+   Compiling zil-db v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-db)
+    Finished `test` profile [unoptimized] target(s) in 0.47s
+     Running unittests src/lib.rs (target/debug/deps/zil_db-43877e21f1283294)
+
+running 15 tests
+test tests::cancellation_is_shared_and_deadlines_do_not_require_background_threads ... ok
+test tests::absent_invalidation_preserves_active_queries_revision_and_published_identity ... ok
+test tests::dependency_cycles_and_active_ancestors_cannot_be_observed_or_published ... ok
+test tests::failed_new_publications_cannot_create_forward_edges_or_replace_old_snapshots ... ok
+test tests::failed_replacements_preserve_the_original_snapshot_and_reverse_edges ... ok
+test tests::mixed_kind_duplicate_edges_and_shared_consumers_keep_exact_invalidation ... ok
+test tests::all_fingerprint_kinds_control_the_actual_transitive_invalidation_set ... ok
+test tests::same_result_replacement_moves_reverse_edges_to_the_new_inputs ... ok
+test tests::stale_input_and_cancelled_publication_abort_the_active_record ... ok
+test cache::tests::oversized_reads_and_writes_are_bounded ... ok
+test cache::tests::incomplete_temp_files_are_not_committed_candidates ... ok
+test cache::tests::cancellation_after_real_temporary_write_cannot_publish_or_leave_partial_file ... ok
+test cache::tests::each_corruption_class_is_untrusted_and_can_be_rebuilt ... ok
+test tests::deep_shared_closures_preserve_active_state_and_clear_removes_every_edge ... ok
+test tests::absent_producers_match_legacy_scanning_on_reachable_dags_and_after_eviction ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.96s
+
+   Doc-tests zil_db
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

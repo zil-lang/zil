@@ -1,0 +1,82 @@
+   Compiling zil-ir v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-ir)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-llvm-api)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-types)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-ct)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/037bacfed72a/cperf-db/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 12.72s
+     Running unittests src/lib.rs (target/debug/deps/zil_driver-fa1548cfe1f00883)
+
+running 28 tests
+test ct_program::tests::ct202_collector_bounds_unused_template_names_before_whole_program_copy ... ok
+test ct_program::tests::ct_reachable_pattern_trees_are_bounded_before_clone ... ok
+test session::construction_identity150_tests::construction_identity_binds_every_query_axis_and_all_limits ... ok
+test ct_program::tests::ct202_collector_rejects_bare_template_and_indirect_wrapper_before_execution ... ok
+test ct_program::tests::ct122_original_teardown_is_bounded_before_query_copy ... ok
+test session::construction_identity150_tests::construction_identity_binds_order_count_upstream_key_and_observation ... ok
+test project::discovery158_tests::cached_syntax_cannot_hide_lower_quotas_syntax_errors_or_ambiguous_entries ... ok
+test project::discovery158_tests::discovery_reuses_exact_published_syntax_arcs_but_reads_edited_bytes ... ok
+test project::discovery158_tests::capacity_clear_keeps_immutable_lent_syntax_but_not_query_authority ... ok
+test tests::artifact_preflight_rejects_dump_native_collisions_before_any_write ... ok
+test project::discovery158_tests::discovery_cancellation_and_active_query_guards_still_apply ... ok
+test artifacts::tests::second_native_rename_failure_restores_both_previous_outputs ... ok
+test tests::cache_session_reuses_raw_phases_but_always_runs_independent_verification ... ok
+test tests::cache_tampered_raw_typed_snapshot_is_rejected_by_a_new_verifier_run ... ok
+test tests::cache_target_change_reuses_frontend_and_rechecks_target_dependent_phases ... ok
+test tests::cache_changed_source_limits_build_inputs_and_file_identity_cannot_reuse_stale_snapshots ... ok
+test tests::cancellation_before_start_and_after_cache_hit_cannot_report_success ... ok
+test tests::artifact_preflight_detects_hard_links_and_parent_symlink_aliases ... ok
+test tests::cancellation_during_a_phase_aborts_publication_and_next_request_recovers ... ok
+test tests::explicit_main_contract_has_the_frozen_types_diagnostics ... ok
+test tests::unsupported_profile_and_invalid_source_have_explicit_categories ... ok
+test tests::native_entry_cannot_select_a_synthesized_closure_with_or_without_captures ... ok
+test tests::artifact_preflight_protects_source_from_every_phase_dump_and_native_destination ... ok
+test tests::source_ct_keeps_original_core_and_propagates_ct_errors ... ok
+test tests::cache_disk_corruption_is_rebuilt_and_never_substitutes_for_phase_execution ... ok
+test tests::cancellation_after_native_link_removes_the_unpublished_executable ... ok
+test tests::late_artifact_failure_preserves_both_previous_native_outputs ... ok
+test tests::cancellation_after_native_link_preserves_both_previous_successful_outputs ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/impl068_vertical.rs (target/debug/deps/impl068_vertical-0bc5e8c00695f781)
+
+running 6 tests
+test artifact_collision_and_cancelled_request_never_publish_seeded_syntax ... ok
+test syntax_only_stop_does_not_discover_missing_imports_or_publish_failed_loads ... ok
+test cumulative_source_and_frontend_quotas_still_reject_before_verify ... ok
+test existing_read_only_source_cache_is_read_without_replacing_independent_verification ... ok
+test private_edit_and_request_identity_changes_do_not_reuse_stale_analysis ... ok
+test path_discovery_and_explicit_sources_have_identical_stages_and_verified_interfaces ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/impl158_filesystem_cache.rs (target/debug/deps/impl158_filesystem_cache-c166a6ff5f750471)
+
+running 1 test
+test warm_filesystem_edits_import_order_and_failed_requests_do_not_reuse_stale_syntax ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.82s
+
+     Running tests/object_cache212.rs (target/debug/deps/object_cache212-8eb14ab05887cf5f)
+
+running 11 tests
+test cache_directory_failure_is_a_visible_bypass_not_a_build_failure ... ok
+test cancellation_after_backend_success_does_not_commit_object_cache ... ok
+test linker_failure_discards_pending_objects_and_preserves_previous_output ... ok
+test diagnostic_fingerprint_change_does_not_pollute_machine_keys ... ok
+test concurrent_requests_share_only_complete_native_objects ... ok
+test unsafe_or_invalid_current_source_never_reuses_a_success_capability ... ok
+test corrupt_and_truncated_entries_rebuild_without_changed_native_bytes ... ok
+test cold_warm_private_public_edits_preserve_current_verify_and_output ... ok
+test current_checked_overflow_still_traps_on_cache_hits ... ok
+test optimization_and_units_invalidate_but_job_count_does_not ... ok
+test owned_state_store_and_callbacks_match_on_cold_and_warm_o0_o2 ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.23s
+

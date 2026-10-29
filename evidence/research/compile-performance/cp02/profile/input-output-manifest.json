@@ -1,0 +1,68 @@
+[
+  {
+    "file": "receipt.json",
+    "sha256": "a27c9e41bcc7dc4613c05b0cf1c2f0a2ab65f23844ad318d063ef26a10d633b0",
+    "bytes": 8880,
+    "retained": true
+  },
+  {
+    "file": "retained-build-program",
+    "sha256": "3442a6b7ac9784636ff9b1b40e0a4a2c59df7bbaa084e1336cf5908fa0193574",
+    "bytes": 16768,
+    "retained": false
+  },
+  {
+    "file": "retained-build-program.ll",
+    "sha256": "fa5f5096ebd856a3b4feb8820cc3fba18462e304f15da2d1f1c9c8b7132c8eda",
+    "bytes": 19289,
+    "retained": false
+  },
+  {
+    "file": "retained-build.json",
+    "sha256": "aa1552c8e0f90480ea570cb842f30b4b31be72cb01361ab53ed7864815d01046",
+    "bytes": 12812,
+    "retained": true
+  },
+  {
+    "file": "retained-build.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "retained": true
+  },
+  {
+    "file": "tree1024x8-build-program",
+    "sha256": "50040604a0aff0d55203a7dac2761999d51374270270a74372bc6bfb27ce772c",
+    "bytes": 1575552,
+    "retained": false
+  },
+  {
+    "file": "tree1024x8-build-program.ll",
+    "sha256": "a336d2364e318886b6f68eea1b20f572a97d23a90b01f329ebcf185495fad677",
+    "bytes": 10062939,
+    "retained": false
+  },
+  {
+    "file": "tree1024x8-build.json",
+    "sha256": "244637280e659ae4be1cc1acbf2b31c4d7d74f555b8cda547d3545e552fb7042",
+    "bytes": 1349129,
+    "retained": true
+  },
+  {
+    "file": "tree1024x8-build.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "retained": true
+  },
+  {
+    "file": "tree1024x8-check.json",
+    "sha256": "d3a95a1986e530b67a4c6c1c4d9b888a999c29c4bba886af167d0a0ba03f16c8",
+    "bytes": 1348403,
+    "retained": true
+  },
+  {
+    "file": "tree1024x8-check.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "retained": true
+  }
+]

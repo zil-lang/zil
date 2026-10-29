@@ -1,0 +1,90 @@
+{
+  "experiment": "CP02",
+  "implementation_commit": "9614aac90ee58359fef05da4dcfe92011b7c91c2",
+  "baseline": "6f25feeb922d115137f31a2a5632be4ef2b52725",
+  "author": "/root/backend_audit",
+  "reviewer": "/root/frontend_audit",
+  "verdict": "Pass",
+  "scope": "Static review of the exact implementation and review of author-executed test logs; reviewer did not run build, tests or performance measurements.",
+  "reviewer_test_execution": false,
+  "checks": [
+    "Disabled TimingTrace allocates no trace state and performs no added clock read or lock.",
+    "Tracing does not enter source query keys, object action keys, target or optimization options.",
+    "Current independent Verify, cached machine preflight and native object write/link remain on their original paths.",
+    "Publication validation, final publication and object-cache commit preserve original order; failures cannot acquire publication authority.",
+    "Request spans include source discovery and session capacity eviction; legacy report.seconds retains its narrower pre-existing boundary.",
+    "Parent spans include children; parallel unit spans use a shared origin and unit identifiers. JSON explicitly forbids summing nested or overlapping spans as wall or CPU time.",
+    "Single-unit Clang code generation plus linking is explicitly labelled clang_compile_and_link.",
+    "Worker join and deterministic unit-id error selection remain unchanged.",
+    "Early return and unwinding close scopes without converting incomplete work to success.",
+    "Final fix changes only crate-root field visibility from invalid pub(super) to pub(crate)."
+  ],
+  "author_test_results": [
+    {
+      "suite": "zil-driver stage_timings with llvm-api",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "exit_code": 0,
+      "receipt": {
+        "path": "03-driver-9614aac9.json",
+        "sha256": "f1a8167bd118d21246394d8bc63ca3dcee956b88cc7c61861c850259d27e27cb"
+      },
+      "log": {
+        "path": "03-driver-9614aac9.log",
+        "sha256": "a50a3287398afa121ccdcc594e84769f3b71c914a3b26cb8532aed7d3f9c7b18"
+      }
+    },
+    {
+      "suite": "zil-cli stage_timings",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "exit_code": 0,
+      "receipt": {
+        "path": "04-cli-9614aac9.json",
+        "sha256": "eb4eb75ea026284e91f75cbbd4e6869f6b30602d64d1e1c03faadd219900a1e8"
+      },
+      "log": {
+        "path": "04-cli-9614aac9.log",
+        "sha256": "6a2ebad27f6f2147985f418aa2ec1e1e52daee5640ab89cb3a5f8d7766866caf"
+      }
+    },
+    {
+      "suite": "zil-llvm-api timing library tests",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "exit_code": 0,
+      "receipt": {
+        "path": "05-leaf-final-9614aac9.json",
+        "sha256": "bfd20d87ba09c58ca0c45607b9d5a45a41edcd9d69940dcab0d2e932c51d94ca"
+      },
+      "log": {
+        "path": "05-leaf-final-9614aac9.log",
+        "sha256": "8efbf7a776785bec823e3514bb41e7044d68e60136aa0aac950cb90ead4eec36"
+      }
+    }
+  ],
+  "preserved_failure": {
+    "source_commit": "a88d7b56be25e2e047473451c80a4be7d5bd56d0",
+    "error": "E0433: pub(super) at the crate root has no legal parent module",
+    "exit_code": 101,
+    "fix_commit": "9614aac90ee58359fef05da4dcfe92011b7c91c2",
+    "fix": "One field visibility changes to pub(crate); no timing, cache or compilation semantics change.",
+    "receipt": {
+      "path": "02-driver-a88d7b56.json",
+      "sha256": "79e0c852264282418d65e0e36aad2f2f61619c21b7d7041df527ddc25a079b78"
+    },
+    "log": {
+      "path": "02-driver-a88d7b56.log",
+      "sha256": "4f3dafd647e9a5999cecdec583c6a00eda85a783778184ed05b0ba31b3b278b4"
+    }
+  },
+  "limitations": [
+    "Default report JSON adds timings:null; it is not byte-for-byte identical to prior JSON.",
+    "Enabled trace collection overhead is included in enclosing scopes; trace samples do not establish uninstrumented performance gains.",
+    "The recorded finite tests were executed by the author, not rerun by the reviewer.",
+    "No full workspace gate, complete language safety proof, all-target guarantee or product performance acceptance is claimed."
+  ]
+}
