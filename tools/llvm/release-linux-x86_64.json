@@ -7,5 +7,5 @@
   "components": ["core", "irreader", "passes", "x86", "asmparser", "asmprinter", "target"],
   "shared_library_origin": "locally relinked from official PIC component archives; upstream Linux release does not include a libLLVM DSO",
   "upstream_recipe": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/tools/llvm-shlib/CMakeLists.txt",
-  "system_library_policy": "Ubuntu 24.04 runtime libzstd.so.1 and libxml2.so.2; other system libraries as reported by llvm-config; actual loaded dependencies recorded"
+  "system_library_policy": "Ubuntu 24.04 runtime libz.so.1, libzstd.so.1 and libxml2.so.2; other system libraries as reported by llvm-config; actual loaded dependencies and ELF loader recorded"
 }
