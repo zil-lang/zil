@@ -170,6 +170,13 @@ fn allocation_cases(label: &str, source: &str, cases: &[Probe<'_>]) {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     for opt in [Optimization::O0, Optimization::O2] {
         let path = build(label, source, opt);
+        let ordinary = Command::new(path.join("program")).output().unwrap();
+        fs::write(path.join("ordinary.stdout"), &ordinary.stdout).unwrap();
+        fs::write(path.join("ordinary.stderr"), &ordinary.stderr).unwrap();
+        let normal = cases.iter().find(|case| case.fail == 0).unwrap();
+        assert_eq!(ordinary.status.code(), Some(normal.exit), "{ordinary:?}");
+        assert_eq!(ordinary.stdout, normal.stdout.as_bytes(), "{ordinary:?}");
+        assert!(ordinary.stderr.is_empty(), "{ordinary:?}");
         let clang = std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into());
         let probe = path.join("probe");
         let result = Command::new(clang)
