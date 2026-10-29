@@ -1,0 +1,61 @@
+{
+  "kind": "readiness_expression_control_not_product_acceptance",
+  "source_commit": "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+  "source_sha256": "48b9761e1c00dc0d16a365e3e8a7c6f20b018bf3a3c3b0033bca93925a0e19a4",
+  "results": [
+    {
+      "optimization": "O0",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "build",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/indexed-callback-delete/main.zil",
+        "--opt",
+        "O0",
+        "-o",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/indexed-callback-delete/O0/program",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/indexed-callback-delete/O0/phases"
+      ],
+      "build_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native_exit": 0,
+      "stdout": "B!AC",
+      "stderr": "",
+      "executable_sha256": "1a11573b5d00033727dcb730486b6358fb8ebad95734587b9650647d93466c59"
+    },
+    {
+      "optimization": "O2",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "build",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/indexed-callback-delete/main.zil",
+        "--opt",
+        "O2",
+        "-o",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/indexed-callback-delete/O2/program",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/indexed-callback-delete/O2/phases"
+      ],
+      "build_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native_exit": 0,
+      "stdout": "B!AC",
+      "stderr": "",
+      "executable_sha256": "348f9a42115ae666f163ec09da41fd054329b25e6f3e077a22cb79c85d58c37b"
+    }
+  ],
+  "observed_control_assertions": {
+    "both_builds_success": true,
+    "both_native_exit_zero": true,
+    "both_stdout_B_bang_A_C": true,
+    "oracle_status": "Result interpreted using source-observable marker order; not a predeclared full-fault consumer oracle."
+  }
+}

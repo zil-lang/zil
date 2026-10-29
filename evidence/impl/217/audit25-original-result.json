@@ -1,0 +1,653 @@
+{
+  "kind": "read_only_readiness_audit_not_product_acceptance",
+  "source_commit": "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+  "compiler_sha256": "efc1ee72a25722ec10262ade600242b1a1e27fb09aba5fe733d07ab30baaf037",
+  "note": "Recovered206 plus compiler212 integration candidate; 214-216 not present. Original historical probe bytes copied unchanged. New probes are supplemental only. No production changes or native execution in this pass.",
+  "results": [
+    {
+      "case": "bytebuffer-local-desc",
+      "source_sha256": "0ebd29951c056d578e79d2125b9e990eb44f0f9715b15a7ea4bc3a8e07aca909",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/bytebuffer-local-desc/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/bytebuffer-local-desc/phases"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "bytebuffer-slice-capture",
+      "source_sha256": "7f416be39c13293f5e5e9e7dbd1d8d25ff5e7b880b59274e27fccd5ef527feb5",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/bytebuffer-slice-capture/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/bytebuffer-slice-capture/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "slice capture or use in a closure is not implemented",
+          "span": {
+            "file": 0,
+            "start": 119,
+            "end": 123
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "callback-nested-helper",
+      "source_sha256": "2cc51c8f3288a857ee23f18db75933a0ec94e0207f8ade032f57d5c0f420af3e",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/callback-nested-helper/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/callback-nested-helper/phases"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "callback-loop-control",
+      "source_sha256": "8b1f10c98d3795fc9e37f3e5362dc7cb9407a9312814dff8de757298da2ee4d7",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/callback-loop-control/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/callback-loop-control/phases"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "callback-two-parameters",
+      "source_sha256": "a910b30e3f3b6717e81e699ec9e4b4e414c24416c353c4adf09891e830d19d96",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/callback-two-parameters/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/callback-two-parameters/phases"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "callback-generic-value-param",
+      "source_sha256": "61babdb5a7e7a9a7dbc2bd0a26fbc132e0845fc87a23ff6d5e465069229d9bb3",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/callback-generic-value-param/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/callback-generic-value-param/phases"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "closure-address-param",
+      "source_sha256": "7acd0974b3d1a58494cdaa044683252f2e97ed50ed3689fa0b047a71f85eab76",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/closure-address-param/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/closure-address-param/phases"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "closure-mut-address-param",
+      "source_sha256": "abfd18fe99def528944467d141be862b77e7bf07606541d89e5fb0b1e070fed7",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/closure-mut-address-param/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/closure-mut-address-param/phases"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "callback-return-generic",
+      "source_sha256": "4c0f77fdab969e509f8299bedf6e7904ceb9c72af78b6a49d8f199b69d4d6539",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/callback-return-generic/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/callback-return-generic/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 32
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "closure-owned-error-result",
+      "source_sha256": "fa103e9bd11f1a7768513095d0ac0995e70b605ab85ed276b83be55fb1eb50aa",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/closure-owned-error-result/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/closure-owned-error-result/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "higher-order scalar conversion is not implemented",
+          "span": {
+            "file": 0,
+            "start": 49,
+            "end": 55
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "closure-package-param",
+      "source_sha256": "65383728a4f8c571e5fc7bc38ea234b554a7240e06162e7dfdde93ec3d0e35a4",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/closure-package-param/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/closure-package-param/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy/slice address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 63
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "optional-parameter",
+      "source_sha256": "7d26bfea2820bd3c9eaf2d2c3c80921029a5c31b51ac8d2a24059bb64df3e656",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/optional-parameter/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/optional-parameter/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type Unsupported(\"type form is not yet lowered\")",
+          "span": {
+            "file": 0,
+            "start": 11,
+            "end": 21
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "ct-item-if",
+      "source_sha256": "f16c9205744b609bdea1ea3e24ce8bbe854bb74a1a583757951f6b0ed6e44f93",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/ct-item-if/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/ct-item-if/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "compile-time item generation",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 54
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "ct-statement-if",
+      "source_sha256": "fed41828771802bdb61326a4abe762fd3f4e6f577d1eff54478dae9018661944",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/ct-statement-if/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/ct-statement-if/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic expansion of meta statement",
+          "span": {
+            "file": 0,
+            "start": 15,
+            "end": 48
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "ct-constant-control",
+      "source_sha256": "af1d68a0f0a1a2e49b445f90a821a781f294c3f23b6bdd123c55c075bbab8235",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/ct-constant-control/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/ct-constant-control/phases"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "dyn-parameter",
+      "source_sha256": "33b6eb967a57c8fcc7bf5054d87ec0b83aeeb26645e5322967338542a9c7e28c",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/dyn-parameter/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/dyn-parameter/phases"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "parse",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "parse",
+          "category": "SafeReject",
+          "code": "E-PARSE-FUNCTION-BODY",
+          "message": "function requires a block, arrow expression, or declaration semicolon",
+          "span": {
+            "file": 0,
+            "start": 40,
+            "end": 41
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "generic-lifetime",
+      "source_sha256": "13fa00651f148a8e3150ff37dc9afe142e5a547a4615948a9199805291aefd16",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/generic-lifetime/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/generic-lifetime/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic bound, lifetime or const parameter requires its semantic solver",
+          "span": {
+            "file": 0,
+            "start": 12,
+            "end": 18
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "package-direct-nested",
+      "source_sha256": "8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/package-direct-nested/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/package-direct-nested/phases"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "case": "product-store-element",
+      "source_sha256": "ec2fe34c2c8a9b52cd66015160b7cbf4caa4fb1cfc66e4a38c8b516a66ff6376",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/product-store-element/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/product-store-element/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store elements require nonzero complete direct-Managed Packages",
+          "span": {
+            "file": 0,
+            "start": 97,
+            "end": 131
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "product-owning-store",
+      "source_sha256": "da50bdad3a6e2d8e03e1aa23350555e2b6509b84ed7e818f497686b62f6c6dd5",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/product-owning-store/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/product-owning-store/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "aggregate field requires finite Copy, an explicit package manages resource, or a complete fixed Package array",
+          "span": {
+            "file": 0,
+            "start": 101,
+            "end": 112
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "nested-store-element",
+      "source_sha256": "1de8510c71af92d06fbb17268295e779c337b1c00d84ded1ee68f27265a25be1",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/nested-store-element/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/nested-store-element/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "Store elements require nonzero complete direct-Managed Packages",
+          "span": {
+            "file": 0,
+            "start": 104,
+            "end": 139
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "owning-enum-option",
+      "source_sha256": "a94020ac6d5e995ffd8017494d81eebc13f5fbd38f631b99821a4b655a7ab3ec",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/owning-enum-option/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/owning-enum-option/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "enum payload requires a finite Copy value",
+          "span": {
+            "file": 0,
+            "start": 48,
+            "end": 76
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "associated-type",
+      "source_sha256": "ffb2b17ac27e4bba9addc479ae5261ff0acc77f7f83ceee14b8f702ffc500b49",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/associated-type/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/associated-type/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "associated trait items are not in the static local trait slice",
+          "span": {
+            "file": 0,
+            "start": 11,
+            "end": 22
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait declarations outside the finite local subset",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 48
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "syntax-extension",
+      "source_sha256": "ec178d9d59e8acc5aa1fa4e36911cc9783420ae308542708ee77d8277f514cbd",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/syntax-extension/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/syntax-extension/phases"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "parse",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "parse",
+          "category": "SafeReject",
+          "code": "E-PARSE-IDENTIFIER",
+          "message": "expected an identifier",
+          "span": {
+            "file": 0,
+            "start": 15,
+            "end": 21
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "product-error-union",
+      "source_sha256": "1dbfaccd1c2ef7f2632aa4f6fb9ee50ced554232f9f4184486162b04cd230f67",
+      "command": [
+        "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+        "check",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/product-error-union/main.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/product-error-union/phases"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+          "span": {
+            "file": 0,
+            "start": 87,
+            "end": 156
+          },
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

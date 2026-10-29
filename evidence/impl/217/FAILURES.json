@@ -1,0 +1,21 @@
+{
+  "failures": [
+    {
+      "name": "source-write01",
+      "status": "InfrastructureFailure",
+      "reason": "32GB filesystem exhausted before first source file was written; portable.zil and check01 output were zero bytes. No compiler acceptance/native execution occurred. Cache cleanup restored space."
+    },
+    {
+      "name": "source-check02",
+      "status": "Unsupported",
+      "phase": "types",
+      "reason": "Assignment through a temporary store_at_mut call is outside current projected-place syntax. Inputs preserved; binding its returned mutable window to a named local before field assignment is the existing accepted route. No compiler change."
+    },
+    {
+      "name": "indexed-control-first",
+      "status": "SafeReject",
+      "phase": "parse",
+      "reason": "Original audit source used a standalone local block; final source uses ordinary generic release<T:StoreElement>. The historical first result remains in audit-followup-original-result.json."
+    }
+  ]
+}

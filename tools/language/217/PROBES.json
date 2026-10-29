@@ -1,0 +1,391 @@
+{
+  "kind": "readiness_observation_matrix_not_29_language_successes",
+  "cases": [
+    {
+      "name": "bytebuffer-local-desc",
+      "path": "tools/language/217/probes/bytebuffer-local-desc/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "bytebuffer-slice-capture",
+      "path": "tools/language/217/probes/bytebuffer-slice-capture/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-nested-helper",
+      "path": "tools/language/217/probes/callback-nested-helper/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-loop-control",
+      "path": "tools/language/217/probes/callback-loop-control/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-two-parameters",
+      "path": "tools/language/217/probes/callback-two-parameters/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-generic-value-param",
+      "path": "tools/language/217/probes/callback-generic-value-param/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-address-param",
+      "path": "tools/language/217/probes/closure-address-param/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-mut-address-param",
+      "path": "tools/language/217/probes/closure-mut-address-param/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "callback-return-generic",
+      "path": "tools/language/217/probes/callback-return-generic/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-owned-error-result",
+      "path": "tools/language/217/probes/closure-owned-error-result/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "closure-package-param",
+      "path": "tools/language/217/probes/closure-package-param/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "optional-parameter",
+      "path": "tools/language/217/probes/optional-parameter/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "ct-item-if",
+      "path": "tools/language/217/probes/ct-item-if/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "ct-statement-if",
+      "path": "tools/language/217/probes/ct-statement-if/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "ct-constant-control",
+      "path": "tools/language/217/probes/ct-constant-control/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "dyn-parameter",
+      "path": "tools/language/217/probes/dyn-parameter/main.zil",
+      "expected": {
+        "status": "SafeReject",
+        "phase": "parse",
+        "verification_runs": 0,
+        "exit": 1,
+        "codes": [
+          "E-PARSE-FUNCTION-BODY"
+        ]
+      },
+      "purpose": "preserved malformed first probe; excluded from capability conclusions"
+    },
+    {
+      "name": "generic-lifetime",
+      "path": "tools/language/217/probes/generic-lifetime/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "package-direct-nested",
+      "path": "tools/language/217/probes/package-direct-nested/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "product-store-element",
+      "path": "tools/language/217/probes/product-store-element/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "product-owning-store",
+      "path": "tools/language/217/probes/product-owning-store/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "nested-store-element",
+      "path": "tools/language/217/probes/nested-store-element/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "owning-enum-option",
+      "path": "tools/language/217/probes/owning-enum-option/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "associated-type",
+      "path": "tools/language/217/probes/associated-type/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED",
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "syntax-extension",
+      "path": "tools/language/217/probes/syntax-extension/main.zil",
+      "expected": {
+        "status": "SafeReject",
+        "phase": "parse",
+        "verification_runs": 0,
+        "exit": 1,
+        "codes": [
+          "E-PARSE-IDENTIFIER"
+        ]
+      },
+      "purpose": "preserved malformed first probe; excluded from capability conclusions"
+    },
+    {
+      "name": "product-error-union",
+      "path": "tools/language/217/probes/product-error-union/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "historical raw source replay; status is an observation, not a readiness gate"
+    },
+    {
+      "name": "dyn-valid-parameter",
+      "path": "tools/language/217/probes/dyn-valid-parameter/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED",
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "corrected shape or actual alternate representation control"
+    },
+    {
+      "name": "syntax-valid-alias",
+      "path": "tools/language/217/probes/syntax-valid-alias/main.zil",
+      "expected": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "exit": 3,
+        "codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      "purpose": "corrected shape or actual alternate representation control"
+    },
+    {
+      "name": "copy-option-library-control",
+      "path": "tools/language/217/probes/copy-option-library-control/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "exit": 0,
+        "codes": []
+      },
+      "purpose": "corrected shape or actual alternate representation control"
+    },
+    {
+      "name": "indexed-callback-delete",
+      "path": "tools/language/217/probes/indexed-callback-delete/main.zil",
+      "expected": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "codes": [],
+        "exit": 0
+      },
+      "purpose": "corrected shape or actual alternate representation control"
+    }
+  ]
+}

@@ -1,0 +1,281 @@
+[
+  {
+    "case": "dyn-valid-parameter",
+    "source_sha256": "68acda16d5a8f8fdf87bfef7cf881c268ab4b005562d4f263380a997c0b0e50e",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/dyn-valid-parameter/main.zil",
+      "--json",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/dyn-valid-parameter/phases"
+    ],
+    "exit": 3,
+    "report": {
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type Address { mutable: false, inner: Unsupported(\"type form is not yet lowered\") }",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 73
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "resource/address parameter mode",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 73
+          },
+          "notes": []
+        }
+      ],
+      "artifacts": {
+        "core": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/dyn-valid-parameter/phases/core.txt",
+        "ct-core": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/dyn-valid-parameter/phases/ct-core.txt",
+        "source-map": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/dyn-valid-parameter/phases/source-map.txt",
+        "syntax": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/dyn-valid-parameter/phases/syntax.txt"
+      },
+      "input_fingerprint": "cfc117b27b51bead9b8a6df4e3e8e9865f23a39c4d3cdf9736b25bc6304f542f",
+      "seconds": 0.0046833,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/dyn-valid-parameter/main.zil"
+      },
+      "scalar_interfaces": []
+    }
+  },
+  {
+    "case": "syntax-valid-alias",
+    "source_sha256": "b5221cbe2152e01a45252f1504ebab05f47d28a46baffecf73d8de3d16a56476",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/syntax-valid-alias/main.zil",
+      "--json",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/syntax-valid-alias/phases"
+    ],
+    "exit": 3,
+    "report": {
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "public reexports and syntax imports require a later module interface",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 30
+          },
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "b5221cbe2152e01a45252f1504ebab05f47d28a46baffecf73d8de3d16a56476",
+      "seconds": 0.000478682,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/syntax-valid-alias/main.zil"
+      },
+      "scalar_interfaces": []
+    }
+  },
+  {
+    "case": "copy-option-library-control",
+    "source_sha256": "bcc699519008ec07b45d424c9b74a12f0b71cdd4f43f3498fa45dc5133c94c60",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/main.zil",
+      "--json",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/phases"
+    ],
+    "exit": 0,
+    "report": {
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "artifacts": {
+        "candidate": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/phases/candidate.txt",
+        "core": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/phases/core.txt",
+        "ct-core": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/phases/ct-core.txt",
+        "interfaces": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/phases/interfaces.txt",
+        "source-map": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/phases/source-map.txt",
+        "syntax": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/phases/syntax.txt",
+        "typed": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/phases/typed.txt",
+        "verified": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/phases/verified.txt",
+        "verified-interfaces": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/phases/verified-interfaces.txt"
+      },
+      "input_fingerprint": "506e02a3a5105c1f95cd3d221b94eb9acf8526088d650021b5cfb4fce0e24b00",
+      "seconds": 0.010615251,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [
+        {
+          "phase": "parse",
+          "disposition": "executed"
+        },
+        {
+          "phase": "expand",
+          "disposition": "executed"
+        },
+        {
+          "phase": "ct",
+          "disposition": "executed"
+        },
+        {
+          "phase": "types",
+          "disposition": "executed"
+        },
+        {
+          "phase": "analyze",
+          "disposition": "executed"
+        },
+        {
+          "phase": "verify",
+          "disposition": "executed"
+        }
+      ],
+      "verification_runs": 1,
+      "source_files": {
+        "0": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/copy-option-library-control/main.zil"
+      },
+      "scalar_interfaces": [
+        {
+          "module": 0,
+          "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+          "implementation_fingerprint": "bcc699519008ec07b45d424c9b74a12f0b71cdd4f43f3498fa45dc5133c94c60",
+          "contract_fingerprint": "636c8b5f2bd2b2e41eac430310e391d733d50efb6d1a7dac0913f311ac2b0229",
+          "result_origins": [],
+          "callable_contracts": [],
+          "callable_returns": [],
+          "exports": []
+        }
+      ]
+    }
+  },
+  {
+    "case": "indexed-callback-delete",
+    "source_sha256": "81759a8867b46960ed30d36fc11d4db35540256707257040f0300779451fdd61",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/targets/review213/debug/zil",
+      "check",
+      "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/indexed-callback-delete/main.zil",
+      "--json",
+      "--emit-dir",
+      "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/indexed-callback-delete/phases"
+    ],
+    "exit": 1,
+    "report": {
+      "status": "SafeReject",
+      "phase": "parse",
+      "diagnostics": [
+        {
+          "phase": "parse",
+          "category": "SafeReject",
+          "code": "E-PARSE-IDENTIFIER",
+          "message": "expected an identifier",
+          "span": {
+            "file": 0,
+            "start": 845,
+            "end": 848
+          },
+          "notes": []
+        },
+        {
+          "phase": "parse",
+          "category": "SafeReject",
+          "code": "E-PARSE-MODULE-STATEMENT",
+          "message": "module scope requires a declaration; executable statements belong inside a function",
+          "span": {
+            "file": 0,
+            "start": 877,
+            "end": 882
+          },
+          "notes": []
+        },
+        {
+          "phase": "parse",
+          "category": "SafeReject",
+          "code": "E-PARSE-MODULE-STATEMENT",
+          "message": "module scope requires a declaration; executable statements belong inside a function",
+          "span": {
+            "file": 0,
+            "start": 958,
+            "end": 964
+          },
+          "notes": []
+        },
+        {
+          "phase": "parse",
+          "category": "SafeReject",
+          "code": "E-PARSE-MODULE-STATEMENT",
+          "message": "module scope requires a declaration; executable statements belong inside a function",
+          "span": {
+            "file": 0,
+            "start": 967,
+            "end": 968
+          },
+          "notes": []
+        }
+      ],
+      "artifacts": {},
+      "input_fingerprint": "81759a8867b46960ed30d36fc11d4db35540256707257040f0300779451fdd61",
+      "seconds": 0.001114119,
+      "cache_hit": false,
+      "commands": [],
+      "native_codegen": null,
+      "disk_cache": "disabled",
+      "query_events": [],
+      "verification_runs": 0,
+      "source_files": {
+        "0": "/workspace/scratch/3cf12ce32e36/recovery/zui-readiness-206plus/indexed-callback-delete/main.zil"
+      },
+      "scalar_interfaces": []
+    }
+  }
+]
