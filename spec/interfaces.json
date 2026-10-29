@@ -1109,6 +1109,30 @@
       "machine": "Inline recursive layout and alignment; one parent flag per complete child, independent flags after take to local. Clear actual flags before recursive teardown. Lower consumes only same VerifiedModule-bound LIR; setting flags is not completeness or freshness proof.",
       "budget": "Precharge bounded leaf/path/subtree allocation and copying, state join, actual layout and generated cleanup paths. Preserve old flat-path exact controls and default Limits/product conditions; no new full-function leaf table when no child exists.",
       "acceptance": "Frozen original120 source, child-only/multiple actual siblings/3levels, full local relay and unknown-call boundary, Created/Incoming neighbors, duplicate/partial/wrong nominal/wrong slot/overwriting raw and Wire, precise old gate exclusions, real O0/O2/allocator failures and independent N/N-1/fresh results. Full1.4 NotSatisfied; B0 Doing; nativeWindows/product NotRun."
+    },
+    "product_capture214": {
+      "status": "ContractToImplement",
+      "normative": "_zil_design.md §9.1.2",
+      "schema_version": 27,
+      "shape": "206 complete nested Package Product as owned closure capture; direct Managed and complete child responsibility slots",
+      "entrypoints": [
+        "MakeClosure",
+        "BindPackageCapture",
+        "EndPackageCapture",
+        "TakePackageField"
+      ],
+      "independent_checks": [
+        "capture eligibility",
+        "all return completeness",
+        "per-position provenance",
+        "finite layout and cleanup flags"
+      ],
+      "closed": [
+        "Product as Store element",
+        "Product inside owning arrays or ErrorUnion",
+        "Product internal Store/Closure/owned Sum/borrow"
+      ],
+      "acceptance": "214-216 final exact combined commit and independent review"
     }
   }
 }
