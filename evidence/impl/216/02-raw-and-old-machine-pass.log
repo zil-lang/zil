@@ -1,0 +1,24 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.41s
+     Running tests/impl206_machine.rs (/workspace/scratch/3cf12ce32e36/targets/216/debug/deps/impl206_machine-c760a439e6865801)
+
+running 1 test
+test complete_children_have_inline_payloads_and_one_parent_obligation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/impl216_raw.rs (/workspace/scratch/3cf12ce32e36/targets/216/debug/deps/impl216_raw-338d5800a380d831)
+
+running 7 tests
+test missing_capture_bind_is_still_rejected ... ok
+test shared_capture_cannot_discharge_a_child ... ok
+test wrong_capture_index_is_still_rejected ... ok
+test product_capture_llvm_has_one_flag_per_child_and_rejects_forged_lir ... ok
+test complete_product_capture_has_independent_raw_wire_and_machine_layout_admission ... ok
+test repeatable_capture_must_return_with_its_child_present ... ok
+Product216 Verify N=3405; N-1=ResourceLimit; fresh N=Pass
+test product_capture_has_a_fresh_exact_verify_budget_boundary ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

@@ -1,0 +1,243 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-db)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-analyze)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.58s
+     Running tests/impl216_raw.rs (/workspace/scratch/3cf12ce32e36/targets/216/debug/deps/impl216_raw-338d5800a380d831)
+
+running 6 tests
+
+thread 'product_capture_llvm_has_one_flag_per_child_and_rejects_forged_lir' (1470) panicked at crates/zil-driver/tests/impl216_raw.rs:132:5:
+; ZIL verified LLVM module
+; verified-fingerprint: 2ab6046e92ccec78232f42d62dc88574341d3e285940b8ecd6871d1dd36e45e4
+target triple = "x86_64-unknown-linux-gnu"
+
+%zil_env_0 = type { { { { i32 }, i32 }, i32 }, i1, i1 }
+define internal void @zil.closure.drop.0(ptr %env) {
+entry:
+  %flag.ptr.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 1
+  %live.0 = load i1, ptr %flag.ptr.0, align 1
+  br i1 %live.0, label %drop.0, label %done.0
+drop.0:
+  store i1 false, ptr %flag.ptr.0, align 1
+  %field.flag.0.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 2
+  %field.live.0.0 = load i1, ptr %field.flag.0.0, align 1
+  br i1 %field.live.0.0, label %field.drop.0.0, label %field.done.0.0
+field.drop.0.0:
+  store i1 false, ptr %field.flag.0.0, align 1
+  br label %field.done.0.0
+field.done.0.0:
+  br label %done.0
+done.0:
+  ret void
+}
+declare void @llvm.trap()
+
+define i32 @zil.fn.0({ { { i32 }, i32 }, i32 } %arg.0) {
+entry:
+  %resource.live.0 = alloca i1, align 1
+  store i1 true, ptr %resource.live.0, align 1
+  %local.0 = alloca { { { i32 }, i32 }, i32 }, align 4
+  %resource.live.1 = alloca i1, align 1
+  store i1 false, ptr %resource.live.1, align 1
+  %local.1 = alloca %zil_env_0, align 4
+  store { { { i32 }, i32 }, i32 } %arg.0, ptr %local.0, align 4
+  br label %bb.0
+bb.0:
+  %v.0 = load { { { i32 }, i32 }, i32 }, ptr %local.0, align 4
+  store i1 false, ptr %resource.live.0, align 1
+  %tmp.0 = insertvalue %zil_env_0 zeroinitializer, { { { i32 }, i32 }, i32 } %v.0, 0
+  %tmp.1 = insertvalue %zil_env_0 %tmp.0, i1 true, 1
+  %v.1 = insertvalue %zil_env_0 %tmp.1, i1 true, 2
+  store i1 false, ptr %resource.live.1, align 1
+  store %zil_env_0 %v.1, ptr %local.1, align 4
+  store i1 true, ptr %resource.live.1, align 1
+  %v.2 = call i32 @zil.fn.2(ptr %local.1)
+  %tmp.2 = load i1, ptr %resource.live.1, align 1
+  br i1 %tmp.2, label %closure.drop.0, label %closure.done.0
+closure.drop.0:
+  store i1 false, ptr %resource.live.1, align 1
+  call void @zil.closure.drop.0(ptr %local.1)
+  br label %closure.done.0
+closure.done.0:
+  store i1 false, ptr %resource.live.1, align 1
+  %tmp.3 = load i1, ptr %resource.live.0, align 1
+  br i1 %tmp.3, label %package.drop.1, label %package.done.1
+package.drop.1:
+  store i1 false, ptr %resource.live.0, align 1
+  br label %package.done.1
+package.done.1:
+  store i1 false, ptr %resource.live.0, align 1
+  ret i32 %v.2
+zil.trap:
+  call void @llvm.trap()
+  unreachable
+}
+
+define void @zil.fn.1() {
+entry:
+  br label %bb.0
+bb.0:
+  ret void
+zil.trap:
+  call void @llvm.trap()
+  unreachable
+}
+
+define i32 @zil.fn.2(ptr %env) {
+entry:
+  %local.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 0
+  %resource.live.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 1
+  %package.live.0.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 2
+  br label %bb.0
+bb.0:
+  %tmp.0 = getelementptr { { { i32 }, i32 }, i32 }, ptr %local.0, i32 0, i32 1
+  %v.0 = load i32, ptr %tmp.0, align 4
+  ret i32 %v.0
+zil.trap:
+  call void @llvm.trap()
+  unreachable
+}
+
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test product_capture_llvm_has_one_flag_per_child_and_rejects_forged_lir ... FAILED
+
+thread 'missing_capture_bind_is_still_rejected' (1468) panicked at crates/zil-driver/tests/impl216_raw.rs:50:13:
+[
+    Diagnostic {
+        phase: Verify,
+        category: SafeReject,
+        code: "E-VERIFY-INITIALIZATION",
+        message: "load may read a local before initialization",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 94,
+                end: 97,
+            },
+        ),
+        notes: [],
+    },
+]
+test missing_capture_bind_is_still_rejected ... FAILED
+
+thread 'complete_product_capture_has_independent_raw_wire_and_machine_layout_admission' (1467) panicked at crates/zil-driver/tests/impl216_raw.rs:57:13:
+; ZIL verified LLVM module
+; verified-fingerprint: 2ab6046e92ccec78232f42d62dc88574341d3e285940b8ecd6871d1dd36e45e4
+target triple = "x86_64-unknown-linux-gnu"
+
+%zil_env_0 = type { { { { i32 }, i32 }, i32 }, i1, i1 }
+define internal void @zil.closure.drop.0(ptr %env) {
+entry:
+  %flag.ptr.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 1
+  %live.0 = load i1, ptr %flag.ptr.0, align 1
+  br i1 %live.0, label %drop.0, label %done.0
+drop.0:
+  store i1 false, ptr %flag.ptr.0, align 1
+  %field.flag.0.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 2
+  %field.live.0.0 = load i1, ptr %field.flag.0.0, align 1
+  br i1 %field.live.0.0, label %field.drop.0.0, label %field.done.0.0
+field.drop.0.0:
+  store i1 false, ptr %field.flag.0.0, align 1
+  br label %field.done.0.0
+field.done.0.0:
+  br label %done.0
+done.0:
+  ret void
+}
+declare void @llvm.trap()
+
+define i32 @zil.fn.0({ { { i32 }, i32 }, i32 } %arg.0) {
+entry:
+  %resource.live.0 = alloca i1, align 1
+  store i1 true, ptr %resource.live.0, align 1
+  %local.0 = alloca { { { i32 }, i32 }, i32 }, align 4
+  %resource.live.1 = alloca i1, align 1
+  store i1 false, ptr %resource.live.1, align 1
+  %local.1 = alloca %zil_env_0, align 4
+  store { { { i32 }, i32 }, i32 } %arg.0, ptr %local.0, align 4
+  br label %bb.0
+bb.0:
+  %v.0 = load { { { i32 }, i32 }, i32 }, ptr %local.0, align 4
+  store i1 false, ptr %resource.live.0, align 1
+  %tmp.0 = insertvalue %zil_env_0 zeroinitializer, { { { i32 }, i32 }, i32 } %v.0, 0
+  %tmp.1 = insertvalue %zil_env_0 %tmp.0, i1 true, 1
+  %v.1 = insertvalue %zil_env_0 %tmp.1, i1 true, 2
+  store i1 false, ptr %resource.live.1, align 1
+  store %zil_env_0 %v.1, ptr %local.1, align 4
+  store i1 true, ptr %resource.live.1, align 1
+  %v.2 = call i32 @zil.fn.2(ptr %local.1)
+  %tmp.2 = load i1, ptr %resource.live.1, align 1
+  br i1 %tmp.2, label %closure.drop.0, label %closure.done.0
+closure.drop.0:
+  store i1 false, ptr %resource.live.1, align 1
+  call void @zil.closure.drop.0(ptr %local.1)
+  br label %closure.done.0
+closure.done.0:
+  store i1 false, ptr %resource.live.1, align 1
+  %tmp.3 = load i1, ptr %resource.live.0, align 1
+  br i1 %tmp.3, label %package.drop.1, label %package.done.1
+package.drop.1:
+  store i1 false, ptr %resource.live.0, align 1
+  br label %package.done.1
+package.done.1:
+  store i1 false, ptr %resource.live.0, align 1
+  ret i32 %v.2
+zil.trap:
+  call void @llvm.trap()
+  unreachable
+}
+
+define void @zil.fn.1() {
+entry:
+  br label %bb.0
+bb.0:
+  ret void
+zil.trap:
+  call void @llvm.trap()
+  unreachable
+}
+
+define i32 @zil.fn.2(ptr %env) {
+entry:
+  %local.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 0
+  %resource.live.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 1
+  %package.live.0.0 = getelementptr %zil_env_0, ptr %env, i32 0, i32 2
+  br label %bb.0
+bb.0:
+  %tmp.0 = getelementptr { { { i32 }, i32 }, i32 }, ptr %local.0, i32 0, i32 1
+  %v.0 = load i32, ptr %tmp.0, align 4
+  ret i32 %v.0
+zil.trap:
+  call void @llvm.trap()
+  unreachable
+}
+
+
+test complete_product_capture_has_independent_raw_wire_and_machine_layout_admission ... FAILED
+test repeatable_capture_must_return_with_its_child_present ... ok
+test shared_capture_cannot_discharge_a_child ... ok
+Product216 Verify N=3405; N-1=ResourceLimit; fresh N=Pass
+test product_capture_has_a_fresh_exact_verify_budget_boundary ... ok
+
+failures:
+
+failures:
+    complete_product_capture_has_independent_raw_wire_and_machine_layout_admission
+    missing_capture_bind_is_still_rejected
+    product_capture_llvm_has_one_flag_per_child_and_rejects_forged_lir
+
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-driver --test impl216_raw`

@@ -250,7 +250,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                     // Borrowed descriptions do not gain an owning ABI here.
                     || (resources::supported_type(ty, &lir.resources)
                         && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
-                    || packages::supported_type(ty, &lir.resources)
+                    || packages::supported_capture_type(ty, &lir.resources)
             })
             || !closure.parameters.iter().all(|ty| {
                 ty.is_copy_value()

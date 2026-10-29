@@ -395,7 +395,11 @@ fn closure_layouts_pair(
                         budget.spend(fields.len())?;
                         1 + fields.iter().fold(0u64, |count, (_, field)| {
                             owns_store |= is_carrier(field);
-                            count + u64::from(matches!(field, Type::Managed(_)))
+                            count
+                                + u64::from(matches!(
+                                    field,
+                                    Type::Managed(_) | Type::Package { .. }
+                                ))
                         })
                     }
                     _ => 0,

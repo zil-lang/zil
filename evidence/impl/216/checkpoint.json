@@ -1,0 +1,25 @@
+{
+  "slice": "216",
+  "author": "/root/sync_script",
+  "baseline": "867ae69184c2c73e600fca8c971ac362d7123439",
+  "spec_hash": "a278f56fe806afe9c6d0c26a187755bfc65eb6021260e7a2edde7a87ef769c01",
+  "normative_hash": "b2e4a70829ffeb201eb555c54edb48f9ef8228bbacdc7ea4a0bf45c78f2812b7",
+  "source_boundary": "source-derived coordinated raw/Wire; new source/native consumer needs 214/215 integration",
+  "command": "cargo test -p zil-driver --test impl216_raw --test impl206_machine -- --nocapture",
+  "checks": {
+    "new_raw_wire_layout": "7/7 Pass",
+    "old_206_source_native": "1/1 Pass, O0/O2 each two inputs",
+    "verify_boundary": {"N": 3405, "N_minus_1": "ResourceLimit", "fresh_N": "Pass"},
+    "schema": 27,
+    "new_source_native": "NotRun at this checkpoint",
+    "windows_native": "NotRun"
+  },
+  "initial_failure": "3 test expectation errors: actual environment name uses underscores, missing Bind is rejected earlier by initialization checking; corrected only test assertions",
+  "four_goals": {
+    "safety": "separate raw/Wire rechecks retained; full language proof not established",
+    "runtime": "inline child payload, one direct child flag, no added allocation; no Rust performance comparison",
+    "syntax": "Product capture admission enables existing syntax; source/native evidence remains pending",
+    "compile": "bounded precharged admission and exact recovery boundary; no wall-clock performance claim"
+  },
+  "product_status": "NotSatisfied; no full 1.4 or ZUI readiness claim"
+}
