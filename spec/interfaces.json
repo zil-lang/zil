@@ -1111,7 +1111,7 @@
       "acceptance": "Frozen original120 source, child-only/multiple actual siblings/3levels, full local relay and unknown-call boundary, Created/Incoming neighbors, duplicate/partial/wrong nominal/wrong slot/overwriting raw and Wire, precise old gate exclusions, real O0/O2/allocator failures and independent N/N-1/fresh results. Full1.4 NotSatisfied; B0 Doing; nativeWindows/product NotRun."
     },
     "product_capture214": {
-      "status": "ContractToImplement",
+      "status": "ImplementedPartial",
       "normative": "_zil_design.md §9.1.2",
       "schema_version": 27,
       "shape": "206 complete nested Package Product as owned closure capture; direct Managed and complete child responsibility slots",
@@ -1130,9 +1130,10 @@
       "closed": [
         "Product as Store element",
         "Product inside owning arrays or ErrorUnion",
-        "Product internal Store/Closure/owned Sum/borrow"
+        "Product internal Store/Closure/owned Sum/borrow",
+        "readonly default borrowed Product capture"
       ],
-      "acceptance": "214-216 final exact combined commit and independent review"
+      "acceptance": "Limited owning214-216 profile only; exact source/independent review in task records and integration receipt. No claim of complete §9.1.2, 1.4, ZUI or product acceptance."
     }
   }
 }
