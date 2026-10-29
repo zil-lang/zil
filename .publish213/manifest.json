@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "repository": "zil-lang/zil",
+  "remote": "origin",
+  "source": {
+    "sha": "0c0db351dab77d17a747617dd437c69554c695a0",
+    "bundle_ref": "refs/heads/task/213",
+    "bundle_sha256": "e7e8dc962fa94658dcdd7f3b5b7444bbd616517e5327a31426bb8bd8181ad94c"
+  },
+  "main": {
+    "ref": "refs/heads/main",
+    "expected_sha": "a0796270cfde23379d1b227f0a8158121d7c91d5",
+    "archive_tag": "refs/tags/archive/2026-10-29/main-before-213"
+  },
+  "transport": {
+    "ref": "refs/heads/task/213",
+    "archive_tag": "refs/tags/archive/2026-10-29/task-213-publish"
+  },
+  "retire": [
+    {
+      "ref": "refs/heads/impl/132-owned-text",
+      "expected_sha": "0ba64a223494860d513d7d7522e1d1b942af6069",
+      "archive_tag": "refs/tags/archive/2026-10-29/task-132",
+      "disposition": "archive-only"
+    },
+    {
+      "ref": "refs/heads/research/131-effect-retraction",
+      "expected_sha": "66644baae15ce4d481363038c34747256522b020",
+      "archive_tag": "refs/tags/archive/2026-10-29/task-131-research",
+      "disposition": "merged"
+    },
+    {
+      "ref": "refs/heads/research/136-compiled-effects",
+      "expected_sha": "54d9b0f1aeb24d16d826bba4bbe849d4ae46466b",
+      "archive_tag": "refs/tags/archive/2026-10-29/task-136-research-nogo",
+      "disposition": "archive-only"
+    },
+    {
+      "ref": "refs/heads/sync/bundle-94515c1c78c7",
+      "expected_sha": "94515c1c78c77c8bb9eb2300cdadce714fed7e19",
+      "archive_tag": "refs/tags/archive/2026-10-29/sync-bundle-94515c1c78c7",
+      "disposition": "merged"
+    },
+    {
+      "ref": "refs/heads/task/135",
+      "expected_sha": "2860c1bcdba907e297ca4dc08e48012cff71b032",
+      "archive_tag": "refs/tags/archive/2026-10-29/task-135",
+      "disposition": "archive-only"
+    },
+    {
+      "ref": "refs/heads/task/203",
+      "expected_sha": "76243bff2fed94fa90cf7df5435be828bf6ee9c2",
+      "archive_tag": "refs/tags/archive/2026-10-29/task-203",
+      "disposition": "merged"
+    }
+  ],
+  "guard_tag": "refs/tags/archive/2026-10-29/heads-before-213",
+  "guard_timestamp": "2026-10-29T12:07:13+00:00",
+  "observed_at": "2026-10-29T12:07:13+00:00"
+}
