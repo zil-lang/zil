@@ -1,0 +1,1944 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/llvm_migration_audit",
+  "implementation_author": "/root",
+  "branch_context": "chore/llvm-23-upgrade",
+  "baseline_commit": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "baseline_repository": "https://github.com/zil-lang/zil",
+  "source_tags": [
+    "llvmorg-17.0.6",
+    "llvmorg-23.1.4"
+  ],
+  "scope": "Read-only source compatibility inventory for the pre-migration production FFI declarations; not a review of a candidate implementation commit.",
+  "status": "Pass",
+  "status_meaning": "All explicitly enumerated source-hash/declaration/macro/enum/ownership-pattern checks passed.",
+  "counts": {
+    "upstream_files": 16,
+    "baseline_files": 2,
+    "llvm_symbols": 104,
+    "ordinary_declarations": 99,
+    "target_initializer_macros": 5,
+    "enum_families": 9,
+    "used_numeric_enum_constants": 21,
+    "source_hash_failures": 0
+  },
+  "upstream_sources": [
+    {
+      "tag": "llvmorg-17.0.6",
+      "path": "llvm/include/llvm-c/Core.h",
+      "github_blob_sha": "fbba8ca42a8c7615f0f8cf2bf613455a8d361d22",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/include/llvm-c/Core.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-17.0.6/llvm/include/llvm-c/Core.h",
+      "bytes": 135028,
+      "sha256": "04b2298c500ce5a73dd9ff588594296d9f49ce3ec275d268c67207f6b1a3cef7",
+      "computed_git_blob_sha": "fbba8ca42a8c7615f0f8cf2bf613455a8d361d22",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-17.0.6",
+      "path": "llvm/include/llvm-c/Target.h",
+      "github_blob_sha": "518b46d55bc3c9a83a022e1b6dd94c05e6c118fb",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/include/llvm-c/Target.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-17.0.6/llvm/include/llvm-c/Target.h",
+      "bytes": 12120,
+      "sha256": "85795c3910155218473b79bccf42d85b4a17e5dbaaeec5afb8f94a8d1974ddb0",
+      "computed_git_blob_sha": "518b46d55bc3c9a83a022e1b6dd94c05e6c118fb",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-17.0.6",
+      "path": "llvm/include/llvm-c/TargetMachine.h",
+      "github_blob_sha": "bfbe1421a3560a802c9084d75e7f1e44ce57b26d",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/include/llvm-c/TargetMachine.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-17.0.6/llvm/include/llvm-c/TargetMachine.h",
+      "bytes": 6868,
+      "sha256": "929cdddf7e61bc522feefb6db5f0086407d6dc07345290169c72170e58684229",
+      "computed_git_blob_sha": "bfbe1421a3560a802c9084d75e7f1e44ce57b26d",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-17.0.6",
+      "path": "llvm/include/llvm-c/Analysis.h",
+      "github_blob_sha": "270b145a4d27e28ea240b58b51c94d6d728ae933",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/include/llvm-c/Analysis.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-17.0.6/llvm/include/llvm-c/Analysis.h",
+      "bytes": 2591,
+      "sha256": "bb3805c5c657bfeee4cf2254dc696b73ae0036a6ecc2c36fb027cb34f2c4652e",
+      "computed_git_blob_sha": "270b145a4d27e28ea240b58b51c94d6d728ae933",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-17.0.6",
+      "path": "llvm/include/llvm-c/Error.h",
+      "github_blob_sha": "c3baaf65186aac65ec84d97cde1aa41b165d2df9",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/include/llvm-c/Error.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-17.0.6/llvm/include/llvm-c/Error.h",
+      "bytes": 2531,
+      "sha256": "396e2b569d09f2d5c6496b944a150e0c6b203bb1e801dafa77a867e19b7e5e9d",
+      "computed_git_blob_sha": "c3baaf65186aac65ec84d97cde1aa41b165d2df9",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-17.0.6",
+      "path": "llvm/include/llvm-c/IRReader.h",
+      "github_blob_sha": "905b84fa5a8693b3ce36bd82f731698821b324b9",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/include/llvm-c/IRReader.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-17.0.6/llvm/include/llvm-c/IRReader.h",
+      "bytes": 1717,
+      "sha256": "1c42f76f105c010ee5e0a5a0736aa44a8ef9ace086fd671cdd2617208183c468",
+      "computed_git_blob_sha": "905b84fa5a8693b3ce36bd82f731698821b324b9",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-17.0.6",
+      "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+      "github_blob_sha": "d0466dd7fc0a127d00986d4cb424a11bbe866dc3",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/include/llvm-c/Transforms/PassBuilder.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-17.0.6/llvm/include/llvm-c/Transforms/PassBuilder.h",
+      "bytes": 4475,
+      "sha256": "fbbb1da352df793703e6579bafc5541d6c9f4e752af4330dfc82ce2bd76e8bf0",
+      "computed_git_blob_sha": "d0466dd7fc0a127d00986d4cb424a11bbe866dc3",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-17.0.6",
+      "path": "llvm/lib/IRReader/IRReader.cpp",
+      "github_blob_sha": "7885c36a79876a7936ee87f26f84b277dfc4c40f",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/lib/IRReader/IRReader.cpp",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-17.0.6/llvm/lib/IRReader/IRReader.cpp",
+      "bytes": 5092,
+      "sha256": "1482933378a09f1d34cdbaf878bd7e6f4604e6c301cef9d7117d904dca031977",
+      "computed_git_blob_sha": "7885c36a79876a7936ee87f26f84b277dfc4c40f",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-23.1.4",
+      "path": "llvm/include/llvm-c/Core.h",
+      "github_blob_sha": "f3b98a31c5bd7d088fa408a065305efbf8d5d3ce",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/include/llvm-c/Core.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/include/llvm-c/Core.h",
+      "bytes": 181049,
+      "sha256": "0eaa6a9bf72d28e33590fd217f89f413fb418aed4cba9557177eb5b2388d7a24",
+      "computed_git_blob_sha": "f3b98a31c5bd7d088fa408a065305efbf8d5d3ce",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-23.1.4",
+      "path": "llvm/include/llvm-c/Target.h",
+      "github_blob_sha": "12bc1ac43872975c662e075dfd695b5451e9ae17",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/include/llvm-c/Target.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/include/llvm-c/Target.h",
+      "bytes": 13592,
+      "sha256": "d88db9be749a73266e9a2936335f2f512bd50bef08f3bcd13a0d68f6a577c199",
+      "computed_git_blob_sha": "12bc1ac43872975c662e075dfd695b5451e9ae17",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-23.1.4",
+      "path": "llvm/include/llvm-c/TargetMachine.h",
+      "github_blob_sha": "1c2d1ed9bfff8d2bd512614a6668e23c6b486464",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/include/llvm-c/TargetMachine.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/include/llvm-c/TargetMachine.h",
+      "bytes": 10228,
+      "sha256": "3cef6abafa88b536b4fd2698d085548c61e38ff97b3be336082b12190db43a84",
+      "computed_git_blob_sha": "1c2d1ed9bfff8d2bd512614a6668e23c6b486464",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-23.1.4",
+      "path": "llvm/include/llvm-c/Analysis.h",
+      "github_blob_sha": "01e1667b5232b188cfb27c418273116e5cb26e0f",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/include/llvm-c/Analysis.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/include/llvm-c/Analysis.h",
+      "bytes": 2753,
+      "sha256": "b822af9c7ceb7efc92fa5a467e526c18e7a3fce427ec190d1eae906f85a22b50",
+      "computed_git_blob_sha": "01e1667b5232b188cfb27c418273116e5cb26e0f",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-23.1.4",
+      "path": "llvm/include/llvm-c/Error.h",
+      "github_blob_sha": "1a07c1b64d8199b25b2661527338c6f101dab835",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/include/llvm-c/Error.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/include/llvm-c/Error.h",
+      "bytes": 2876,
+      "sha256": "b8025e3dff1375fade4507d14dc3076abcfb162134a305ec84f93902d19d761b",
+      "computed_git_blob_sha": "1a07c1b64d8199b25b2661527338c6f101dab835",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-23.1.4",
+      "path": "llvm/include/llvm-c/IRReader.h",
+      "github_blob_sha": "4818ad780d48a9e85624a4e3ff6eadd1efd8744a",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/include/llvm-c/IRReader.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/include/llvm-c/IRReader.h",
+      "bytes": 2638,
+      "sha256": "57b77355c69b76e4e6805c7bd7ae9053db91cc2534a00965f2fe1a1d2f5a8eef",
+      "computed_git_blob_sha": "4818ad780d48a9e85624a4e3ff6eadd1efd8744a",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-23.1.4",
+      "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+      "github_blob_sha": "7921f8f4ac286d314fb7879119613116b1fb6475",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/include/llvm-c/Transforms/PassBuilder.h",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/include/llvm-c/Transforms/PassBuilder.h",
+      "bytes": 5577,
+      "sha256": "42bc1d65b43ce602866a7b6b5445cd19c31bf5be9e48d8828987277280de8d91",
+      "computed_git_blob_sha": "7921f8f4ac286d314fb7879119613116b1fb6475",
+      "git_blob_matches": true
+    },
+    {
+      "tag": "llvmorg-23.1.4",
+      "path": "llvm/lib/IRReader/IRReader.cpp",
+      "github_blob_sha": "8b3978c728a6e5a05dbd261a7a6f4143131ff57f",
+      "source_url": "https://github.com/llvm/llvm-project/blob/llvmorg-23.1.4/llvm/lib/IRReader/IRReader.cpp",
+      "raw_url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-23.1.4/llvm/lib/IRReader/IRReader.cpp",
+      "bytes": 5596,
+      "sha256": "48a296ba3560e0042915be95baa93b37839e776640e55da0507f60b3d63fd346",
+      "computed_git_blob_sha": "8b3978c728a6e5a05dbd261a7a6f4143131ff57f",
+      "git_blob_matches": true
+    }
+  ],
+  "baseline_files": [
+    {
+      "path": "crates/zil-llvm-api/src/native.rs",
+      "bytes": 15793,
+      "sha256": "9a988e2f9fbe6944dc479b00959b0dd8d03e9a3ff79854bebffcfd5e5fe86223",
+      "git_blob_sha": "2317078c3093900e2cc2b20540d65e83a16bbfd2",
+      "expected_git_blob_sha": "2317078c3093900e2cc2b20540d65e83a16bbfd2",
+      "git_blob_matches": true
+    },
+    {
+      "path": "crates/zil-llvm-api/src/native/builder.rs",
+      "bytes": 27602,
+      "sha256": "7cd2dfb68c4574ed5ce3d826fea0c1c69b656a38e5e91dfddefca28c72390b3d",
+      "git_blob_sha": "3fe3ca9e7db247db37d16f0ceb1d0b7ce463f685",
+      "expected_git_blob_sha": "3fe3ca9e7db247db37d16f0ceb1d0b7ce463f685",
+      "git_blob_matches": true
+    }
+  ],
+  "ordinary_c_declarations": [
+    {
+      "symbol": "LLVMAddAttributeAtIndex",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMAddAttributeAtIndex(LLVMValueRef F, LLVMAttributeIndex Idx, LLVMAttributeRef A);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMAddAttributeAtIndex(LLVMValueRef F, LLVMAttributeIndex Idx, LLVMAttributeRef A);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMAddCallSiteAttribute",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMAddCallSiteAttribute(LLVMValueRef C, LLVMAttributeIndex Idx, LLVMAttributeRef A);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMAddCallSiteAttribute(LLVMValueRef C, LLVMAttributeIndex Idx, LLVMAttributeRef A);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMAddFunction",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMAddFunction(LLVMModuleRef M, const char *Name, LLVMTypeRef FunctionTy);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMAddFunction(LLVMModuleRef M, const char *Name, LLVMTypeRef FunctionTy);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMAddGlobal",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMAddGlobal(LLVMModuleRef M, LLVMTypeRef Ty, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMAddGlobal(LLVMModuleRef M, LLVMTypeRef Ty, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMAddIncoming",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMAddIncoming(LLVMValueRef PhiNode, LLVMValueRef *IncomingValues, LLVMBasicBlockRef *IncomingBlocks, unsigned Count);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMAddIncoming(LLVMValueRef PhiNode, LLVMValueRef *IncomingValues, LLVMBasicBlockRef *IncomingBlocks, unsigned Count);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMAppendBasicBlockInContext",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMBasicBlockRef LLVMAppendBasicBlockInContext(LLVMContextRef C, LLVMValueRef Fn, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMBasicBlockRef LLVMAppendBasicBlockInContext(LLVMContextRef C, LLVMValueRef Fn, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMArrayType2",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMArrayType2(LLVMTypeRef ElementType, uint64_t ElementCount);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMArrayType2(LLVMTypeRef ElementType, uint64_t ElementCount);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildAShr",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildAShr(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildAShr(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildAdd",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildAdd(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildAdd(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildAlloca",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildAlloca(LLVMBuilderRef, LLVMTypeRef Ty, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildAlloca(LLVMBuilderRef, LLVMTypeRef Ty, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildAnd",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildAnd(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildAnd(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildBr",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildBr(LLVMBuilderRef, LLVMBasicBlockRef Dest);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildBr(LLVMBuilderRef, LLVMBasicBlockRef Dest);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildCall2",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildCall2(LLVMBuilderRef, LLVMTypeRef, LLVMValueRef Fn, LLVMValueRef *Args, unsigned NumArgs, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildCall2(LLVMBuilderRef, LLVMTypeRef, LLVMValueRef Fn, LLVMValueRef *Args, unsigned NumArgs, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildCondBr",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildCondBr(LLVMBuilderRef, LLVMValueRef If, LLVMBasicBlockRef Then, LLVMBasicBlockRef Else);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildCondBr(LLVMBuilderRef, LLVMValueRef If, LLVMBasicBlockRef Then, LLVMBasicBlockRef Else);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildExtractValue",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildExtractValue(LLVMBuilderRef, LLVMValueRef AggVal, unsigned Index, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildExtractValue(LLVMBuilderRef, LLVMValueRef AggVal, unsigned Index, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildFreeze",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildFreeze(LLVMBuilderRef, LLVMValueRef Val, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildFreeze(LLVMBuilderRef, LLVMValueRef Val, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildGEP2",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildGEP2(LLVMBuilderRef B, LLVMTypeRef Ty, LLVMValueRef Pointer, LLVMValueRef *Indices, unsigned NumIndices, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildGEP2(LLVMBuilderRef B, LLVMTypeRef Ty, LLVMValueRef Pointer, LLVMValueRef *Indices, unsigned NumIndices, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildICmp",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildICmp(LLVMBuilderRef, LLVMIntPredicate Op, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildICmp(LLVMBuilderRef, LLVMIntPredicate Op, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildInsertValue",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildInsertValue(LLVMBuilderRef, LLVMValueRef AggVal, LLVMValueRef EltVal, unsigned Index, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildInsertValue(LLVMBuilderRef, LLVMValueRef AggVal, LLVMValueRef EltVal, unsigned Index, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildLShr",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildLShr(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildLShr(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildLoad2",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildLoad2(LLVMBuilderRef, LLVMTypeRef Ty, LLVMValueRef PointerVal, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildLoad2(LLVMBuilderRef, LLVMTypeRef Ty, LLVMValueRef PointerVal, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildMul",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildMul(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildMul(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildOr",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildOr(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildOr(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildPhi",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildPhi(LLVMBuilderRef, LLVMTypeRef Ty, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildPhi(LLVMBuilderRef, LLVMTypeRef Ty, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildPtrToInt",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildPtrToInt(LLVMBuilderRef, LLVMValueRef Val, LLVMTypeRef DestTy, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildPtrToInt(LLVMBuilderRef, LLVMValueRef Val, LLVMTypeRef DestTy, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildRet",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildRet(LLVMBuilderRef, LLVMValueRef V);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildRet(LLVMBuilderRef, LLVMValueRef V);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildRetVoid",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildRetVoid(LLVMBuilderRef);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildRetVoid(LLVMBuilderRef);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildSDiv",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildSDiv(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildSDiv(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildSExt",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildSExt(LLVMBuilderRef, LLVMValueRef Val, LLVMTypeRef DestTy, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildSExt(LLVMBuilderRef, LLVMValueRef Val, LLVMTypeRef DestTy, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildSRem",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildSRem(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildSRem(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildShl",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildShl(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildShl(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildStore",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildStore(LLVMBuilderRef, LLVMValueRef Val, LLVMValueRef Ptr);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildStore(LLVMBuilderRef, LLVMValueRef Val, LLVMValueRef Ptr);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildSub",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildSub(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildSub(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildTrunc",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildTrunc(LLVMBuilderRef, LLVMValueRef Val, LLVMTypeRef DestTy, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildTrunc(LLVMBuilderRef, LLVMValueRef Val, LLVMTypeRef DestTy, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildUDiv",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildUDiv(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildUDiv(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildURem",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildURem(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildURem(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildUnreachable",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildUnreachable(LLVMBuilderRef);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildUnreachable(LLVMBuilderRef);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildXor",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildXor(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildXor(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMBuildZExt",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildZExt(LLVMBuilderRef, LLVMValueRef Val, LLVMTypeRef DestTy, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMBuildZExt(LLVMBuilderRef, LLVMValueRef Val, LLVMTypeRef DestTy, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMByteOrder",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "declaration": "enum LLVMByteOrdering LLVMByteOrder(LLVMTargetDataRef TD);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "declaration": "enum LLVMByteOrdering LLVMByteOrder(LLVMTargetDataRef TD);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMConstArray2",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMConstArray2(LLVMTypeRef ElementTy, LLVMValueRef *ConstantVals, uint64_t Length);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMConstArray2(LLVMTypeRef ElementTy, LLVMValueRef *ConstantVals, uint64_t Length);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMConstGEP2",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMConstGEP2(LLVMTypeRef Ty, LLVMValueRef ConstantVal, LLVMValueRef *ConstantIndices, unsigned NumIndices);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMConstGEP2(LLVMTypeRef Ty, LLVMValueRef ConstantVal, LLVMValueRef *ConstantIndices, unsigned NumIndices);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMConstInt",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMConstInt(LLVMTypeRef IntTy, unsigned long long N, LLVMBool SignExtend);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMConstInt(LLVMTypeRef IntTy, unsigned long long N, LLVMBool SignExtend);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMConstNull",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMConstNull(LLVMTypeRef Ty);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMConstNull(LLVMTypeRef Ty);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMConstStringInContext",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMConstStringInContext(LLVMContextRef C, const char *Str, unsigned Length, LLVMBool DontNullTerminate);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMConstStringInContext(LLVMContextRef C, const char *Str, unsigned Length, LLVMBool DontNullTerminate);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMContextCreate",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMContextRef LLVMContextCreate(void);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMContextRef LLVMContextCreate(void);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMContextDispose",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMContextDispose(LLVMContextRef C);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMContextDispose(LLVMContextRef C);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMCopyStringRepOfTargetData",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "declaration": "char *LLVMCopyStringRepOfTargetData(LLVMTargetDataRef TD);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "declaration": "char *LLVMCopyStringRepOfTargetData(LLVMTargetDataRef TD);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMCreateBuilderInContext",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMBuilderRef LLVMCreateBuilderInContext(LLVMContextRef C);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMBuilderRef LLVMCreateBuilderInContext(LLVMContextRef C);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMCreateEnumAttribute",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMAttributeRef LLVMCreateEnumAttribute(LLVMContextRef C, unsigned KindID, uint64_t Val);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMAttributeRef LLVMCreateEnumAttribute(LLVMContextRef C, unsigned KindID, uint64_t Val);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMCreateMemoryBufferWithMemoryRangeCopy",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMMemoryBufferRef LLVMCreateMemoryBufferWithMemoryRangeCopy(const char *InputData, size_t InputDataLength, const char *BufferName);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMMemoryBufferRef LLVMCreateMemoryBufferWithMemoryRangeCopy( const char *InputData, size_t InputDataLength, const char *BufferName);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMCreatePassBuilderOptions",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "LLVMPassBuilderOptionsRef LLVMCreatePassBuilderOptions(void);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "LLVMPassBuilderOptionsRef LLVMCreatePassBuilderOptions(void);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMCreateTargetDataLayout",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "declaration": "LLVMTargetDataRef LLVMCreateTargetDataLayout(LLVMTargetMachineRef T);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "declaration": "LLVMTargetDataRef LLVMCreateTargetDataLayout(LLVMTargetMachineRef T);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMCreateTargetMachine",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "declaration": "LLVMTargetMachineRef LLVMCreateTargetMachine(LLVMTargetRef T, const char *Triple, const char *CPU, const char *Features, LLVMCodeGenOptLevel Level, LLVMRelocMode Reloc, LLVMCodeModel CodeModel);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "declaration": "LLVMTargetMachineRef LLVMCreateTargetMachine( LLVMTargetRef T, const char *Triple, const char *CPU, const char *Features, LLVMCodeGenOptLevel Level, LLVMRelocMode Reloc, LLVMCodeModel CodeModel);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMDisposeBuilder",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMDisposeBuilder(LLVMBuilderRef Builder);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMDisposeBuilder(LLVMBuilderRef Builder);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMDisposeErrorMessage",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Error.h",
+          "declaration": "void LLVMDisposeErrorMessage(char *ErrMsg);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Error.h",
+          "declaration": "void LLVMDisposeErrorMessage(char *ErrMsg);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMDisposeMemoryBuffer",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMDisposeMemoryBuffer(LLVMMemoryBufferRef MemBuf);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMDisposeMemoryBuffer(LLVMMemoryBufferRef MemBuf);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMDisposeMessage",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMDisposeMessage(char *Message);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMDisposeMessage(char *Message);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMDisposeModule",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMDisposeModule(LLVMModuleRef M);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMDisposeModule(LLVMModuleRef M);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMDisposePassBuilderOptions",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "void LLVMDisposePassBuilderOptions(LLVMPassBuilderOptionsRef Options);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "void LLVMDisposePassBuilderOptions(LLVMPassBuilderOptionsRef Options);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMDisposeTargetData",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "declaration": "void LLVMDisposeTargetData(LLVMTargetDataRef TD);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "declaration": "void LLVMDisposeTargetData(LLVMTargetDataRef TD);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMDisposeTargetMachine",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "declaration": "void LLVMDisposeTargetMachine(LLVMTargetMachineRef T);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "declaration": "void LLVMDisposeTargetMachine(LLVMTargetMachineRef T);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMFunctionType",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMFunctionType(LLVMTypeRef ReturnType, LLVMTypeRef *ParamTypes, unsigned ParamCount, LLVMBool IsVarArg);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMFunctionType(LLVMTypeRef ReturnType, LLVMTypeRef *ParamTypes, unsigned ParamCount, LLVMBool IsVarArg);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetBufferSize",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "size_t LLVMGetBufferSize(LLVMMemoryBufferRef MemBuf);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "size_t LLVMGetBufferSize(LLVMMemoryBufferRef MemBuf);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetBufferStart",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "const char *LLVMGetBufferStart(LLVMMemoryBufferRef MemBuf);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "const char *LLVMGetBufferStart(LLVMMemoryBufferRef MemBuf);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetDataLayoutStr",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "const char *LLVMGetDataLayoutStr(LLVMModuleRef M);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "const char *LLVMGetDataLayoutStr(LLVMModuleRef M);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetEnumAttributeKindForName",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "unsigned LLVMGetEnumAttributeKindForName(const char *Name, size_t SLen);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "unsigned LLVMGetEnumAttributeKindForName(const char *Name, size_t SLen);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetErrorMessage",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Error.h",
+          "declaration": "char *LLVMGetErrorMessage(LLVMErrorRef Err);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Error.h",
+          "declaration": "char *LLVMGetErrorMessage(LLVMErrorRef Err);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetParam",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMGetParam(LLVMValueRef Fn, unsigned Index);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMGetParam(LLVMValueRef Fn, unsigned Index);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetPoison",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMGetPoison(LLVMTypeRef Ty);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMGetPoison(LLVMTypeRef Ty);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetTarget",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "const char *LLVMGetTarget(LLVMModuleRef M);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "const char *LLVMGetTarget(LLVMModuleRef M);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetTargetFromTriple",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "declaration": "LLVMBool LLVMGetTargetFromTriple(const char* Triple, LLVMTargetRef *T, char **ErrorMessage);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "declaration": "LLVMBool LLVMGetTargetFromTriple(const char *Triple, LLVMTargetRef *T, char **ErrorMessage);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetUndef",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMGetUndef(LLVMTypeRef Ty);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMValueRef LLVMGetUndef(LLVMTypeRef Ty);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMGetVersion",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMGetVersion(unsigned *Major, unsigned *Minor, unsigned *Patch);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMGetVersion(unsigned *Major, unsigned *Minor, unsigned *Patch);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMIntTypeInContext",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMIntTypeInContext(LLVMContextRef C, unsigned NumBits);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMIntTypeInContext(LLVMContextRef C, unsigned NumBits);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMModuleCreateWithNameInContext",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMModuleRef LLVMModuleCreateWithNameInContext(const char *ModuleID, LLVMContextRef C);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMModuleRef LLVMModuleCreateWithNameInContext(const char *ModuleID, LLVMContextRef C);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMParseIRInContext",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/IRReader.h",
+          "declaration": "LLVMBool LLVMParseIRInContext(LLVMContextRef ContextRef, LLVMMemoryBufferRef MemBuf, LLVMModuleRef *OutM, char **OutMessage);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/IRReader.h",
+          "declaration": "LLVMBool LLVMParseIRInContext(LLVMContextRef ContextRef, LLVMMemoryBufferRef MemBuf, LLVMModuleRef *OutM, char **OutMessage);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMPassBuilderOptionsSetLoopInterleaving",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "void LLVMPassBuilderOptionsSetLoopInterleaving( LLVMPassBuilderOptionsRef Options, LLVMBool LoopInterleaving);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "void LLVMPassBuilderOptionsSetLoopInterleaving(LLVMPassBuilderOptionsRef Options, LLVMBool LoopInterleaving);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMPassBuilderOptionsSetLoopVectorization",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "void LLVMPassBuilderOptionsSetLoopVectorization( LLVMPassBuilderOptionsRef Options, LLVMBool LoopVectorization);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "void LLVMPassBuilderOptionsSetLoopVectorization(LLVMPassBuilderOptionsRef Options, LLVMBool LoopVectorization);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMPassBuilderOptionsSetSLPVectorization",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "void LLVMPassBuilderOptionsSetSLPVectorization( LLVMPassBuilderOptionsRef Options, LLVMBool SLPVectorization);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "void LLVMPassBuilderOptionsSetSLPVectorization(LLVMPassBuilderOptionsRef Options, LLVMBool SLPVectorization);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMPassBuilderOptionsSetVerifyEach",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "void LLVMPassBuilderOptionsSetVerifyEach(LLVMPassBuilderOptionsRef Options, LLVMBool VerifyEach);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "void LLVMPassBuilderOptionsSetVerifyEach(LLVMPassBuilderOptionsRef Options, LLVMBool VerifyEach);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMPointerSize",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "declaration": "unsigned LLVMPointerSize(LLVMTargetDataRef TD);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "declaration": "unsigned LLVMPointerSize(LLVMTargetDataRef TD);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMPointerTypeInContext",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMPointerTypeInContext(LLVMContextRef C, unsigned AddressSpace);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMPointerTypeInContext(LLVMContextRef C, unsigned AddressSpace);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMPositionBuilderAtEnd",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMPositionBuilderAtEnd(LLVMBuilderRef Builder, LLVMBasicBlockRef Block);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMPositionBuilderAtEnd(LLVMBuilderRef Builder, LLVMBasicBlockRef Block);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMRunPasses",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "LLVMErrorRef LLVMRunPasses(LLVMModuleRef M, const char *Passes, LLVMTargetMachineRef TM, LLVMPassBuilderOptionsRef Options);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Transforms/PassBuilder.h",
+          "declaration": "LLVMErrorRef LLVMRunPasses(LLVMModuleRef M, const char *Passes, LLVMTargetMachineRef TM, LLVMPassBuilderOptionsRef Options);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMSetAlignment",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetAlignment(LLVMValueRef V, unsigned Bytes);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetAlignment(LLVMValueRef V, unsigned Bytes);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMSetGlobalConstant",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetGlobalConstant(LLVMValueRef GlobalVar, LLVMBool IsConstant);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetGlobalConstant(LLVMValueRef GlobalVar, LLVMBool IsConstant);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMSetInitializer",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetInitializer(LLVMValueRef GlobalVar, LLVMValueRef ConstantVal);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetInitializer(LLVMValueRef GlobalVar, LLVMValueRef ConstantVal);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMSetLinkage",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetLinkage(LLVMValueRef Global, LLVMLinkage Linkage);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetLinkage(LLVMValueRef Global, LLVMLinkage Linkage);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMSetModuleDataLayout",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "declaration": "void LLVMSetModuleDataLayout(LLVMModuleRef M, LLVMTargetDataRef DL);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "declaration": "void LLVMSetModuleDataLayout(LLVMModuleRef M, LLVMTargetDataRef DL);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMSetTarget",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetTarget(LLVMModuleRef M, const char *Triple);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetTarget(LLVMModuleRef M, const char *Triple);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMSetUnnamedAddress",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetUnnamedAddress(LLVMValueRef Global, LLVMUnnamedAddr UnnamedAddr);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetUnnamedAddress(LLVMValueRef Global, LLVMUnnamedAddr UnnamedAddr);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMSetValueName2",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetValueName2(LLVMValueRef Val, const char *Name, size_t NameLen);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMSetValueName2(LLVMValueRef Val, const char *Name, size_t NameLen);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMStructCreateNamed",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMStructCreateNamed(LLVMContextRef C, const char *Name);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMStructCreateNamed(LLVMContextRef C, const char *Name);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMStructSetBody",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMStructSetBody(LLVMTypeRef StructTy, LLVMTypeRef *ElementTypes, unsigned ElementCount, LLVMBool Packed);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "void LLVMStructSetBody(LLVMTypeRef StructTy, LLVMTypeRef *ElementTypes, unsigned ElementCount, LLVMBool Packed);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMStructTypeInContext",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMStructTypeInContext(LLVMContextRef C, LLVMTypeRef *ElementTypes, unsigned ElementCount, LLVMBool Packed);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMStructTypeInContext(LLVMContextRef C, LLVMTypeRef *ElementTypes, unsigned ElementCount, LLVMBool Packed);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMTargetMachineEmitToMemoryBuffer",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "declaration": "LLVMBool LLVMTargetMachineEmitToMemoryBuffer(LLVMTargetMachineRef T, LLVMModuleRef M, LLVMCodeGenFileType codegen, char** ErrorMessage, LLVMMemoryBufferRef *OutMemBuf);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "declaration": "LLVMBool LLVMTargetMachineEmitToMemoryBuffer( LLVMTargetMachineRef T, LLVMModuleRef M, LLVMCodeGenFileType codegen, char **ErrorMessage, LLVMMemoryBufferRef *OutMemBuf);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMVerifyModule",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Analysis.h",
+          "declaration": "LLVMBool LLVMVerifyModule(LLVMModuleRef M, LLVMVerifierFailureAction Action, char **OutMessage);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Analysis.h",
+          "declaration": "LLVMBool LLVMVerifyModule(LLVMModuleRef M, LLVMVerifierFailureAction Action, char **OutMessage);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    },
+    {
+      "symbol": "LLVMVoidTypeInContext",
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMVoidTypeInContext(LLVMContextRef C);"
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "declaration": "LLVMTypeRef LLVMVoidTypeInContext(LLVMContextRef C);"
+        }
+      },
+      "equal_after_removing_visibility_and_whitespace": true
+    }
+  ],
+  "target_initializers": [
+    {
+      "symbol": "LLVMInitializeX86TargetInfo",
+      "macro_declaration": "LLVMInitialize##TargetName##TargetInfo(void)",
+      "header": "llvm/include/llvm-c/Target.h",
+      "present": {
+        "llvmorg-17.0.6": true,
+        "llvmorg-23.1.4": true
+      },
+      "declared_by_baseline": true,
+      "status": "Pass"
+    },
+    {
+      "symbol": "LLVMInitializeX86Target",
+      "macro_declaration": "LLVMInitialize##TargetName##Target(void)",
+      "header": "llvm/include/llvm-c/Target.h",
+      "present": {
+        "llvmorg-17.0.6": true,
+        "llvmorg-23.1.4": true
+      },
+      "declared_by_baseline": true,
+      "status": "Pass"
+    },
+    {
+      "symbol": "LLVMInitializeX86TargetMC",
+      "macro_declaration": "LLVMInitialize##TargetName##TargetMC(void)",
+      "header": "llvm/include/llvm-c/Target.h",
+      "present": {
+        "llvmorg-17.0.6": true,
+        "llvmorg-23.1.4": true
+      },
+      "declared_by_baseline": true,
+      "status": "Pass"
+    },
+    {
+      "symbol": "LLVMInitializeX86AsmPrinter",
+      "macro_declaration": "LLVMInitialize##TargetName##AsmPrinter(void)",
+      "header": "llvm/include/llvm-c/Target.h",
+      "present": {
+        "llvmorg-17.0.6": true,
+        "llvmorg-23.1.4": true
+      },
+      "declared_by_baseline": true,
+      "status": "Pass"
+    },
+    {
+      "symbol": "LLVMInitializeX86AsmParser",
+      "macro_declaration": "LLVMInitialize##TargetName##AsmParser(void)",
+      "header": "llvm/include/llvm-c/Target.h",
+      "present": {
+        "llvmorg-17.0.6": true,
+        "llvmorg-23.1.4": true
+      },
+      "declared_by_baseline": true,
+      "status": "Pass"
+    }
+  ],
+  "numeric_enums": [
+    {
+      "enum": "LLVMLinkage",
+      "used_expected_values": {
+        "LLVMExternalLinkage": 0,
+        "LLVMInternalLinkage": 8,
+        "LLVMPrivateLinkage": 9
+      },
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "values": {
+            "LLVMExternalLinkage": 0,
+            "LLVMInternalLinkage": 8,
+            "LLVMPrivateLinkage": 9
+          }
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "values": {
+            "LLVMExternalLinkage": 0,
+            "LLVMInternalLinkage": 8,
+            "LLVMPrivateLinkage": 9
+          }
+        }
+      }
+    },
+    {
+      "enum": "LLVMUnnamedAddr",
+      "used_expected_values": {
+        "LLVMGlobalUnnamedAddr": 2
+      },
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "values": {
+            "LLVMGlobalUnnamedAddr": 2
+          }
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "values": {
+            "LLVMGlobalUnnamedAddr": 2
+          }
+        }
+      }
+    },
+    {
+      "enum": "LLVMIntPredicate",
+      "used_expected_values": {
+        "LLVMIntEQ": 32,
+        "LLVMIntNE": 33,
+        "LLVMIntUGT": 34,
+        "LLVMIntUGE": 35,
+        "LLVMIntULT": 36,
+        "LLVMIntULE": 37,
+        "LLVMIntSGT": 38,
+        "LLVMIntSGE": 39,
+        "LLVMIntSLT": 40,
+        "LLVMIntSLE": 41
+      },
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "values": {
+            "LLVMIntEQ": 32,
+            "LLVMIntNE": 33,
+            "LLVMIntUGT": 34,
+            "LLVMIntUGE": 35,
+            "LLVMIntULT": 36,
+            "LLVMIntULE": 37,
+            "LLVMIntSGT": 38,
+            "LLVMIntSGE": 39,
+            "LLVMIntSLT": 40,
+            "LLVMIntSLE": 41
+          }
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Core.h",
+          "values": {
+            "LLVMIntEQ": 32,
+            "LLVMIntNE": 33,
+            "LLVMIntUGT": 34,
+            "LLVMIntUGE": 35,
+            "LLVMIntULT": 36,
+            "LLVMIntULE": 37,
+            "LLVMIntSGT": 38,
+            "LLVMIntSGE": 39,
+            "LLVMIntSLT": 40,
+            "LLVMIntSLE": 41
+          }
+        }
+      }
+    },
+    {
+      "enum": "LLVMVerifierFailureAction",
+      "used_expected_values": {
+        "LLVMReturnStatusAction": 2
+      },
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Analysis.h",
+          "values": {
+            "LLVMReturnStatusAction": 2
+          }
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Analysis.h",
+          "values": {
+            "LLVMReturnStatusAction": 2
+          }
+        }
+      }
+    },
+    {
+      "enum": "LLVMCodeGenOptLevel",
+      "used_expected_values": {
+        "LLVMCodeGenLevelNone": 0,
+        "LLVMCodeGenLevelDefault": 2
+      },
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "values": {
+            "LLVMCodeGenLevelNone": 0,
+            "LLVMCodeGenLevelDefault": 2
+          }
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "values": {
+            "LLVMCodeGenLevelNone": 0,
+            "LLVMCodeGenLevelDefault": 2
+          }
+        }
+      }
+    },
+    {
+      "enum": "LLVMRelocMode",
+      "used_expected_values": {
+        "LLVMRelocPIC": 2
+      },
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "values": {
+            "LLVMRelocPIC": 2
+          }
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "values": {
+            "LLVMRelocPIC": 2
+          }
+        }
+      }
+    },
+    {
+      "enum": "LLVMCodeModel",
+      "used_expected_values": {
+        "LLVMCodeModelDefault": 0
+      },
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "values": {
+            "LLVMCodeModelDefault": 0
+          }
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "values": {
+            "LLVMCodeModelDefault": 0
+          }
+        }
+      }
+    },
+    {
+      "enum": "LLVMCodeGenFileType",
+      "used_expected_values": {
+        "LLVMObjectFile": 1
+      },
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "values": {
+            "LLVMObjectFile": 1
+          }
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/TargetMachine.h",
+          "values": {
+            "LLVMObjectFile": 1
+          }
+        }
+      }
+    },
+    {
+      "enum": "LLVMByteOrdering",
+      "used_expected_values": {
+        "LLVMLittleEndian": 1
+      },
+      "sources": {
+        "llvmorg-17.0.6": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "values": {
+            "LLVMLittleEndian": 1
+          }
+        },
+        "llvmorg-23.1.4": {
+          "path": "llvm/include/llvm-c/Target.h",
+          "values": {
+            "LLVMLittleEndian": 1
+          }
+        }
+      }
+    }
+  ],
+  "attribute_indices": {
+    "llvmorg-17.0.6": {
+      "values": {
+        "LLVMAttributeReturnIndex": "0U",
+        "LLVMAttributeFunctionIndex": "-1"
+      },
+      "LLVMAttributeIndex_is_unsigned": true,
+      "function_index_as_u32": 4294967295,
+      "status": "Pass"
+    },
+    "llvmorg-23.1.4": {
+      "values": {
+        "LLVMAttributeReturnIndex": "0U",
+        "LLVMAttributeFunctionIndex": "-1"
+      },
+      "LLVMAttributeIndex_is_unsigned": true,
+      "function_index_as_u32": 4294967295,
+      "status": "Pass"
+    }
+  },
+  "parse_ir_ownership": {
+    "llvmorg-17.0.6": {
+      "path": "llvm/lib/IRReader/IRReader.cpp",
+      "function": "LLVMParseIRInContext",
+      "function_source": "LLVMParseIRInContext(LLVMContextRef ContextRef,\n                              LLVMMemoryBufferRef MemBuf, LLVMModuleRef *OutM,\n                              char **OutMessage) {\n  SMDiagnostic Diag;\n\n  std::unique_ptr<MemoryBuffer> MB(unwrap(MemBuf));\n  *OutM =\n      wrap(parseIR(MB->getMemBufferRef(), Diag, *unwrap(ContextRef)).release());\n\n  if(!*OutM) {\n    if (OutMessage) {\n      std::string buf;\n      raw_string_ostream os(buf);\n\n      Diag.print(nullptr, os, false);\n      os.flush();\n\n      *OutMessage = strdup(buf.c_str());\n    }\n    return 1;\n  }\n\n  return 0;\n}",
+      "unique_ptr_owns_input_before_parse": true,
+      "reviewed_interpretation": "The local unique_ptr destroys the input MemoryBuffer on both normal success and normal failure returns."
+    },
+    "llvmorg-23.1.4": {
+      "path": "llvm/lib/IRReader/IRReader.cpp",
+      "function": "LLVMParseIRInContext",
+      "function_source": "LLVMParseIRInContext(LLVMContextRef ContextRef,\n                              LLVMMemoryBufferRef MemBuf, LLVMModuleRef *OutM,\n                              char **OutMessage) {\n  std::unique_ptr<MemoryBuffer> MB(unwrap(MemBuf));\n  return LLVMParseIRInContext2(ContextRef, wrap(MB.get()), OutM, OutMessage);\n}",
+      "unique_ptr_owns_input_before_parse": true,
+      "reviewed_interpretation": "The local unique_ptr destroys the input MemoryBuffer on both normal success and normal failure returns."
+    },
+    "new_nonconsuming_API": {
+      "tag": "llvmorg-23.1.4",
+      "function": "LLVMParseIRInContext2",
+      "function_source": "LLVMParseIRInContext2(LLVMContextRef ContextRef,\n                               LLVMMemoryBufferRef MemBuf, LLVMModuleRef *OutM,\n                               char **OutMessage) {\n  SMDiagnostic Diag;\n\n  *OutM = wrap(parseIR(*unwrap(MemBuf), Diag, *unwrap(ContextRef)).release());\n\n  if (*OutM)\n    return 0;\n\n  if (OutMessage) {\n    std::string Buf;\n    raw_string_ostream OS(Buf);\n    Diag.print(nullptr, OS, /*ShowColors=*/false);\n    *OutMessage = strdup(Buf.c_str());\n  }\n\n  return 1;\n}",
+      "not_called_by_baseline": true,
+      "reviewed_interpretation": "The new function parses through the caller-owned buffer; do not swap to this API without changing the Rust ownership contract."
+    }
+  },
+  "method": {
+    "retrieval": "GitHub connector fetch_file with exact tag and path; full UTF-8 source preserved and matched to returned Git blob SHA.",
+    "declaration_comparison": "Remove comments, preprocessor lines, LLVM_C_ABI visibility and extern-C marker macros; compare C declaration lexical tokens, including parameter names and pointer types.",
+    "macro_check": "Require each of the five exact target-initializer macro declaration patterns in both versions; X86 availability/export still requires actual toolchain validation.",
+    "enum_check": "Evaluate explicit integer constants and subsequent implicit increments for the selected enums; reject unsupported numeric syntax.",
+    "ownership_check": "Match the unique_ptr owner in both exact source definitions and retain the full bodies for human review; this is not a general C++ ownership proof."
+  },
+  "limitations": [
+    "No candidate production edits were reviewed in this receipt.",
+    "No builds, linked-symbol export checks, C ABI execution, sanitizers, native tests, or performance measurements were run.",
+    "Matching declarations do not prove all transitive typedef ABI or runtime semantics unchanged.",
+    "No preprocessor or C compiler was invoked by this source inventory script.",
+    "Source hashes verify byte identity with GitHub-reported blobs, not a separate release-signature verification.",
+    "The LLVM23 pipeline, target-machine implementation, ABI lowering, and generated-code quality still require exact-toolchain regression and measurement."
+  ],
+  "failures": [],
+  "audit_script_sha256": "1c518908c40d81790d906bcb9f7c8cc699b47ab984dc30d394d6158cc0c6a499"
+}

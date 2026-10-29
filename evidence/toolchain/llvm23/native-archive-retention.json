@@ -1,0 +1,43 @@
+{
+  "persistent_upload_status": "RejectedByAutomaticApprovalReview",
+  "reason": "Private project-derived test archives and metadata were not explicitly authorized for disclosure to ChatGPT Library. No upload was executed and no workaround attempted.",
+  "local_archives": [
+    {
+      "name": "llvm23-workspace-native.tar.zst",
+      "local_path": "/workspace/scratch/037bacfed72a/llvm23-workspace-native.tar.zst",
+      "bytes": 159801464,
+      "sha256": "c983eb7d2dd73192e9a272d19007178050cb26cc35d8cbccd60ceea300c09505"
+    },
+    {
+      "name": "llvm23-workspace-native-manifest.json",
+      "local_path": "/workspace/scratch/037bacfed72a/llvm23-workspace-native-manifest.json",
+      "bytes": 10977837,
+      "sha256": "61770b26ddfab82ac8576fdc03a320a311f11eed6c389f47bd1c85b8de80ae69"
+    },
+    {
+      "name": "llvm23-reference-failed-native.tar.zst",
+      "local_path": "/workspace/scratch/037bacfed72a/llvm23-reference-failed-native.tar.zst",
+      "bytes": 131976314,
+      "sha256": "898def5025313751208a227c1f3061af570f544cab0422bd256e8e25b1692db8"
+    },
+    {
+      "name": "llvm23-reference-failed-native.tar.zst.manifest.json",
+      "local_path": "/workspace/scratch/037bacfed72a/llvm23-reference-failed-native.tar.zst.manifest.json",
+      "bytes": 12893938,
+      "sha256": "979e2ef0438d8fbd01d3c206a8bd354bd05fb9871feb3e0a640047cd8c650e7e"
+    },
+    {
+      "name": "llvm23-reference-interrupted-native.tar.zst",
+      "local_path": "/workspace/scratch/037bacfed72a/llvm23-reference-interrupted-native.tar.zst",
+      "bytes": 156061166,
+      "sha256": "6db1fe9a8ed150beb4f6ce98d1606d62c63ca77fda9f0c0f9aef763f8e9339bd"
+    },
+    {
+      "name": "llvm23-reference-interrupted-native.tar.zst.manifest.json",
+      "local_path": "/workspace/scratch/037bacfed72a/llvm23-reference-interrupted-native.tar.zst.manifest.json",
+      "bytes": 16651671,
+      "sha256": "462b22d95a69d46828af51f884a82eace54d9bac7df71f14b96ddbc5213d672e"
+    }
+  ],
+  "authorized_repository_evidence": "Compact source identities, raw gate logs, controls and independent reviews will be committed to the existing private zil-lang/zil repository. Full large native archives remain local only."
+}

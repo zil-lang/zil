@@ -1,0 +1,126 @@
+{
+  "runner_author_and_executor": "/root/llvm_controls",
+  "independent_execution": false,
+  "candidate": "48fa354559be0bc7f6330b388a367e30c7184312",
+  "baseline": "ad509b5003d9d2a303428f9d01732292988084d8",
+  "migration": {
+    "status": "Pass",
+    "builds": 10,
+    "native_runs": 10,
+    "commands": 33,
+    "controls": [
+      {
+        "name": "cache-O0",
+        "status": "Pass"
+      },
+      {
+        "name": "cache-O2",
+        "status": "Pass"
+      },
+      {
+        "name": "wrong-llvm-version",
+        "status": "Pass",
+        "kind": "version-function interposition"
+      },
+      {
+        "name": "wrong-clang-version",
+        "status": "Pass",
+        "kind": "actual Clang17 with LLVM23"
+      }
+    ],
+    "cells": [
+      {
+        "name": "O0-baseline-cold",
+        "units": 3,
+        "hits": 0,
+        "misses": 3,
+        "stored": 3
+      },
+      {
+        "name": "O0-baseline-warm",
+        "units": 3,
+        "hits": 3,
+        "misses": 0,
+        "stored": 0
+      },
+      {
+        "name": "O0-candidate-cold",
+        "units": 3,
+        "hits": 0,
+        "misses": 3,
+        "stored": 3
+      },
+      {
+        "name": "O0-baseline-warm-after-candidate",
+        "units": 3,
+        "hits": 3,
+        "misses": 0,
+        "stored": 0
+      },
+      {
+        "name": "O0-candidate-warm",
+        "units": 3,
+        "hits": 3,
+        "misses": 0,
+        "stored": 0
+      },
+      {
+        "name": "O2-baseline-cold",
+        "units": 1,
+        "hits": 0,
+        "misses": 1,
+        "stored": 1
+      },
+      {
+        "name": "O2-baseline-warm",
+        "units": 1,
+        "hits": 1,
+        "misses": 0,
+        "stored": 0
+      },
+      {
+        "name": "O2-candidate-cold",
+        "units": 1,
+        "hits": 0,
+        "misses": 1,
+        "stored": 1
+      },
+      {
+        "name": "O2-baseline-warm-after-candidate",
+        "units": 1,
+        "hits": 1,
+        "misses": 0,
+        "stored": 0
+      },
+      {
+        "name": "O2-candidate-warm",
+        "units": 1,
+        "hits": 1,
+        "misses": 0,
+        "stored": 0
+      }
+    ]
+  },
+  "consumer208": {
+    "status": "Pass",
+    "builds": 16,
+    "native_runs": 128,
+    "injected_failures": 56,
+    "object_receipts": 40,
+    "version": "23.1.4",
+    "builder_only": true,
+    "current_verify_every_build": true
+  },
+  "raw_summaries": {
+    "migration-controls/result.json": {
+      "bytes": 96708,
+      "sha256": "1819c892158ca6343aae1592d9c8b6613e05c812a674d6327b50525a0552a128"
+    },
+    "consumer208/summary.json": {
+      "bytes": 76512,
+      "sha256": "16561fe156cbf55633b0b15ddac5ce17365387e1de4218d370768a69b4f88cf4"
+    }
+  },
+  "performance": "NotMeasured",
+  "mainline_acceptance": "NotDecidedByAuthor"
+}
