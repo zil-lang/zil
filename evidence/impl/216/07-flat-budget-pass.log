@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.29s
+     Running tests/impl206_verify.rs (/workspace/scratch/3cf12ce32e36/targets/216/debug/deps/impl206_verify-acb44e774a69bcb3)
+
+running 1 test
+test original_flat186_verify_boundary_stays_10398_without_product_leaf_table ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.01s
+
