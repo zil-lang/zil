@@ -270,12 +270,21 @@ fn ordinary_product_admission_does_not_widen_other_raw_parent_contexts() {
         let result = zil_analyze::analyze(&module, &Limits::default());
         fs::write(dir.join("analyze.txt"), format!("{result:#?}")).unwrap();
         let errors = result.expect_err(label);
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::Unsupported),
-            "{label}: {errors:#?}"
-        );
+        if label == "capture" {
+            // 214-216 admits complete Product captures, but this unchanged
+            // mutation still constructs Outer.child from a Managed R and
+            // projects it as R. It must now fail the actual field type check.
+            assert!(
+                errors.iter().any(|d| d.phase == Phase::Analyze
+                    && d.category == ResultCategory::SafeReject
+                    && d.code == "E-ANALYZE-IR"
+                    && d.message == "resource closure: package field type mismatch"),
+                "{label}: {errors:#?}"
+            );
+        } else {
+            assert!(errors.iter().any(|d| d.phase == Phase::Analyze
+                && d.category == ResultCategory::Unsupported), "{label}: {errors:#?}");
+        }
     }
 }
 
