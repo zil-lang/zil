@@ -1,0 +1,28 @@
+    Checking zil-base v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-llvm-api)
+    Checking zil-ir v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-ir)
+    Checking zil-syntax v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-syntax)
+    Checking zil-db v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-db)
+    Checking zil-expand v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-expand)
+    Checking zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-verify)
+    Checking zil-analyze v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-analyze)
+    Checking zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-types)
+    Checking zil-backend-llvm v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-backend-llvm)
+    Checking zil-lower v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-lower)
+    Checking zil-ct v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-ct)
+error[E0599]: no method named `push_str` found for struct `Code` in the current scope
+   --> crates/zil-backend-llvm/src/emit/dynamic_store.rs:686:24
+    |
+686 | ...   output.push_str(&format!("  %field.{field_index} = getelementptr {item}, ptr %slot, i32 0, i32 {field_index}\n  call void @zi...
+    |              ^^^^^^^^
+    |
+help: there is a method `push` with a similar name
+    |
+686 -                 output.push_str(&format!("  %field.{field_index} = getelementptr {item}, ptr %slot, i32 0, i32 {field_index}\n  call void @zil.closure.drop.{}(ptr %field.{field_index})\n", id.0));
+686 +                 output.push(&format!("  %field.{field_index} = getelementptr {item}, ptr %slot, i32 0, i32 {field_index}\n  call void @zil.closure.drop.{}(ptr %field.{field_index})\n", id.0));
+    |
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `zil-backend-llvm` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `zil-backend-llvm` (lib test) due to 1 previous error

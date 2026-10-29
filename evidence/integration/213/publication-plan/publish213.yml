@@ -1,0 +1,103 @@
+name: Publish reviewed 213 source and archive branches
+on:
+  push:
+    branches: [task/213]
+    paths:
+      - '.publish213/**'
+      - '.github/workflows/publish213.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: zil-publish-213
+  cancel-in-progress: false
+jobs:
+  verify-and-publish:
+    if: ${{ github.repository == 'zil-lang/zil' && github.ref == 'refs/heads/task/213' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_STRIP: 'symbols'
+      CARGO_PROFILE_DEV_STRIP: 'symbols'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          # Uses only this job's short-lived, repository-scoped GITHUB_TOKEN.
+          # Checkout removes its credential configuration during post-job cleanup.
+          persist-credentials: true
+      - name: Copy the reviewed transport payload outside the source checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/publish213" "$RUNNER_TEMP/receipts"
+          cp .publish213/publish.py .publish213/verify.py .publish213/manifest.json .publish213/source.bundle "$RUNNER_TEMP/publish213/"
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target" >> "$GITHUB_ENV"
+          echo "ZIL_TEST_REPORT_DIR=$RUNNER_TEMP/native-evidence" >> "$GITHUB_ENV"
+      - name: Verify checksum, remote snapshot, ancestry, and exact source checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/publish213/publish.py" prepare \
+            --repo "$GITHUB_WORKSPACE" \
+            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
+            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
+            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
+            --receipt "$RUNNER_TEMP/receipts/prepared.json"
+      - name: Install the supported LLVM API and Rust toolchains
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y clang-17 libllvm17t64 lld-17
+          echo "ZIL_CLANG=/usr/bin/clang-17" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> "$GITHUB_ENV"
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+      - name: Record exact source and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > "$RUNNER_TEMP/receipts/commit.txt"
+          git ls-tree -r HEAD > "$RUNNER_TEMP/receipts/source-tree.txt"
+          rustc -vV > "$RUNNER_TEMP/receipts/toolchain.txt"
+          "$ZIL_CLANG" --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
+          python3 tools/llvm/check_toolchain.py > "$RUNNER_TEMP/receipts/llvm-api-toolchain.json"
+          cp "$RUNNER_TEMP/publish213/manifest.json" "$RUNNER_TEMP/receipts/manifest.json"
+          cp "$RUNNER_TEMP/publish213/source.bundle" "$RUNNER_TEMP/receipts/source.bundle"
+      - name: All verify-main gates on the exact reviewed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/publish213/verify.py" \
+            --repo "$GITHUB_WORKSPACE" \
+            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
+            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
+            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
+            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
+            --out "$RUNNER_TEMP/receipts"
+      - name: Archive and atomically fast-forward main and retire exact old heads
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/publish213/publish.py" publish \
+            --repo "$GITHUB_WORKSPACE" \
+            --manifest "$RUNNER_TEMP/publish213/manifest.json" \
+            --bundle "$RUNNER_TEMP/publish213/source.bundle" \
+            --repository "$GITHUB_REPOSITORY" --transport-sha "$GITHUB_SHA" \
+            --receipt "$RUNNER_TEMP/receipts/prepared.json" \
+            --gates "$RUNNER_TEMP/receipts/gates.json" \
+            --result "$RUNNER_TEMP/receipts/published.json"
+      - name: Keep publication receipts and source bundle
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: zil-publish-213-${{ github.run_id }}
+          path: ${{ runner.temp }}/receipts/
+          retention-days: 30
+          if-no-files-found: error

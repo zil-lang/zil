@@ -1,3 +1,11 @@
+# 2026-10-29 当前入口：213–217
+
+语言206与LLVM212已完成真实合流，214–216补齐有限完整Product拥有捕获，并通过独立安全核与实际API/Clang执行复核。最终生产源码在8628d976正式默认workspace2743/0/0、同源fmt/Clippy/release及208消费者通过；相同生产与测试字节的46a2947f参考后端2711/0/0。217五模块同步消费者与逐真实分配失败经非作者复跑。当前精确来源、测试和边界见[LANGUAGE-217](LANGUAGE-217.md)、[ZUI语言闭合矩阵](ZUI-LANGUAGE-READINESS-217.md)及evidence/integration/217/RESULT.json。
+
+当前证据支持普通同步基础开工，不代表所有ZUI需求、声明式/开放异构/长期外部生命周期或完整1.4已经完成。B0/181继续施工，产品和原生Windows仍NotRun。同步工具已升级v6，main默认可快进同步，-MainOnly先证明其余bundle heads已包含；GitHub活动分支统一main与task/<ID>。下文保持历史执行身份。
+
+---
+
 # 2026-10-28 当前入口
 
 当前接续至206：普通完整嵌套Package Product、实际逐叶来源与递归清理经非作者审核；局部raw/Wire capture资格绕过已经独立复现并修复，206未开放该捕获。干净bf44fb1e整仓2615/0/0、266组，同提交all-targets Clippy通过。实际能力、原失败与207下一入口见[LANGUAGE-206](LANGUAGE-206.md)。181/B0、全部ZUI前置及完整1.4仍未完成；产品与原生Windows未运行，下文历史记录保持原身份。

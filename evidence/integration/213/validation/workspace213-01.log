@@ -1,0 +1,26 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-base)
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-llvm-api)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-db)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-types)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-lower)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-backend-llvm)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-ct)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-driver)
+   Compiling zil-ide v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-ide)
+   Compiling zil-cli v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-213/crates/zil-cli)
+rustc-LLVM ERROR: IO failure on output stream: No space left on device
+rustc-LLVM ERROR: IO failure on output stream: No space left on device
+error: could not compile `zil-driver` (test "impl174_store_fields")
+
+Caused by:
+  No space left on device (os error 28)
+
+Caused by:
+  failed to parse process output: `/workspace/scratch/3cf12ce32e36/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc --crate-name impl174_store_fields --edition=2024 crates/zil-driver/tests/impl174_store_fields.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --forbid=unsafe_code --test --cfg 'feature="default"' --cfg 'feature="llvm-api"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("default", "llvm-api"))' -C metadata=7920f0587b7d7602 -C extra-filename=-79df9947d4e25c63 --out-dir /workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps -C incremental=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/incremental -L dependency=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps --extern zil_analyze=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_analyze-faa29a417f40005b.rlib --extern zil_backend_llvm=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_backend_llvm-e49e7e9dde496d9d.rlib --extern zil_base=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_base-5c35b8d75b11b027.rlib --extern zil_ct=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_ct-c0b6ad31e1b67fc4.rlib --extern zil_db=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_db-b2ef4594e7a2ad87.rlib --extern zil_driver=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_driver-db2d814f6459bf60.rlib --extern zil_expand=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_expand-6d9139c291fa803d.rlib --extern zil_ir=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_ir-6c546f30e52478f3.rlib --extern zil_lower=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_lower-c0db515badec302b.rlib --extern zil_syntax=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_syntax-6f618e86e17ef189.rlib --extern zil_types=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_types-775b2d3108eff98d.rlib --extern zil_verify=/workspace/scratch/3cf12ce32e36/targets/integration213/debug/deps/libzil_verify-37965497d28e5fc8.rlib -L native=/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/x86_64-linux-gnu` (exit status: 101)
+warning: build failed, waiting for other jobs to finish...
+error: could not compile error: could not compile `zil-driver` (test "impl147_static_traits") due to 1 previous error

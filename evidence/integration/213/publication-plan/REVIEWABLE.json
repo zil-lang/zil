@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "status": "ReviewableOfflineProtocolPass",
+  "remote_mutations": 0,
+  "source_sha": "UNFILLED: root must bind the final reviewed and fully tested source",
+  "tests": {
+    "command": "python recovery/publish213/test_publish.py",
+    "passed": 15,
+    "failed": 0,
+    "seconds": 6.878,
+    "raw_log": "test-results.log",
+    "scope": "isolated local bare remotes; synthetic language-gate receipts; no GitHub or language validation claimed"
+  },
+  "environment": {
+    "python": "3.12.14",
+    "git": "git version 2.51.1"
+  },
+  "last_change_after_test": "Only workflow env added CARGO_PROFILE_TEST_STRIP=symbols and CARGO_PROFILE_DEV_STRIP=symbols; README and this checksum record added. No publication Python logic changed after the 15-test pass.",
+  "reviewed_gate_contract": "same gate commands, fixed Action SHAs, Rust 1.99.1 and LLVM 17 as task/213 verify-main.yml",
+  "files": {
+    "publish.py": {
+      "sha256": "e246d2a068cd0421385f36157ac0724efcec10fbeec97789c5bb3c82eb67973f",
+      "bytes": 17963
+    },
+    "verify.py": {
+      "sha256": "678a8da0c0ea0b96090f1b8df3203fe6e3524d11ad1edc884cf165e5af623768",
+      "bytes": 3664
+    },
+    "finalize.py": {
+      "sha256": "cbf1575d60615fe491a72eaee8579c3d33573228bc835b389f062176f9eeb449",
+      "bytes": 1590
+    },
+    "publish213.yml": {
+      "sha256": "0b36a9f3cd7f846b40784f81c52ce16b2a706cd277ec0d92d3f435cd147697f5",
+      "bytes": 4755
+    },
+    "manifest.template.json": {
+      "sha256": "7c9431e51fd65105515130d93795f0890af9a954dcc9daa0a2d1d36b74cc0b0c",
+      "bytes": 2074
+    },
+    "README.md": {
+      "sha256": "1b373aba31ed05f63e71e92f95cd148ad49416f6fe76adb559938964cba29f56",
+      "bytes": 5943
+    },
+    "test_publish.py": {
+      "sha256": "8769376943129e3266df1d7068fa1d815809849074ddae151581adeda8ef79d7",
+      "bytes": 12973
+    },
+    "test-results.log": {
+      "sha256": "8fcf70094c921736c8fce9b15e45f26d01dbfbdc3414450067b789c9184d2343",
+      "bytes": 1976
+    },
+    "test-first-fixture-failure.log": {
+      "sha256": "c967318eace11eb6bca7671b1ab8014a565aa454a7e82bb59099684356f6f0c7",
+      "bytes": 2698
+    }
+  }
+}

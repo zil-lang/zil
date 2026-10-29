@@ -1,0 +1,31 @@
+test_branch_protection_rejection_keeps_main_and_all_heads (__main__.PublicationTests.test_branch_protection_rejection_keeps_main_and_all_heads) ... ok
+test_changed_gate_log_refuses_all_writes (__main__.PublicationTests.test_changed_gate_log_refuses_all_writes) ... ok
+test_checksum_mismatch_refuses_prepare (__main__.PublicationTests.test_checksum_mismatch_refuses_prepare) ... ok
+test_dry_run_and_prepare_do_not_write_remote (__main__.PublicationTests.test_dry_run_and_prepare_do_not_write_remote) ... ok
+test_existing_exact_archive_tag_is_preserved (__main__.PublicationTests.test_existing_exact_archive_tag_is_preserved) ... ok
+test_fast_forward_archives_and_atomic_retirement (__main__.PublicationTests.test_fast_forward_archives_and_atomic_retirement) ... ok
+test_head_drift_after_archive_creation_aborts_final_transaction (__main__.PublicationTests.test_head_drift_after_archive_creation_aborts_final_transaction) ... ok
+test_main_drift_stops_before_archiving (__main__.PublicationTests.test_main_drift_stops_before_archiving) ... ok
+test_missing_or_failed_gate_refuses_all_writes (__main__.PublicationTests.test_missing_or_failed_gate_refuses_all_writes) ... ok
+test_new_branch_stops_before_archiving (__main__.PublicationTests.test_new_branch_stops_before_archiving) ... ok
+test_nogo_research_ancestor_is_rejected (__main__.PublicationTests.test_nogo_research_ancestor_is_rejected) ... ok
+test_non_fast_forward_source_is_rejected (__main__.PublicationTests.test_non_fast_forward_source_is_rejected) ... ok
+test_remote_compare_and_swap_detects_last_moment_race (__main__.PublicationTests.test_remote_compare_and_swap_detects_last_moment_race) ... FAIL
+test_retiring_branch_drift_is_not_lost (__main__.PublicationTests.test_retiring_branch_drift_is_not_lost) ... ok
+test_tag_drift_is_never_overwritten (__main__.PublicationTests.test_tag_drift_is_never_overwritten) ... ok
+
+======================================================================
+FAIL: test_remote_compare_and_swap_detects_last_moment_race (__main__.PublicationTests.test_remote_compare_and_swap_detects_last_moment_race)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/3cf12ce32e36/recovery/publish213/test_publish.py", line 260, in test_remote_compare_and_swap_detects_last_moment_race
+    self.assertEqual(refs[ref], self.f.drift)
+AssertionError: 'dda26f285211f44f9cbebd01311900e895524d05' != 'b04ce1e97fbe40158e08a0880c694bec88ae6bc0'
+- dda26f285211f44f9cbebd01311900e895524d05
++ b04ce1e97fbe40158e08a0880c694bec88ae6bc0
+
+
+----------------------------------------------------------------------
+Ran 15 tests in 5.890s
+
+FAILED (failures=1)
