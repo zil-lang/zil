@@ -79,7 +79,8 @@ def install(prefix, archive, release, receipt):
     receipt['llvm_config_system_libraries'] = system
     # Ubuntu runtime SONAMEs avoid unpinned development archives/symlinks. These
     # are platform dependencies, distinct from the pinned LLVM SDK component set.
-    system = ['-l:libzstd.so.1' if Path(x).name == 'libzstd.a' or x == '-lzstd' else
+    system = ['-l:libz.so.1' if x == '-lz' else
+              '-l:libzstd.so.1' if Path(x).name == 'libzstd.a' or x == '-lzstd' else
               '-l:libxml2.so.2' if x == '-lxml2' or Path(x).name.startswith('libxml2.so') else x for x in system]
     receipt['linked_system_libraries'] = system
     major, minor, _ = version.split('.')
@@ -106,7 +107,9 @@ def install(prefix, archive, release, receipt):
     if 'not found' in dependencies:
         raise ValueError('derived DSO dependency missing')
     receipt['runtime_dependencies'] = {}
-    for item in re.findall(r'=>\s+(/\S+)\s+\(', dependencies):
+    paths = re.findall(r'=>\s+(/\S+)\s+\(', dependencies)
+    paths += re.findall(r'^\s*(/\S+)\s+\(', dependencies, re.M)
+    for item in sorted(set(paths)):
         path = Path(item).resolve(strict=True)
         receipt['runtime_dependencies'][str(path)] = sha(path)
     receipt['library'] = {'path': str(library.relative_to(prefix)), 'sha256': sha(library), 'version': version}
