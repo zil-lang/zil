@@ -22,3 +22,16 @@
 CP03导入 `tools/research/210/corpus.py` 生成五语料，保留其调用树及已有retained消费者；Python行为oracle来自 `tools/product/109/reference104/run.py`。计时/源码同步/绝对成本加权借用 `tools/research/212/bench.py` 的独立函数。新runner的prepare同时冻结这些脚本、oracle合同、消费者输入、生成语料和二进制的SHA256；本轮没有改写210/212或把其旧成绩计入新结果。
 
 公开事实只支持研究方向。本轮CP01的实际收益、回归、CP02计时覆盖及产品状态由新提交上的真实收据裁决。
+
+## CP04：O0 SSA 准备与已排除的候选
+
+本项使用已固定版本的源码；以下记录机制，不移植上游实现代码：
+
+| 固定来源 | 本轮判断 |
+|---|---|
+| [LLVM 17.0.6 TargetPassConfig](https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/lib/CodeGen/TargetPassConfig.cpp) | codegen OptLevel None 且未禁用时已经选 FastISel；ZIL 当前 O0 满足，排除“补开启”候选 |
+| [LLVM 17.0.6 Mem2Reg](https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/lib/Transforms/Utils/Mem2Reg.cpp) 与 [PromoteMemoryToRegister](https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/lib/Transforms/Utils/PromoteMemoryToRegister.cpp) | 由标准 pass 检查入口 alloca 的可提升性、构建 SSA/PHI；真实地址用途不自行强制提升 |
+| [LLVM 17.0.6 pass registry](https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/lib/Passes/PassRegistry.def)、[default pipelines](https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/lib/Passes/PassBuilderPipelines.cpp) 与 [C bindings](https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/lib/Passes/PassBuilderBindings.cpp) | 当前 default O0 不包含 PromotePass；现有 LLVMRunPasses 可直接执行 `default<O0>,function(mem2reg)`，无需新 C API 或升级 LLVM |
+| [Rust 1.99.1 local analysis](https://github.com/rust-lang/rust/blob/1.99.1/compiler/rustc_codegen_ssa/src/mir/analyze.rs) 与 [MIR codegen](https://github.com/rust-lang/rust/blob/1.99.1/compiler/rustc_codegen_ssa/src/mir/mod.rs) | Rust 按定义支配使用及地址需求区分 SSA operand 和内存 local；借鉴减少中间搬运的原则，CP04先用标准提升验证收益，尚未实现直接 SSA lowering |
+
+同 LLVM17 DSO 的独立 opt 诊断见 CP04 证据；文本诊断、生产 Builder 行为测试、无探针完整 CLI 和原生运行质量分别记录，不混为一项证明。现代 LLVM 升级、直接 SSA 构造和按项增量仍须各开独立窗口。

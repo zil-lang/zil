@@ -17,6 +17,16 @@ pub enum Optimization {
     O2,
 }
 
+impl Optimization {
+    /// The exact fixed pass recipe used by native emission and object-cache keys.
+    pub const fn pipeline(self) -> &'static std::ffi::CStr {
+        match self {
+            Self::O0 => c"default<O0>,function(mem2reg)",
+            Self::O2 => c"default<O2>",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config<'a> {
     pub triple: &'a str,

@@ -20,6 +20,8 @@ CP02 的单次大语料诊断中，完整请求约 3.043 秒，LLVM object emit 
 - 以上模块的必要单元测试及新增 `crates/zil-driver/tests/o0_ssa.rs`：循环/合流、实际地址用途、清理和陷阱差分；可复用既有 fixture，避免复制全量门。
 - `tools/research/compile-performance/runtime_bench.py`、对应测试与 README：独立运行质量协议；不覆写 CP01/CP03 原始结果或聚合语义。
 
+根协调者另单写 `tools/toolchain-profile.json`，纠正既有208/text-parser描述，并记录候选实际 Builder/O0 配方。该文件只作为收据身份，不控制执行流水线；旧产品收据不迁移为新 profile 的接受。本轮产品门继续 NotRun，不因纠正元数据额外扩大全量测试。
+
 保留独立 ZIL Verify、LLVM pass 前后 Verify、每请求现行核验、取消点和错误类别、逻辑预算、缓存信任边界及产物发布顺序。不得给地址用途增加不真实的 noalias 信息，不得自制删除 alloca。`receipt.pipeline` 必须记录实际执行字符串；`llvm_optimize` 应包含提升的真实成本。真实可执行 identity 已隔离不同构建，显式配方进一步使缓存决策可审计。
 
 ## 限定验证与裁决
