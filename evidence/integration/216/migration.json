@@ -14,5 +14,15 @@
   ],
   "negative_boundaries_retained": "All other206 negative fixtures, malformed/missing Bind or child/borrowed capture gates in215/216 remain checked",
   "first_combined_failure": "7 of8 native tests pass; callback Store source used an unsupported old two-State i32-result helper. Author corrected fixture via existing full T:StoreElement helper; production not relaxed. Rerun pending.",
-  "default_readonly_product_capture": "Still Unsupported at Types; not part of owning214-216 acceptance and not claimed complete §9.1.2/1.4"
+  "default_readonly_product_capture": "Still Unsupported at Types; not part of owning214-216 acceptance and not claimed complete §9.1.2/1.4",
+  "additional_migration": {
+    "input": "impl206_analyze::ordinary_product_admission_does_not_widen_other_raw_parent_contexts capture case",
+    "input_changed": false,
+    "old": "Analyze Unsupported",
+    "new": "Analyze SafeReject E-ANALYZE-IR resource closure: package field type mismatch",
+    "reason": "Complete capture qualification now passes, but unchanged forged MakePackage and projection remain invalid; exact rejection retained, other parent contexts still Unsupported"
+  },
+  "full_first_failure": "workspace216-01.log old diagnostic mismatch, not production acceptance",
+  "reference_first_failure": "reference216-01.log sandbox disk exhaustion; InfraFail, not semantic evidence",
+  "migration_limited_rerun": "migration216-reference02.log Pass"
 }

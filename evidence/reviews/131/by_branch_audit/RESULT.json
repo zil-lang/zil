@@ -1,0 +1,56 @@
+{
+  "reviewer": "/root/branch_audit",
+  "commit": "66644baae15ce4d481363038c34747256522b020",
+  "scope": "Standalone research closure algorithm and recorded source-observation fixture; no current ZIL compiler or end-to-end performance execution",
+  "source_sha256": {
+    "effect_graph.rs": "578d8bdffcda29f589fa15b68320cf8f30c142f32be5477a49845019b93964d2",
+    "extended_tests.rs": "ce53479261ea64bfcc29f3337ebda2e15f153802a671954f92dda60bd8437005",
+    "source-cases.tsv": "a181f9bf877efdf4ffb9e256d3a76247e21f9c06cbccb6bc2858b2cafc5bd2ed"
+  },
+  "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "runs": [
+    {
+      "opt": 0,
+      "build_command": [
+        "/workspace/scratch/3cf12ce32e36/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "--edition=2021",
+        "--test",
+        "/workspace/scratch/3cf12ce32e36/recovery/review131/extended_tests.rs",
+        "-C",
+        "opt-level=0",
+        "-o",
+        "/workspace/scratch/3cf12ce32e36/recovery/review131/test-opt0"
+      ],
+      "build_exit": 0,
+      "run_exit": 0,
+      "elapsed_seconds": 2.6079232692718506,
+      "test_summary": [
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.38s"
+      ],
+      "stdout_sha256": "5eac177e81000482d07325611264c36e9b82d06fdc08e74de076c2b7821e67c5"
+    },
+    {
+      "opt": 3,
+      "build_command": [
+        "/workspace/scratch/3cf12ce32e36/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "--edition=2021",
+        "--test",
+        "/workspace/scratch/3cf12ce32e36/recovery/review131/extended_tests.rs",
+        "-C",
+        "opt-level=3",
+        "-o",
+        "/workspace/scratch/3cf12ce32e36/recovery/review131/test-opt3"
+      ],
+      "build_exit": 0,
+      "run_exit": 0,
+      "elapsed_seconds": 0.975365400314331,
+      "test_summary": [
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s"
+      ],
+      "stdout_sha256": "10eeb6377d66c1aebcf03d443bfc2bc5f4caa2cc6f781dd8e708390a107d2822"
+    }
+  ],
+  "production_integration": "NotRun",
+  "full_language": "NotSatisfied",
+  "performance": "NotMeasured"
+}
