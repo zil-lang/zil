@@ -124,6 +124,10 @@ pub struct QuerySnapshot {
 #[derive(Default)]
 pub struct Database {
     snapshots: BTreeMap<QueryKey, Arc<QuerySnapshot>>,
+    /// Exact producer -> consumer edges for the currently published snapshots.
+    /// Edge kinds and observations remain in the snapshot; duplicate inputs
+    /// need only one reverse entry. This index is not verifier authority.
+    reverse: BTreeMap<QueryKey, BTreeSet<QueryKey>>,
     active: BTreeSet<QueryKey>,
     revision: u64,
 }
@@ -239,7 +243,15 @@ impl Database {
             bytes: bytes.into(),
             revision: self.revision,
         });
-        self.snapshots.insert(key, result.clone());
+        if let Some(previous) = self.snapshots.insert(key.clone(), result.clone()) {
+            self.remove_reverse_edges(&previous);
+        }
+        for dependency in &result.dependencies {
+            self.reverse
+                .entry(dependency.key.clone())
+                .or_default()
+                .insert(key.clone());
+        }
         Ok(result)
     }
 
@@ -248,32 +260,53 @@ impl Database {
     /// `publish` invokes this operation automatically.
     pub fn invalidate(&mut self, key: &QueryKey, new: &ResultFingerprints) -> Vec<QueryKey> {
         let mut gone = BTreeSet::new();
-        loop {
-            let next = self
-                .snapshots
-                .iter()
-                .filter(|(candidate, value)| {
-                    !gone.contains(*candidate)
-                        && value.dependencies.iter().any(|dependency| {
-                            (dependency.key == *key
-                                && new.get(dependency.kind) != dependency.observed)
-                                || gone.contains(&dependency.key)
-                        })
-                })
-                .map(|(candidate, _)| candidate.clone())
-                .collect::<Vec<_>>();
-            if next.is_empty() {
-                break;
+        let mut pending = Vec::new();
+        if let Some(consumers) = self.reverse.get(key) {
+            for consumer in consumers {
+                let snapshot = &self.snapshots[consumer];
+                if snapshot.dependencies.iter().any(|dependency| {
+                    dependency.key == *key && new.get(dependency.kind) != dependency.observed
+                }) {
+                    gone.insert(consumer.clone());
+                    pending.push(consumer);
+                }
             }
-            gone.extend(next);
         }
+        // A missing input invalidates every consumer, regardless of which
+        // fingerprint kind its edge observes. Traverse only that lost closure.
+        while let Some(producer) = pending.pop() {
+            if let Some(consumers) = self.reverse.get(producer) {
+                for consumer in consumers {
+                    if gone.insert(consumer.clone()) {
+                        pending.push(consumer);
+                    }
+                }
+            }
+        }
+        // Keep the whole index until traversal finishes, then unlink each
+        // deleted snapshot from its producers. The public result stays sorted.
         for key in &gone {
-            self.snapshots.remove(key);
+            if let Some(snapshot) = self.snapshots.remove(key) {
+                self.remove_reverse_edges(&snapshot);
+            }
         }
         gone.into_iter().collect()
     }
+
+    fn remove_reverse_edges(&mut self, snapshot: &QuerySnapshot) {
+        for dependency in &snapshot.dependencies {
+            if let Some(consumers) = self.reverse.get_mut(&dependency.key) {
+                consumers.remove(&snapshot.key);
+                if consumers.is_empty() {
+                    self.reverse.remove(&dependency.key);
+                }
+            }
+        }
+    }
+
     pub fn clear(&mut self) {
         self.snapshots.clear();
+        self.reverse.clear();
         self.active.clear();
     }
     pub fn len(&self) -> usize {

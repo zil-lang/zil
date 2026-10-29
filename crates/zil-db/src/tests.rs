@@ -207,11 +207,17 @@ fn legacy_invalidated(
 }
 
 fn assert_closed(db: &Database) {
+    let mut expected_reverse: BTreeMap<QueryKey, BTreeSet<QueryKey>> = BTreeMap::new();
     for snapshot in db.snapshots.values() {
         for dependency in &snapshot.dependencies {
             assert!(db.snapshots.contains_key(&dependency.key));
+            expected_reverse
+                .entry(dependency.key.clone())
+                .or_default()
+                .insert(snapshot.key.clone());
         }
     }
+    assert_eq!(db.reverse, expected_reverse);
 }
 
 #[test]
@@ -368,4 +374,211 @@ fn failed_new_publications_cannot_create_forward_edges_or_replace_old_snapshots(
     assert!(db.invalidate(&key(2), &fps).is_empty());
     assert!(Arc::ptr_eq(&db.read(&key(0)).unwrap().unwrap(), &snapshot));
     assert_closed(&db);
+}
+
+#[test]
+fn same_result_replacement_moves_reverse_edges_to_the_new_inputs() {
+    let mut db = Database::default();
+    let fps = fingerprints();
+    publish(&mut db, 0, fps.clone(), vec![]);
+    publish(&mut db, 1, fps.clone(), vec![]);
+    publish(
+        &mut db,
+        2,
+        fps.clone(),
+        vec![
+            edge(0, FingerprintKind::Semantic, &fps),
+            edge(0, FingerprintKind::Abi, &fps),
+        ],
+    );
+    let downstream = publish(
+        &mut db,
+        3,
+        fps.clone(),
+        vec![edge(2, FingerprintKind::Semantic, &fps)],
+    );
+    let replacement = publish(
+        &mut db,
+        2,
+        fps.clone(),
+        vec![
+            edge(1, FingerprintKind::Semantic, &fps),
+            edge(1, FingerprintKind::Semantic, &fps),
+        ],
+    );
+    assert_closed(&db);
+    assert!(!db.reverse.contains_key(&key(0)));
+    assert!(Arc::ptr_eq(
+        &db.read(&key(3)).unwrap().unwrap(),
+        &downstream
+    ));
+
+    let mut changed = fps.clone();
+    changed.semantic = Fingerprint::of(b"new producer result");
+    publish(&mut db, 0, changed.clone(), vec![]);
+    assert!(Arc::ptr_eq(
+        &db.read(&key(2)).unwrap().unwrap(),
+        &replacement
+    ));
+    assert!(Arc::ptr_eq(
+        &db.read(&key(3)).unwrap().unwrap(),
+        &downstream
+    ));
+    assert_closed(&db);
+
+    publish(&mut db, 1, changed, vec![]);
+    assert!(db.read(&key(2)).unwrap().is_none());
+    assert!(db.read(&key(3)).unwrap().is_none());
+    assert!(db.reverse.is_empty());
+    assert_closed(&db);
+}
+
+#[test]
+fn failed_replacements_preserve_the_original_snapshot_and_reverse_edges() {
+    let mut db = Database::default();
+    let fps = fingerprints();
+    publish(&mut db, 0, fps.clone(), vec![]);
+    publish(&mut db, 1, fps.clone(), vec![]);
+    let original = publish(
+        &mut db,
+        2,
+        fps.clone(),
+        vec![edge(0, FingerprintKind::Semantic, &fps)],
+    );
+    publish(
+        &mut db,
+        3,
+        fps.clone(),
+        vec![edge(2, FingerprintKind::Semantic, &fps)],
+    );
+    let reverse = db.reverse.clone();
+    let revision = db.revision;
+    for (status, producer, expected) in [
+        (ResultCategory::Cancelled, 1, "E-QUERY-INCOMPLETE"),
+        (ResultCategory::InfraError, 1, "E-QUERY-INCOMPLETE"),
+        (ResultCategory::Success, 9, "E-QUERY-STALE-INPUT"),
+        (ResultCategory::Success, 3, "E-QUERY-CYCLE"),
+    ] {
+        db.begin(key(2)).unwrap();
+        let error = db
+            .publish(
+                key(2),
+                status,
+                fps.clone(),
+                vec![edge(producer, FingerprintKind::Semantic, &fps)],
+                vec![9],
+            )
+            .unwrap_err();
+        assert_eq!(error.code, expected);
+        assert_eq!(db.active_count(), 0);
+        assert_eq!(db.revision, revision);
+        assert_eq!(db.reverse, reverse);
+        assert!(Arc::ptr_eq(&db.read(&key(2)).unwrap().unwrap(), &original));
+        assert_closed(&db);
+    }
+    let mut changed = fps;
+    changed.semantic = Fingerprint::of(b"changed after failed replacement");
+    assert_eq!(db.invalidate(&key(0), &changed), vec![key(2), key(3)]);
+    assert_closed(&db);
+}
+
+#[test]
+fn mixed_kind_duplicate_edges_and_shared_consumers_keep_exact_invalidation() {
+    let mut db = Database::default();
+    let fps = fingerprints();
+    publish(&mut db, 0, fps.clone(), vec![]);
+    let kept = publish(
+        &mut db,
+        1,
+        fps.clone(),
+        vec![
+            edge(0, FingerprintKind::Semantic, &fps),
+            edge(0, FingerprintKind::Abi, &fps),
+            edge(0, FingerprintKind::Semantic, &fps),
+        ],
+    );
+    publish(
+        &mut db,
+        2,
+        fps.clone(),
+        vec![
+            edge(0, FingerprintKind::PrivateImplementation, &fps),
+            edge(0, FingerprintKind::PrivateImplementation, &fps),
+        ],
+    );
+    publish(
+        &mut db,
+        3,
+        fps.clone(),
+        vec![
+            edge(1, FingerprintKind::Abi, &fps),
+            edge(2, FingerprintKind::SourcePositions, &fps),
+        ],
+    );
+    publish(
+        &mut db,
+        4,
+        fps.clone(),
+        vec![edge(1, FingerprintKind::BuildInputs, &fps)],
+    );
+    let mut changed = fps.clone();
+    changed.private_implementation = Fingerprint::of(b"private change");
+    assert_eq!(db.invalidate(&key(0), &changed), vec![key(2), key(3)]);
+    assert!(Arc::ptr_eq(&db.read(&key(1)).unwrap().unwrap(), &kept));
+    assert!(db.read(&key(4)).unwrap().is_some());
+    assert_closed(&db);
+
+    changed = fps;
+    changed.abi = Fingerprint::of(b"abi change");
+    assert_eq!(db.invalidate(&key(0), &changed), vec![key(1), key(4)]);
+    assert!(db.reverse.is_empty());
+    assert_closed(&db);
+}
+
+#[test]
+fn deep_shared_closures_preserve_active_state_and_clear_removes_every_edge() {
+    let mut db = Database::default();
+    let fps = fingerprints();
+    for round in 0..2 {
+        publish(&mut db, 0, fps.clone(), vec![]);
+        for id in 1..=200 {
+            publish(
+                &mut db,
+                id,
+                fps.clone(),
+                vec![
+                    edge(id - 1, FingerprintKind::Semantic, &fps),
+                    edge(id / 2, FingerprintKind::Abi, &fps),
+                ],
+            );
+        }
+        let unrelated = publish(&mut db, 250, fps.clone(), vec![]);
+        publish(
+            &mut db,
+            251,
+            fps.clone(),
+            vec![edge(250, FingerprintKind::BuildInputs, &fps)],
+        );
+        assert_closed(&db);
+        db.begin(key(100)).unwrap();
+        let mut changed = fps.clone();
+        changed.semantic = Fingerprint::of(&[round]);
+        assert_eq!(
+            db.invalidate(&key(0), &changed),
+            (1..=200).map(key).collect::<Vec<_>>()
+        );
+        assert_eq!(db.active_count(), 1);
+        assert_eq!(db.read(&key(100)).unwrap_err().code, "E-QUERY-CYCLE");
+        db.abort(&key(100));
+        assert!(Arc::ptr_eq(
+            &db.read(&key(250)).unwrap().unwrap(),
+            &unrelated
+        ));
+        assert!(db.read(&key(251)).unwrap().is_some());
+        assert_closed(&db);
+        db.clear();
+        assert!(db.is_empty());
+        assert_eq!(db.active_count(), 0);
+        assert_closed(&db);
+    }
 }
