@@ -1,0 +1,18 @@
+{
+  "scope": "Migrate two old206 Product capture exclusions under explicit214-216 owning-capture contract",
+  "historical_baseline": "8527fb393d1b6938ad9a4e5d21ad710d78a19ad7",
+  "historical_check": "baseline206-capture.log",
+  "new_baseline": "2350a4f3e",
+  "source_fixture": "crates/zil-driver/tests/impl206_independent_fixtures/29_product_capture.zil",
+  "source_sha256": "4473856dcdba4c46b73b3ef08fbae6b91eca111e25007f99f56335af97e802f3",
+  "source_bytes_changed": false,
+  "raw_fixture": "impl206_independent_capture.rs",
+  "raw_control_source_and_coordinated_mutation_changed": false,
+  "migration": [
+    "source29 expected Types Unsupported becomes verified acceptance",
+    "coordinated complete raw Product expected Analyze/Verify Unsupported becomes Analyze+raw+Wire+Lower+emit acceptance"
+  ],
+  "negative_boundaries_retained": "All other206 negative fixtures, malformed/missing Bind or child/borrowed capture gates in215/216 remain checked",
+  "first_combined_failure": "7 of8 native tests pass; callback Store source used an unsupported old two-State i32-result helper. Author corrected fixture via existing full T:StoreElement helper; production not relaxed. Rerun pending.",
+  "default_readonly_product_capture": "Still Unsupported at Types; not part of owning214-216 acceptance and not claimed complete §9.1.2/1.4"
+}

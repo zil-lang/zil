@@ -1,0 +1,20 @@
+   Compiling zil-base v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-syntax)
+   Compiling zil-db v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-db)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-analyze)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-ct)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.49s
+     Running tests/impl206_independent_capture.rs (/workspace/scratch/3cf12ce32e36/targets/baseline206/debug/deps/impl206_independent_capture-651b10ff0aa35fa1)
+
+running 1 test
+test raw_local_flat_capture_cannot_be_coordinately_retyped_as_product ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

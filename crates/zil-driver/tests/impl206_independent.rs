@@ -871,15 +871,10 @@ fn source_28_inner_owning_sum() {
 }
 
 #[test]
-fn source_29_product_capture() {
-    rejected(
-        "29_product_capture",
-        source!("29_product_capture"),
-        Phase::Types,
-        ResultCategory::Unsupported,
-        None,
-        None,
-    );
+fn source_29_product_capture_admitted_after_214_216() {
+    // Frozen 206 source bytes remain unchanged. Tasks214-216 intentionally
+    // replace the old Types Unsupported gate with complete owning capture.
+    accepted("29_product_capture", source!("29_product_capture"));
 }
 
 #[test]
