@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "task": "214-216",
+  "reviewer": "/root/branch_audit",
+  "implementation_authors": [
+    "/root/zui_gap_audit",
+    "/root",
+    "/root/sync_script"
+  ],
+  "implementation_commit": "68dd99af8b995275db8ba51df73e419899c10e3d",
+  "tested_source_commit": "68dd99af8b995275db8ba51df73e419899c10e3d",
+  "verdict": "Pass",
+  "scope": "Bounded complete Product owning-capture profile across Types, independent Analyze/Verify, Lower, direct LLVMBuilder and Clang, plus callback Store native cleanup and current-preflight object cache. Not full language1.4 or full section9.1.2 acceptance.",
+  "source_identity": {
+    "clean_at_start_and_end": true,
+    "parents": [
+      "659fab04f0cf91f5a12e063fb99aff211f8a813f",
+      "66644baae15ce4d481363038c34747256522b020"
+    ],
+    "required_ancestry": [
+      {
+        "ancestor": "f581cd67d1f36b088111a4afc55d308a0a47fe59",
+        "contained": true
+      },
+      {
+        "ancestor": "ae11244d674775864077abe99b95145d02362106",
+        "contained": true
+      },
+      {
+        "ancestor": "4e6149e4f9e5a443f5dca455882e9dda5d7aeefd",
+        "contained": true
+      },
+      {
+        "ancestor": "9481cf8dc8b69dfa47017cd947c637259825a173",
+        "contained": true
+      },
+      {
+        "ancestor": "66644baae15ce4d481363038c34747256522b020",
+        "contained": true
+      }
+    ],
+    "crates_tree": "32bc1268eb2ba82e7af50af323dabcc9f9a1fc85",
+    "spec_tree": "18e91854c2c36473b61d0bd5b8e75c8fb334d49c",
+    "critical_input_sha256": {
+      "Cargo.toml": "8f253587aba20a1534d3408d70b623538ffe351f71265dc0c914ceb8b7ac39f8",
+      "Cargo.lock": "95ce63ee445a0ac309d0df439328d1573bae7cb05b686b51746e7114ede6adf4",
+      "_zil_design.md": "245cf29a95d721da6268c43191204777a1015639cba56e8e9025aeac012d0a2c",
+      "changes/214-product-capture-proposal.md": "9c0a096f30c924919695678478d7ff243eedafeec44755ad426ac90bface339f",
+      "spec/interfaces.json": "bf7905b2c64524c87780c748a248f50f6384743563edd26fb1f7366fa64ccf62",
+      "data/normative-inputs.json": "a96cae8877c4dbaa59f20e2b1d786459e8a69cbdcc7b4c78133a8cda594eda10",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+      "crates/zil-types/src/closures.rs": "d37622af1d194a6e205323c846fa4ae60e40b4fced235a937df8f9cabef335ff",
+      "crates/zil-types/src/closures/package_effects.rs": "cb03d9b27fee821c87a7cc1ef4c659e253e24fdcf0221e5037fa08bdb1bfbb29",
+      "crates/zil-types/src/dynamic_store.rs": "f9acc8a9d17c84c2af25c49042e43b7e61fbf040425dbc1fd36409521109538c",
+      "crates/zil-types/src/packages.rs": "b4355d999f7022ebe138808aac9b5f915c1c54f39786a9fd977e0d5a143b57b9",
+      "crates/zil-types/src/retained.rs": "d94417a3e1c7718a2619d775473864d0188ec1e0e26bba87b161839a6ce8359a",
+      "crates/zil-analyze/src/budget.rs": "e51c64bd96d4a98f657dfd2f8c06387338684148d4e15957c65729d6fae68509",
+      "crates/zil-analyze/src/callable_fields.rs": "17a3e8f8e2580d8548b424ba47eee5f1fdcf8f22e145c6029b0594efcb65a4f4",
+      "crates/zil-analyze/src/resources.rs": "0c62d23fd8dadf998bb789cfc7ead34afce9315f348478ce74a6cbd90bbb5c5a",
+      "crates/zil-verify/src/closures.rs": "7f2e5fca64141649fbc52d6d02ef17efa54b37766cf87e7dafdfbd543d817cd4",
+      "crates/zil-verify/src/packages.rs": "1416fb6a19b9db080bebfed27b1e674e3f166ae65d1ed3cde32fbf52655ad690",
+      "crates/zil-verify/src/retained.rs": "c3e5c1fd74a1cc626747ff14bc7a47a13d81678487d5dcd8e654f7849c99ba14",
+      "crates/zil-verify/src/resources.rs": "0eb72fa4a5ce9773301ee07cf9273de74a50a3ef4ea0dfe74b77583f43a866b6",
+      "crates/zil-verify/src/resources/product.rs": "0ddc8b7502572766a701526b2baa0f3273f2926fabff9693d98ce860ed72959a",
+      "crates/zil-verify/src/dynamic_store.rs": "88ff36a9df3eb8b15d919552e5f9924baeec0d9a4390c63fbfb1adad851ba8c4",
+      "crates/zil-lower/src/lib.rs": "e7fb3d2ed8f20ebaba5f755e43c5fb0dbc11b6b3bd501e2d5a0f763376a95720",
+      "crates/zil-backend-llvm/src/emit.rs": "2ca1baaf1f2d74ba795d01d3722d56bc3fcdd9ad7cfb12f518bb42b91b512d90",
+      "crates/zil-backend-llvm/src/emit/packages.rs": "3e7a5b6e9904c7ea4edef804e6c9992674d11d3169275e0b1965525e82fe8b62",
+      "crates/zil-backend-llvm/src/emit/resource_closures.rs": "c087f5fea391fa4d27f1ceddeb7dd8c8725f290a4b3a1fcd88bd8eecac9e4a04",
+      "crates/zil-backend-llvm/src/build.rs": "94cbbb8e2f3efb2e804fadf9f550356ccecce681e07d58fd327b12c98bbe6367",
+      "crates/zil-backend-llvm/src/object_cache.rs": "f564c4cb5319fa5cdbcce9d74cdf46f68da3c53743284363f3926e9f7f1b6def"
+    },
+    "unchanged_from_reviewed213": [
+      "crates/zil-llvm-api",
+      "crates/zil-ir",
+      "crates/zil-backend-llvm/src/build.rs",
+      "crates/zil-backend-llvm/src/object_cache.rs",
+      "crates/zil-backend-llvm/src/machine_cgu.rs",
+      "Cargo.toml",
+      "Cargo.lock"
+    ],
+    "original206_source_fixtures_unchanged": true,
+    "schema_wire": 27
+  },
+  "static_review": [
+    "Types admits only the bounded complete206 Product shape. Child value uses acquire ownership at closure creation; explicit move read-only environments are Fn, complete refill remains FnMut, reachable partial/error exits require FnOnce.",
+    "Product ownership slots cover every direct Managed or complete child independently. Nested owned use and capture/source ordering remain actual-instance based; same nominal type does not merge slots.",
+    "Analyze independently admits the recursive type and transfers each child CaptureField to its exact local field at Bind and back at End. Verify independently checks one-to-one prefix Bind/End, current field liveness and call mode; it does not use Types/Analyze proof routines.",
+    "Captured Product leaves start Incoming in the independent provenance machinery. Bind/capture transfer does not introduce Created. Existing actual leaf transfer, ordinary-call provenance and fresh/give tests remain in the45-case206 suite.",
+    "Shared environment writes/takes are rejected. Repeatable entries must restore every retained shell/field debt. Conditional Drop remains idempotent, while a second actual Take is rejected.",
+    "Captured direct child contributes one live flag. Drop clears that flag before recursive declaration-order teardown and emits machine GEP/Call events used by both directBuilder and text reference. No extra partial flags are embedded in a complete child.",
+    "LLVM flags and Verify callback Store layout count the same direct children and use actual closure definitions. Independent same-capture-type, mixed child/Managed/padding and Store Fn/FnMut executions test distinct runtime values and actual stride.",
+    "Lower/LLVM capture admission is separate from the unchanged owning-array, Product Store-element and error-payload gates. Product-internal Store/Closure/owned-array/Sum/borrowed fields remain excluded.",
+    "API construction, parse exclusion and object-cache code remain identical to the previously reviewed213 merge. Runtime matrix checks current Verify/current machine preflight even on cache hits."
+  ],
+  "targeted_tests": {
+    "passed": 98,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 7,
+    "tests": [
+      "impl206_independent",
+      "impl206_independent_capture",
+      "impl214_source",
+      "impl215_capture",
+      "impl216_machine",
+      "impl216_raw",
+      "object_cache212"
+    ],
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--features",
+      "llvm-api",
+      "--test",
+      "impl214_source",
+      "--test",
+      "impl215_capture",
+      "--test",
+      "impl216_raw",
+      "--test",
+      "impl216_machine",
+      "--test",
+      "impl206_independent",
+      "--test",
+      "impl206_independent_capture",
+      "--test",
+      "object_cache212",
+      "--",
+      "--nocapture"
+    ],
+    "receipt": "targeted01/command.json",
+    "stdout_sha256": "6047e2bd8bf1c7e33fa8e87bd56eb06117331424d32613cf00fa7644455964b3",
+    "stderr_sha256": "cd77b05225983365d4dd1b340e0231fd347e31ab2c6af562bcf2f3777efb504b",
+    "exact_budgets": {
+      "Types_new_Product": 1006,
+      "Analyze_new_Product": 3254,
+      "Verify_new_Product": 3405,
+      "legacy_flat_Types": 418
+    },
+    "budget_controls": "N succeeds; N-1 returns ResourceLimit; fresh N succeeds; defaults unchanged.",
+    "coverage": "Actual source classification, factory/State/Store admission, source-derived coordinated raw/Wire controls, child layout, shared/partial returns, failed allocation, old206 leaf provenance and object-cache rejection/invalidation."
+  },
+  "reviewer_independent_raw_tests": {
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "receipt": "independent-raw01/command.json",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "test",
+      "--offline",
+      "--manifest-path",
+      "/workspace/scratch/3cf12ce32e36/recovery/review216/raw-harness/Cargo.toml",
+      "--",
+      "--nocapture"
+    ],
+    "stdout_sha256": "63a0af8002a43aa8b2437fd42729715d2add0aab58a083926ab11426e6ef4aa1",
+    "stderr_sha256": "6a4be21d6ab18264a7d34ebd16a864a547086601228a1aefccfeadbf750ac864",
+    "controls": "Real two-equal-Product-capture source is accepted by Analyze(raw/Wire-decoded) and Verify(raw/Wire).",
+    "attacks": [
+      {
+        "mutation": "MakeClosure captures the same actual owning SSA twice, while both declared types remain equal.",
+        "Analyze": "SafeReject E-ANALYZE-IR: SSA responsibility already consumed or absent",
+        "Verify": "SafeReject E-VERIFY-RESOURCE: managed SSA value not available exactly once"
+      },
+      {
+        "mutation": "Second same-typed Bind and End are coherently retargeted to the first environment position.",
+        "Analyze": "SafeReject E-ANALYZE-IR: exact non-parameter entry-prefix view required",
+        "Verify": "SafeReject E-VERIFY-CAPTURE: bindings must be one-to-one and unique"
+      }
+    ],
+    "anti_triviality": "Candidate fingerprints updated to exact changed modules; no ResourceLimit or plan-identity failure counted; raw module, plan, Wire bytes and diagnostics retained.",
+    "harness": "External Cargo crate, no production repository edits."
+  },
+  "native_matrix": {
+    "source_commit": "68dd99af8b995275db8ba51df73e419899c10e3d",
+    "cli_sha256": "448ff19886570b775176bca237ef512a523bd924e61f465b13b20d8b3be88ca7",
+    "oracle_sha256": "ddf978857980d46f160ae57d4a77b96fdd056adf51c36110c2bd71de7911f5ed",
+    "execution_count": 108,
+    "ordinary_executions": 36,
+    "instrumented_executions": 72,
+    "actual_allocation_failures": 24,
+    "all_live_zero": true,
+    "codegen_builds": 72,
+    "backend_ir_bytes_equal": true,
+    "parser_symbol_absent": true,
+    "instrumentation": "Native linker only adds existing realloc/free wrapper object. API Builder objects and emitted source IR are unchanged."
+  },
+  "native_matrix_contract": {
+    "cases": [
+      "two-equal-captures-read",
+      "take-first-keep-second",
+      "same-type-child-swap",
+      "mixed-child-flags-padding",
+      "nested-owned-environments",
+      "once-branch-leaves-child",
+      "store-shared",
+      "store-exclusive",
+      "real-child-buffer-failure"
+    ],
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "modes": [
+      "default CLI LLVM API",
+      "explicit Clang",
+      "instrumented API object cache cold",
+      "instrumented API object cache hit"
+    ],
+    "source_oracle": "Nine sources and exact stdout/full exit/allocation counts frozen before any compilation. No oracle updates were made after execution.",
+    "api_uncached": "Every uncached API object report input_kind=builder, parse_ns=0; LLVMParseIRInContext absent from dynamic CLI symbols.",
+    "cache_hit": "Each build verification_runs=1; current_preflight_ns>0 on all hits; hit/miss/store counts equal actual codegen units.",
+    "receipt": "differential01/RESULT.json",
+    "receipt_sha256": "1fde2b8679b60725ff14111365d54f8cbb75e6593ea3558be3d8e55c8afee8e0",
+    "counts_separate_from_targeted_tests": true
+  },
+  "compiler_build": {
+    "source_commit": "68dd99af8b995275db8ba51df73e419899c10e3d",
+    "cli_sha256": "448ff19886570b775176bca237ef512a523bd924e61f465b13b20d8b3be88ca7",
+    "command": [
+      "/workspace/scratch/3cf12ce32e36/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "build",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-cli"
+    ],
+    "receipt": "compiler-build.json",
+    "debug_info": 0,
+    "incremental": false
+  },
+  "independence": {
+    "reviewer_authored_production": false,
+    "production_changed_during_review": false,
+    "worktree": "/workspace/scratch/3cf12ce32e36/review-216",
+    "target": "/workspace/scratch/3cf12ce32e36/targets/review216",
+    "review_harnesses_outside_repo": true
+  },
+  "findings": [],
+  "unresolved_within_scope": [],
+  "explicit_scope_limits": [
+    "Default read-only borrowed Product capture remains Unsupported, matching the previous flat Package implementation boundary. Explicit move read-only Fn and default actual whole/child ownership use are covered; the final implemented_partial status must not claim default borrowing or full section9.1.2.",
+    "No Product-internal Store/Closure/owned-array/Sum/borrowed fields; Product itself does not become a Store element, owning-array element or error payload.",
+    "Long-term external retention, generalized traits/lending/dyn, async/concurrency/cancellation and full1.4 remain outside this slice.",
+    "This review does not establish same-semantics Rust runtime/RSS/maintenance/compiler-speed superiority or a product-level net breakthrough."
+  ],
+  "rust_goals": {
+    "safety": "Finite actual-source ownership plus independent raw/Wire attacks and failed cleanup verified; not general language safety.",
+    "runtime_memory": "Inline layouts and observed zero live allocations after all24 injected failures; runtime/RSS comparison to Rust NotMeasured.",
+    "expression_maintenance": "Owned nested state can persist in returned callable/State/Store; framework maintenance cost NotMeasured.",
+    "compile_cost": "Exact old/new budget boundaries and Builder/cache controls; elapsed comparative compile-cost NotMeasured.",
+    "breakthrough": "Concrete language composition increment demonstrated; frozen product-level net breakthrough NotEstablished."
+  },
+  "research131_archival": {
+    "exact_original_commit": "66644baae15ce4d481363038c34747256522b020",
+    "included_unchanged_tested_source_sha256": {
+      "effect_graph.rs": "578d8bdffcda29f589fa15b68320cf8f30c142f32be5477a49845019b93964d2",
+      "extended_tests.rs": "ce53479261ea64bfcc29f3337ebda2e15f153802a671954f92dda60bd8437005",
+      "source-cases.tsv": "a181f9bf877efdf4ffb9e256d3a76247e21f9c06cbccb6bc2858b2cafc5bd2ed"
+    },
+    "verdict": "Pass for research-only archival inclusion; current production integration and speed claims NotRun/NotMeasured.",
+    "prior_review": "../../131/by_branch_audit/REVIEW.json"
+  },
+  "formal_workspace": "Run separately by root; not counted as reviewer execution. Root reports one further historical206 test-expectation migration with unchanged production/source input; final integration must preserve the bound production hashes.",
+  "historical_handoff": "Prior recovery reported1138 historical commit/receipt errors; this review does not waive or relabel that debt.",
+  "infrastructure": "All test receipts completed before later root full builds exhausted disk. An empty archive.py write failed; root cleared generated cache, the script was recreated and the final archive verified. Reviewer generated deps were discarded after tests; the exact CLI and all raw evidence remain.",
+  "not_run": [
+    "Native Windows",
+    "Wine on this combination",
+    "Full formal product gates",
+    "Rust performance comparison",
+    "General language1.4 completion"
+  ],
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing",
+  "raw_evidence_archive": {
+    "filename": "review216-raw-evidence.zip",
+    "path": "/workspace/scratch/3cf12ce32e36/recovery/review216-raw-evidence.zip",
+    "bytes": 8811632,
+    "sha256": "705909837aed08da24119d14c85c3a4607deb4dbb7c414657b9e53a25f062af5",
+    "included_files": 2475,
+    "uncompressed_bytes": 204053532,
+    "excluded_execution_products": 111,
+    "excluded_execution_product_bytes": 2078568,
+    "all_payload_hashes_and_crc_verified": true,
+    "originals_retained": true
+  }
+}
