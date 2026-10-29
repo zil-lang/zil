@@ -1,0 +1,20 @@
+Err(
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-RESOURCE",
+            message: "repeatable closure entry does not preserve every owned field",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 86,
+                    end: 97,
+                },
+            ),
+            notes: [],
+        },
+    ],
+)

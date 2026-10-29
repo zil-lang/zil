@@ -1,0 +1,30 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-216/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.27s
+     Running tests/impl216_machine.rs (/workspace/scratch/3cf12ce32e36/targets/216/debug/deps/impl216_machine-18274f7a63b022c6)
+
+running 8 tests
+test once_early_error_cleans_taken_child_then_remaining_local_fields ... ok
+test equal_closure_types_retain_distinct_live_flags ... ok
+test default_whole_capture_surrenders_environment_before_local_cleanup ... ok
+test fnmut_error_after_refill_preserves_the_next_invocation ... ok
+test fnmut_refills_complete_children_on_each_call ... ok
+test taken_product_child_keeps_real_buffer_ownership_during_allocation_failure ... ok
+test owned_fn_and_uncalled_environment_drop_all_descendants_once ... ok
+test callback_store_uses_actual_product_environment_stride_and_cleans_failures ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.28s
+
+     Running tests/impl216_raw.rs (/workspace/scratch/3cf12ce32e36/targets/216/debug/deps/impl216_raw-f456e918d6fcbc8c)
+
+running 7 tests
+test product_capture_llvm_has_one_flag_per_child_and_rejects_forged_lir ... ok
+test wrong_capture_index_is_still_rejected ... ok
+test missing_capture_bind_is_still_rejected ... ok
+test shared_capture_cannot_discharge_a_child ... ok
+test repeatable_capture_must_return_with_its_child_present ... ok
+test complete_product_capture_has_independent_raw_wire_and_machine_layout_admission ... ok
+Product216 Verify N=3405; N-1=ResourceLimit; fresh N=Pass
+test product_capture_has_a_fresh_exact_verify_budget_boundary ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

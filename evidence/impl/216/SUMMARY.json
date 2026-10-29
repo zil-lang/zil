@@ -1,0 +1,624 @@
+{
+  "slice": "216",
+  "author": "/root/sync_script",
+  "status": "AuthorLimitedPass",
+  "source_commit": "9481cf8dc8b69dfa47017cd947c637259825a173",
+  "working_tree_before_receipts": "clean",
+  "prerequisites": {
+    "214": "ae11244d674775864077abe99b95145d02362106",
+    "215": "4e6149e4f9e5a443f5dca455882e9dda5d7aeefd"
+  },
+  "implementation_commit": "2dd915d740baa423e90d92c6ee793143db8eed2f",
+  "spec_hash": "a278f56fe806afe9c6d0c26a187755bfc65eb6021260e7a2edde7a87ef769c01",
+  "normative_hash": "b2e4a70829ffeb201eb555c54edb48f9ef8228bbacdc7ea4a0bf45c78f2812b7",
+  "scope": "Integrated 214+215+216 on 206 source, before 213 LLVM API migration; tests are targeted, not full acceptance",
+  "tests": {
+    "raw_wire_layout": 7,
+    "machine": 8,
+    "total": 15,
+    "source_builds": 20,
+    "native_ordinary_runs": 20,
+    "native_instrumented_runs": 24,
+    "actual_allocation_failures": 12,
+    "all_observed_live_counts": 0,
+    "new_verify_N": 3405,
+    "new_N_minus_1": "ResourceLimit",
+    "new_fresh_N": "Pass",
+    "unchanged_flat_verify_N": 10398,
+    "old_N_minus_1": "ResourceLimit",
+    "old_fresh_N": "Pass",
+    "clippy": "Pass -D warnings",
+    "native_windows": "NotRun"
+  },
+  "commands": [
+    "cargo test -p zil-driver --test impl216_raw --test impl216_machine -- --nocapture",
+    "cargo clippy -p zil-driver --test impl216_raw --test impl216_machine -- -D warnings",
+    "cargo test -p zil-driver --test impl206_verify original_flat186_verify_boundary_stays_10398_without_product_leaf_table -- --exact --nocapture"
+  ],
+  "execution_environment": {
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "target": "x86_64-unknown-linux-gnu",
+    "toolchain_env": "recovery/env.sh"
+  },
+  "initial_failures": [
+    "Three first raw assertions assumed dotted LLVM environment symbol or later Bind diagnostic; corrected tests only, failure log retained.",
+    "First integrated machine suite used two State<F> parameters returning i32, outside the existing State template protocol. Rewrote consumer with the existing full T:StoreElement seed contract; retained predeclared stdout, stride and allocation oracle. No production change was required."
+  ],
+  "four_goals": {
+    "safety": "Independent raw/Wire negatives for missing/wrong Bind, shared child mutation, lost FnMut child and unbound LIR; current finite profile only.",
+    "runtime": "Inline Product capture, one direct-child flag, 44 actual Linux runs, 12 allocation failures live=0; no Rust performance claim.",
+    "syntax": "Existing move/default actual consumption syntax now composes complete Product values with Fn/FnMut/FnOnce and State/Store; no new user syntax.",
+    "compile": "New Verify N3405 and unchanged old N10398 with N-1/fresh-N checks; no cold-compile speed measurement."
+  },
+  "full_language": "NotSatisfied",
+  "zui_all_prerequisites": "NotSatisfied",
+  "observations": [
+    {
+      "case": "product216-callback-store-O0-103-2",
+      "source_sha256": "e18a31b6462e026b13901c07278e1479408bda8c128868467f2ea6592be6d87d",
+      "llvm_sha256": "214be6e7e664a57903d00ab3465aad1ef431416b798d578ca8fafcb7adb37dbb",
+      "executable_sha256": "55ee867880da366c53589bab397e63086c8eff1a441fd8d1b03f81f3a14accaa",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "e18a31b6462e026b13901c07278e1479408bda8c128868467f2ea6592be6d87d",
+      "ordinary_stdout": "ABCDEFGH",
+      "allocation_probes": [
+        {
+          "fail_at": 0,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        },
+        {
+          "fail_at": 1,
+          "stdout": "EFGHABCD",
+          "actual_allocator": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 112
+          }
+        },
+        {
+          "fail_at": 3,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        }
+      ]
+    },
+    {
+      "case": "product216-callback-store-O2-103-17",
+      "source_sha256": "e18a31b6462e026b13901c07278e1479408bda8c128868467f2ea6592be6d87d",
+      "llvm_sha256": "214be6e7e664a57903d00ab3465aad1ef431416b798d578ca8fafcb7adb37dbb",
+      "executable_sha256": "5bf03cef4e898653961fc346036321944b7e596b4370bba89bc9061a9b5e1bee",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "e18a31b6462e026b13901c07278e1479408bda8c128868467f2ea6592be6d87d",
+      "ordinary_stdout": "ABCDEFGH",
+      "allocation_probes": [
+        {
+          "fail_at": 0,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        },
+        {
+          "fail_at": 1,
+          "stdout": "EFGHABCD",
+          "actual_allocator": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 112
+          }
+        },
+        {
+          "fail_at": 3,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        }
+      ]
+    },
+    {
+      "case": "product216-callback-store-mut-O0-103-18",
+      "source_sha256": "ed8250995494a86d425b33377074e7eeb3d8f058c485ac4c86d9da7c5ffef29c",
+      "llvm_sha256": "46ec29ea897ab89e451fadf432dcae5326dc7d153289a5ab58684fddadd35a06",
+      "executable_sha256": "656f4492b3d8e289271529c5422b7209a5c1f53590e8a5a98baca8776d098f04",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "ed8250995494a86d425b33377074e7eeb3d8f058c485ac4c86d9da7c5ffef29c",
+      "ordinary_stdout": "ABCDEFGH",
+      "allocation_probes": [
+        {
+          "fail_at": 0,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        },
+        {
+          "fail_at": 1,
+          "stdout": "EFGHABCD",
+          "actual_allocator": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 112
+          }
+        },
+        {
+          "fail_at": 3,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        }
+      ]
+    },
+    {
+      "case": "product216-callback-store-mut-O2-103-19",
+      "source_sha256": "ed8250995494a86d425b33377074e7eeb3d8f058c485ac4c86d9da7c5ffef29c",
+      "llvm_sha256": "46ec29ea897ab89e451fadf432dcae5326dc7d153289a5ab58684fddadd35a06",
+      "executable_sha256": "66ea51c8b09321f4b2016eda2b932edc07cfe824209bed3fbe94cf09f44f999d",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "ed8250995494a86d425b33377074e7eeb3d8f058c485ac4c86d9da7c5ffef29c",
+      "ordinary_stdout": "ABCDEFGH",
+      "allocation_probes": [
+        {
+          "fail_at": 0,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        },
+        {
+          "fail_at": 1,
+          "stdout": "EFGHABCD",
+          "actual_allocator": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 112
+          }
+        },
+        {
+          "fail_at": 3,
+          "stdout": "ABCDEFGH",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 224
+          }
+        }
+      ]
+    },
+    {
+      "case": "product216-child-buffer-O0-103-7",
+      "source_sha256": "5145c8f9618df0477e9bb88f2510bc91c1ce53021a93d87ec0dd1bd8431663fa",
+      "llvm_sha256": "404d084aefdf6805db4eae41ab59a10b3df6bf43a392116a85a2d14b97f3f1f4",
+      "executable_sha256": "a4ce56c63bcd600720a15384e1b26587af21a78bc81d02cb97421898b96acfd3",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "5145c8f9618df0477e9bb88f2510bc91c1ce53021a93d87ec0dd1bd8431663fa",
+      "ordinary_stdout": "YAB",
+      "allocation_probes": [
+        {
+          "fail_at": 0,
+          "stdout": "YAB",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 16
+          }
+        },
+        {
+          "fail_at": 1,
+          "stdout": "",
+          "actual_allocator": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "stdout": "AB",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 4
+          }
+        },
+        {
+          "fail_at": 3,
+          "stdout": "YAB",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 16
+          }
+        }
+      ]
+    },
+    {
+      "case": "product216-child-buffer-O2-103-14",
+      "source_sha256": "5145c8f9618df0477e9bb88f2510bc91c1ce53021a93d87ec0dd1bd8431663fa",
+      "llvm_sha256": "404d084aefdf6805db4eae41ab59a10b3df6bf43a392116a85a2d14b97f3f1f4",
+      "executable_sha256": "694fcaee38d2f0046fadfde2749b826a7c15f0a1da75512ebcfc23d0dfe68257",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "5145c8f9618df0477e9bb88f2510bc91c1ce53021a93d87ec0dd1bd8431663fa",
+      "ordinary_stdout": "YAB",
+      "allocation_probes": [
+        {
+          "fail_at": 0,
+          "stdout": "YAB",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 16
+          }
+        },
+        {
+          "fail_at": 1,
+          "stdout": "",
+          "actual_allocator": {
+            "alloc_calls": 1,
+            "allocated": 0,
+            "frees": 0,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 0,
+            "peak_bytes": 0
+          }
+        },
+        {
+          "fail_at": 2,
+          "stdout": "AB",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 1,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 4
+          }
+        },
+        {
+          "fail_at": 3,
+          "stdout": "YAB",
+          "actual_allocator": {
+            "alloc_calls": 2,
+            "allocated": 1,
+            "frees": 1,
+            "failures": 0,
+            "live": 0,
+            "peak_live": 1,
+            "peak_bytes": 16
+          }
+        }
+      ]
+    },
+    {
+      "case": "product216-distinct-instances-O0-103-4",
+      "source_sha256": "93f5ae956f9d07bafc3908e9d563fd08665b16c135fd960ee48e0844f12a4f93",
+      "llvm_sha256": "612bef9874c3b898bc8c79bd6c24d905d94a94f8869e3013a16561d2afde86b2",
+      "executable_sha256": "dbbb8c781d124bced86e0a4a89b3070a778e3137a7610e97f8634e0b35324417",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "93f5ae956f9d07bafc3908e9d563fd08665b16c135fd960ee48e0844f12a4f93",
+      "ordinary_stdout": "ABCDXEFGH",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-distinct-instances-O2-103-9",
+      "source_sha256": "93f5ae956f9d07bafc3908e9d563fd08665b16c135fd960ee48e0844f12a4f93",
+      "llvm_sha256": "612bef9874c3b898bc8c79bd6c24d905d94a94f8869e3013a16561d2afde86b2",
+      "executable_sha256": "b1ff1053d38115c82d29503e1de196f3be8fabcdc3f7be1111b5b201839ca126",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "93f5ae956f9d07bafc3908e9d563fd08665b16c135fd960ee48e0844f12a4f93",
+      "ordinary_stdout": "ABCDXEFGH",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-fn-read-or-unused-O0-103-15",
+      "source_sha256": "f84d197941f8a7d1cd7d18238f3205b5c3c65c1b27e5f878532428cb6fa77187",
+      "llvm_sha256": "5e6a0fa60d8169cc11dc48db727ee9310048291883dad33d31b0facc2d625b28",
+      "executable_sha256": "007abba0c2686d0c54c503f337c695ad733cb328e846560ed94f4eadcdccf2a9",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "f84d197941f8a7d1cd7d18238f3205b5c3c65c1b27e5f878532428cb6fa77187",
+      "ordinary_stdout": "XABCD",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-fn-read-or-unused-O0-103-6",
+      "source_sha256": "1ab0f340aca167b0d5b736135339570088f5e35d514006ea1edeaa15a619306f",
+      "llvm_sha256": "b6bd8fd52a9051bbfff49a26150622ad2a82934f30579c2ba7f3d29d48b25c95",
+      "executable_sha256": "84caf9a5256eaf04f47ee3f8ef427c85085e3665519224a0ee744fe4146f4f2f",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "1ab0f340aca167b0d5b736135339570088f5e35d514006ea1edeaa15a619306f",
+      "ordinary_stdout": "XABCD",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-fn-read-or-unused-O2-103-12",
+      "source_sha256": "1ab0f340aca167b0d5b736135339570088f5e35d514006ea1edeaa15a619306f",
+      "llvm_sha256": "b6bd8fd52a9051bbfff49a26150622ad2a82934f30579c2ba7f3d29d48b25c95",
+      "executable_sha256": "bd801f7432276cf8d45246b66a471f1dc52d2bc685ce635e5d452daea205e7b7",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "1ab0f340aca167b0d5b736135339570088f5e35d514006ea1edeaa15a619306f",
+      "ordinary_stdout": "XABCD",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-fn-read-or-unused-O2-103-16",
+      "source_sha256": "f84d197941f8a7d1cd7d18238f3205b5c3c65c1b27e5f878532428cb6fa77187",
+      "llvm_sha256": "5e6a0fa60d8169cc11dc48db727ee9310048291883dad33d31b0facc2d625b28",
+      "executable_sha256": "bd801f7432276cf8d45246b66a471f1dc52d2bc685ce635e5d452daea205e7b7",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "f84d197941f8a7d1cd7d18238f3205b5c3c65c1b27e5f878532428cb6fa77187",
+      "ordinary_stdout": "XABCD",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-fnmut-error-O0-103-1",
+      "source_sha256": "936e2d7e6a53e675e8aca435c79a9e1281c02ec08a0a3761f2cd5db7beb12e47",
+      "llvm_sha256": "ae7f4182b2d80219f5305ded8d3d911e27325b65410f95e3ebcb1069f6b938ad",
+      "executable_sha256": "d49829dc4b911d5e21e2eef2688b63bfd944c154271961c0034a974d23874fa8",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "936e2d7e6a53e675e8aca435c79a9e1281c02ec08a0a3761f2cd5db7beb12e47",
+      "ordinary_stdout": "XABCD",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-fnmut-error-O2-103-10",
+      "source_sha256": "936e2d7e6a53e675e8aca435c79a9e1281c02ec08a0a3761f2cd5db7beb12e47",
+      "llvm_sha256": "ae7f4182b2d80219f5305ded8d3d911e27325b65410f95e3ebcb1069f6b938ad",
+      "executable_sha256": "864ae6e78f31a5de8f2a7b0eb6c2e62569f95b585dfab3044ced08f4deaeca4a",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "936e2d7e6a53e675e8aca435c79a9e1281c02ec08a0a3761f2cd5db7beb12e47",
+      "ordinary_stdout": "XABCD",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-fnmut-refill-O0-103-3",
+      "source_sha256": "707152ab92e28e10f2a612bc762a97c38c7fd29993fe8c1df61e3de691123f58",
+      "llvm_sha256": "3e4ae27e75b5a46ae3cada36fe61500d479effbdac8625c4bdc468a89bbccc9d",
+      "executable_sha256": "fa9fd558b91caef1457507e5d9eabd4a1a52b7900e4ffe8b3aeafa7c0709088e",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "707152ab92e28e10f2a612bc762a97c38c7fd29993fe8c1df61e3de691123f58",
+      "ordinary_stdout": "BCEFXAEFD",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-fnmut-refill-O2-103-13",
+      "source_sha256": "707152ab92e28e10f2a612bc762a97c38c7fd29993fe8c1df61e3de691123f58",
+      "llvm_sha256": "3e4ae27e75b5a46ae3cada36fe61500d479effbdac8625c4bdc468a89bbccc9d",
+      "executable_sha256": "4064354b3912507704e09dc14276339110c09f497f1bfdf2fbc0be9c98b88b7b",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "707152ab92e28e10f2a612bc762a97c38c7fd29993fe8c1df61e3de691123f58",
+      "ordinary_stdout": "BCEFXAEFD",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-once-error-O0-103-5",
+      "source_sha256": "81cba765c262ad5a1c1a02c8c0ed4a2f8701b70207ecaa2e42563d2ec8f93f10",
+      "llvm_sha256": "05d386d0ab0be13993607b3a8d351b1e20c065fb6c8cceb1d99828d5480650d2",
+      "executable_sha256": "50eda3c72a329e75bf349af0ec9af140b329bafe728de8bd7034a9a3f6b17109",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "81cba765c262ad5a1c1a02c8c0ed4a2f8701b70207ecaa2e42563d2ec8f93f10",
+      "ordinary_stdout": "BCADX",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-once-error-O2-103-8",
+      "source_sha256": "81cba765c262ad5a1c1a02c8c0ed4a2f8701b70207ecaa2e42563d2ec8f93f10",
+      "llvm_sha256": "05d386d0ab0be13993607b3a8d351b1e20c065fb6c8cceb1d99828d5480650d2",
+      "executable_sha256": "99dd2b4f316eb42595a5a74426cd6aa2233581110b3b24f5b98e148417721a15",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "81cba765c262ad5a1c1a02c8c0ed4a2f8701b70207ecaa2e42563d2ec8f93f10",
+      "ordinary_stdout": "BCADX",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-whole-once-O0-103-0",
+      "source_sha256": "afde7d45c67f2d9a8be4d21b60c20b9eeea27c85a308d64eec5ca65623ae99df",
+      "llvm_sha256": "a11da228834c2486272f9e77ac24ce34fad44c94f209c97bd4affcde1cb0db6f",
+      "executable_sha256": "fb76a9c33b45c3f3b635ea35230bcb8aad69cf8d8e597dfab6be79bb4327c65c",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "afde7d45c67f2d9a8be4d21b60c20b9eeea27c85a308d64eec5ca65623ae99df",
+      "ordinary_stdout": "XABCDY",
+      "allocation_probes": []
+    },
+    {
+      "case": "product216-whole-once-O2-103-11",
+      "source_sha256": "afde7d45c67f2d9a8be4d21b60c20b9eeea27c85a308d64eec5ca65623ae99df",
+      "llvm_sha256": "a11da228834c2486272f9e77ac24ce34fad44c94f209c97bd4affcde1cb0db6f",
+      "executable_sha256": "59f478ae37e19ea4ebb19bcb2d22cb91d5ff7da2757fd0443699d188f2200be0",
+      "status": "Success",
+      "verification_runs": 1,
+      "input_fingerprint": "afde7d45c67f2d9a8be4d21b60c20b9eeea27c85a308d64eec5ca65623ae99df",
+      "ordinary_stdout": "XABCDY",
+      "allocation_probes": []
+    }
+  ],
+  "raw_wire": [
+    {
+      "case": "raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission",
+      "wire_sha256": "7ede07461fb4965b580336f6fae65faecbe33a3b64b204b3fe6102d7975ddcb4",
+      "evidence": "evidence/impl/216/raw/raw216-complete_product_capture_has_independent_raw_wire_and_machine_layout_admission"
+    },
+    {
+      "case": "raw216-missing_capture_bind_is_still_rejected",
+      "wire_sha256": "eb87de349bb81caaaf366cf6cb9ec495412c004d6e5b113b1b315994eb86246b",
+      "evidence": "evidence/impl/216/raw/raw216-missing_capture_bind_is_still_rejected"
+    },
+    {
+      "case": "raw216-repeatable_capture_must_return_with_its_child_present",
+      "wire_sha256": "b97c3073a22610cc8ec820dab879dbc055e08541e679213c2a8ca655b0b0ac53",
+      "evidence": "evidence/impl/216/raw/raw216-repeatable_capture_must_return_with_its_child_present"
+    },
+    {
+      "case": "raw216-shared_capture_cannot_discharge_a_child",
+      "wire_sha256": "06c5ebe6b61060c77feb9c651db59ab9f8e8d9cff44153145e652a47c8a1323e",
+      "evidence": "evidence/impl/216/raw/raw216-shared_capture_cannot_discharge_a_child"
+    },
+    {
+      "case": "raw216-wrong_capture_index_is_still_rejected",
+      "wire_sha256": "70b2e3af61711e985b0bfdb63c94b1cc8b6b4d03bea4b282911ce3b15d51a4cb",
+      "evidence": "evidence/impl/216/raw/raw216-wrong_capture_index_is_still_rejected"
+    }
+  ]
+}
