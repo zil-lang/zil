@@ -72,13 +72,13 @@ fn native(label: &str, body: &str, expected: &str) {
 
 #[test]
 fn owned_fn_and_uncalled_environment_drop_all_descendants_once() {
-    for call in ["if f()+f()!=130{return 9}", ""] {
+    for call in ["if f()+f()!=130{return 9};", ""] {
         native(
             "fn-read-or-unused",
             &format!(
                 r#"
 fn make(input:Root)->impl Fn()->i32{{return move()=>input.tag}}
-fn main()->i32{{let f=make(root(65));{call};emit(88);return 0}}
+fn main()->i32{{let f=make(root(65));{call}emit(88);return 0}}
 "#
             ),
             "XABCD",
