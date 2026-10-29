@@ -1,7 +1,7 @@
 name: Verify current ZIL
 on:
   push:
-    branches: ['impl/135-main-verification', 'research/136-compiled-effects', 'impl/137-byte-truncate']
+    branches: ['task/135']
   pull_request:
     branches: [main]
 permissions:
