@@ -130,7 +130,7 @@ fn cstring(s: &str) -> Result<CString, Error> {
     CString::new(s).map_err(|_| error(ErrorKind::Verify, "NUL in machine symbol"))
 }
 fn linkage(link: m::Linkage) -> c_int {
-    // LLVMLinkage from llvmorg-17.0.6/llvm/include/llvm-c/Core.h.
+    // LLVMLinkage from llvmorg-23.1.4/llvm/include/llvm-c/Core.h.
     match link {
         m::Linkage::External => 0,
         m::Linkage::Internal => 8,
