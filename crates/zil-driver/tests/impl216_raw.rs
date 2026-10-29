@@ -37,14 +37,34 @@ fn both(module: &TypedModule, candidate: &CandidatePlan, expected: Option<&str>)
     candidate.module_fingerprint = module.fingerprint();
     let limits = Limits::default();
     let wire = zil_ir::wire::encode_module_candidate(module, &candidate, &limits).unwrap();
+    let evidence = std::env::var_os("ZIL_TEST_REPORT_DIR").map(|root| {
+        let thread = std::thread::current();
+        let name = thread.name().unwrap_or("unnamed");
+        let path = std::path::PathBuf::from(root).join(format!("raw216-{name}"));
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(path.join("flat-source-control.zil"), FLAT).unwrap();
+        std::fs::write(path.join("typed.txt"), format!("{module:#?}")).unwrap();
+        std::fs::write(path.join("candidate.txt"), format!("{candidate:#?}")).unwrap();
+        std::fs::write(path.join("input.wire"), &wire).unwrap();
+        path
+    });
     assert_eq!(
         zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap(),
         (module.clone(), candidate.clone())
     );
-    for result in [
-        zil_verify::verify_module(module.clone(), candidate, &module.target, &limits),
-        zil_verify::verify_module_bytes(&wire, &module.target, &limits),
+    for (route, result) in [
+        (
+            "raw",
+            zil_verify::verify_module(module.clone(), candidate, &module.target, &limits),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&wire, &module.target, &limits),
+        ),
     ] {
+        if let Some(path) = &evidence {
+            std::fs::write(path.join(format!("{route}.txt")), format!("{result:#?}")).unwrap();
+        }
         if let Some(message) = expected {
             let errors = result.expect_err("invalid Product capture must fail independently");
             assert!(
