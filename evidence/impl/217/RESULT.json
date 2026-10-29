@@ -2197,5 +2197,28 @@
     "product": "NotRun",
     "rust_performance": "NotMeasured",
     "native_windows": "NotRun"
+  },
+  "consumer_scope": {
+    "initial_capacity": 3,
+    "initial_nodes": 3,
+    "input_modes": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "fourth_node": "full-capacity push rejection only",
+    "id_relation": "finite explicit id/parent checks; no stable generation-ID public protocol",
+    "deletion": "O(n) temporary suffix Store; no performance claim",
+    "not_demonstrated": [
+      "arbitrary input node count",
+      "arbitrary-scale graph",
+      "open heterogeneous component registry",
+      "declarative UI syntax",
+      "retained OS userdata",
+      "async cancellation",
+      "native Windows"
+    ]
   }
 }
