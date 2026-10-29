@@ -133,3 +133,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-28：206普通完整Product接受
 
 206将普通完整Package递归到完整child，父单责任、独立逐叶Created/Incoming和递归声明序清理已贯通。clean bf44fb1e全仓2615/0/0、Clippy和最终Linux/Wine消费者经非作者6bc19f7a核回；原full Fail和局部raw捕获资格漏洞及修复完整保留。详见docs/LANGUAGE-206.md。207继续完整Product拥有捕获、默认真实消费推导与持久环境，不混入编译速度支线；完整1.4 NotSatisfied、B0 Doing、产品/原生Windows NotRun。
+
+## 2026-10-29：213–217合流与同步语言起步组合
+
+真实恢复到206，213与LLVM212合流并保留API默认/Builder/当前Verify后的缓存；214–216完成有限Product拥有捕获，217完成五模块同步组合与真实申请失败复核。最终默认workspace2743/0/0，参考2711/0/0，执行身份、原失败及有限边界见docs/LANGUAGE-217.md和docs/ZUI-LANGUAGE-READINESS-217.md。旧语言207计划由214–216承接，207–212编号属于已恢复编译专项。v6同步main与task/<ID>规则落地。普通同步起步有实证；声明式/开放异构/长期外部生命周期等完整1.4义务不删除，B0/181/产品门保持。
