@@ -1,0 +1,60 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-214/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+     Running tests/impl214_source.rs (/workspace/scratch/3cf12ce32e36/targets/214/debug/deps/impl214_source-86da7bf93c363b49)
+
+running 17 tests
+test explicit_owned_read_is_repeatable_fn ... ok
+test nested_default_consumer_transfers_the_outer_product ... ok
+test child_partial_local_refill_is_ordinary_complete_transfer ... ok
+test new_capture_does_not_make_product_a_store_element ... ok
+test default_whole_and_child_uses_capture_ownership_at_creation ... ok
+test complete_child_refill_keeps_fnmut ... ok
+test original206_child_take_is_once_and_keeps_its_source_bytes ... ok
+test conditional_child_take_records_all_exits ... ok
+test replacement_without_missing_exit_keeps_fnmut ... ok
+test factory_accepts_complete_product_inputs_and_cleanup ... ok
+test old_flat_and_new_product_readonly_defaults_remain_closed ... ok
+test same_type_siblings_and_three_levels_remain_actual_distinct_values ... ok
+
+thread 'try_before_refill_requires_once_even_when_success_restores' (92) panicked at crates/zil-driver/tests/impl214_source.rs:25:43:
+
+resource R { n:i32 }
+package Leaf { manages owner:R; n:i32 }
+package Root { child:Leaf; tag:i32 }
+fn leaf(n:i32)->Leaf { return Leaf{owner:R{n:n},n:n} }
+fn root(n:i32)->Root { return Root{child:leaf(n),tag:n} }
+ fn step(fail:bool)->i64!i32{if fail {return i64(9)};return 3} fn main()->i64!i32{var p=root(7);let f=(fail:bool)=>{let q=p.child;let n=step(fail)?;p.child=q;return n};return f(false)}
+[
+    Diagnostic {
+        phase: Types,
+        category: SafeReject,
+        code: "E-TRY-RETURN-TYPE",
+        message: "? requires an explicitly known enclosing error-union result",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 348,
+                end: 359,
+            },
+        ),
+        notes: [],
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test try_before_refill_requires_once_even_when_success_restores ... FAILED
+test source_declared_fn_cannot_hide_child_consumption ... ok
+test while_break_and_continue_restore_the_child ... ok
+test a_product_environment_can_enter_state_and_outer_callback_store ... ok
+214 Product capture Types boundary: 1006
+test new_product_capture_has_exact_recoverable_work_boundary ... ok
+
+failures:
+
+failures:
+    try_before_refill_requires_once_even_when_success_restores
+
+test result: FAILED. 16 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-driver --test impl214_source`

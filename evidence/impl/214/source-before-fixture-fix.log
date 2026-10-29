@@ -1,0 +1,96 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running tests/impl214_source.rs (/workspace/scratch/3cf12ce32e36/targets/214/debug/deps/impl214_source-86da7bf93c363b49)
+
+running 17 tests
+
+thread 'factory_accepts_complete_product_inputs_and_cleanup' (24) panicked at crates/zil-driver/tests/impl214_source.rs:25:43:
+
+resource R { n:i32 }
+package Leaf { manages owner:R; n:i32 }
+package Root { child:Leaf; tag:i32 }
+fn leaf(n:i32)->Leaf { return Leaf{owner:R{n:n},n:n} }
+fn root(n:i32)->Root { return Root{child:leaf(n),tag:n} }
+ fn make(p:Root)->impl FnMut()->i32{return ()=>{let q=p.child;let n=q.n;p.child=q;return n}} fn main(){let f=make(root(7))}
+[
+    Diagnostic {
+        phase: Types,
+        category: SafeReject,
+        code: "E-IMMUTABLE-ASSIGNMENT",
+        message: "p is not mutable",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 284,
+                end: 285,
+            },
+        ),
+        notes: [],
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test child_partial_local_refill_is_ordinary_complete_transfer ... ok
+test explicit_owned_read_is_repeatable_fn ... ok
+test nested_default_consumer_transfers_the_outer_product ... ok
+test conditional_child_take_records_all_exits ... ok
+test complete_child_refill_keeps_fnmut ... ok
+test new_capture_does_not_make_product_a_store_element ... ok
+test original206_child_take_is_once_and_keeps_its_source_bytes ... ok
+test default_whole_and_child_uses_capture_ownership_at_creation ... ok
+test factory_accepts_complete_product_inputs_and_cleanup ... FAILED
+test same_type_siblings_and_three_levels_remain_actual_distinct_values ... ok
+test source_declared_fn_cannot_hide_child_consumption ... ok
+test replacement_without_missing_exit_keeps_fnmut ... ok
+
+thread 'a_product_environment_can_enter_state_and_outer_callback_store' (18) panicked at crates/zil-driver/tests/impl214_source.rs:25:43:
+
+resource R { n:i32 }
+package Leaf { manages owner:R; n:i32 }
+package Root { child:Leaf; tag:i32 }
+fn leaf(n:i32)->Leaf { return Leaf{owner:R{n:n},n:n} }
+fn root(n:i32)->Root { return Root{child:leaf(n),tag:n} }
+
+package State<F>{manages bytes:ByteBuffer;callback:F}
+fn make(p:Root)->impl FnMut()->i32{return ()=>{let q=p.child;let n=q.n;p.child=q;return n}}
+fn pack<F:FnMut()->i32>(f:F)->State<F>{return State::<F>{bytes:bytes_new(),callback:f}}
+fn run<F:FnMut()->i32>(state:State<F>)->i32{let items:Store<State<F>>=store_new();store_reserve(items,2);store_push(items,state);return store_at_mut(items,0).callback()}
+fn main()->i32{return run(pack(make(root(7))))}
+[
+    Diagnostic {
+        phase: Types,
+        category: SafeReject,
+        code: "E-IMMUTABLE-ASSIGNMENT",
+        message: "p is not mutable",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 338,
+                end: 339,
+            },
+        ),
+        notes: [],
+    },
+]
+test a_product_environment_can_enter_state_and_outer_callback_store ... FAILED
+
+thread 'try_before_refill_requires_once_even_when_success_restores' (33) panicked at crates/zil-driver/tests/impl214_source.rs:16:59:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Lex, category: SafeReject, code: "E-LEX-NUMBER", message: "invalid number spelling, suffix, or separator", span: Some(Span { file: FileId(0), start: 257, end: 261 }), notes: [] }]
+test try_before_refill_requires_once_even_when_success_restores ... FAILED
+test while_break_and_continue_restore_the_child ... ok
+test old_flat_and_new_product_readonly_defaults_remain_closed ... ok
+214 Product capture Types boundary: 1006
+test new_product_capture_has_exact_recoverable_work_boundary ... ok
+
+failures:
+
+failures:
+    a_product_environment_can_enter_state_and_outer_callback_store
+    factory_accepts_complete_product_inputs_and_cleanup
+    try_before_refill_requires_once_even_when_success_restores
+
+test result: FAILED. 14 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-driver --test impl214_source`
