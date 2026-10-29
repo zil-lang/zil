@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "task": "CP04",
+  "reviewer": "/root/backend_audit",
+  "implementation_author": "/root/frontend_audit",
+  "independent": true,
+  "reviewed_at_utc": "2026-10-29T15:26:19.230378+00:00",
+  "authority_contract": "/workspace/scratch/037bacfed72a/zil/docs/research/compile-performance/CP04-PLAN.md",
+  "authority_contract_sha256": "cd21970c1c9ddb51e45dd64d0748fd942439cbba3038642f90591f3e7402afe4",
+  "coordination_commit": "0a8fcce1f",
+  "baseline_commit": "9614aac90ee58359fef05da4dcfe92011b7c91c2",
+  "candidate_commit": "701dd6c18020607a4d89d51239c9dba59ea90e33",
+  "candidate_parent": "9614aac90ee58359fef05da4dcfe92011b7c91c2",
+  "candidate_tree": "f2514439a5f1e3f5deceb996671833e0b05dd1c5",
+  "candidate_crates_tree": "cd235a606797ccd4e0f92b00ebef4045f032b452",
+  "fixed_commit_read_policy": "Source audit reads git objects at the exact candidate, independent of the author build worktree. No candidate source was edited by reviewer.",
+  "worktree_status_when_reviewed": "",
+  "changed_files": [
+    {
+      "path": "crates/zil-backend-llvm/src/object_cache.rs",
+      "git_blob": "8c4b753f5238ace07bccd9f0d72f88bb469ef30d",
+      "sha256": "021031f8c635aa0f36dd22c4716ec675bee799dd28bb4c98ad6c6aae7136ac04"
+    },
+    {
+      "path": "crates/zil-driver/tests/o0_ssa.rs",
+      "git_blob": "58c4559e05adf631493967cbe6356edab4f0e9ec",
+      "sha256": "d24f30201146f8f87bb39dde8e8caf70fd04e9b3d18d32d37c5e3323632272a6"
+    },
+    {
+      "path": "crates/zil-llvm-api/src/lib.rs",
+      "git_blob": "3228eae70536a259e150588be530b3598c258dab",
+      "sha256": "5abd5661062d57325dea1c810df73947aba53bb13a6f7c694c140b71d0c81af8"
+    },
+    {
+      "path": "crates/zil-llvm-api/src/native.rs",
+      "git_blob": "52e74689bfd44fede1087b03a7d32ca21e3d7e57",
+      "sha256": "2dbaeb564949fbcc5bebf1ef7f9fa645819fe4cf42414f652dd3f674e0d652b6"
+    }
+  ],
+  "diff_path": "/workspace/scratch/037bacfed72a/cp04-review/candidate-701dd6c.patch",
+  "diff_sha256": "577ff2f38a0b4b9fc7caa33ab72cb756e3f3a5c846c8c00212d97f66bd18876b",
+  "diff_check_exit_code": 0,
+  "verdict": {
+    "source": "StaticPass",
+    "blocking_findings": 0,
+    "meaning": "No blocking issue found in the authorized source change or directed-test design. This is not full language safety, runtime quality, performance or product acceptance.",
+    "author_limited_execution_evidence": "8 backend cache tests and 4 driver tests passed at the exact candidate; raw logs and receipt hashes verified.",
+    "reviewer_executed_candidate_runtime": false,
+    "reviewer_executed_cargo": false,
+    "root_affected_closure": "Pending root receipt",
+    "formal_compile_performance": "NotRun by this reviewer",
+    "formal_runtime_quality": "NotRun by this reviewer",
+    "product_acceptance": "NotRun"
+  },
+  "static_checks": [
+    {
+      "id": "S1",
+      "status": "pass",
+      "subject": "Scope",
+      "evidence": "Exactly the four authorized files changed from CP02; no Cargo.lock, language IR/schema, budget, frontend/Verify, target partition or publication source change."
+    },
+    {
+      "id": "S2",
+      "status": "pass",
+      "subject": "Single actual pass recipe",
+      "evidence": "Optimization::pipeline returns static CStr O0=default<O0>,function(mem2reg) and O2=default<O2>. native compile_input uses that accessor for LLVMRunPasses and receipt.pipeline; PreparedCache uses the same Config optimization accessor."
+    },
+    {
+      "id": "S3",
+      "status": "pass",
+      "subject": "Codegen target and option preservation",
+      "evidence": "TargetMachine generic x86-64 CPU, empty features, codegen optlevel 0/2, PIC/default code model, data-layout checks, LLVM version pin and pass-builder vectorization settings are byte-for-byte unaffected by the diff."
+    },
+    {
+      "id": "S4",
+      "status": "pass",
+      "subject": "Verification, cancellation and error flow",
+      "evidence": "native.rs changes only pipeline selection. Structured machine preflight, LLVM Verify before and after, cooperative cancellation points, error categories/message disposal and RAII owned-handle lifetime remain unchanged. Driver independent ZIL Verify is outside the diff."
+    },
+    {
+      "id": "S5",
+      "status": "pass",
+      "subject": "Cache identity and publication",
+      "evidence": "Private action_namespace retains exact compiler identity, LLVM DSO identity, version, target fingerprint, optimization level and all fixed-setting tags. It moves protocol 212-v1 to 212-v2 and adds the actual recipe bytes. Trusted-directory checks, payload/key integrity, current hit preflight, pending success-only cache commit and artifact publication are unaffected."
+    },
+    {
+      "id": "S6",
+      "status": "pass",
+      "subject": "Recipe isolation test",
+      "evidence": "New cache test fixes compiler/library identities, version, target, O0 level and machine module, varies only recipe, and asserts namespace and machine action key differ. Test injection is a private helper argument; production always calls the actual shared accessor."
+    },
+    {
+      "id": "S7",
+      "status": "pass",
+      "subject": "Timing and artifact claims",
+      "evidence": "Existing llvm_optimize span and receipt optimize_ns bracket the actual LLVMRunPasses including mem2reg; object emit remains separate. Driver test explicitly calls .ll a pre-pass sidecar and does not claim it is post-pass evidence."
+    },
+    {
+      "id": "S8",
+      "status": "pass",
+      "subject": "Real-source differential design",
+      "evidence": "Four source tests cover runtime loop/branch merges, actual callback addresses with sequential reborrows, existing field_exit cleanup with fixed output oracles, and checked overflow SIGILL. Each compares Clang O0, API O0 one CGU, API O0 actual multiple CGUs, and API O2; it checks current ZIL Verify count, real Builder receipts, disabled object cache, and exact expected exit/stdout/stderr."
+    }
+  ],
+  "findings": [],
+  "author_execution_receipts": [
+    {
+      "classification": "author-executed limited tests; receipt and raw log inspected by independent reviewer",
+      "receipt_path": "/workspace/scratch/037bacfed72a/cp04-logs/01-backend-701dd6c18.json",
+      "receipt_sha256": "ce737750fcce240d97d88f30b260b6f776e746402a3d35185fe0dea7b9c759ee",
+      "log_path": "/workspace/scratch/037bacfed72a/cp04-logs/01-backend-701dd6c18.log",
+      "log_sha256": "08fb1dbb632c31bf59b125382ae973729196ec8649f17f4dc54f9106b47e6eb4",
+      "source_commit": "701dd6c18020607a4d89d51239c9dba59ea90e33",
+      "exit_code": 0,
+      "tests_passed": 8,
+      "tests_failed": 0,
+      "tests_ignored": 0,
+      "command": [
+        "python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "llvm-api",
+        "--lib",
+        "object_cache::tests"
+      ]
+    },
+    {
+      "classification": "author-executed limited tests; receipt and raw log inspected by independent reviewer",
+      "receipt_path": "/workspace/scratch/037bacfed72a/cp04-logs/02-driver-701dd6c18.json",
+      "receipt_sha256": "aaf5ac93ce57a10b2b089a4e276ccbf0d562fc6bd379e27fb8c6754f55ddcb60",
+      "log_path": "/workspace/scratch/037bacfed72a/cp04-logs/02-driver-701dd6c18.log",
+      "log_sha256": "47c2a21e976164da65381a0512c3f75fbf6b79c232d24f7b7abdaf5aaf4d8d29",
+      "source_commit": "701dd6c18020607a4d89d51239c9dba59ea90e33",
+      "exit_code": 0,
+      "tests_passed": 4,
+      "tests_failed": 0,
+      "tests_ignored": 0,
+      "command": [
+        "python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "o0_ssa",
+        "--",
+        "--test-threads=1"
+      ]
+    }
+  ],
+  "author_driver_case_accounting": {
+    "builds": 16,
+    "program_executions": 44,
+    "basis": "Four tests x four configurations; per-configuration input counts 4,1,5,1. Counts inferred from the audited successful test implementation, not a separately traced subprocess log."
+  },
+  "independent_text_diagnostic": {
+    "path": "/workspace/scratch/037bacfed72a/cp04-review/opt-diagnostic.json",
+    "sha256": "724589c99a10c5afc52f166996854925704adb395417e247b078daab77b11c26",
+    "classification": "Executed by reviewer using same LLVM 17 DSO: four opt text-pass/verify diagnostics only; not candidate production Builder execution or timing."
+  },
+  "coverage_limits": [
+    "No production program was executed by this reviewer. Author receipts are separate evidence, not independent runtime execution.",
+    "The new driver tests are Linux-only. They do not establish Win64 native runtime behavior.",
+    "Full source acceptance, malicious raw-IR rejection, artifact failure/cancellation and cache-hit affected closure depend on existing root-coordinated tests; no new pass success is treated as an independent language safety proof.",
+    "Instruction reduction and successful LLVM verification do not imply compile-time benefit, absence of runtime regressions, or product acceptance.",
+    "The focused overflow case has a real trap oracle; it is not a complete arithmetic boundary suite. Broader current tests remain part of the relevant affected closure."
+  ],
+  "integration_metadata_followup": {
+    "path": "tools/toolchain-profile.json",
+    "changed_by_reviewer": false,
+    "source_status": "pre-existing stale metadata plus new O0 recipe mismatch, outside author write set",
+    "observed": {
+      "profile_id": "x86_64-llvm17-api208",
+      "module_input": "text parser, not direct Builder",
+      "pipelines": [
+        "default<O0>",
+        "default<O2>"
+      ],
+      "verification_scope": "current 208 evidence, not earlier 23.1.5 installation record"
+    },
+    "consumer_evidence": "tools/run-cases.py line 176 records the profile SHA in the result; it does not use the profile to select compiler or pass configuration. tools search found no other active reader.",
+    "recommendation": "If CP04 is retained, root should separately correct current metadata to direct Builder and actual O0/O2 recipes, with a research-appropriate profile identity and honest verification scope. Do not silently relabel or transfer historical product receipts to the new identity.",
+    "acceptance_effect": "Updated metadata changes toolchain_sha256 evidence identity. Historical receipts remain historical; current product acceptance stays NotRun. This metadata correction does not itself require expanding the current research validation window or rerunning an unscheduled full gate.",
+    "blocks_code_static_verdict": false
+  },
+  "author_release_evidence": {
+    "classification": "Author-built release; independent reviewer checked receipt/log/binary hashes without executing it",
+    "binary_receipt_path": "/workspace/scratch/037bacfed72a/cp04-logs/binary-701dd6c18.json",
+    "binary_receipt_sha256": "251149fd5d6ac966284ef54bca68b243504e9d540d34444c4905851c08d53ed2",
+    "build_receipt_path": "/workspace/scratch/037bacfed72a/cp04-logs/03-release-701dd6c18.json",
+    "build_receipt_sha256": "c5ec8b29659d25e010871c1ae8e2456562be137f065efaa814858255e5955f72",
+    "build_log_path": "/workspace/scratch/037bacfed72a/cp04-logs/03-release-701dd6c18.log",
+    "build_log_sha256": "5e1f31af8b92480c50d549fd08bc6de8896137bb2fe8d8ebb7f6d642904819c1",
+    "build_exit_code": 0,
+    "command": [
+      "python",
+      "/workspace/scratch/037bacfed72a/run-tool.py",
+      "cargo",
+      "build",
+      "--offline",
+      "--locked",
+      "--release",
+      "-p",
+      "zil-cli"
+    ],
+    "binary_path": "/workspace/scratch/037bacfed72a/bin/zil-cp04",
+    "binary_sha256": "a4146dcb8ce3534e1c8dd0af58da76595e0edc78d195c476cf6a554b1dc1308c",
+    "binary_bytes": 6939856,
+    "reviewer_executed_binary": false
+  }
+}

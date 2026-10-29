@@ -1,0 +1,227 @@
+{
+  "schema": "zil-cperf-legacy-phase-diagnostic/1",
+  "classification": "implementation-author retrospective diagnosis; not independent review",
+  "author": "/root/frontend_audit",
+  "new_measurements": false,
+  "product_gate": "NotRun",
+  "source_identity": {
+    "A": {
+      "commit": "6c3b950e6e534fd276d199a4b1bce8302f5a79ee",
+      "crates_tree": "2d3bdfe9336f666508e2ba88218480c8e3aa36ea"
+    },
+    "B": {
+      "commit": "527657a9256cfaae2babb88dc8a2e3f78f4d6092",
+      "crates_tree": "cd235a606797ccd4e0f92b00ebef4045f032b452"
+    }
+  },
+  "inputs": {
+    "plan": "/workspace/scratch/037bacfed72a/runs/cp04-plan/plan.json",
+    "plan_sha256": "a9f75421ee9160fc5595631845588613c4f230332cbc174c780a6ba7d70fb27f",
+    "records": "/workspace/scratch/037bacfed72a/runs/cp04-measure/records.jsonl",
+    "records_sha256": "384f93fe03543c8f262aa58bb346a32d06e183d996ee84ee03318d3ac6a4b4fe",
+    "compile_summary": "/workspace/scratch/037bacfed72a/runs/cp04-summary.json"
+  },
+  "scope": {
+    "cases": [
+      "tree256x8",
+      "tree1024x8"
+    ],
+    "selected_rows": 96,
+    "total_formal_rows": 240,
+    "blocks": [
+      0,
+      1,
+      2
+    ],
+    "request_weights": {
+      "cold_process": 0.1,
+      "unchanged": 0.35,
+      "private_edit": 0.4,
+      "public_edit": 0.15
+    },
+    "units": 1,
+    "jobs": 1,
+    "object_cache": false,
+    "timings_flag_absent_all_selected": true
+  },
+  "availability": {
+    "legacy_fields": [
+      "preflight_ns",
+      "builder_ns",
+      "parse_ns",
+      "optimize_ns",
+      "emit_ns",
+      "total_ns"
+    ],
+    "all_selected_records_complete": true,
+    "parse_ns_all_zero": true,
+    "pipelines": {
+      "A": [
+        "default<O0>"
+      ],
+      "B": [
+        "default<O0>,function(mem2reg)"
+      ]
+    },
+    "sample_cli_reports": [
+      {
+        "case": "tree256x8",
+        "arm": "A",
+        "index": 0,
+        "stdout": "/workspace/scratch/037bacfed72a/runs/cp04-measure/logs/00000.stdout.json",
+        "timings": null
+      },
+      {
+        "case": "tree256x8",
+        "arm": "B",
+        "index": 4,
+        "stdout": "/workspace/scratch/037bacfed72a/runs/cp04-measure/logs/00004.stdout.json",
+        "timings": null
+      },
+      {
+        "case": "tree1024x8",
+        "arm": "A",
+        "index": 48,
+        "stdout": "/workspace/scratch/037bacfed72a/runs/cp04-measure/logs/00048.stdout.json",
+        "timings": null
+      },
+      {
+        "case": "tree1024x8",
+        "arm": "B",
+        "index": 52,
+        "stdout": "/workspace/scratch/037bacfed72a/runs/cp04-measure/logs/00052.stdout.json",
+        "timings": null
+      }
+    ]
+  },
+  "aggregation": "For each case/request/arm: mean of its two positions within each paired ABBA/BAAB block, median across the three block means, then frozen request weights. Same rule as tools/research/212/bench.py aggregate used by the formal summary. No bootstrap or new sample window.",
+  "metric_unit": "milliseconds",
+  "by_case": {
+    "tree256x8": {
+      "preflight": {
+        "A_ms": 30.317516,
+        "B_ms": 32.368234349999994,
+        "B_over_A": 1.067641371080665,
+        "B_minus_A_ms": 2.0507183499999933
+      },
+      "builder": {
+        "A_ms": 39.5791573,
+        "B_ms": 40.674074950000005,
+        "B_over_A": 1.0276639960194405,
+        "B_minus_A_ms": 1.0949176500000064
+      },
+      "optimize": {
+        "A_ms": 3.0429994,
+        "B_ms": 19.28866285,
+        "B_over_A": 6.338700839047159,
+        "B_minus_A_ms": 16.245663450000002
+      },
+      "emit": {
+        "A_ms": 220.376178425,
+        "B_ms": 201.54227322500003,
+        "B_over_A": 0.9145374725408006,
+        "B_minus_A_ms": -18.833905199999975
+      },
+      "optimize_plus_emit": {
+        "A_ms": 223.48861334999998,
+        "B_ms": 220.763411475,
+        "B_over_A": 0.9878060817768282,
+        "B_minus_A_ms": -2.725201874999982
+      },
+      "llvm_unclassified": {
+        "A_ms": 24.797084725,
+        "B_ms": 22.775603875,
+        "B_over_A": 0.9184790925055002,
+        "B_minus_A_ms": -2.0214808499999997
+      },
+      "total": {
+        "A_ms": 317.62670710000003,
+        "B_ms": 315.0138505,
+        "B_over_A": 0.9917738132795696,
+        "B_minus_A_ms": -2.6128566000000433
+      },
+      "outside_llvm_receipt": {
+        "A_ms": 332.45385342500003,
+        "B_ms": 333.2134155,
+        "B_over_A": 1.002284714305985,
+        "B_minus_A_ms": 0.7595620749999625
+      },
+      "full_cli_wall": {
+        "A_ms": 644.1540759249999,
+        "B_ms": 649.138193225,
+        "B_over_A": 1.007737461402915,
+        "B_minus_A_ms": 4.984117300000094
+      }
+    },
+    "tree1024x8": {
+      "preflight": {
+        "A_ms": 132.24180995,
+        "B_ms": 135.24538055,
+        "B_over_A": 1.0227127154500957,
+        "B_minus_A_ms": 3.003570599999989
+      },
+      "builder": {
+        "A_ms": 169.574694825,
+        "B_ms": 165.11793515,
+        "B_over_A": 0.9737180144738026,
+        "B_minus_A_ms": -4.456759675000001
+      },
+      "optimize": {
+        "A_ms": 13.30566,
+        "B_ms": 98.71160252499999,
+        "B_over_A": 7.418767842031135,
+        "B_minus_A_ms": 85.40594252499999
+      },
+      "emit": {
+        "A_ms": 898.8533801750001,
+        "B_ms": 887.135335275,
+        "B_over_A": 0.98696334112053,
+        "B_minus_A_ms": -11.718044900000109
+      },
+      "optimize_plus_emit": {
+        "A_ms": 912.078265025,
+        "B_ms": 983.29090075,
+        "B_over_A": 1.0780773300447501,
+        "B_minus_A_ms": 71.21263572500004
+      },
+      "llvm_unclassified": {
+        "A_ms": 98.8326577,
+        "B_ms": 98.149563775,
+        "B_over_A": 0.9930883784682439,
+        "B_minus_A_ms": -0.6830939249999943
+      },
+      "total": {
+        "A_ms": 1302.3580954000001,
+        "B_ms": 1380.25110035,
+        "B_over_A": 1.0598092070261798,
+        "B_minus_A_ms": 77.89300494999975
+      },
+      "outside_llvm_receipt": {
+        "A_ms": 1487.0834451,
+        "B_ms": 1482.3428863,
+        "B_over_A": 0.9968121770061926,
+        "B_minus_A_ms": -4.740558800000144
+      },
+      "full_cli_wall": {
+        "A_ms": 2804.825646025,
+        "B_ms": 2862.5939866500003,
+        "B_over_A": 1.0205960540566468,
+        "B_minus_A_ms": 57.76834062500029
+      }
+    }
+  },
+  "limitations": [
+    "Legacy monotonic elapsed fields are collected unconditionally even with opt-in hierarchical timings disabled; these are nested native-call wall intervals, not CPU counters.",
+    "One actual CGU/one worker makes the selected object receipt unambiguous; no summation of overlapping worker spans is used.",
+    "total_ns ends while constructing the receipt, before RAII native handles are dropped. It is not full backend or full CLI time.",
+    "llvm_unclassified_ns is a per-row subtraction covering setup, verifier and other unlabelled native-call work; it does not identify any individual missing stage.",
+    "outside_llvm_receipt_ns includes frontend, lowering, diagnostic rendering, native-handle cleanup, linking, publication and process overhead; no cause is assigned to it.",
+    "Each metric is aggregated independently. Weighted medians of components need not add to the weighted median of their sum; deltas are diagnostic and cannot exactly partition total regression.",
+    "Stage wall intervals do not explain generated-program runtime quality or distinguish register allocation, code size, instruction selection and layout effects.",
+    "Author interpretation of existing formal receipts only; the formal NoGo decision and product-gate status are unchanged."
+  ],
+  "interpretation": [
+    "The fixed O0 recipe added promotion work, while the full CLI window did not demonstrate a compile-time gain. The optimize and emit fields below indicate where the native-call tradeoff occurred; they are not a separate performance result.",
+    "Existing runtime NoGo is a separate generated-code-quality observation; the legacy compilation receipts alone do not establish its mechanism."
+  ]
+}

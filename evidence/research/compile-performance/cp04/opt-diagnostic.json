@@ -1,0 +1,1278 @@
+{
+  "classification": "diagnostic LLVM text pass experiment, not production Builder or performance evidence",
+  "script_sha256": "01a185a0f303978dcf24ba0444f3d4f5d9d55bc53ef3b021749231aa900eb9d5",
+  "wrapper_path": "/workspace/scratch/037bacfed72a/run-tool.py",
+  "wrapper_sha256": "24e5be920c9d4693716782b29dc4f0f2a77e5261fefa7a93c75e9a3f49cdb804",
+  "opt_path": "/workspace/scratch/037bacfed72a/cp04-review/tools/opt",
+  "opt_sha256": "098a1e331d9ae7c580716f7c95eaf1cc33e0d66bd44e4ce355f038b9ac447d54",
+  "llvm_library_path": "/workspace/scratch/3cf12ce32e36/toolchains/llvm17/usr/lib/x86_64-linux-gnu/libLLVM-17.so.1",
+  "llvm_library_sha256": "ea4b74072fdd895a63c3356e034f21f22e2fe7858545f2c5aaa22f05683f4657",
+  "post_ir_policy": "stdout hashed and counted in memory as a stream; full post IR not saved",
+  "pipelines": {
+    "baseline": "default<O0>",
+    "candidate": "default<O0>,function(mem2reg)"
+  },
+  "runs": [
+    {
+      "case": "tree1024x8",
+      "role": "baseline",
+      "semantic_pipeline": "default<O0>",
+      "invocation_pipeline": "verify,default<O0>,verify",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "/workspace/scratch/037bacfed72a/cp04-review/tools/opt",
+        "--passes=verify,default<O0>,verify",
+        "--verify-each",
+        "--mtriple=x86_64-unknown-linux-gnu",
+        "--mcpu=x86-64",
+        "--mattr=",
+        "--relocation-model=pic",
+        "--data-layout=e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+        "-S",
+        "-o",
+        "-",
+        "/workspace/scratch/037bacfed72a/runs/cp02-profile/tree1024x8-build-program.ll"
+      ],
+      "input_path": "/workspace/scratch/037bacfed72a/runs/cp02-profile/tree1024x8-build-program.ll",
+      "input_sha256": "a336d2364e318886b6f68eea1b20f572a97d23a90b01f329ebcf185495fad677",
+      "input_bytes": 10062939,
+      "input_statistics": {
+        "counts": {
+          "add": 24583,
+          "alloca": 10246,
+          "and": 8193,
+          "blocks": 52248,
+          "br": 33807,
+          "call": 34830,
+          "extractvalue": 32774,
+          "functions": 9221,
+          "icmp": 24582,
+          "instructions": 242774,
+          "llvm_trap_calls": 9220,
+          "load": 19465,
+          "or": 8193,
+          "overflow_calls": 16387,
+          "ret": 9221,
+          "sext": 1,
+          "srem": 8193,
+          "store": 19464,
+          "trunc": 1,
+          "unreachable": 9220,
+          "zext": 1
+        },
+        "remaining_alloca_examples_first_40": [
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%local.0 = alloca i32, align 4"
+          },
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define void @zil.fn.4(i8 %arg.0) {",
+            "instruction": "%local.0 = alloca i8, align 1"
+          },
+          {
+            "function": "define i64 @zil.fn.5(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.5(i64 %arg.0) {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.5(i64 %arg.0) {",
+            "instruction": "%local.2 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.6(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.7(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.8(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.9(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.10(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.11(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.13(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.14(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.14(i64 %arg.0) {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.15(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.16(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.17(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.18(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.19(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.20(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.21(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.22(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.23(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.23(i64 %arg.0) {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.24(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.25(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.26(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.27(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.28(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.29(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.30(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.31(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.32(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.32(i64 %arg.0) {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.33(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.34(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.35(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.36(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          }
+        ],
+        "unknown_instruction_lines": []
+      },
+      "production_target_report_path": "/workspace/scratch/037bacfed72a/runs/cp02-profile/tree1024x8-build.json",
+      "production_target_report_sha256": "244637280e659ae4be1cc1acbf2b31c4d7d74f555b8cda547d3545e552fb7042",
+      "target": {
+        "llvm_version": "17.0.6",
+        "triple": "x86_64-unknown-linux-gnu",
+        "cpu": "x86-64",
+        "features": "",
+        "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+        "relocation": "PIC",
+        "code_model": "default"
+      },
+      "stderr_path": "/workspace/scratch/037bacfed72a/cp04-review/tree1024x8-baseline.stderr",
+      "exit_code": 0,
+      "stdout_sha256": "541b878fd1ebeb298cb6329d4b590e60813887cd57d5c78fff96177cac9c2f32",
+      "stdout_bytes": 12856303,
+      "output_statistics": {
+        "counts": {
+          "add": 24583,
+          "alloca": 10246,
+          "and": 8193,
+          "blocks": 52248,
+          "br": 33807,
+          "call": 34830,
+          "extractvalue": 32774,
+          "functions": 9221,
+          "icmp": 24582,
+          "instructions": 242774,
+          "llvm_trap_calls": 9220,
+          "load": 19465,
+          "or": 8193,
+          "overflow_calls": 16387,
+          "ret": 9221,
+          "sext": 1,
+          "srem": 8193,
+          "store": 19464,
+          "trunc": 1,
+          "unreachable": 9220,
+          "zext": 1
+        },
+        "remaining_alloca_examples_first_40": [
+          {
+            "function": "define i32 @zil.fn.0() #2 {",
+            "instruction": "%local.0 = alloca i32, align 4"
+          },
+          {
+            "function": "define i32 @zil.fn.0() #2 {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define void @zil.fn.4(i8 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i8, align 1"
+          },
+          {
+            "function": "define i64 @zil.fn.5(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.5(i64 %arg.0) #2 {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.5(i64 %arg.0) #2 {",
+            "instruction": "%local.2 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.6(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.7(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.8(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.9(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.10(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.11(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.13(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.14(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.14(i64 %arg.0) #2 {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.15(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.16(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.17(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.18(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.19(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.20(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.21(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.22(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.23(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.23(i64 %arg.0) #2 {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.24(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.25(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.26(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.27(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.28(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.29(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.30(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.31(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.32(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.32(i64 %arg.0) #2 {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.33(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.34(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.35(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.36(i64 %arg.0) #2 {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          }
+        ],
+        "unknown_instruction_lines": []
+      },
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "verify": "pass"
+    },
+    {
+      "case": "tree1024x8",
+      "role": "candidate",
+      "semantic_pipeline": "default<O0>,function(mem2reg)",
+      "invocation_pipeline": "verify,default<O0>,function(mem2reg),verify",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "/workspace/scratch/037bacfed72a/cp04-review/tools/opt",
+        "--passes=verify,default<O0>,function(mem2reg),verify",
+        "--verify-each",
+        "--mtriple=x86_64-unknown-linux-gnu",
+        "--mcpu=x86-64",
+        "--mattr=",
+        "--relocation-model=pic",
+        "--data-layout=e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+        "-S",
+        "-o",
+        "-",
+        "/workspace/scratch/037bacfed72a/runs/cp02-profile/tree1024x8-build-program.ll"
+      ],
+      "input_path": "/workspace/scratch/037bacfed72a/runs/cp02-profile/tree1024x8-build-program.ll",
+      "input_sha256": "a336d2364e318886b6f68eea1b20f572a97d23a90b01f329ebcf185495fad677",
+      "input_bytes": 10062939,
+      "input_statistics": {
+        "counts": {
+          "add": 24583,
+          "alloca": 10246,
+          "and": 8193,
+          "blocks": 52248,
+          "br": 33807,
+          "call": 34830,
+          "extractvalue": 32774,
+          "functions": 9221,
+          "icmp": 24582,
+          "instructions": 242774,
+          "llvm_trap_calls": 9220,
+          "load": 19465,
+          "or": 8193,
+          "overflow_calls": 16387,
+          "ret": 9221,
+          "sext": 1,
+          "srem": 8193,
+          "store": 19464,
+          "trunc": 1,
+          "unreachable": 9220,
+          "zext": 1
+        },
+        "remaining_alloca_examples_first_40": [
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%local.0 = alloca i32, align 4"
+          },
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define void @zil.fn.4(i8 %arg.0) {",
+            "instruction": "%local.0 = alloca i8, align 1"
+          },
+          {
+            "function": "define i64 @zil.fn.5(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.5(i64 %arg.0) {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.5(i64 %arg.0) {",
+            "instruction": "%local.2 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.6(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.7(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.8(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.9(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.10(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.11(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.13(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.14(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.14(i64 %arg.0) {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.15(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.16(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.17(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.18(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.19(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.20(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.21(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.22(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.23(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.23(i64 %arg.0) {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.24(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.25(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.26(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.27(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.28(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.29(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.30(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.31(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.32(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.32(i64 %arg.0) {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.33(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.34(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.35(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.36(i64 %arg.0) {",
+            "instruction": "%local.0 = alloca i64, align 8"
+          }
+        ],
+        "unknown_instruction_lines": []
+      },
+      "production_target_report_path": "/workspace/scratch/037bacfed72a/runs/cp02-profile/tree1024x8-build.json",
+      "production_target_report_sha256": "244637280e659ae4be1cc1acbf2b31c4d7d74f555b8cda547d3545e552fb7042",
+      "target": {
+        "llvm_version": "17.0.6",
+        "triple": "x86_64-unknown-linux-gnu",
+        "cpu": "x86-64",
+        "features": "",
+        "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+        "relocation": "PIC",
+        "code_model": "default"
+      },
+      "stderr_path": "/workspace/scratch/037bacfed72a/cp04-review/tree1024x8-candidate.stderr",
+      "exit_code": 0,
+      "stdout_sha256": "440b70017411aba77a559c27f276fb8e9f414cdf01fd6b333522294ee4697ca4",
+      "stdout_bytes": 10931546,
+      "output_statistics": {
+        "counts": {
+          "add": 24583,
+          "and": 8193,
+          "blocks": 52248,
+          "br": 33807,
+          "call": 34830,
+          "extractvalue": 32774,
+          "functions": 9221,
+          "icmp": 24582,
+          "instructions": 193602,
+          "llvm_trap_calls": 9220,
+          "or": 8193,
+          "overflow_calls": 16387,
+          "phi": 3,
+          "ret": 9221,
+          "sext": 1,
+          "srem": 8193,
+          "trunc": 1,
+          "unreachable": 9220,
+          "zext": 1
+        },
+        "remaining_alloca_examples_first_40": [],
+        "unknown_instruction_lines": []
+      },
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "verify": "pass"
+    },
+    {
+      "case": "retained",
+      "role": "baseline",
+      "semantic_pipeline": "default<O0>",
+      "invocation_pipeline": "verify,default<O0>,verify",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "/workspace/scratch/037bacfed72a/cp04-review/tools/opt",
+        "--passes=verify,default<O0>,verify",
+        "--verify-each",
+        "--mtriple=x86_64-unknown-linux-gnu",
+        "--mcpu=x86-64",
+        "--mattr=",
+        "--relocation-model=pic",
+        "--data-layout=e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+        "-S",
+        "-o",
+        "-",
+        "/workspace/scratch/037bacfed72a/runs/cp02-profile/retained-build-program.ll"
+      ],
+      "input_path": "/workspace/scratch/037bacfed72a/runs/cp02-profile/retained-build-program.ll",
+      "input_sha256": "fa5f5096ebd856a3b4feb8820cc3fba18462e304f15da2d1f1c9c8b7132c8eda",
+      "input_bytes": 19289,
+      "input_statistics": {
+        "counts": {
+          "add": 15,
+          "alloca": 27,
+          "and": 3,
+          "blocks": 104,
+          "br": 66,
+          "call": 44,
+          "extractvalue": 12,
+          "freeze": 1,
+          "functions": 19,
+          "getelementptr": 32,
+          "icmp": 21,
+          "insertvalue": 9,
+          "instructions": 414,
+          "llvm_trap_calls": 11,
+          "load": 60,
+          "or": 4,
+          "overflow_calls": 5,
+          "ret": 27,
+          "sext": 3,
+          "srem": 2,
+          "store": 70,
+          "trunc": 2,
+          "unreachable": 11,
+          "xor": 2,
+          "zext": 3
+        },
+        "remaining_alloca_examples_first_40": [
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%resource.live.0 = alloca i1, align 1"
+          },
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%local.0 = alloca %zil_env_0, align 8"
+          },
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%local.1 = alloca i32, align 4"
+          },
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%local.2 = alloca i64, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%resource.live.0 = alloca i1, align 1"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%local.0 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%resource.live.2 = alloca i1, align 1"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%local.2 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%resource.live.3 = alloca i1, align 1"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%local.3 = alloca { { ptr, i64, i64 }, i64 }, align 8"
+          },
+          {
+            "function": "define void @zil.fn.6(i8 %arg.0) {",
+            "instruction": "%local.0 = alloca i8, align 1"
+          },
+          {
+            "function": "define { ptr, i64, i64 } @zil.fn.8({ ptr, i64, i64 } %arg.0) {",
+            "instruction": "%resource.live.0 = alloca i1, align 1"
+          },
+          {
+            "function": "define { ptr, i64, i64 } @zil.fn.8({ ptr, i64, i64 } %arg.0) {",
+            "instruction": "%local.0 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) {",
+            "instruction": "%local.0 = alloca ptr, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) {",
+            "instruction": "%local.1 = alloca i8, align 1"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) {",
+            "instruction": "%local.2 = alloca i64, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) {",
+            "instruction": "%local.3 = alloca i64, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) {",
+            "instruction": "%local.4 = alloca i64, align 8"
+          },
+          {
+            "function": "define { ptr, i64 } @zil.fn.10(ptr %arg.0) {",
+            "instruction": "%local.0 = alloca ptr, align 8"
+          },
+          {
+            "function": "define { ptr, i64 } @zil.fn.11(ptr %arg.0) {",
+            "instruction": "%local.0 = alloca ptr, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%local.0 = alloca i8, align 1"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%resource.live.2 = alloca i1, align 1"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%local.2 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%local.3 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%local.4 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%local.5 = alloca i8, align 1"
+          }
+        ],
+        "unknown_instruction_lines": []
+      },
+      "production_target_report_path": "/workspace/scratch/037bacfed72a/runs/cp02-profile/retained-build.json",
+      "production_target_report_sha256": "aa1552c8e0f90480ea570cb842f30b4b31be72cb01361ab53ed7864815d01046",
+      "target": {
+        "llvm_version": "17.0.6",
+        "triple": "x86_64-unknown-linux-gnu",
+        "cpu": "x86-64",
+        "features": "",
+        "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+        "relocation": "PIC",
+        "code_model": "default"
+      },
+      "stderr_path": "/workspace/scratch/037bacfed72a/cp04-review/retained-baseline.stderr",
+      "exit_code": 0,
+      "stdout_sha256": "9a44580c3cba0386572a06c7f935391361ac2f2647d5a781499f8e0f1218612b",
+      "stdout_bytes": 25434,
+      "output_statistics": {
+        "counts": {
+          "add": 15,
+          "alloca": 27,
+          "and": 3,
+          "blocks": 104,
+          "br": 66,
+          "call": 44,
+          "extractvalue": 12,
+          "freeze": 1,
+          "functions": 19,
+          "getelementptr": 32,
+          "icmp": 21,
+          "insertvalue": 9,
+          "instructions": 414,
+          "llvm_trap_calls": 11,
+          "load": 60,
+          "or": 4,
+          "overflow_calls": 5,
+          "ret": 27,
+          "sext": 3,
+          "srem": 2,
+          "store": 70,
+          "trunc": 2,
+          "unreachable": 11,
+          "xor": 2,
+          "zext": 3
+        },
+        "remaining_alloca_examples_first_40": [
+          {
+            "function": "define i32 @zil.fn.0() #0 {",
+            "instruction": "%resource.live.0 = alloca i1, align 1"
+          },
+          {
+            "function": "define i32 @zil.fn.0() #0 {",
+            "instruction": "%local.0 = alloca %zil_env_0, align 8"
+          },
+          {
+            "function": "define i32 @zil.fn.0() #0 {",
+            "instruction": "%local.1 = alloca i32, align 4"
+          },
+          {
+            "function": "define i32 @zil.fn.0() #0 {",
+            "instruction": "%local.2 = alloca i64, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() #0 {",
+            "instruction": "%resource.live.0 = alloca i1, align 1"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() #0 {",
+            "instruction": "%local.0 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() #0 {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() #0 {",
+            "instruction": "%resource.live.2 = alloca i1, align 1"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() #0 {",
+            "instruction": "%local.2 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() #0 {",
+            "instruction": "%resource.live.3 = alloca i1, align 1"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() #0 {",
+            "instruction": "%local.3 = alloca { { ptr, i64, i64 }, i64 }, align 8"
+          },
+          {
+            "function": "define void @zil.fn.6(i8 %arg.0) #0 {",
+            "instruction": "%local.0 = alloca i8, align 1"
+          },
+          {
+            "function": "define { ptr, i64, i64 } @zil.fn.8({ ptr, i64, i64 } %arg.0) #0 {",
+            "instruction": "%resource.live.0 = alloca i1, align 1"
+          },
+          {
+            "function": "define { ptr, i64, i64 } @zil.fn.8({ ptr, i64, i64 } %arg.0) #0 {",
+            "instruction": "%local.0 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) #0 {",
+            "instruction": "%local.0 = alloca ptr, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) #0 {",
+            "instruction": "%local.1 = alloca i8, align 1"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) #0 {",
+            "instruction": "%local.2 = alloca i64, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) #0 {",
+            "instruction": "%local.3 = alloca i64, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) #0 {",
+            "instruction": "%local.4 = alloca i64, align 8"
+          },
+          {
+            "function": "define { ptr, i64 } @zil.fn.10(ptr %arg.0) #0 {",
+            "instruction": "%local.0 = alloca ptr, align 8"
+          },
+          {
+            "function": "define { ptr, i64 } @zil.fn.11(ptr %arg.0) #0 {",
+            "instruction": "%local.0 = alloca ptr, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) #0 {",
+            "instruction": "%local.0 = alloca i8, align 1"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) #0 {",
+            "instruction": "%resource.live.2 = alloca i1, align 1"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) #0 {",
+            "instruction": "%local.2 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) #0 {",
+            "instruction": "%local.3 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) #0 {",
+            "instruction": "%local.4 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) #0 {",
+            "instruction": "%local.5 = alloca i8, align 1"
+          }
+        ],
+        "unknown_instruction_lines": []
+      },
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "verify": "pass"
+    },
+    {
+      "case": "retained",
+      "role": "candidate",
+      "semantic_pipeline": "default<O0>,function(mem2reg)",
+      "invocation_pipeline": "verify,default<O0>,function(mem2reg),verify",
+      "command": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+        "/workspace/scratch/037bacfed72a/run-tool.py",
+        "/workspace/scratch/037bacfed72a/cp04-review/tools/opt",
+        "--passes=verify,default<O0>,function(mem2reg),verify",
+        "--verify-each",
+        "--mtriple=x86_64-unknown-linux-gnu",
+        "--mcpu=x86-64",
+        "--mattr=",
+        "--relocation-model=pic",
+        "--data-layout=e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+        "-S",
+        "-o",
+        "-",
+        "/workspace/scratch/037bacfed72a/runs/cp02-profile/retained-build-program.ll"
+      ],
+      "input_path": "/workspace/scratch/037bacfed72a/runs/cp02-profile/retained-build-program.ll",
+      "input_sha256": "fa5f5096ebd856a3b4feb8820cc3fba18462e304f15da2d1f1c9c8b7132c8eda",
+      "input_bytes": 19289,
+      "input_statistics": {
+        "counts": {
+          "add": 15,
+          "alloca": 27,
+          "and": 3,
+          "blocks": 104,
+          "br": 66,
+          "call": 44,
+          "extractvalue": 12,
+          "freeze": 1,
+          "functions": 19,
+          "getelementptr": 32,
+          "icmp": 21,
+          "insertvalue": 9,
+          "instructions": 414,
+          "llvm_trap_calls": 11,
+          "load": 60,
+          "or": 4,
+          "overflow_calls": 5,
+          "ret": 27,
+          "sext": 3,
+          "srem": 2,
+          "store": 70,
+          "trunc": 2,
+          "unreachable": 11,
+          "xor": 2,
+          "zext": 3
+        },
+        "remaining_alloca_examples_first_40": [
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%resource.live.0 = alloca i1, align 1"
+          },
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%local.0 = alloca %zil_env_0, align 8"
+          },
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%local.1 = alloca i32, align 4"
+          },
+          {
+            "function": "define i32 @zil.fn.0() {",
+            "instruction": "%local.2 = alloca i64, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%resource.live.0 = alloca i1, align 1"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%local.0 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%local.1 = alloca i64, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%resource.live.2 = alloca i1, align 1"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%local.2 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%resource.live.3 = alloca i1, align 1"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() {",
+            "instruction": "%local.3 = alloca { { ptr, i64, i64 }, i64 }, align 8"
+          },
+          {
+            "function": "define void @zil.fn.6(i8 %arg.0) {",
+            "instruction": "%local.0 = alloca i8, align 1"
+          },
+          {
+            "function": "define { ptr, i64, i64 } @zil.fn.8({ ptr, i64, i64 } %arg.0) {",
+            "instruction": "%resource.live.0 = alloca i1, align 1"
+          },
+          {
+            "function": "define { ptr, i64, i64 } @zil.fn.8({ ptr, i64, i64 } %arg.0) {",
+            "instruction": "%local.0 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) {",
+            "instruction": "%local.0 = alloca ptr, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) {",
+            "instruction": "%local.1 = alloca i8, align 1"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) {",
+            "instruction": "%local.2 = alloca i64, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) {",
+            "instruction": "%local.3 = alloca i64, align 8"
+          },
+          {
+            "function": "define i1 @zil.fn.9(ptr %arg.0, i8 %arg.1) {",
+            "instruction": "%local.4 = alloca i64, align 8"
+          },
+          {
+            "function": "define { ptr, i64 } @zil.fn.10(ptr %arg.0) {",
+            "instruction": "%local.0 = alloca ptr, align 8"
+          },
+          {
+            "function": "define { ptr, i64 } @zil.fn.11(ptr %arg.0) {",
+            "instruction": "%local.0 = alloca ptr, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%local.0 = alloca i8, align 1"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%resource.live.2 = alloca i1, align 1"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%local.2 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%local.3 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%local.4 = alloca i64, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) {",
+            "instruction": "%local.5 = alloca i8, align 1"
+          }
+        ],
+        "unknown_instruction_lines": []
+      },
+      "production_target_report_path": "/workspace/scratch/037bacfed72a/runs/cp02-profile/retained-build.json",
+      "production_target_report_sha256": "aa1552c8e0f90480ea570cb842f30b4b31be72cb01361ab53ed7864815d01046",
+      "target": {
+        "llvm_version": "17.0.6",
+        "triple": "x86_64-unknown-linux-gnu",
+        "cpu": "x86-64",
+        "features": "",
+        "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+        "relocation": "PIC",
+        "code_model": "default"
+      },
+      "stderr_path": "/workspace/scratch/037bacfed72a/cp04-review/retained-candidate.stderr",
+      "exit_code": 0,
+      "stdout_sha256": "7d37946ecdb49818e542cff482616bed818a5c6579cb997a5204c818583d3791",
+      "stdout_bytes": 21028,
+      "output_statistics": {
+        "counts": {
+          "add": 15,
+          "alloca": 6,
+          "and": 3,
+          "blocks": 104,
+          "br": 66,
+          "call": 44,
+          "extractvalue": 12,
+          "freeze": 1,
+          "functions": 19,
+          "getelementptr": 32,
+          "icmp": 21,
+          "insertvalue": 9,
+          "instructions": 309,
+          "llvm_trap_calls": 11,
+          "load": 26,
+          "or": 4,
+          "overflow_calls": 5,
+          "phi": 2,
+          "ret": 27,
+          "sext": 3,
+          "srem": 2,
+          "store": 18,
+          "trunc": 2,
+          "unreachable": 11,
+          "xor": 2,
+          "zext": 3
+        },
+        "remaining_alloca_examples_first_40": [
+          {
+            "function": "define i32 @zil.fn.0() #0 {",
+            "instruction": "%local.0 = alloca %zil_env_0, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() #0 {",
+            "instruction": "%local.0 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() #0 {",
+            "instruction": "%local.2 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define %zil_env_0 @zil.fn.2() #0 {",
+            "instruction": "%local.3 = alloca { { ptr, i64, i64 }, i64 }, align 8"
+          },
+          {
+            "function": "define { ptr, i64, i64 } @zil.fn.8({ ptr, i64, i64 } %arg.0) #0 {",
+            "instruction": "%local.0 = alloca { ptr, i64, i64 }, align 8"
+          },
+          {
+            "function": "define i64 @zil.fn.12(ptr %env, i8 %arg.0) #0 {",
+            "instruction": "%local.2 = alloca { ptr, i64, i64 }, align 8"
+          }
+        ],
+        "unknown_instruction_lines": []
+      },
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "verify": "pass"
+    }
+  ],
+  "status": "pass",
+  "version": {
+    "command": [
+      "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+      "/workspace/scratch/037bacfed72a/run-tool.py",
+      "/workspace/scratch/037bacfed72a/cp04-review/tools/opt",
+      "--version"
+    ],
+    "exit_code": 0,
+    "stdout_path": "/workspace/scratch/037bacfed72a/cp04-review/opt-version.stdout",
+    "stderr_path": "/workspace/scratch/037bacfed72a/cp04-review/opt-version.stderr",
+    "stdout_sha256": "dc80467a85335081333c393510f0b98aad8d948bf7b0bff5644c56e97b00b158",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "dynamic_libraries": {
+    "command": [
+      "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+      "/workspace/scratch/037bacfed72a/run-tool.py",
+      "ldd",
+      "/workspace/scratch/037bacfed72a/cp04-review/tools/opt"
+    ],
+    "exit_code": 0,
+    "stdout_path": "/workspace/scratch/037bacfed72a/cp04-review/opt-ldd.stdout",
+    "stderr_path": "/workspace/scratch/037bacfed72a/cp04-review/opt-ldd.stderr",
+    "stdout_sha256": "cc9c07cd64d74e5270396c8d8a31aa4aef9e3ad2c98fad1d47795cf137b760a9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

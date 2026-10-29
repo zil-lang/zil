@@ -34,7 +34,8 @@ Doing
         "crates/zil-llvm-api/tests",
         "crates/zil-cli/src",
         "crates/zil-cli/tests"
-      ]
+      ],
+      "default_off_control": "Complete: 480 requests; intervals cross 1; build wall point estimate +4.70%, CPU +5.30%"
     },
     "CP03": {
       "status": "ReviewPass",
@@ -45,7 +46,7 @@ Doing
       ]
     },
     "CP04": {
-      "status": "Doing",
+      "status": "NoGo",
       "author": "/root/frontend_audit",
       "reviewer": "/root/backend_audit",
       "plan": "docs/research/compile-performance/CP04-PLAN.md",
@@ -57,9 +58,14 @@ Doing
         "tools/research/compile-performance/runtime_bench.py",
         "tools/research/compile-performance/test_runtime_bench.py",
         "tools/research/compile-performance/README.md"
-      ]
+      ],
+      "candidate": "527657a9256cfaae2babb88dc8a2e3f78f4d6092",
+      "reason": "No established compile gain; weighted runtime regression in the frozen five-case workload",
+      "result": "docs/research/compile-performance/CP04-RESULT.md"
     }
-  }
+  },
+  "mainline_acceptance": "Hold: CP02 disabled-path compile cost requires further validation",
+  "next_priority": "CP05: resolve CP02 disabled-path cost before production merge"
 }
 ```
 

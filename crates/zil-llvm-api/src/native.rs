@@ -364,7 +364,11 @@ fn compile_input(
         ));
     }
     unsafe { LLVMSetModuleDataLayout(module.0, layout.0) };
-    let pipeline = config.optimization.pipeline();
+    let pipeline = if optimized {
+        c"default<O2>"
+    } else {
+        c"default<O0>"
+    };
     let opts = PassOptions(unsafe { LLVMCreatePassBuilderOptions() });
     if opts.0.is_null() {
         return Err(error(ErrorKind::Optimize, "cannot create pass options"));

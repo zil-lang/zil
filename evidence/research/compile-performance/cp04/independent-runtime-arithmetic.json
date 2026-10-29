@@ -1,0 +1,1354 @@
+{
+  "schema_version": 1,
+  "task": "CP04",
+  "reviewer": "/root/backend_audit",
+  "runtime_tool_author": "/root/compiler_research",
+  "independent_of_runtime_tool_author": true,
+  "classification": "Independent byte/receipt and Decimal arithmetic audit of existing observations; no new performance or program execution",
+  "script_path": "/workspace/scratch/037bacfed72a/cp04-review/audit_runtime.py",
+  "script_sha256": "60568ec41fb0d68802954eed82904979b924881b13f777a94cdb9e7cf317d271",
+  "precision_decimal_digits": 50,
+  "status": "Pass",
+  "limitations": [
+    "Wall/CPU observations are accepted as recorded; this audit does not independently remeasure them.",
+    "Raw stdout is compared byte-for-byte to the frozen expected files; the oracle implementation is not rerun.",
+    "Fixed affinity follows the hashed runner code and plan; no new scheduling/performance claims are made.",
+    "ELF sizes are static evidence and do not establish cache misses, branch behavior, spill cost, or any causal runtime explanation.",
+    "The finite paired bootstrap describes this frozen shared-host sample, not a product-level performance guarantee.",
+    "No unrelated 768-run corpus is revalidated. Product acceptance remains NotRun."
+  ],
+  "inputs": {
+    "/workspace/scratch/037bacfed72a/runs/cp04-runtime-plan/plan.json": "21e3b840c49d96b939554e3d161a1907a686ed820c41a97c8b619b24d5c52c52",
+    "/workspace/scratch/037bacfed72a/runs/cp04-runtime-build/result.json": "34662d9c9a6d5e68a29d5609cec429dbd7b7cc95678261aa47407ef2eae5803e",
+    "/workspace/scratch/037bacfed72a/runs/cp04-runtime-build/builds.jsonl": "f2977381d89240a6f67e46d553c7fbf696c52bdd97d7ba16bdda854b09a06a06",
+    "/workspace/scratch/037bacfed72a/runs/cp04-runtime-measure/complete.json": "c7b29b06707b12260361be56be90c8ad400844cdaf0bf96a9d42a35c17bcfb87",
+    "/workspace/scratch/037bacfed72a/runs/cp04-runtime-measure/records.jsonl": "ad1ec62d8a7a729cf150e80930e02dbfcd1de24913e1fe613edec389b695195c",
+    "/workspace/scratch/037bacfed72a/runs/cp04-runtime-summary.json": "bbf555c48ad4ea100c83861f34ee3ac8880b472378488e412953f35bf20873c4"
+  },
+  "source_map_sha256": "f9b27c5822857baf8e0af34fb0f15eba094a64c1ed0db994220be3d59cb23de6",
+  "arithmetic": {
+    "method": "Within each case/block/arm take mean of two observations; for each case/arm take median of five block means; sum frozen weighted case medians separately for A and B; report B total/A total. No startup subtraction and no trimming.",
+    "wall": {
+      "A": "0.068589230825",
+      "B": "0.086051298025",
+      "B_over_A": "1.2545890512251563800795837252341719929179567381451",
+      "by_case": {
+        "tree4x2": {
+          "A": "0.077081730",
+          "B": "0.0606592455",
+          "B_over_A": "0.78694712093254782942728451995044740173838859091512"
+        },
+        "tree32x8": {
+          "A": "0.0612948665",
+          "B": "0.044846127",
+          "B_over_A": "0.73164572436094627924509795612329133631443670735460"
+        },
+        "tree256x8": {
+          "A": "0.063606535",
+          "B": "0.1062778365",
+          "B_over_A": "1.6708634812444979120463015317529873306256975010508"
+        },
+        "tree1024x8": {
+          "A": "0.1153050225",
+          "B": "0.1413891615",
+          "B_over_A": "1.2262185847108264516404738570689754646203724560220"
+        },
+        "retained": {
+          "A": "0.0093372355",
+          "B": "0.0099565865",
+          "B_over_A": "1.0663313033070655656055799385160629181945769708818"
+        }
+      }
+    },
+    "cpu": {
+      "A": "0.067868724999999998325",
+      "B": "0.08522952499999999825",
+      "B_over_A": "1.2557997074499336823178055868684569790035742973611",
+      "by_case": {
+        "tree4x2": {
+          "A": "0.076370",
+          "B": "0.059425999999999997",
+          "B_over_A": "0.77813277464973153070577451879010082493125572868928"
+        },
+        "tree32x8": {
+          "A": "0.0605885",
+          "B": "0.0440995",
+          "B_over_A": "0.72785264530397682728570603332315538427259298381706"
+        },
+        "tree256x8": {
+          "A": "0.0628285",
+          "B": "0.105431999999999995",
+          "B_over_A": "1.6780919487175405269901398250793827641914099493064"
+        },
+        "tree1024x8": {
+          "A": "0.11459499999999999475",
+          "B": "0.140440",
+          "B_over_A": "1.2255334002356124301588232578818033800237541243463"
+        },
+        "retained": {
+          "A": "0.0086744999999999995",
+          "B": "0.0094084999999999995",
+          "B_over_A": "1.0846158280016139307519642631629448816625893805375"
+        }
+      }
+    },
+    "frozen_case_weights": {
+      "tree4x2": "0.05",
+      "tree32x8": "0.15",
+      "tree256x8": "0.3",
+      "tree1024x8": "0.3",
+      "retained": "0.2"
+    },
+    "block_means": [
+      {
+        "case": "retained",
+        "block": 0,
+        "arm": "A",
+        "wall": "0.0093372355",
+        "cpu": "0.0086744999999999995"
+      },
+      {
+        "case": "retained",
+        "block": 0,
+        "arm": "B",
+        "wall": "0.0099565865",
+        "cpu": "0.0094084999999999995"
+      },
+      {
+        "case": "retained",
+        "block": 1,
+        "arm": "A",
+        "wall": "0.0095803145",
+        "cpu": "0.0088049999999999993"
+      },
+      {
+        "case": "retained",
+        "block": 1,
+        "arm": "B",
+        "wall": "0.0105999815",
+        "cpu": "0.009996999999999999"
+      },
+      {
+        "case": "retained",
+        "block": 2,
+        "arm": "A",
+        "wall": "0.0080590445",
+        "cpu": "0.007200"
+      },
+      {
+        "case": "retained",
+        "block": 2,
+        "arm": "B",
+        "wall": "0.008044680",
+        "cpu": "0.00738299999999999985"
+      },
+      {
+        "case": "retained",
+        "block": 3,
+        "arm": "A",
+        "wall": "0.0112734505",
+        "cpu": "0.0106564999999999995"
+      },
+      {
+        "case": "retained",
+        "block": 3,
+        "arm": "B",
+        "wall": "0.012727732",
+        "cpu": "0.011895"
+      },
+      {
+        "case": "retained",
+        "block": 4,
+        "arm": "A",
+        "wall": "0.007313767",
+        "cpu": "0.0067669999999999995"
+      },
+      {
+        "case": "retained",
+        "block": 4,
+        "arm": "B",
+        "wall": "0.007380615",
+        "cpu": "0.00690849999999999975"
+      },
+      {
+        "case": "tree1024x8",
+        "block": 0,
+        "arm": "A",
+        "wall": "0.109467420",
+        "cpu": "0.10864599999999999485"
+      },
+      {
+        "case": "tree1024x8",
+        "block": 0,
+        "arm": "B",
+        "wall": "0.1409165845",
+        "cpu": "0.1392205"
+      },
+      {
+        "case": "tree1024x8",
+        "block": 1,
+        "arm": "A",
+        "wall": "0.1162252375",
+        "cpu": "0.1152714999999999948"
+      },
+      {
+        "case": "tree1024x8",
+        "block": 1,
+        "arm": "B",
+        "wall": "0.134896987",
+        "cpu": "0.13413249999999999975"
+      },
+      {
+        "case": "tree1024x8",
+        "block": 2,
+        "arm": "A",
+        "wall": "0.1153050225",
+        "cpu": "0.11459499999999999475"
+      },
+      {
+        "case": "tree1024x8",
+        "block": 2,
+        "arm": "B",
+        "wall": "0.1413891615",
+        "cpu": "0.140440"
+      },
+      {
+        "case": "tree1024x8",
+        "block": 3,
+        "arm": "A",
+        "wall": "0.123955324",
+        "cpu": "0.12333149999999999475"
+      },
+      {
+        "case": "tree1024x8",
+        "block": 3,
+        "arm": "B",
+        "wall": "0.163272335",
+        "cpu": "0.16191499999999999"
+      },
+      {
+        "case": "tree1024x8",
+        "block": 4,
+        "arm": "A",
+        "wall": "0.1074894145",
+        "cpu": "0.106757"
+      },
+      {
+        "case": "tree1024x8",
+        "block": 4,
+        "arm": "B",
+        "wall": "0.142704302",
+        "cpu": "0.14101549999999999"
+      },
+      {
+        "case": "tree256x8",
+        "block": 0,
+        "arm": "A",
+        "wall": "0.063606535",
+        "cpu": "0.0628285"
+      },
+      {
+        "case": "tree256x8",
+        "block": 0,
+        "arm": "B",
+        "wall": "0.102509781",
+        "cpu": "0.101812499999999995"
+      },
+      {
+        "case": "tree256x8",
+        "block": 1,
+        "arm": "A",
+        "wall": "0.067789104",
+        "cpu": "0.067007"
+      },
+      {
+        "case": "tree256x8",
+        "block": 1,
+        "arm": "B",
+        "wall": "0.1062778365",
+        "cpu": "0.105431999999999995"
+      },
+      {
+        "case": "tree256x8",
+        "block": 2,
+        "arm": "A",
+        "wall": "0.0613396665",
+        "cpu": "0.0607184999999999985"
+      },
+      {
+        "case": "tree256x8",
+        "block": 2,
+        "arm": "B",
+        "wall": "0.1098170535",
+        "cpu": "0.108897999999999995"
+      },
+      {
+        "case": "tree256x8",
+        "block": 3,
+        "arm": "A",
+        "wall": "0.0771083265",
+        "cpu": "0.073810499999999995"
+      },
+      {
+        "case": "tree256x8",
+        "block": 3,
+        "arm": "B",
+        "wall": "0.1342746435",
+        "cpu": "0.131853"
+      },
+      {
+        "case": "tree256x8",
+        "block": 4,
+        "arm": "A",
+        "wall": "0.0622132325",
+        "cpu": "0.0612189999999999995"
+      },
+      {
+        "case": "tree256x8",
+        "block": 4,
+        "arm": "B",
+        "wall": "0.1053313305",
+        "cpu": "0.1033295"
+      },
+      {
+        "case": "tree32x8",
+        "block": 0,
+        "arm": "A",
+        "wall": "0.0612948665",
+        "cpu": "0.0605885"
+      },
+      {
+        "case": "tree32x8",
+        "block": 0,
+        "arm": "B",
+        "wall": "0.040567151",
+        "cpu": "0.0394824999999999959"
+      },
+      {
+        "case": "tree32x8",
+        "block": 1,
+        "arm": "A",
+        "wall": "0.059955870",
+        "cpu": "0.0590194999999999955"
+      },
+      {
+        "case": "tree32x8",
+        "block": 1,
+        "arm": "B",
+        "wall": "0.044846127",
+        "cpu": "0.0440995"
+      },
+      {
+        "case": "tree32x8",
+        "block": 2,
+        "arm": "A",
+        "wall": "0.057850120",
+        "cpu": "0.057084"
+      },
+      {
+        "case": "tree32x8",
+        "block": 2,
+        "arm": "B",
+        "wall": "0.041996422",
+        "cpu": "0.0413965"
+      },
+      {
+        "case": "tree32x8",
+        "block": 3,
+        "arm": "A",
+        "wall": "0.067426106",
+        "cpu": "0.066676999999999992"
+      },
+      {
+        "case": "tree32x8",
+        "block": 3,
+        "arm": "B",
+        "wall": "0.0502089695",
+        "cpu": "0.049034"
+      },
+      {
+        "case": "tree32x8",
+        "block": 4,
+        "arm": "A",
+        "wall": "0.061930539",
+        "cpu": "0.061164"
+      },
+      {
+        "case": "tree32x8",
+        "block": 4,
+        "arm": "B",
+        "wall": "0.0458325465",
+        "cpu": "0.0450865"
+      },
+      {
+        "case": "tree4x2",
+        "block": 0,
+        "arm": "A",
+        "wall": "0.077081730",
+        "cpu": "0.076370"
+      },
+      {
+        "case": "tree4x2",
+        "block": 0,
+        "arm": "B",
+        "wall": "0.0606592455",
+        "cpu": "0.0600155"
+      },
+      {
+        "case": "tree4x2",
+        "block": 1,
+        "arm": "A",
+        "wall": "0.076657854",
+        "cpu": "0.0758875"
+      },
+      {
+        "case": "tree4x2",
+        "block": 1,
+        "arm": "B",
+        "wall": "0.047340707",
+        "cpu": "0.046770"
+      },
+      {
+        "case": "tree4x2",
+        "block": 2,
+        "arm": "A",
+        "wall": "0.0710682765",
+        "cpu": "0.070287499999999995"
+      },
+      {
+        "case": "tree4x2",
+        "block": 2,
+        "arm": "B",
+        "wall": "0.0584722745",
+        "cpu": "0.0578325"
+      },
+      {
+        "case": "tree4x2",
+        "block": 3,
+        "arm": "A",
+        "wall": "0.084929223",
+        "cpu": "0.080485999999999995"
+      },
+      {
+        "case": "tree4x2",
+        "block": 3,
+        "arm": "B",
+        "wall": "0.063013618",
+        "cpu": "0.06204049999999999675"
+      },
+      {
+        "case": "tree4x2",
+        "block": 4,
+        "arm": "A",
+        "wall": "0.083782370",
+        "cpu": "0.0827855"
+      },
+      {
+        "case": "tree4x2",
+        "block": 4,
+        "arm": "B",
+        "wall": "0.0610097945",
+        "cpu": "0.059425999999999997"
+      }
+    ],
+    "paired_bootstrap": {
+      "resampling_unit": "One common vector of five block IDs, reused for every case and both arms",
+      "exact_ordered_draws": 3125,
+      "exact_nearest_rank95": [
+        "1.1947164221517833039597869281739772754240525258236",
+        "1.3321996784125639332528353272262769539507938464939"
+      ],
+      "monte_carlo_draws": 5000,
+      "monte_carlo_seed": 20261004,
+      "independent_MC95": [
+        "1.1947164221517833039597869281739772754240525258236",
+        "1.3321996784125639332528353272262769539507938464939"
+      ],
+      "reported_MC95": [
+        "1.1947164221517832",
+        "1.3321996784125638"
+      ],
+      "total_decimal_comparison_tolerance": "1E-14"
+    }
+  },
+  "static_elf_observations": {
+    "tree4x2": {
+      "executable_bytes": {
+        "A": 16472,
+        "B": 16472,
+        "B_minus_A": 0
+      },
+      "sections": {
+        ".bss": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".comment": {
+          "A": 43,
+          "B": 43,
+          "B_minus_A": 0
+        },
+        ".data": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".dynamic": {
+          "A": 432,
+          "B": 432,
+          "B_minus_A": 0
+        },
+        ".dynstr": {
+          "A": 152,
+          "B": 152,
+          "B_minus_A": 0
+        },
+        ".dynsym": {
+          "A": 192,
+          "B": 192,
+          "B_minus_A": 0
+        },
+        ".eh_frame": {
+          "A": 492,
+          "B": 492,
+          "B_minus_A": 0
+        },
+        ".eh_frame_hdr": {
+          "A": 172,
+          "B": 172,
+          "B_minus_A": 0
+        },
+        ".fini": {
+          "A": 13,
+          "B": 13,
+          "B_minus_A": 0
+        },
+        ".fini_array": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".gnu.hash": {
+          "A": 36,
+          "B": 36,
+          "B_minus_A": 0
+        },
+        ".gnu.version": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".gnu.version_r": {
+          "A": 48,
+          "B": 48,
+          "B_minus_A": 0
+        },
+        ".got": {
+          "A": 56,
+          "B": 56,
+          "B_minus_A": 0
+        },
+        ".got.plt": {
+          "A": 24,
+          "B": 24,
+          "B_minus_A": 0
+        },
+        ".init": {
+          "A": 27,
+          "B": 27,
+          "B_minus_A": 0
+        },
+        ".init_array": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".interp": {
+          "A": 28,
+          "B": 28,
+          "B_minus_A": 0
+        },
+        ".note.ABI-tag": {
+          "A": 32,
+          "B": 32,
+          "B_minus_A": 0
+        },
+        ".note.gnu.build-id": {
+          "A": 36,
+          "B": 36,
+          "B_minus_A": 0
+        },
+        ".note.gnu.property": {
+          "A": 32,
+          "B": 32,
+          "B_minus_A": 0
+        },
+        ".plt": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".plt.got": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".rela.dyn": {
+          "A": 240,
+          "B": 240,
+          "B_minus_A": 0
+        },
+        ".rodata": {
+          "A": 4,
+          "B": 4,
+          "B_minus_A": 0
+        },
+        ".shstrtab": {
+          "A": 272,
+          "B": 272,
+          "B_minus_A": 0
+        },
+        ".strtab": {
+          "A": 651,
+          "B": 651,
+          "B_minus_A": 0
+        },
+        ".symtab": {
+          "A": 1272,
+          "B": 1272,
+          "B_minus_A": 0
+        },
+        ".text": {
+          "A": 1624,
+          "B": 1656,
+          "B_minus_A": 32
+        }
+      },
+      "zil_function_symbols": {
+        "A": 16,
+        "B": 16,
+        "common": 16,
+        "size_delta_histogram": {
+          "-47": 1,
+          "-40": 1,
+          "-33": 2,
+          "0": 1,
+          "2": 1,
+          "4": 1,
+          "5": 8,
+          "40": 1
+        }
+      }
+    },
+    "tree32x8": {
+      "executable_bytes": {
+        "A": 62912,
+        "B": 62912,
+        "B_minus_A": 0
+      },
+      "sections": {
+        ".bss": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".comment": {
+          "A": 43,
+          "B": 43,
+          "B_minus_A": 0
+        },
+        ".data": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".dynamic": {
+          "A": 432,
+          "B": 432,
+          "B_minus_A": 0
+        },
+        ".dynstr": {
+          "A": 152,
+          "B": 152,
+          "B_minus_A": 0
+        },
+        ".dynsym": {
+          "A": 192,
+          "B": 192,
+          "B_minus_A": 0
+        },
+        ".eh_frame": {
+          "A": 6124,
+          "B": 6124,
+          "B_minus_A": 0
+        },
+        ".eh_frame_hdr": {
+          "A": 2380,
+          "B": 2380,
+          "B_minus_A": 0
+        },
+        ".fini": {
+          "A": 13,
+          "B": 13,
+          "B_minus_A": 0
+        },
+        ".fini_array": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".gnu.hash": {
+          "A": 36,
+          "B": 36,
+          "B_minus_A": 0
+        },
+        ".gnu.version": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".gnu.version_r": {
+          "A": 48,
+          "B": 48,
+          "B_minus_A": 0
+        },
+        ".got": {
+          "A": 56,
+          "B": 56,
+          "B_minus_A": 0
+        },
+        ".got.plt": {
+          "A": 24,
+          "B": 24,
+          "B_minus_A": 0
+        },
+        ".init": {
+          "A": 27,
+          "B": 27,
+          "B_minus_A": 0
+        },
+        ".init_array": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".interp": {
+          "A": 28,
+          "B": 28,
+          "B_minus_A": 0
+        },
+        ".note.ABI-tag": {
+          "A": 32,
+          "B": 32,
+          "B_minus_A": 0
+        },
+        ".note.gnu.build-id": {
+          "A": 36,
+          "B": 36,
+          "B_minus_A": 0
+        },
+        ".note.gnu.property": {
+          "A": 32,
+          "B": 32,
+          "B_minus_A": 0
+        },
+        ".plt": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".plt.got": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".rela.dyn": {
+          "A": 240,
+          "B": 240,
+          "B_minus_A": 0
+        },
+        ".rodata": {
+          "A": 4,
+          "B": 4,
+          "B_minus_A": 0
+        },
+        ".shstrtab": {
+          "A": 272,
+          "B": 272,
+          "B_minus_A": 0
+        },
+        ".strtab": {
+          "A": 3605,
+          "B": 3605,
+          "B_minus_A": 0
+        },
+        ".symtab": {
+          "A": 7896,
+          "B": 7896,
+          "B_minus_A": 0
+        },
+        ".text": {
+          "A": 30744,
+          "B": 32088,
+          "B_minus_A": 1344
+        }
+      },
+      "zil_function_symbols": {
+        "A": 292,
+        "B": 292,
+        "common": 292,
+        "size_delta_histogram": {
+          "-89": 15,
+          "-82": 1,
+          "-75": 16,
+          "0": 1,
+          "2": 1,
+          "4": 1,
+          "5": 256,
+          "40": 1
+        }
+      }
+    },
+    "tree256x8": {
+      "executable_bytes": {
+        "A": 405120,
+        "B": 413312,
+        "B_minus_A": 8192
+      },
+      "sections": {
+        ".bss": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".comment": {
+          "A": 43,
+          "B": 43,
+          "B_minus_A": 0
+        },
+        ".data": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".dynamic": {
+          "A": 432,
+          "B": 432,
+          "B_minus_A": 0
+        },
+        ".dynstr": {
+          "A": 152,
+          "B": 152,
+          "B_minus_A": 0
+        },
+        ".dynsym": {
+          "A": 192,
+          "B": 192,
+          "B_minus_A": 0
+        },
+        ".eh_frame": {
+          "A": 47340,
+          "B": 47340,
+          "B_minus_A": 0
+        },
+        ".eh_frame_hdr": {
+          "A": 18508,
+          "B": 18508,
+          "B_minus_A": 0
+        },
+        ".fini": {
+          "A": 13,
+          "B": 13,
+          "B_minus_A": 0
+        },
+        ".fini_array": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".gnu.hash": {
+          "A": 36,
+          "B": 36,
+          "B_minus_A": 0
+        },
+        ".gnu.version": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".gnu.version_r": {
+          "A": 48,
+          "B": 48,
+          "B_minus_A": 0
+        },
+        ".got": {
+          "A": 56,
+          "B": 56,
+          "B_minus_A": 0
+        },
+        ".got.plt": {
+          "A": 24,
+          "B": 24,
+          "B_minus_A": 0
+        },
+        ".init": {
+          "A": 27,
+          "B": 27,
+          "B_minus_A": 0
+        },
+        ".init_array": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".interp": {
+          "A": 28,
+          "B": 28,
+          "B_minus_A": 0
+        },
+        ".note.ABI-tag": {
+          "A": 32,
+          "B": 32,
+          "B_minus_A": 0
+        },
+        ".note.gnu.build-id": {
+          "A": 36,
+          "B": 36,
+          "B_minus_A": 0
+        },
+        ".note.gnu.property": {
+          "A": 32,
+          "B": 32,
+          "B_minus_A": 0
+        },
+        ".plt": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".plt.got": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".rela.dyn": {
+          "A": 240,
+          "B": 240,
+          "B_minus_A": 0
+        },
+        ".rodata": {
+          "A": 4,
+          "B": 4,
+          "B_minus_A": 0
+        },
+        ".shstrtab": {
+          "A": 272,
+          "B": 272,
+          "B_minus_A": 0
+        },
+        ".strtab": {
+          "A": 27091,
+          "B": 27091,
+          "B_minus_A": 0
+        },
+        ".symtab": {
+          "A": 56280,
+          "B": 56280,
+          "B_minus_A": 0
+        },
+        ".text": {
+          "A": 242200,
+          "B": 252504,
+          "B_minus_A": 10304
+        }
+      },
+      "zil_function_symbols": {
+        "A": 2308,
+        "B": 2308,
+        "common": 2308,
+        "size_delta_histogram": {
+          "-89": 127,
+          "-82": 1,
+          "-75": 128,
+          "0": 1,
+          "2": 1,
+          "4": 1,
+          "5": 2048,
+          "40": 1
+        }
+      }
+    },
+    "tree1024x8": {
+      "executable_bytes": {
+        "A": 1575552,
+        "B": 1616512,
+        "B_minus_A": 40960
+      },
+      "sections": {
+        ".bss": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".comment": {
+          "A": 43,
+          "B": 43,
+          "B_minus_A": 0
+        },
+        ".data": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".dynamic": {
+          "A": 432,
+          "B": 432,
+          "B_minus_A": 0
+        },
+        ".dynstr": {
+          "A": 152,
+          "B": 152,
+          "B_minus_A": 0
+        },
+        ".dynsym": {
+          "A": 192,
+          "B": 192,
+          "B_minus_A": 0
+        },
+        ".eh_frame": {
+          "A": 188652,
+          "B": 188652,
+          "B_minus_A": 0
+        },
+        ".eh_frame_hdr": {
+          "A": 73804,
+          "B": 73804,
+          "B_minus_A": 0
+        },
+        ".fini": {
+          "A": 13,
+          "B": 13,
+          "B_minus_A": 0
+        },
+        ".fini_array": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".gnu.hash": {
+          "A": 36,
+          "B": 36,
+          "B_minus_A": 0
+        },
+        ".gnu.version": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".gnu.version_r": {
+          "A": 48,
+          "B": 48,
+          "B_minus_A": 0
+        },
+        ".got": {
+          "A": 56,
+          "B": 56,
+          "B_minus_A": 0
+        },
+        ".got.plt": {
+          "A": 24,
+          "B": 24,
+          "B_minus_A": 0
+        },
+        ".init": {
+          "A": 27,
+          "B": 27,
+          "B_minus_A": 0
+        },
+        ".init_array": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".interp": {
+          "A": 28,
+          "B": 28,
+          "B_minus_A": 0
+        },
+        ".note.ABI-tag": {
+          "A": 32,
+          "B": 32,
+          "B_minus_A": 0
+        },
+        ".note.gnu.build-id": {
+          "A": 36,
+          "B": 36,
+          "B_minus_A": 0
+        },
+        ".note.gnu.property": {
+          "A": 32,
+          "B": 32,
+          "B_minus_A": 0
+        },
+        ".plt": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".plt.got": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".rela.dyn": {
+          "A": 240,
+          "B": 240,
+          "B_minus_A": 0
+        },
+        ".rodata": {
+          "A": 4,
+          "B": 4,
+          "B_minus_A": 0
+        },
+        ".shstrtab": {
+          "A": 272,
+          "B": 272,
+          "B_minus_A": 0
+        },
+        ".strtab": {
+          "A": 110035,
+          "B": 110035,
+          "B_minus_A": 0
+        },
+        ".symtab": {
+          "A": 222168,
+          "B": 222168,
+          "B_minus_A": 0
+        },
+        ".text": {
+          "A": 967192,
+          "B": 1008216,
+          "B_minus_A": 41024
+        }
+      },
+      "zil_function_symbols": {
+        "A": 9220,
+        "B": 9220,
+        "common": 9220,
+        "size_delta_histogram": {
+          "-89": 511,
+          "-82": 1,
+          "-75": 512,
+          "0": 1,
+          "2": 1,
+          "4": 1,
+          "5": 8192,
+          "40": 1
+        }
+      }
+    },
+    "retained": {
+      "executable_bytes": {
+        "A": 16768,
+        "B": 16768,
+        "B_minus_A": 0
+      },
+      "sections": {
+        ".bss": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".comment": {
+          "A": 43,
+          "B": 43,
+          "B_minus_A": 0
+        },
+        ".data": {
+          "A": 16,
+          "B": 16,
+          "B_minus_A": 0
+        },
+        ".dynamic": {
+          "A": 480,
+          "B": 480,
+          "B_minus_A": 0
+        },
+        ".dynstr": {
+          "A": 165,
+          "B": 165,
+          "B_minus_A": 0
+        },
+        ".dynsym": {
+          "A": 240,
+          "B": 240,
+          "B_minus_A": 0
+        },
+        ".eh_frame": {
+          "A": 616,
+          "B": 616,
+          "B_minus_A": 0
+        },
+        ".eh_frame_hdr": {
+          "A": 188,
+          "B": 188,
+          "B_minus_A": 0
+        },
+        ".fini": {
+          "A": 13,
+          "B": 13,
+          "B_minus_A": 0
+        },
+        ".fini_array": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".gnu.hash": {
+          "A": 36,
+          "B": 36,
+          "B_minus_A": 0
+        },
+        ".gnu.version": {
+          "A": 20,
+          "B": 20,
+          "B_minus_A": 0
+        },
+        ".gnu.version_r": {
+          "A": 48,
+          "B": 48,
+          "B_minus_A": 0
+        },
+        ".got": {
+          "A": 56,
+          "B": 56,
+          "B_minus_A": 0
+        },
+        ".got.plt": {
+          "A": 40,
+          "B": 40,
+          "B_minus_A": 0
+        },
+        ".init": {
+          "A": 27,
+          "B": 27,
+          "B_minus_A": 0
+        },
+        ".init_array": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".interp": {
+          "A": 28,
+          "B": 28,
+          "B_minus_A": 0
+        },
+        ".note.ABI-tag": {
+          "A": 32,
+          "B": 32,
+          "B_minus_A": 0
+        },
+        ".note.gnu.build-id": {
+          "A": 36,
+          "B": 36,
+          "B_minus_A": 0
+        },
+        ".note.gnu.property": {
+          "A": 32,
+          "B": 32,
+          "B_minus_A": 0
+        },
+        ".plt": {
+          "A": 48,
+          "B": 48,
+          "B_minus_A": 0
+        },
+        ".plt.got": {
+          "A": 8,
+          "B": 8,
+          "B_minus_A": 0
+        },
+        ".rela.dyn": {
+          "A": 240,
+          "B": 240,
+          "B_minus_A": 0
+        },
+        ".rela.plt": {
+          "A": 48,
+          "B": 48,
+          "B_minus_A": 0
+        },
+        ".rodata": {
+          "A": 4,
+          "B": 4,
+          "B_minus_A": 0
+        },
+        ".shstrtab": {
+          "A": 282,
+          "B": 282,
+          "B_minus_A": 0
+        },
+        ".strtab": {
+          "A": 763,
+          "B": 763,
+          "B_minus_A": 0
+        },
+        ".symtab": {
+          "A": 1368,
+          "B": 1368,
+          "B_minus_A": 0
+        },
+        ".text": {
+          "A": 2552,
+          "B": 2216,
+          "B_minus_A": -336
+        }
+      },
+      "zil_function_symbols": {
+        "A": 11,
+        "B": 11,
+        "common": 11,
+        "size_delta_histogram": {
+          "-162": 1,
+          "-81": 1,
+          "-44": 1,
+          "-19": 1,
+          "-3": 1,
+          "0": 3,
+          "2": 2,
+          "4": 1
+        }
+      }
+    }
+  },
+  "raw_evidence_coverage": {
+    "planned_fixture_files": 1344,
+    "builds": 10,
+    "startup_diagnostics": 10,
+    "warmup_runs": 10,
+    "measured_rows": 100,
+    "unique_rows": 100,
+    "case_blocks": 25,
+    "two_replicate_cells": 50,
+    "all_failures_retained": []
+  },
+  "root_execution_evidence": {
+    "executor": "/root",
+    "receipt_path": "/workspace/scratch/037bacfed72a/cp04-logs/04-root-impact-701dd6c18.json",
+    "receipt_sha256": "d27ca4e8c3413b36bbb9d894632e8c0cbc78656aaa5468774d9477b0ab68716e",
+    "log_sha256": "aab27054c75002ca5327b55239d5b497985383bb78f2c8dc99f805b022383829",
+    "passed": 27,
+    "failed": 0,
+    "reviewer_reexecuted": false
+  },
+  "verdict": "Runtime arithmetic and file binding verified; measured runtime regression supports candidate NoGo. Compilation benefit adjudication is separate and was not recomputed here.",
+  "check_count": 3446,
+  "failures": [],
+  "verified_file_count": 1636,
+  "verified_file_inventory": {
+    "path": "/workspace/scratch/037bacfed72a/cp04-review/runtime-verified-files.json",
+    "canonical_content_sha256": "55b9b6b8f513a2de44c4dde09d8bc5c325029fee5390364faa595abb6e1ed98e"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "source_commit": "701dd6c18020607a4d89d51239c9dba59ea90e33",
+  "source_tree": "f2514439a5f1e3f5deceb996671833e0b05dd1c5",
+  "crates_tree": "cd235a606797ccd4e0f92b00ebef4045f032b452",
+  "binary": "/workspace/scratch/037bacfed72a/bin/zil-cp04",
+  "binary_sha256": "a4146dcb8ce3534e1c8dd0af58da76595e0edc78d195c476cf6a554b1dc1308c",
+  "binary_bytes": 6939856,
+  "built_binary": "/workspace/scratch/037bacfed72a/targets/cp04/release/zil",
+  "build_receipt": "/workspace/scratch/037bacfed72a/cp04-logs/03-release-701dd6c18.json",
+  "build_receipt_sha256": "c5ec8b29659d25e010871c1ae8e2456562be137f065efaa814858255e5955f72",
+  "build_log_sha256": "5e1f31af8b92480c50d549fd08bc6de8896137bb2fe8d8ebb7f6d642904819c1",
+  "build_exit": 0,
+  "copied_at": "2026-10-29T15:26:08.232541+00:00",
+  "author": "/root/frontend_audit",
+  "performance_measured": false
+}

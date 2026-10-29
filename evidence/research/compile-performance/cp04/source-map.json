@@ -1,0 +1,18 @@
+[
+  {
+    "canonical_source_commit": "6c3b950e6e534fd276d199a4b1bce8302f5a79ee",
+    "build_source_commit": "9614aac90ee58359fef05da4dcfe92011b7c91c2",
+    "crates_tree": "2d3bdfe9336f666508e2ba88218480c8e3aa36ea",
+    "crates_diff_exit": 0,
+    "binary": "/workspace/scratch/037bacfed72a/bin/zil-cp02",
+    "sha256": "94938d821b9471ebbb8b3136d200a355b730c27aa6847e24534dd8d8513c0837"
+  },
+  {
+    "canonical_source_commit": "527657a9256cfaae2babb88dc8a2e3f78f4d6092",
+    "build_source_commit": "701dd6c18020607a4d89d51239c9dba59ea90e33",
+    "crates_tree": "cd235a606797ccd4e0f92b00ebef4045f032b452",
+    "crates_diff_exit": 0,
+    "binary": "/workspace/scratch/037bacfed72a/bin/zil-cp04",
+    "sha256": "a4146dcb8ce3534e1c8dd0af58da76595e0edc78d195c476cf6a554b1dc1308c"
+  }
+]

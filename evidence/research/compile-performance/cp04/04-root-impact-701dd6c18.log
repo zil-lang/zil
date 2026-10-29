@@ -1,0 +1,47 @@
+   Compiling zil-driver v0.1.0 (/workspace/scratch/037bacfed72a/cperf-ssa/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.68s
+     Running tests/llvm_api208.rs (/workspace/scratch/037bacfed72a/targets/cp04/debug/deps/llvm_api208-c36dcf094c14c030)
+
+running 11 tests
+test cancellation_after_actual_api_codegen_and_link_cannot_publish ... ok
+test cancelled_request_preserves_previous_outputs ... ok
+test checked_overflow_traps_in_o0_o2_and_parallel ... ok
+test current_177_state_store_callback_and_field_exit ... ok
+test failing_or_lying_linker_cannot_publish_or_leak_staging ... ok
+test function_value_target_and_caller_in_different_units ... ok
+test invalid_borrow_has_same_rejection_before_native_calls ... ok
+test missing_external_symbol_is_still_link_failure_in_both_modes ... ok
+test return_value_entry_wrapper_works_with_private_format_global ... ok
+test same_ir_with_clang_and_api_single_and_parallel ... ok
+test warm_source_cache_does_not_replace_independent_verify ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.81s
+
+     Running tests/object_cache212.rs (/workspace/scratch/037bacfed72a/targets/cp04/debug/deps/object_cache212-8eb14ab05887cf5f)
+
+running 11 tests
+test cache_directory_failure_is_a_visible_bypass_not_a_build_failure ... ok
+test cancellation_after_backend_success_does_not_commit_object_cache ... ok
+test cold_warm_private_public_edits_preserve_current_verify_and_output ... ok
+test concurrent_requests_share_only_complete_native_objects ... ok
+test corrupt_and_truncated_entries_rebuild_without_changed_native_bytes ... ok
+test current_checked_overflow_still_traps_on_cache_hits ... ok
+test diagnostic_fingerprint_change_does_not_pollute_machine_keys ... ok
+test linker_failure_discards_pending_objects_and_preserves_previous_output ... ok
+test optimization_and_units_invalidate_but_job_count_does_not ... ok
+test owned_state_store_and_callbacks_match_on_cold_and_warm_o0_o2 ... ok
+test unsafe_or_invalid_current_source_never_reuses_a_success_capability ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.96s
+
+     Running tests/stage_timings.rs (/workspace/scratch/037bacfed72a/targets/cp04/debug/deps/stage_timings-51f48ad81fa6f1a9)
+
+running 5 tests
+test filesystem_discovery_failure_and_parse_stop_have_distinct_scopes ... ok
+test native_cold_hit_and_link_failure_preserve_bytes_and_current_verification ... ok
+test rejected_and_cancelled_requests_keep_only_actual_intervals ... ok
+test request_root_includes_real_session_capacity_eviction ... ok
+test timing_switch_is_not_a_query_key_and_verify_still_runs ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+

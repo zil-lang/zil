@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "python",
+    "/workspace/scratch/037bacfed72a/run-tool.py",
+    "python",
+    "tools/research/compile-performance/bench.py",
+    "measure",
+    "--plan",
+    "/workspace/scratch/037bacfed72a/runs/cp02-control-plan/plan.json",
+    "--preflight",
+    "/workspace/scratch/037bacfed72a/runs/cp02-control-preflight/result.json",
+    "--out",
+    "/workspace/scratch/037bacfed72a/runs/cp02-control-measure",
+    "--quiet-window"
+  ],
+  "started_at": "2026-10-29T15:44:21.743401+00:00",
+  "ended_at": "2026-10-29T15:49:23.470335+00:00",
+  "exit": 0
+}

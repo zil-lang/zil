@@ -1,0 +1,644 @@
+{
+  "schema": "zil-compile-performance-independent-arithmetic/1",
+  "reviewer": "/root/compiler_research",
+  "scope": "Independent recalculation of existing CP04 compile records, plus logged CP01/CP04 A executable-byte identity comparison; no new execution, timing or runtime-tool review",
+  "imports_benchmark_helpers": false,
+  "plan_sha256": "a9f75421ee9160fc5595631845588613c4f230332cbc174c780a6ba7d70fb27f",
+  "records_sha256": "384f93fe03543c8f262aa58bb346a32d06e183d996ee84ee03318d3ac6a4b4fe",
+  "original_summary_sha256": "383e6d8c78b56ee2dc62646ba5d2303e97657d95cef8146952e42d82ad353430",
+  "source_identity": {
+    "A": {
+      "commit": "6c3b950e6e534fd276d199a4b1bce8302f5a79ee",
+      "crates_tree": "2d3bdfe9336f666508e2ba88218480c8e3aa36ea"
+    },
+    "B": {
+      "commit": "527657a9256cfaae2babb88dc8a2e3f78f4d6092",
+      "crates_tree": "cd235a606797ccd4e0f92b00ebef4045f032b452"
+    }
+  },
+  "verdict": "Pass",
+  "issues": [],
+  "coverage": {
+    "rows": 240,
+    "exact_frozen_order": true,
+    "paired_cells": 120,
+    "observations_per_cell": [
+      2
+    ],
+    "failed_rows": 0,
+    "timed_out_rows": 0,
+    "source_matching_rows": 240,
+    "frozen_fixture_files_rehashed": 8056,
+    "native_checks": 768,
+    "native_log_files_rehashed": 1536,
+    "compiler_log_files_read_and_rehashed": 480,
+    "timings_disabled_rows": 240,
+    "pass_recipes": {
+      "A": [
+        "default<O0>"
+      ],
+      "B": [
+        "default<O0>,function(mem2reg)"
+      ]
+    }
+  },
+  "arithmetic": {
+    "number_type": "Decimal precision 45; decimal strings preserve independently computed precision",
+    "algorithm": "Two observations averaged within arm/block/case/request, median over selected blocks, request/case-weighted absolute costs, then B/A",
+    "compared_summary_numbers": 120,
+    "comparison_tolerance": "1E-12",
+    "max_absolute_difference": "3E-16",
+    "by_phase": {
+      "build": {
+        "wall": {
+          "A": "1.06896236698625",
+          "B": "1.08739315463375",
+          "B_over_A": "1.01724175538514264098180896139396072230404998",
+          "by_case": {
+            "tree4x2": {
+              "A": "0.068275359225",
+              "B": "0.069345843425",
+              "B_over_A": "1.01567892446339596684853619677165455441073148"
+            },
+            "tree32x8": {
+              "A": "0.123921932700",
+              "B": "0.12185174970",
+              "B_over_A": "0.983294458415108304714166227654388414812061755"
+            },
+            "tree256x8": {
+              "A": "0.644154075925",
+              "B": "0.649138193225",
+              "B_over_A": "1.00773746140291489765442176185823224091400055"
+            },
+            "tree1024x8": {
+              "A": "2.804825646025",
+              "B": "2.86259398665",
+              "B_over_A": "1.02059605405664673484256348375849666375520498"
+            },
+            "retained": {
+              "A": "0.061331962675",
+              "B": "0.060642230225",
+              "B_over_A": "0.988754110908615236158346207693735768745313514"
+            }
+          },
+          "by_request": {
+            "cold_process": {
+              "A": "1.27856696495",
+              "B": "1.319115122200",
+              "B_over_A": "1.03171375325780115683099168594704743079088734"
+            },
+            "unchanged": {
+              "A": "1.047620303275",
+              "B": "1.096061521775",
+              "B_over_A": "1.04623928951029903377566343873319583263972992"
+            },
+            "private_edit": {
+              "A": "1.049846383900",
+              "B": "1.03906594665",
+              "B_over_A": "0.989731414599960313298555906946721064950271912"
+            },
+            "public_edit": {
+              "A": "1.030000071900",
+              "B": "1.04155820755",
+              "B_over_A": "1.01122149013900471748112700301647425545194275"
+            }
+          }
+        },
+        "cpu": {
+          "A": "1.0486586687499999883100",
+          "B": "1.06330752625000000693500",
+          "B_over_A": "1.01396913784869717531555877051559440459627825",
+          "by_case": {
+            "tree4x2": {
+              "A": "0.0629302999999999992",
+              "B": "0.064399174999999997825",
+              "B_over_A": "1.02334129981900608520336054103039184880238030"
+            },
+            "tree32x8": {
+              "A": "0.11941907499999999690",
+              "B": "0.117678349999999997725",
+              "B_over_A": "0.985423392368430259402130826604826776179647703"
+            },
+            "tree256x8": {
+              "A": "0.62995637499999996975",
+              "B": "0.62204704999999999425",
+              "B_over_A": "0.987444646464606416785925145299694931691477279"
+            },
+            "tree1024x8": {
+              "A": "2.756198949999999995",
+              "B": "2.8143331000000000310",
+              "B_over_A": "1.02109214576110336160800755286751589831352260"
+            },
+            "retained": {
+              "A": "0.058763474999999996950",
+              "B": "0.05760884999999999905",
+              "B_over_A": "0.980351315166436328690083614994361761362053992"
+            }
+          },
+          "by_request": {
+            "cold_process": {
+              "A": "1.1055096749999999848",
+              "B": "1.1167208749999999908",
+              "B_over_A": "1.01014120477959634876478698628292375751913903"
+            },
+            "unchanged": {
+              "A": "1.04520422499999997585",
+              "B": "1.091844499999999991300",
+              "B_over_A": "1.04462312138089569675021968204216843509009478"
+            },
+            "private_edit": {
+              "A": "1.04625244999999999640",
+              "B": "1.0346160250000000298",
+              "B_over_A": "0.988877994981039263860228744918820835159643814"
+            },
+            "public_edit": {
+              "A": "1.02523494999999999815",
+              "B": "1.03762302499999999320",
+              "B_over_A": "1.01208315713388428191250585116873544111828789"
+            }
+          }
+        },
+        "by_case_request": {
+          "tree4x2/cold_process": {
+            "A": "0.070509493",
+            "B": "0.0754717595",
+            "B_over_A": "1.07037728238947910177144515845547208799246365"
+          },
+          "tree4x2/unchanged": {
+            "A": "0.069093053",
+            "B": "0.0721535985",
+            "B_over_A": "1.04429599456257925091253385488697394801761040"
+          },
+          "tree4x2/private_edit": {
+            "A": "0.0664457755",
+            "B": "0.067538883",
+            "B_over_A": "1.01645112111002451916600777727396680019183462"
+          },
+          "tree4x2/public_edit": {
+            "A": "0.0697568745",
+            "B": "0.063529032",
+            "B_over_A": "0.910720734771452525442492409834101727135151389"
+          },
+          "tree32x8/cold_process": {
+            "A": "0.142325305",
+            "B": "0.1366164395",
+            "B_over_A": "0.959888612218326178889973220152242076698869537"
+          },
+          "tree32x8/unchanged": {
+            "A": "0.1250445705",
+            "B": "0.120408955",
+            "B_over_A": "0.962928294435622856571769343635755860347411086"
+          },
+          "tree32x8/private_edit": {
+            "A": "0.1194249845",
+            "B": "0.122359904",
+            "B_over_A": "1.02457542290909822140274173533595895086760509"
+          },
+          "tree32x8/public_edit": {
+            "A": "0.1210253915",
+            "B": "0.114020066",
+            "B_over_A": "0.942116894536135419152930399733513772603660613"
+          },
+          "tree256x8/cold_process": {
+            "A": "0.756621597",
+            "B": "0.889294929",
+            "B_over_A": "1.17534964971400360383844554730572936579815868"
+          },
+          "tree256x8/unchanged": {
+            "A": "0.5987760325",
+            "B": "0.616010541",
+            "B_over_A": "1.02878289638288085620728314639080013610932231"
+          },
+          "tree256x8/private_edit": {
+            "A": "0.6541882055",
+            "B": "0.6425426945",
+            "B_over_A": "0.982198531092288242118116267383545789102429790"
+          },
+          "tree256x8/public_edit": {
+            "A": "0.648300151",
+            "B": "0.5839195545",
+            "B_over_A": "0.900693226122663667249400347586838677136140294"
+          },
+          "tree1024x8/cold_process": {
+            "A": "3.3835628905",
+            "B": "3.385324484",
+            "B_over_A": "1.00052063270493538355586241466966461281444297"
+          },
+          "tree1024x8/unchanged": {
+            "A": "2.780272066",
+            "B": "2.925943968",
+            "B_over_A": "1.05239483710296717414848853140978901595021097"
+          },
+          "tree1024x8/private_edit": {
+            "A": "2.731413769",
+            "B": "2.7074880955",
+            "B_over_A": "0.991240553236004427566462926474322828970113462"
+          },
+          "tree1024x8/public_edit": {
+            "A": "2.6720575085",
+            "B": "2.779906075",
+            "B_over_A": "1.04036161877389473857575846406974889402908972"
+          },
+          "retained/cold_process": {
+            "A": "0.0581867415",
+            "B": "0.062316222",
+            "B_over_A": "1.07096944069294548827760014710567698656918260"
+          },
+          "retained/unchanged": {
+            "A": "0.0584726775",
+            "B": "0.0590307295",
+            "B_over_A": "1.00954380787505412250020533094281512933968177"
+          },
+          "retained/private_edit": {
+            "A": "0.0646487755",
+            "B": "0.0616288995",
+            "B_over_A": "0.953287962894208259211344227239075858443753509"
+          },
+          "retained/public_edit": {
+            "A": "0.061255608",
+            "B": "0.060655286",
+            "B_over_A": "0.990199721795268116512695458022390374445389555"
+          }
+        }
+      }
+    }
+  },
+  "bootstrap": {
+    "method": "Enumerate all 3^3=27 ordered whole paired-block draws with replacement; empirical inverse-CDF ranks 1 and 27 for central 95%",
+    "interval": [
+      "0.989348334869422759804392505244364823055293290",
+      "1.08776092901810780591861575736847973291992192"
+    ],
+    "all_resamples": [
+      {
+        "blocks": [
+          0,
+          0,
+          0
+        ],
+        "B_over_A": "1.08776092901810780591861575736847973291992192"
+      },
+      {
+        "blocks": [
+          0,
+          0,
+          1
+        ],
+        "B_over_A": "1.08776092901810780591861575736847973291992192"
+      },
+      {
+        "blocks": [
+          0,
+          0,
+          2
+        ],
+        "B_over_A": "1.08776092901810780591861575736847973291992192"
+      },
+      {
+        "blocks": [
+          0,
+          1,
+          0
+        ],
+        "B_over_A": "1.08776092901810780591861575736847973291992192"
+      },
+      {
+        "blocks": [
+          0,
+          1,
+          1
+        ],
+        "B_over_A": "0.989348334869422759804392505244364823055293290"
+      },
+      {
+        "blocks": [
+          0,
+          1,
+          2
+        ],
+        "B_over_A": "1.01724175538514264098180896139396072230404998"
+      },
+      {
+        "blocks": [
+          0,
+          2,
+          0
+        ],
+        "B_over_A": "1.08776092901810780591861575736847973291992192"
+      },
+      {
+        "blocks": [
+          0,
+          2,
+          1
+        ],
+        "B_over_A": "1.01724175538514264098180896139396072230404998"
+      },
+      {
+        "blocks": [
+          0,
+          2,
+          2
+        ],
+        "B_over_A": "1.03255563655073808713689991266811453345700836"
+      },
+      {
+        "blocks": [
+          1,
+          0,
+          0
+        ],
+        "B_over_A": "1.08776092901810780591861575736847973291992192"
+      },
+      {
+        "blocks": [
+          1,
+          0,
+          1
+        ],
+        "B_over_A": "0.989348334869422759804392505244364823055293290"
+      },
+      {
+        "blocks": [
+          1,
+          0,
+          2
+        ],
+        "B_over_A": "1.01724175538514264098180896139396072230404998"
+      },
+      {
+        "blocks": [
+          1,
+          1,
+          0
+        ],
+        "B_over_A": "0.989348334869422759804392505244364823055293290"
+      },
+      {
+        "blocks": [
+          1,
+          1,
+          1
+        ],
+        "B_over_A": "0.989348334869422759804392505244364823055293290"
+      },
+      {
+        "blocks": [
+          1,
+          1,
+          2
+        ],
+        "B_over_A": "0.989348334869422759804392505244364823055293290"
+      },
+      {
+        "blocks": [
+          1,
+          2,
+          0
+        ],
+        "B_over_A": "1.01724175538514264098180896139396072230404998"
+      },
+      {
+        "blocks": [
+          1,
+          2,
+          1
+        ],
+        "B_over_A": "0.989348334869422759804392505244364823055293290"
+      },
+      {
+        "blocks": [
+          1,
+          2,
+          2
+        ],
+        "B_over_A": "1.03255563655073808713689991266811453345700836"
+      },
+      {
+        "blocks": [
+          2,
+          0,
+          0
+        ],
+        "B_over_A": "1.08776092901810780591861575736847973291992192"
+      },
+      {
+        "blocks": [
+          2,
+          0,
+          1
+        ],
+        "B_over_A": "1.01724175538514264098180896139396072230404998"
+      },
+      {
+        "blocks": [
+          2,
+          0,
+          2
+        ],
+        "B_over_A": "1.03255563655073808713689991266811453345700836"
+      },
+      {
+        "blocks": [
+          2,
+          1,
+          0
+        ],
+        "B_over_A": "1.01724175538514264098180896139396072230404998"
+      },
+      {
+        "blocks": [
+          2,
+          1,
+          1
+        ],
+        "B_over_A": "0.989348334869422759804392505244364823055293290"
+      },
+      {
+        "blocks": [
+          2,
+          1,
+          2
+        ],
+        "B_over_A": "1.03255563655073808713689991266811453345700836"
+      },
+      {
+        "blocks": [
+          2,
+          2,
+          0
+        ],
+        "B_over_A": "1.03255563655073808713689991266811453345700836"
+      },
+      {
+        "blocks": [
+          2,
+          2,
+          1
+        ],
+        "B_over_A": "1.03255563655073808713689991266811453345700836"
+      },
+      {
+        "blocks": [
+          2,
+          2,
+          2
+        ],
+        "B_over_A": "1.03255563655073808713689991266811453345700836"
+      }
+    ],
+    "matches_reported_monte_carlo_interval": true
+  },
+  "cp01_A_vs_cp04_A": {
+    "source": "/workspace/scratch/037bacfed72a/runs/cp01-measure/records.jsonl",
+    "source_file_sha256": "a40cd41113dfb54fbc521578922cb229344cca8a88e4f1b703d1f62898969e04",
+    "decompressed_records_sha256": "a40cd41113dfb54fbc521578922cb229344cca8a88e4f1b703d1f62898969e04",
+    "matches_prior_independent_receipt": true,
+    "cp01_A_build_rows": 120,
+    "cp04_A_build_rows": 120,
+    "case_snapshot_cells": 15,
+    "all_identical": true,
+    "by_case_snapshot": {
+      "tree4x2/base": {
+        "cp01_A": [
+          "8c81202b939014e2b60991c11bc0ee02586912c2c693fdfbd4dafe2da5a404d2"
+        ],
+        "cp04_A": [
+          "8c81202b939014e2b60991c11bc0ee02586912c2c693fdfbd4dafe2da5a404d2"
+        ],
+        "identical": true
+      },
+      "tree4x2/private": {
+        "cp01_A": [
+          "182974c02f1e07321404a1a7118297cdbe99bc1c7a6ab281e20ab5474a97eea3"
+        ],
+        "cp04_A": [
+          "182974c02f1e07321404a1a7118297cdbe99bc1c7a6ab281e20ab5474a97eea3"
+        ],
+        "identical": true
+      },
+      "tree4x2/public": {
+        "cp01_A": [
+          "1a620677017553f4448b41e960670993eac7c27d63a6a66c76b0a2db4ecd6b42"
+        ],
+        "cp04_A": [
+          "1a620677017553f4448b41e960670993eac7c27d63a6a66c76b0a2db4ecd6b42"
+        ],
+        "identical": true
+      },
+      "tree32x8/base": {
+        "cp01_A": [
+          "c371676f847fc3c2e425dd4b8c878c15b77632a854c5a45c8c63d2460b28bf03"
+        ],
+        "cp04_A": [
+          "c371676f847fc3c2e425dd4b8c878c15b77632a854c5a45c8c63d2460b28bf03"
+        ],
+        "identical": true
+      },
+      "tree32x8/private": {
+        "cp01_A": [
+          "e9f9adcd032f1cced1230f5691515a622964f4be4be0834103bd7d4703385b19"
+        ],
+        "cp04_A": [
+          "e9f9adcd032f1cced1230f5691515a622964f4be4be0834103bd7d4703385b19"
+        ],
+        "identical": true
+      },
+      "tree32x8/public": {
+        "cp01_A": [
+          "d5ada5fdfe430c4d3c484f71ed3a7e51d5fdbed2044107ae9c2f786a92878e83"
+        ],
+        "cp04_A": [
+          "d5ada5fdfe430c4d3c484f71ed3a7e51d5fdbed2044107ae9c2f786a92878e83"
+        ],
+        "identical": true
+      },
+      "tree256x8/base": {
+        "cp01_A": [
+          "8bf54ef5de8289afb56341463da8c1a53bb8881138c3dbd507013cc53f891ed6"
+        ],
+        "cp04_A": [
+          "8bf54ef5de8289afb56341463da8c1a53bb8881138c3dbd507013cc53f891ed6"
+        ],
+        "identical": true
+      },
+      "tree256x8/private": {
+        "cp01_A": [
+          "2064c57bfb74d6e4d6193d39ec573044c5251fa3b3b7cba6a3551fb7224bf777"
+        ],
+        "cp04_A": [
+          "2064c57bfb74d6e4d6193d39ec573044c5251fa3b3b7cba6a3551fb7224bf777"
+        ],
+        "identical": true
+      },
+      "tree256x8/public": {
+        "cp01_A": [
+          "b1ff0cc96baed8af9825b4233916acd6b9a49e705c25f55e2d952838d4c5a987"
+        ],
+        "cp04_A": [
+          "b1ff0cc96baed8af9825b4233916acd6b9a49e705c25f55e2d952838d4c5a987"
+        ],
+        "identical": true
+      },
+      "tree1024x8/base": {
+        "cp01_A": [
+          "50040604a0aff0d55203a7dac2761999d51374270270a74372bc6bfb27ce772c"
+        ],
+        "cp04_A": [
+          "50040604a0aff0d55203a7dac2761999d51374270270a74372bc6bfb27ce772c"
+        ],
+        "identical": true
+      },
+      "tree1024x8/private": {
+        "cp01_A": [
+          "70eb06a192dbf9ab9fcec17c6aa766e7f69611feca5a527f10bd694d371e5287"
+        ],
+        "cp04_A": [
+          "70eb06a192dbf9ab9fcec17c6aa766e7f69611feca5a527f10bd694d371e5287"
+        ],
+        "identical": true
+      },
+      "tree1024x8/public": {
+        "cp01_A": [
+          "6e35f27f799f1011ef2f08bd1c28632abe3660ccbe47fa386b20d9096060bd42"
+        ],
+        "cp04_A": [
+          "6e35f27f799f1011ef2f08bd1c28632abe3660ccbe47fa386b20d9096060bd42"
+        ],
+        "identical": true
+      },
+      "retained/base": {
+        "cp01_A": [
+          "3442a6b7ac9784636ff9b1b40e0a4a2c59df7bbaa084e1336cf5908fa0193574"
+        ],
+        "cp04_A": [
+          "3442a6b7ac9784636ff9b1b40e0a4a2c59df7bbaa084e1336cf5908fa0193574"
+        ],
+        "identical": true
+      },
+      "retained/private": {
+        "cp01_A": [
+          "3442a6b7ac9784636ff9b1b40e0a4a2c59df7bbaa084e1336cf5908fa0193574"
+        ],
+        "cp04_A": [
+          "3442a6b7ac9784636ff9b1b40e0a4a2c59df7bbaa084e1336cf5908fa0193574"
+        ],
+        "identical": true
+      },
+      "retained/public": {
+        "cp01_A": [
+          "c6d2313668f5d4696c0c5d991eaea48c5d5add01993be1571d84de32f083886f"
+        ],
+        "cp04_A": [
+          "c6d2313668f5d4696c0c5d991eaea48c5d5add01993be1571d84de32f083886f"
+        ],
+        "identical": true
+      }
+    },
+    "scope": "Recorded full executable SHA-256 equality for these 15 cells only. No executable retained/re-executed here, no proof of zero compiler overhead or general workload identity; no timing windows combined."
+  },
+  "decision_support": "Observed weighted wall B/A above 1 and interval crosses 1; supports NoGo for unproven compile benefit, not a proven stable regression.",
+  "new_experiments": 0,
+  "product_gates": "NotRun",
+  "runtime_arithmetic_review": "NotPerformed: reviewer authored runtime tool"
+}

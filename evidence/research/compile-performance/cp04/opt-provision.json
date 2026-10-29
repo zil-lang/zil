@@ -1,0 +1,19 @@
+{
+  "purpose": "provision exact LLVM 17.0.6 opt only; does not modify shared toolchain",
+  "index_path": "/workspace/scratch/3cf12ce32e36/toolchains/downloads/llvm17-packages.gz",
+  "index_sha256": "e7dc28183b411b9c174ac3d048d660ef3f44bca11eba10e18d71435c22d2fb16",
+  "package": "llvm-17",
+  "package_version": "1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77",
+  "expected_sha256": "0e3544c3257c3e4d0623f66f0eac2fb06ef2dff20cb30f3dd1f9a5a3262f9c3d",
+  "expected_size": 23912982,
+  "url": "https://apt.llvm.org/jammy/pool/main/l/llvm-toolchain-17/llvm-17_17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77_amd64.deb",
+  "output": "/workspace/scratch/037bacfed72a/cp04-review/tools/opt",
+  "status": "success",
+  "sandbox": "explicit network escalation",
+  "response_status": 200,
+  "package_sha256": "0e3544c3257c3e4d0623f66f0eac2fb06ef2dff20cb30f3dd1f9a5a3262f9c3d",
+  "package_size": 23912982,
+  "extract_exit_code": 0,
+  "tool_sha256": "098a1e331d9ae7c580716f7c95eaf1cc33e0d66bd44e4ce355f038b9ac447d54",
+  "tool_size": 247392
+}

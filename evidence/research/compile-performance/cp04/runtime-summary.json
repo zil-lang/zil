@@ -1,0 +1,165 @@
+{
+  "schema": "zil-cperf-native-runtime/1",
+  "plan_sha256": "21e3b840c49d96b939554e3d161a1907a686ed820c41a97c8b619b24d5c52c52",
+  "build_receipt_sha256": "34662d9c9a6d5e68a29d5609cec429dbd7b7cc95678261aa47407ef2eae5803e",
+  "records_sha256": "ad1ec62d8a7a729cf150e80930e02dbfcd1de24913e1fe613edec389b695195c",
+  "source_identity": {
+    "A": {
+      "commit": "6c3b950e6e534fd276d199a4b1bce8302f5a79ee",
+      "crates_tree": "2d3bdfe9336f666508e2ba88218480c8e3aa36ea"
+    },
+    "B": {
+      "commit": "527657a9256cfaae2babb88dc8a2e3f78f4d6092",
+      "crates_tree": "cd235a606797ccd4e0f92b00ebef4045f032b452"
+    }
+  },
+  "rows": 100,
+  "coverage_complete": true,
+  "completion_receipt_matches": true,
+  "failures": [],
+  "scope": "Full native process wall/CPU including startup and stdio; file identities checked before runs, OS caches not flushed; no compiler work or profiling in runtime samples",
+  "product_gates": "NotRun",
+  "independent_review": "NotRun",
+  "wall": {
+    "A": 0.068589230825,
+    "B": 0.086051298025,
+    "B_over_A": 1.2545890512251563,
+    "by_case": {
+      "tree4x2": {
+        "A": 0.07708172999999999,
+        "B": 0.0606592455,
+        "B_over_A": 0.7869471209325479
+      },
+      "tree32x8": {
+        "A": 0.0612948665,
+        "B": 0.044846127,
+        "B_over_A": 0.7316457243609462
+      },
+      "tree256x8": {
+        "A": 0.063606535,
+        "B": 0.1062778365,
+        "B_over_A": 1.6708634812444978
+      },
+      "tree1024x8": {
+        "A": 0.11530502249999999,
+        "B": 0.1413891615,
+        "B_over_A": 1.2262185847108265
+      },
+      "retained": {
+        "A": 0.009337235499999999,
+        "B": 0.0099565865,
+        "B_over_A": 1.0663313033070656
+      }
+    }
+  },
+  "cpu": {
+    "A": 0.067868725,
+    "B": 0.085229525,
+    "B_over_A": 1.2557997074499336,
+    "by_case": {
+      "tree4x2": {
+        "A": 0.07637,
+        "B": 0.05942599999999999,
+        "B_over_A": 0.7781327746497315
+      },
+      "tree32x8": {
+        "A": 0.0605885,
+        "B": 0.0440995,
+        "B_over_A": 0.7278526453039768
+      },
+      "tree256x8": {
+        "A": 0.06282850000000001,
+        "B": 0.105432,
+        "B_over_A": 1.6780919487175403
+      },
+      "tree1024x8": {
+        "A": 0.114595,
+        "B": 0.14044,
+        "B_over_A": 1.2255334002356124
+      },
+      "retained": {
+        "A": 0.0086745,
+        "B": 0.0094085,
+        "B_over_A": 1.084615828001614
+      }
+    }
+  },
+  "exploratory_paired_block_bootstrap95": [
+    1.1947164221517832,
+    1.3321996784125638
+  ],
+  "startup_diagnostics": {
+    "tree4x2": {
+      "A": {
+        "single_preflight_empty_seconds": 0.001886216,
+        "empty_over_measured_full_seconds": 0.024470338172223174,
+        "executable_bytes": 16472,
+        "executable_sha256": "8c81202b939014e2b60991c11bc0ee02586912c2c693fdfbd4dafe2da5a404d2"
+      },
+      "B": {
+        "single_preflight_empty_seconds": 0.002680356,
+        "empty_over_measured_full_seconds": 0.044187097579378894,
+        "executable_bytes": 16472,
+        "executable_sha256": "c3b6142a40fd586870d4f6b0d0a5a73936e82b7783a65ba8e35ac5b7eb0319e5"
+      }
+    },
+    "tree32x8": {
+      "A": {
+        "single_preflight_empty_seconds": 0.001844969,
+        "empty_over_measured_full_seconds": 0.03009989425460287,
+        "executable_bytes": 62912,
+        "executable_sha256": "c371676f847fc3c2e425dd4b8c878c15b77632a854c5a45c8c63d2460b28bf03"
+      },
+      "B": {
+        "single_preflight_empty_seconds": 0.002000443,
+        "empty_over_measured_full_seconds": 0.04460681744044475,
+        "executable_bytes": 62912,
+        "executable_sha256": "2638d38ae33ee56cd818e1d957065626f97fb79a1b430d60913d34c398bcc47e"
+      }
+    },
+    "tree256x8": {
+      "A": {
+        "single_preflight_empty_seconds": 0.002311161,
+        "empty_over_measured_full_seconds": 0.0363352759272298,
+        "executable_bytes": 405120,
+        "executable_sha256": "8bf54ef5de8289afb56341463da8c1a53bb8881138c3dbd507013cc53f891ed6"
+      },
+      "B": {
+        "single_preflight_empty_seconds": 0.002179808,
+        "empty_over_measured_full_seconds": 0.020510466450829566,
+        "executable_bytes": 413312,
+        "executable_sha256": "344e67a17be6d729f564634b4976098eef329e9354af08a4d759ddaabb90e707"
+      }
+    },
+    "tree1024x8": {
+      "A": {
+        "single_preflight_empty_seconds": 0.002069387,
+        "empty_over_measured_full_seconds": 0.017947067310099176,
+        "executable_bytes": 1575552,
+        "executable_sha256": "50040604a0aff0d55203a7dac2761999d51374270270a74372bc6bfb27ce772c"
+      },
+      "B": {
+        "single_preflight_empty_seconds": 0.002545193,
+        "empty_over_measured_full_seconds": 0.018001330321207116,
+        "executable_bytes": 1616512,
+        "executable_sha256": "3bb587dd897945f7dc300a4bd9fb9caaf45c975822bd2c97a254db218cc2cba8"
+      }
+    },
+    "retained": {
+      "A": {
+        "single_preflight_empty_seconds": 0.002075957,
+        "empty_over_measured_full_seconds": 0.22233101007252093,
+        "executable_bytes": 16768,
+        "executable_sha256": "3442a6b7ac9784636ff9b1b40e0a4a2c59df7bbaa084e1336cf5908fa0193574"
+      },
+      "B": {
+        "single_preflight_empty_seconds": 0.002376219,
+        "empty_over_measured_full_seconds": 0.23865799789917963,
+        "executable_bytes": 16768,
+        "executable_sha256": "ff2b789330914b628d1c8ca72164169fe5c7e45f30d94ab5126559bc35c85b3f"
+      }
+    }
+  },
+  "startup_note": "One empty-input preflight observation per executable; diagnostic only, not subtracted or used to remove samples",
+  "verdict": "ExploratoryRuntimeQuality_NotAProductGate"
+}

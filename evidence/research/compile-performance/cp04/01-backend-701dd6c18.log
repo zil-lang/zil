@@ -1,0 +1,20 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/scratch/037bacfed72a/cperf-ssa/crates/zil-llvm-api)
+   Compiling zil-base v0.1.0 (/workspace/scratch/037bacfed72a/cperf-ssa/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/scratch/037bacfed72a/cperf-ssa/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/scratch/037bacfed72a/cperf-ssa/crates/zil-verify)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/scratch/037bacfed72a/cperf-ssa/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized] target(s) in 5.33s
+     Running unittests src/lib.rs (/workspace/scratch/037bacfed72a/targets/cp04/debug/deps/zil_backend_llvm-3136df6a873984eb)
+
+running 8 tests
+test object_cache::tests::changing_only_the_pass_recipe_invalidates_object_identity ... ok
+test object_cache::tests::key_binds_all_machine_changes_but_not_authorization_comment ... ok
+test object_cache::tests::unwritable_cache_cannot_revoke_success ... ok
+test object_cache::tests::installed_tool_identity_fallback_detects_changed_content ... ok
+test object_cache::tests::symlink_and_group_writable_cache_roots_are_rejected ... ok
+test object_cache::tests::pending_objects_are_not_stored_until_success_commit ... ok
+test object_cache::tests::entry_roundtrip_corruption_key_and_length_are_checked ... ok
+test object_cache::tests::concurrent_writers_only_publish_complete_entries ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 0.02s
+

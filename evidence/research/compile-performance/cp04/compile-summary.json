@@ -1,0 +1,254 @@
+{
+  "schema": "zil-compile-performance/1",
+  "plan_sha256": "a9f75421ee9160fc5595631845588613c4f230332cbc174c780a6ba7d70fb27f",
+  "records_sha256": "384f93fe03543c8f262aa58bb346a32d06e183d996ee84ee03318d3ac6a4b4fe",
+  "source_identity": {
+    "A": {
+      "commit": "6c3b950e6e534fd276d199a4b1bce8302f5a79ee",
+      "crates_tree": "2d3bdfe9336f666508e2ba88218480c8e3aa36ea"
+    },
+    "B": {
+      "commit": "527657a9256cfaae2babb88dc8a2e3f78f4d6092",
+      "crates_tree": "cd235a606797ccd4e0f92b00ebef4045f032b452"
+    }
+  },
+  "selected_cases": [
+    "tree4x2",
+    "tree32x8",
+    "tree256x8",
+    "tree1024x8",
+    "retained"
+  ],
+  "selected_original_weight": 1.0,
+  "phases": [
+    "build"
+  ],
+  "rows": 240,
+  "coverage_complete": true,
+  "failures": [],
+  "native_checks": 768,
+  "scope": "Full CLI new process per request; source candidates reused within each four-request sequence; OS page cache not flushed; not a persistent-session benchmark",
+  "product_gates": "NotRun",
+  "independent_review": "NotRun",
+  "by_phase": {
+    "build": {
+      "wall": {
+        "A": 1.0689623669862502,
+        "B": 1.0873931546337503,
+        "B_over_A": 1.0172417553851427,
+        "by_case": {
+          "tree4x2": {
+            "A": 0.068275359225,
+            "B": 0.069345843425,
+            "B_over_A": 1.015678924463396
+          },
+          "tree32x8": {
+            "A": 0.1239219327,
+            "B": 0.12185174970000001,
+            "B_over_A": 0.9832944584151084
+          },
+          "tree256x8": {
+            "A": 0.6441540759250001,
+            "B": 0.649138193225,
+            "B_over_A": 1.0077374614029149
+          },
+          "tree1024x8": {
+            "A": 2.8048256460250003,
+            "B": 2.86259398665,
+            "B_over_A": 1.0205960540566466
+          },
+          "retained": {
+            "A": 0.061331962675000004,
+            "B": 0.060642230224999996,
+            "B_over_A": 0.9887541109086151
+          }
+        },
+        "by_request": {
+          "cold_process": {
+            "A": 1.27856696495,
+            "B": 1.3191151222,
+            "B_over_A": 1.0317137532578011
+          },
+          "unchanged": {
+            "A": 1.047620303275,
+            "B": 1.0960615217750003,
+            "B_over_A": 1.0462392895102992
+          },
+          "private_edit": {
+            "A": 1.0498463839,
+            "B": 1.03906594665,
+            "B_over_A": 0.9897314145999603
+          },
+          "public_edit": {
+            "A": 1.0300000719,
+            "B": 1.04155820755,
+            "B_over_A": 1.0112214901390049
+          }
+        }
+      },
+      "cpu": {
+        "A": 1.0486586687499997,
+        "B": 1.0633075262499998,
+        "B_over_A": 1.0139691378486972,
+        "by_case": {
+          "tree4x2": {
+            "A": 0.0629303,
+            "B": 0.06439917499999999,
+            "B_over_A": 1.0233412998190061
+          },
+          "tree32x8": {
+            "A": 0.119419075,
+            "B": 0.11767834999999999,
+            "B_over_A": 0.9854233923684301
+          },
+          "tree256x8": {
+            "A": 0.6299563749999999,
+            "B": 0.6220470499999999,
+            "B_over_A": 0.9874446464646064
+          },
+          "tree1024x8": {
+            "A": 2.75619895,
+            "B": 2.8143331,
+            "B_over_A": 1.0210921457611033
+          },
+          "retained": {
+            "A": 0.058763475,
+            "B": 0.05760885,
+            "B_over_A": 0.9803513151664363
+          }
+        },
+        "by_request": {
+          "cold_process": {
+            "A": 1.1055096749999997,
+            "B": 1.116720875,
+            "B_over_A": 1.0101412047795966
+          },
+          "unchanged": {
+            "A": 1.045204225,
+            "B": 1.0918445,
+            "B_over_A": 1.0446231213808959
+          },
+          "private_edit": {
+            "A": 1.0462524500000001,
+            "B": 1.034616025,
+            "B_over_A": 0.9888779949810391
+          },
+          "public_edit": {
+            "A": 1.0252349499999998,
+            "B": 1.0376230249999998,
+            "B_over_A": 1.0120831571338844
+          }
+        }
+      },
+      "exploratory_paired_block_bootstrap95": [
+        0.9893483348694224,
+        1.0877609290181083
+      ],
+      "by_case_request": {
+        "tree4x2/cold_process": {
+          "A": 0.070509493,
+          "B": 0.0754717595,
+          "B_over_A": 1.070377282389479
+        },
+        "tree4x2/unchanged": {
+          "A": 0.069093053,
+          "B": 0.0721535985,
+          "B_over_A": 1.0442959945625792
+        },
+        "tree4x2/private_edit": {
+          "A": 0.0664457755,
+          "B": 0.067538883,
+          "B_over_A": 1.0164511211100244
+        },
+        "tree4x2/public_edit": {
+          "A": 0.0697568745,
+          "B": 0.063529032,
+          "B_over_A": 0.9107207347714525
+        },
+        "tree32x8/cold_process": {
+          "A": 0.142325305,
+          "B": 0.13661643950000002,
+          "B_over_A": 0.9598886122183262
+        },
+        "tree32x8/unchanged": {
+          "A": 0.1250445705,
+          "B": 0.12040895500000001,
+          "B_over_A": 0.9629282944356229
+        },
+        "tree32x8/private_edit": {
+          "A": 0.1194249845,
+          "B": 0.12235990399999999,
+          "B_over_A": 1.0245754229090982
+        },
+        "tree32x8/public_edit": {
+          "A": 0.1210253915,
+          "B": 0.114020066,
+          "B_over_A": 0.9421168945361355
+        },
+        "tree256x8/cold_process": {
+          "A": 0.756621597,
+          "B": 0.8892949290000001,
+          "B_over_A": 1.1753496497140037
+        },
+        "tree256x8/unchanged": {
+          "A": 0.5987760325,
+          "B": 0.6160105410000001,
+          "B_over_A": 1.028782896382881
+        },
+        "tree256x8/private_edit": {
+          "A": 0.6541882055,
+          "B": 0.6425426945,
+          "B_over_A": 0.9821985310922883
+        },
+        "tree256x8/public_edit": {
+          "A": 0.6483001509999999,
+          "B": 0.5839195545,
+          "B_over_A": 0.9006932261226638
+        },
+        "tree1024x8/cold_process": {
+          "A": 3.3835628905,
+          "B": 3.385324484,
+          "B_over_A": 1.0005206327049354
+        },
+        "tree1024x8/unchanged": {
+          "A": 2.780272066,
+          "B": 2.9259439680000003,
+          "B_over_A": 1.0523948371029672
+        },
+        "tree1024x8/private_edit": {
+          "A": 2.731413769,
+          "B": 2.7074880955,
+          "B_over_A": 0.9912405532360045
+        },
+        "tree1024x8/public_edit": {
+          "A": 2.6720575085,
+          "B": 2.779906075,
+          "B_over_A": 1.0403616187738947
+        },
+        "retained/cold_process": {
+          "A": 0.0581867415,
+          "B": 0.062316222000000004,
+          "B_over_A": 1.0709694406929455
+        },
+        "retained/unchanged": {
+          "A": 0.0584726775,
+          "B": 0.059030729500000004,
+          "B_over_A": 1.0095438078750543
+        },
+        "retained/private_edit": {
+          "A": 0.0646487755,
+          "B": 0.0616288995,
+          "B_over_A": 0.9532879628942081
+        },
+        "retained/public_edit": {
+          "A": 0.061255608,
+          "B": 0.060655286,
+          "B_over_A": 0.9901997217952682
+        }
+      },
+      "same_binary_for_each_case_snapshot": false
+    }
+  },
+  "verdict": "ExploratoryComplete_NotAProductGate",
+  "bootstrap_rule": "Resample whole paired blocks; descriptive/exploratory 95% interval, shared host, 3 or 5 blocks"
+}

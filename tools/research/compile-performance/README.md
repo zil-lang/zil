@@ -45,3 +45,53 @@ python3 tools/research/compile-performance/test_bench.py
 ```
 
 这些控制使用人工时间和模拟执行失败，只检验统计、拒绝评分和日志保留；不是 ZIL 编译/性能证据。
+
+## CP04：独立的原生运行质量对照
+
+`runtime_bench.py` 单独回答编译产物的运行质量，四步为 prepare、build、measure、summarize。它继承已冻结 CP01 计划的五个 **base ZIL 源码**，逐文件校验后复制；复用并冻结 210 的 `tree_expected` 和 retained 独立 Python reference。它不修改 `bench.py` 的编译性能口径。
+
+输入长度在看到双方运行结果之前固定。四个人工树的每次执行各调用 8,388,608 次生成的标量函数，另有模块、循环、effect 和标准输入输出调用；这是源码计数，不能当作实测指令数或耗时。retained 仍运行实际消费者语料。
+
+| 语料 | 每次输入字节 | 权重 |
+| --- | ---: | ---: |
+| tree4x2 | 1,048,576 | 5% |
+| tree32x8 | 32,768 | 15% |
+| tree256x8 | 4,096 | 30% |
+| tree1024x8 | 1,024 | 30% |
+| retained | 262,144 | 20% |
+
+build 用双方冻结编译器各生成五个可执行文件，明确 O0、LLVM API、1 CGU、1 worker，不启用对象缓存和阶段计时。该步骤保留编译过程收据，但编译耗时不进入运行质量分数。每个可执行文件先跑一次空输入启动诊断，再跑一次完整输入正确性/预热；这 20 次预检也不进入正式样本。空输入耗时单列，不从正式时间中扣除，不用于删除样本。
+
+默认五个 ABBA/BAAB 配对区块，每个区块随机排列五语料，合计 **100 次正式原生执行**；`--blocks 3` 仅供另立计划时选择。每次使用同一个固定 CPU，stdin/stdout/stderr 均连接文件；完整进程 wall 与 wait4 CPU 包括启动、运行及标准输入输出。输出必须逐字符合独立 oracle、stderr 为空、退出码为零，且输入和可执行文件运行前后身份一致。超时杀死该进程组，失败行和已有输出保留；不会用成功重试替换失败。
+
+汇总先平均同一区块、同一语料、同一臂的两次观察，再取区块中位数，以表中权重合并绝对耗时，最后计算 B/A。原始大值仍保留并参与配对 bootstrap 重采样；不筛选离群值。CPU 与 wall 分列，whole-block bootstrap 区间只作探索性描述。输入长度、I/O 占比和共享宿主限制了结论范围；这是固定工作负载的运行质量检查，不能据此宣称全部应用更快，也不能替代产品门或 Rust 对照。
+
+```sh
+python3 tools/research/compile-performance/runtime_bench.py prepare \
+  --out /tmp/zil-runtime-plan --corpus-plan /path/to/cp01-plan/plan.json \
+  --baseline /path/to/zil-cp02 --candidate /path/to/zil-cp04 \
+  --baseline-source 9614aac90ee58359fef05da4dcfe92011b7c91c2 \
+  --candidate-source CANDIDATE_SHA \
+  --clang /path/to/clang --tool /path/to/libLLVM.so \
+  --cpu CPU_ID --blocks 5
+
+python3 tools/research/compile-performance/runtime_bench.py build \
+  --plan /tmp/zil-runtime-plan/plan.json --out /tmp/zil-runtime-build
+
+python3 tools/research/compile-performance/runtime_bench.py measure \
+  --plan /tmp/zil-runtime-plan/plan.json \
+  --build-receipt /tmp/zil-runtime-build/result.json \
+  --out /tmp/zil-runtime-measure --quiet-window
+
+python3 tools/research/compile-performance/runtime_bench.py summarize \
+  --plan /tmp/zil-runtime-plan/plan.json \
+  --build-receipt /tmp/zil-runtime-build/result.json \
+  --records /tmp/zil-runtime-measure/records.jsonl \
+  --out /tmp/zil-runtime-summary.json
+
+python3 tools/research/compile-performance/test_runtime_bench.py
+```
+
+先提交工具，再 prepare。没有可评分的候选时不得预填通过状态。measure 的 `--quiet-window` 表示协调者已停止并发编译/测试；工具无法保证共享宿主独占。任一构建/预检失败、日志或身份漂移、正式行失败、缺行或完成收据不匹配，均拒绝评分。计划修订和重跑使用新目录，保留旧失败记录。
+
+保存冻结源、输入、oracle、10 个可执行文件、构建/运行收据和所有完整 stdout/stderr。构建生成的 `.ll` 仅在成功获取哈希后删除，不清理其它目录；默认正式 stdout 总量约 27 MB。完成校验后可以无损压缩原始日志，复核前应解压恢复同名内容。工具测试以小输入、模拟编译/执行与人工时间覆盖冻结、oracle 拒绝、身份漂移、超时、完整性、配对统计，以及编译/启动成本不混入正式运行评分；另用两个微型进程检查文件收发和进程组超时回收。它们不是新的性能实验。

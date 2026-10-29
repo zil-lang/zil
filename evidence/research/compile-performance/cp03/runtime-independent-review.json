@@ -1,0 +1,27 @@
+{
+  "component": "runtime_bench.py",
+  "author_commit": "56b021feecbceda48f1fc16125a29078d844f654",
+  "integrated_local_commit": "b00f17129",
+  "author": "/root/compiler_research",
+  "reviewer": "/root",
+  "scope": "Complete source review of preparation, compiler-free native timing, freeze and failure checks, aggregation and CLI; independent execution of synthetic controls.",
+  "verdict": "Pass",
+  "test": {
+    "argv": ["python", "tools/research/compile-performance/test_runtime_bench.py"],
+    "cwd": "/workspace/scratch/037bacfed72a/zil",
+    "exit_code": 0,
+    "passed": 14,
+    "failed": 0,
+    "reported_seconds": 0.244
+  },
+  "checks": [
+    "All five base sources are checked against the original frozen corpus before copying; fixed longer inputs and independent expected outputs are frozen before build.",
+    "Build, empty-input startup diagnostic and long-input preflight are distinct from formal native timing; no startup subtraction occurs.",
+    "Measure executes only frozen native programs with fixed single-CPU affinity, captures full process wall and wait4 CPU, and preserves timeout outputs.",
+    "Plan, executable, input and raw logs are checked; missing rows, hash drift or unsuccessful behavior suppress all aggregate scores.",
+    "Paired arm means, across-block medians and weighted absolute costs are applied in the declared order; whole blocks are jointly resampled.",
+    "Summary reports every case, startup fraction and executable size; it does not drop regressions."
+  ],
+  "actual_data_review": "CP04 raw runtime data and arithmetic were separately audited by /root/backend_audit, who did not author this tool. See cp04/independent-runtime-arithmetic.json.",
+  "limits": ["Control tests are not compiler performance samples.", "Five-case exploratory runtime quality does not establish full product acceptance."]
+}

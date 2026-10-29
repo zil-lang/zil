@@ -1,0 +1,40 @@
+[
+  {
+    "argv": [
+      "python",
+      "/workspace/scratch/037bacfed72a/run-tool.py",
+      "python",
+      "tools/research/compile-performance/bench.py",
+      "measure",
+      "--plan",
+      "/workspace/scratch/037bacfed72a/runs/cp04-plan/plan.json",
+      "--preflight",
+      "/workspace/scratch/037bacfed72a/runs/cp04-preflight/result.json",
+      "--out",
+      "/workspace/scratch/037bacfed72a/runs/cp04-measure",
+      "--quiet-window"
+    ],
+    "started_at": "2026-10-29T15:31:31.190105+00:00",
+    "ended_at": "2026-10-29T15:34:56.489259+00:00",
+    "exit": 0
+  },
+  {
+    "argv": [
+      "python",
+      "/workspace/scratch/037bacfed72a/run-tool.py",
+      "python",
+      "tools/research/compile-performance/runtime_bench.py",
+      "measure",
+      "--plan",
+      "/workspace/scratch/037bacfed72a/runs/cp04-runtime-plan/plan.json",
+      "--build-receipt",
+      "/workspace/scratch/037bacfed72a/runs/cp04-runtime-build/result.json",
+      "--out",
+      "/workspace/scratch/037bacfed72a/runs/cp04-runtime-measure",
+      "--quiet-window"
+    ],
+    "started_at": "2026-10-29T15:34:56.489635+00:00",
+    "ended_at": "2026-10-29T15:35:04.086722+00:00",
+    "exit": 0
+  }
+]
