@@ -1,0 +1,97 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-214/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-214/crates/zil-driver)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.58s
+     Running tests/impl077_package_captures.rs (/workspace/scratch/3cf12ce32e36/targets/214/debug/deps/impl077_package_captures-9d185fead1da06e2)
+
+running 11 tests
+test captures077_factory_owns_package_and_shared_calls_do_not_copy_it ... ok
+test captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut ... ok
+test captures077_analyze_rebuilds_binding_and_activation_boundaries ... ok
+test captures077_repeatable_restoration_is_a_return_obligation_not_a_trap_obligation ... ok
+test captures077_error_edges_choose_once_only_when_responsibility_is_missing ... ok
+test captures077_nearest_source_rejections_do_not_weaken_other_modes ... ok
+test captures077_copy_payload_and_descriptor_helper_writes_are_fnmut ... ok
+captures077 types work boundary: 1175 Pass; 1174 ResourceLimit
+test captures077_partial_whole_and_early_return_use_once ... ok
+test captures077_refill_after_take_and_conditional_take_is_repeatable ... ok
+test captures077_loop_break_continue_and_lexical_shadowing_preserve_slots ... ok
+captures077 analyze work boundary: 19297 Pass; 19296 ResourceLimit
+test captures077_type_and_analyze_work_limits_fail_closed_at_exact_boundary ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/impl204_source.rs (/workspace/scratch/3cf12ce32e36/targets/214/debug/deps/impl204_source-9b5aff272de02708)
+
+running 20 tests
+test direct_child_environment_transmits_only_the_new_result_restriction ... ok
+test nested_body_give_preserves_the_actual_package_transfer ... ok
+test direct_store_lending_result_does_not_escape_the_new_profile ... ok
+test actual_direct_give_infers_creation_time_ownership ... ok
+test original_complete_package_control_reaches_types ... ok
+test original_direct_store_capture_reaches_types ... ok
+test leaf_callback_exclusion_does_not_reclose_plain_stores_or_copy_companions ... ok
+test ordinary_description_and_readonly_package_do_not_gain_ownership ... ok
+test original_mutating_store_capture_reaches_types ... ok
+test original_package_store_capture_reaches_types ... ok
+test actual_package_field_give_and_whole_value_infer_ownership ... ok
+test package_ownership_and_nested_creation_cross_independent_verify ... ok
+test uncalled_factory_without_store_operations_keeps_exact_canonical_metadata ... ok
+test creation_time_transfer_keeps_the_existing_element_parent_window ... ok
+test body_take_keeps_the_existing_capture_element_parent_window ... ok
+test old_lending_sibling_remains_local_inside_a_new_store_callback ... ok
+test package_capture_whole_transfer_respects_element_windows ... ok
+test package_capture_field_windows_keep_sibling_independence ... ok
+test original_sources_complete_verify_and_native ... ok
+test once_take_and_package_sibling_cleanup_execute ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s
+
+     Running tests/impl205_source.rs (/workspace/scratch/3cf12ce32e36/targets/214/debug/deps/impl205_source-a9b70ddcc4d13432)
+
+running 16 tests
+test boundary_different_factories_cannot_overwrite_the_first_argument_constraint ... ok
+test legacy_single_state_lending_remains_legal_for_two_distinct_fields ... ok
+test legacy_single_state_shared_owners_keep_sibling_exclusive_windows ... ok
+test original_138_bytes_verify_as_an_unused_definition ... ok
+test legacy_single_state_without_aliases_keeps_each_once_field_independent ... ok
+test boundary_argument_failure_cleans_only_values_prepared_in_actual_order ... ok
+test refreshed_loop_alias_crosses_expand_and_types_without_changing_its_definition ... ok
+test boundary_concrete_rhs_error_after_replacement_keeps_all_owner_cleanup ... ok
+test boundary_return_before_replacement_preserves_the_original_complete_state ... ok
+test boundary_arguments_evaluate_once_before_replacing_the_old_field ... ok
+test refreshed_loop_alias_executes_zero_one_and_three_iterations ... ok
+test structural_copy_is_copied_to_a_new_temporary_before_transfer ... ok
+test three_positions_move_independently_after_a_field_gets_a_new_owner ... ok
+test declared_once_consumes_the_old_field_then_refills_it ... ok
+test mutable_fields_and_copy_data_keep_their_single_f_nominal_instance ... ok
+test shared_fields_replace_one_environment_in_both_parameter_orders ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s
+
+     Running tests/impl214_source.rs (/workspace/scratch/3cf12ce32e36/targets/214/debug/deps/impl214_source-86da7bf93c363b49)
+
+running 20 tests
+test default_whole_and_child_uses_capture_ownership_at_creation ... ok
+test conditional_child_take_records_all_exits ... ok
+test new_capture_does_not_make_product_a_store_element ... ok
+test child_partial_local_refill_is_ordinary_complete_transfer ... ok
+test explicit_owned_read_is_repeatable_fn ... ok
+test nested_default_consumer_transfers_the_outer_product ... ok
+test complete_child_refill_keeps_fnmut ... ok
+test factory_accepts_complete_product_inputs_and_cleanup ... ok
+test a_product_environment_can_enter_state_and_outer_callback_store ... ok
+test source_declared_fn_cannot_hide_child_consumption ... ok
+test original206_child_take_is_once_and_keeps_its_source_bytes ... ok
+test old_flat_and_new_product_readonly_defaults_remain_closed ... ok
+test replacement_without_missing_exit_keeps_fnmut ... ok
+test same_type_siblings_and_three_levels_remain_actual_distinct_values ... ok
+test shadowed_nested_names_do_not_steal_outer_responsibility ... ok
+test try_after_complete_refill_keeps_fnmut_on_the_error_exit ... ok
+test unchanged_flat_types_budget_still_accepts_exact_418 ... ok
+test try_before_refill_requires_once_even_when_success_restores ... ok
+test while_break_and_continue_restore_the_child ... ok
+214 Product capture Types boundary: 1006
+test new_product_capture_has_exact_recoverable_work_boundary ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

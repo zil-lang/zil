@@ -1,0 +1,32 @@
+   Compiling zil-types v0.1.0 (/workspace/scratch/3cf12ce32e36/zil-214/crates/zil-types)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.13s
+     Running unittests src/lib.rs (/workspace/scratch/3cf12ce32e36/targets/214/debug/deps/zil_types-a54470832ded7f32)
+
+running 18 tests
+test names::tests::local_self_cannot_shadow_receiver ... ok
+test names::tests::leading_dot_does_not_fallback_to_other_names ... ok
+test resource_effects::worklist_tests::disabled_dependency_collection_is_zero_sized ... ok
+test helpers::plan::result_shape_tests::binding_a_whole_union_preserves_both_sides_and_try_selects_only_success ... ok
+test resource_effects::worklist_tests::empty_worklist_and_seedless_cycles_have_no_effects ... ok
+test resource_effects::worklist_tests::direct_byte_primitives_foreign_and_unknown_calls_remain_seeds ... ok
+test resource_effects::worklist_tests::shadowed_calls_remain_conservative_and_imports_register_real_ids ... ok
+test tests::minimum_signed_integer_supported ... ok
+test tests::scalar_arithmetic_builds_cfg ... ok
+test tests::unknown_name_rejected ... ok
+test tests::wrong_return_type_rejected ... ok
+test resource_effects::worklist_tests::every_two_node_transfer_and_summary_assignment_matches_local_relation ... ok
+test resource_effects::worklist_tests::every_current_core_variant_preserves_origin_support_and_transfer ... ok
+test resource_effects::worklist_tests::worklist_every_failure_prefix_and_recovery ... ok
+test resource_effects::worklist_tests::small_dispatch_preserves_every_old_budget_boundary ... ok
+test resource_effects::worklist_tests::exhaustive_three_node_graphs_and_seeds_match_sweeps ... ok
+test resource_effects::worklist_tests::larger_mixed_graphs_and_function_order_permutations_match ... ok
+test resource_effects::worklist_tests::forward_and_reverse_chain_growth_is_measured_without_time_claims ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.10s
+
+   Doc-tests zil_types
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
