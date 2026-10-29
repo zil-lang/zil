@@ -1,7 +1,9 @@
-//! A local flat capture must not acquire the ordinary Product profile through
-//! the raw entry. This oracle follows the frozen 206 capture exclusion.
+//! Frozen206 source-derived raw fixture migrated by214-216: complete finite
+//! Product capture is now an admitted profile. Source bytes, coordinated type
+//! replacement, field indices, Bind/End, and original plan remain unchanged.
+//! Historical206 rejection evidence is retained in evidence/integration/216.
 use std::{fs, path::PathBuf};
-use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
+use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::*;
 
 const CONTROL: &str = "resource R{n:i32}\npackage Leaf{manages a:R;n:i32}\nfn local_capture(p:Leaf)->i32{let f=move()=>p.n;return f()}\nfn main(){}\n";
@@ -30,13 +32,7 @@ impl Drop for Records {
     }
 }
 
-fn pair(
-    records: &Records,
-    label: &str,
-    typed: &TypedModule,
-    candidate: &CandidatePlan,
-    accept: bool,
-) {
+fn pair(records: &Records, label: &str, typed: &TypedModule, candidate: &CandidatePlan) {
     let limits = Limits::default();
     records.write(&format!("{label}.typed.txt"), format!("{typed:#?}"));
     records.write(&format!("{label}.candidate.txt"), format!("{candidate:#?}"));
@@ -54,26 +50,14 @@ fn pair(
         format!("raw={raw:#?}\nwire={bytes:#?}"),
     );
     for result in [raw, bytes] {
-        if accept {
-            result.unwrap();
-        } else {
-            let errors = result.expect_err("206 ordinary Product capture must remain closed");
-            assert!(errors.iter().all(|e| e.code != "E-VERIFY-PLAN-IDENTITY"));
-            assert!(errors.iter().any(|e| e.phase == Phase::Verify
-                && e.category == ResultCategory::Unsupported
-                && e.code == "E-UNSUPPORTED"
-                && e.message == "non-Copy type requires another checker"));
-            assert!(
-                errors
-                    .iter()
-                    .all(|e| e.category != ResultCategory::ResourceLimit)
-            );
-        }
+        let verified = result.unwrap();
+        let lir = zil_lower::lower(&verified).unwrap();
+        zil_backend_llvm::emit(&verified, &lir).unwrap();
     }
 }
 
 #[test]
-fn raw_local_flat_capture_cannot_be_coordinately_retyped_as_product() {
+fn frozen206_coordinated_product_capture_is_admitted_after_216() {
     let records = Records::new();
     records.write("control.zil", CONTROL);
     let source = SourceUnit::new(FileId(0), ModuleId(0), "capture206.zil", CONTROL);
@@ -100,7 +84,7 @@ fn raw_local_flat_capture_cannot_be_coordinately_retyped_as_product() {
     let candidate = zil_analyze::analyze(&original, &Limits::default());
     records.write("control.analyze.txt", format!("{candidate:#?}"));
     let mut candidate = candidate.unwrap();
-    pair(&records, "control", &original, &candidate, true);
+    pair(&records, "control", &original, &candidate);
 
     let leaf = original.closures[0].captures[0].clone();
     let Type::Package { fields, .. } = &leaf else {
@@ -148,12 +132,7 @@ fn raw_local_flat_capture_cannot_be_coordinately_retyped_as_product() {
     );
     let analyze = zil_analyze::analyze(&changed, &Limits::default());
     records.write("product.analyze.txt", format!("{analyze:#?}"));
-    let errors = analyze.unwrap_err();
-    assert!(
-        errors
-            .iter()
-            .any(|e| e.phase == Phase::Analyze && e.category == ResultCategory::Unsupported)
-    );
+    analyze.unwrap();
     candidate.module_fingerprint = changed.fingerprint();
-    pair(&records, "product", &changed, &candidate, false);
+    pair(&records, "product", &changed, &candidate);
 }
