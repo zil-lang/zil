@@ -22,7 +22,7 @@ fn real_elf_object_in_both_modes() {
         )
         .unwrap();
         assert!(o.bytes.starts_with(b"\x7fELF"));
-        assert_eq!(o.receipt.llvm_version, "17.0.6");
+        assert_eq!(o.receipt.llvm_version, zil_llvm_api::LLVM_VERSION);
         assert!(o.receipt.verify_before_after);
         assert!(o.receipt.data_layout.starts_with('e'));
         assert_eq!(o.receipt.cpu, "x86-64");

@@ -30,10 +30,12 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y clang-17 libllvm17t64 lld-17
-          echo "ZIL_CLANG=/usr/bin/clang-17" >> "$GITHUB_ENV"
-          echo "ZIL_LLVM_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> "$GITHUB_ENV"
-          echo "LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> "$GITHUB_ENV"
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/llvm-23.1.4"
+          echo "ZIL_CLANG=$RUNNER_TEMP/llvm-23.1.4/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/llvm-23.1.4/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/llvm-23.1.4/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/llvm-23.1.4/bin" >> "$GITHUB_PATH"
       - name: Record exact checkout and restorable source history
         shell: bash
         run: |
@@ -49,6 +51,7 @@ jobs:
           rustc -vV > "$RUNNER_TEMP/receipts/toolchain.txt"
           "$ZIL_CLANG" --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
           python3 tools/llvm/check_toolchain.py > "$RUNNER_TEMP/receipts/llvm-api-toolchain.json"
+          cp "$RUNNER_TEMP/llvm-23.1.4/install-receipt.json" "$RUNNER_TEMP/receipts/llvm-install.json"
       - name: Formatting
         shell: bash
         run: |
@@ -218,11 +221,21 @@ jobs:
         run: |
           set -euo pipefail
           cargo clippy --locked --workspace --all-targets -- -D warnings 2>&1 | tee "$RUNNER_TEMP/receipts/clippy.log"
+      - name: Explicit LLVM text-reference boundary
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked -p zil-llvm-api --features text-reference 2>&1 | tee "$RUNNER_TEMP/receipts/text-reference.log"
+          python3 tools/llvm/test_validate_migration.py 2>&1 | tee "$RUNNER_TEMP/receipts/migration-runner.log"
       - name: Small recovery artifact, never target caches
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: zil-main-${{ github.run_id }}-${{ github.run_attempt }}-final
-          path: ${{ runner.temp }}/receipts/
+          path: |
+            ${{ runner.temp }}/receipts/
+            ${{ runner.temp }}/llvm-23.1.4/install-receipt.json
+            ${{ runner.temp }}/llvm-23.1.4/installation-logs/
           retention-days: 30
           if-no-files-found: error
